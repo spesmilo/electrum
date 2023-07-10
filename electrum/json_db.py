@@ -25,9 +25,14 @@
 import threading
 import copy
 import json
+from typing import TYPE_CHECKING
 
 from . import util
+from .util import WalletFileException
 from .logging import Logger
+
+if TYPE_CHECKING:
+    from .storage import WalletStorage
 
 JsonDBJsonEncoder = util.MyEncoder
 
@@ -50,6 +55,17 @@ registered_dicts = {}
 registered_dict_keys = {}
 registered_parent_keys = {}
 
+def register_dict(name, method, _type):
+    registered_dicts[name] = method, _type
+
+def register_name(name, method, _type):
+    registered_names[name] = method, _type
+
+def register_dict_key(name, method):
+    registered_dict_keys[name] = method
+
+def register_parent_key(name, method):
+    registered_parent_keys[name] = method
 
 def stored_as(name, _type=dict):
     """ decorator that indicates the storage key of a stored object"""
@@ -155,8 +171,20 @@ class JsonDB(Logger):
     def __init__(self, data):
         Logger.__init__(self)
         self.lock = threading.RLock()
-        self.data = data
         self._modified = False
+        # load data
+        if data:
+            self.load_data(data)
+        else:
+            self.data = {}
+
+    def load_data(self, s):
+        try:
+            self.data = json.loads(s)
+        except Exception:
+            raise WalletFileException("Cannot read wallet file. (parsing failed)")
+        if not isinstance(self.data, dict):
+            raise WalletFileException("Malformed wallet file (not dict)")
 
     def set_modified(self, b):
         with self.lock:
@@ -212,18 +240,6 @@ class JsonDB(Logger):
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
 
-    def register_dict(self, name, method, _type):
-        registered_dicts[name] = method, _type
-
-    def register_name(self, name, method, _type):
-        registered_names[name] = method, _type
-
-    def register_dict_key(self, name, method):
-        registered_dict_keys[name] = method
-
-    def register_parent_key(self, name, method):
-        registered_parent_keys[name] = method
-
     def _convert_dict(self, path, key, v):
         if key in registered_dicts:
             constructor, _type = registered_dicts[key]
@@ -251,3 +267,18 @@ class JsonDB(Logger):
             else:
                 v = constructor(v)
         return v
+
+    def write(self, storage: 'WalletStorage'):
+        with self.lock:
+            self._write(storage)
+
+    def _write(self, storage: 'WalletStorage'):
+        if threading.current_thread().daemon:
+            self.logger.warning('daemon thread cannot write db')
+            return
+        if not self.modified():
+            return
+        json_str = self.dump(human_readable=not storage.is_encrypted())
+        storage.write(json_str)
+        self.set_modified(False)
+

@@ -12,6 +12,7 @@ ElDialog {
     property string text_qr
     // if text_qr is undefined text will be used
     property string text_help
+    property int helpTextIconStyle: InfoTextArea.IconStyle.Info
 
     title: ''
 
@@ -65,6 +66,7 @@ ElDialog {
                 InfoTextArea {
                     Layout.leftMargin: constants.paddingMedium
                     Layout.rightMargin: constants.paddingMedium
+                    iconStyle: helpTextIconStyle
                     visible: dialog.text_help
                     text: dialog.text_help
                     Layout.fillWidth: true

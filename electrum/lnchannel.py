@@ -532,7 +532,7 @@ class ChannelBackup(AbstractChannel):
     def is_backup(self):
         return True
 
-    def get_remote_alias(self) -> Optional[bytes]:
+    def get_remote_scid_alias(self) -> Optional[bytes]:
         return None
 
     def create_sweeptxs_for_their_ctx(self, ctx):
@@ -640,15 +640,27 @@ class Channel(AbstractChannel):
         self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
-    def get_local_alias(self) -> bytes:
-        # deterministic, same secrecy level as wallet master pubkey
-        wallet_fingerprint = bytes(self.lnworker.wallet.get_fingerprint(), "utf8")
-        return sha256(wallet_fingerprint + self.channel_id)[0:8]
+    def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
+        """Get scid_alias to be used for *outgoing* HTLCs.
+        (called local as we choose the value)
+        """
+        if alias := self.storage.get('local_scid_alias'):
+            return bytes.fromhex(alias)
+        elif create_new_if_needed:
+            # deterministic, same secrecy level as wallet master pubkey
+            wallet_fingerprint = bytes(self.lnworker.wallet.get_fingerprint(), "utf8")
+            alias = sha256(wallet_fingerprint + self.channel_id)[0:8]
+            self.storage['local_scid_alias'] = alias.hex()
+            return alias
+        return None
 
-    def save_remote_alias(self, alias: bytes):
+    def save_remote_scid_alias(self, alias: bytes):
         self.storage['alias'] = alias.hex()
 
-    def get_remote_alias(self) -> Optional[bytes]:
+    def get_remote_scid_alias(self) -> Optional[bytes]:
+        """Get scid_alias to be used for *incoming* HTLCs.
+        (called remote as the remote chooses the value)
+        """
         alias = self.storage.get('alias')
         return bytes.fromhex(alias) if alias else None
 
@@ -697,6 +709,7 @@ class Channel(AbstractChannel):
         This message contains info we need to populate private route hints when
         creating invoices.
         """
+        assert payload['short_channel_id'] in [self.short_channel_id, self.get_local_scid_alias()]
         from .channel_db import ChannelDB
         ChannelDB.verify_channel_update(payload, start_node=self.node_id)
         raw = payload['raw']
@@ -719,11 +732,16 @@ class Channel(AbstractChannel):
             net_addr = NetAddress.from_string(net_addr_str)
             yield LNPeerAddr(host=str(net_addr.host), port=net_addr.port, pubkey=self.node_id)
 
-    def get_outgoing_gossip_channel_update(self) -> bytes:
-        if self._outgoing_channel_update is not None:
+    def get_outgoing_gossip_channel_update(self, *, scid: ShortChannelID = None) -> bytes:
+        """
+        scid: to be put into the channel_update message instead of the real scid, as this might be an scid alias
+        """
+        if self._outgoing_channel_update is not None and scid is None:
             return self._outgoing_channel_update
         if not self.lnworker:
             raise Exception('lnworker not set for channel!')
+        if scid is None:
+            scid = self.short_channel_id
         sorted_node_ids = list(sorted([self.node_id, self.get_local_pubkey()]))
         channel_flags = b'\x00' if sorted_node_ids[0] == self.get_local_pubkey() else b'\x01'
         now = int(time.time())
@@ -731,7 +749,7 @@ class Channel(AbstractChannel):
 
         chan_upd = encode_msg(
             "channel_update",
-            short_channel_id=self.short_channel_id,
+            short_channel_id=scid,
             channel_flags=channel_flags,
             message_flags=b'\x01',
             cltv_expiry_delta=self.forwarding_cltv_expiry_delta,

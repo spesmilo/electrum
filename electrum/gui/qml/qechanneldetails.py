@@ -1,4 +1,3 @@
-import asyncio
 import threading
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
@@ -9,11 +8,13 @@ from electrum.logging import get_logger
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.lnchannel import ChanCloseOption, ChannelState
 
+from .auth import AuthMixin, auth_protect
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener, event_listener
+from .util import QtEventListener, event_listener
 
-class QEChannelDetails(QObject, QtEventListener):
+
+class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     class State: # subset, only ones we currently need in UI
@@ -25,6 +26,7 @@ class QEChannelDetails(QObject, QtEventListener):
     channelChanged = pyqtSignal()
     channelCloseSuccess = pyqtSignal()
     channelCloseFailed = pyqtSignal([str], arguments=['message'])
+    isClosingChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,6 +40,7 @@ class QEChannelDetails(QObject, QtEventListener):
         self._remote_capacity = QEAmount()
         self._can_receive = QEAmount()
         self._can_send = QEAmount()
+        self._is_closing = False
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -171,12 +174,31 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.can_be_deleted()
 
     @pyqtProperty(str, notify=channelChanged)
-    def messageForceClose(self, notify=channelChanged):
+    def messageForceClose(self):
         return messages.MSG_REQUEST_FORCE_CLOSE.strip()
+
+    @pyqtProperty(str, notify=channelChanged)
+    def messageForceCloseBackup(self):
+        return ' '.join([
+            _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(self.toSelfDelay),
+            _('During that time, funds will not be recoverable from your seed, and may be lost if you lose your device.'),
+            _('To prevent that, please save this channel backup.'),
+            _('It may be imported in another wallet with the same seed.')
+        ])
 
     @pyqtProperty(bool, notify=channelChanged)
     def isBackup(self):
         return self._channel.is_backup()
+
+    @pyqtProperty(int, notify=channelChanged)
+    def toSelfDelay(self):
+        return self._channel.config[REMOTE].to_self_delay
+
+    @pyqtProperty(bool, notify=isClosingChanged)
+    def isClosing(self):
+        # Note: isClosing only applies to a closing action started by this instance, not
+        # whether the channel is closing
+        return self._is_closing
 
     @pyqtSlot()
     def freezeForSending(self):
@@ -198,19 +220,30 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtSlot(str)
     def closeChannel(self, closetype):
+        self.do_close_channel(closetype)
+
+    @auth_protect(message=_('Close Lightning channel?'))
+    def do_close_channel(self, closetype):
         channel_id = self._channel.channel_id
+
         def do_close():
             try:
+                self._is_closing = True
+                self.isClosingChanged.emit()
                 if closetype == 'remote_force':
                     self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.request_force_close(channel_id))
                 elif closetype == 'local_force':
                     self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.force_close_channel(channel_id))
                 else:
                     self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.close_channel(channel_id))
+                self._logger.debug('Channel close successful')
                 self.channelCloseSuccess.emit()
             except Exception as e:
                 self._logger.exception("Could not close channel: " + repr(e))
                 self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
+            finally:
+                self._is_closing = False
+                self.isClosingChanged.emit()
 
         threading.Thread(target=do_close, daemon=True).start()
 

@@ -385,7 +385,7 @@ class Peer(Logger):
         if not self.channels:
             return
         for chan in self.channels.values():
-            if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_alias()]:
+            if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_scid_alias()]:
                 chan.set_remote_update(payload)
                 self.logger.info(f"saved remote channel_update gossip msg for chan {chan.get_id_for_log()}")
                 break
@@ -1272,7 +1272,10 @@ class Peer(Logger):
             resend_revoke_and_ack()
 
         chan.peer_state = PeerState.GOOD
+        chan_just_became_ready = False
         if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
+            chan_just_became_ready = True
+        if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             self.send_channel_ready(chan)
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
@@ -1289,11 +1292,11 @@ class Peer(Logger):
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
 
         channel_ready_tlvs = {}
-        if self.their_features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
+        if self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             # LND requires that we send an alias if the option has been negotiated in INIT.
             # otherwise, the channel will not be marked as active.
             # This does not apply if the channel was previously marked active without an alias.
-            channel_ready_tlvs['short_channel_id'] = {'alias':chan.get_local_alias()}
+            channel_ready_tlvs['short_channel_id'] = {'alias': chan.get_local_scid_alias(create_new_if_needed=True)}
 
         # note: if 'channel_ready' was not yet received, we might send it multiple times
         self.send_message(
@@ -1309,7 +1312,7 @@ class Peer(Logger):
         # save remote alias for use in invoices
         scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
         if scid_alias:
-            chan.save_remote_alias(scid_alias)
+            chan.save_remote_scid_alias(scid_alias)
 
         if not chan.config[LOCAL].funding_locked_received:
             their_next_point = payload["second_per_commitment_point"]
@@ -1438,7 +1441,7 @@ class Peer(Logger):
             total_msat: int,
             payment_hash: bytes,
             min_final_cltv_expiry: int,
-            payment_secret: bytes = None,
+            payment_secret: bytes,
             trampoline_onion=None) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1568,6 +1571,7 @@ class Peer(Logger):
 
     def maybe_forward_htlc(
             self, *,
+            incoming_chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket) -> Tuple[bytes, int]:
 
@@ -1578,35 +1582,43 @@ class Peer(Logger):
         #          (same for trampoline forwarding)
         #        - we could check for the exposure to dust HTLCs, see:
         #          https://github.com/ACINQ/eclair/pull/1985
+
+        def log_fail_reason(reason: str):
+            self.logger.debug(
+                f"maybe_forward_htlc. will FAIL HTLC: inc_chan={incoming_chan.get_id_for_log()}. "
+                f"{reason}. inc_htlc={str(htlc)}. onion_payload={processed_onion.hop_data.payload}")
+
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         if not forwarding_enabled:
-            self.logger.info(f"forwarding is disabled. failing htlc.")
+            log_fail_reason("forwarding is disabled")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
         chain = self.network.blockchain()
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         try:
-            next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]
+            _next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]  # type: bytes
+            next_chan_scid = ShortChannelID(_next_chan_scid)
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = chain.height()
         if next_chan is None:
-            self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
+            log_fail_reason(f"cannot find next_chan {next_chan_scid}")
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
+        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
         if not next_chan.can_send_update_add_htlc():
-            self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
-                             f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
+            log_fail_reason(
+                f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
+                f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         try:
             next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if not next_chan.can_pay(next_amount_msat_htlc):
-            self.logger.info(f"cannot forward htlc due to transient errors (likely due to insufficient funds)")
+            log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         try:
             next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
@@ -1627,10 +1639,12 @@ class Peer(Logger):
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
-        self.logger.info(f'forwarding htlc to {next_chan.node_id.hex()}')
+        self.logger.info(
+            f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
+            f"next_chan={next_chan.get_id_for_log()}.")
         next_peer = self.lnworker.peers.get(next_chan.node_id)
         if next_peer is None:
-            self.logger.info(f"failed to forward htlc: next_peer offline ({next_chan.node_id.hex()})")
+            log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         next_htlc = UpdateAddHtlc(
             amount_msat=next_amount_msat_htlc,
@@ -1649,7 +1663,7 @@ class Peer(Logger):
                 onion_routing_packet=processed_onion.next_packet.to_bytes()
             )
         except BaseException as e:
-            self.logger.info(f"failed to forward htlc: error sending message. {e}")
+            log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         next_peer.maybe_send_commitment(next_chan)
         return next_chan_scid, next_htlc.htlc_id
@@ -1772,7 +1786,8 @@ class Peer(Logger):
         try:
             total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except Exception:
-            total_msat = amt_to_forward # fall back to "amt_to_forward"
+            log_fail_reason(f"'total_msat' missing from onion")
+            raise exc_incorrect_or_unknown_pd
 
         if not is_trampoline and amt_to_forward != htlc.amount_msat:
             log_fail_reason(f"amt_to_forward != htlc.amount_msat")
@@ -1781,23 +1796,19 @@ class Peer(Logger):
                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
         try:
-            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
+            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]  # type: bytes
         except Exception:
-            if total_msat > amt_to_forward:
-                # payment_secret is required for MPP
-                log_fail_reason(f"'payment_secret' missing from onion")
-                raise exc_incorrect_or_unknown_pd
-            # TODO fail here if invoice has set PAYMENT_SECRET_REQ
-            payment_secret_from_onion = None
+            log_fail_reason(f"'payment_secret' missing from onion")
+            raise exc_incorrect_or_unknown_pd
 
-        if total_msat > amt_to_forward:
-            mpp_status = self.lnworker.check_received_mpp_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
-            if mpp_status is None:
-                return None, None
-            if mpp_status is False:
-                log_fail_reason(f"MPP_TIMEOUT")
-                raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
-            assert mpp_status is True
+        payment_status = self.lnworker.check_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
+        if payment_status is None:
+            return None, None
+        elif payment_status is False:
+            log_fail_reason(f"MPP_TIMEOUT")
+            raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+        else:
+            assert payment_status is True
 
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
@@ -1811,15 +1822,19 @@ class Peer(Logger):
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
-        if payment_secret_from_onion:
-            if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
-                log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {derive_payment_secret_from_payment_preimage(preimage).hex()}')
-                raise exc_incorrect_or_unknown_pd
+        expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
+        if preimage:
+            # legacy secret for old invoices
+            expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage))
+        if payment_secret_from_onion not in expected_payment_secrets:
+            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
+            raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
-        self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
+        if preimage:
+            self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
         return preimage, None
 
@@ -2358,6 +2373,7 @@ class Peer(Logger):
             if not self.lnworker.enable_htlc_forwarding:
                 return None, None, None
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
+                incoming_chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
             fw_info = (next_chan_id.hex(), next_htlc_id)

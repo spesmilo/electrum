@@ -44,10 +44,18 @@ Pane {
                     text: qsTr('Address details')
                 }
 
-                Label {
-                    text: qsTr('Address')
+                RowLayout {
                     Layout.columnSpan: 2
-                    color: Material.accentColor
+                    Label {
+                        text: qsTr('Address')
+                        color: Material.accentColor
+                    }
+
+                    Tag {
+                        visible: addressdetails.isFrozen
+                        text: qsTr('Frozen')
+                        labelcolor: 'white'
+                    }
                 }
 
                 TextHighlightPane {
@@ -74,6 +82,24 @@ Pane {
                             }
                         }
                     }
+                }
+
+                Label {
+                    text: qsTr('Balance')
+                    color: Material.accentColor
+                }
+
+                FormattedAmount {
+                    amount: addressdetails.balance
+                }
+
+                Label {
+                    text: qsTr('Transactions')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    text: addressdetails.numTx
                 }
 
                 Label {
@@ -135,6 +161,34 @@ Pane {
                     }
                 }
 
+                Heading {
+                    Layout.columnSpan: 2
+                    text: qsTr('Technical Properties')
+                }
+
+                Label {
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Script type')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    Layout.topMargin: constants.paddingSmall
+                    Layout.fillWidth: true
+                    text: addressdetails.scriptType
+                }
+
+                Label {
+                    visible: addressdetails.derivationPath
+                    text: qsTr('Derivation path')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    visible: addressdetails.derivationPath
+                    text: addressdetails.derivationPath
+                }
+
                 Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
@@ -172,51 +226,55 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Script type')
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: !Daemon.currentWallet.isWatchOnly
+                    text: qsTr('Private key')
                     color: Material.accentColor
                 }
 
-                Label {
-                    text: addressdetails.scriptType
+                TextHighlightPane {
+                    Layout.columnSpan: 2
                     Layout.fillWidth: true
-                }
+                    visible: !Daemon.currentWallet.isWatchOnly
+                    RowLayout {
+                        width: parent.width
+                        Label {
+                            id: privateKeyText
+                            Layout.fillWidth: true
+                            visible: addressdetails.privkey
+                            text: addressdetails.privkey
+                            wrapMode: Text.Wrap
+                            font.pixelSize: constants.fontSizeLarge
+                            font.family: FixedFont
+                        }
+                        Label {
+                            id: showPrivateKeyText
+                            Layout.fillWidth: true
+                            visible: !addressdetails.privkey
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr('Tap to show private key')
+                            wrapMode: Text.Wrap
+                            font.pixelSize: constants.fontSizeLarge
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            visible: addressdetails.privkey
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(root, {
+                                    title: qsTr('Private key'),
+                                    text: addressdetails.privkey
+                                })
+                                dialog.open()
+                            }
+                        }
 
-                Label {
-                    text: qsTr('Balance')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: addressdetails.balance
-                }
-
-                Label {
-                    text: qsTr('Transactions')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: addressdetails.numTx
-                }
-
-                Label {
-                    visible: addressdetails.derivationPath
-                    text: qsTr('Derivation path')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    visible: addressdetails.derivationPath
-                    text: addressdetails.derivationPath
-                }
-
-                Label {
-                    text: qsTr('Frozen')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: addressdetails.isFrozen ? qsTr('Frozen') : qsTr('Not frozen')
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !addressdetails.privkey
+                            onClicked: addressdetails.requestShowPrivateKey()
+                        }
+                    }
                 }
             }
         }
@@ -235,5 +293,8 @@ Pane {
         address: root.address
         onFrozenChanged: addressDetailsChanged()
         onLabelChanged: addressDetailsChanged()
+        onAuthRequired: {
+            app.handleAuthRequired(addressdetails, method, authMessage)
+        }
     }
 }

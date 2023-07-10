@@ -43,12 +43,11 @@ from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransactio
 from .logging import Logger
 
 from .lnutil import LOCAL, REMOTE, HTLCOwner, ChannelType
+from . import json_db
 from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
 
-if TYPE_CHECKING:
-    from .storage import WalletStorage
 
 
 # seed_version is now used for the version of the wallet file
@@ -86,38 +85,44 @@ class DBMetadata(StoredObject):
 #       separate tracking issues
 class WalletFileExceptionVersion51(WalletFileException): pass
 
+# register dicts that require value conversions not handled by constructor
+json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
+json_db.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
+json_db.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
+# register dicts that require key conversion
+for key in [
+        'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
+        'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
+    json_db.register_dict_key(key, int)
+for key in ['log']:
+    json_db.register_dict_key(key, lambda x: HTLCOwner(int(x)))
+for key in ['locked_in', 'fails', 'settles']:
+    json_db.register_parent_key(key, lambda x: HTLCOwner(int(x)))
+
 
 class WalletDB(JsonDB):
 
-    def __init__(self, raw, *, manual_upgrades: bool):
-        JsonDB.__init__(self, {})
-        # register dicts that require value conversions not handled by constructor
-        self.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
-        self.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
-        self.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
-        # register dicts that require key conversion
-        for key in [
-                'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-                'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
-            self.register_dict_key(key, int)
-        for key in ['log']:
-            self.register_dict_key(key, lambda x: HTLCOwner(int(x)))
-        for key in ['locked_in', 'fails', 'settles']:
-            self.register_parent_key(key, lambda x: HTLCOwner(int(x)))
-
-        self._manual_upgrades = manual_upgrades
-        self._called_after_upgrade_tasks = False
-        if raw:  # loading existing db
-            self.load_data(raw)
-            self.load_plugins()
-        else:  # creating new db
+    def __init__(self, data, *, manual_upgrades: bool):
+        JsonDB.__init__(self, data)
+        if not data:
+            # create new DB
             self.put('seed_version', FINAL_SEED_VERSION)
             self._add_db_creation_metadata()
             self._after_upgrade_tasks()
+        self._manual_upgrades = manual_upgrades
+        self._called_after_upgrade_tasks = False
+        if not self._manual_upgrades and self.requires_split():
+            raise WalletFileException("This wallet has multiple accounts and must be split")
+        if not self.requires_upgrade():
+            self._after_upgrade_tasks()
+        elif not self._manual_upgrades:
+            self.upgrade()
+        # load plugins that are conditional on wallet type
+        self.load_plugins()
 
     def load_data(self, s):
         try:
-            self.data = json.loads(s)
+            JsonDB.load_data(self, s)
         except Exception:
             try:
                 d = ast.literal_eval(s)
@@ -135,14 +140,6 @@ class WalletDB(JsonDB):
                 self.data[key] = value
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
-
-        if not self._manual_upgrades and self.requires_split():
-            raise WalletFileException("This wallet has multiple accounts and must be split")
-
-        if not self.requires_upgrade():
-            self._after_upgrade_tasks()
-        elif not self._manual_upgrades:
-            self.upgrade()
 
     def requires_split(self):
         d = self.get('accounts', {})
@@ -1581,21 +1578,6 @@ class WalletDB(JsonDB):
         if key in multisig_keystore_names:
             return False
         return True
-
-    def write(self, storage: 'WalletStorage'):
-        with self.lock:
-            self._write(storage)
-
-    @profiler
-    def _write(self, storage: 'WalletStorage'):
-        if threading.current_thread().daemon:
-            self.logger.warning('daemon thread cannot write db')
-            return
-        if not self.modified():
-            return
-        json_str = self.dump(human_readable=not storage.is_encrypted())
-        storage.write(json_str)
-        self.set_modified(False)
 
     def is_ready_to_be_used_by_wallet(self):
         return not self.requires_upgrade() and self._called_after_upgrade_tasks

@@ -23,16 +23,17 @@
 import os
 import threading
 import time
-from typing import Optional, Dict, Mapping, Sequence
+from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
 from .crypto import sha256d
 from . import constants
 from .util import bfh, with_lock
-from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 _logger = get_logger(__name__)
 
@@ -181,7 +182,7 @@ class Blockchain(Logger):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config: SimpleConfig, forkpoint: int, parent: Optional['Blockchain'],
+    def __init__(self, config: 'SimpleConfig', forkpoint: int, parent: Optional['Blockchain'],
                  forkpoint_hash: str, prev_hash: Optional[str]):
         assert isinstance(forkpoint_hash, str) and len(forkpoint_hash) == 64, forkpoint_hash
         assert (prev_hash is None) or (isinstance(prev_hash, str) and len(prev_hash) == 64), prev_hash
