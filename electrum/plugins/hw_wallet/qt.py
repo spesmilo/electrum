@@ -40,7 +40,8 @@ from electrum.gui.qt.installwizard import InstallWizard
 
 from electrum.i18n import _
 from electrum.logging import Logger
-from electrum.util import parse_URI, InvalidBitcoinURI, UserCancelled, UserFacingException
+from electrum.util import UserCancelled, UserFacingException
+from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from electrum.plugin import hook, DeviceUnpairableError
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
