@@ -340,7 +340,7 @@ class PaymentIdentifier(Logger):
             elif self.bip70:
                 from . import paymentrequest
                 pr = await paymentrequest.get_payment_request(self.bip70)
-                if not pr.error:
+                if pr.verify():
                     self.bip70_data = pr
                     self.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
                 else:
