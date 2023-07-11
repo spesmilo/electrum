@@ -682,6 +682,7 @@ class LNWallet(LNWorker):
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
+        self.trampoline_forwardings = set()
         self.trampoline_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]

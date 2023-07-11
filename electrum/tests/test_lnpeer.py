@@ -169,6 +169,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
+        self.trampoline_forwardings = set()
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
