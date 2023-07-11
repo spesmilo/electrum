@@ -18,7 +18,7 @@ from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType, PaymentIdentifier, \
-    invoice_from_payment_identifier
+    invoice_from_payment_identifier, payment_identifier_from_invoice
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -267,6 +267,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             msg += "\n" + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
         QToolTip.showText(self.max_button.mapToGlobal(QPoint(0, 0)), msg)
 
+    # TODO: instead of passing outputs, use an invoice instead (like pay_lightning_invoice)
+    # so we have more context (we cannot rely on send_tab field contents or payment identifier
+    # as this method is called from other places as well).
     def pay_onchain_dialog(
             self,
             outputs: List[PartialTxOutput],
@@ -274,13 +277,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             nonlocal_only=False,
             external_keypairs=None,
             get_coins: Callable[..., Sequence[PartialTxInput]] = None,
+            invoice: Optional[Invoice] = None
     ) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
         # save current PI as local now. this is best-effort only...
         # does not work e.g. when using InvoiceList context menu "pay"
-        payment_identifier = self.payto_e.payment_identifier
+
+        payment_identifier = None
+        if invoice and invoice.bip70:
+            payment_identifier = payment_identifier_from_invoice(self.wallet, invoice)
+
         is_sweep = bool(external_keypairs)
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
@@ -475,6 +483,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not invoice:
             self.show_error('error getting invoice' + self.payto_e.payment_identifier.error)
             return
+
         if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
             self.show_error(_('Lightning is disabled'))
         if self.wallet.get_invoice_status(invoice) == PR_PAID:
@@ -548,7 +557,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if invoice.is_lightning():
             self.pay_lightning_invoice(invoice)
         else:
-            self.pay_onchain_dialog(invoice.outputs)
+            self.pay_onchain_dialog(invoice.outputs, invoice=invoice)
 
     def read_amount(self) -> List[PartialTxOutput]:
         amount = '!' if self.max_button.isChecked() else self.get_amount()
