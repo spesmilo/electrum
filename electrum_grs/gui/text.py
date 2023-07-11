@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 
 import electrum_grs
 from electrum_grs.gui import BaseElectrumGui
-from electrum_grs import util
+from electrum_grs.bip21 import parse_bip21_URI
 from electrum_grs.util import format_satoshis, format_time
 from electrum_grs.util import EventListener, event_listener
 from electrum_grs.bitcoin import is_address, address_to_script, COIN
@@ -32,11 +32,13 @@ if TYPE_CHECKING:
 
 _ = lambda x:x  # i18n
 
+
 def parse_bip21(text):
     try:
-        return util.parse_URI(text)
+        return parse_bip21_URI(text)
     except Exception:
         return
+
 
 def parse_bolt11(text):
     from electrum_grs.lnaddr import lndecode
@@ -44,7 +46,6 @@ def parse_bolt11(text):
         return lndecode(text)
     except Exception:
         return
-
 
 
 class ElectrumGui(BaseElectrumGui, EventListener):

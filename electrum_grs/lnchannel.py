@@ -532,6 +532,9 @@ class ChannelBackup(AbstractChannel):
     def is_backup(self):
         return True
 
+    def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
+        return None
+
     def get_remote_scid_alias(self) -> Optional[bytes]:
         return None
 

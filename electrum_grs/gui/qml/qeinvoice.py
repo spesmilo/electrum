@@ -473,7 +473,7 @@ class QEInvoiceParser(QEInvoice):
 
     def _bip70_payment_request_resolved(self, pr: 'PaymentRequest'):
         self._logger.debug('resolved payment request')
-        if pr.verify(self._wallet.wallet.contacts):
+        if pr.verify():
             invoice = Invoice.from_bip70_payreq(pr, height=0)
             if self._wallet.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.validationError.emit('unknown', _('Invoice already paid'))

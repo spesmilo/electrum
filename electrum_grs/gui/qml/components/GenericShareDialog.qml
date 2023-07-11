@@ -10,7 +10,11 @@ ElDialog {
 
     property string text
     property string text_qr
-    // if text_qr is undefined text will be used
+    // If text is set, it is displayed as a string and also used as data in the QR code shown.
+    // text_qr can also be set if we want to show different data in the QR code.
+    // If only text_qr is set, the QR code is shown but the string itself is not,
+    //     however the copy button still exposes the string.
+
     property string text_help
     property int helpTextIconStyle: InfoTextArea.IconStyle.Info
 
@@ -84,7 +88,7 @@ ElDialog {
                 text: qsTr('Copy')
                 icon.source: '../../icons/copy_bw.png'
                 onClicked: {
-                    AppController.textToClipboard(dialog.text)
+                    AppController.textToClipboard(dialog.text ? dialog.text : dialog.text_qr)
                     toaster.show(this, qsTr('Copied!'))
                 }
             }
@@ -95,7 +99,7 @@ ElDialog {
                 text: qsTr('Share')
                 icon.source: '../../icons/share.png'
                 onClicked: {
-                    AppController.doShare(dialog.text, dialog.title)
+                    AppController.doShare(dialog.text ? dialog.text : dialog.text_qr, dialog.title)
                 }
             }
         }

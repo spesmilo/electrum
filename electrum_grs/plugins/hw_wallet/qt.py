@@ -40,7 +40,8 @@ from electrum_grs.gui.qt.installwizard import InstallWizard
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import Logger
-from electrum_grs.util import parse_URI, InvalidBitcoinURI, UserCancelled, UserFacingException
+from electrum_grs.util import UserCancelled, UserFacingException
+from electrum_grs.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from electrum_grs.plugin import hook, DeviceUnpairableError
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase

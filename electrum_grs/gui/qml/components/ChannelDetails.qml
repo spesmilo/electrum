@@ -98,6 +98,21 @@ Pane {
                     }
 
                     Label {
+                        visible: channeldetails.isBackup
+                        text: qsTr('Backup type')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        visible: channeldetails.isBackup
+                        text: channeldetails.backupType == 'imported'
+                                  ? qsTr('imported')
+                                  : channeldetails.backupType == 'on-chain'
+                                      ? qsTr('on-chain')
+                                      : '?'
+                    }
+
+                    Label {
                         text: qsTr('Remote node ID')
                         Layout.columnSpan: 2
                         color: Material.accentColor

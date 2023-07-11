@@ -117,7 +117,10 @@ ElDialog {
                         MouseArea {
                             anchors.fill: parent
                             enabled: _bolt11
-                            onClicked: rootLayout.state = 'bolt11'
+                            onClicked: {
+                                rootLayout.state = 'bolt11'
+                                Config.preferredRequestType = 'bolt11'
+                            }
                         }
                     }
                     Rectangle {
@@ -133,7 +136,10 @@ ElDialog {
                         MouseArea {
                             anchors.fill: parent
                             enabled: _bip21uri
-                            onClicked: rootLayout.state = 'bip21uri'
+                            onClicked: {
+                                rootLayout.state = 'bip21uri'
+                                Config.preferredRequestType = 'bip21uri'
+                            }
                         }
                     }
                     Rectangle {
@@ -149,7 +155,10 @@ ElDialog {
                         MouseArea {
                             anchors.fill: parent
                             enabled: _address
-                            onClicked: rootLayout.state = 'address'
+                            onClicked: {
+                                rootLayout.state = 'address'
+                                Config.preferredRequestType = 'address'
+                            }
                         }
                     }
                 }

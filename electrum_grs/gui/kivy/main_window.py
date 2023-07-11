@@ -459,7 +459,7 @@ class ElectrumWindow(App, Logger, EventListener):
         if not self.wallet:
             self.show_error(_('No wallet loaded.'))
             return
-        if pr.verify(self.wallet.contacts):
+        if pr.verify():
             invoice = Invoice.from_bip70_payreq(pr, height=0)
             if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.show_error("invoice already paid")

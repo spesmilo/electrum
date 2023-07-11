@@ -190,6 +190,12 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     def isBackup(self):
         return self._channel.is_backup()
 
+    @pyqtProperty(str, notify=channelChanged)
+    def backupType(self):
+        if not self.isBackup:
+            return ''
+        return 'imported' if self._channel.is_imported else 'on-chain'
+
     @pyqtProperty(int, notify=channelChanged)
     def toSelfDelay(self):
         return self._channel.config[REMOTE].to_self_delay
