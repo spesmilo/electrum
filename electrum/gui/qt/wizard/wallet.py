@@ -1,0 +1,90 @@
+import os
+
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtQml import QQmlApplicationEngine
+
+from electrum.logging import get_logger
+from electrum import mnemonic
+from electrum.wizard import NewWalletWizard, ServerConnectWizard
+
+
+class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
+
+    createError = pyqtSignal([str], arguments=["error"])
+    createSuccess = pyqtSignal()
+
+    def __init__(self, daemon, parent = None):
+        NewWalletWizard.__init__(self, daemon)
+        QEAbstractWizard.__init__(self, parent)
+        self._daemon = daemon
+
+        # attach view names and accept handlers
+        self.navmap_merge({
+            'wallet_name': { 'gui': 'WCWalletName' },
+            'wallet_type': { 'gui': 'WCWalletType' },
+            'keystore_type': { 'gui': 'WCKeystoreType' },
+            'create_seed': { 'gui': 'WCCreateSeed' },
+            'confirm_seed': { 'gui': 'WCConfirmSeed' },
+            'have_seed': { 'gui': 'WCHaveSeed' },
+            'bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'have_master_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig': { 'gui': 'WCMultisig' },
+            'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
+            'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
+            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'imported': { 'gui': 'WCImport' },
+            'wallet_password': { 'gui': 'WCWalletPassword' }
+        })
+
+    pathChanged = pyqtSignal()
+    @pyqtProperty(str, notify=pathChanged)
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path):
+        self._path = path
+        self.pathChanged.emit()
+
+    def is_single_password(self):
+        return self._daemon.singlePasswordEnabled
+
+    @pyqtSlot('QJSValue', result=bool)
+    def hasDuplicateMasterKeys(self, js_data):
+        self._logger.info('Checking for duplicate masterkeys')
+        data = js_data.toVariant()
+        return self.has_duplicate_masterkeys(data)
+
+    @pyqtSlot('QJSValue', result=bool)
+    def hasHeterogeneousMasterKeys(self, js_data):
+        self._logger.info('Checking for heterogeneous masterkeys')
+        data = js_data.toVariant()
+        return self.has_heterogeneous_masterkeys(data)
+
+    @pyqtSlot(str, str, result=bool)
+    def isMatchingSeed(self, seed, seed_again):
+        return mnemonic.is_matching_seed(seed=seed, seed_again=seed_again)
+
+    @pyqtSlot('QJSValue', bool, str)
+    def createStorage(self, js_data, single_password_enabled, single_password):
+        self._logger.info('Creating wallet from wizard data')
+        data = js_data.toVariant()
+
+        if single_password_enabled and single_password:
+            data['encrypt'] = True
+            data['password'] = single_password
+
+        path = os.path.join(os.path.dirname(self._daemon.daemon.config.get_wallet_path()), data['wallet_name'])
+
+        try:
+            self.create_storage(path, data)
+
+            # minimally populate self after create
+            self._password = data['password']
+            self.path = path
+
+            self.createSuccess.emit()
+        except Exception as e:
+            self._logger.error(f"createStorage errored: {e!r}")
+            self.createError.emit(str(e))
