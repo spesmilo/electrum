@@ -282,8 +282,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
-        # save current PI as local now. this is best-effort only...
-        # does not work e.g. when using InvoiceList context menu "pay"
 
         payment_identifier = None
         if invoice and invoice.bip70:
