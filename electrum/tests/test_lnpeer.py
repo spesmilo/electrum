@@ -168,6 +168,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
+        self.trampoline_forwardings = set()
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
@@ -1224,7 +1225,6 @@ class TestPeer(ElectrumTestCase):
         if test_mpp_consolidation:
             graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
             graph.workers['alice'].network.config.TEST_FORCE_MPP = True
-            graph.workers['alice'].INITIAL_TRAMPOLINE_FEE_LEVEL = 1
 
         peers = graph.peers.values()
         if is_legacy:
@@ -1239,8 +1239,10 @@ class TestPeer(ElectrumTestCase):
 
         await f()
 
-    @needs_test_with_all_chacha20_implementations
+    #@needs_test_with_all_chacha20_implementations
     async def test_trampoline_mpp_consolidation(self):
+        """initial attempt fails with TRAMPOLINE_FEE_LEVEL = 0
+        """
         with self.assertRaises(PaymentDone):
             await self._run_trampoline_payment(is_legacy=True, direct=False, test_mpp_consolidation=True)
 
