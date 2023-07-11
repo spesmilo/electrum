@@ -682,7 +682,7 @@ def invoice_from_payment_identifier(
     else:
         outputs = pi.get_onchain_outputs(amount_sat)
         message = pi.bip21.get('message') if pi.bip21 else message
-        bip70_data = self.bip70_data if self.bip70 else None
+        bip70_data = pi.bip70_data if pi.bip70 else None
         return wallet.create_invoice(
             outputs=outputs,
             message=message,
