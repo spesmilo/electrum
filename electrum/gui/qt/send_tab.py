@@ -17,7 +17,8 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType, PaymentIdentifier
+from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType, PaymentIdentifier, \
+    invoice_from_payment_identifier
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -25,6 +26,7 @@ from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton,
                    char_width_in_lineedit, get_iconname_camera, get_iconname_qrcode,
                    read_QIcon, ColorScheme, icon_path)
 from .confirm_tx_dialog import ConfirmTxDialog
+from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -161,7 +163,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.fiat_send_e.textEdited.connect(reset_max)
 
         self.invoices_label = QLabel(_('Invoices'))
-        from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
         self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
 
@@ -469,7 +470,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(_('No amount'))
             return
 
-        invoice = self.payto_e.payment_identifier.get_invoice(amount_sat, self.get_message())
+        invoice = invoice_from_payment_identifier(
+            self.payto_e.payment_identifier, self.wallet, amount_sat, self.get_message())
         if not invoice:
             self.show_error('error getting invoice' + self.payto_e.payment_identifier.error)
             return
@@ -517,7 +519,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         pi = self.payto_e.payment_identifier
         if pi.need_finalize():
             self.prepare_for_send_tab_network_lookup()
-            pi.finalize(amount_sat=self.get_amount(), comment=self.message_e.text(),
+            pi.finalize(amount_sat=self.get_amount(), comment=self.comment_e.text(),
                         on_finished=self.finalize_done_signal.emit)
             return
         self.pending_invoice = self.read_invoice()

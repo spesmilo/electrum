@@ -370,7 +370,7 @@ class PaymentIdentifier(Logger):
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
         assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
-        coro = self._do_finalize(amount_sat, comment, on_finished=on_finished)
+        coro = self._do_finalize(amount_sat=amount_sat, comment=comment, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
@@ -665,22 +665,28 @@ class PaymentIdentifier(Logger):
             return bool(expires) and expires < time.time()
         return False
 
-    def get_invoice(self, amount_sat, message):
-        # FIXME: this should not be a PI method
-        # ideally, PI should not have a reference to wallet.
-        if self.is_lightning():
-            invoice = self.bolt11
-            if not invoice:
-                return
-            if invoice.amount_msat is None:
-                invoice.amount_msat = int(amount_sat * 1000)
-            return invoice
-        else:
-            outputs = self.get_onchain_outputs(amount_sat)
-            message = self.bip21.get('message') if self.bip21 else message
-            bip70_data = self.bip70_data if self.bip70 else None
-            return self.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=bip70_data,
-                URI=self.bip21)
+
+def invoice_from_payment_identifier(
+    pi: 'PaymentIdentifier',
+    wallet: 'Abstract_Wallet',
+    amount_sat: int,
+    message: str = None
+):
+    # FIXME: this should not be a PI method
+    # ideally, PI should not have a reference to wallet.
+    if pi.is_lightning():
+        invoice = pi.bolt11
+        if not invoice:
+            return
+        if invoice.amount_msat is None:
+            invoice.amount_msat = int(amount_sat * 1000)
+        return invoice
+    else:
+        outputs = pi.get_onchain_outputs(amount_sat)
+        message = pi.bip21.get('message') if pi.bip21 else message
+        bip70_data = self.bip70_data if self.bip70 else None
+        return wallet.create_invoice(
+            outputs=outputs,
+            message=message,
+            pr=bip70_data,
+            URI=pi.bip21)
