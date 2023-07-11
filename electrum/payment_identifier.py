@@ -253,13 +253,9 @@ class PaymentIdentifier(Logger):
                 bolt11 = out.get('lightning')
                 if bolt11:
                     try:
-                        lndecode(bolt11)
-                        # if we get here, we have a usable bolt11
-                        self.bolt11 = bolt11
-                    except LnInvoiceException as e:
-                        self.logger.debug(_("Error parsing Lightning invoice") + f":\n{e}")
-                    except IncompatibleOrInsaneFeatures as e:
-                        self.logger.debug(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
+                        self.bolt11 = Invoice.from_bech32(bolt11)
+                    except InvoiceError as e:
+                        self.logger.debug(self._get_error_from_invoiceerror(e))
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif scriptpubkey := self.parse_output(text):
             self._type = PaymentIdentifierType.SPK
@@ -671,7 +667,7 @@ def invoice_from_payment_identifier(
     wallet: 'Abstract_Wallet',
     amount_sat: int,
     message: str = None
-):
+) -> Optional[Invoice]:
     if pi.is_lightning():
         invoice = pi.bolt11
         if not invoice:
