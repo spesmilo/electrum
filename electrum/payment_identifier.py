@@ -672,8 +672,6 @@ def invoice_from_payment_identifier(
     amount_sat: int,
     message: str = None
 ):
-    # FIXME: this should not be a PI method
-    # ideally, PI should not have a reference to wallet.
     if pi.is_lightning():
         invoice = pi.bolt11
         if not invoice:
