@@ -217,6 +217,25 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: syncLabels
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    AppController.setPluginEnabled('labels', checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Synchronize labels')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Wallet behavior')
@@ -384,5 +403,6 @@ Pane {
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
         useRecoverableChannels.checked = Config.useRecoverableChannels
+        syncLabels.checked = AppController.isPluginEnabled('labels')
     }
 }

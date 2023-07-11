@@ -19,6 +19,7 @@ from electrum.logging import Logger, get_logger
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
+from electrum.plugin import run_hook
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
@@ -70,10 +71,11 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportFailure = pyqtSignal(str)
     secureWindowChanged = pyqtSignal()
 
-    def __init__(self, qedaemon: 'QEDaemon', plugins: 'Plugins'):
+    def __init__(self, qeapp: 'ElectrumQmlApplication', qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
         QObject.__init__(self)
 
+        self._app = qeapp
         self._qedaemon = qedaemon
         self._plugins = plugins
         self.config = qedaemon.daemon.config
@@ -224,11 +226,17 @@ class QEAppController(BaseCrashReporter, QObject):
         return s
 
     @pyqtSlot(str, bool)
-    def setPluginEnabled(self, plugin, enabled):
+    def setPluginEnabled(self, plugin: str, enabled: bool):
         if enabled:
             self._plugins.enable(plugin)
+            # note: all enabled plugins will receive this hook:
+            run_hook('init_qml', self._app)
         else:
             self._plugins.disable(plugin)
+
+    @pyqtSlot(str, result=bool)
+    def isPluginEnabled(self, plugin: str):
+        return bool(self._plugins.get(plugin))
 
     @pyqtSlot(result=bool)
     def isAndroid(self):
@@ -369,7 +377,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self._qeconfig = QEConfig(config)
         self._qenetwork = QENetwork(daemon.network, self._qeconfig)
         self.daemon = QEDaemon(daemon)
-        self.appController = QEAppController(self.daemon, self.plugins)
+        self.appController = QEAppController(self, self.daemon, self.plugins)
         self._maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self._qeconfig)

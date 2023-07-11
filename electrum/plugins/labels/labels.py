@@ -134,9 +134,11 @@ class LabelsPlugin(BasePlugin):
             response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
         except Exception as e:
             raise ErrorConnectingServer(e) from e
-        if response["labels"] is None:
+        if response["labels"] is None or len(response["labels"]) == 0:
             self.logger.info('no new labels')
             return
+        self.logger.debug(f"labels received {response!r}")
+        self.logger.info(f'received {len(response["labels"])} labels')
         result = {}
         for label in response["labels"]:
             try:
@@ -157,7 +159,6 @@ class LabelsPlugin(BasePlugin):
             if force or not wallet._get_label(key):
                 wallet._set_label(key, value)
 
-        self.logger.info(f"received {len(response)} labels")
         self.set_nonce(wallet, response["nonce"] + 1)
         self.on_pulled(wallet)
 
@@ -173,15 +174,18 @@ class LabelsPlugin(BasePlugin):
             self.logger.info(repr(e))
 
     def pull(self, wallet: 'Abstract_Wallet', force: bool):
-        if not wallet.network: raise Exception(_('You are offline.'))
+        if not wallet.network:
+            raise Exception(_('You are offline.'))
         return asyncio.run_coroutine_threadsafe(self.pull_thread(wallet, force), wallet.network.asyncio_loop).result()
 
     def push(self, wallet: 'Abstract_Wallet'):
-        if not wallet.network: raise Exception(_('You are offline.'))
+        if not wallet.network:
+            raise Exception(_('You are offline.'))
         return asyncio.run_coroutine_threadsafe(self.push_thread(wallet), wallet.network.asyncio_loop).result()
 
     def start_wallet(self, wallet: 'Abstract_Wallet'):
-        if not wallet.network: return  # 'offline' mode
+        if not wallet.network:
+            return  # 'offline' mode
         mpk = wallet.get_fingerprint()
         if not mpk:
             return
