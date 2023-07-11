@@ -89,6 +89,10 @@ class ConfigVar(property):
     def __repr__(self):
         return f"<ConfigVar key={self._key!r}>"
 
+    def __deepcopy__(self, memo):
+        cv = ConfigVar(self._key, default=self._default, type_=self._type)
+        return cv
+
 
 class ConfigVarWithConfig:
 
