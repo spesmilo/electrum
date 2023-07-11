@@ -19,6 +19,7 @@ from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_sc
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
+from . import paymentrequest
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -334,7 +335,6 @@ class PaymentIdentifier(Logger):
                 else:
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
             elif self.bip70:
-                from . import paymentrequest
                 pr = await paymentrequest.get_payment_request(self.bip70)
                 if pr.verify():
                     self.bip70_data = pr
@@ -668,6 +668,7 @@ def invoice_from_payment_identifier(
     amount_sat: int,
     message: str = None
 ) -> Optional[Invoice]:
+    assert pi.state in [PaymentIdentifierState.AVAILABLE, PaymentIdentifierState.MERCHANT_NOTIFY]
     if pi.is_lightning():
         invoice = pi.bolt11
         if not invoice:
@@ -684,3 +685,43 @@ def invoice_from_payment_identifier(
             message=message,
             pr=bip70_data,
             URI=pi.bip21)
+
+
+# Note: this is only really used for bip70 to handle MECHANT_NOTIFY state from
+# a saved bip70 invoice.
+# TODO: reflect bip70-only in function name, or implement other types as well.
+def payment_identifier_from_invoice(
+    wallet: 'Abstract_Wallet',
+    invoice: Invoice
+) -> Optional[PaymentIdentifier]:
+    if not invoice:
+        return
+    pi = PaymentIdentifier(wallet, '')
+    if invoice.bip70:
+        pi._type = PaymentIdentifierType.BIP70
+        pi.bip70_data = paymentrequest.PaymentRequest(bytes.fromhex(invoice.bip70))
+        pi.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
+        return pi
+    # else:
+    #     if invoice.outputs:
+    #         if len(invoice.outputs) > 1:
+    #             pi._type = PaymentIdentifierType.MULTILINE
+    #             pi.multiline_outputs = invoice.outputs
+    #             pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #         else:
+    #             pi._type = PaymentIdentifierType.BIP21
+    #             params = {}
+    #             if invoice.exp:
+    #                 params['exp'] = str(invoice.exp)
+    #             if invoice.time:
+    #                 params['time'] = str(invoice.time)
+    #             pi.bip21 = create_bip21_uri(invoice.outputs[0].address, invoice.get_amount_sat(), invoice.message,
+    #                                         extra_query_params=params)
+    #             pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #     elif invoice.is_lightning():
+    #         pi._type = PaymentIdentifierType.BOLT11
+    #         pi.bolt11 = invoice
+    #         pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #     else:
+    #         return None
+    #     return pi
