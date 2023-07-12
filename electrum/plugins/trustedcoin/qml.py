@@ -318,7 +318,7 @@ class Plugin(TrustedCoinPlugin):
                 'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_keepordisable'] != 'disable'
                         else 'wallet_password',
                 'accept': self.recovery_disable,
-                'last': lambda v,d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
+                'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
             'trustedcoin_tos_email': {
                 'gui': '../../../../plugins/trustedcoin/qml/Terms',
@@ -328,7 +328,7 @@ class Plugin(TrustedCoinPlugin):
                 'gui': '../../../../plugins/trustedcoin/qml/ShowConfirmOTP',
                 'accept': self.on_accept_otp_secret,
                 'next': 'wallet_password',
-                'last': lambda v,d: wizard.is_single_password()
+                'last': lambda d: wizard.is_single_password()
             }
         }
         wizard.navmap_merge(views)

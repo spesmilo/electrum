@@ -17,6 +17,7 @@ class WizardViewState(NamedTuple):
     wizard_data: Dict[str, Any]
     params: Dict[str, Any]
 
+
 class AbstractWizard:
     # serve as a base for all UIs, so no qt
     # encapsulate wizard state
@@ -36,7 +37,7 @@ class AbstractWizard:
 
     def navmap_merge(self, additional_navmap):
         # NOTE: only merges one level deep. Deeper dict levels will overwrite
-        for k,v in additional_navmap.items():
+        for k, v in additional_navmap.items():
             if k in self.navmap:
                 self.navmap[k].update(v)
             else:
@@ -49,7 +50,7 @@ class AbstractWizard:
     # view params are transient, meant for extra configuration of a view (e.g. info
     #   msg in a generic choice dialog)
     # exception: stay on this view
-    def resolve_next(self, view, wizard_data):
+    def resolve_next(self, view, wizard_data) -> WizardViewState:
         assert view
         self._logger.debug(f'view={view}')
         assert view in self.navmap
@@ -67,7 +68,7 @@ class AbstractWizard:
         if 'next' not in nav:
             # finished
             self.finished(wizard_data)
-            return (None, wizard_data, {})
+            return WizardViewState(None, wizard_data, {})
 
         nexteval = nav['next']
         # simple string based next view
@@ -88,11 +89,12 @@ class AbstractWizard:
             else:
                 new_view = nv
 
+        self._logger.debug(f'resolve_next view is {new_view}')
+
         self._stack.append(copy.deepcopy(self._current))
         self._current = new_view
 
-        self._logger.debug(f'resolve_next view is {self._current.view}')
-        self.log_stack(self._stack)
+        self.log_stack()
 
         return new_view
 
@@ -100,7 +102,7 @@ class AbstractWizard:
         prev_view = self._stack.pop()
 
         self._logger.debug(f'resolve_prev view is {prev_view}')
-        self.log_stack(self._stack)
+        self.log_stack()
 
         self._current = prev_view
         return prev_view
@@ -121,7 +123,7 @@ class AbstractWizard:
             return lastnav
         elif callable(lastnav):
             # handler fn based
-            l = lastnav(view, wizard_data)
+            l = lastnav(wizard_data)
             self._logger.debug(f'view "{view}" last: {l}')
             return l
         else:
@@ -134,20 +136,18 @@ class AbstractWizard:
         self._stack = []
         self._current = WizardViewState(None, {}, {})
 
-    def log_stack(self, _stack):
+    def log_stack(self):
         logstr = 'wizard stack:'
-        stack = copy.deepcopy(_stack)
+        stack = copy.deepcopy(self._stack)
         i = 0
         for item in stack:
             self.sanitize_stack_item(item.wizard_data)
             logstr += f'\n{i}: {repr(item.wizard_data)}'
             i += 1
+        current = copy.deepcopy(self._current)
+        self.sanitize_stack_item(current.wizard_data)
+        logstr += f'\nc: {repr(current.wizard_data)}'
         self._logger.debug(logstr)
-
-    def log_state(self, _current):
-        current = copy.deepcopy(_current)
-        self.sanitize_stack_item(current)
-        self._logger.debug(f'wizard current: {repr(current)}')
 
     def sanitize_stack_item(self, _stack_item):
         sensitive_keys = ['seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password']
@@ -183,22 +183,22 @@ class NewWalletWizard(AbstractWizard):
             'confirm_seed': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
-                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
+                'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
-                'last': lambda v,d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
+                'last': lambda d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
             },
             'bip39_refine': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
-                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
+                'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_master_key': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
-                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
+                'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'multisig': {
                 'next': 'keystore_type'
@@ -208,19 +208,19 @@ class NewWalletWizard(AbstractWizard):
             },
             'multisig_cosigner_key': {
                 'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
-                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'multisig_cosigner_seed': {
                 'next': self.on_have_cosigner_seed,
-                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'multisig_cosigner_bip39_refine': {
                 'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
-                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'imported': {
                 'next': 'wallet_password',
-                'last': lambda v,d: self.is_single_password()
+                'last': lambda d: self.is_single_password()
             },
             'wallet_password': {
                 'last': True
@@ -471,6 +471,7 @@ class NewWalletWizard(AbstractWizard):
         db.load_plugins()
         db.write()
 
+
 class ServerConnectWizard(AbstractWizard):
 
     _logger = get_logger(__name__)
@@ -480,7 +481,7 @@ class ServerConnectWizard(AbstractWizard):
         self.navmap = {
             'autoconnect': {
                 'next': 'server_config',
-                'last': lambda v,d: d['autoconnect']
+                'last': lambda d: d['autoconnect']
             },
             'proxy_ask': {
                 'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
