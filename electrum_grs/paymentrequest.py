@@ -176,7 +176,7 @@ class PaymentRequest:
             return True
         if pr.pki_type in ["x509+sha256", "x509+sha1"]:
             return self.verify_x509(pr)
-elif pr.pki_type in ["dnssec+grs", "dnssec+ecdsa"]:
+        elif pr.pki_type in ["dnssec+grs", "dnssec+ecdsa"]:
             return self.verify_dnssec(pr)
         else:
             self.error = "ERROR: Unsupported PKI Type for Message Signature"
