@@ -19,8 +19,9 @@ from .trustedcoin import (TrustedCoinPlugin, server, ErrorConnectingServer,
                           TrustedCoinException, make_xpub)
 
 if TYPE_CHECKING:
-    from electrum_grs.gui.qml import ElectrumGui
+    from electrum_grs.gui.qml import ElectrumQmlApplication
     from electrum_grs.wallet import Abstract_Wallet
+
 
 class Plugin(TrustedCoinPlugin):
 
@@ -287,9 +288,9 @@ class Plugin(TrustedCoinPlugin):
         self.start_request_thread(wallet)
 
     @hook
-    def init_qml(self, gui: 'ElectrumGui'):
-        self.logger.debug(f'init_qml hook called, gui={str(type(gui))}')
-        self._app = gui.app
+    def init_qml(self, app: 'ElectrumQmlApplication'):
+        self.logger.debug(f'init_qml hook called, gui={str(type(app))}')
+        self._app = app
         # important: QSignalObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
         self.so = Plugin.QSignalObject(self, self._app)
@@ -429,4 +430,3 @@ class Plugin(TrustedCoinPlugin):
         qewallet = QEWallet.getInstanceFor(wallet)
         qewallet.billingInfoChanged.emit()
         self.so.updateBillingInfo(wallet)
-

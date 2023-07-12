@@ -218,6 +218,7 @@ def hook(func):
     hook_names.add(func.__name__)
     return func
 
+
 def run_hook(name, *args):
     results = []
     f_list = hooks.get(name, [])

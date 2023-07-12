@@ -19,6 +19,7 @@ from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_sc
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
+from . import paymentrequest
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -253,13 +254,9 @@ class PaymentIdentifier(Logger):
                 bolt11 = out.get('lightning')
                 if bolt11:
                     try:
-                        lndecode(bolt11)
-                        # if we get here, we have a usable bolt11
-                        self.bolt11 = bolt11
-                    except LnInvoiceException as e:
-                        self.logger.debug(_("Error parsing Lightning invoice") + f":\n{e}")
-                    except IncompatibleOrInsaneFeatures as e:
-                        self.logger.debug(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
+                        self.bolt11 = Invoice.from_bech32(bolt11)
+                    except InvoiceError as e:
+                        self.logger.debug(self._get_error_from_invoiceerror(e))
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif scriptpubkey := self.parse_output(text):
             self._type = PaymentIdentifierType.SPK
@@ -338,7 +335,6 @@ class PaymentIdentifier(Logger):
                 else:
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
             elif self.bip70:
-                from . import paymentrequest
                 pr = await paymentrequest.get_payment_request(self.bip70)
                 if pr.verify():
                     self.bip70_data = pr
@@ -370,7 +366,7 @@ class PaymentIdentifier(Logger):
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
         assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
-        coro = self._do_finalize(amount_sat, comment, on_finished=on_finished)
+        coro = self._do_finalize(amount_sat=amount_sat, comment=comment, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
@@ -665,22 +661,67 @@ class PaymentIdentifier(Logger):
             return bool(expires) and expires < time.time()
         return False
 
-    def get_invoice(self, amount_sat, message):
-        # FIXME: this should not be a PI method
-        # ideally, PI should not have a reference to wallet.
-        if self.is_lightning():
-            invoice = self.bolt11
-            if not invoice:
-                return
-            if invoice.amount_msat is None:
-                invoice.amount_msat = int(amount_sat * 1000)
-            return invoice
-        else:
-            outputs = self.get_onchain_outputs(amount_sat)
-            message = self.bip21.get('message') if self.bip21 else message
-            bip70_data = self.bip70_data if self.bip70 else None
-            return self.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=bip70_data,
-                URI=self.bip21)
+
+def invoice_from_payment_identifier(
+    pi: 'PaymentIdentifier',
+    wallet: 'Abstract_Wallet',
+    amount_sat: int,
+    message: str = None
+) -> Optional[Invoice]:
+    assert pi.state in [PaymentIdentifierState.AVAILABLE, PaymentIdentifierState.MERCHANT_NOTIFY]
+    if pi.is_lightning():
+        invoice = pi.bolt11
+        if not invoice:
+            return
+        if invoice.amount_msat is None:
+            invoice.amount_msat = int(amount_sat * 1000)
+        return invoice
+    else:
+        outputs = pi.get_onchain_outputs(amount_sat)
+        message = pi.bip21.get('message') if pi.bip21 else message
+        bip70_data = pi.bip70_data if pi.bip70 else None
+        return wallet.create_invoice(
+            outputs=outputs,
+            message=message,
+            pr=bip70_data,
+            URI=pi.bip21)
+
+
+# Note: this is only really used for bip70 to handle MECHANT_NOTIFY state from
+# a saved bip70 invoice.
+# TODO: reflect bip70-only in function name, or implement other types as well.
+def payment_identifier_from_invoice(
+    wallet: 'Abstract_Wallet',
+    invoice: Invoice
+) -> Optional[PaymentIdentifier]:
+    if not invoice:
+        return
+    pi = PaymentIdentifier(wallet, '')
+    if invoice.bip70:
+        pi._type = PaymentIdentifierType.BIP70
+        pi.bip70_data = paymentrequest.PaymentRequest(bytes.fromhex(invoice.bip70))
+        pi.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
+        return pi
+    # else:
+    #     if invoice.outputs:
+    #         if len(invoice.outputs) > 1:
+    #             pi._type = PaymentIdentifierType.MULTILINE
+    #             pi.multiline_outputs = invoice.outputs
+    #             pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #         else:
+    #             pi._type = PaymentIdentifierType.BIP21
+    #             params = {}
+    #             if invoice.exp:
+    #                 params['exp'] = str(invoice.exp)
+    #             if invoice.time:
+    #                 params['time'] = str(invoice.time)
+    #             pi.bip21 = create_bip21_uri(invoice.outputs[0].address, invoice.get_amount_sat(), invoice.message,
+    #                                         extra_query_params=params)
+    #             pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #     elif invoice.is_lightning():
+    #         pi._type = PaymentIdentifierType.BOLT11
+    #         pi.bolt11 = invoice
+    #         pi.set_state(PaymentIdentifierState.AVAILABLE)
+    #     else:
+    #         return None
+    #     return pi

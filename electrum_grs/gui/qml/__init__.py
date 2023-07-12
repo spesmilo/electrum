@@ -41,6 +41,7 @@ class ElectrumTranslator(QTranslator):
     def translate(self, context, source_text, disambiguation, n):
         return _(source_text, context=context)
 
+
 class ElectrumGui(BaseElectrumGui, Logger):
 
     @profiler
@@ -91,7 +92,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
 
         # Initialize any QML plugins
-        run_hook('init_qml', self)
+        run_hook('init_qml', self.app)
         self.app.engine.load('electrum_grs/gui/qml/components/main.qml')
 
     def close(self):
