@@ -17,7 +17,7 @@ Pane {
         id: layout
         anchors.fill: parent
 
-        ListView {
+        ElListView {
             id: listview
 
             Layout.fillWidth: true

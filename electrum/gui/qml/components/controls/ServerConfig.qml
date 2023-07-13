@@ -57,7 +57,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.bottomMargin: constants.paddingLarge
 
-                ListView {
+                ElListView {
                     id: serversListView
                     anchors.fill: parent
                     model: Network.serverListModel

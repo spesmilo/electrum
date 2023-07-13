@@ -47,7 +47,7 @@ Pane {
                 horizontalPadding: 0
                 background: PaneInsetBackground {}
 
-                ListView {
+                ElListView {
                     id: listview
                     anchors.fill: parent
                     clip: true
