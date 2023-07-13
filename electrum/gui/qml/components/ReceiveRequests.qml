@@ -42,7 +42,7 @@ Pane {
                 Layout.fillHeight: true
                 Layout.fillWidth: true
 
-                ListView {
+                ElListView {
                     id: listview
                     anchors.fill: parent
                     clip: true

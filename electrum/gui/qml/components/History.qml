@@ -18,7 +18,7 @@ Pane {
         color: constants.darkerBackground
     }
 
-    ListView {
+    ElListView {
         id: listview
         width: parent.width
         height: parent.height
@@ -105,18 +105,6 @@ Pane {
         onPressedChanged: if (pressed) {
             dragb.y = mouseY + listview.y - dragb.height/2
         }
-    }
-
-    MouseArea {
-        // cover list items, make left side insensitive to clicks
-        // this helps with the back gesture on newer androids
-        id: left_backgesture_hack
-        anchors {
-            top: listview.top
-            left: listview.left
-            bottom: listview.bottom
-        }
-        width: constants.fingerWidth
     }
 
     Rectangle {
