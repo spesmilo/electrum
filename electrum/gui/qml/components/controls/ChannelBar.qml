@@ -18,6 +18,10 @@ Item {
     implicitWidth: 100
 
     function update() {
+        Qt.callLater(do_update)
+    }
+
+    function do_update() {
         var cap = capacity.satsInt * 1000
         var twocap = cap * 2
         l1.width = width * (cap - localCapacity.msatsInt) / twocap
