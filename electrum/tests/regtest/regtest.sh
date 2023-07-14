@@ -158,6 +158,31 @@ if [[ $1 == "backup" ]]; then
 fi
 
 
+if [[ $1 == "backup_local_forceclose" ]]; then
+    # Alice does a local-force-close, and then restores from seed before sweeping CSV-locked coins
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice setconfig use_recoverable_channels False
+    channel=$($alice open_channel $bob_node 0.15)
+    new_blocks 3
+    wait_until_channel_open alice
+    backup=$($alice export_channel_backup $channel)
+    echo "local force close $channel"
+    $alice close_channel $channel --force
+    sleep 0.5
+    seed=$($alice getseed)
+    $alice stop
+    mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.old
+    new_blocks 150
+    $alice -o restore "$seed"
+    $alice daemon -d
+    $alice load_wallet
+    $alice import_channel_backup $backup
+    wait_for_balance alice 0.998
+fi
+
+
 if [[ $1 == "collaborative_close" ]]; then
     wait_for_balance alice 1
     echo "alice opens channel"
