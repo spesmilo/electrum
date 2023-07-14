@@ -1,5 +1,5 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
@@ -14,7 +14,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
     # define listmodel rolemap
     _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'chain', 'height')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -52,7 +52,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
     def data(self, index, role):
         server = self._servers[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
         value = server[self._ROLE_NAMES[role_index]]
 
         if isinstance(value, (bool, list, int, str)) or value is None:

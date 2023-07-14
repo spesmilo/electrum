@@ -3,7 +3,7 @@ from concurrent.futures import CancelledError
 from asyncio.exceptions import TimeoutError
 from typing import TYPE_CHECKING, Optional
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.gui import messages

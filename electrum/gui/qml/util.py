@@ -5,7 +5,7 @@ from functools import wraps
 from time import time
 from typing import Callable, Optional, NamedTuple
 
-from PyQt5.QtCore import pyqtSignal, QThread
+from PyQt6.QtCore import pyqtSignal, QThread
 
 from electrum.logging import Logger
 from electrum.util import EventListener, event_listener

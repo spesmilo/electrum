@@ -1,6 +1,7 @@
+from enum import IntEnum
 from typing import Optional
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
 
 from electrum.logging import get_logger
 from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
@@ -13,7 +14,8 @@ from .util import QtEventListener, event_listener, status_update_timer_interval
 
 class QERequestDetails(QObject, QtEventListener):
 
-    class Status:
+    @pyqtEnum
+    class Status(IntEnum):
         Unpaid = PR_UNPAID
         Expired = PR_EXPIRED
         Unknown = PR_UNKNOWN
@@ -22,8 +24,6 @@ class QERequestDetails(QObject, QtEventListener):
         Failed = PR_FAILED
         Routing = PR_ROUTING
         Unconfirmed = PR_UNCONFIRMED
-
-    Q_ENUMS(Status)
 
     _logger = get_logger(__name__)
 

@@ -6,7 +6,7 @@ import time
 from typing import TYPE_CHECKING, Callable
 from functools import partial
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum.i18n import _
 from electrum.invoices import InvoiceError, PR_PAID, PR_BROADCASTING, PR_BROADCAST

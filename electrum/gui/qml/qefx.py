@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
 from electrum.bitcoin import COIN
 from electrum.exchange_rate import FxThread

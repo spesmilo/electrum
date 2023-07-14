@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING, List, Dict, Any
 
-from PyQt5.QtCore import pyqtSlot, QTimer
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtSlot, QTimer
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
@@ -22,7 +22,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
                  'status', 'status_str', 'address', 'expiry', 'type', 'onchain_fallback',
                  'lightning_invoice')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -49,7 +49,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     def data(self, index, role):
         invoice = self._invoices[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
         value = invoice[self._ROLE_NAMES[role_index]]
 
         if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:

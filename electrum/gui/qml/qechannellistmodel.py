@@ -1,5 +1,5 @@
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 
 from electrum.lnchannel import ChannelState
 from electrum.lnutil import LOCAL, REMOTE
@@ -20,7 +20,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                  'can_receive', 'l_csv_delay', 'r_csv_delay', 'send_frozen', 'receive_frozen',
                  'type', 'node_id', 'node_alias', 'short_cid', 'funding_tx', 'is_trampoline',
                  'is_backup', 'is_imported', 'local_capacity', 'remote_capacity')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -70,7 +70,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
     def data(self, index, role):
         tx = self._channels[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
         value = tx[self._ROLE_NAMES[role_index]]
         if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:
             return value

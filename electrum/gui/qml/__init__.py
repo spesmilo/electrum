@@ -5,17 +5,17 @@ import threading
 from typing import TYPE_CHECKING
 
 try:
-    import PyQt5
+    import PyQt6
 except Exception:
-    sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
+    sys.exit("Error: Could not import PyQt6 on Linux systems, you may try 'sudo apt-get install python3-pyqt6'")
 
 try:
-    import PyQt5.QtQml
+    import PyQt6.QtQml
 except Exception:
-    sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
+    sys.exit("Error: Could not import PyQt6.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt6.qtquick'")
 
-from PyQt5.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
-from PyQt5.QtGui import QGuiApplication
+from PyQt6.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
+from PyQt6.QtGui import QGuiApplication
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
@@ -40,7 +40,6 @@ class ElectrumTranslator(QTranslator):
 
 
 class ElectrumGui(BaseElectrumGui, Logger):
-
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
@@ -63,13 +62,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
-        QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
+
         if hasattr(Qt, "AA_ShareOpenGLContexts"):
             QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
-        if hasattr(Qt, "AA_EnableHighDpiScaling"):
-            QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
 
         if "QT_QUICK_CONTROLS_STYLE" not in os.environ:
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
@@ -100,10 +97,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
 
         self.timer.start()
-        signal.signal(signal.SIGINT, lambda *args: self.stop())
+        signal.signal(signal.SIGINT, lambda *args: self._handle_sigint())
 
         self.logger.info('Entering main loop')
-        self.app.exec_()
+        self.app.exec()
+
+    def _handle_sigint(self):
+        self.app.appController.wantClose = True
+        self.stop()
 
     def stop(self):
         self.logger.info('closing GUI')

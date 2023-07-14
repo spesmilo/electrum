@@ -7,10 +7,10 @@ import html
 import threading
 from typing import TYPE_CHECKING, Set
 
-from PyQt5.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
+from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
-from PyQt5.QtGui import QGuiApplication, QFontDatabase
-from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
+from PyQt6.QtGui import QGuiApplication, QFontDatabase
+from PyQt6.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
 from electrum import version, constants
 from electrum.i18n import _
@@ -69,6 +69,7 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
     secureWindowChanged = pyqtSignal()
+    wantCloseChanged = pyqtSignal()
 
     def __init__(self, qeapp: 'ElectrumQmlApplication', qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -99,6 +100,8 @@ class QEAppController(BaseCrashReporter, QObject):
 
         if self.isAndroid():
             self.bindIntent()
+
+        self._want_close = False
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
@@ -178,6 +181,16 @@ class QEAppController(BaseCrashReporter, QObject):
         self._app_started = True
         if self._intent:
             self.on_new_intent(self._intent)
+
+    @pyqtProperty(bool, notify=wantCloseChanged)
+    def wantClose(self):
+        return self._want_close
+
+    @wantClose.setter
+    def wantClose(self, want_close):
+        if want_close != self._want_close:
+            self._want_close = want_close
+            self.wantCloseChanged.emit()
 
     @pyqtSlot(str, str)
     def doShare(self, data, title):
@@ -330,6 +343,13 @@ class ElectrumQmlApplication(QGuiApplication):
 
         ElectrumQmlApplication._daemon = daemon
 
+        # TODO QT6 order of declaration is important now?
+        qmlRegisterType(QEAmount, 'org.electrum', 1, 0, 'Amount')
+        qmlRegisterType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard')
+        qmlRegisterType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard')
+        qmlRegisterType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel')
+        qmlRegisterType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel')
+
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
@@ -349,11 +369,12 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxCanceller, 'org.electrum', 1, 0, 'TxCanceller')
         qmlRegisterType(QEBip39RecoveryListModel, 'org.electrum', 1, 0, 'Bip39RecoveryListModel')
 
-        qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
-        qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard', 'QNewWalletWizard can only be used as property')
-        qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard', 'QServerConnectWizard can only be used as property')
-        qmlRegisterUncreatableType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel', 'FilterProxyModel can only be used as property')
-        qmlRegisterUncreatableType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel', 'QSortFilterProxyModel can only be used as property')
+        # TODO QT6
+        # qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
+        # qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard', 'QNewWalletWizard can only be used as property')
+        # qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard', 'QServerConnectWizard can only be used as property')
+        # qmlRegisterUncreatableType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel', 'FilterProxyModel can only be used as property')
+        # qmlRegisterUncreatableType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel', 'QSortFilterProxyModel can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
 

@@ -1,6 +1,6 @@
 import QtQuick 2.12
 import QtQuick.Controls 2.0
-import QtMultimedia 5.6
+import QtMultimedia
 
 import org.electrum 1.0
 
@@ -25,7 +25,7 @@ Item {
     VideoOutput {
         id: vo
         anchors.fill: parent
-        source: camera
+        // source: camera
         fillMode: VideoOutput.PreserveAspectCrop
 
         Rectangle {
@@ -114,31 +114,41 @@ Item {
         }
     }
 
-    Camera {
-        id: camera
-        deviceId: QtMultimedia.defaultCamera.deviceId
-        viewfinder.resolution: "640x480"
+    MediaDevices {
+        id: mediaDevices
+    }
 
-        focus {
-            focusMode: Camera.FocusContinuous
-            focusPointMode: Camera.FocusPointCustom
-            customFocusPoint: Qt.point(0.5, 0.5)
-        }
+    CaptureSession {
+        videoOutput: VideoOutput
 
-        function dumpstats() {
-            console.log(camera.viewfinder.resolution)
-            console.log(camera.viewfinder.minimumFrameRate)
-            console.log(camera.viewfinder.maximumFrameRate)
-            var resolutions = camera.supportedViewfinderResolutions()
-            resolutions.forEach(function(item, i) {
-                console.log('' + item.width + 'x' + item.height)
-            })
-            // TODO
-            // pick a suitable resolution from the available resolutions
-            // problem: some cameras have no supportedViewfinderResolutions
-            // but still error out when an invalid resolution is set.
-            // 640x480 seems to be universally available, but this needs to
-            // be checked across a range of phone models.
+        camera: Camera {
+            id: camera
+            // deviceId: QtMultimedia.defaultCamera.deviceId
+            cameraDevice: mediaDevices.defaultVideoInput
+            // TODO QT6
+            // viewfinder.resolution: "640x480"
+
+            // focus {
+            //     focusMode: Camera.FocusContinuous
+            //     focusPointMode: Camera.FocusPointCustom
+            //     customFocusPoint: Qt.point(0.5, 0.5)
+            // }
+
+            function dumpstats() {
+                console.log(camera.viewfinder.resolution)
+                console.log(camera.viewfinder.minimumFrameRate)
+                console.log(camera.viewfinder.maximumFrameRate)
+                var resolutions = camera.supportedViewfinderResolutions()
+                resolutions.forEach(function(item, i) {
+                    console.log('' + item.width + 'x' + item.height)
+                })
+                // TODO
+                // pick a suitable resolution from the available resolutions
+                // problem: some cameras have no supportedViewfinderResolutions
+                // but still error out when an invalid resolution is set.
+                // 640x480 seems to be universally available, but this needs to
+                // be checked across a range of phone models.
+            }
         }
     }
 

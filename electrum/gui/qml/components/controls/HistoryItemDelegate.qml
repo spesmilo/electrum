@@ -121,7 +121,7 @@ Item {
             visible: delegate.ListView.section == delegate.ListView.nextSection
             Layout.preferredWidth: parent.width * 2/3
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: Material.background
         }
 

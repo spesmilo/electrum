@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtSignal, pyqtProperty, QObject
+from PyQt6.QtCore import pyqtSignal, pyqtProperty, QObject  # TODO: common code, Qt5/Qt6 mismatch!
 
 from electrum.logging import get_logger
 

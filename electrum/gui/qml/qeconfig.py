@@ -2,7 +2,7 @@ import copy
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
 from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.i18n import set_language, languages

@@ -1,12 +1,13 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
-import QtQuick.Controls.Material.impl 2.12
-import QtQuick.Window 2.15
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Basic
+import QtQuick.Controls.Material
+import QtQuick.Controls.Material.impl
+import QtQuick.Window
 
-import QtQml 2.6
-import QtMultimedia 5.6
+import QtQml
+import QtMultimedia
 
 import org.electrum 1.0
 
@@ -27,14 +28,13 @@ ApplicationWindow
     Material.accent: Material.LightBlue
     font.pixelSize: constants.fontSizeMedium
 
-    property Item constants: appconstants
+    property QtObject constants: appconstants
     Constants { id: appconstants }
 
     property alias stack: mainStackView
 
     property variant activeDialogs: []
 
-    property bool _wantClose: false
     property var _exceptionDialog
 
     property QtObject appMenu: Menu {
@@ -105,7 +105,8 @@ ApplicationWindow
 
         ColumnLayout {
             spacing: 0
-            width: parent.width
+            anchors.left: parent.left
+            anchors.right: parent.right
             height: toolbar.height
 
             RowLayout {
@@ -171,7 +172,6 @@ ApplicationWindow
                     RowLayout {
                         id: statusIconsLayout
                         anchors.verticalCenter: parent.verticalCenter
-
                         Item {
                             Layout.preferredWidth: constants.paddingLarge
                             Layout.preferredHeight: 1
@@ -207,9 +207,12 @@ ApplicationWindow
                 }
             }
 
-            WalletSummary {
-                id: walletSummary
-                Layout.preferredWidth: app.width
+            // hack to force relayout of toolbar
+            // since qt6 watchOnlyIndicator.visible doesn't trigger relayout(?)
+            Item {
+                Layout.preferredHeight: 1
+                Layout.topMargin: -1
+                Layout.preferredWidth: watchOnlyIndicator.visible ? app.width : 1
             }
         }
     }
@@ -218,7 +221,9 @@ ApplicationWindow
         id: mainStackView
         width: parent.width
         height: keyboardFreeZone.height - header.height
-        initialItem: Qt.resolvedUrl('WalletMainView.qml')
+        initialItem: Component {
+            WalletMainView {}
+        }
 
         function getRoot() {
             return mainStackView.get(0)
@@ -454,7 +459,13 @@ ApplicationWindow
         }
     }
 
-    onClosing: {
+    onClosing: (close) => {
+        if (AppController.wantClose) {
+            // destroy most GUI components so that we don't dump so many null reference warnings on exit
+            app.header.visible = false
+            mainStackView.clear()
+            return
+        }
         if (activeDialogs.length > 0) {
             var activeDialog = activeDialogs[activeDialogs.length - 1]
             if (activeDialog.allowClose) {
@@ -469,22 +480,16 @@ ApplicationWindow
             close.accepted = false
             stack.pop()
         } else {
-            // destroy most GUI components so that we don't dump so many null reference warnings on exit
-            if (app._wantClose) {
-                app.header.visible = false
-                mainStackView.clear()
-            } else {
-                var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Close Electrum?'),
-                    yesno: true
-                })
-                dialog.accepted.connect(function() {
-                    app._wantClose = true
-                    app.close()
-                })
-                dialog.open()
-                close.accepted = false
-            }
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Close Electrum?'),
+                yesno: true
+            })
+            dialog.accepted.connect(function() {
+                AppController.wantClose = true
+                app.close()
+            })
+            dialog.open()
+            close.accepted = false
         }
     }
 

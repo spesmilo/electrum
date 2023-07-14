@@ -7,9 +7,9 @@ import urllib
 
 from PIL import Image, ImageQt
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect, QPoint
-from PyQt5.QtGui import QImage, QColor
-from PyQt5.QtQuick import QQuickImageProvider
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect, QPoint
+from PyQt6.QtGui import QImage, QColor
+from PyQt6.QtQuick import QQuickImageProvider
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
@@ -123,7 +123,7 @@ class QEQRParser(QObject):
 
 class QEQRImageProvider(QQuickImageProvider):
     def __init__(self, max_size, parent=None):
-        super().__init__(QQuickImageProvider.Image)
+        super().__init__(QQuickImageProvider.ImageType.Image)
         self._max_size = max_size
         self.qimg = None
 

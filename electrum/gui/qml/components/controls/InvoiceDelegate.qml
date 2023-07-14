@@ -31,7 +31,7 @@ ItemDelegate {
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: 'transparent'
         }
 
@@ -133,7 +133,7 @@ ItemDelegate {
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: 'transparent'
         }
 

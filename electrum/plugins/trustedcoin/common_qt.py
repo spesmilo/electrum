@@ -3,7 +3,7 @@ import socket
 import base64
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
+from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot  # TODO: common code, Qt5/Qt6 mismatch!
 
 from electrum.i18n import _
 from electrum.bip32 import BIP32Node
