@@ -184,6 +184,7 @@ class AbstractChannel(Logger, ABC):
     funding_outpoint: Outpoint
     node_id: bytes  # note that it might not be the full 33 bytes; for OCB it is only the prefix
     _state: ChannelState
+    sweep_address: str
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
@@ -289,16 +290,22 @@ class AbstractChannel(Logger, ABC):
         if self._sweep_info.get(txid) is None:
             our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
             their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
-            if our_sweep_info is not None:
+            if our_sweep_info:
                 self._sweep_info[txid] = our_sweep_info
                 self.logger.info(f'we (local) force closed')
-            elif their_sweep_info is not None:
+            elif their_sweep_info:
                 self._sweep_info[txid] = their_sweep_info
                 self.logger.info(f'they (remote) force closed.')
             else:
                 self._sweep_info[txid] = {}
                 self.logger.info(f'not sure who closed.')
         return self._sweep_info[txid]
+
+    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
+        return None
+
+    def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
+        return
 
     def update_onchain_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                              closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
@@ -479,15 +486,21 @@ class ChannelBackup(AbstractChannel):
         Logger.__init__(self)
         self.config = {}
         if self.is_imported:
+            assert isinstance(cb, ImportedChannelBackupStorage)
             self.init_config(cb)
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
-    def init_config(self, cb):
+    def init_config(self, cb: ImportedChannelBackupStorage):
+        local_payment_pubkey = cb.local_payment_pubkey
+        if local_payment_pubkey is None:
+            self.logger.warning(
+                f"local_payment_pubkey missing from (old-type) channel backup. "
+                f"You should export and re-import a newer backup.")
         self.config[LOCAL] = LocalConfig.from_seed(
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
+            static_remotekey=local_payment_pubkey,
             # dummy values
-            static_remotekey=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,
             max_accepted_htlcs=None,
@@ -577,8 +590,6 @@ class ChannelBackup(AbstractChannel):
 
     @property
     def sweep_address(self) -> str:
-        # Since channel backups do not save the static_remotekey, payment_basepoint in
-        # their local config is not static)
         return self.lnworker.wallet.get_new_sweep_address_for_channel()
 
     def get_local_pubkey(self) -> bytes:
