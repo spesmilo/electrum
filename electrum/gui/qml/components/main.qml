@@ -121,7 +121,8 @@ ApplicationWindow
 
                     MouseArea {
                         anchors.fill: parent
-                        enabled: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
+                        enabled: Daemon.currentWallet &&
+                            (!stack.currentItem || !stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
                         onClicked: {
                             stack.getRoot().menu.open()  // open wallet-menu
                             stack.getRoot().menu.y = toolbar.height
@@ -139,14 +140,15 @@ ApplicationWindow
                         Image {
                             Layout.preferredWidth: constants.iconSizeSmall
                             Layout.preferredHeight: constants.iconSizeSmall
-                            visible: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
+                            visible: Daemon.currentWallet &&
+                                (!stack.currentItem || !stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
                             source: '../../icons/wallet.png'
                         }
 
                         Label {
                             Layout.fillWidth: true
                             Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
-                            text: stack.currentItem.title
+                            text: stack.currentItem && stack.currentItem.title
                                 ? stack.currentItem.title
                                 : Daemon.currentWallet.name
                             elide: Label.ElideRight
