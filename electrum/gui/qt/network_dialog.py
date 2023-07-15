@@ -487,3 +487,120 @@ class TorDetector(QThread):
         self._work_to_do_evt.set()
         self.exit()
         self.wait()
+
+
+class ProxyWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        fixed_width_hostname = 24 * char_width_in_lineedit()
+        fixed_width_port = 6 * char_width_in_lineedit()
+
+        grid = QGridLayout(self)
+        grid.setSpacing(8)
+
+        # proxy setting
+        self.proxy_cb = QCheckBox(_('Use proxy'))
+        # self.proxy_cb.clicked.connect(self.check_disable_proxy)
+        # self.proxy_cb.clicked.connect(self.set_proxy)
+
+        self.proxy_mode = QComboBox()
+        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
+        self.proxy_host = QLineEdit()
+        self.proxy_host.setFixedWidth(fixed_width_hostname)
+        self.proxy_port = QLineEdit()
+        self.proxy_port.setFixedWidth(fixed_width_port)
+        self.proxy_user = QLineEdit()
+        self.proxy_user.setPlaceholderText(_("Proxy user"))
+        self.proxy_password = PasswordLineEdit()
+        self.proxy_password.setPlaceholderText(_("Password"))
+        self.proxy_password.setFixedWidth(fixed_width_port)
+
+        # self.proxy_mode.currentIndexChanged.connect(self.set_proxy)
+        # self.proxy_host.editingFinished.connect(self.set_proxy)
+        # self.proxy_port.editingFinished.connect(self.set_proxy)
+        # self.proxy_user.editingFinished.connect(self.set_proxy)
+        # self.proxy_password.editingFinished.connect(self.set_proxy)
+
+        # self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
+        # self.proxy_host.textEdited.connect(self.proxy_settings_changed)
+        # self.proxy_port.textEdited.connect(self.proxy_settings_changed)
+        # self.proxy_user.textEdited.connect(self.proxy_settings_changed)
+        # self.proxy_password.textEdited.connect(self.proxy_settings_changed)
+
+        self.tor_cb = QCheckBox(_("Use Tor Proxy"))
+        self.tor_cb.setIcon(read_QIcon("tor_logo.png"))
+        self.tor_cb.hide()
+        # self.tor_cb.clicked.connect(self.use_tor_proxy)
+
+        grid.addWidget(self.tor_cb, 1, 0, 1, 3)
+        grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 2, 4)
+        grid.addWidget(self.proxy_mode, 4, 1)
+        grid.addWidget(self.proxy_host, 4, 2)
+        grid.addWidget(self.proxy_port, 4, 3)
+        grid.addWidget(self.proxy_user, 5, 2)
+        grid.addWidget(self.proxy_password, 5, 3)
+        grid.setRowStretch(7, 1)
+
+
+class ServerWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        fixed_width_hostname = 24 * char_width_in_lineedit()
+        fixed_width_port = 6 * char_width_in_lineedit()
+
+        grid = QGridLayout(self)
+        # self.setLayout(grid)
+
+        msg = ' '.join([
+            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
+            _("This blockchain is used to verify the transactions sent by your transaction server.")
+        ])
+        self.status_label = QLabel('')
+        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
+        grid.addWidget(self.status_label, 0, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+
+        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
+        # self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        # self.autoconnect_cb.clicked.connect(self.set_server)
+        # self.autoconnect_cb.clicked.connect(self.update)
+        msg = ' '.join([
+            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
+        ])
+        grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
+        grid.addWidget(HelpButton(msg), 1, 4)
+
+        self.server_e = QLineEdit()
+        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
+        # self.server_e.editingFinished.connect(self.set_server)
+        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
+        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
+        grid.addWidget(self.server_e, 2, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 2, 4)
+
+        self.height_label = QLabel('')
+        msg = _('This is the height of your local copy of the blockchain.')
+        grid.addWidget(QLabel(_('Blockchain') + ':'), 3, 0)
+        grid.addWidget(self.height_label, 3, 1)
+        grid.addWidget(HelpButton(msg), 3, 4)
+
+        self.split_label = QLabel('')
+        grid.addWidget(self.split_label, 4, 0, 1, 3)
+
+        self.nodes_list_widget = NodesListWidget(self)
+        grid.addWidget(self.nodes_list_widget, 6, 0, 1, 5)
+
+        # vbox = QVBoxLayout()
+        # vbox.addWidget(tabs)
+        # self.layout_ = vbox
+        # # tor detector
+        # self.td = td = TorDetector()
+        # td.found_proxy.connect(self.suggest_proxy)
+        # td.start()
+
+        # self.fill_in_proxy_settings()
+        # self.update()
