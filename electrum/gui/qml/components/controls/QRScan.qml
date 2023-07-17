@@ -1,5 +1,5 @@
-import QtQuick 2.12
-import QtQuick.Controls 2.0
+import QtQuick
+import QtQuick.Controls
 import QtMultimedia
 
 import org.electrum 1.0

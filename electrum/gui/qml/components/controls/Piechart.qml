@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick
 
 Canvas {
     id: piechart

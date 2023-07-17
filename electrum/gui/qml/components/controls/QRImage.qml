@@ -1,5 +1,5 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.15
+import QtQuick
+import QtQuick.Controls
 
 Item {
     id: root
