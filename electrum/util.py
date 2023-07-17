@@ -1706,6 +1706,7 @@ class CallbackManager:
     def __init__(self):
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
+        self._running_cb_futs = set()
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1730,7 +1731,10 @@ class CallbackManager:
         for callback in callbacks:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(*args), loop)
+                fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
+                # keep strong references around to avoid GC issues:
+                self._running_cb_futs.add(fut)
+                fut.add_done_callback(lambda fut_: self._running_cb_futs.remove(fut_))
             elif get_running_loop() == loop:
                 # run callback immediately, so that it is guaranteed
                 # to have been executed when this method returns
