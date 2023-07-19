@@ -201,8 +201,10 @@ ApplicationWindow
                             }
                         }
 
-                        LightningNetworkStatusIndicator {}
-                        OnchainNetworkStatusIndicator {}
+                        LightningNetworkStatusIndicator {
+                            id: lnnsi
+                        }
+                        OnchainNetworkStatusIndicator { }
                     }
                 }
             }
@@ -212,7 +214,11 @@ ApplicationWindow
             Item {
                 Layout.preferredHeight: 1
                 Layout.topMargin: -1
-                Layout.preferredWidth: watchOnlyIndicator.visible ? app.width : 1
+                Layout.preferredWidth: watchOnlyIndicator.visible
+                    ? 1
+                    : lnnsi.visible
+                        ? 2
+                        : 3
             }
         }
     }
