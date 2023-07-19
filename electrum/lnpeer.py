@@ -1751,10 +1751,10 @@ class Peer(Logger):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[OnionPacket]]:
+            is_trampoline: bool = False) -> Optional[bytes]:
 
         """As a final recipient of an HTLC, decide if we should fulfill it.
-        Return (preimage, trampoline_onion_packet) with at most a single element not None
+        Return preimage or None
         """
         def log_fail_reason(reason: str):
             self.logger.info(f"maybe_fulfill_htlc. will FAIL HTLC: chan {chan.short_channel_id}. "
@@ -1812,7 +1812,7 @@ class Peer(Logger):
 
         payment_status = self.lnworker.check_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
         if payment_status is None:
-            return None, None
+            return None
         elif payment_status is False:
             log_fail_reason(f"MPP_TIMEOUT")
             raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
@@ -1822,7 +1822,7 @@ class Peer(Logger):
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
             # TODO: we should check that all trampoline_onions are the same
-            return None, processed_onion.trampoline_onion_packet
+            return None
 
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry
@@ -1845,7 +1845,7 @@ class Peer(Logger):
         if preimage:
             self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
-        return preimage, None
+        return preimage
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
@@ -2340,22 +2340,22 @@ class Peer(Logger):
             onion_packet_bytes=onion_packet_bytes)
         if processed_onion.are_we_final:
             # either we are final recipient; or if trampoline, see cases below
-            preimage, trampoline_onion_packet = self.maybe_fulfill_htlc(
+            preimage = self.maybe_fulfill_htlc(
                 chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
 
-            if trampoline_onion_packet:
+            if processed_onion.trampoline_onion_packet:
                 # trampoline- recipient or forwarding
                 if not forwarding_info:
                     trampoline_onion = self.process_onion_packet(
-                        trampoline_onion_packet,
+                        processed_onion.trampoline_onion_packet,
                         payment_hash=payment_hash,
                         onion_packet_bytes=onion_packet_bytes,
                         is_trampoline=True)
                     if trampoline_onion.are_we_final:
                         # trampoline- we are final recipient of HTLC
-                        preimage, _ = self.maybe_fulfill_htlc(
+                        preimage = self.maybe_fulfill_htlc(
                             chan=chan,
                             htlc=htlc,
                             processed_onion=trampoline_onion,
