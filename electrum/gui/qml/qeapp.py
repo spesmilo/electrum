@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Set
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
-from PyQt6.QtGui import QGuiApplication, QFontDatabase
+from PyQt6.QtGui import QGuiApplication, QFontDatabase, QScreen
 from PyQt6.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
 from electrum import version, constants
@@ -369,7 +369,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxCanceller, 'org.electrum', 1, 0, 'TxCanceller')
         qmlRegisterType(QEBip39RecoveryListModel, 'org.electrum', 1, 0, 'Bip39RecoveryListModel')
 
-        # TODO QT6
+        # TODO QT6: these were declared as uncreatable, but that doesn't seem to work for pyqt6
         # qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
         # qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard', 'QNewWalletWizard can only be used as property')
         # qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard', 'QServerConnectWizard can only be used as property')
@@ -380,9 +380,10 @@ class ElectrumQmlApplication(QGuiApplication):
 
         screensize = self.primaryScreen().size()
 
-        self.qr_ip = QEQRImageProvider((7/8)*min(screensize.width(), screensize.height()))
+        qr_size = min(screensize.width(), screensize.height()) * 7/8
+        self.qr_ip = QEQRImageProvider(qr_size)
         self.engine.addImageProvider('qrgen', self.qr_ip)
-        self.qr_ip_h = QEQRImageProviderHelper((7/8)*min(screensize.width(), screensize.height()))
+        self.qr_ip_h = QEQRImageProviderHelper(qr_size)
 
         # add a monospace font as we can't rely on device having one
         self.fixedFont = 'PT Mono'

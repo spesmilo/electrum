@@ -40,7 +40,7 @@ Item {
 
     function closeSendDialog() {
         if (_sendDialog) {
-            _sendDialog.close()
+            _sendDialog.doClose()
             _sendDialog = null
         }
     }

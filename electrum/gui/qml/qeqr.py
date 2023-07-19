@@ -5,11 +5,12 @@ from qrcode.exceptions import DataOverflowError
 import math
 import urllib
 
-from PIL import Image, ImageQt
+from PIL import ImageQt
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect, QPoint
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtQuick import QQuickImageProvider
+from PyQt6.QtMultimedia import QVideoSink
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
@@ -22,103 +23,99 @@ class QEQRParser(QObject):
 
     busyChanged = pyqtSignal()
     dataChanged = pyqtSignal()
-    imageChanged = pyqtSignal()
+    sizeChanged = pyqtSignal()
+    videoSinkChanged = pyqtSignal()
 
     def __init__(self, text=None, parent=None):
         super().__init__(parent)
 
         self._busy = False
-        self._image = None
         self._data = None
+        self._video_sink = None
 
         self._text = text
         self.qrreader = get_qr_reader()
         if not self.qrreader:
             raise Exception(_("The platform QR detection library is not available."))
 
-    @pyqtSlot('QImage')
-    def scanImage(self, image=None):
-        if self._busy:
-            self._logger.warning("Already processing an image. Check 'busy' property before calling scanImage")
-            return
+    @pyqtProperty(QVideoSink, notify=videoSinkChanged)
+    def videoSink(self):
+        return self._video_sink
 
-        if image is None:
-            self._logger.warning("No image to decode")
+    @videoSink.setter
+    def videoSink(self, sink: QVideoSink):
+        if self._video_sink != sink:
+            self._video_sink = sink
+            self._video_sink.videoFrameChanged.connect(self.onVideoFrame)
+
+    def onVideoFrame(self, videoframe):
+        if self._busy or self._data:
             return
 
         self._busy = True
         self.busyChanged.emit()
 
-        # self.logImageStats(image)
-        self._parseQR(image)
+        if not videoframe.isValid():
+            self._logger.debug('invalid frame')
+            return
 
-    def logImageStats(self, image):
-        self._logger.info(f'width: {image.width()} height: {image.height()} depth: {image.depth()} format: {image.format()}')
+        async def co_parse_qr(frame):
+            image = frame.toImage()
+            self._parseQR(image)
 
-    def _parseQR(self, image):
-        self.w = image.width()
-        self.h = image.height()
-        img_crop_rect = self._get_crop(image, 360)
+        asyncio.run_coroutine_threadsafe(co_parse_qr(videoframe), get_asyncio_loop())
+
+    def _parseQR(self, image: QImage):
+        self._size = min(image.width(), image.height())
+        self.sizeChanged.emit()
+        img_crop_rect = self._get_crop(image, self._size)
         frame_cropped = image.copy(img_crop_rect)
 
-        async def co_parse_qr(image):
-            # Convert to Y800 / GREY FourCC (single 8-bit channel)
-            # This creates a copy, so we don't need to keep the frame around anymore
-            frame_y800 = image.convertToFormat(QImage.Format_Grayscale8)
+        # Convert to Y800 / GREY FourCC (single 8-bit channel)
+        frame_y800 = frame_cropped.convertToFormat(QImage.Format.Format_Grayscale8)
+        self.frame_id = 0
+        # Read the QR codes from the frame
+        self.qrreader_res = self.qrreader.read_qr_code(
+            frame_y800.constBits().__int__(),
+            frame_y800.sizeInBytes(),
+            frame_y800.bytesPerLine(),
+            frame_y800.width(),
+            frame_y800.height(),
+            self.frame_id
+            )
 
-            self.frame_id = 0
-            # Read the QR codes from the frame
-            self.qrreader_res = self.qrreader.read_qr_code(
-                frame_y800.constBits().__int__(),
-                frame_y800.byteCount(),
-                frame_y800.bytesPerLine(),
-                frame_y800.width(),
-                frame_y800.height(),
-                self.frame_id
-                )
+        if len(self.qrreader_res) > 0:
+            result = self.qrreader_res[0]
+            self._data = result
+            self.dataChanged.emit()
 
-            if len(self.qrreader_res) > 0:
-                result = self.qrreader_res[0]
-                self._data = result
-                self.dataChanged.emit()
-
-            self._busy = False
-            self.busyChanged.emit()
-
-        asyncio.run_coroutine_threadsafe(co_parse_qr(frame_cropped), get_asyncio_loop())
+        self._busy = False
+        self.busyChanged.emit()
 
     def _get_crop(self, image: QImage, scan_size: int) -> QRect:
-        """
-        Returns a QRect that is scan_size x scan_size in the middle of the resolution
-        """
-        self.scan_pos_x = (image.width() - scan_size) // 2
-        self.scan_pos_y = (image.height() - scan_size) // 2
-        return QRect(self.scan_pos_x, self.scan_pos_y, scan_size, scan_size)
+        """Returns a QRect that is scan_size x scan_size in the middle of the resolution"""
+        scan_pos_x = (image.width() - scan_size) // 2
+        scan_pos_y = (image.height() - scan_size) // 2
+        return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
     @pyqtProperty(bool, notify=busyChanged)
     def busy(self):
         return self._busy
 
-    @pyqtProperty('QImage', notify=imageChanged)
-    def image(self):
-        return self._image
+    @pyqtProperty(int, notify=sizeChanged)
+    def size(self):
+        return self._size
 
     @pyqtProperty(str, notify=dataChanged)
     def data(self):
+        if not self._data:
+            return ''
         return self._data.data
 
-    @pyqtProperty('QPoint', notify=dataChanged)
-    def center(self):
-        (x,y) = self._data.center
-        return QPoint(x+self.scan_pos_x, y+self.scan_pos_y)
-
-    @pyqtProperty('QVariant', notify=dataChanged)
-    def points(self):
-        result = []
-        for item in self._data.points:
-            (x,y) = item
-            result.append(QPoint(x+self.scan_pos_x, y+self.scan_pos_y))
-        return result
+    @pyqtSlot()
+    def reset(self):
+        self._data = None
+        self.dataChanged.emit()
 
 
 class QEQRImageProvider(QQuickImageProvider):
@@ -161,7 +158,7 @@ class QEQRImageProvider(QQuickImageProvider):
             # fake it
             modules = 17 + qr.border * 2
             box_size = math.floor(pixelsize/modules)
-            self.qimg = QImage(box_size * modules, box_size * modules, QImage.Format_RGB32)
+            self.qimg = QImage(box_size * modules, box_size * modules, QImage.Format.Format_RGB32)
             self.qimg.fill(QColor('gray'))
         return self.qimg, self.qimg.size()
 

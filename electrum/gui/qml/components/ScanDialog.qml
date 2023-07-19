@@ -20,11 +20,17 @@ ElDialog {
     header: null
     topPadding: 0 // dialog needs topPadding override
 
+    function doClose() {
+        qrscan.stop()
+        Qt.callLater(doReject)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
         QRScan {
+            id: qrscan
             Layout.fillWidth: true
             Layout.fillHeight: true
             hint: scanDialog.hint

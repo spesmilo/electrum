@@ -478,6 +478,7 @@ ApplicationWindow
         if (activeDialogs.length > 0) {
             var activeDialog = activeDialogs[activeDialogs.length - 1]
             if (activeDialog.allowClose) {
+                console.log('main: dialog.doClose')
                 activeDialog.doClose()
             } else {
                 console.log('dialog disallowed close')

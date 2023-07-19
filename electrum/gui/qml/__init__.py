@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 try:
     import PyQt6
 except Exception:
-    sys.exit("Error: Could not import PyQt6 on Linux systems, you may try 'sudo apt-get install python3-pyqt6'")
+    sys.exit("Error: Could not import PyQt6. On Linux systems, you may try 'sudo apt-get install python3-pyqt6'")
 
 try:
     import PyQt6.QtQml
 except Exception:
-    sys.exit("Error: Could not import PyQt6.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt6.qtquick'")
+    sys.exit("Error: Could not import PyQt6.QtQml. On Linux systems, you may try 'sudo apt-get install python3-pyqt6.qtquick'")
 
 from PyQt6.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt6.QtGui import QGuiApplication
