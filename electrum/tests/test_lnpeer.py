@@ -1,5 +1,6 @@
 import asyncio
 import shutil
+import copy
 import tempfile
 from decimal import Decimal
 import os
@@ -366,7 +367,7 @@ depleted_channel = {
     'remote_fee_rate_millionths': 1,
 }
 
-GRAPH_DEFINITIONS = {
+_GRAPH_DEFINITIONS = {
     'square_graph': {
         'alice': {
             'channels': {
@@ -420,6 +421,7 @@ class TestPeer(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
+        self.GRAPH_DEFINITIONS = copy.deepcopy(_GRAPH_DEFINITIONS)
         self._lnworkers_created = []  # type: List[MockLNWallet]
 
     async def asyncTearDown(self):
@@ -923,7 +925,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multihop(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         peers = graph.peers.values()
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
@@ -945,7 +947,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multihop_with_preselected_path(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         peers = graph.peers.values()
         async def pay(pay_req):
             with self.subTest(msg="bad path: edges do not chain together"):
@@ -990,7 +992,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multihop_temp_node_failure(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         graph.workers['bob'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         graph.workers['carol'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         peers = graph.peers.values()
@@ -1017,7 +1019,7 @@ class TestPeer(ElectrumTestCase):
     async def test_payment_multihop_route_around_failure(self):
         # Alice will pay Dave. Alice first tries A->C->D route, due to lower fees, but Carol
         # will fail the htlc and get blacklisted. Alice will then try A->B->D and succeed.
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         graph.workers['carol'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         peers = graph.peers.values()
         async def pay(lnaddr, pay_req):
@@ -1054,7 +1056,7 @@ class TestPeer(ElectrumTestCase):
     @needs_test_with_all_chacha20_implementations
     async def test_payment_with_temp_channel_failure_and_liquidity_hints(self):
         # prepare channels such that a temporary channel failure happens at c->d
-        graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
+        graph_definition = self.GRAPH_DEFINITIONS['square_graph']
         graph_definition['alice']['channels']['carol']['local_balance_msat'] = 200_000_000
         graph_definition['alice']['channels']['carol']['remote_balance_msat'] = 200_000_000
         graph_definition['carol']['channels']['dave']['local_balance_msat'] = 50_000_000
@@ -1170,12 +1172,12 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multipart_with_timeout(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         await self._run_mpp(graph, {'bob_forwarding': False}, {'bob_forwarding': True})
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multipart(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         await self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
     async def _run_trampoline_payment(self, is_legacy, direct, drop_dave=None):
@@ -1208,7 +1210,7 @@ class TestPeer(ElectrumTestCase):
                     do_drop_dave(p)
                 await group.spawn(pay(lnaddr, pay_req))
 
-        graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
+        graph_definition = self.GRAPH_DEFINITIONS['square_graph']
         if not direct:
             # deplete channel from alice to carol
             graph_definition['alice']['channels']['carol'] = depleted_channel
@@ -1250,7 +1252,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multipart_trampoline_e2e(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
@@ -1266,7 +1268,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multipart_trampoline_legacy(self):
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
@@ -1283,7 +1285,7 @@ class TestPeer(ElectrumTestCase):
         Dave shuts down (stops wallet).
         We test if Dave fails the pending HTLCs during shutdown.
         """
-        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')].balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')].balance(LOCAL))
         amount_to_pay = 600_000_000_000
