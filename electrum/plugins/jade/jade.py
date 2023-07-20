@@ -353,7 +353,7 @@ class JadePlugin(HW_PluginBase):
     DEVICE_IDS = [(0x10c4, 0xea60), # Development Jade device
                   (0x1a86, 0x55d4), # Retail Blockstream Jade (And some DIY devices)
                   (0x0403, 0x6001), # DIY FTDI Based Devices (Eg: M5StickC-Plus)
-                  (0x1a86, 0x7523)] # DIY CH40 Based devices (Eg: ESP32-Wrover)
+                  (0x1a86, 0x7523)] # DIY CH340 Based devices (Eg: ESP32-Wrover)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     MIN_SUPPORTED_FW_VERSION = (0, 1, 32)
 
