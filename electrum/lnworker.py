@@ -1922,16 +1922,16 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def check_received_htlc(
-        self, payment_secret: bytes,
-        short_channel_id: ShortChannelID,
-        htlc: UpdateAddHtlc,
-        expected_msat: int,
+
+    def check_mpp_status(
+            self, payment_secret: bytes,
+            short_channel_id: ShortChannelID,
+            htlc: UpdateAddHtlc,
+            expected_msat: int,
     ) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None (waiting)
         """
         payment_hash = htlc.payment_hash
-
         self.update_mpp_with_received_htlc(payment_secret, short_channel_id, htlc, expected_msat)
         is_expired, is_accepted = self.get_mpp_status(payment_secret)
         if not is_accepted and not is_expired:
@@ -1944,19 +1944,7 @@ class LNWallet(LNWorker):
             elif self.stopping_soon:
                 is_expired = True # try to time out pending HTLCs before shutting down
             elif all([self.is_mpp_amount_reached(x) for x in payment_secrets]):
-                preimage = self.get_preimage(payment_hash)
-                hold_invoice_callback = self.hold_invoice_callbacks.get(payment_hash)
-                if not preimage and hold_invoice_callback:
-                    # for hold invoices, trigger callback
-                    cb, timeout = hold_invoice_callback
-                    if int(time.time()) < timeout:
-                        cb(payment_hash)
-                    else:
-                        is_expired = True
-                else:
-                    # note: preimage will be None for outer trampoline onion
-                    is_accepted = True
-
+                is_accepted = True
             elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 is_expired = True
 
