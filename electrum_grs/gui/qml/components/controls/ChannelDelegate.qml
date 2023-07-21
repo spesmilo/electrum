@@ -111,6 +111,10 @@ ItemDelegate {
             capacity: model.capacity
             localCapacity: model.local_capacity
             remoteCapacity: model.remote_capacity
+            canSend: model.can_send
+            canReceive: model.can_receive
+            frozenForSending: model.send_frozen
+            frozenForReceiving: model.receive_frozen
         }
 
         Item {

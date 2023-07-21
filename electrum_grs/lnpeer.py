@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable
 from datetime import datetime
 import functools
 
@@ -1668,10 +1668,12 @@ class Peer(Logger):
         next_peer.maybe_send_commitment(next_chan)
         return next_chan_scid, next_htlc.htlc_id
 
-    def maybe_forward_trampoline(
+    @log_exceptions
+    async def maybe_forward_trampoline(
             self, *,
-            chan: Channel,
-            htlc: UpdateAddHtlc,
+            payment_hash: bytes,
+            cltv_expiry: int,
+            outer_onion: ProcessedOnionPacket,
             trampoline_onion: ProcessedOnionPacket):
 
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
@@ -1679,9 +1681,7 @@ class Peer(Logger):
         if not (forwarding_enabled and forwarding_trampoline_enabled):
             self.logger.info(f"trampoline forwarding is disabled. failing htlc.")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
-
         payload = trampoline_onion.hop_data.payload
-        payment_hash = htlc.payment_hash
         payment_data = payload.get('payment_data')
         if payment_data:  # legacy case
             payment_secret = payment_data['payment_secret']
@@ -1709,43 +1709,39 @@ class Peer(Logger):
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
-        trampoline_cltv_delta = htlc.cltv_expiry - cltv_from_onion
-        trampoline_fee = htlc.amount_msat - amt_to_forward
+        trampoline_cltv_delta = cltv_expiry - cltv_from_onion
+        total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
+        trampoline_fee = total_msat - amt_to_forward
+        self.logger.info(f'trampoline cltv and fee: {trampoline_cltv_delta, trampoline_fee}')
 
-        @log_exceptions
-        async def forward_trampoline_payment():
-            try:
-                await self.lnworker.pay_to_node(
-                    node_pubkey=outgoing_node_id,
-                    payment_hash=payment_hash,
-                    payment_secret=payment_secret,
-                    amount_to_pay=amt_to_forward,
-                    min_cltv_expiry=cltv_from_onion,
-                    r_tags=[],
-                    invoice_features=invoice_features,
-                    fwd_trampoline_onion=next_trampoline_onion,
-                    fwd_trampoline_fee=trampoline_fee,
-                    fwd_trampoline_cltv_delta=trampoline_cltv_delta,
-                    attempts=1)
-            except OnionRoutingFailure as e:
-                # FIXME: cannot use payment_hash as key
-                self.lnworker.trampoline_forwarding_failures[payment_hash] = e
-            except PaymentFailure as e:
-                # FIXME: adapt the error code
-                error_reason = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-                self.lnworker.trampoline_forwarding_failures[payment_hash] = error_reason
-
-        asyncio.ensure_future(forward_trampoline_payment())
+        try:
+            await self.lnworker.pay_to_node(
+                node_pubkey=outgoing_node_id,
+                payment_hash=payment_hash,
+                payment_secret=payment_secret,
+                amount_to_pay=amt_to_forward,
+                min_cltv_expiry=cltv_from_onion,
+                r_tags=[],
+                invoice_features=invoice_features,
+                fwd_trampoline_onion=next_trampoline_onion,
+                fwd_trampoline_fee=trampoline_fee,
+                fwd_trampoline_cltv_delta=trampoline_cltv_delta,
+                attempts=1)
+        except OnionRoutingFailure as e:
+            raise
+        except PaymentFailure as e:
+            # FIXME: adapt the error code
+            raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
 
     def maybe_fulfill_htlc(
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[OnionPacket]]:
-
+            onion_packet_bytes: bytes,
+            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[Callable]]:
         """As a final recipient of an HTLC, decide if we should fulfill it.
-        Return (preimage, trampoline_onion_packet) with at most a single element not None
+        Return (preimage, forwarding_callback) with at most a single element not None
         """
         def log_fail_reason(reason: str):
             self.logger.info(f"maybe_fulfill_htlc. will FAIL HTLC: chan {chan.short_channel_id}. "
@@ -1801,7 +1797,7 @@ class Peer(Logger):
             log_fail_reason(f"'payment_secret' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        payment_status = self.lnworker.check_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
+        payment_status = self.lnworker.check_mpp_status(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
         if payment_status is None:
             return None, None
         elif payment_status is False:
@@ -1810,10 +1806,46 @@ class Peer(Logger):
         else:
             assert payment_status is True
 
+        payment_hash = htlc.payment_hash
+        preimage = self.lnworker.get_preimage(payment_hash)
+        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
+        if not preimage and hold_invoice_callback:
+            if preimage:
+                return preimage, None
+            else:
+                # for hold invoices, trigger callback
+                cb, timeout = hold_invoice_callback
+                if int(time.time()) < timeout:
+                    return None, lambda: cb(payment_hash)
+                else:
+                    raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
             # TODO: we should check that all trampoline_onions are the same
-            return None, processed_onion.trampoline_onion_packet
+
+            trampoline_onion = self.process_onion_packet(
+                processed_onion.trampoline_onion_packet,
+                payment_hash=payment_hash,
+                onion_packet_bytes=onion_packet_bytes,
+                is_trampoline=True)
+            if trampoline_onion.are_we_final:
+                # trampoline- we are final recipient of HTLC
+                preimage, cb = self.maybe_fulfill_htlc(
+                    chan=chan,
+                    htlc=htlc,
+                    processed_onion=trampoline_onion,
+                    onion_packet_bytes=onion_packet_bytes,
+                    is_trampoline=True)
+                assert cb is None
+                return preimage, None
+            else:
+                callback = lambda: self.maybe_forward_trampoline(
+                    payment_hash=payment_hash,
+                    cltv_expiry=htlc.cltv_expiry, # TODO: use max or enforce same value across mpp parts
+                    outer_onion=processed_onion,
+                    trampoline_onion=trampoline_onion)
+                return None, callback
 
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry
@@ -2331,39 +2363,42 @@ class Peer(Logger):
             onion_packet_bytes=onion_packet_bytes)
         if processed_onion.are_we_final:
             # either we are final recipient; or if trampoline, see cases below
-            preimage, trampoline_onion_packet = self.maybe_fulfill_htlc(
+            preimage, forwarding_callback = self.maybe_fulfill_htlc(
                 chan=chan,
                 htlc=htlc,
-                processed_onion=processed_onion)
-            if trampoline_onion_packet:
-                # trampoline- recipient or forwarding
+                processed_onion=processed_onion,
+                onion_packet_bytes=onion_packet_bytes)
+
+            if forwarding_callback:
                 if not forwarding_info:
-                    trampoline_onion = self.process_onion_packet(
-                        trampoline_onion_packet,
-                        payment_hash=htlc.payment_hash,
-                        onion_packet_bytes=onion_packet_bytes,
-                        is_trampoline=True)
-                    if trampoline_onion.are_we_final:
-                        # trampoline- we are final recipient of HTLC
-                        preimage, _ = self.maybe_fulfill_htlc(
-                            chan=chan,
-                            htlc=htlc,
-                            processed_onion=trampoline_onion,
-                            is_trampoline=True)
+                    # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
+                    if not self.lnworker.enable_htlc_forwarding:
+                        pass
+                    elif payment_hash in self.lnworker.trampoline_forwardings:
+                        # we are already forwarding this payment
+                        self.logger.info(f"we are already forwarding this.")
                     else:
-                        # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
-                        if not self.lnworker.enable_htlc_forwarding:
-                            return None, None, None
-                        self.maybe_forward_trampoline(
-                            chan=chan,
-                            htlc=htlc,
-                            trampoline_onion=trampoline_onion)
-                        # return True so that this code gets executed only once
+                        # add to list of ongoing payments
+                        self.lnworker.trampoline_forwardings.add(payment_hash)
+                        # clear previous failures
+                        self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
+                        async def wrapped_callback():
+                            forwarding_coro = forwarding_callback()
+                            try:
+                                await forwarding_coro
+                            except Exception as e:
+                                # FIXME: cannot use payment_hash as key
+                                self.lnworker.trampoline_forwarding_failures[payment_hash] = e
+                            finally:
+                                # remove from list of payments, so that another attempt can be initiated
+                                self.lnworker.trampoline_forwardings.remove(payment_hash)
+                        asyncio.ensure_future(wrapped_callback())
                         return None, True, None
                 else:
                     # trampoline- HTLC we are supposed to forward, and have already forwarded
                     preimage = self.lnworker.get_preimage(payment_hash)
-                    error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
+                    # get (and not pop) failure because the incoming payment might be multi-part
+                    error_reason = self.lnworker.trampoline_forwarding_failures.get(payment_hash)
                     if error_reason:
                         self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
                         raise error_reason
