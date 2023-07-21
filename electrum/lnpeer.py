@@ -2386,7 +2386,7 @@ class Peer(Logger):
                             forwarding_coro = forwarding_callback()
                             try:
                                 await forwarding_coro
-                            except Exception as e:
+                            except OnionRoutingFailure as e:
                                 # FIXME: cannot use payment_hash as key
                                 self.lnworker.trampoline_forwarding_failures[payment_hash] = e
                             finally:
