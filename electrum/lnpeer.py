@@ -2394,10 +2394,11 @@ class Peer(Logger):
                                 # remove from list of payments, so that another attempt can be initiated
                                 self.lnworker.trampoline_forwardings.remove(payment_key)
                         asyncio.ensure_future(wrapped_callback())
-                        return None, payment_key, None
+                        fw_info = payment_key.hex()
+                        return None, fw_info, None
             else:
-                payment_key = forwarding_info
                 # trampoline- HTLC we are supposed to forward, and have already forwarded
+                payment_key = bytes.fromhex(forwarding_info)
                 preimage = self.lnworker.get_preimage(payment_hash)
                 # get (and not pop) failure because the incoming payment might be multi-part
                 error_reason = self.lnworker.trampoline_forwarding_failures.get(payment_key)
