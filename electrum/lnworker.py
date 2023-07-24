@@ -1922,7 +1922,6 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-
     def check_mpp_status(
             self, payment_secret: bytes,
             short_channel_id: ShortChannelID,
@@ -1948,11 +1947,7 @@ class LNWallet(LNWorker):
             elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 is_expired = True
 
-            if is_accepted:
-                # accept only the current part of a bundle
-                self.set_mpp_status(payment_secret, is_expired, is_accepted)
-            elif is_expired:
-                # .. but expire all parts
+            if is_accepted or is_expired:
                 for x in payment_secrets:
                     if x in self.received_mpp_htlcs:
                         self.set_mpp_status(x, is_expired, is_accepted)
