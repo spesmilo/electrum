@@ -215,21 +215,25 @@ class SwapManager(Logger):
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
             funding_conf = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex()).conf
             spent_height = txin.spent_height
-
-            if swap.is_reverse and swap.preimage is None:
-                if funding_conf <= 0:
-                    continue
-                preimage = self.lnworker.get_preimage(swap.payment_hash)
-                if preimage is None:
-                    self.invoices_to_pay.add(swap.payment_hash.hex())
-                    continue
-                swap.preimage = preimage
-
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
-                if not swap.is_reverse and swap.preimage is None:
-                    # we need to extract the preimage, add it to lnwatcher
-                    #
+                if spent_height > 0:
+                    if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                        self.logger.info(f'stop watching swap {swap.lockup_address}')
+                        self.lnwatcher.remove_callback(swap.lockup_address)
+                        swap.is_redeemed = True
+                elif spent_height == TX_HEIGHT_LOCAL:
+                    if txin.block_height > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS:
+                        tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
+                        self.logger.info(f'broadcasting tx {txin.spent_txid}')
+                        await self.network.broadcast_transaction(tx)
+                else:
+                    # spending tx is in mempool
+                    pass
+
+            if not swap.is_reverse:
+                if swap.preimage is None and spent_height is not None:
+                    # extract the preimage, add it to lnwatcher
                     tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                     preimage = tx.inputs()[0].witness_elements()[1]
                     if sha256(preimage) == swap.payment_hash:
@@ -245,26 +249,23 @@ class SwapManager(Logger):
                             payment_key = swap.payment_hash + payment_secret
                             self.lnworker.fail_trampoline_forwarding(payment_key)
 
-                if spent_height > 0:
-                    if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                        self.logger.info(f'stop watching swap {swap.lockup_address}')
-                        self.lnwatcher.remove_callback(swap.lockup_address)
-                        swap.is_redeemed = True
-                elif spent_height == TX_HEIGHT_LOCAL:
-                    if txin.block_height > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS:
-                        tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                        self.logger.info(f'broadcasting tx {txin.spent_txid}')
-                        await self.network.broadcast_transaction(tx)
-                # already in mempool
-                continue
-            if not swap.is_reverse and delta < 0:
-                # too early for refund
-                return
-            #
-            if swap.is_reverse and swap.preimage is None:
-                self.logger.info('preimage not available yet')
-                continue
-            if swap.is_reverse and self.network.config.TEST_SWAPSERVER_REFUND:
+                if delta < 0:
+                    # too early for refund
+                    continue
+            else:
+                if swap.preimage is None:
+                    if funding_conf <= 0:
+                        continue
+                    preimage = self.lnworker.get_preimage(swap.payment_hash)
+                    if preimage is None:
+                        self.invoices_to_pay.add(swap.payment_hash.hex())
+                        continue
+                    swap.preimage = preimage
+                if self.network.config.TEST_SWAPSERVER_REFUND:
+                    # for testing: do not create claim tx
+                    continue
+
+            if spent_height is not None:
                 continue
             try:
                 tx = self._create_and_sign_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
