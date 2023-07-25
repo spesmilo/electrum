@@ -38,7 +38,6 @@ class SwapServer(Logger, EventListener):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        self.root = '/root'
         app = web.Application()
         app.add_routes([web.get('/api/getpairs', self.get_pairs)])
         app.add_routes([web.post('/api/createswap', self.create_swap)])
@@ -57,7 +56,6 @@ class SwapServer(Logger, EventListener):
             "warnings": [],
             "pairs": {
                 "BTC/BTC": {
-                    "hash": "dfe692a026d6964601bfd79703611af333d1d5aa49ef5fedd288f5a620fced60",
                     "rate": 1,
                     "limits": {
                         "maximal": sm._max_amount,

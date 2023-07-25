@@ -97,7 +97,6 @@ if [[ $1 == "init" ]]; then
     if [[ $2 == "bob" ]]; then
         $bob setconfig --offline lightning_listen localhost:9735
         $bob setconfig --offline use_swapserver true
-    #else
     fi
     echo "funding $2"
     $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
