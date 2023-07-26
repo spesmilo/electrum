@@ -1935,8 +1935,14 @@ class LNWallet(LNWorker):
         is_expired, is_accepted = self.get_mpp_status(payment_secret)
         if not is_accepted and not is_expired:
             bundle = self.get_payment_bundle(payment_hash)
-            payment_hashes = bundle or [payment_hash]
-            payment_secrets = [self.get_payment_secret(h) for h in bundle] if bundle else [payment_secret]
+            if bundle:
+                payment_secrets = [self.get_payment_secret(h) for h in bundle]
+                if payment_secret not in payment_secrets:
+                    # outer trampoline onion secret differs from inner onion
+                    # the latter, not the former, might be part of a bundle
+                    payment_secrets = [payment_secret]
+            else:
+                payment_secrets = [payment_secret]
             first_timestamp = min([self.get_first_timestamp_of_mpp(x) for x in payment_secrets])
             if self.get_payment_status(payment_hash) == PR_PAID:
                 is_accepted = True
