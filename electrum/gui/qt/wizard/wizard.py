@@ -1,6 +1,7 @@
 from abc import abstractmethod
+from typing import Dict, Any
 
-from PyQt5.QtCore import Qt, QVariant, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QDialog, QApplication, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout, QStackedWidget)
@@ -77,18 +78,22 @@ class QEAbstractWizard(QDialog):
 
     def load_next_component(self, view, wdata={}):
         comp = self.view_to_component(view)
-        page = comp(self.main_widget)
+        page = comp(self.main_widget, self)
         page.wizard_data = wdata
+        page.config = self.config
         page.updated.connect(self.on_page_updated)
         self._logger.debug(f'{page!r}')
+
+        # add to stack and update wizard
         self.main_widget.setCurrentIndex(self.main_widget.addWidget(page))
         page.apply()
-        self.update(page.wizard_data)
+        self.update()
 
     @pyqtSlot(object)
     def on_page_updated(self, page):
         page.apply()
-        self.update(page.wizard_data)
+        if page == self.main_widget.currentWidget():
+            self.update()
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
@@ -96,25 +101,30 @@ class QEAbstractWizard(QDialog):
                             .scaledToWidth(60, mode=Qt.SmoothTransformation))
         return prior_filename
 
-    def can_go_back(self):
+    def can_go_back(self) -> bool:
         return len(self._stack) > 0
 
-    def update(self, wdata: dict):
+    def update(self):
+        page = self.main_widget.currentWidget()
+        self.title.setText(page.title)
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
-        self.next_button.setText(_('Next') if not self.is_last(wdata) else _('Finish'))
+        self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
+        self.next_button.setEnabled(page.valid)
+        self.main_widget.setVisible(not page.busy)
+        self.please_wait.setVisible(page.busy)
 
     def on_back_button_clicked(self):
         if self.can_go_back():
-            wdata = self.prev()
+            self.prev()
             self.main_widget.removeWidget(self.main_widget.currentWidget())
-            self.update(wdata)
+            self.update()
         else:
             self.close()
 
     def on_next_button_clicked(self):
-        wc = self.main_widget.currentWidget()
-        wc.apply()
-        wd = wc.wizard_data.copy()
+        page = self.main_widget.currentWidget()
+        page.apply()
+        wd = page.wizard_data.copy()
         if self.is_last(wd):
             self.finished(wd)
             self.close()
@@ -131,7 +141,6 @@ class QEAbstractWizard(QDialog):
 
     def submit(self, wizard_data) -> dict:
         wdata = wizard_data.copy()
-        self.log_state(wdata)
         view = self.resolve_next(self._current.view, wdata)
         return {
             'view': view.view,
@@ -147,22 +156,37 @@ class QEAbstractWizard(QDialog):
         return self.is_last_view(self._current.view, wdata)
 
 
-### support classes
-
-
 class WizardComponent(QWidget):
     updated = pyqtSignal(object)
 
-    def __init__(self, parent: QWidget = None, *, title: str = None, layout: QLayout = None):
+    def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str = None, layout: QLayout = None):
         super().__init__(parent)
         self.setLayout(layout if layout else QVBoxLayout(self))
         self.wizard_data = {}
         self.title = title if title is not None else 'No title'
+        self.wizard = wizard
         self._valid = False
+        self._busy = False
 
     @property
     def valid(self):
         return self._valid
+
+    @valid.setter
+    def valid(self, is_valid):
+        if self._valid != is_valid:
+            self._valid = is_valid
+            self.on_updated()
+
+    @property
+    def busy(self):
+        return self._busy
+
+    @busy.setter
+    def busy(self, is_busy):
+        if self._busy != is_busy:
+            self._busy = is_busy
+            self.on_updated()
 
     @abstractmethod
     def apply(self):

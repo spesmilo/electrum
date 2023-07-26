@@ -4,8 +4,8 @@ from PyQt5.QtWidgets import QApplication, QVBoxLayout, QWidget
 from electrum.i18n import _
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger
-from electrum import mnemonic
 from electrum.wizard import ServerConnectWizard
+from ..network_dialog import ProxyWidget, ServerWidget
 from ..util import ChoicesLayout
 
 
@@ -26,8 +26,8 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
 
 class WCAutoConnect(WizardComponent):
-    def __init__(self, parent=None):
-        WizardComponent.__init__(self, parent, title=_("How do you want to connect to a server? "))
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_("How do you want to connect to a server? "))
         message = _("Electrum communicates with remote servers to get "
                   "information about your transactions and addresses. The "
                   "servers all fulfill the same purpose only differing in "
@@ -35,8 +35,7 @@ class WCAutoConnect(WizardComponent):
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]
-        self.clayout = ChoicesLayout(message, choices)
-        self.clayout.group.buttonClicked.connect(self.on_updated)
+        self.clayout = ChoicesLayout(message, choices, on_clicked=self.on_updated)
         self.layout().addLayout(self.clayout.layout())
         self._valid = True
 
@@ -54,8 +53,8 @@ class WCAutoConnect(WizardComponent):
 
 
 class WCProxyAsk(WizardComponent):
-    def __init__(self, parent=None):
-        WizardComponent.__init__(self, parent, title=_("Proxy"))
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
         message = _("Do you use a local proxy service such as TOR to reach the internet?")
         choices = [_("Yes"), _("No")]
         self.clayout = ChoicesLayout(message, choices)
@@ -67,16 +66,22 @@ class WCProxyAsk(WizardComponent):
 
 
 class WCProxyConfig(WizardComponent):
-    def __init__(self, parent=None):
-        WizardComponent.__init__(self, parent, title=_("Proxy"))
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
+        pw = ProxyWidget(self)
+        self.layout().addWidget(pw)
 
     def apply(self):
+        # TODO
         pass
 
 
 class WCServerConfig(WizardComponent):
-    def __init__(self, parent=None):
-        WizardComponent.__init__(self, parent, title=_("Server"))
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_("Server"))
+        sw = ServerWidget(self)
+        self.layout().addWidget(sw)
 
     def apply(self):
+        # TODO
         pass
