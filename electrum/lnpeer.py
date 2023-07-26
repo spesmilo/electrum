@@ -1830,7 +1830,7 @@ class Peer(Logger):
                 if preimage:
                     return preimage, None
                 else:
-                    return cb, None
+                    return None, cb
             else:
                 callback = lambda: self.maybe_forward_trampoline(
                     payment_hash=payment_hash,
