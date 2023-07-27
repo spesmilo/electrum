@@ -98,28 +98,31 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     # def isMatchingSeed(self, seed, seed_again):
     #     return mnemonic.is_matching_seed(seed=seed, seed_again=seed_again)
     #
-    # @pyqtSlot('QJSValue', bool, str)
-    # def createStorage(self, js_data, single_password_enabled, single_password):
-    #     self._logger.info('Creating wallet from wizard data')
-    #     data = js_data.toVariant()
-    #
-    #     if single_password_enabled and single_password:
-    #         data['encrypt'] = True
-    #         data['password'] = single_password
-    #
-    #     path = os.path.join(os.path.dirname(self._daemon.daemon.config.get_wallet_path()), data['wallet_name'])
-    #
-    #     try:
-    #         self.create_storage(path, data)
-    #
-    #         # minimally populate self after create
-    #         self._password = data['password']
-    #         self.path = path
-    #
-    #         self.createSuccess.emit()
-    #     except Exception as e:
-    #         self._logger.error(f"createStorage errored: {e!r}")
-    #         self.createError.emit(str(e))
+
+    def create_storage(self, single_password: str = None):
+        self._logger.info('Creating wallet from wizard data')
+        # data = js_data.toVariant()
+        data = self._current.wizard_data
+
+        if self.is_single_password() and single_password:
+            data['encrypt'] = True
+            data['password'] = single_password
+
+        path = os.path.join(os.path.dirname(self._daemon.config.get_wallet_path()), data['wallet_name'])
+
+        try:
+            super().create_storage(path, data)
+
+            # minimally populate self after create
+            self._password = data['password']
+            # self.path = path
+
+            # self.createSuccess.emit()
+            return True
+        except Exception as e:
+            self._logger.error(f"createStorage errored: {e!r}")
+            return False
+            # self.createError.emit(str(e))
 
 
 class WCWalletName(WizardComponent):

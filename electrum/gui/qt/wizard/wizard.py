@@ -143,8 +143,9 @@ class QEAbstractWizard(QDialog):
         page.apply()
         wd = page.wizard_data.copy()
         if self.is_last(wd):
+            self.submit(wd)
             self.finished(wd)
-            self.close()
+            self.accept()
         else:
             next = self.submit(wd)
             self.load_next_component(next['view'], wd)
