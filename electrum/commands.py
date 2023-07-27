@@ -1318,22 +1318,22 @@ class Commands:
             await sm.get_pairs()
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
-            success = None
+            funding_txid = None
         elif lightning_amount == 'dryrun':
             await sm.get_pairs()
             onchain_amount_sat = satoshis(onchain_amount)
             lightning_amount_sat = sm.get_send_amount(onchain_amount_sat, is_reverse=True)
-            success = None
+            funding_txid = None
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             claim_fee = sm.get_claim_fee()
             onchain_amount_sat = satoshis(onchain_amount) + claim_fee
-            success = await wallet.lnworker.swap_manager.reverse_swap(
+            funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                 lightning_amount_sat=lightning_amount_sat,
                 expected_onchain_amount_sat=onchain_amount_sat,
             )
         return {
-            'success': success,
+            'funding_txid': funding_txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }
