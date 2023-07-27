@@ -66,38 +66,44 @@ class AbstractWizard:
             else:
                 raise Exception(f'accept handler for view {view} is not callable')
 
+        is_finished = False
         if 'next' not in nav:
             # finished
-            self.finished(wizard_data)
-            return WizardViewState(None, wizard_data, {})
-
-        view_next = nav['next']
-        if isinstance(view_next, str):
-            # string literal
-            new_view = WizardViewState(view_next, wizard_data, {})
-        elif callable(view_next):
-            # handler fn based
-            nv = view_next(wizard_data)
-            self._logger.debug(repr(nv))
-
-            # append wizard_data and params if not returned
-            if isinstance(nv, str):
-                new_view = WizardViewState(nv, wizard_data, {})
-            elif len(nv) == 1:
-                new_view = WizardViewState(nv[0], wizard_data, {})
-            elif len(nv) == 2:
-                new_view = WizardViewState(nv[0], nv[1], {})
-            else:
-                new_view = nv
+            is_finished = True
+            # self.finished(wizard_data)
+            # return WizardViewState(None, wizard_data, {})
+            new_view = WizardViewState(None, wizard_data, {})
         else:
-            raise Exception(f'next handler for view {view} is not callable nor a string literal')
+            view_next = nav['next']
+            if isinstance(view_next, str):
+                # string literal
+                new_view = WizardViewState(view_next, wizard_data, {})
+            elif callable(view_next):
+                # handler fn based
+                nv = view_next(wizard_data)
+                self._logger.debug(repr(nv))
 
-        self._logger.debug(f'resolve_next view is {new_view}')
+                # append wizard_data and params if not returned
+                if isinstance(nv, str):
+                    new_view = WizardViewState(nv, wizard_data, {})
+                elif len(nv) == 1:
+                    new_view = WizardViewState(nv[0], wizard_data, {})
+                elif len(nv) == 2:
+                    new_view = WizardViewState(nv[0], nv[1], {})
+                else:
+                    new_view = nv
+            else:
+                raise Exception(f'next handler for view {view} is not callable nor a string literal')
+
+            self._logger.debug(f'resolve_next view is {new_view}')
 
         self._stack.append(copy.deepcopy(self._current))
         self._current = new_view
 
         self.log_stack()
+
+        if is_finished:
+            self.finished(wizard_data)
 
         return new_view
 
