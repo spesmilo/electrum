@@ -1,7 +1,7 @@
 import copy
 import os
 
-from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional, Union
+from typing import List, NamedTuple, Any, Dict, Optional
 
 from electrum.logging import get_logger
 from electrum.storage import WalletStorage, StorageEncryptionVersion
@@ -60,23 +60,24 @@ class AbstractWizard:
         if 'accept' in nav:
             # allow python scope to append to wizard_data before
             # adding to stack or finishing
-            if callable(nav['accept']):
-                nav['accept'](wizard_data)
+            view_accept = nav['accept']
+            if callable(view_accept):
+                view_accept(wizard_data)
             else:
-                self._logger.error(f'accept handler for view {view} not callable')
+                raise Exception(f'accept handler for view {view} is not callable')
 
         if 'next' not in nav:
             # finished
             self.finished(wizard_data)
             return WizardViewState(None, wizard_data, {})
 
-        nexteval = nav['next']
-        # simple string based next view
-        if isinstance(nexteval, str):
-            new_view = WizardViewState(nexteval, wizard_data, {})
-        else:
-            # handler fn based next view
-            nv = nexteval(wizard_data)
+        view_next = nav['next']
+        if isinstance(view_next, str):
+            # string literal
+            new_view = WizardViewState(view_next, wizard_data, {})
+        elif callable(view_next):
+            # handler fn based
+            nv = view_next(wizard_data)
             self._logger.debug(repr(nv))
 
             # append wizard_data and params if not returned
@@ -88,6 +89,8 @@ class AbstractWizard:
                 new_view = WizardViewState(nv[0], nv[1], {})
             else:
                 new_view = nv
+        else:
+            raise Exception(f'next handler for view {view} is not callable nor a string literal')
 
         self._logger.debug(f'resolve_next view is {new_view}')
 
@@ -117,15 +120,16 @@ class AbstractWizard:
         if 'last' not in nav:
             return False
 
-        lastnav = nav['last']
-        # bool literal
-        if isinstance(lastnav, bool):
-            return lastnav
-        elif callable(lastnav):
+        view_last = nav['last']
+        if isinstance(view_last, bool):
+            # bool literal
+            self._logger.debug(f'view "{view}" last: {view_last}')
+            return view_last
+        elif callable(view_last):
             # handler fn based
-            l = lastnav(wizard_data)
-            self._logger.debug(f'view "{view}" last: {l}')
-            return l
+            is_last = view_last(wizard_data)
+            self._logger.debug(f'view "{view}" last: {is_last}')
+            return is_last
         else:
             raise Exception(f'last handler for view {view} is not callable nor a bool literal')
 
@@ -203,7 +207,7 @@ class NewWalletWizard(AbstractWizard):
             'multisig': {
                 'next': 'keystore_type'
             },
-            'multisig_cosigner_keystore': { # this view should set 'multisig_current_cosigner'
+            'multisig_cosigner_keystore': {  # this view should set 'multisig_current_cosigner'
                 'next': self.on_cosigner_keystore_type
             },
             'multisig_cosigner_key': {
@@ -320,8 +324,7 @@ class NewWalletWizard(AbstractWizard):
         All master keys need to be bip32, and e.g. Ypub cannot be mixed with Zpub.
         If True, need to prevent wallet-creation.
         """
-        xpubs = []
-        xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key())
+        xpubs = [self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key()]
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
             xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], data).get_master_public_key())
@@ -357,10 +360,6 @@ class NewWalletWizard(AbstractWizard):
             return keystore.from_master_key(data['master_key'])
         else:
             raise Exception('no seed or master_key in data')
-
-    def finished(self, wizard_data):
-        self._logger.debug('finished')
-        # override
 
     def create_storage(self, path, data):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
