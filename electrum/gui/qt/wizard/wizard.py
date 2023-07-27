@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Any
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QDialog, QApplication, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout, QStackedWidget)
@@ -21,26 +21,32 @@ class QEAbstractWizard(QDialog):
         self.config = config
         # self.gui_thread = gui_object.gui_thread
         self.setMinimumSize(600, 400)
+
         self.title = QLabel()
+
         self.main_widget = QStackedWidget(self)
+
         self.back_button = QPushButton(_("Back"), self)
         self.back_button.clicked.connect(self.on_back_button_clicked)
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.clicked.connect(self.on_next_button_clicked)
         self.next_button.setDefault(True)
+
         self.logo = QLabel()
+
+        self.please_wait_layout = QVBoxLayout()
+        self.please_wait_layout.addStretch(1)
         self.please_wait = QLabel(_("Please wait..."))
         self.please_wait.setAlignment(Qt.AlignCenter)
         self.please_wait.setVisible(False)
-        self.icon_filename = None
+        self.please_wait_layout.addWidget(self.please_wait)
+        self.please_wait_layout.addStretch(1)
 
         outer_vbox = QVBoxLayout(self)
         inner_vbox = QVBoxLayout()
         inner_vbox.addWidget(self.title)
         inner_vbox.addWidget(self.main_widget)
-        inner_vbox.addStretch(1)
-        inner_vbox.addWidget(self.please_wait)
-        inner_vbox.addStretch(1)
+        inner_vbox.addLayout(self.please_wait_layout)
         scroll_widget = QWidget()
         scroll_widget.setLayout(inner_vbox)
         scroll = QScrollArea()
@@ -58,7 +64,10 @@ class QEAbstractWizard(QDialog):
         hbox.setStretchFactor(scroll, 1)
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
+
+        self.icon_filename = None
         self.set_icon('electrum.png')
+
         self.show()
         self.raise_()
 
@@ -72,13 +81,20 @@ class QEAbstractWizard(QDialog):
     #     self.app.processEvents()
     #     self.app.processEvents()
 
+    def sizeHint(self) -> QSize:
+        return QSize(800, 600)
+
     def strt(self):
         view = self.start_wizard()
         self.load_next_component(view)
 
     def load_next_component(self, view, wdata={}):
         comp = self.view_to_component(view)
-        page = comp(self.main_widget, self)
+        try:
+            page = comp(self.main_widget, self)
+        except Exception as e:
+            self._logger.error(f'not a class: {comp!r}')
+            raise e
         page.wizard_data = wdata
         page.config = self.config
         page.updated.connect(self.on_page_updated)
@@ -107,6 +123,7 @@ class QEAbstractWizard(QDialog):
     def update(self):
         page = self.main_widget.currentWidget()
         self.title.setText(page.title)
+        self.title.setText(f'<b>{page.title}</b>' if page.title else '')
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
         self.next_button.setEnabled(page.valid)

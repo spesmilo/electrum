@@ -47,7 +47,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
             'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
             'imported': { 'gui': 'WCImport' },
-            'wallet_password': { 'gui': 'WCWalletPassword' }
+            'wallet_password': { 'gui': WCWalletPassword }
         })
 
         # insert seed extension entry/confirm as separate views
@@ -290,6 +290,7 @@ class WCCreateSeed(WizardComponent):
             self.wizard_data['seed_type'] = self.seed_type
             self.wizard_data['seed_extend'] = self.slayout.is_ext
             self.wizard_data['seed_variant'] = 'electrum'
+            self.wizard_data['seed_extra_words'] = ''  # empty default
 
     def create_seed(self):
         self.busy = True
@@ -317,9 +318,21 @@ class WCConfirmSeed(WizardComponent):
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
 
-        self.layout().addWidget(QLabel(message))
+        self.layout().addWidget(WWLabel(message))
 
-        self._valid = True
+        # TODO: SeedLayout assumes too much in parent, refactor SeedLayout
+        # for now, fake parent.next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+        self.next_button = Hack()
+
+        self.slayout = SeedLayout(
+            is_seed=lambda x: x == self.wizard_data['seed'],
+            parent=self,
+            config=self.wizard.config,
+        )
+        self.layout().addLayout(self.slayout)
 
     def apply(self):
         pass
@@ -341,6 +354,7 @@ class WCCreateExt(WizardComponent):
         self.ext_edit = SeedExtensionEdit(self, message=message, warning=warning)
         self.ext_edit.textEdited.connect(self.on_text_edited)
         self.layout().addWidget(self.ext_edit)
+        self.layout().addStretch(1)
 
     def on_text_edited(self, text):
         self.ext_edit.warn_issue4566 = self.wizard_data['keystore_type'] == 'haveseed' and \
@@ -361,12 +375,39 @@ class WCConfirmExt(WizardComponent):
         self.ext_edit = SeedExtensionEdit(self, message=message)
         self.ext_edit.textEdited.connect(self.on_text_edited)
         self.layout().addWidget(self.ext_edit)
+        self.layout().addStretch(1)
 
     def on_text_edited(self, text):
         self.valid = text == self.wizard_data['seed_extra_words']
 
     def apply(self):
         pass
+
+
+class WCWalletPassword(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Wallet Password'))
+
+        # TODO: PasswordLayout assumes a button, refactor PasswordLayout
+        # for now, fake next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+        self.next_button = Hack()
+
+        self.pw_layout = PasswordLayout(
+            msg=MSG_ENTER_PASSWORD,
+            kind=PW_NEW,
+            OK_button=self.next_button,
+            # force_disable_encrypt_cb=force_disable_encrypt_cb
+        )
+        self.pw_layout.encrypt_cb.setChecked(True)
+        self.layout().addLayout(self.pw_layout.layout())
+        self.layout().addStretch(1)
+
+    def apply(self):
+        self.wizard_data['password'] = self.pw_layout.new_password()
+        self.wizard_data['encrypt'] = self.pw_layout.encrypt_cb.isChecked()
 
 
 class SeedExtensionEdit(QWidget):

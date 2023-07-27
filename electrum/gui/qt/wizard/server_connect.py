@@ -59,6 +59,7 @@ class WCProxyAsk(WizardComponent):
         choices = [_("Yes"), _("No")]
         self.clayout = ChoicesLayout(message, choices)
         self.layout().addLayout(self.clayout.layout())
+        self._valid = True
 
     def apply(self):
         r = self.clayout.selected_index()
