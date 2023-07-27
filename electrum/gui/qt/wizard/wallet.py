@@ -12,8 +12,8 @@ from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger
 from electrum import WalletStorage, mnemonic
 from electrum.wizard import NewWalletWizard
-from ..installwizard import MSG_PASSPHRASE_WARN_ISSUE4566
-from ..seed_dialog import SeedLayout
+from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD
+from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566
 from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel
 
 
