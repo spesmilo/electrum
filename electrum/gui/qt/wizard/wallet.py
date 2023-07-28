@@ -1,7 +1,9 @@
 import os
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget, QFileDialog
+from PyQt5.QtCore import Qt, QTimer, QRect
+from PyQt5.QtGui import QPen, QPainter, QPalette
+from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
+                             QFileDialog, QSlider, QGridLayout)
 
 from electrum.daemon import Daemon
 from electrum.i18n import _
@@ -10,11 +12,17 @@ from electrum.util import WalletFileException, get_new_wallet_name
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger
-from electrum import WalletStorage, mnemonic
+from electrum import WalletStorage, mnemonic, keystore
 from electrum.wizard import NewWalletWizard
 from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD
-from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566
-from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel
+from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
+from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height
+
+WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+                 _('A few examples') + ':\n' +
+                 'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
+                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
+                 'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
 
 
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
@@ -29,7 +37,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self._daemon = daemon
         self._path = path
 
-        # attach view names and accept handlers
+        # attach gui classes to views
         self.navmap_merge({
             'wallet_name': { 'gui': WCWalletName },
             'wallet_type': { 'gui': WCWalletType },
@@ -41,16 +49,16 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'have_seed': { 'gui': 'WCHaveSeed' },
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
-            'multisig': { 'gui': 'WCMultisig' },
+            'multisig': { 'gui': WCMultisig },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
             'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
             'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
-            'imported': { 'gui': 'WCImport' },
+            'imported': { 'gui': WCImport },
             'wallet_password': { 'gui': WCWalletPassword }
         })
 
-        # insert seed extension entry/confirm as separate views
+        # modify default flow, insert seed extension entry/confirm as separate views
         self.navmap_merge({
             'create_seed': {
                 'next': lambda d: 'create_ext' if d['seed_extend'] else 'confirm_seed'
@@ -387,6 +395,101 @@ class WCConfirmExt(WizardComponent):
         pass
 
 
+class WCMultisig(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Multi-Signature Wallet'))
+
+        def on_m(m):
+            m_label.setText(_('Require {0} signatures').format(m))
+            cw.set_m(m)
+            backup_warning_label.setVisible(cw.m != cw.n)
+
+        def on_n(n):
+            n_label.setText(_('From {0} cosigners').format(n))
+            cw.set_n(n)
+            m_edit.setMaximum(n)
+            backup_warning_label.setVisible(cw.m != cw.n)
+
+        backup_warning_label = WWLabel(_('Warning: to be able to restore a multisig wallet, '
+                                         'you should include the master public key for each cosigner '
+                                         'in all of your backups.'))
+
+        cw = CosignWidget(2, 2)
+        m_label = QLabel()
+        n_label = QLabel()
+
+        m_edit = QSlider(Qt.Horizontal, self)
+        m_edit.setMinimum(1)
+        m_edit.setMaximum(2)
+        m_edit.setValue(2)
+        m_edit.valueChanged.connect(on_m)
+        on_m(m_edit.value())
+
+        n_edit = QSlider(Qt.Horizontal, self)
+        n_edit.setMinimum(2)
+        n_edit.setMaximum(15)
+        n_edit.setValue(2)
+        n_edit.valueChanged.connect(on_n)
+        on_n(n_edit.value())
+
+        grid = QGridLayout()
+        grid.addWidget(n_label, 0, 0)
+        grid.addWidget(n_edit, 0, 1)
+        grid.addWidget(m_label, 1, 0)
+        grid.addWidget(m_edit, 1, 1)
+
+        self.layout().addWidget(cw)
+        self.layout().addWidget(WWLabel(_('Choose the number of signatures needed to unlock funds in your wallet:')))
+        self.layout().addLayout(grid)
+        self.layout().addSpacing(2 * char_width_in_lineedit())
+        self.layout().addWidget(backup_warning_label)
+
+        self.n_edit = n_edit
+        self.m_edit = m_edit
+
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['multisig_participants'] = int(self.n_edit.value())
+        self.wizard_data['multisig_signatures'] = int(self.m_edit.value())
+        self.wizard_data['multisig_cosigner_data'] = {}
+
+
+class WCImport(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Import Bitcoin Addresses'))
+        message = _(
+            'Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
+        # self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
+        #                      is_valid=v, allow_multi=True, show_wif_help=True)
+        header_layout = QHBoxLayout()
+        label = WWLabel(message)
+        label.setMinimumWidth(400)
+        header_layout.addWidget(label)
+        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+
+        # TODO: KeysLayout assumes too much in parent, refactor KeysLayout
+        # for now, fake parent.next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+            def setToolTip(self2, b):
+                pass
+        self.next_button = Hack()
+
+        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
+        self.slayout = KeysLayout(parent=self, header_layout=header_layout, is_valid=v,
+                                  allow_multi=True, config=self.wizard.config)
+        self.layout().addLayout(self.slayout)
+
+    def apply(self):
+        text = self.slayout.get_text()
+        if keystore.is_address_list(text):
+            self.wizard_data['address_list'] = text
+        elif keystore.is_private_key_list(text):
+            self.wizard_data['private_key_list'] = text
+
+
 class WCWalletPassword(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Wallet Password'))
@@ -444,3 +547,38 @@ class SeedExtensionEdit(QWidget):
         # expose textEdited signal and text() func to widget
         self.textEdited = self.line.textEdited
         self.text = self.line.text
+
+
+class CosignWidget(QWidget):
+    def __init__(self, m, n):
+        QWidget.__init__(self)
+        self.size = max(120, 9 * font_height())
+        self.R = QRect(0, 0, self.size, self.size)
+        self.setGeometry(self.R)
+        self.setMinimumHeight(self.size)
+        self.setMaximumHeight(self.size)
+        self.m = m
+        self.n = n
+
+    def set_n(self, n):
+        self.n = n
+        self.update()
+
+    def set_m(self, m):
+        self.m = m
+        self.update()
+
+    def paintEvent(self, event):
+        bgcolor = self.palette().color(QPalette.Background)
+        pen = QPen(bgcolor, 7, Qt.SolidLine)
+        qp = QPainter()
+        qp.begin(self)
+        qp.setPen(pen)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setBrush(Qt.gray)
+        for i in range(self.n):
+            alpha = int(16 * 360 * i/self.n)
+            alpha2 = int(16 * 360 * 1/self.n)
+            qp.setBrush(Qt.green if i < self.m else Qt.gray)
+            qp.drawPie(self.R, alpha, alpha2)
+        qp.end()
