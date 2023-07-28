@@ -79,7 +79,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: thousands
@@ -96,7 +95,6 @@ Pane {
                     }
 
                     RowLayout {
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: fiatEnable
@@ -125,7 +123,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: historicRates
@@ -162,7 +159,6 @@ Pane {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: usePin
@@ -220,7 +216,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: syncLabels
@@ -243,7 +238,6 @@ Pane {
 
                     RowLayout {
                         Layout.columnSpan: 2
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: spendUnconfirmed
@@ -267,7 +261,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useTrampolineRouting
@@ -303,7 +296,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useRecoverableChannels
@@ -338,7 +330,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useFallbackAddress
@@ -362,7 +353,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: enableDebugLogs

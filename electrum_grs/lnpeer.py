@@ -1807,20 +1807,11 @@ class Peer(Logger):
             assert payment_status is True
 
         payment_hash = htlc.payment_hash
-        preimage = self.lnworker.get_preimage(payment_hash)
-        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
-        if hold_invoice_callback:
-            if preimage:
-                return preimage, None
-            else:
-                # for hold invoices, trigger callback
-                cb, timeout = hold_invoice_callback
-                if int(time.time()) < timeout:
-                    return None, lambda: cb(payment_hash)
-                else:
-                    raise exc_incorrect_or_unknown_pd
 
+        # detect callback
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
+        # order is important: if we receive a trampoline onion for a hold invoice, we need to peel the onion first.
+
         if processed_onion.trampoline_onion_packet:
             # TODO: we should check that all trampoline_onions are the same
             trampoline_onion = self.process_onion_packet(
@@ -1836,8 +1827,10 @@ class Peer(Logger):
                     processed_onion=trampoline_onion,
                     onion_packet_bytes=onion_packet_bytes,
                     is_trampoline=True)
-                assert cb is None
-                return preimage, None
+                if preimage:
+                    return preimage, None
+                else:
+                    return None, cb
             else:
                 callback = lambda: self.maybe_forward_trampoline(
                     payment_hash=payment_hash,
@@ -1845,6 +1838,19 @@ class Peer(Logger):
                     outer_onion=processed_onion,
                     trampoline_onion=trampoline_onion)
                 return None, callback
+
+        preimage = self.lnworker.get_preimage(payment_hash)
+        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
+        if hold_invoice_callback:
+            if preimage:
+                return preimage, None
+            else:
+                # for hold invoices, trigger callback
+                cb, timeout = hold_invoice_callback
+                if int(time.time()) < timeout:
+                    return None, lambda: cb(payment_hash)
+                else:
+                    raise exc_incorrect_or_unknown_pd
 
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry

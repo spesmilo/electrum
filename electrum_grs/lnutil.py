@@ -31,12 +31,16 @@ from .i18n import _
 from .lnaddr import lndecode
 from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream, OPPushDataGeneric
+from .logging import get_logger
 
 
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
     from .lnonion import OnionRoutingFailure
+
+
+_logger = get_logger(__name__)
 
 
 # defined in BOLT-03:
@@ -192,7 +196,7 @@ class LocalConfig(ChannelConfig):
     per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
 
     @classmethod
-    def from_seed(self, **kwargs):
+    def from_seed(cls, **kwargs):
         channel_seed = kwargs['channel_seed']
         static_remotekey = kwargs.pop('static_remotekey')
         node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
@@ -202,7 +206,11 @@ class LocalConfig(ChannelConfig):
         kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
         kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
         kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
-        kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey) if static_remotekey else keypair_generator(LnKeyFamily.PAYMENT_BASE)
+        if static_remotekey:
+            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey)
+        else:
+            # we expect all our channels to use option_static_remotekey, so ending up here likely indicates an issue...
+            kwargs['payment_basepoint'] = keypair_generator(LnKeyFamily.PAYMENT_BASE)
         return LocalConfig(**kwargs)
 
     def validate_params(self, *, funding_sat: int) -> None:
@@ -236,7 +244,9 @@ class ChannelConstraints(StoredObject):
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
-CHANNEL_BACKUP_VERSION = 0
+CHANNEL_BACKUP_VERSION_LATEST = 1
+KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1,)
+assert CHANNEL_BACKUP_VERSION_LATEST in KNOWN_CHANNEL_BACKUP_VERSIONS
 
 @attr.s
 class ChannelBackupStorage(StoredObject):
@@ -255,13 +265,13 @@ class ChannelBackupStorage(StoredObject):
 @stored_in('onchain_channel_backups')
 @attr.s
 class OnchainChannelBackupStorage(ChannelBackupStorage):
-    node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)
+    node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
 
 @stored_in('imported_channel_backups')
 @attr.s
 class ImportedChannelBackupStorage(ChannelBackupStorage):
-    node_id = attr.ib(type=bytes, converter=hex_to_bytes)
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    node_id = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes)  # local node privkey
     host = attr.ib(type=str)
     port = attr.ib(type=int, converter=int)
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -269,10 +279,11 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
     remote_delay = attr.ib(type=int, converter=int)
     remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
     remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    local_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
-        vds.write_uint16(CHANNEL_BACKUP_VERSION)
+        vds.write_uint16(CHANNEL_BACKUP_VERSION_LATEST)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
@@ -286,6 +297,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         vds.write_uint16(self.remote_delay)
         vds.write_string(self.host)
         vds.write_uint16(self.port)
+        vds.write_bytes(self.local_payment_pubkey, 33)
         return bytes(vds.input)
 
     @staticmethod
@@ -293,22 +305,40 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         vds = BCDataStream()
         vds.write(s)
         version = vds.read_uint16()
-        if version != CHANNEL_BACKUP_VERSION:
+        if version not in KNOWN_CHANNEL_BACKUP_VERSIONS:
             raise Exception(f"unknown version for channel backup: {version}")
+        is_initiator = vds.read_boolean()
+        privkey = vds.read_bytes(32)
+        channel_seed = vds.read_bytes(32)
+        node_id = vds.read_bytes(33)
+        funding_txid = vds.read_bytes(32).hex()
+        funding_index = vds.read_uint16()
+        funding_address = vds.read_string()
+        remote_payment_pubkey = vds.read_bytes(33)
+        remote_revocation_pubkey = vds.read_bytes(33)
+        local_delay = vds.read_uint16()
+        remote_delay = vds.read_uint16()
+        host = vds.read_string()
+        port = vds.read_uint16()
+        if version >= 1:
+            local_payment_pubkey = vds.read_bytes(33)
+        else:
+            local_payment_pubkey = None
         return ImportedChannelBackupStorage(
-            is_initiator=vds.read_boolean(),
-            privkey=vds.read_bytes(32),
-            channel_seed=vds.read_bytes(32),
-            node_id=vds.read_bytes(33),
-            funding_txid=vds.read_bytes(32).hex(),
-            funding_index=vds.read_uint16(),
-            funding_address=vds.read_string(),
-            remote_payment_pubkey=vds.read_bytes(33),
-            remote_revocation_pubkey=vds.read_bytes(33),
-            local_delay=vds.read_uint16(),
-            remote_delay=vds.read_uint16(),
-            host=vds.read_string(),
-            port=vds.read_uint16(),
+            is_initiator=is_initiator,
+            privkey=privkey,
+            channel_seed=channel_seed,
+            node_id=node_id,
+            funding_txid=funding_txid,
+            funding_index=funding_index,
+            funding_address=funding_address,
+            remote_payment_pubkey=remote_payment_pubkey,
+            remote_revocation_pubkey=remote_revocation_pubkey,
+            local_delay=local_delay,
+            remote_delay=remote_delay,
+            host=host,
+            port=port,
+            local_payment_pubkey=local_payment_pubkey,
         )
 
     @staticmethod

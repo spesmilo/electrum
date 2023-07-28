@@ -1904,8 +1904,14 @@ class LNWallet(LNWorker):
         is_expired, is_accepted = self.get_mpp_status(payment_secret)
         if not is_accepted and not is_expired:
             bundle = self.get_payment_bundle(payment_hash)
-            payment_hashes = bundle or [payment_hash]
-            payment_secrets = [self.get_payment_secret(h) for h in bundle] if bundle else [payment_secret]
+            if bundle:
+                payment_secrets = [self.get_payment_secret(h) for h in bundle]
+                if payment_secret not in payment_secrets:
+                    # outer trampoline onion secret differs from inner onion
+                    # the latter, not the former, might be part of a bundle
+                    payment_secrets = [payment_secret]
+            else:
+                payment_secrets = [payment_secret]
             first_timestamp = min([self.get_first_timestamp_of_mpp(x) for x in payment_secrets])
             if self.get_payment_status(payment_hash) == PR_PAID:
                 is_accepted = True
@@ -2492,7 +2498,7 @@ class LNWallet(LNWorker):
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
-    def create_channel_backup(self, channel_id):
+    def create_channel_backup(self, channel_id: bytes):
         chan = self._channels[channel_id]
         # do not backup old-style channels
         assert chan.is_static_remotekey_enabled()
@@ -2511,7 +2517,9 @@ class LNWallet(LNWorker):
             local_delay = chan.config[LOCAL].to_self_delay,
             remote_delay = chan.config[REMOTE].to_self_delay,
             remote_revocation_pubkey = chan.config[REMOTE].revocation_basepoint.pubkey,
-            remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey)
+            remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey,
+            local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
+        )
 
     def export_channel_backup(self, channel_id):
         xpub = self.wallet.get_fingerprint()
@@ -2667,3 +2675,8 @@ class LNWallet(LNWorker):
             self._channel_backups[bfh(channel_id)] = cb
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+
+    def fail_trampoline_forwarding(self, payment_key):
+        """ use this to fail htlcs received for hold invoices"""
+        e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+        self.trampoline_forwarding_failures[payment_key] = e
