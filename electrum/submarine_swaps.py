@@ -24,6 +24,10 @@ from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .i18n import _
 
+from .bitcoin import construct_script
+from .crypto import ripemd
+from .invoices import Invoice
+
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
@@ -80,6 +84,40 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
     opcodes.OP_ENDIF,
     opcodes.OP_CHECKSIG
 ]
+
+def check_reverse_redeem_script(redeem_script, lockup_address, payment_hash, locktime, *, refund_pubkey=None, claim_pubkey=None):
+    redeem_script = bytes.fromhex(redeem_script)
+    parsed_script = [x for x in script_GetOp(redeem_script)]
+    if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
+        raise Exception("rswap check failed: scriptcode does not match template")
+    if script_to_p2wsh(redeem_script.hex()) != lockup_address:
+        raise Exception("rswap check failed: inconsistent scriptcode and address")
+    if ripemd(payment_hash) != parsed_script[5][1]:
+        raise Exception("rswap check failed: our preimage not in script")
+    if claim_pubkey and claim_pubkey != parsed_script[7][1]:
+        raise Exception("rswap check failed: our pubkey not in script")
+    if refund_pubkey and refund_pubkey != parsed_script[13][1]:
+        raise Exception("rswap check failed: our pubkey not in script")
+    if locktime != int.from_bytes(parsed_script[10][1], byteorder='little'):
+        raise Exception("rswap check failed: inconsistent locktime and script")
+    return parsed_script[7][1], parsed_script[13][1]
+
+def check_normal_redeem_script(redeem_script, lockup_address, payment_hash, locktime, *, refund_pubkey=None, claim_pubkey=None):
+    redeem_script = bytes.fromhex(redeem_script)
+    parsed_script = [x for x in script_GetOp(redeem_script)]
+    if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP):
+        raise Exception("fswap check failed: scriptcode does not match template")
+    if script_to_p2wsh(redeem_script.hex()) != lockup_address:
+        raise Exception("fswap check failed: inconsistent scriptcode and address")
+    if ripemd(payment_hash) != parsed_script[1][1]:
+        raise Exception("fswap check failed: our preimage not in script")
+    if claim_pubkey and claim_pubkey != parsed_script[4][1]:
+        raise Exception("fswap check failed: our pubkey not in script")
+    if refund_pubkey and refund_pubkey != parsed_script[9][1]:
+        raise Exception("fswap check failed: our pubkey not in script")
+    if locktime != int.from_bytes(parsed_script[6][1], byteorder='little'):
+        raise Exception("fswap check failed: inconsistent locktime and script")
+    return parsed_script[4][1], parsed_script[9][1]
 
 
 class SwapServerError(Exception):
@@ -174,9 +212,11 @@ class SwapManager(Logger):
             if swap.is_redeemed:
                 continue
             self.add_lnwatcher_callback(swap)
+        coro = self.pay_pending_invoices()
+        asyncio.run_coroutine_threadsafe(network.taskgroup.spawn(coro), network.asyncio_loop)
 
     async def pay_pending_invoices(self):
-        # for server
+        # FIXME this method can raise, which is not properly handled...?
         self.invoices_to_pay = set()
         while True:
             await asyncio.sleep(1)
@@ -302,77 +342,85 @@ class SwapManager(Logger):
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
     async def hold_invoice_callback(self, payment_hash):
+        # note: this assumes the keystore is not encrypted
         key = payment_hash.hex()
         if key in self.swaps:
             swap = self.swaps[key]
             if swap.funding_txid is None:
-                await self.start_normal_swap(swap, None, None)
+                await self.broadcast_funding_tx(swap, None, None)
 
-    def add_server_swap(self, *, lightning_amount_sat=None, payment_hash=None, invoice=None, their_pubkey=None):
-        from .bitcoin import construct_script
-        from .crypto import ripemd
-        from .lnaddr import lndecode
-        from .invoices import Invoice
-
+    def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
+        """ server method """
         locktime = self.network.get_local_height() + 140
-        privkey = os.urandom(32)
-        our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        is_reverse_for_server = (invoice is not None)
-        if is_reverse_for_server:
-            # client is doing a normal swap
-            lnaddr = lndecode(invoice)
-            payment_hash = lnaddr.paymenthash
-            lightning_amount_sat = int(lnaddr.get_amount_sat()) # should return int
-            onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
-            redeem_script = construct_script(
-                WITNESS_TEMPLATE_SWAP,
-                {1:ripemd(payment_hash), 4:our_pubkey, 6:locktime, 9:their_pubkey}
-            )
-            self.wallet.save_invoice(Invoice.from_bech32(invoice))
-            prepay_invoice = None
-            prepay_hash = None
-        else:
-            onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True)
+        our_privkey = os.urandom(32)
+        our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
+        onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
+        redeem_script = construct_script(
+            WITNESS_TEMPLATE_REVERSE_SWAP,
+            {1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
+        )
+        return self.add_normal_swap(
+            redeem_script=redeem_script,
+            locktime=locktime,
+            onchain_amount_sat=onchain_amount_sat,
+            lightning_amount_sat=lightning_amount_sat,
+            payment_hash=payment_hash,
+            our_privkey=our_privkey,
+            their_pubkey=their_pubkey,
+            invoice=None,
+            prepay=True,
+        )
+
+    def add_normal_swap(self, *, redeem_script=None, locktime=None, onchain_amount_sat=None, lightning_amount_sat=None, payment_hash=None, our_privkey=None, their_pubkey=None, invoice=None, prepay=None):
+        """ if invoice is None, create a hold invoice """
+        if prepay:
             prepay_amount_sat = self.get_claim_fee() * 2
-            main_amount_sat = lightning_amount_sat - prepay_amount_sat
-            lnaddr, invoice = self.lnworker.get_bolt11_invoice(
+            invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
+        else:
+            invoice_amount_sat = lightning_amount_sat
+
+        if not invoice:
+            _, invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=payment_hash,
-                amount_msat=main_amount_sat * 1000,
+                amount_msat=invoice_amount_sat * 1000,
                 message='Submarine swap',
                 expiry=3600 * 24,
                 fallback_address=None,
                 channels=None,
             )
             # add payment info to lnworker
-            self.lnworker.add_payment_info_for_hold_invoice(payment_hash, main_amount_sat)
+            self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
             self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
+
+        if prepay:
             prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
             _, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=prepay_hash,
                 amount_msat=prepay_amount_sat * 1000,
-                message='prepay',
+                message='Submarine swap mining fees',
                 expiry=3600 * 24,
                 fallback_address=None,
                 channels=None,
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
-            redeem_script = construct_script(
-                WITNESS_TEMPLATE_REVERSE_SWAP,
-                {1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
-            )
+            self.prepayments[prepay_hash] = payment_hash
+        else:
+            prepay_invoice = None
+            prepay_hash = None
+
         lockup_address = script_to_p2wsh(redeem_script)
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
             redeem_script = bytes.fromhex(redeem_script),
             locktime = locktime,
-            privkey = privkey,
+            privkey = our_privkey,
             preimage = None,
             prepay_hash = prepay_hash,
             lockup_address = lockup_address,
             onchain_amount = onchain_amount_sat,
             receive_address = receive_address,
             lightning_amount = lightning_amount_sat,
-            is_reverse = is_reverse_for_server,
+            is_reverse = False,
             is_redeemed = False,
             funding_txid = None,
             spending_txid = None,
@@ -380,7 +428,78 @@ class SwapManager(Logger):
         swap._payment_hash = payment_hash
         self._add_or_reindex_swap(swap)
         self.add_lnwatcher_callback(swap)
-        return swap, payment_hash, invoice, prepay_invoice
+        return swap, invoice, prepay_invoice
+
+    def create_reverse_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
+        """ server method. payment_hash is not None for old clients """
+        locktime = self.network.get_local_height() + 140
+        privkey = os.urandom(32)
+        our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+        onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
+        #
+        if payment_hash is None:
+            preimage = os.urandom(32)
+            assert lightning_amount_sat is not None
+            payment_hash = sha256(preimage)
+            redeem_script = construct_script(
+                WITNESS_TEMPLATE_REVERSE_SWAP,
+                {1:32, 5:ripemd(payment_hash), 7:our_pubkey, 10:locktime, 13:their_pubkey}
+            )
+        else:
+            # old client
+            preimage = None
+            redeem_script = construct_script(
+                WITNESS_TEMPLATE_SWAP,
+                {1:ripemd(payment_hash), 4:our_pubkey, 6:locktime, 9:their_pubkey}
+            )
+        swap = self.add_reverse_swap(
+            redeem_script=redeem_script,
+            locktime=locktime,
+            privkey=privkey,
+            preimage=preimage,
+            payment_hash=payment_hash,
+            prepay_hash=None,
+            onchain_amount_sat=onchain_amount_sat,
+            lightning_amount_sat=lightning_amount_sat)
+        return swap
+
+    def add_reverse_swap(self, *, redeem_script=None, locktime=None, privkey=None, lightning_amount_sat=None, onchain_amount_sat=None, preimage=None, payment_hash=None, prepay_hash=None):
+        lockup_address = script_to_p2wsh(redeem_script)
+        receive_address = self.wallet.get_receiving_address()
+        swap = SwapData(
+            redeem_script = bytes.fromhex(redeem_script),
+            locktime = locktime,
+            privkey = privkey,
+            preimage = preimage,
+            prepay_hash = prepay_hash,
+            lockup_address = lockup_address,
+            onchain_amount = onchain_amount_sat,
+            receive_address = receive_address,
+            lightning_amount = lightning_amount_sat,
+            is_reverse = True,
+            is_redeemed = False,
+            funding_txid = None,
+            spending_txid = None,
+        )
+        if prepay_hash:
+            self.prepayments[prepay_hash] = payment_hash
+        swap._payment_hash = payment_hash
+        self._add_or_reindex_swap(swap)
+        self.add_lnwatcher_callback(swap)
+        return swap
+
+    def add_invoice(self, invoice, pay_now=False):
+        invoice = Invoice.from_bech32(invoice)
+        key = invoice.rhash
+        payment_hash = bytes.fromhex(key)
+        assert key in self.swaps
+        self.wallet.save_invoice(invoice)
+        if pay_now:
+            # check that we have the preimage
+            swap = self.get_swap(payment_hash)
+            assert sha256(swap.preimage) == payment_hash
+            assert swap.spending_txid is None
+            self.invoices_to_pay.add(key)
 
     async def normal_swap(
             self,
@@ -397,54 +516,73 @@ class SwapManager(Logger):
         - User creates on-chain output locked to RHASH.
         - Server pays LN invoice. User reveals preimage.
         - Server spends the on-chain output using preimage.
+
+        New flow:
+         - user requests swap
+         - server creates preimage, sends RHASH to user
+         - user creates hold invoice, sends it to server
+
         """
         assert self.network
         assert self.lnwatcher
-        privkey = os.urandom(32)
-        pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         amount_msat = lightning_amount_sat * 1000
-        payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat)
-        lnaddr, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=payment_hash,
-            amount_msat=amount_msat,
-            message='swap',
-            expiry=3600 * 24,
-            fallback_address=None,
-            channels=channels,
-        )
-        preimage = self.lnworker.get_preimage(payment_hash)
-        request_data = {
-            "type": "submarine",
-            "pairId": "BTC/BTC",
-            "orderSide": "sell",
-            "invoice": invoice,
-            "refundPublicKey": pubkey.hex()
-        }
-        response = await self.network.async_send_http_on_proxy(
-            'post',
-            self.api_url + '/createswap',
-            json=request_data,
-            timeout=30)
-        data = json.loads(response)
-        response_id = data["id"]
+        refund_privkey = os.urandom(32)
+        refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
+
+        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+            self.logger.info('requesting preimage hash for swap')
+            request_data = {
+                "invoiceAmount": lightning_amount_sat,
+                "refundPublicKey": refund_pubkey.hex()
+            }
+            response = await self.network.async_send_http_on_proxy(
+                'post',
+                self.api_url + '/createnormalswap',
+                json=request_data,
+                timeout=30)
+            data = json.loads(response)
+            payment_hash = bytes.fromhex(data["preimageHash"])
+            preimage = None
+            invoice = None
+        else:
+            # create invoice, send it to server
+            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat)
+            preimage = self.lnworker.get_preimage(payment_hash)
+            _, invoice = self.lnworker.get_bolt11_invoice(
+                payment_hash=payment_hash,
+                amount_msat=amount_msat,
+                message='swap',
+                expiry=3600 * 24,
+                fallback_address=None,
+                channels=channels,
+            )
+            request_data = {
+                "type": "submarine",
+                "pairId": "BTC/BTC",
+                "orderSide": "sell",
+                "invoice": invoice,
+                "refundPublicKey": refund_pubkey.hex()
+            }
+            response = await self.network.async_send_http_on_proxy(
+                'post',
+                self.api_url + '/createswap',
+                json=request_data,
+                timeout=30)
+
+            data = json.loads(response)
+            response_id = data["id"]
+
         zeroconf = data["acceptZeroConf"]
         onchain_amount = data["expectedAmount"]
         locktime = data["timeoutBlockHeight"]
         lockup_address = data["address"]
         redeem_script = data["redeemScript"]
         # verify redeem_script is built with our pubkey and preimage
-        redeem_script = bytes.fromhex(redeem_script)
-        parsed_script = [x for x in script_GetOp(redeem_script)]
-        if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP):
-            raise Exception("fswap check failed: scriptcode does not match template")
-        if script_to_p2wsh(redeem_script.hex()) != lockup_address:
-            raise Exception("fswap check failed: inconsistent scriptcode and address")
-        if hash_160(preimage) != parsed_script[1][1]:
-            raise Exception("fswap check failed: our preimage not in script")
-        if pubkey != parsed_script[9][1]:
-            raise Exception("fswap check failed: our pubkey not in script")
-        if locktime != int.from_bytes(parsed_script[6][1], byteorder='little'):
-            raise Exception("fswap check failed: inconsistent locktime and script")
+        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+            claim_pubkey, _ = check_reverse_redeem_script(redeem_script, lockup_address, payment_hash, locktime, refund_pubkey=refund_pubkey)
+        else:
+            claim_pubkey, _ = check_normal_redeem_script(redeem_script, lockup_address, payment_hash, locktime, refund_pubkey=refund_pubkey)
+
         # check that onchain_amount is not more than what we estimated
         if onchain_amount > expected_onchain_amount_sat:
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
@@ -452,30 +590,41 @@ class SwapManager(Logger):
         # verify that they are not locking up funds for more than a day
         if locktime - self.network.get_local_height() >= 144:
             raise Exception("fswap check failed: locktime too far in future")
-        # save swap data in wallet in case we need a refund
-        receive_address = self.wallet.get_receiving_address()
-        swap = SwapData(
-            redeem_script = redeem_script,
-            locktime = locktime,
-            privkey = privkey,
-            preimage = preimage,
-            prepay_hash = None,
-            lockup_address = lockup_address,
-            onchain_amount = onchain_amount,
-            receive_address = receive_address,
-            lightning_amount = lightning_amount_sat,
-            is_reverse = False,
-            is_redeemed = False,
-            funding_txid = None,
-            spending_txid = None,
-        )
-        swap._payment_hash = payment_hash
-        self._add_or_reindex_swap(swap)
-        self.add_lnwatcher_callback(swap)
-        return await self.start_normal_swap(swap, tx, password)
+
+        swap, invoice, _ = self.add_normal_swap(
+            redeem_script=redeem_script,
+            locktime=locktime,
+            lightning_amount_sat=lightning_amount_sat,
+            onchain_amount_sat=onchain_amount,
+            payment_hash=payment_hash,
+            our_privkey=refund_privkey,
+            their_pubkey=claim_pubkey,
+            invoice=invoice,
+            prepay=False)
+
+        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+            # send invoice to server and wait for htlcs
+            request_data = {
+                "preimageHash": payment_hash.hex(),
+                "invoice": invoice,
+                "refundPublicKey": refund_pubkey.hex(),
+            }
+            response = await self.network.async_send_http_on_proxy(
+                'post',
+                self.api_url + '/addswapinvoice',
+                json=request_data,
+                timeout=30)
+            data = json.loads(response)
+            # wait for funding tx
+            while swap.funding_txid is None:
+                await asyncio.sleep(0.1)
+        else:
+            # broadcast funding tx right away
+            await self.broadcast_funding_tx(swap, tx, password)
+        return swap.funding_txid
 
     @log_exceptions
-    async def start_normal_swap(self, swap, tx, password):
+    async def broadcast_funding_tx(self, swap, tx, password):
         # create funding tx
         # note: rbf must not decrease payment
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
@@ -488,9 +637,9 @@ class SwapManager(Logger):
             tx.add_outputs([funding_output])
             tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
+
         await self.network.broadcast_transaction(tx)
         swap.funding_txid = tx.txid()
-        return swap.funding_txid
 
     async def reverse_swap(
             self,
@@ -513,16 +662,16 @@ class SwapManager(Logger):
         assert self.network
         assert self.lnwatcher
         privkey = os.urandom(32)
-        pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+        our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
-        preimage_hash = sha256(preimage)
+        payment_hash = sha256(preimage)
         request_data = {
             "type": "reversesubmarine",
             "pairId": "BTC/BTC",
             "orderSide": "buy",
             "invoiceAmount": lightning_amount_sat,
-            "preimageHash": preimage_hash.hex(),
-            "claimPublicKey": pubkey.hex()
+            "preimageHash": payment_hash.hex(),
+            "claimPublicKey": our_pubkey.hex()
         }
         response = await self.network.async_send_http_on_proxy(
             'post',
@@ -538,18 +687,7 @@ class SwapManager(Logger):
         onchain_amount = data["onchainAmount"]
         response_id = data['id']
         # verify redeem_script is built with our pubkey and preimage
-        redeem_script = bytes.fromhex(redeem_script)
-        parsed_script = [x for x in script_GetOp(redeem_script)]
-        if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
-            raise Exception("rswap check failed: scriptcode does not match template")
-        if script_to_p2wsh(redeem_script.hex()) != lockup_address:
-            raise Exception("rswap check failed: inconsistent scriptcode and address")
-        if hash_160(preimage) != parsed_script[5][1]:
-            raise Exception("rswap check failed: our preimage not in script")
-        if pubkey != parsed_script[7][1]:
-            raise Exception("rswap check failed: our pubkey not in script")
-        if locktime != int.from_bytes(parsed_script[10][1], byteorder='little'):
-            raise Exception("rswap check failed: inconsistent locktime and script")
+        check_reverse_redeem_script(redeem_script, lockup_address, payment_hash, locktime, refund_pubkey=None, claim_pubkey=our_pubkey)
         # check that the onchain amount is what we expected
         if onchain_amount < expected_onchain_amount_sat:
             raise Exception(f"rswap check failed: onchain_amount is less than what we expected: "
@@ -557,10 +695,10 @@ class SwapManager(Logger):
         # verify that we will have enough time to get our tx confirmed
         if locktime - self.network.get_local_height() <= MIN_LOCKTIME_DELTA:
             raise Exception("rswap check failed: locktime too close")
-        # verify invoice preimage_hash
+        # verify invoice payment_hash
         lnaddr = self.lnworker._check_invoice(invoice)
         invoice_amount = int(lnaddr.get_amount_sat())
-        if lnaddr.paymenthash != preimage_hash:
+        if lnaddr.paymenthash != payment_hash:
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
         # check that the lightning amount is what we requested
         if fee_invoice:
@@ -573,29 +711,17 @@ class SwapManager(Logger):
             raise Exception(f"rswap check failed: invoice_amount ({invoice_amount}) "
                             f"not what we requested ({lightning_amount_sat})")
         # save swap data to wallet file
-        receive_address = self.wallet.get_receiving_address()
-        swap = SwapData(
-            redeem_script = redeem_script,
-            locktime = locktime,
-            privkey = privkey,
-            preimage = preimage,
-            prepay_hash = prepay_hash,
-            lockup_address = lockup_address,
-            onchain_amount = onchain_amount,
-            receive_address = receive_address,
-            lightning_amount = lightning_amount_sat,
-            is_reverse = True,
-            is_redeemed = False,
-            funding_txid = None,
-            spending_txid = None,
-        )
-        swap._payment_hash = preimage_hash
-        self._add_or_reindex_swap(swap)
-        # add callback to lnwatcher
-        self.add_lnwatcher_callback(swap)
+        swap = self.add_reverse_swap(
+            redeem_script=redeem_script,
+            locktime=locktime,
+            privkey=privkey,
+            preimage=preimage,
+            payment_hash=payment_hash,
+            prepay_hash=prepay_hash,
+            onchain_amount_sat=onchain_amount,
+            lightning_amount_sat=lightning_amount_sat)
         # initiate fee payment.
         if fee_invoice:
-            self.prepayments[prepay_hash] = preimage_hash
             asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice, attempts=10))
         # we return if we detect funding
         async def wait_for_funding(swap):

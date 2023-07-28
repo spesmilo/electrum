@@ -55,7 +55,6 @@ class SwapServerPlugin(BasePlugin):
         self.server = SwapServer(self.config, wallet)
         sm = wallet.lnworker.swap_manager
         for coro in [
-            sm.pay_pending_invoices(),  # FIXME this method can raise, which is not properly handled...?
             self.server.run(),
         ]:
             asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(coro), daemon.asyncio_loop)
