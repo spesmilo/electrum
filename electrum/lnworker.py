@@ -2529,7 +2529,7 @@ class LNWallet(LNWorker):
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
-    def create_channel_backup(self, channel_id):
+    def create_channel_backup(self, channel_id: bytes):
         chan = self._channels[channel_id]
         # do not backup old-style channels
         assert chan.is_static_remotekey_enabled()
@@ -2548,7 +2548,9 @@ class LNWallet(LNWorker):
             local_delay = chan.config[LOCAL].to_self_delay,
             remote_delay = chan.config[REMOTE].to_self_delay,
             remote_revocation_pubkey = chan.config[REMOTE].revocation_basepoint.pubkey,
-            remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey)
+            remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey,
+            local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
+        )
 
     def export_channel_backup(self, channel_id):
         xpub = self.wallet.get_fingerprint()

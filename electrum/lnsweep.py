@@ -206,6 +206,7 @@ def create_sweeptxs_for_our_ctx(
     to_local_witness_script = make_commitment_output_to_local_witness_script(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey).hex()
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
+    to_remote_address = None
     # test if this is our_ctx
     found_to_local = bool(ctx.get_output_idxs_from_address(to_local_address))
     if not chan.is_backup():
@@ -359,6 +360,7 @@ def create_sweeptxs_for_their_ctx(
     witness_script = make_commitment_output_to_local_witness_script(
         our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey).hex()
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
+    to_remote_address = None
     # test if this is their ctx
     found_to_local = bool(ctx.get_output_idxs_from_address(to_local_address))
     if not chan.is_backup():

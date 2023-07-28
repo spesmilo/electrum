@@ -56,6 +56,9 @@ class TestLightningAB(TestLightning):
     def test_backup(self):
         self.run_shell(['backup'])
 
+    def test_backup_local_forceclose(self):
+        self.run_shell(['backup_local_forceclose'])
+
     def test_breach(self):
         self.run_shell(['breach'])
 
