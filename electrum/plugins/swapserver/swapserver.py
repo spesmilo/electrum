@@ -27,9 +27,9 @@
 import asyncio
 import os
 import random
-from electrum.plugin import BasePlugin, hook
-from electrum.util import log_exceptions, ignore_exceptions
-from electrum import ecc
+from electrum_grs.plugin import BasePlugin, hook
+from electrum_grs.util import log_exceptions, ignore_exceptions
+from electrum_grs import ecc
 
 from .server import SwapServer
 

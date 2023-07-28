@@ -10,10 +10,10 @@ from aiorpcx import timeout_after, TaskTimeout, ignore_after
 from aiorpcx import NetAddress
 
 
-from electrum.util import log_exceptions, ignore_exceptions
-from electrum.logging import Logger
-from electrum.util import EventListener, event_listener
-from electrum.invoices import PR_PAID, PR_EXPIRED
+from electrum_grs.util import log_exceptions, ignore_exceptions
+from electrum_grs.logging import Logger
+from electrum_grs.util import EventListener, event_listener
+from electrum_grs.invoices import PR_PAID, PR_EXPIRED
 
 
 class SwapServer(Logger, EventListener):
@@ -55,7 +55,7 @@ class SwapServer(Logger, EventListener):
             "info": [],
             "warnings": [],
             "pairs": {
-                "BTC/BTC": {
+                "GRS/GRS": {
                     "rate": 1,
                     "limits": {
                         "maximal": sm._max_amount,
@@ -94,7 +94,7 @@ class SwapServer(Logger, EventListener):
         sm.init_pairs()
         request = await r.json()
         req_type = request['type']
-        assert request['pairId'] == 'BTC/BTC'
+        assert request['pairId'] == 'GRS/GRS'
         if req_type == 'reversesubmarine':
             lightning_amount_sat=request['invoiceAmount']
             payment_hash=bytes.fromhex(request['preimageHash'])
