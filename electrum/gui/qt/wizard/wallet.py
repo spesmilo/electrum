@@ -5,8 +5,10 @@ from PyQt5.QtGui import QPen, QPainter, QPalette
 from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout)
 
+from electrum.bip32 import is_bip32_derivation, BIP32Node
 from electrum.daemon import Daemon
 from electrum.i18n import _
+from electrum.keystore import bip44_derivation, bip39_to_seed
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name
 from electrum.wallet import wallet_types
@@ -14,6 +16,7 @@ from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger
 from electrum import WalletStorage, mnemonic, keystore
 from electrum.wizard import NewWalletWizard
+from ..bip39_recovery_dialog import Bip39RecoveryDialog
 from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD
 from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height
@@ -46,8 +49,8 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'create_ext': { 'gui': WCCreateExt },
             'confirm_seed': { 'gui': WCConfirmSeed },
             'confirm_ext': { 'gui': WCConfirmExt },
-            'have_seed': { 'gui': 'WCHaveSeed' },
-            'bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'have_seed': { 'gui': WCHaveSeed },
+            'bip39_refine': { 'gui': WCBIP39Refine },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': WCMultisig },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
@@ -293,7 +296,9 @@ class WCCreateSeed(WizardComponent):
         self.seed_type = 'standard' if self.wizard.config.WIZARD_DONT_CREATE_SEGWIT else 'segwit'
         self.slayout = None
         self.seed = None
-        QTimer.singleShot(100, self.create_seed)
+
+    def on_ready(self):
+        QTimer.singleShot(1, self.create_seed)
 
     def apply(self):
         if self.slayout:
@@ -393,6 +398,119 @@ class WCConfirmExt(WizardComponent):
 
     def apply(self):
         pass
+
+
+class WCHaveSeed(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Enter Seed'))
+        self.layout().addWidget(WWLabel(_('Please enter your seed phrase in order to restore your wallet.')))
+
+        # TODO: SeedLayout assumes too much in parent, refactor SeedLayout
+        # for now, fake parent.next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+        self.next_button = Hack()
+
+    def on_ready(self):
+        options = ['ext'] if self.wizard_data['wallet_type'] == '2fa' else ['ext', 'bip39', 'slip39']
+        self.slayout = SeedLayout(
+            is_seed=self.is_seed,
+            options=options,
+            parent=self,
+            config=self.wizard.config,
+        )
+        self.layout().addLayout(self.slayout)
+
+    def is_seed(self, x):
+        if self.wizard_data['wallet_type'] == 'standard':
+            return mnemonic.is_seed(x)
+        else:
+            return mnemonic.seed_type(x) in ['standard', 'segwit']
+
+    def apply(self):
+        self.wizard_data['seed'] = self.slayout.get_seed()
+        self.wizard_data['seed_variant'] = self.slayout.seed_type
+        if self.slayout.seed_type == 'electrum':
+            self.wizard_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
+        else:
+            self.wizard_data['seed_type'] = self.slayout.seed_type
+        self.wizard_data['seed_extend'] = self.slayout.is_ext
+        self.wizard_data['seed_extra_words'] = ''  # empty default
+
+
+class WCBIP39Refine(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Script type and Derivation path'))
+
+    def on_ready(self):
+        if self.wizard_data['wallet_type'] == 'multisig':
+            raise Exception('NYI')
+
+        message1 = _('Choose the type of addresses in your wallet.')
+        message2 = ' '.join([
+            _('You can override the suggested derivation path.'),
+            _('If you are not sure what this is, leave this field unchanged.')
+        ])
+        hide_choices = False
+
+        default_choice_idx = 2
+        choices = [
+            ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
+            ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
+            ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
+        ]
+
+        passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
+        root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase)
+
+        def get_account_xpub(account_path):
+            root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+            account_node = root_node.subkey_at_private_derivation(account_path)
+            account_xpub = account_node.to_xpub()
+            return account_xpub
+
+        if get_account_xpub:
+            button = QPushButton(_("Detect Existing Accounts"))
+
+            def on_account_select(account):
+                script_type = account["script_type"]
+                if script_type == "p2pkh":
+                    script_type = "standard"
+                button_index = self.c_values.index(script_type)
+                button = self.clayout.group.buttons()[button_index]
+                button.setChecked(True)
+                self.derivation_path_edit.setText(account["derivation_path"])
+
+            button.clicked.connect(lambda: Bip39RecoveryDialog(self, get_account_xpub, on_account_select))
+            self.layout().addWidget(button, alignment=Qt.AlignLeft)
+            self.layout().addWidget(QLabel(_("Or")))
+
+        self.c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        c_default_text = [x[2] for x in choices]
+
+        def on_choice_click(clayout):
+            idx = clayout.selected_index()
+            self.derivation_path_edit.setText(c_default_text[idx])
+        self.clayout = ChoicesLayout(message1, c_titles, on_choice_click,
+                                     checked_index=default_choice_idx)
+        if not hide_choices:
+            self.layout().addLayout(self.clayout.layout())
+
+        self.layout().addWidget(WWLabel(message2))
+
+        self.derivation_path_edit = QLineEdit()
+        self.derivation_path_edit.textChanged.connect(self.validate)
+        on_choice_click(self.clayout)  # set default value for derivation path
+        self.layout().addWidget(self.derivation_path_edit)
+
+    def validate(self):
+        self.valid = is_bip32_derivation(self.derivation_path_edit.text())
+
+    def apply(self):
+        self.wizard_data['script_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['derivation_path'] = str(self.derivation_path_edit.text())
 
 
 class WCMultisig(WizardComponent):

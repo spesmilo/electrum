@@ -96,12 +96,12 @@ class QEAbstractWizard(QDialog):
             self._logger.error(f'not a class: {comp!r}')
             raise e
         page.wizard_data = wdata
-        page.config = self.config
         page.updated.connect(self.on_page_updated)
         self._logger.debug(f'{page!r}')
 
         # add to stack and update wizard
         self.main_widget.setCurrentIndex(self.main_widget.addWidget(page))
+        page.on_ready()
         page.apply()
         self.update()
 
@@ -208,6 +208,11 @@ class WizardComponent(QWidget):
 
     @abstractmethod
     def apply(self):
+        # called to apply UI component values to wizard_data
+        pass
+
+    def on_ready(self):
+        # called when wizard_data is available
         pass
 
     @pyqtSlot()
