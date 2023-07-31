@@ -148,7 +148,7 @@ class QEAbstractWizard(QDialog):
             self.accept()
         else:
             next = self.submit(wd)
-            self.load_next_component(next['view'], wd)
+            self.load_next_component(next['view'], next['wizard_data'])
 
     def start_wizard(self) -> str:
         self.start()

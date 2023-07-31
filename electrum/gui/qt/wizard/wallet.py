@@ -5,10 +5,10 @@ from PyQt5.QtGui import QPen, QPainter, QPalette
 from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout)
 
-from electrum.bip32 import is_bip32_derivation, BIP32Node
+from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
 from electrum.daemon import Daemon
 from electrum.i18n import _
-from electrum.keystore import bip44_derivation, bip39_to_seed
+from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name
 from electrum.wallet import wallet_types
@@ -51,12 +51,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'confirm_ext': { 'gui': WCConfirmExt },
             'have_seed': { 'gui': WCHaveSeed },
             'bip39_refine': { 'gui': WCBIP39Refine },
-            'have_master_key': { 'gui': 'WCHaveMasterKey' },
+            'have_master_key': { 'gui': WCHaveMasterKey },
             'multisig': { 'gui': WCMultisig },
-            'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
-            'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
-            'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
-            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'multisig_cosigner_keystore': { 'gui': WCCosignerKeystore },
+            'multisig_cosigner_key': { 'gui': WCHaveMasterKey },
+            'multisig_cosigner_seed': { 'gui': WCHaveSeed },
+            'multisig_cosigner_bip39_refine': { 'gui': WCBIP39Refine },
             'imported': { 'gui': WCImport },
             'wallet_password': { 'gui': WCWalletPassword }
         })
@@ -105,14 +105,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     #     data = js_data.toVariant()
     #     return self.has_heterogeneous_masterkeys(data)
     #
-    # @pyqtSlot(str, str, result=bool)
-    # def isMatchingSeed(self, seed, seed_again):
-    #     return mnemonic.is_matching_seed(seed=seed, seed_again=seed_again)
-    #
 
     def create_storage(self, single_password: str = None):
         self._logger.info('Creating wallet from wizard data')
-        # data = js_data.toVariant()
         data = self._current.wizard_data
 
         if self.is_single_password() and single_password:
@@ -401,6 +396,8 @@ class WCConfirmExt(WizardComponent):
 
 
 class WCHaveSeed(WizardComponent):
+    _logger = get_logger(__name__)
+
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Enter Seed'))
         self.layout().addWidget(WWLabel(_('Please enter your seed phrase in order to restore your wallet.')))
@@ -409,7 +406,11 @@ class WCHaveSeed(WizardComponent):
         # for now, fake parent.next_button.setEnabled
         class Hack:
             def setEnabled(self2, b):
-                self.valid = b
+                if not b:
+                    self.valid = b
+                else:
+                    self.validate()
+
         self.next_button = Hack()
 
     def on_ready(self):
@@ -428,24 +429,57 @@ class WCHaveSeed(WizardComponent):
         else:
             return mnemonic.seed_type(x) in ['standard', 'segwit']
 
-    def apply(self):
-        self.wizard_data['seed'] = self.slayout.get_seed()
-        self.wizard_data['seed_variant'] = self.slayout.seed_type
-        if self.slayout.seed_type == 'electrum':
-            self.wizard_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
+    def validate(self):
+        # precond: only call when SeedLayout deems seed a valid seed
+        seed = self.slayout.get_seed()
+        seed_variant = self.slayout.seed_type
+        wallet_type = self.wizard_data['wallet_type']
+        seed_valid, seed_type, validation_message = self.wizard.validate_seed(seed, seed_variant, wallet_type)
+
+        if not seed_valid:
+            self.valid = False
+            return
+
+        if seed_type in ['bip39', 'slip39']:
+            # defer validation to when derivation path is known
+            self.valid = True
         else:
-            self.wizard_data['seed_type'] = self.slayout.seed_type
-        self.wizard_data['seed_extend'] = self.slayout.is_ext
-        self.wizard_data['seed_extra_words'] = ''  # empty default
+            self.apply()
+            if self.wizard.has_duplicate_masterkeys(self.wizard_data):
+                self._logger.debug('Duplicate master keys!')
+                # TODO: user feedback
+                seed_valid = False
+            elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
+                self._logger.debug('Heterogenous master keys!')
+                # TODO: user feedback
+                seed_valid = False
+
+            self.valid = seed_valid
+
+    def apply(self):
+        wizard_data = self.wizard_data
+        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
+            cosigner = self.wizard_data['multisig_current_cosigner']
+            if cosigner != 0:
+                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
+
+        wizard_data['seed'] = self.slayout.get_seed()
+        wizard_data['seed_variant'] = self.slayout.seed_type
+        if self.slayout.seed_type == 'electrum':
+            wizard_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
+        else:
+            wizard_data['seed_type'] = self.slayout.seed_type
+        wizard_data['seed_extend'] = self.slayout.is_ext
+        wizard_data['seed_extra_words'] = ''  # empty default
 
 
 class WCBIP39Refine(WizardComponent):
+    _logger = get_logger(__name__)
+
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Script type and Derivation path'))
 
     def on_ready(self):
-        if self.wizard_data['wallet_type'] == 'multisig':
-            raise Exception('NYI')
 
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = ' '.join([
@@ -454,12 +488,31 @@ class WCBIP39Refine(WizardComponent):
         ])
         hide_choices = False
 
-        default_choice_idx = 2
-        choices = [
-            ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
-            ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
-            ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
-        ]
+        if self.wizard_data['wallet_type'] == 'multisig':
+            choices = [
+                # TODO: 'standard' is a backend wallet concept, wizard wants 'p2sh'
+                ('standard', 'legacy multisig (p2sh)', normalize_bip32_derivation("m/45'/0")),
+                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ('p2wsh', 'native segwit multisig (p2wsh)', purpose48_derivation(0, xtype='p2wsh')),
+            ]
+            if 'multisig_current_cosigner' in self.wizard_data:
+                # get script type of first cosigner
+                ks = self.wizard.keystore_from_data(self.wizard_data['wallet_type'], self.wizard_data)
+                script_type = xpub_type(ks.get_master_public_key())
+                script_types = [*zip(*choices)][0]
+                chosen_idx = script_types.index(script_type)
+                default_choice_idx = chosen_idx
+                hide_choices = True
+            else:
+                default_choice_idx = 2
+        else:
+            default_choice_idx = 2
+            choices = [
+                # TODO: 'standard' is a backend wallet concept, wizard wants 'p2pkh'
+                ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
+                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
+                ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
+            ]
 
         passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
         root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase)
@@ -470,7 +523,7 @@ class WCBIP39Refine(WizardComponent):
             account_xpub = account_node.to_xpub()
             return account_xpub
 
-        if get_account_xpub:
+        if self.wizard_data['wallet_type'] == 'standard':
             button = QPushButton(_("Detect Existing Accounts"))
 
             def on_account_select(account):
@@ -504,13 +557,145 @@ class WCBIP39Refine(WizardComponent):
         self.derivation_path_edit.textChanged.connect(self.validate)
         on_choice_click(self.clayout)  # set default value for derivation path
         self.layout().addWidget(self.derivation_path_edit)
+        self.layout().addStretch(1)
 
     def validate(self):
-        self.valid = is_bip32_derivation(self.derivation_path_edit.text())
+        self.apply()
+        derivation_valid = is_bip32_derivation(self.wizard_data['derivation_path'])
+
+        if self.wizard_data['wallet_type'] == 'multisig':
+            if self.wizard.has_duplicate_masterkeys(self.wizard_data):
+                self._logger.debug('Duplicate master keys!')
+                # TODO: user feedback
+                derivation_valid = False
+            elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
+                self._logger.debug('Heterogenous master keys!')
+                # TODO: user feedback
+                derivation_valid = False
+
+        self.valid = derivation_valid
 
     def apply(self):
-        self.wizard_data['script_type'] = self.c_values[self.clayout.selected_index()]
-        self.wizard_data['derivation_path'] = str(self.derivation_path_edit.text())
+        wizard_data = self.wizard_data
+        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
+            cosigner = self.wizard_data['multisig_current_cosigner']
+            if cosigner != 0:
+                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
+
+        wizard_data['script_type'] = self.c_values[self.clayout.selected_index()]
+        wizard_data['derivation_path'] = str(self.derivation_path_edit.text())
+
+
+class WCCosignerKeystore(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard)
+
+        message = _('Add a cosigner to your multi-sig wallet')
+        choices = [
+            ('key', _('Enter cosigner key')),
+            ('seed', _('Enter cosigner seed')),
+            ('hw_device', _('Cosign with hardware device'))
+        ]
+
+        self.c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        self.clayout = ChoicesLayout(message, c_titles)
+        self.layout().addLayout(self.clayout.layout())
+
+        self.cosigner = 0
+        self.participants = 0
+
+        self._valid = True
+
+    def on_ready(self):
+        self.participants = self.wizard_data['multisig_participants']
+        # cosigner index is determined here and put on the wizard_data dict in apply()
+        # as this page is the start for each additional cosigner
+        self.cosigner = 2 + len(self.wizard_data['multisig_cosigner_data'])
+
+        self.wizard_data['multisig_current_cosigner'] = self.cosigner
+        self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
+
+        # different from old wizard: master public key for sharing is now shown on this page
+        self.layout().addSpacing(20)
+        self.layout().addWidget(WWLabel(_('Below is your master public key. Please share it with your cosigners')))
+        slayout = SeedLayout(
+            self.wizard_data['multisig_master_pubkey'],
+            icon=False,
+            for_seed_words=False,
+            config=self.wizard.config,
+        )
+        self.layout().addLayout(slayout)
+        self.layout().addStretch(1)
+
+    def apply(self):
+        self.wizard_data['cosigner_keystore_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['multisig_current_cosigner'] = self.cosigner
+        self.wizard_data['multisig_cosigner_data'][str(self.cosigner)] = {}
+
+
+class WCHaveMasterKey(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Create keystore from a master key'))
+
+        self.message_create = ' '.join([
+            _("To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."),
+            _("To create a spending wallet, please enter a master private key (xprv/yprv/zprv).")
+        ])
+        self.message_cosign = ' '.join([
+            _('Please enter the master public key (xpub) of your cosigner.'),
+            _('Enter their master private key (xprv) if you want to be able to sign for them.')
+        ])
+
+        self.header_layout = QHBoxLayout()
+        self.label = WWLabel()
+        self.label.setMinimumWidth(400)
+        self.header_layout.addWidget(self.label)
+
+        # TODO: KeysLayout assumes too much in parent, refactor KeysLayout
+        # for now, fake parent.next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+            def setToolTip(self2, b):
+                pass
+        self.next_button = Hack()
+
+    def on_ready(self):
+        # if self.wallet_type == 'standard':
+        #     v = keystore.is_master_key
+        #     self.add_xpub_dialog(title=title, message=message, run_next=self.on_restore_from_key, is_valid=v)
+        # else:
+        #     i = len(self.keystores) + 1
+        #     self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=keystore.is_bip32_key)
+        if self.wizard_data['wallet_type'] == 'standard':
+            self.label.setText(self.message_create)
+            v = lambda x: bool(keystore.from_master_key(x))
+            self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=v,
+                                      allow_multi=False, config=self.wizard.config)
+            self.layout().addLayout(self.slayout)
+        elif self.wizard_data['wallet_type'] == 'multisig':
+            if 'multisig_current_cosigner' in self.wizard_data:
+                self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
+                self.label.setText(self.message_cosign)
+            else:
+                self.wizard_data['multisig_current_cosigner'] = 0
+                self.label.setText(self.message_create)
+            v = lambda x: keystore.is_bip32_key(x)
+            self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=v,
+                                      allow_multi=False, config=self.wizard.config)
+            self.layout().addLayout(self.slayout)
+
+    def apply(self):
+        text = self.slayout.get_text()
+        if self.wizard_data['wallet_type'] == 'standard':
+            self.wizard_data['master_key'] = text
+        elif self.wizard_data['wallet_type'] == 'multisig':
+            cosigner = self.wizard_data['multisig_current_cosigner']
+            if cosigner == 0:
+                self.wizard_data['master_key'] = text
+            else:
+                self.wizard_data['multisig_cosigner_data'][str(cosigner)]['master_key'] = text
 
 
 class WCMultisig(WizardComponent):
@@ -578,8 +763,6 @@ class WCImport(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_('Import Bitcoin Addresses'))
         message = _(
             'Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
-        # self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
-        #                      is_valid=v, allow_multi=True, show_wif_help=True)
         header_layout = QHBoxLayout()
         label = WWLabel(message)
         label.setMinimumWidth(400)

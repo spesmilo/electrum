@@ -4,10 +4,11 @@ import os
 from typing import List, NamedTuple, Any, Dict, Optional
 
 from electrum.logging import get_logger
+from electrum.slip39 import Slip39Error, decode_mnemonic
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
-from electrum import keystore
+from electrum import keystore, mnemonic
 from electrum import bitcoin
 from electrum.mnemonic import is_any_2fa_seed_type
 
@@ -280,9 +281,9 @@ class NewWalletWizard(AbstractWizard):
             return 'wallet_password'
 
     def maybe_master_pubkey(self, wizard_data):
-        self._logger.info('maybe_master_pubkey')
+        self._logger.debug('maybe_master_pubkey')
         if self.is_bip39_seed(wizard_data) and 'derivation_path' not in wizard_data:
-            self._logger.info('maybe_master_pubkey2')
+            self._logger.debug('deferred, missing derivation_path')
             return
 
         wizard_data['multisig_master_pubkey'] = self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key()
@@ -366,6 +367,46 @@ class NewWalletWizard(AbstractWizard):
             return keystore.from_master_key(data['master_key'])
         else:
             raise Exception('no seed or master_key in data')
+
+    def validate_seed(self, seed, seed_variant, wallet_type):
+        seed_type = ''
+        seed_valid = False
+        validation_message = ''
+
+        if seed_variant == 'electrum':
+            seed_type = mnemonic.seed_type(seed)
+            if seed_type != '':
+                seed_valid = True
+        elif seed_variant == 'bip39':
+            is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
+            status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
+            validation_message = 'BIP39 (%s)' % status
+
+            if is_checksum:
+                seed_type = 'bip39'
+                seed_valid = True
+        elif seed_variant == 'slip39': # TODO: incomplete impl, this code only validates a single share.
+            try:
+                share = decode_mnemonic(seed)
+                seed_type = 'slip39'
+                validation_message = 'SLIP39: share #%d in %dof%d scheme' % (share.group_index, share.group_threshold, share.group_count)
+            except Slip39Error as e:
+                validation_message = 'SLIP39: %s' % str(e)
+            seed_valid = False # for now
+        else:
+            raise Exception(f'unknown seed variant {seed_variant}')
+
+        # check if seed matches wallet type
+        if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
+            seed_valid = False
+        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39']:
+            seed_valid = False
+        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
+            seed_valid = False
+
+        self._logger.debug(f'seed verified: {seed_valid}, type={seed_type}, validation_message={validation_message}')
+
+        return seed_valid, seed_type, validation_message
 
     def create_storage(self, path, data):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
