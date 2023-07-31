@@ -1,3 +1,4 @@
+import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
@@ -12,9 +13,14 @@ WizardComponent {
         id: keystoregroup
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('What kind of wallet do you want to create?') }
+    ColumnLayout {
+        width: parent.width
+
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            text: qsTr('Do you want to create a new seed, restore using an existing seed, or restore from master key?')
+        }
         RadioButton {
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'createseed'
