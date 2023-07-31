@@ -4,7 +4,7 @@ import os
 from typing import List, NamedTuple, Any, Dict, Optional
 
 from electrum.logging import get_logger
-from electrum.slip39 import Slip39Error, decode_mnemonic
+from electrum.slip39 import EncryptedSeed
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
@@ -252,6 +252,9 @@ class NewWalletWizard(AbstractWizard):
     def is_bip39_seed(self, wizard_data):
         return wizard_data.get('seed_variant') == 'bip39'
 
+    def is_slip39_seed(self, wizard_data):
+        return wizard_data.get('seed_variant') == 'slip39'
+
     def is_multisig(self, wizard_data):
         return wizard_data['wallet_type'] == 'multisig'
 
@@ -275,6 +278,8 @@ class NewWalletWizard(AbstractWizard):
     def on_have_or_confirm_seed(self, wizard_data):
         if self.is_bip39_seed(wizard_data):
             return 'bip39_refine'
+        elif self.is_slip39_seed(wizard_data):
+            return 'bip39_refine'
         elif self.is_multisig(wizard_data):
             return 'multisig_cosigner_keystore'
         else:
@@ -282,7 +287,7 @@ class NewWalletWizard(AbstractWizard):
 
     def maybe_master_pubkey(self, wizard_data):
         self._logger.debug('maybe_master_pubkey')
-        if self.is_bip39_seed(wizard_data) and 'derivation_path' not in wizard_data:
+        if (self.is_bip39_seed(wizard_data) or self.is_slip39_seed(wizard_data)) and 'derivation_path' not in wizard_data:
             self._logger.debug('deferred, missing derivation_path')
             return
 
@@ -361,6 +366,14 @@ class NewWalletWizard(AbstractWizard):
                 else:
                     script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 return keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
+            elif data['seed_variant'] == 'slip39':
+                root_seed = data['seed'].decrypt(data['seed_extra_words'])
+                derivation = normalize_bip32_derivation(data['derivation_path'])
+                if wallet_type == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                return keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
             else:
                 raise Exception('Unsupported seed variant %s' % data['seed_variant'])
         elif 'master_key' in data:
@@ -385,21 +398,20 @@ class NewWalletWizard(AbstractWizard):
             if is_checksum:
                 seed_type = 'bip39'
                 seed_valid = True
-        elif seed_variant == 'slip39': # TODO: incomplete impl, this code only validates a single share.
-            try:
-                share = decode_mnemonic(seed)
+        elif seed_variant == 'slip39':
+            # seed shares should be already validated by wizard page, we have a combined encrypted seed
+            if seed and isinstance(seed, EncryptedSeed):
+                seed_valid = True
                 seed_type = 'slip39'
-                validation_message = 'SLIP39: share #%d in %dof%d scheme' % (share.group_index, share.group_threshold, share.group_count)
-            except Slip39Error as e:
-                validation_message = 'SLIP39: %s' % str(e)
-            seed_valid = False # for now
+            else:
+                seed_valid = False
         else:
             raise Exception(f'unknown seed variant {seed_variant}')
 
         # check if seed matches wallet type
         if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
             seed_valid = False
-        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39']:
+        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
         elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
             seed_valid = False
@@ -435,9 +447,12 @@ class NewWalletWizard(AbstractWizard):
             if data['seed_type'] in ['old', 'standard', 'segwit']:
                 self._logger.debug('creating keystore from electrum seed')
                 k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
-            elif data['seed_type'] == 'bip39':
-                self._logger.debug('creating keystore from bip39 seed')
-                root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
+            elif data['seed_type'] in ['bip39', 'slip39']:
+                self._logger.debug('creating keystore from %s seed' % data['seed_type'])
+                if data['seed_type'] == 'bip39':
+                    root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
+                else:
+                    root_seed = data['seed'].decrypt(data['seed_extra_words'])
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 if data['wallet_type'] == 'multisig':
                     script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'

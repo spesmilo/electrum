@@ -31,9 +31,6 @@ WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     _logger = get_logger(__name__)
 
-    # createError = pyqtSignal([str], arguments=["error"])
-    # createSuccess = pyqtSignal()
-
     def __init__(self, config: 'SimpleConfig', app: QApplication, daemon: Daemon, path, parent=None):
         NewWalletWizard.__init__(self, daemon)
         QEAbstractWizard.__init__(self, config, app, parent)
@@ -46,10 +43,11 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'wallet_type': { 'gui': WCWalletType },
             'keystore_type': { 'gui': WCKeystoreType },
             'create_seed': { 'gui': WCCreateSeed },
-            'create_ext': { 'gui': WCCreateExt },
+            'create_ext': { 'gui': WCEnterExt },
             'confirm_seed': { 'gui': WCConfirmSeed },
             'confirm_ext': { 'gui': WCConfirmExt },
             'have_seed': { 'gui': WCHaveSeed },
+            'have_ext': { 'gui': WCEnterExt },
             'bip39_refine': { 'gui': WCBIP39Refine },
             'have_master_key': { 'gui': WCHaveMasterKey },
             'multisig': { 'gui': WCMultisig },
@@ -76,35 +74,27 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'confirm_ext': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
-            }
+            },
+            'have_seed': {
+                'next': lambda d: 'have_ext' if d['seed_extend'] else self.on_have_or_confirm_seed(d),
+            },
+            'have_ext': {
+                'next': self.on_have_or_confirm_seed,
+                'accept': self.maybe_master_pubkey,
+            },
         })
 
-    # pathChanged = pyqtSignal()
-    # @pyqtProperty(str, notify=pathChanged)
-    # def path(self):
-    #     return self._path
-    #
-    # @path.setter
-    # def path(self, path):
-    #     self._path = path
-    #     self.pathChanged.emit()
-    #
+    @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path):
+        self._path = path
+
     def is_single_password(self):
         # TODO: also take into account if possible with existing set of wallets. see qedaemon.py
         return self._daemon.config.WALLET_USE_SINGLE_PASSWORD
-
-    # @pyqtSlot('QJSValue', result=bool)
-    # def hasDuplicateMasterKeys(self, js_data):
-    #     self._logger.info('Checking for duplicate masterkeys')
-    #     data = js_data.toVariant()
-    #     return self.has_duplicate_masterkeys(data)
-    #
-    # @pyqtSlot('QJSValue', result=bool)
-    # def hasHeterogeneousMasterKeys(self, js_data):
-    #     self._logger.info('Checking for heterogeneous masterkeys')
-    #     data = js_data.toVariant()
-    #     return self.has_heterogeneous_masterkeys(data)
-    #
 
     def create_storage(self, single_password: str = None):
         self._logger.info('Creating wallet from wizard data')
@@ -121,14 +111,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
             # minimally populate self after create
             self._password = data['password']
-            # self.path = path
+            self.path = path
 
-            # self.createSuccess.emit()
             return True
         except Exception as e:
             self._logger.error(f"createStorage errored: {e!r}")
             return False
-            # self.createError.emit(str(e))
 
 
 class WCWalletName(WizardComponent):
@@ -349,7 +337,7 @@ class WCConfirmSeed(WizardComponent):
         pass
 
 
-class WCCreateExt(WizardComponent):
+class WCEnterExt(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Seed Extension'))
 
@@ -490,7 +478,7 @@ class WCBIP39Refine(WizardComponent):
 
         if self.wizard_data['wallet_type'] == 'multisig':
             choices = [
-                # TODO: 'standard' is a backend wallet concept, wizard wants 'p2sh'
+                # TODO: nicer to refactor 'standard' to 'p2sh', but backend wallet still uses 'standard'
                 ('standard', 'legacy multisig (p2sh)', normalize_bip32_derivation("m/45'/0")),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh', 'native segwit multisig (p2wsh)', purpose48_derivation(0, xtype='p2wsh')),
@@ -508,23 +496,26 @@ class WCBIP39Refine(WizardComponent):
         else:
             default_choice_idx = 2
             choices = [
-                # TODO: 'standard' is a backend wallet concept, wizard wants 'p2pkh'
+                # TODO: nicer to refactor 'standard' to 'p2pkh', but backend wallet still uses 'standard'
                 ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
                 ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
                 ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
             ]
 
-        passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
-        root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase)
-
-        def get_account_xpub(account_path):
-            root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
-            account_node = root_node.subkey_at_private_derivation(account_path)
-            account_xpub = account_node.to_xpub()
-            return account_xpub
-
         if self.wizard_data['wallet_type'] == 'standard':
             button = QPushButton(_("Detect Existing Accounts"))
+
+            passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
+            if self.wizard_data['seed_variant'] == 'bip39':
+                root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase)
+            elif self.wizard_data['seed_variant'] == 'slip39':
+                root_seed = self.wizard_data['seed'].decrypt(passphrase)
+
+            def get_account_xpub(account_path):
+                root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+                account_node = root_node.subkey_at_private_derivation(account_path)
+                account_xpub = account_node.to_xpub()
+                return account_xpub
 
             def on_account_select(account):
                 script_type = account["script_type"]
@@ -561,7 +552,14 @@ class WCBIP39Refine(WizardComponent):
 
     def validate(self):
         self.apply()
-        derivation_valid = is_bip32_derivation(self.wizard_data['derivation_path'])
+
+        wizard_data = self.wizard_data
+        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
+            cosigner = self.wizard_data['multisig_current_cosigner']
+            if cosigner != 0:
+                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
+
+        derivation_valid = is_bip32_derivation(wizard_data['derivation_path'])
 
         if self.wizard_data['wallet_type'] == 'multisig':
             if self.wizard.has_duplicate_masterkeys(self.wizard_data):
