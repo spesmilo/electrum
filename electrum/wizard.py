@@ -201,7 +201,7 @@ class NewWalletWizard(AbstractWizard):
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
             },
-            'bip39_refine': {
+            'script_and_derivation': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not self.is_multisig(d)
@@ -225,7 +225,7 @@ class NewWalletWizard(AbstractWizard):
                 'next': self.on_have_cosigner_seed,
                 'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
-            'multisig_cosigner_bip39_refine': {
+            'multisig_cosigner_script_and_derivation': {
                 'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
                 'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
@@ -277,9 +277,9 @@ class NewWalletWizard(AbstractWizard):
 
     def on_have_or_confirm_seed(self, wizard_data):
         if self.is_bip39_seed(wizard_data):
-            return 'bip39_refine'
+            return 'script_and_derivation'
         elif self.is_slip39_seed(wizard_data):
-            return 'bip39_refine'
+            return 'script_and_derivation'
         elif self.is_multisig(wizard_data):
             return 'multisig_cosigner_keystore'
         else:
@@ -305,7 +305,7 @@ class NewWalletWizard(AbstractWizard):
         if self.has_all_cosigner_data(wizard_data):
             return 'wallet_password'
         elif current_cosigner_data['seed_type'] == 'bip39' and 'derivation_path' not in current_cosigner_data:
-            return 'multisig_cosigner_bip39_refine'
+            return 'multisig_cosigner_script_and_derivation'
         else:
             return 'multisig_cosigner_keystore'
 

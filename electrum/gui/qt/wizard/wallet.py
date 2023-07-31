@@ -48,13 +48,13 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'confirm_ext': { 'gui': WCConfirmExt },
             'have_seed': { 'gui': WCHaveSeed },
             'have_ext': { 'gui': WCEnterExt },
-            'bip39_refine': { 'gui': WCBIP39Refine },
+            'script_and_derivation': { 'gui': WCScriptAndDerivation},
             'have_master_key': { 'gui': WCHaveMasterKey },
             'multisig': { 'gui': WCMultisig },
             'multisig_cosigner_keystore': { 'gui': WCCosignerKeystore },
             'multisig_cosigner_key': { 'gui': WCHaveMasterKey },
             'multisig_cosigner_seed': { 'gui': WCHaveSeed },
-            'multisig_cosigner_bip39_refine': { 'gui': WCBIP39Refine },
+            'multisig_cosigner_script_and_derivation': { 'gui': WCScriptAndDerivation},
             'imported': { 'gui': WCImport },
             'wallet_password': { 'gui': WCWalletPassword }
         })
@@ -461,7 +461,7 @@ class WCHaveSeed(WizardComponent):
         wizard_data['seed_extra_words'] = ''  # empty default
 
 
-class WCBIP39Refine(WizardComponent):
+class WCScriptAndDerivation(WizardComponent):
     _logger = get_logger(__name__)
 
     def __init__(self, parent, wizard):
