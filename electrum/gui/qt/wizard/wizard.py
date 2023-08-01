@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Dict, Any
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
 from PyQt5.QtGui import QPixmap
@@ -9,6 +9,9 @@ from PyQt5.QtWidgets import (QDialog, QApplication, QPushButton, QWidget, QLabel
 from electrum.i18n import _
 from ..util import Buttons, icon_path
 from electrum.logging import get_logger
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 class QEAbstractWizard(QDialog):
@@ -88,7 +91,10 @@ class QEAbstractWizard(QDialog):
         view = self.start_wizard()
         self.load_next_component(view)
 
-    def load_next_component(self, view, wdata={}):
+    def load_next_component(self, view, wdata=None):
+        if wdata is None:
+            wdata = {}
+            
         comp = self.view_to_component(view)
         try:
             page = comp(self.main_widget, self)

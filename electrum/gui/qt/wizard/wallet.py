@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QTimer, QRect
 from PyQt5.QtGui import QPen, QPainter, QPalette
@@ -20,6 +21,9 @@ from ..bip39_recovery_dialog import Bip39RecoveryDialog
 from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD
 from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +

@@ -1,12 +1,15 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QWidget
+from typing import TYPE_CHECKING
+
+from PyQt5.QtWidgets import QApplication
 
 from electrum.i18n import _
 from .wizard import QEAbstractWizard, WizardComponent
-from electrum.logging import get_logger
 from electrum.wizard import ServerConnectWizard
 from ..network_dialog import ProxyWidget, ServerWidget
 from ..util import ChoicesLayout
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
