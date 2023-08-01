@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxL
                              QRadioButton, QCheckBox, QLineEdit)
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
-                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton)
+                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ChoicesLayout)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -46,7 +46,9 @@ from electrum.util import is_valid_email
 from electrum.logging import Logger
 from electrum.base_wizard import GoBack, UserCancelled
 
-from .trustedcoin import TrustedCoinPlugin, server
+from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
+from ...gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
+from ...gui.qt.wizard.wizard import WizardComponent
 
 if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
@@ -327,3 +329,125 @@ class Plugin(TrustedCoinPlugin):
         cb_lost.toggled.connect(set_enabled)
         window.exec_layout(vbox, next_enabled=False, raise_on_cancel=False)
         self.check_otp(window, short_id, otp_secret, xpub3, pw.get_amount(), cb_lost.isChecked())
+
+    @hook
+    def init_qt(self, gui: 'ElectrumGui'):
+        pass
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QEWalletWizard'):
+        self.extend_wizard(wizard)
+
+    def extend_wizard(self, wizard):
+        # wizard = self._app.daemon.newWalletWizard
+        # self.logger.debug(repr(wizard))
+        # TODO: move non-gui parts to base plugin
+        views = {
+            'trustedcoin_start': {
+                'gui': WCDisclaimer,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_choose_seed'
+            },
+            'trustedcoin_choose_seed': {
+                'gui': WCChooseSeed,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': lambda d: 'trustedcoin_create_seed' if d['keystore_type'] == 'createseed'
+                        else 'trustedcoin_have_seed'
+            },
+            'trustedcoin_create_seed': {
+                'gui': WCCreateSeed,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_confirm_seed'
+            },
+            'trustedcoin_confirm_seed': {
+                'gui': WCConfirmSeed,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_tos_email'
+            },
+            'trustedcoin_have_seed': {
+                'gui': WCHaveSeed,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_keep_disable'
+            },
+            # 'trustedcoin_keep_disable': {
+            #     'gui': '../../../../plugins/trustedcoin/qml/KeepDisable',
+            #     'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_keepordisable'] != 'disable'
+            #             else 'wallet_password',
+            #     'accept': self.recovery_disable,
+            #     'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
+            # },
+            # 'trustedcoin_tos_email': {
+            #     'gui': '../../../../plugins/trustedcoin/qml/Terms',
+            #     'next': 'trustedcoin_show_confirm_otp'
+            # },
+            # 'trustedcoin_show_confirm_otp': {
+            #     'gui': '../../../../plugins/trustedcoin/qml/ShowConfirmOTP',
+            #     'accept': self.on_accept_otp_secret,
+            #     'next': 'wallet_password',
+            #     'last': lambda d: wizard.is_single_password()
+            # }
+        }
+        wizard.navmap_merge(views)
+
+        # modify default flow, insert seed extension entry/confirm as separate views
+        ext = {
+            'trustedcoin_create_seed': {
+                'next': lambda d: 'trustedcoin_create_ext' if wizard.wants_ext(d) else 'trustedcoin_confirm_seed'
+            },
+            'trustedcoin_create_ext': {
+                'gui': WCEnterExt,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_confirm_seed',
+            },
+            'trustedcoin_confirm_seed': {
+                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos_email'
+            },
+            'trustedcoin_confirm_ext': {
+                'gui': WCConfirmExt,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_tos_email',
+            },
+            'trustedcoin_have_seed': {
+                'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable'
+            },
+            'trustedcoin_have_ext': {
+                'gui': WCEnterExt,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': 'trustedcoin_keep_disable',
+            },
+        }
+        wizard.navmap_merge(ext)
+
+
+class WCDisclaimer(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Disclaimer'))
+
+        self.layout().addWidget(WWLabel('\n\n'.join(DISCLAIMER)))
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        pass
+
+
+class WCChooseSeed(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Create or restore'))
+        message = _('Do you want to create a new seed, or restore a wallet using an existing seed?')
+        choices = [
+            ('createseed',  _('Create a new seed')),
+            ('haveseed',    _('I already have a seed')),
+        ]
+
+        self.c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        self.clayout = ChoicesLayout(message, c_titles)
+        self.layout().addLayout(self.clayout.layout())
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['keystore_type'] = self.c_values[self.clayout.selected_index()]

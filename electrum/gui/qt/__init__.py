@@ -148,6 +148,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self._default_qtstylesheet = self.app.styleSheet()
         self.reload_app_stylesheet()
 
+        # always load 2fa
+        self.plugins.load_plugin('trustedcoin')
+
         run_hook('init_qt', self)
 
     def _init_tray(self):

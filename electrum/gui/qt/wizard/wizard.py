@@ -12,16 +12,20 @@ from electrum.logging import get_logger
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
+    from electrum.daemon import Daemon
+    from electrum.gui.qt import QElectrumApplication
 
 
 class QEAbstractWizard(QDialog):
     _logger = get_logger(__name__)
 
     # def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
-    def __init__(self, config: 'SimpleConfig', app: QApplication, daemon):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: 'Daemon'):
         QDialog.__init__(self, None)
         self.app = app
         self.config = config
+        self.plugins = plugins
         # self.gui_thread = gui_object.gui_thread
         self.setMinimumSize(600, 400)
 
@@ -91,10 +95,12 @@ class QEAbstractWizard(QDialog):
         view = self.start_wizard()
         self.load_next_component(view)
 
-    def load_next_component(self, view, wdata=None):
+    def load_next_component(self, view, wdata=None, params=None):
         if wdata is None:
             wdata = {}
-            
+        if params is None:
+            params = {}
+
         comp = self.view_to_component(view)
         try:
             page = comp(self.main_widget, self)
@@ -102,6 +108,7 @@ class QEAbstractWizard(QDialog):
             self._logger.error(f'not a class: {comp!r}')
             raise e
         page.wizard_data = wdata
+        page.params = params
         page.updated.connect(self.on_page_updated)
         self._logger.debug(f'{page!r}')
 
@@ -134,6 +141,9 @@ class QEAbstractWizard(QDialog):
         self.next_button.setEnabled(page.valid)
         self.main_widget.setVisible(not page.busy)
         self.please_wait.setVisible(page.busy)
+        icon = page.params.get('icon', icon_path('electrum.png'))
+        if icon != self.icon_filename:
+            self.set_icon(icon)
 
     def on_back_button_clicked(self):
         if self.can_go_back():
@@ -153,7 +163,7 @@ class QEAbstractWizard(QDialog):
             self.accept()
         else:
             next = self.submit(wd)
-            self.load_next_component(next['view'], next['wizard_data'])
+            self.load_next_component(next.view, next.wizard_data, next.params)
 
     def start_wizard(self) -> str:
         self.start()
@@ -165,10 +175,7 @@ class QEAbstractWizard(QDialog):
     def submit(self, wizard_data) -> dict:
         wdata = wizard_data.copy()
         view = self.resolve_next(self._current.view, wdata)
-        return {
-            'view': view.view,
-            'wizard_data': view.wizard_data
-        }
+        return view
 
     def prev(self) -> dict:
         viewstate = self.resolve_prev()

@@ -10,13 +10,16 @@ from ..util import ChoicesLayout
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
+    from electrum.daemon import Daemon
+    from electrum.gui.qt import QElectrumApplication
 
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
-    def __init__(self, config: 'SimpleConfig', app: QApplication, daemon, parent=None):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: 'Daemon', parent=None):
         ServerConnectWizard.__init__(self, daemon)
-        QEAbstractWizard.__init__(self, config, app, parent)
+        QEAbstractWizard.__init__(self, config, app, plugins, daemon)
         self._daemon = daemon
 
         # attach view names

@@ -10,6 +10,7 @@ from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_deriv
 from electrum.daemon import Daemon
 from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation
+from electrum.plugin import run_hook
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name
 from electrum.wallet import wallet_types
@@ -24,6 +25,9 @@ from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLa
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
+    from electrum.daemon import Daemon
+    from electrum.gui.qt import QElectrumApplication
 
 WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
@@ -35,10 +39,10 @@ WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', app: QApplication, daemon: Daemon, path, parent=None):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, parent=None):
         NewWalletWizard.__init__(self, daemon)
-        QEAbstractWizard.__init__(self, config, app, parent)
-        self._daemon = daemon
+        QEAbstractWizard.__init__(self, config, app, plugins, daemon)
+        self._daemon = daemon  # TODO: dedupe
         self._path = path
 
         # attach gui classes to views
@@ -63,15 +67,15 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         # modify default flow, insert seed extension entry/confirm as separate views
         self.navmap_merge({
             'create_seed': {
-                'next': lambda d: 'create_ext' if d['seed_extend'] else 'confirm_seed'
+                'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed'
             },
             'create_ext': {
                 'next': 'confirm_seed',
                 'gui': WCEnterExt
             },
             'confirm_seed': {
-                'next': lambda d: 'confirm_ext' if d['seed_extend'] else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if d['seed_extend'] else self.maybe_master_pubkey(d)
+                'next': lambda d: 'confirm_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
+                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d)
             },
             'confirm_ext': {
                 'next': self.on_have_or_confirm_seed,
@@ -99,6 +103,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
                 'gui': WCEnterExt
             }
         })
+
+        run_hook('init_wallet_wizard', self)
+
 
     @property
     def path(self):
