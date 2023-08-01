@@ -99,7 +99,12 @@ class AbstractWizard:
             else:
                 raise Exception(f'next handler for view {view} is not callable nor a string literal')
 
-            self._logger.debug(f'resolve_next view is {new_view}')
+            if 'params' in self.navmap[new_view.view]:
+                params = self.navmap[new_view.view]['params']
+                assert isinstance(params, dict), 'params is not a dict'
+                new_view.params.update(params)
+
+            self._logger.debug(f'resolve_next view is {new_view.view}')
 
         self._stack.append(copy.deepcopy(self._current))
         self._current = new_view
