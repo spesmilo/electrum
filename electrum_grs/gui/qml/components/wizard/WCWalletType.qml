@@ -1,3 +1,4 @@
+import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
@@ -17,9 +18,14 @@ WizardComponent {
         id: wallettypegroup
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('What kind of wallet do you want to create?') }
+    ColumnLayout {
+        width: parent.width
+
+        Label {
+            Layout.fillWidth: true
+            text: qsTr('What kind of wallet do you want to create?')
+            wrapMode: Text.Wrap
+        }
         RadioButton {
             ButtonGroup.group: wallettypegroup
             property string wallettype: 'standard'
