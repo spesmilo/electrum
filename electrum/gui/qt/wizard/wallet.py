@@ -43,11 +43,8 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'wallet_type': { 'gui': WCWalletType },
             'keystore_type': { 'gui': WCKeystoreType },
             'create_seed': { 'gui': WCCreateSeed },
-            'create_ext': { 'gui': WCEnterExt },
             'confirm_seed': { 'gui': WCConfirmSeed },
-            'confirm_ext': { 'gui': WCConfirmExt },
             'have_seed': { 'gui': WCHaveSeed },
-            'have_ext': { 'gui': WCEnterExt },
             'script_and_derivation': { 'gui': WCScriptAndDerivation},
             'have_master_key': { 'gui': WCHaveMasterKey },
             'multisig': { 'gui': WCMultisig },
@@ -66,22 +63,37 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             },
             'create_ext': {
                 'next': 'confirm_seed',
+                'gui': WCEnterExt
             },
             'confirm_seed': {
                 'next': lambda d: 'confirm_ext' if d['seed_extend'] else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if d['seed_extend'] else self.maybe_master_pubkey(d),
+                'accept': lambda d: None if d['seed_extend'] else self.maybe_master_pubkey(d)
             },
             'confirm_ext': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
+                'gui': WCConfirmExt
             },
             'have_seed': {
-                'next': lambda d: 'have_ext' if d['seed_extend'] else self.on_have_or_confirm_seed(d),
+                'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
+                'last': lambda d: self.is_single_password() and not
+                                  (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d))
             },
             'have_ext': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
+                'gui': WCEnterExt
             },
+            'multisig_cosigner_seed': {
+                'next': lambda d: 'multisig_cosigner_have_ext' if self.wants_ext(d) else self.on_have_cosigner_seed(d),
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not
+                                  (self.needs_derivation_path(d) or self.wants_ext(d))
+            },
+            'multisig_cosigner_have_ext': {
+                'next': self.on_have_cosigner_seed,
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d),
+                'gui': WCEnterExt
+            }
         })
 
     @property
@@ -338,6 +350,8 @@ class WCConfirmSeed(WizardComponent):
 
 
 class WCEnterExt(WizardComponent):
+    _logger = get_logger(__name__)
+
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Seed Extension'))
 
@@ -356,12 +370,41 @@ class WCEnterExt(WizardComponent):
         self.layout().addStretch(1)
 
     def on_text_edited(self, text):
+        # TODO also for cosigners?
         self.ext_edit.warn_issue4566 = self.wizard_data['keystore_type'] == 'haveseed' and \
                                        self.wizard_data['seed_type'] == 'bip39'
-        self.valid = len(text) > 0
+        self.validate()
+
+    def validate(self):
+        self.apply()
+        text = self.ext_edit.text()
+        if len(text) == 0:
+            self.valid = False
+            return
+
+        cosigner_data = self._current_cosigner(self.wizard_data)
+
+        if self.wizard_data['wallet_type'] == 'multisig':
+            if 'seed_variant' in cosigner_data and cosigner_data['seed_variant'] in ['bip39', 'slip39']:
+                # defer validation to when derivation path is known
+                self.valid = True
+            else:
+                if self.wizard.has_duplicate_masterkeys(self.wizard_data):
+                    self._logger.debug('Duplicate master keys!')
+                    # TODO: user feedback
+                    self.valid = False
+                elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
+                    self._logger.debug('Heterogenous master keys!')
+                    # TODO: user feedback
+                    self.valid = False
+                else:
+                    self.valid = True
+        else:
+            self.valid = True
 
     def apply(self):
-        self.wizard_data['seed_extra_words'] = self.ext_edit.text()
+        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data['seed_extra_words'] = self.ext_edit.text()
 
 
 class WCConfirmExt(WizardComponent):
@@ -409,6 +452,8 @@ class WCHaveSeed(WizardComponent):
             parent=self,
             config=self.wizard.config,
         )
+        self.slayout.updated.connect(self.validate)
+
         self.layout().addLayout(self.slayout)
 
     def is_seed(self, x):
@@ -428,8 +473,8 @@ class WCHaveSeed(WizardComponent):
             self.valid = False
             return
 
-        if seed_type in ['bip39', 'slip39']:
-            # defer validation to when derivation path is known
+        if seed_type in ['bip39', 'slip39'] or self.slayout.is_ext:
+            # defer validation to when derivation path and/or passphrase/ext is known
             self.valid = True
         else:
             self.apply()
@@ -445,20 +490,16 @@ class WCHaveSeed(WizardComponent):
             self.valid = seed_valid
 
     def apply(self):
-        wizard_data = self.wizard_data
-        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
-            cosigner = self.wizard_data['multisig_current_cosigner']
-            if cosigner != 0:
-                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
+        cosigner_data = self._current_cosigner(self.wizard_data)
 
-        wizard_data['seed'] = self.slayout.get_seed()
-        wizard_data['seed_variant'] = self.slayout.seed_type
+        cosigner_data['seed'] = self.slayout.get_seed()
+        cosigner_data['seed_variant'] = self.slayout.seed_type
         if self.slayout.seed_type == 'electrum':
-            wizard_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
+            cosigner_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
         else:
-            wizard_data['seed_type'] = self.slayout.seed_type
-        wizard_data['seed_extend'] = self.slayout.is_ext
-        wizard_data['seed_extra_words'] = ''  # empty default
+            cosigner_data['seed_type'] = self.slayout.seed_type
+        cosigner_data['seed_extend'] = self.slayout.is_ext
+        cosigner_data['seed_extra_words'] = ''  # empty default
 
 
 class WCScriptAndDerivation(WizardComponent):
@@ -553,15 +594,10 @@ class WCScriptAndDerivation(WizardComponent):
     def validate(self):
         self.apply()
 
-        wizard_data = self.wizard_data
-        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
-            cosigner = self.wizard_data['multisig_current_cosigner']
-            if cosigner != 0:
-                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
+        cosigner_data = self._current_cosigner(self.wizard_data)
+        derivation_valid = is_bip32_derivation(cosigner_data['derivation_path'])
 
-        derivation_valid = is_bip32_derivation(wizard_data['derivation_path'])
-
-        if self.wizard_data['wallet_type'] == 'multisig':
+        if derivation_valid and self.wizard_data['wallet_type'] == 'multisig':
             if self.wizard.has_duplicate_masterkeys(self.wizard_data):
                 self._logger.debug('Duplicate master keys!')
                 # TODO: user feedback
@@ -574,14 +610,9 @@ class WCScriptAndDerivation(WizardComponent):
         self.valid = derivation_valid
 
     def apply(self):
-        wizard_data = self.wizard_data
-        if self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data:
-            cosigner = self.wizard_data['multisig_current_cosigner']
-            if cosigner != 0:
-                wizard_data = self.wizard_data['multisig_cosigner_data'][str(cosigner)]
-
-        wizard_data['script_type'] = self.c_values[self.clayout.selected_index()]
-        wizard_data['derivation_path'] = str(self.derivation_path_edit.text())
+        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data['script_type'] = self.c_values[self.clayout.selected_index()]
+        cosigner_data['derivation_path'] = str(self.derivation_path_edit.text())
 
 
 class WCCosignerKeystore(WizardComponent):
@@ -686,14 +717,8 @@ class WCHaveMasterKey(WizardComponent):
 
     def apply(self):
         text = self.slayout.get_text()
-        if self.wizard_data['wallet_type'] == 'standard':
-            self.wizard_data['master_key'] = text
-        elif self.wizard_data['wallet_type'] == 'multisig':
-            cosigner = self.wizard_data['multisig_current_cosigner']
-            if cosigner == 0:
-                self.wizard_data['master_key'] = text
-            else:
-                self.wizard_data['multisig_cosigner_data'][str(cosigner)]['master_key'] = text
+        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data['master_key'] = text
 
 
 class WCMultisig(WizardComponent):

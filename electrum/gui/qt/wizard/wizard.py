@@ -122,7 +122,6 @@ class QEAbstractWizard(QDialog):
 
     def update(self):
         page = self.main_widget.currentWidget()
-        self.title.setText(page.title)
         self.title.setText(f'<b>{page.title}</b>' if page.title else '')
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
@@ -219,3 +218,10 @@ class WizardComponent(QWidget):
     def on_updated(self, *args):
         self.updated.emit(self)
 
+    # returns (sub)dict of current cosigner (or root if first)
+    def _current_cosigner(self, wizard_data):
+        wdata = wizard_data
+        if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
+            cosigner = wizard_data['multisig_current_cosigner']
+            wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
+        return wdata

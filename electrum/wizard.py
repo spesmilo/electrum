@@ -67,6 +67,9 @@ class AbstractWizard:
             else:
                 raise Exception(f'accept handler for view {view} is not callable')
 
+        # make a clone for next view
+        wizard_data = copy.deepcopy(wizard_data)
+
         is_finished = False
         if 'next' not in nav:
             # finished
@@ -109,13 +112,12 @@ class AbstractWizard:
         return new_view
 
     def resolve_prev(self):
-        prev_view = self._stack.pop()
+        self._current = self._stack.pop()
 
-        self._logger.debug(f'resolve_prev view is {prev_view}')
+        self._logger.debug(f'resolve_prev view is "{self._current.view}"')
         self.log_stack()
 
-        self._current = prev_view
-        return prev_view
+        return self._current
 
     # check if this view is the final view
     def is_last_view(self, view, wizard_data):
@@ -149,27 +151,29 @@ class AbstractWizard:
 
     def log_stack(self):
         logstr = 'wizard stack:'
-        stack = copy.deepcopy(self._stack)
         i = 0
-        for item in stack:
-            self.sanitize_stack_item(item.wizard_data)
-            logstr += f'\n{i}: {repr(item.wizard_data)}'
+        for item in self._stack:
+            ssi = self.sanitize_stack_item(item.wizard_data)
+            logstr += f'\n{i}: {hex(id(item.wizard_data))} - {repr(ssi)}'
             i += 1
-        current = copy.deepcopy(self._current)
-        self.sanitize_stack_item(current.wizard_data)
-        logstr += f'\nc: {repr(current.wizard_data)}'
+        sci = self.sanitize_stack_item(self._current.wizard_data)
+        logstr += f'\nc: {hex(id(self._current.wizard_data))} - {repr(sci)}'
         self._logger.debug(logstr)
 
-    def sanitize_stack_item(self, _stack_item):
+    def sanitize_stack_item(self, _stack_item) -> dict:
         sensitive_keys = ['seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password']
         def sanitize(_dict):
+            result = {}
             for item in _dict:
                 if isinstance(_dict[item], dict):
-                    sanitize(_dict[item])
+                    result[item] = sanitize(_dict[item])
                 else:
                     if item in sensitive_keys:
-                        _dict[item] = '<sensitive value removed>'
-        sanitize(_stack_item)
+                        result[item] = '<sensitive value removed>'
+                    else:
+                        result[item] = _dict[item]
+            return result
+        return sanitize(_stack_item)
 
 
 class NewWalletWizard(AbstractWizard):
@@ -199,7 +203,8 @@ class NewWalletWizard(AbstractWizard):
             'have_seed': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
-                'last': lambda d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
+                'last': lambda d: self.is_single_password() and not
+                                  (self.needs_derivation_path(d) or self.is_multisig(d))
             },
             'script_and_derivation': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
@@ -218,16 +223,16 @@ class NewWalletWizard(AbstractWizard):
                 'next': self.on_cosigner_keystore_type
             },
             'multisig_cosigner_key': {
-                'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
-                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'next': lambda d: 'wallet_password' if self.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'multisig_cosigner_seed': {
                 'next': self.on_have_cosigner_seed,
-                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d)
             },
             'multisig_cosigner_script_and_derivation': {
-                'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
-                'last': lambda d: self.is_single_password() and self.has_all_cosigner_data(d)
+                'next': lambda d: 'wallet_password' if self.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'imported': {
                 'next': 'wallet_password',
@@ -249,11 +254,21 @@ class NewWalletWizard(AbstractWizard):
     def is_single_password(self):
         raise NotImplementedError()
 
-    def is_bip39_seed(self, wizard_data):
-        return wizard_data.get('seed_variant') == 'bip39'
+    # returns (sub)dict of current cosigner (or root if first)
+    def _current_cosigner(self, wizard_data):
+        wdata = wizard_data
+        if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
+            cosigner = wizard_data['multisig_current_cosigner']
+            wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
+        return wdata
 
-    def is_slip39_seed(self, wizard_data):
-        return wizard_data.get('seed_variant') == 'slip39'
+    def needs_derivation_path(self, wizard_data):
+        wdata = self._current_cosigner(wizard_data)
+        return 'seed_variant' in wdata and wdata['seed_variant'] in ['bip39', 'slip39']
+
+    def wants_ext(self, wizard_data):
+        wdata = self._current_cosigner(wizard_data)
+        return 'seed_variant' in wdata and wdata['seed_extend']
 
     def is_multisig(self, wizard_data):
         return wizard_data['wallet_type'] == 'multisig'
@@ -276,9 +291,7 @@ class NewWalletWizard(AbstractWizard):
         }.get(t)
 
     def on_have_or_confirm_seed(self, wizard_data):
-        if self.is_bip39_seed(wizard_data):
-            return 'script_and_derivation'
-        elif self.is_slip39_seed(wizard_data):
+        if self.needs_derivation_path(wizard_data):
             return 'script_and_derivation'
         elif self.is_multisig(wizard_data):
             return 'multisig_cosigner_keystore'
@@ -287,7 +300,7 @@ class NewWalletWizard(AbstractWizard):
 
     def maybe_master_pubkey(self, wizard_data):
         self._logger.debug('maybe_master_pubkey')
-        if (self.is_bip39_seed(wizard_data) or self.is_slip39_seed(wizard_data)) and 'derivation_path' not in wizard_data:
+        if self.needs_derivation_path(wizard_data) and 'derivation_path' not in wizard_data:
             self._logger.debug('deferred, missing derivation_path')
             return
 
@@ -302,21 +315,17 @@ class NewWalletWizard(AbstractWizard):
 
     def on_have_cosigner_seed(self, wizard_data):
         current_cosigner_data = wizard_data['multisig_cosigner_data'][str(wizard_data['multisig_current_cosigner'])]
-        if self.has_all_cosigner_data(wizard_data):
-            return 'wallet_password'
-        elif current_cosigner_data['seed_type'] == 'bip39' and 'derivation_path' not in current_cosigner_data:
+        if self.needs_derivation_path(wizard_data) and 'derivation_path' not in current_cosigner_data:
             return 'multisig_cosigner_script_and_derivation'
+        elif self.last_cosigner(wizard_data):
+            return 'wallet_password'
         else:
             return 'multisig_cosigner_keystore'
 
-    def has_all_cosigner_data(self, wizard_data):
-        # number of items in multisig_cosigner_data is less than participants?
+    def last_cosigner(self, wizard_data):
+        # check if we have the final number of cosigners. Doesn't check if cosigner data itself is complete
+        # (should be validated by wizardcomponents)
         if len(wizard_data['multisig_cosigner_data']) < (wizard_data['multisig_participants'] - 1):
-            return False
-
-        # if last cosigner uses bip39 seed, we still need derivation path
-        current_cosigner_data = wizard_data['multisig_cosigner_data'][str(wizard_data['multisig_current_cosigner'])]
-        if 'seed_type' in current_cosigner_data and current_cosigner_data['seed_type'] == 'bip39' and 'derivation_path' not in current_cosigner_data:
             return False
 
         return True
