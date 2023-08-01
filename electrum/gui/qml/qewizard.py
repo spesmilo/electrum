@@ -58,7 +58,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'create_seed': { 'gui': 'WCCreateSeed' },
             'confirm_seed': { 'gui': 'WCConfirmSeed' },
             'have_seed': { 'gui': 'WCHaveSeed' },
-            'script_and_derivation': { 'gui': 'WCBIP39Refine' },
+            'script_and_derivation': { 'gui': 'WCScriptAndDerivation' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': 'WCMultisig' },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
