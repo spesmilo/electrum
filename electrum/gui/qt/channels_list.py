@@ -328,6 +328,7 @@ class ChannelsList(MyTreeView):
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
+        # FIXME sorting by SHORT_CHANID should treat values as tuple, not as string ( 50x1x1 > 8x1x1 )
         self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
 
     def _update_chan_frozen_bg(self, *, chan: AbstractChannel, items: Sequence[QStandardItem]):
