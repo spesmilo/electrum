@@ -307,6 +307,8 @@ class WCCreateSeed(WizardComponent):
         self.seed = None
 
     def on_ready(self):
+        if self.wizard_data['wallet_type'] == '2fa':
+            self.seed_type = '2fa_segwit'
         QTimer.singleShot(1, self.create_seed)
 
     def apply(self):
@@ -475,6 +477,8 @@ class WCHaveSeed(WizardComponent):
     def is_seed(self, x):
         if self.wizard_data['wallet_type'] == 'standard':
             return mnemonic.is_seed(x)
+        elif self.wizard_data['wallet_type'] == '2fa':
+            return mnemonic.seed_type(x) in ['2fa', '2fa_segwit']
         else:
             return mnemonic.seed_type(x) in ['standard', 'segwit']
 
@@ -485,8 +489,10 @@ class WCHaveSeed(WizardComponent):
         wallet_type = self.wizard_data['wallet_type']
         seed_valid, seed_type, validation_message = self.wizard.validate_seed(seed, seed_variant, wallet_type)
 
-        if not seed_valid:
-            self.valid = False
+        is_cosigner = self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data
+
+        if not is_cosigner or not seed_valid:
+            self.valid = seed_valid
             return
 
         if seed_type in ['bip39', 'slip39'] or self.slayout.is_ext:
