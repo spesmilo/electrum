@@ -43,6 +43,7 @@ class WCAutoConnect(WizardComponent):
         choices = [_("Auto connect"), _("Select server manually")]
         self.clayout = ChoicesLayout(message, choices, on_clicked=self.on_updated)
         self.layout().addLayout(self.clayout.layout())
+        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
@@ -65,6 +66,7 @@ class WCProxyAsk(WizardComponent):
         choices = [_("Yes"), _("No")]
         self.clayout = ChoicesLayout(message, choices)
         self.layout().addLayout(self.clayout.layout())
+        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
@@ -77,6 +79,7 @@ class WCProxyConfig(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
         pw = ProxyWidget(self)
         self.layout().addWidget(pw)
+        self.layout().addStretch(1)
 
     def apply(self):
         # TODO
@@ -88,6 +91,7 @@ class WCServerConfig(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_("Server"))
         sw = ServerWidget(self)
         self.layout().addWidget(sw)
+        self.layout().addStretch(1)
 
     def apply(self):
         # TODO

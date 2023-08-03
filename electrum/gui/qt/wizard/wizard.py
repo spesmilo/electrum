@@ -41,19 +41,34 @@ class QEAbstractWizard(QDialog):
 
         self.logo = QLabel()
 
-        self.please_wait_layout = QVBoxLayout()
-        self.please_wait_layout.addStretch(1)
-        self.please_wait = QLabel(_("Please wait..."))
-        self.please_wait.setAlignment(Qt.AlignCenter)
-        self.please_wait.setVisible(False)
-        self.please_wait_layout.addWidget(self.please_wait)
-        self.please_wait_layout.addStretch(1)
+        please_wait_layout = QVBoxLayout()
+        please_wait_layout.addStretch(1)
+        please_wait_l = QLabel(_("Please wait..."))
+        please_wait_l.setAlignment(Qt.AlignCenter)
+        please_wait_layout.addWidget(please_wait_l)
+        please_wait_layout.addStretch(1)
+        self.please_wait = QWidget()
+        self.please_wait.setLayout(please_wait_layout)
+
+        error_layout = QVBoxLayout()
+        error_layout.addStretch(1)
+        error_l = QLabel(_("Error!"))
+        error_l.setAlignment(Qt.AlignCenter)
+        error_layout.addWidget(error_l)
+        self.error_msg = QLabel()
+        self.error_msg.setAlignment(Qt.AlignCenter)
+        error_layout.addWidget(self.error_msg)
+        error_layout.addStretch(1)
+        self.error = QWidget()
+        self.error.setLayout(error_layout)
 
         outer_vbox = QVBoxLayout(self)
         inner_vbox = QVBoxLayout()
         inner_vbox.addWidget(self.title)
         inner_vbox.addWidget(self.main_widget)
-        inner_vbox.addLayout(self.please_wait_layout)
+        inner_vbox.addWidget(self.please_wait)
+        inner_vbox.addWidget(self.error)
+
         scroll_widget = QWidget()
         scroll_widget.setLayout(inner_vbox)
         scroll = QScrollArea()
@@ -139,8 +154,10 @@ class QEAbstractWizard(QDialog):
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
         self.next_button.setEnabled(page.valid)
-        self.main_widget.setVisible(not page.busy)
+        self.main_widget.setVisible(not page.busy and not bool(page.error))
         self.please_wait.setVisible(page.busy)
+        self.error_msg.setText(str(page.error))
+        self.error.setVisible(not page.busy and bool(page.error))
         icon = page.params.get('icon', icon_path('electrum.png'))
         if icon != self.icon_filename:
             self.set_icon(icon)
@@ -195,6 +212,7 @@ class WizardComponent(QWidget):
         self.wizard_data = {}
         self.title = title if title is not None else 'No title'
         self.wizard = wizard
+        self.error = ''
         self._valid = False
         self._busy = False
 

@@ -180,6 +180,7 @@ class WCWalletName(WizardComponent):
         widget_create_new.setLayout(vbox_create_new)
         vbox_create_new.setContentsMargins(0, 0, 0, 0)
         self.layout().addWidget(widget_create_new)
+        self.layout().addStretch(1)
 
         temp_storage = None  # type: Optional[WalletStorage]
         wallet_folder = os.path.dirname(path)
@@ -268,6 +269,7 @@ class WCWalletType(WizardComponent):
         c_titles = [x[1] for x in choices]
         self.clayout = ChoicesLayout(message, c_titles)
         self.layout().addLayout(self.clayout.layout())
+        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
@@ -289,6 +291,7 @@ class WCKeystoreType(WizardComponent):
         c_titles = [x[1] for x in choices]
         self.clayout = ChoicesLayout(message, c_titles)
         self.layout().addLayout(self.clayout.layout())
+        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
@@ -327,6 +330,7 @@ class WCCreateSeed(WizardComponent):
             config=self.wizard.config,
         )
         self.layout().addLayout(self.slayout)
+        self.layout().addStretch(1)
         self.busy = False
         self.valid = True
 
@@ -466,6 +470,7 @@ class WCHaveSeed(WizardComponent):
         self.slayout.updated.connect(self.validate)
 
         self.layout().addLayout(self.slayout)
+        self.layout().addStretch(1)
 
     def is_seed(self, x):
         if self.wizard_data['wallet_type'] == 'standard':
@@ -780,6 +785,7 @@ class WCMultisig(WizardComponent):
         self.layout().addLayout(grid)
         self.layout().addSpacing(2 * char_width_in_lineedit())
         self.layout().addWidget(backup_warning_label)
+        self.layout().addStretch(1)
 
         self.n_edit = n_edit
         self.m_edit = m_edit
