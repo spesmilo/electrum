@@ -3,12 +3,12 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (QDialog, QApplication, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
+from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout, QStackedWidget)
 
 from electrum.i18n import _
-from ..util import Buttons, icon_path
 from electrum.logging import get_logger
+from electrum.gui.qt.util import Buttons, icon_path
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -165,7 +165,9 @@ class QEAbstractWizard(QDialog):
     def on_back_button_clicked(self):
         if self.can_go_back():
             self.prev()
-            self.main_widget.removeWidget(self.main_widget.currentWidget())
+            widget = self.main_widget.currentWidget()
+            self.main_widget.removeWidget(widget)
+            widget.deleteLater()
             self.update()
         else:
             self.close()
@@ -212,7 +214,7 @@ class WizardComponent(QWidget):
         self.wizard_data = {}
         self.title = title if title is not None else 'No title'
         self.wizard = wizard
-        self.error = ''
+        self._error = ''
         self._valid = False
         self._busy = False
 
@@ -234,6 +236,16 @@ class WizardComponent(QWidget):
     def busy(self, is_busy):
         if self._busy != is_busy:
             self._busy = is_busy
+            self.on_updated()
+
+    @property
+    def error(self):
+        return self._error
+
+    @error.setter
+    def error(self, error):
+        if self._error != error:
+            self._error = error
             self.on_updated()
 
     @abstractmethod

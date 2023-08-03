@@ -783,3 +783,91 @@ class TrustedCoinPlugin(BasePlugin):
             return self, 'show_disclaimer'
         if not db.get('x3/'):
             return self, 'accept_terms_of_use'
+
+    # new wizard
+
+    # insert trustedcoin pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        # wizard = self._app.daemon.newWalletWizard
+        # self.logger.debug(repr(wizard))
+        views = {
+            'trustedcoin_start': {
+                'next': 'trustedcoin_choose_seed',
+            },
+            'trustedcoin_choose_seed': {
+                'next': lambda d: 'trustedcoin_create_seed' if d['keystore_type'] == 'createseed'
+                        else 'trustedcoin_have_seed'
+            },
+            'trustedcoin_create_seed': {
+                'next': 'trustedcoin_confirm_seed'
+            },
+            'trustedcoin_confirm_seed': {
+                'next': 'trustedcoin_tos_email'
+            },
+            'trustedcoin_have_seed': {
+                'next': 'trustedcoin_keep_disable'
+            },
+            'trustedcoin_keep_disable': {
+                'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_keepordisable'] != 'disable'
+                        else 'wallet_password',
+                'accept': self.recovery_disable,
+                'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
+            },
+            'trustedcoin_tos_email': {
+                'next': 'trustedcoin_show_confirm_otp'
+            },
+            'trustedcoin_show_confirm_otp': {
+                'accept': self.on_accept_otp_secret,
+                'next': 'wallet_password',
+                'last': lambda d: wizard.is_single_password()
+            }
+        }
+        wizard.navmap_merge(views)
+
+    # combined create_keystore and create_remote_key pre
+    def create_keys(self, wizard_data):
+        # wizard = self._app.daemon.newWalletWizard
+        # wizard = self._wizard
+        # wizard_data = wizard._current.wizard_data
+
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], wizard_data['seed_extra_words'])
+
+        # NOTE: at this point, old style wizard creates a wallet file (w. password if set) and
+        # stores the keystores and wizard state, in order to separate offline seed creation
+        # and online retrieval of the OTP secret. For mobile, we don't do this, but
+        # for desktop the wizard should support this usecase.
+
+        data = {'x1/': {'xpub': xpub1}, 'x2/': {'xpub': xpub2}}
+
+        # Generate third key deterministically.
+        long_user_id, short_id = get_user_id(data)
+        xtype = xpub_type(xpub1)
+        xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
+
+        return xprv1, xpub1, xprv2, xpub2, xpub3, short_id
+
+    def on_accept_otp_secret(self, wizard_data):
+        self.logger.debug('OTP secret accepted, creating keystores')
+        xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.create_keys(wizard_data)
+        k1 = keystore.from_xprv(xprv1)
+        k2 = keystore.from_xpub(xpub2)
+        k3 = keystore.from_xpub(xpub3)
+
+        wizard_data['x1/'] = k1.dump()
+        wizard_data['x2/'] = k2.dump()
+        wizard_data['x3/'] = k3.dump()
+
+    def recovery_disable(self, wizard_data):
+        if wizard_data['trustedcoin_keepordisable'] != 'disable':
+            return
+
+        self.logger.debug('2fa disabled, creating keystores')
+        xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.create_keys(wizard_data)
+        k1 = keystore.from_xprv(xprv1)
+        k2 = keystore.from_xprv(xprv2)
+        k3 = keystore.from_xpub(xpub3)
+
+        wizard_data['x1/'] = k1.dump()
+        wizard_data['x2/'] = k2.dump()
+        wizard_data['x3/'] = k3.dump()
+
