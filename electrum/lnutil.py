@@ -279,7 +279,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
     remote_delay = attr.ib(type=int, converter=int)
     remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
     remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
-    local_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
+    local_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes, default=None)  # type: Optional[bytes]
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
