@@ -99,6 +99,7 @@ if [[ $1 == "init" ]]; then
         $bob setconfig --offline use_swapserver true
     fi
     echo "funding $2"
+    # note: changing the funding amount affects all tests, as they rely on "wait_for_balance"
     $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
 fi
 
@@ -141,7 +142,7 @@ if [[ $1 == "breach" ]]; then
     new_blocks 1
     wait_until_channel_closed bob
     new_blocks 1
-    wait_for_balance bob 0.14
+    wait_for_balance bob 1.14
     $bob getbalance
 fi
 
@@ -347,7 +348,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     fi
     echo "alice breaches with old ctx"
     $bitcoin_cli sendrawtransaction $ctx
-    wait_for_balance bob 0.14
+    wait_for_balance bob 1.14
 fi
 
 
@@ -402,7 +403,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon -d
     sleep 1
     $bob load_wallet
-    wait_for_balance bob 0.039
+    wait_for_balance bob 1.039
     $bob getbalance
 fi
 
