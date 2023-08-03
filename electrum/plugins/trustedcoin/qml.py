@@ -28,10 +28,8 @@ class Plugin(TrustedCoinPlugin):
     class QSignalObject(PluginQObject):
         canSignWithoutServerChanged = pyqtSignal()
         _canSignWithoutServer = False
-        termsAndConditionsChanged = pyqtSignal()
-        _termsAndConditions = ''
-        termsAndConditionsErrorChanged = pyqtSignal()
-        _termsAndConditionsError = ''
+        termsAndConditionsRetrieved = pyqtSignal([str], arguments=['message'])
+        termsAndConditionsError = pyqtSignal([str], arguments=['message'])
         otpError = pyqtSignal([str], arguments=['message'])
         otpSuccess = pyqtSignal()
         disclaimerChanged = pyqtSignal()
@@ -76,14 +74,6 @@ class Plugin(TrustedCoinPlugin):
         def otpSubmit(self, otp):
             self._plugin.on_otp(otp)
 
-        @pyqtProperty(str, notify=termsAndConditionsChanged)
-        def termsAndConditions(self):
-            return self._termsAndConditions
-
-        @pyqtProperty(str, notify=termsAndConditionsErrorChanged)
-        def termsAndConditionsError(self):
-            return self._termsAndConditionsError
-
         @pyqtProperty(str, notify=remoteKeyStateChanged)
         def remoteKeyState(self):
             return self._remoteKeyState
@@ -122,14 +112,11 @@ class Plugin(TrustedCoinPlugin):
                     self.plugin.logger.debug('TOS')
                     tos = server.get_terms_of_service()
                 except ErrorConnectingServer as e:
-                    self._termsAndConditionsError = _('Error connecting to server')
-                    self.termsAndConditionsErrorChanged.emit()
+                    self.termsAndConditionsError.emit(_('Error connecting to server'))
                 except Exception as e:
-                    self._termsAndConditionsError = '%s: %s' % (_('Error'), repr(e))
-                    self.termsAndConditionsErrorChanged.emit()
+                    self.termsAndConditionsError.emit('%s: %s' % (_('Error'), repr(e)))
                 else:
-                    self._termsAndConditions = tos
-                    self.termsAndConditionsChanged.emit()
+                    self.termsAndConditionsRetrieved.emit(tos)
                 finally:
                     self._busy = False
                     self.busyChanged.emit()
@@ -143,7 +130,11 @@ class Plugin(TrustedCoinPlugin):
         @pyqtSlot(str)
         def createKeystore(self, email):
             self.remoteKeyState = ''
+            self._otpSecret = ''
+            self.otpSecretChanged.emit()
+
             xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys()
+
             def create_remote_key_task():
                 try:
                     self.plugin.logger.debug('create remote key')
@@ -179,6 +170,7 @@ class Plugin(TrustedCoinPlugin):
                         self.logger.error("unexpected trustedcoin xpub3: expected {}, received {}".format(xpub3, _xpub3))
                         self.remoteKeyError.emit('Unexpected trustedcoin xpub3')
                         return
+                    self.remoteKeyState = 'new'
                     self._otpSecret = otp_secret
                     self.otpSecretChanged.emit()
                     self._shortId = short_id
@@ -198,12 +190,15 @@ class Plugin(TrustedCoinPlugin):
         def resetOtpSecret(self):
             self.remoteKeyState = ''
             xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys()
+
             def reset_otp_task():
                 try:
+                    # TODO: move reset request to UI agnostic plugin section
                     self.plugin.logger.debug('reset_otp')
                     r = server.get_challenge(short_id)
                     challenge = r.get('challenge')
                     message = 'TRUSTEDCOIN CHALLENGE: ' + challenge
+
                     def f(xprv):
                         rootnode = BIP32Node.from_xkey(xprv)
                         key = rootnode.subkey_at_private_derivation((0, 0)).eckey
@@ -220,6 +215,7 @@ class Plugin(TrustedCoinPlugin):
                     self.remoteKeyState = 'error'
                     self.remoteKeyError.emit(f'Error: {str(e)}')
                 else:
+                    self.remoteKeyState = 'reset'
                     self._otpSecret = otp_secret
                     self.otpSecretChanged.emit()
                 finally:
@@ -260,7 +256,6 @@ class Plugin(TrustedCoinPlugin):
             t = threading.Thread(target=check_otp_task, daemon=True)
             t.start()
 
-
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -269,7 +264,6 @@ class Plugin(TrustedCoinPlugin):
         if not isinstance(wallet, self.wallet_class):
             return
         self.logger.debug(f'plugin enabled for wallet "{str(wallet)}"')
-        #wallet.handler_2fa = HandlerTwoFactor(self, window)
         if wallet.can_sign_without_server():
             self.so._canSignWithoutServer = True
             self.so.canSignWithoutServerChanged.emit()
@@ -279,12 +273,6 @@ class Plugin(TrustedCoinPlugin):
                 _('Therefore, two-factor authentication is disabled.')
             ])
             self.logger.info(msg)
-            #action = lambda: window.show_message(msg)
-        #else:
-            #action = partial(self.settings_dialog, window)
-        #button = StatusBarButton(read_QIcon("trustedcoin-status.png"),
-                                 #_("TrustedCoin"), action)
-        #window.statusBar().addPermanentWidget(button)
         self.start_request_thread(wallet)
 
     @hook

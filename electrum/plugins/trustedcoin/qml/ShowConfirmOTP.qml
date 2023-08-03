@@ -12,10 +12,6 @@ WizardComponent {
 
     property bool otpVerified: false
 
-    function apply() {
-        wizard_data['trustedcoin_new_otp_secret'] = requestNewSecret.checked
-    }
-
     ColumnLayout {
         width: parent.width
 
@@ -40,7 +36,7 @@ WizardComponent {
 
         QRImage {
             Layout.alignment: Qt.AlignHCenter
-            visible: plugin.remoteKeyState == ''
+            visible: plugin.remoteKeyState == 'new' || plugin.remoteKeyState == 'reset'
             qrdata: encodeURI('otpauth://totp/Electrum 2FA ' + wizard_data['wallet_name']
                     + '?secret=' + plugin.otpSecret + '&digits=6')
             render: plugin.otpSecret
