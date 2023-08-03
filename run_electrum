@@ -407,6 +407,9 @@ def main():
             print_stderr("Daemon already running (lockfile detected).")
             print_stderr("Run 'electrum stop' to stop the daemon.")
             sys.exit(1)
+        # Initialise rpc credentials to random if not set yet. This would normally be done
+        # later anyway, but we need to avoid the two sides of the fork setting conflicting random creds.
+        daemon.get_rpc_credentials(config)  # inits creds as side-effect
         # fork before creating the asyncio event loop
         try:
             pid = os.fork()
