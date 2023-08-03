@@ -284,6 +284,7 @@ def sys_exit(i):
 
 
 def main():
+    global loop, stop_loop, loop_thread
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
@@ -416,7 +417,13 @@ def main():
             sys.exit(1)
         if pid:
             print_stderr("starting daemon (PID %d)" % pid)
-            sys.exit(0)
+            loop, stop_loop, loop_thread = create_and_start_event_loop()
+            ready = daemon.wait_until_daemon_becomes_ready(config=config, timeout=5)
+            if ready:
+                sys_exit(0)
+            else:
+                print_stderr("timed out waiting for daemon to get ready")
+                sys_exit(1)
         else:
             # redirect standard file descriptors
             sys.stdout.flush()
@@ -428,7 +435,6 @@ def main():
             os.dup2(so.fileno(), sys.stdout.fileno())
             os.dup2(se.fileno(), sys.stderr.fileno())
 
-    global loop, stop_loop, loop_thread
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     try:

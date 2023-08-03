@@ -151,6 +151,19 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
         time.sleep(1.0)
 
 
+def wait_until_daemon_becomes_ready(*, config: SimpleConfig, timeout=5) -> bool:
+    t0 = time.monotonic()
+    while True:
+        if time.monotonic() > t0 + timeout:
+            return False  # timeout
+        try:
+            request(config, 'ping')
+            return True  # success
+        except DaemonNotRunning:
+            time.sleep(0.05)
+            continue
+
+
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.RPC_USERNAME or None
     rpc_password = config.RPC_PASSWORD or None
