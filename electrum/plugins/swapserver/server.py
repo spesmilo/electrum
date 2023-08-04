@@ -1,19 +1,14 @@
 import os
 import asyncio
-import attr
-import random
 from collections import defaultdict
 
-from aiohttp import ClientResponse
-from aiohttp import web, client_exceptions
-from aiorpcx import timeout_after, TaskTimeout, ignore_after
+from aiohttp import web
 from aiorpcx import NetAddress
 
 
 from electrum_grs.util import log_exceptions, ignore_exceptions
 from electrum_grs.logging import Logger
-from electrum_grs.util import EventListener, event_listener
-from electrum_grs.invoices import PR_PAID, PR_EXPIRED
+from electrum_grs.util import EventListener
 
 
 class SwapServer(Logger, EventListener):

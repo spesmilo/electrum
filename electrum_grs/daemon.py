@@ -151,6 +151,19 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
         time.sleep(1.0)
 
 
+def wait_until_daemon_becomes_ready(*, config: SimpleConfig, timeout=5) -> bool:
+    t0 = time.monotonic()
+    while True:
+        if time.monotonic() > t0 + timeout:
+            return False  # timeout
+        try:
+            request(config, 'ping')
+            return True  # success
+        except DaemonNotRunning:
+            time.sleep(0.05)
+            continue
+
+
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.RPC_USERNAME or None
     rpc_password = config.RPC_PASSWORD or None
@@ -405,29 +418,26 @@ class Daemon(Logger):
         # wallet_key -> wallet
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         self._wallet_lock = threading.RLock()
-        daemon_jobs = []
-        # Setup commands server
-        self.commands_server = None
-        if listen_jsonrpc:
-            self.commands_server = CommandsServer(self, fd)
-            daemon_jobs.append(self.commands_server.run())
 
         self._stop_entered = False
         self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
+
         self.taskgroup = OldTaskGroup()
-        asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self._run(), self.asyncio_loop)
         if start_network and self.network:
             self.start_network()
+        # Setup commands server
+        self.commands_server = None
+        if listen_jsonrpc:
+            self.commands_server = CommandsServer(self, fd)
+            asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.commands_server.run()), self.asyncio_loop)
 
     @log_exceptions
-    async def _run(self, jobs: Iterable = None):
-        if jobs is None:
-            jobs = []
+    async def _run(self):
         self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
-                [await group.spawn(job) for job in jobs]
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
         except Exception as e:
             self.logger.exception("taskgroup died.")
