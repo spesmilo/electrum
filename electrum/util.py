@@ -24,7 +24,7 @@ import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set)
+                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -1369,6 +1369,36 @@ _aiorpcx_orig_unset_task_deadline  = aiorpcx.curio._unset_task_deadline
 aiorpcx.curio._set_new_deadline    = _aiorpcx_monkeypatched_set_new_deadline
 aiorpcx.curio._set_task_deadline   = _aiorpcx_monkeypatched_set_task_deadline
 aiorpcx.curio._unset_task_deadline = _aiorpcx_monkeypatched_unset_task_deadline
+
+
+async def wait_for2(fut: Awaitable, timeout: Union[int, float, None]):
+    """Replacement for asyncio.wait_for,
+     due to bugs: https://bugs.python.org/issue42130 and https://github.com/python/cpython/issues/86296 ,
+     which are only fixed in python 3.12+.
+     """
+    if sys.version_info[:3] >= (3, 12):
+        return await asyncio.wait_for(fut, timeout)
+    else:
+        async with async_timeout(timeout):
+            return await asyncio.ensure_future(fut, loop=get_running_loop())
+
+
+if hasattr(asyncio, 'timeout'):  # python 3.11+
+    async_timeout = asyncio.timeout
+else:
+    class TimeoutAfterAsynciolike(aiorpcx.curio.TimeoutAfter):
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            try:
+                await super().__aexit__(exc_type, exc_value, traceback)
+            except (aiorpcx.TaskTimeout, aiorpcx.UncaughtTimeoutError):
+                raise asyncio.TimeoutError from None
+            except aiorpcx.TimeoutCancellationError:
+                raise asyncio.CancelledError from None
+
+    def async_timeout(delay: Union[int, float, None]):
+        if delay is None:
+            return nullcontext()
+        return TimeoutAfterAsynciolike(delay)
 
 
 class NetworkJobOnDefaultServer(Logger, ABC):

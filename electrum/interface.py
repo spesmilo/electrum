@@ -166,7 +166,7 @@ class NotificationSession(RPCSession):
         try:
             # note: RPCSession.send_request raises TaskTimeout in case of a timeout.
             # TaskTimeout is a subclass of CancelledError, which is *suppressed* in TaskGroups
-            response = await asyncio.wait_for(
+            response = await util.wait_for2(
                 super().send_request(*args, **kwargs),
                 timeout)
         except (TaskTimeout, asyncio.TimeoutError) as e:

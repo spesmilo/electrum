@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Optional
 from aiohttp import web
 from aiorpcx import NetAddress
 
+from electrum import util
 from electrum.util import log_exceptions, ignore_exceptions
 from electrum.plugin import BasePlugin, hook
 from electrum.logging import Logger
@@ -173,7 +174,7 @@ class PayServer(Logger, EventListener):
             return ws
         while True:
             try:
-                await asyncio.wait_for(self.pending[key].wait(), 1)
+                await util.wait_for2(self.pending[key].wait(), 1)
                 break
             except asyncio.TimeoutError:
                 # send data on the websocket, to keep it alive

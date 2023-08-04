@@ -11,7 +11,7 @@ import time
 
 from electrum.logging import get_logger, configure_logging
 from electrum.simple_config import SimpleConfig
-from electrum import constants
+from electrum import constants, util
 from electrum.daemon import Daemon
 from electrum.wallet import create_new_wallet
 from electrum.util import create_and_start_event_loop, log_exceptions, bfh
@@ -84,7 +84,7 @@ async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
         print(f"worker connecting to {connect_str}")
         try:
             peer = await wallet.lnworker.add_peer(connect_str)
-            res = await asyncio.wait_for(peer.initialized, TIMEOUT)
+            res = await util.wait_for2(peer.initialized, TIMEOUT)
             if res:
                 if peer.features & flag == work['features'] & flag:
                     await results_queue.put(True)

@@ -15,6 +15,7 @@ import functools
 
 import aiorpcx
 from aiorpcx import ignore_after
+from async_timeout import timeout
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
@@ -331,7 +332,7 @@ class Peer(Logger):
 
     async def wait_for_message(self, expected_name: str, channel_id: bytes):
         q = self.ordered_message_queues[channel_id]
-        name, payload = await asyncio.wait_for(q.get(), LN_P2P_NETWORK_TIMEOUT)
+        name, payload = await util.wait_for2(q.get(), LN_P2P_NETWORK_TIMEOUT)
         # raise exceptions for errors, so that the caller sees them
         if (err_bytes := payload.get("error")) is not None:
             err_text = error_text_bytes_to_safe_str(err_bytes)
@@ -460,12 +461,12 @@ class Peer(Logger):
 
     async def query_gossip(self):
         try:
-            await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+            await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except Exception as e:
             raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
         if self.lnworker == self.lnworker.network.lngossip:
             try:
-                ids, complete = await asyncio.wait_for(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
+                ids, complete = await util.wait_for2(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
@@ -575,7 +576,7 @@ class Peer(Logger):
 
     async def _message_loop(self):
         try:
-            await asyncio.wait_for(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
+            await util.wait_for2(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
@@ -699,7 +700,7 @@ class Peer(Logger):
         Channel configurations are initialized in this method.
         """
         # will raise if init fails
-        await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+        await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
         if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))

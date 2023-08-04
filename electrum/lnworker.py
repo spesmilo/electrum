@@ -1071,7 +1071,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        chan, funding_tx = await asyncio.wait_for(coro, LN_P2P_NETWORK_TIMEOUT)
+        chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.sign_transaction(funding_tx, password)

@@ -824,8 +824,8 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         async def pay():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # prep
             _maybe_send_commitment1 = p1.maybe_send_commitment
             _maybe_send_commitment2 = p2.maybe_send_commitment
@@ -1374,8 +1374,8 @@ class TestPeer(ElectrumTestCase):
         w2.enable_htlc_settle = False
         lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # alice sends htlc
             route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
             p1.pay(route=route,
@@ -1401,8 +1401,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def action():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(GracefulDisconnect):
@@ -1414,8 +1414,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def action():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
             assert alice_channel.is_closed()
             gath.cancel()
@@ -1447,8 +1447,8 @@ class TestPeer(ElectrumTestCase):
 
         async def test():
             async def close():
-                await asyncio.wait_for(p1.initialized, 1)
-                await asyncio.wait_for(p2.initialized, 1)
+                await util.wait_for2(p1.initialized, 1)
+                await util.wait_for2(p2.initialized, 1)
                 # bob closes channel with different shutdown script
                 await p1.close_channel(alice_channel.channel_id)
                 gath.cancel()
@@ -1477,8 +1477,8 @@ class TestPeer(ElectrumTestCase):
 
         async def test():
             async def close():
-                await asyncio.wait_for(p1.initialized, 1)
-                await asyncio.wait_for(p2.initialized, 1)
+                await util.wait_for2(p1.initialized, 1)
+                await util.wait_for2(p2.initialized, 1)
                 await p1.close_channel(alice_channel.channel_id)
                 gath.cancel()
 
@@ -1538,8 +1538,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends known message with trailing garbage
             # BOLT-01 says peer2 should ignore trailing garbage
             raw_msg1 = encode_msg('ping', num_pong_bytes=4, byteslen=4) + bytes(range(55))
@@ -1570,8 +1570,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends unknown 'even-type' message
             # BOLT-01 says peer2 should close the connection
             raw_msg2 = (43334).to_bytes(length=2, byteorder="big") + bytes(range(55))
@@ -1600,8 +1600,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends known message with insufficient length for the contents
             # BOLT-01 says peer2 should fail the connection
             raw_msg1 = encode_msg('ping', num_pong_bytes=4, byteslen=4)[:-1]

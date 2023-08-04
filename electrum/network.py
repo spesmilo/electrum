@@ -811,7 +811,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # note: using longer timeouts here as DNS can sometimes be slow!
         timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
-            await asyncio.wait_for(interface.ready, timeout)
+            await util.wait_for2(interface.ready, timeout)
         except BaseException as e:
             self.logger.info(f"couldn't launch iface {server} -- {repr(e)}")
             await interface.close()
@@ -1401,7 +1401,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_response(server: ServerAddr):
             interface = Interface(network=self, server=server, proxy=self.proxy)
             try:
-                await asyncio.wait_for(interface.ready, timeout)
+                await util.wait_for2(interface.ready, timeout)
             except BaseException as e:
                 await interface.close()
                 return
