@@ -15,7 +15,6 @@ import functools
 
 import aiorpcx
 from aiorpcx import ignore_after
-from async_timeout import timeout
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
