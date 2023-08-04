@@ -1791,13 +1791,25 @@ class Peer(Logger):
             payment_secret_from_onion = None
 
         if total_msat > amt_to_forward:
-            mpp_status = self.lnworker.check_received_mpp_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
-            if mpp_status is None:
+            from .lnworker import RecvMPPResolution
+            mpp_resolution = self.lnworker.check_mpp_status(
+                payment_secret=payment_secret_from_onion,
+                short_channel_id=chan.short_channel_id,
+                htlc=htlc,
+                expected_msat=total_msat,
+            )
+            if mpp_resolution == RecvMPPResolution.WAITING:
                 return None, None
-            if mpp_status is False:
+            elif mpp_resolution == RecvMPPResolution.EXPIRED:
                 log_fail_reason(f"MPP_TIMEOUT")
                 raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
-            assert mpp_status is True
+            elif mpp_resolution == RecvMPPResolution.FAILED:
+                log_fail_reason(f"mpp_resolution is FAILED")
+                raise exc_incorrect_or_unknown_pd
+            elif mpp_resolution == RecvMPPResolution.ACCEPTED:
+                pass  # continue
+            else:
+                raise Exception(f"unexpected {mpp_resolution=}")
 
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
