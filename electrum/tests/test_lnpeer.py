@@ -238,7 +238,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    check_received_mpp_htlc = LNWallet.check_received_mpp_htlc
+    check_mpp_status = LNWallet.check_mpp_status
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
@@ -266,6 +266,11 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
     _force_close_channel = LNWallet._force_close_channel
     suggest_splits = LNWallet.suggest_splits
+    update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
+    set_mpp_resolution = LNWallet.set_mpp_resolution
+    is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
+    get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
+    maybe_cleanup_mpp_status = LNWallet.maybe_cleanup_mpp_status
 
 
 class MockTransport:
