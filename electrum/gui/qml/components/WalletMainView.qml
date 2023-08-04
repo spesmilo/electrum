@@ -317,10 +317,6 @@ Item {
         function onOtpRequested() {
             console.log('OTP requested')
             var dialog = otpDialog.createObject(mainView)
-            dialog.accepted.connect(function() {
-                console.log('accepted ' + dialog.otpauth)
-                Daemon.currentWallet.finish_otp(dialog.otpauth)
-            })
             dialog.open()
         }
         function onBroadcastFailed(txid, code, message) {

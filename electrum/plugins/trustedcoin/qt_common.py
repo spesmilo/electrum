@@ -222,6 +222,8 @@ class QSignalObject(PluginQObject):
 
     @pyqtSlot(str, int)
     def checkOtp(self, short_id, otp):
+        assert type(otp) is int  # make sure this doesn't fail subtly
+
         def check_otp_task():
             try:
                 self.plugin.logger.debug(f'check OTP, shortId={short_id}, otp={otp}')
