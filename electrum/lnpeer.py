@@ -1826,14 +1826,25 @@ class Peer(Logger):
             log_fail_reason(f"'payment_secret' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        payment_status = self.lnworker.check_mpp_status(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
-        if payment_status is None:
+        from .lnworker import RecvMPPResolution
+        mpp_resolution = self.lnworker.check_mpp_status(
+            payment_secret=payment_secret_from_onion,
+            short_channel_id=chan.short_channel_id,
+            htlc=htlc,
+            expected_msat=total_msat,
+        )
+        if mpp_resolution == RecvMPPResolution.WAITING:
             return None, None
-        elif payment_status is False:
+        elif mpp_resolution == RecvMPPResolution.EXPIRED:
             log_fail_reason(f"MPP_TIMEOUT")
             raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+        elif mpp_resolution == RecvMPPResolution.FAILED:
+            log_fail_reason(f"mpp_resolution is FAILED")
+            raise exc_incorrect_or_unknown_pd
+        elif mpp_resolution == RecvMPPResolution.ACCEPTED:
+            pass  # continue
         else:
-            assert payment_status is True
+            raise Exception(f"unexpected {mpp_resolution=}")
 
         payment_hash = htlc.payment_hash
 

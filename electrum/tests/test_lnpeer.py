@@ -283,13 +283,13 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
     update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
-    get_mpp_status = LNWallet.get_mpp_status
-    set_mpp_status = LNWallet.set_mpp_status
+    set_mpp_resolution = LNWallet.set_mpp_resolution
     is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
     get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
     maybe_cleanup_mpp_status = LNWallet.maybe_cleanup_mpp_status
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
+    _get_payment_key = LNWallet._get_payment_key
 
 
 class MockTransport:
