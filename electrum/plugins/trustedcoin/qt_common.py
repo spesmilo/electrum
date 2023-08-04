@@ -13,7 +13,6 @@ from electrum.gui.qt_common.plugins import PluginQObject
 
 class QSignalObject(PluginQObject):
     canSignWithoutServerChanged = pyqtSignal()
-    _canSignWithoutServer = False
     termsAndConditionsRetrieved = pyqtSignal([str], arguments=['message'])
     termsAndConditionsError = pyqtSignal([str], arguments=['message'])
     otpError = pyqtSignal([str], arguments=['message'])
@@ -21,13 +20,9 @@ class QSignalObject(PluginQObject):
     disclaimerChanged = pyqtSignal()
     keystoreChanged = pyqtSignal()
     otpSecretChanged = pyqtSignal()
-    _otpSecret = ''
     shortIdChanged = pyqtSignal()
-    _shortId = ''
     billingModelChanged = pyqtSignal()
-    _billingModel = []
 
-    _remoteKeyState = ''
     remoteKeyStateChanged = pyqtSignal()
     remoteKeyError = pyqtSignal([str], arguments=['message'])
 
@@ -36,6 +31,12 @@ class QSignalObject(PluginQObject):
     def __init__(self, plugin, wizard, parent):
         super().__init__(plugin, parent)
         self.wizard = wizard
+        self._canSignWithoutServer = False
+        self._otpSecret = ''
+        self._shortId = ''
+        self._billingModel = []
+        self._remoteKeyState = ''
+        self._verifyingOtp = False
 
     @pyqtProperty(str, notify=disclaimerChanged)
     def disclaimer(self):
@@ -241,7 +242,9 @@ class QSignalObject(PluginQObject):
             finally:
                 self._busy = False
                 self.busyChanged.emit()
+                self._verifyingOtp = False
 
+        self._verifyingOtp = True
         self._busy = True
         self.busyChanged.emit()
         t = threading.Thread(target=check_otp_task, daemon=True)

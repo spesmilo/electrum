@@ -25,26 +25,22 @@
 
 from functools import partial
 import threading
-import sys
 import os
 from typing import TYPE_CHECKING
 
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtGui import QPixmap, QMovie, QColor
+from PyQt5.QtCore import QObject, pyqtSignal, QSize, Qt
 from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
                              QRadioButton, QCheckBox, QLineEdit, QPushButton, QWidget)
 
 from electrum.i18n import _
-from electrum import keystore
-from electrum.bip32 import xpub_type
 from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger, get_logger
 from electrum.base_wizard import GoBack, UserCancelled
 
-from .qt_common import QSignalObject
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
-                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ChoicesLayout)
+                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ChoicesLayout, ColorScheme)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -52,10 +48,8 @@ from electrum.gui.qt.installwizard import InstallWizard
 from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
-# from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER, make_xpub, get_signing_xpub, get_user_id
-from .trustedcoin import (TrustedCoinPlugin, server, ErrorConnectingServer,
-                          DISCLAIMER, get_user_id, get_signing_xpub,
-                          TrustedCoinException, make_xpub)
+from .qt_common import QSignalObject
+from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
 
 
 if TYPE_CHECKING:
@@ -505,6 +499,7 @@ class WCShowConfirmOTP(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Authenticator secret'))
         self.plugin = wizard.plugins.get_plugin('trustedcoin')
+        self._otp_verified = False
 
         self.new_otp = QWidget()
         new_otp_layout = QVBoxLayout()
@@ -527,6 +522,18 @@ class WCShowConfirmOTP(WizardComponent):
         self.authlabelnew = WWLabel(_('Then, enter your Google Authenticator code:'))
         self.authlabelexist = WWLabel(_('Google Authenticator code:'))
 
+        self.spinner = QMovie(icon_path('spinner.gif'))
+        self.spinner.setScaledSize(QSize(24, 24))
+        self.spinner.setBackgroundColor(QColor('black'))
+        self.spinner_l = QLabel()
+        self.spinner_l.setMargin(5)
+        self.spinner_l.setVisible(False)
+        self.spinner_l.setMovie(self.spinner)
+
+        self.otp_status_l = QLabel()
+        self.otp_status_l.setAlignment(Qt.AlignHCenter)
+        self.otp_status_l.setVisible(False)
+
         self.resetlabel = WWLabel(_('If you have lost your OTP secret, click the button below to request a new secret from the server.'))
         self.button = QPushButton('Request OTP secret')
         self.button.clicked.connect(self.on_request_otp)
@@ -534,15 +541,18 @@ class WCShowConfirmOTP(WizardComponent):
         hbox = QHBoxLayout()
         hbox.addWidget(self.authlabelnew)
         hbox.addWidget(self.authlabelexist)
-        pw = AmountEdit(None, is_int = True)
-        pw.setFocus(True)
-        pw.setMaximumWidth(150)
-        hbox.addWidget(pw)
-        # hbox.addStretch(1)
+        hbox.addStretch(1)
+        hbox.addWidget(self.spinner_l)
+        self.otp_e = AmountEdit(None, is_int=True)
+        self.otp_e.setFocus(True)
+        self.otp_e.setMaximumWidth(150)
+        self.otp_e.textEdited.connect(self.on_otp_edited)
+        hbox.addWidget(self.otp_e)
 
         self.layout().addWidget(self.new_otp)
         self.layout().addWidget(self.exist_otp)
         self.layout().addLayout(hbox)
+        self.layout().addWidget(self.otp_status_l)
         self.layout().addWidget(self.resetlabel)
         self.layout().addWidget(self.button)
         self.layout().addStretch(1)
@@ -550,6 +560,10 @@ class WCShowConfirmOTP(WizardComponent):
     def on_ready(self):
         self.plugin.so.busyChanged.connect(self.on_busy_changed)
         self.plugin.so.remoteKeyError.connect(self.on_remote_key_error)
+        self.plugin.so.otpSuccess.connect(self.on_otp_success)
+        self.plugin.so.otpError.connect(self.on_otp_error)
+        self.plugin.so.remoteKeyError.connect(self.on_remote_key_error)
+
         self.plugin.so.createKeystore(self.wizard_data['2fa_email'])
 
     def update(self):
@@ -558,8 +572,8 @@ class WCShowConfirmOTP(WizardComponent):
         self.exist_otp.setVisible(not is_new)
         self.authlabelnew.setVisible(is_new)
         self.authlabelexist.setVisible(not is_new)
-        self.resetlabel.setVisible(not is_new)
-        self.button.setVisible(not is_new)
+        self.resetlabel.setVisible(not is_new and not self._otp_verified)
+        self.button.setVisible(not is_new and not self._otp_verified)
 
         if self.plugin.so.otpSecret:
             self.secretlabel.setText(self.plugin.so.otpSecret)
@@ -568,17 +582,49 @@ class WCShowConfirmOTP(WizardComponent):
             self.qr.setData(uri)
 
     def on_busy_changed(self):
-        self.busy = self.plugin.so.busy
-        if not self.busy:
-            self.update()
+        if not self.plugin.so._verifyingOtp:
+            self.busy = self.plugin.so.busy
+            if not self.busy:
+                self.update()
 
     def on_remote_key_error(self, text):
         self._logger.error(text)
         self.error = text
 
     def on_request_otp(self):
+        self.otp_status_l.setVisible(False)
         self.plugin.so.resetOtpSecret()
         self.update()
+
+    def on_otp_success(self):
+        self._otp_verified = True
+        self.otp_status_l.setText('Valid!')
+        self.otp_status_l.setVisible(True)
+        self.otp_status_l.setStyleSheet(ColorScheme.GREEN.as_stylesheet(False))
+        self.setEnabled(True)
+        self.spinner_l.setVisible(False)
+        self.spinner.stop()
+
+        self.valid = True
+
+    def on_otp_error(self, message):
+        self.otp_status_l.setText(message)
+        self.otp_status_l.setVisible(True)
+        self.otp_status_l.setStyleSheet(ColorScheme.RED.as_stylesheet(False))
+        self.setEnabled(True)
+        self.spinner_l.setVisible(False)
+        self.spinner.stop()
+
+    def on_otp_edited(self):
+        self.otp_status_l.setVisible(False)
+        text = self.otp_e.text()
+        if len(text) == 6:
+            # verify otp
+            self.plugin.so.checkOtp(self.plugin.so.shortId, int(text))
+            self.setEnabled(False)
+            self.spinner_l.setVisible(True)
+            self.spinner.start()
+            self.otp_e.setText('')
 
     def apply(self):
         pass
