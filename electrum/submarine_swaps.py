@@ -155,7 +155,7 @@ class SwapManager(Logger):
 
         self.prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
         for k, swap in self.swaps.items():
-            if swap.is_reverse and swap.prepay_hash is not None:
+            if swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
         # api url
         self.api_url = wallet.config.get_swapserver_url()
@@ -328,6 +328,7 @@ class SwapManager(Logger):
             )
             self.wallet.save_invoice(Invoice.from_bech32(invoice))
             prepay_invoice = None
+            prepay_hash = None
         else:
             onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True)
             prepay_amount_sat = self.get_claim_fee() * 2
@@ -364,7 +365,7 @@ class SwapManager(Logger):
             locktime = locktime,
             privkey = privkey,
             preimage = None,
-            prepay_hash = None,
+            prepay_hash = prepay_hash,
             lockup_address = lockup_address,
             onchain_amount = onchain_amount_sat,
             receive_address = receive_address,
