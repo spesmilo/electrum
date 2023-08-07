@@ -538,12 +538,17 @@ class TestPeer(ElectrumTestCase):
             *,
             amount_msat=100_000_000,
             include_routing_hints=False,
+            payment_preimage: bytes = None,
+            payment_hash: bytes = None,
     ) -> Tuple[LnAddr, str]:
         amount_btc = amount_msat/Decimal(COIN*1000)
-        payment_preimage = os.urandom(32)
-        RHASH = sha256(payment_preimage)
-        info = PaymentInfo(RHASH, amount_msat, RECEIVED, PR_UNPAID)
-        w2.save_preimage(RHASH, payment_preimage)
+        if payment_preimage is None and not payment_hash:
+            payment_preimage = os.urandom(32)
+        if payment_hash is None:
+            payment_hash = sha256(payment_preimage)
+        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        if payment_preimage:
+            w2.save_preimage(payment_hash, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
             routing_hints, trampoline_hints = w2.calc_routing_hints_for_invoice(amount_msat)
@@ -552,11 +557,11 @@ class TestPeer(ElectrumTestCase):
             trampoline_hints = []
         invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
-            payment_secret = w2.get_payment_secret(RHASH)
+            payment_secret = w2.get_payment_secret(payment_hash)
         else:
             payment_secret = None
         lnaddr1 = LnAddr(
-                    paymenthash=RHASH,
+                    paymenthash=payment_hash,
                     amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee'),
@@ -1044,6 +1049,57 @@ class TestPeer(ElectrumTestCase):
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
+            await f()
+
+    async def test_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self):
+        # This test checks that the following attack does not work:
+        #   - Bob creates payment request with HASH1, for 1 BTC; and gives the payreq to Alice
+        #   - Alice sends htlc A->B->D, for 100k sat, with HASH1
+        #   - Bob must not release the preimage of HASH1
+        graph_def = self.GRAPH_DEFINITIONS['square_graph']
+        graph_def.pop('carol')
+        graph_def['alice']['channels'].pop('carol')
+        # now graph is linear: A <-> B <-> D
+        graph = self.prepare_chans_and_peers_in_graph(graph_def)
+        peers = graph.peers.values()
+        async def pay():
+            lnaddr1, pay_req1 = self.prepare_invoice(
+                graph.workers['bob'],
+                amount_msat=100_000_000_000,
+            )
+            lnaddr2, pay_req2 = self.prepare_invoice(
+                graph.workers['dave'],
+                amount_msat=100_000_000,
+                payment_hash=lnaddr1.paymenthash,  # Dave is cooperating with Alice, and he reuses Bob's hash
+                include_routing_hints=True,
+            )
+            with self.subTest(msg="try to make Bob forward in legacy (non-trampoline) mode"):
+                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=1)
+                self.assertFalse(result)
+                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
+                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
+            with self.subTest(msg="try to make Bob forward in trampoline mode"):
+                # declare Bob as trampoline forwarding node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+                }
+                await self._activate_trampoline(graph.workers['alice'])
+                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=5)
+                self.assertFalse(result)
+                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
+                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                await group.spawn(pay())
+
+        with self.assertRaises(SuccessfulTest):
             await f()
 
     @needs_test_with_all_chacha20_implementations
