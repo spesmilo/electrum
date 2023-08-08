@@ -456,6 +456,47 @@ class ChoicesLayout(object):
     def selected_index(self):
         return self.group.checkedId()
 
+
+class ChoiceWidget(QWidget):
+    itemSelected = pyqtSignal([int], arguments=['index'])
+
+    def __init__(self, *, message=None, choices=[], selected=None):
+        QWidget.__init__(self)
+        vbox = QVBoxLayout()
+        self.setLayout(vbox)
+
+        self.selected_index = -1
+        self.selected_item = None
+        self.choices = choices
+
+        if message and len(message) > 50:
+            vbox.addWidget(WWLabel(message))
+            message = ""
+        gb2 = QGroupBox(message)
+        vbox.addWidget(gb2)
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+        self.group = group = QButtonGroup()
+        assert isinstance(choices, list)
+        iterator = enumerate(choices)
+        for i, c in iterator:
+            button = QRadioButton(gb2)
+            button.setText(c[1])
+            vbox2.addWidget(button)
+            group.addButton(button)
+            group.setId(button, i)
+            if (i == 0 and selected is None) or c[0] == selected:
+                self.selected_index = i
+                self.selected_item = c
+                button.setChecked(True)
+        group.buttonClicked.connect(self.on_selected)
+
+    def on_selected(self, button):
+        self.selected_index = self.group.id(button)
+        self.selected_item = self.choices[self.selected_index]
+        self.itemSelected.emit(self.selected_index)
+
+
 def address_field(addresses):
     hbox = QHBoxLayout()
     address_e = QLineEdit()

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal
 from PyQt5.QtGui import QPen, QPainter, QPalette
-from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
+from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout)
 
 from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
@@ -21,10 +21,12 @@ from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
 from electrum import WalletStorage, mnemonic, keystore
 from electrum.wizard import NewWalletWizard
-from ..bip39_recovery_dialog import Bip39RecoveryDialog
-from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
-from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
-from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height
+
+from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
+from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
+from electrum.gui.qt.seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
+from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
+                                  ChoiceWidget)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -276,15 +278,13 @@ class WCWalletType(WizardComponent):
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='standard')
+        self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
-        self.wizard_data['wallet_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['wallet_type'] = self.choice_w.selected_item[0]
 
 
 class WCKeystoreType(WizardComponent):
@@ -298,15 +298,13 @@ class WCKeystoreType(WizardComponent):
             ('hardware',   _('Use a hardware device'))
         ]
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
-        self.wizard_data['keystore_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['keystore_type'] = self.choice_w.selected_item[0]
 
 
 class WCCreateSeed(WizardComponent):
@@ -542,7 +540,6 @@ class WCScriptAndDerivation(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_('Script type and Derivation path'))
 
     def on_ready(self):
-
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = ' '.join([
             _('You can override the suggested derivation path.'),
@@ -560,15 +557,12 @@ class WCScriptAndDerivation(WizardComponent):
             if 'multisig_current_cosigner' in self.wizard_data:
                 # get script type of first cosigner
                 ks = self.wizard.keystore_from_data(self.wizard_data['wallet_type'], self.wizard_data)
-                script_type = xpub_type(ks.get_master_public_key())
-                script_types = [*zip(*choices)][0]
-                chosen_idx = script_types.index(script_type)
-                default_choice_idx = chosen_idx
+                default_choice = xpub_type(ks.get_master_public_key())
                 hide_choices = True
             else:
-                default_choice_idx = 2
+                default_choice = 'p2wsh'
         else:
-            default_choice_idx = 2
+            default_choice = 'p2wpkh'
             choices = [
                 # TODO: nicer to refactor 'standard' to 'p2pkh', but backend wallet still uses 'standard'
                 ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
@@ -604,24 +598,22 @@ class WCScriptAndDerivation(WizardComponent):
             self.layout().addWidget(button, alignment=Qt.AlignLeft)
             self.layout().addWidget(QLabel(_("Or")))
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        c_default_text = [x[2] for x in choices]
+        def on_choice_click(index):
+            self.derivation_path_edit.setText(self.choice_w.selected_item[2])
+        self.choice_w = ChoiceWidget(message=message1, choices=choices, selected=default_choice)
+        self.choice_w.itemSelected.connect(on_choice_click)
 
-        def on_choice_click(clayout):
-            idx = clayout.selected_index()
-            self.derivation_path_edit.setText(c_default_text[idx])
-        self.clayout = ChoicesLayout(message1, c_titles, on_choice_click,
-                                     checked_index=default_choice_idx)
         if not hide_choices:
-            self.layout().addLayout(self.clayout.layout())
+            self.layout().addWidget(self.choice_w)
 
         self.layout().addWidget(WWLabel(message2))
 
         self.derivation_path_edit = QLineEdit()
         self.derivation_path_edit.textChanged.connect(self.validate)
-        on_choice_click(self.clayout)  # set default value for derivation path
         self.layout().addWidget(self.derivation_path_edit)
+
+        on_choice_click(self.choice_w.selected_index)  # set default value for derivation path
+
         self.layout().addStretch(1)
 
     def validate(self):
@@ -649,7 +641,7 @@ class WCScriptAndDerivation(WizardComponent):
 
     def apply(self):
         cosigner_data = self._current_cosigner(self.wizard_data)
-        cosigner_data['script_type'] = self.c_values[self.clayout.selected_index()]
+        cosigner_data['script_type'] = self.choice_w.selected_item[0]
         cosigner_data['derivation_path'] = str(self.derivation_path_edit.text())
 
 
@@ -664,10 +656,8 @@ class WCCosignerKeystore(WizardComponent):
             ('hardware', _('Cosign with hardware device'))
         ]
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
 
         self.cosigner = 0
         self.participants = 0
@@ -696,7 +686,7 @@ class WCCosignerKeystore(WizardComponent):
         self.layout().addStretch(1)
 
     def apply(self):
-        self.wizard_data['cosigner_keystore_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['cosigner_keystore_type'] = self.choice_w.selected_item[0]
         self.wizard_data['multisig_current_cosigner'] = self.cosigner
         self.wizard_data['multisig_cosigner_data'][str(self.cosigner)] = {}
 
@@ -964,7 +954,7 @@ class WCChooseHWDevice(WizardComponent, Logger):
         self.device_list = QWidget()
         self.device_list_layout = QVBoxLayout()
         self.device_list.setLayout(self.device_list_layout)
-        self.clayout = None
+        self.choice_w = None
 
         self.rescan_button = QPushButton(_('Rescan devices'))
         self.rescan_button.clicked.connect(self.on_rescan)
@@ -1004,15 +994,13 @@ class WCChooseHWDevice(WizardComponent, Logger):
             descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
+
         # remove old component before adding anew
         a = self.device_list.layout().itemAt(0)
         self.device_list.layout().removeItem(a)
 
-        self.clayout = ChoicesLayout(msg, c_titles)
-        self.device_list_layout = self.clayout.layout()
-        self.device_list.layout().addLayout(self.device_list_layout)
+        self.choice_w = ChoiceWidget(message=msg, choices=choices)
+        self.device_list.layout().addWidget(self.choice_w)
 
         self.valid = True
 
@@ -1098,10 +1086,9 @@ class WCChooseHWDevice(WizardComponent, Logger):
         t.start()
 
     def apply(self):
-        if self.clayout:
+        if self.choice_w:
             # TODO: data is not (de)serializable yet, wizard_data cannot be persisted
-            self.wizard_data['hardware_device'] = self.c_values[self.clayout.selected_index()]
-            self.logger.debug(repr(self.wizard_data['hardware_device']))
+            self.wizard_data['hardware_device'] = self.choice_w.selected_item[0]
 
 
 class WCWalletPasswordHardware(WizardComponent):
