@@ -1225,7 +1225,10 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
 
-        self.logger.info(f"pay_invoice starting session for RHASH={payment_hash.hex()}")
+        self.logger.info(
+            f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
+            f"using_trampoline={self.uses_trampoline()}. "
+            f"invoice_features={invoice_features.get_names()}")
         self.set_invoice_status(key, PR_INFLIGHT)
         success = False
         try:
