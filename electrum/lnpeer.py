@@ -1742,6 +1742,8 @@ class Peer(Logger):
         except OnionRoutingFailure as e:
             raise
         except PaymentFailure as e:
+            self.logger.debug(
+                f"maybe_forward_trampoline. PaymentFailure for {payment_hash.hex()=}, {payment_secret.hex()=}: {e!r}")
             # FIXME: adapt the error code
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
 
