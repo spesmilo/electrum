@@ -1169,6 +1169,10 @@ This will result in longer routes; it might increase your fees and decrease the 
     SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
 
+    # zeroconf
+    ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
+    ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
+
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar(
         'use_watchtower', default=False, type_=bool,

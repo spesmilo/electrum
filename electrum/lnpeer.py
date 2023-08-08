@@ -627,6 +627,9 @@ class Peer(Logger):
     def is_channel_type(self):
         return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
 
+    def accepts_zeroconf(self):
+        return self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT)
+
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
@@ -710,6 +713,7 @@ class Peer(Logger):
             funding_sat: int,
             push_msat: int,
             public: bool,
+            zeroconf: bool = False,
             temp_channel_id: bytes
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
@@ -736,6 +740,8 @@ class Peer(Logger):
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        if zeroconf:
+            our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
         # Eclair accepts channel_type with that bit, but does not require it.
 
@@ -791,7 +797,7 @@ class Peer(Logger):
         self.logger.debug(f"received accept_channel for temp_channel_id={temp_channel_id.hex()}. {payload=}")
         remote_per_commitment_point = payload['first_per_commitment_point']
         funding_txn_minimum_depth = payload['minimum_depth']
-        if funding_txn_minimum_depth <= 0:
+        if not zeroconf and funding_txn_minimum_depth <= 0:
             raise Exception(f"minimum depth too low, {funding_txn_minimum_depth}")
         if funding_txn_minimum_depth > 30:
             raise Exception(f"minimum depth too high, {funding_txn_minimum_depth}")
@@ -903,6 +909,9 @@ class Peer(Logger):
             await self.send_warning(channel_id, message=str(e), close_connection=True)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_state(ChannelState.OPENING)
+        if zeroconf:
+            chan.set_state(ChannelState.FUNDED)
+            self.send_channel_ready(chan)
         self.lnworker.add_new_channel(chan)
         return chan, funding_tx
 
@@ -1009,7 +1018,12 @@ class Peer(Logger):
         )
         per_commitment_point_first = secret_to_pubkey(
             int.from_bytes(per_commitment_secret_first, 'big'))
-        min_depth = 3
+
+        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
+        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        min_depth = 0 if is_zeroconf else 3
+
         accept_channel_tlvs = {
             'upfront_shutdown_script': {
                 'shutdown_scriptpubkey': local_config.upfront_shutdown_script
@@ -1078,6 +1092,9 @@ class Peer(Logger):
         self.funding_signed_sent.add(chan.channel_id)
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         chan.set_state(ChannelState.OPENING)
+        if is_zeroconf:
+            chan.set_state(ChannelState.FUNDED)
+            self.send_channel_ready(chan)
         self.lnworker.add_new_channel(chan)
 
     async def request_force_close(self, channel_id: bytes):
@@ -1421,7 +1438,7 @@ class Peer(Logger):
             chan.set_remote_update(pending_channel_update)
         self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
-        if forwarding_enabled:
+        if forwarding_enabled and chan.short_channel_id:
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to to receive payments
             self.logger.info(f"sending channel update for outgoing edge ({chan.get_id_for_log()})")
