@@ -27,6 +27,7 @@ from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
+from .lnrouter import RouteEdge
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
@@ -119,6 +120,7 @@ class Peer(Logger):
         self._received_revack_event = asyncio.Event()
         self.received_commitsig_event = asyncio.Event()
         self.downstream_htlc_resolved_event = asyncio.Event()
+        self.jit_failures = {}
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -714,7 +716,8 @@ class Peer(Logger):
             push_msat: int,
             public: bool,
             zeroconf: bool = False,
-            temp_channel_id: bytes
+            temp_channel_id: bytes,
+            opening_fee: int = None,
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
 
@@ -757,7 +760,11 @@ class Peer(Logger):
         open_channel_tlvs['upfront_shutdown_script'] = {
             'shutdown_scriptpubkey': local_config.upfront_shutdown_script
         }
-
+        if opening_fee:
+            # todo: maybe add payment hash
+            open_channel_tlvs['channel_opening_fee'] = {
+                'channel_opening_fee': opening_fee
+            }
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(
             local_config.per_commitment_secret_seed,
@@ -963,6 +970,11 @@ class Peer(Logger):
 
         open_channel_tlvs = payload.get('open_channel_tlvs')
         channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
+
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        if channel_opening_fee:
+            # todo check that the fee is reasonable
+            pass
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
         if self.is_channel_type() and channel_type is None:
@@ -1073,7 +1085,8 @@ class Peer(Logger):
         chan = Channel(
             chan_dict,
             lnworker=self.lnworker,
-            initial_feerate=feerate
+            initial_feerate=feerate,
+            opening_fee = channel_opening_fee,
         )
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
@@ -1714,7 +1727,36 @@ class Peer(Logger):
             next_cltv_abs = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
+
+        if self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
+            next_peer = self.lnworker.get_peer_by_scid_alias(next_chan_scid)
+        else:
+            next_peer = None
+
+        if not next_chan and next_peer and next_peer.accepts_zeroconf():
+            # check if an already existing channel can be used.
+            # todo: split the payment
+            for next_chan in next_peer.channels.values():
+                if next_chan.can_pay(next_amount_msat_htlc):
+                    break
+            else:
+                async def wrapped_callback():
+                    coro = self.lnworker.open_channel_just_in_time(
+                        next_peer,
+                        next_amount_msat_htlc,
+                        next_cltv_abs,
+                        htlc.payment_hash,
+                        processed_onion.next_packet)
+                    try:
+                        await coro
+                    except OnionRoutingFailure as e:
+                        self.jit_failures[next_chan_scid.hex()] = e
+
+                asyncio.ensure_future(wrapped_callback())
+                return next_chan_scid, -1
+
         local_height = chain.height()
         if next_chan is None:
             log_fail_reason(f"cannot find next_chan {next_chan_scid}")
@@ -1754,6 +1796,7 @@ class Peer(Logger):
         self.logger.info(
             f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
             f"next_chan={next_chan.get_id_for_log()}.")
+
         next_peer = self.lnworker.peers.get(next_chan.node_id)
         if next_peer is None:
             log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
@@ -1836,6 +1879,43 @@ class Peer(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
         if budget.cltv < 576:
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+
+        # do we have a connection to the node?
+        next_peer = self.lnworker.peers.get(outgoing_node_id)
+        if next_peer and next_peer.accepts_zeroconf():
+            self.logger.info(f'JIT: found next_peer')
+            for next_chan in next_peer.channels.values():
+                if next_chan.can_pay(amt_to_forward):
+                    # todo: detect if we can do mpp
+                    self.logger.info(f'jit: next_chan can pay')
+                    break
+            else:
+                scid_alias = self.lnworker._scid_alias_of_node(next_peer.pubkey)
+                route = [RouteEdge(
+                    start_node=next_peer.pubkey,
+                    end_node=outgoing_node_id,
+                    short_channel_id=scid_alias,
+                    fee_base_msat=0,
+                    fee_proportional_millionths=0,
+                    cltv_delta=144,
+                    node_features=0
+                )]
+                next_onion, amount_msat, cltv_abs, session_key = self.create_onion_for_route(
+                    route=route,
+                    amount_msat=amt_to_forward,
+                    total_msat=amt_to_forward,
+                    payment_hash=payment_hash,
+                    min_final_cltv_delta=cltv_budget_for_rest_of_route,
+                    payment_secret=payment_secret,
+                    trampoline_onion=next_trampoline_onion,
+                )
+                await self.lnworker.open_channel_just_in_time(
+                    next_peer,
+                    amt_to_forward,
+                    cltv_abs,
+                    payment_hash,
+                    next_onion)
+                return
 
         try:
             await self.lnworker.pay_to_node(
@@ -1926,6 +2006,13 @@ class Peer(Logger):
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
+        if chan.opening_fee:
+            channel_opening_fee = chan.opening_fee['channel_opening_fee']
+            total_msat -= channel_opening_fee
+            amt_to_forward -= channel_opening_fee
+        else:
+            channel_opening_fee = 0
+
         if amt_to_forward > htlc.amount_msat:
             log_fail_reason(f"amt_to_forward != htlc.amount_msat")
             raise OnionRoutingFailure(
@@ -2006,6 +2093,9 @@ class Peer(Logger):
             log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
             raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
+        if channel_opening_fee:
+            invoice_msat -= channel_opening_fee
+
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
@@ -2018,6 +2108,7 @@ class Peer(Logger):
             self.logger.info(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
 
+        chan.opening_fee = None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         return preimage, None
 
@@ -2584,6 +2675,11 @@ class Peer(Logger):
                 error_bytes, error_reason = next_chan.pop_fail_htlc_reason(htlc_id)
                 if error_bytes:
                     return None, None, error_bytes
+                if error_reason:
+                    raise error_reason
+            # just-in-time channel
+            if htlc_id == -1:
+                error_reason = self.jit_failures.pop(next_chan_id_hex, None)
                 if error_reason:
                     raise error_reason
         if preimage:

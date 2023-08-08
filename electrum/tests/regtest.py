@@ -111,3 +111,39 @@ class TestLightningWatchtower(TestLightning):
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])
+
+
+class TestLightningJIT(TestLightning):
+    agents = {
+        'alice':{
+            'accept_zeroconf_channels': 'true',
+        },
+        'bob':{
+            'lightning_listen': 'localhost:9735',
+            'lightning_forward_payments': 'true',
+            'accept_zeroconf_channels': 'true',
+        },
+        'carol':{
+        }
+    }
+
+    def test_just_in_time(self):
+        self.run_shell(['just_in_time'])
+
+
+class TestLightningJITTrampoline(TestLightningJIT):
+    agents = {
+        'alice':{
+            'use_gossip': 'false',
+            'accept_zeroconf_channels': 'true',
+        },
+        'bob':{
+            'lightning_listen': 'localhost:9735',
+            'lightning_forward_payments': 'true',
+            'lightning_forward_trampoline_payments': 'true',
+            'accept_zeroconf_channels': 'true',
+        },
+        'carol':{
+            'use_gossip': 'false',
+        }
+    }
