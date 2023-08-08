@@ -538,12 +538,17 @@ class TestPeer(ElectrumTestCase):
             *,
             amount_msat=100_000_000,
             include_routing_hints=False,
+            payment_preimage: bytes = None,
+            payment_hash: bytes = None,
     ) -> Tuple[LnAddr, str]:
         amount_btc = amount_msat/Decimal(COIN*1000)
-        payment_preimage = os.urandom(32)
-        RHASH = sha256(payment_preimage)
-        info = PaymentInfo(RHASH, amount_msat, RECEIVED, PR_UNPAID)
-        w2.save_preimage(RHASH, payment_preimage)
+        if payment_preimage is None and not payment_hash:
+            payment_preimage = os.urandom(32)
+        if payment_hash is None:
+            payment_hash = sha256(payment_preimage)
+        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        if payment_preimage:
+            w2.save_preimage(payment_hash, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
             routing_hints, trampoline_hints = w2.calc_routing_hints_for_invoice(amount_msat)
@@ -552,11 +557,11 @@ class TestPeer(ElectrumTestCase):
             trampoline_hints = []
         invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
-            payment_secret = w2.get_payment_secret(RHASH)
+            payment_secret = w2.get_payment_secret(payment_hash)
         else:
             payment_secret = None
         lnaddr1 = LnAddr(
-                    paymenthash=RHASH,
+                    paymenthash=payment_hash,
                     amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee'),
@@ -824,8 +829,8 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         async def pay():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # prep
             _maybe_send_commitment1 = p1.maybe_send_commitment
             _maybe_send_commitment2 = p2.maybe_send_commitment
@@ -1044,6 +1049,57 @@ class TestPeer(ElectrumTestCase):
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
+            await f()
+
+    async def test_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self):
+        # This test checks that the following attack does not work:
+        #   - Bob creates payment request with HASH1, for 1 BTC; and gives the payreq to Alice
+        #   - Alice sends htlc A->B->D, for 100k sat, with HASH1
+        #   - Bob must not release the preimage of HASH1
+        graph_def = self.GRAPH_DEFINITIONS['square_graph']
+        graph_def.pop('carol')
+        graph_def['alice']['channels'].pop('carol')
+        # now graph is linear: A <-> B <-> D
+        graph = self.prepare_chans_and_peers_in_graph(graph_def)
+        peers = graph.peers.values()
+        async def pay():
+            lnaddr1, pay_req1 = self.prepare_invoice(
+                graph.workers['bob'],
+                amount_msat=100_000_000_000,
+            )
+            lnaddr2, pay_req2 = self.prepare_invoice(
+                graph.workers['dave'],
+                amount_msat=100_000_000,
+                payment_hash=lnaddr1.paymenthash,  # Dave is cooperating with Alice, and he reuses Bob's hash
+                include_routing_hints=True,
+            )
+            with self.subTest(msg="try to make Bob forward in legacy (non-trampoline) mode"):
+                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=1)
+                self.assertFalse(result)
+                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
+                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
+            with self.subTest(msg="try to make Bob forward in trampoline mode"):
+                # declare Bob as trampoline forwarding node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+                }
+                await self._activate_trampoline(graph.workers['alice'])
+                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=5)
+                self.assertFalse(result)
+                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
+                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                await group.spawn(pay())
+
+        with self.assertRaises(SuccessfulTest):
             await f()
 
     @needs_test_with_all_chacha20_implementations
@@ -1374,8 +1430,8 @@ class TestPeer(ElectrumTestCase):
         w2.enable_htlc_settle = False
         lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # alice sends htlc
             route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
             p1.pay(route=route,
@@ -1401,8 +1457,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def action():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(GracefulDisconnect):
@@ -1414,8 +1470,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def action():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
             assert alice_channel.is_closed()
             gath.cancel()
@@ -1447,8 +1503,8 @@ class TestPeer(ElectrumTestCase):
 
         async def test():
             async def close():
-                await asyncio.wait_for(p1.initialized, 1)
-                await asyncio.wait_for(p2.initialized, 1)
+                await util.wait_for2(p1.initialized, 1)
+                await util.wait_for2(p2.initialized, 1)
                 # bob closes channel with different shutdown script
                 await p1.close_channel(alice_channel.channel_id)
                 gath.cancel()
@@ -1477,8 +1533,8 @@ class TestPeer(ElectrumTestCase):
 
         async def test():
             async def close():
-                await asyncio.wait_for(p1.initialized, 1)
-                await asyncio.wait_for(p2.initialized, 1)
+                await util.wait_for2(p1.initialized, 1)
+                await util.wait_for2(p2.initialized, 1)
                 await p1.close_channel(alice_channel.channel_id)
                 gath.cancel()
 
@@ -1538,8 +1594,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends known message with trailing garbage
             # BOLT-01 says peer2 should ignore trailing garbage
             raw_msg1 = encode_msg('ping', num_pong_bytes=4, byteslen=4) + bytes(range(55))
@@ -1570,8 +1626,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends unknown 'even-type' message
             # BOLT-01 says peer2 should close the connection
             raw_msg2 = (43334).to_bytes(length=2, byteorder="big") + bytes(range(55))
@@ -1600,8 +1656,8 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
-            await asyncio.wait_for(p1.initialized, 1)
-            await asyncio.wait_for(p2.initialized, 1)
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
             # peer1 sends known message with insufficient length for the contents
             # BOLT-01 says peer2 should fail the connection
             raw_msg1 = encode_msg('ping', num_pong_bytes=4, byteslen=4)[:-1]
