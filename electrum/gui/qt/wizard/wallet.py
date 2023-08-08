@@ -1,7 +1,10 @@
 import os
+import sys
+import threading
+
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QTimer, QRect
+from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal
 from PyQt5.QtGui import QPen, QPainter, QPalette
 from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout)
@@ -10,16 +13,16 @@ from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_deriv
 from electrum.daemon import Daemon
 from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation
-from electrum.plugin import run_hook
+from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
-from electrum.logging import get_logger
+from electrum.logging import get_logger, Logger
 from electrum import WalletStorage, mnemonic, keystore
 from electrum.wizard import NewWalletWizard
 from ..bip39_recovery_dialog import Bip39RecoveryDialog
-from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD
+from ..password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
 from ..seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from ..util import ChoicesLayout, PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height
 
@@ -35,12 +38,17 @@ WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\
                  'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
                  'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
 
+MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
+                          + _("Your wallet file does not contain secrets, mostly just metadata. ") \
+                          + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
+                          + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
+
 
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, parent=None):
-        NewWalletWizard.__init__(self, daemon)
+        NewWalletWizard.__init__(self, daemon, plugins)
         QEAbstractWizard.__init__(self, config, app, plugins, daemon)
         self._daemon = daemon  # TODO: dedupe
         self._path = path
@@ -53,15 +61,18 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'create_seed': { 'gui': WCCreateSeed },
             'confirm_seed': { 'gui': WCConfirmSeed },
             'have_seed': { 'gui': WCHaveSeed },
+            'choose_hardware_device': { 'gui': WCChooseHWDevice },
             'script_and_derivation': { 'gui': WCScriptAndDerivation},
             'have_master_key': { 'gui': WCHaveMasterKey },
             'multisig': { 'gui': WCMultisig },
             'multisig_cosigner_keystore': { 'gui': WCCosignerKeystore },
             'multisig_cosigner_key': { 'gui': WCHaveMasterKey },
             'multisig_cosigner_seed': { 'gui': WCHaveSeed },
+            'multisig_cosigner_hardware': { 'gui': WCChooseHWDevice },
             'multisig_cosigner_script_and_derivation': { 'gui': WCScriptAndDerivation},
             'imported': { 'gui': WCImport },
-            'wallet_password': { 'gui': WCWalletPassword }
+            'wallet_password': { 'gui': WCWalletPassword },
+            'wallet_password_hardware': { 'gui': WCWalletPasswordHardware }
         })
 
         # modify default flow, insert seed extension entry/confirm as separate views
@@ -101,7 +112,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
                 'next': self.on_have_cosigner_seed,
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d),
                 'gui': WCEnterExt
-            }
+            },
         })
 
         run_hook('init_wallet_wizard', self)
@@ -565,7 +576,7 @@ class WCScriptAndDerivation(WizardComponent):
                 ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
             ]
 
-        if self.wizard_data['wallet_type'] == 'standard':
+        if self.wizard_data['wallet_type'] == 'standard' and not self.wizard_data['keystore_type'] == 'hardware':
             button = QPushButton(_("Detect Existing Accounts"))
 
             passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
@@ -619,7 +630,12 @@ class WCScriptAndDerivation(WizardComponent):
         cosigner_data = self._current_cosigner(self.wizard_data)
         derivation_valid = is_bip32_derivation(cosigner_data['derivation_path'])
 
-        if derivation_valid and self.wizard_data['wallet_type'] == 'multisig':
+        # TODO: refactor to wizard.current_cosigner_is_hardware
+        cosigner_is_hardware = cosigner_data == self.wizard_data and self.wizard_data['keystore_type'] == 'hardware'
+        if 'cosigner_keystore_type' in self.wizard_data and self.wizard_data['cosigner_keystore_type'] == 'hardware':
+            cosigner_is_hardware = True
+
+        if self.wizard.is_multisig(self.wizard_data) and derivation_valid and not cosigner_is_hardware:
             if self.wizard.has_duplicate_masterkeys(self.wizard_data):
                 self._logger.debug('Duplicate master keys!')
                 # TODO: user feedback
@@ -645,7 +661,7 @@ class WCCosignerKeystore(WizardComponent):
         choices = [
             ('key', _('Enter cosigner key')),
             ('seed', _('Enter cosigner seed')),
-            ('hw_device', _('Cosign with hardware device'))
+            ('hardware', _('Cosign with hardware device'))
         ]
 
         self.c_values = [x[0] for x in choices]
@@ -929,3 +945,184 @@ class CosignWidget(QWidget):
             qp.setBrush(Qt.green if i < self.m else Qt.gray)
             qp.drawPie(self.R, alpha, alpha2)
         qp.end()
+
+
+class WCChooseHWDevice(WizardComponent, Logger):
+    scanFailed = pyqtSignal([str, str], arguments=['code', 'message'])
+    scanComplete = pyqtSignal()
+
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Choose Hardware Device'))
+        Logger.__init__(self)
+        self.scanFailed.connect(self.on_scan_failed)
+        self.scanComplete.connect(self.on_scan_complete)
+        self.plugins = wizard.plugins
+
+        self.error_l = WWLabel()
+        self.error_l.setVisible(False)
+
+        self.device_list = QWidget()
+        self.device_list_layout = QVBoxLayout()
+        self.device_list.setLayout(self.device_list_layout)
+        self.clayout = None
+
+        self.rescan_button = QPushButton(_('Rescan devices'))
+        self.rescan_button.clicked.connect(self.on_rescan)
+
+        self.layout().addWidget(self.error_l)
+        self.layout().addWidget(self.device_list)
+        self.layout().addStretch(1)
+        self.layout().addWidget(self.rescan_button)
+
+        self.c_values = []
+
+    def on_ready(self):
+        self.scan_devices()
+
+    def on_rescan(self):
+        self.scan_devices()
+
+    def on_scan_failed(self, code, message):
+        self.error_l.setText(message)
+        self.error_l.setVisible(True)
+        self.device_list.setVisible(False)
+
+        self.valid = False
+
+    def on_scan_complete(self):
+        self.error_l.setVisible(False)
+        self.device_list.setVisible(True)
+
+        choices = []
+        for name, info in self.devices:
+            state = _("initialized") if info.initialized else _("wiped")
+            label = info.label or _("An unnamed {}").format(name)
+            try:
+                transport_str = info.device.transport_ui_string[:20]
+            except Exception:
+                transport_str = 'unknown transport'
+            descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
+            choices.append(((name, info), descr))
+        msg = _('Select a device') + ':'
+        self.c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        # remove old component before adding anew
+        a = self.device_list.layout().itemAt(0)
+        self.device_list.layout().removeItem(a)
+
+        self.clayout = ChoicesLayout(msg, c_titles)
+        self.device_list_layout = self.clayout.layout()
+        self.device_list.layout().addLayout(self.device_list_layout)
+
+        self.valid = True
+
+    def failed_getting_device_infos(self, debug_msg, name, e):
+        # nonlocal debug_msg
+        err_str_oneline = ' // '.join(str(e).splitlines())
+        self.logger.warning(f'error getting device infos for {name}: {err_str_oneline}')
+        indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+        debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
+
+    def scan_devices(self):
+        self.valid = False
+        self.busy_msg = _('Scanning devices...')
+        self.busy = True
+
+        def scan_task():
+            # check available plugins
+            supported_plugins = self.plugins.get_hardware_support()
+            devices = []  # type: List[Tuple[str, DeviceInfo]]
+            devmgr = self.plugins.device_manager
+            debug_msg = ''
+
+            # scan devices
+            try:
+                # scanned_devices = self.run_task_without_blocking_gui(task=devmgr.scan_devices,
+                #                                                      msg=_("Scanning devices..."))
+                scanned_devices = devmgr.scan_devices()
+            except BaseException as e:
+                self.logger.info('error scanning devices: {}'.format(repr(e)))
+                debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
+            else:
+                for splugin in supported_plugins:
+                    name, plugin = splugin.name, splugin.plugin
+                    # plugin init errored?
+                    if not plugin:
+                        e = splugin.exception
+                        indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+                        debug_msg += f'  {name}: (error during plugin init)\n'
+                        debug_msg += '    {}\n'.format(_('You might have an incompatible library.'))
+                        debug_msg += f'{indented_error_msg}\n'
+                        continue
+                    # see if plugin recognizes 'scanned_devices'
+                    try:
+                        # FIXME: side-effect: this sets client.handler
+                        device_infos = devmgr.list_pairable_device_infos(
+                            handler=None, plugin=plugin, devices=scanned_devices, include_failing_clients=True)
+                    except HardwarePluginLibraryUnavailable as e:
+                        self.failed_getting_device_infos(debug_msg, name, e)
+                        continue
+                    except BaseException as e:
+                        self.logger.exception('')
+                        self.failed_getting_device_infos(debug_msg, name, e)
+                        continue
+                    device_infos_failing = list(filter(lambda di: di.exception is not None, device_infos))
+                    for di in device_infos_failing:
+                        self.failed_getting_device_infos(debug_msg, name, di.exception)
+                    device_infos_working = list(filter(lambda di: di.exception is None, device_infos))
+                    devices += list(map(lambda x: (name, x), device_infos_working))
+            if not debug_msg:
+                debug_msg = '  {}'.format(_('No exceptions encountered.'))
+            if not devices:
+                msg = (_('No hardware device detected.') + '\n' +
+                       _('To trigger a rescan, press \'Rescan devices\'.') + '\n\n')
+                if sys.platform == 'win32':
+                    msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
+                             'and do "Remove device". Then, plug your device again.') + '\n'
+                    msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
+                else:
+                    msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
+                msg += '\n\n'
+                msg += _('Debug message') + '\n' + debug_msg
+
+                self.scanFailed.emit('no_devices', msg)
+                self.busy = False
+                return
+
+            # select device
+            self.devices = devices
+            self.scanComplete.emit()
+            self.busy = False
+
+        t = threading.Thread(target=scan_task, daemon=True)
+        t.start()
+
+    def apply(self):
+        if self.clayout:
+            # TODO: data is not (de)serializable yet, wizard_data cannot be persisted
+            self.wizard_data['hardware_device'] = self.c_values[self.clayout.selected_index()]
+            self.logger.debug(repr(self.wizard_data['hardware_device']))
+
+
+class WCWalletPasswordHardware(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Password HW'))
+        self.plugins = wizard.plugins
+
+        self.playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
+        self.playout.encrypt_cb.setChecked(True)
+        self.layout().addLayout(self.playout.layout())
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['encrypt'] = self.playout.encrypt_cb.isChecked()
+        if self.playout.encrypt_cb.isChecked():
+            _name, _info = self.wizard_data['hardware_device']
+            device_id = _info.device.id_
+            client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+            # client.handler = self.plugin.create_handler(self.wizard)
+            self.wizard_data['password'] = client.get_password_for_storage_encryption()
+
+

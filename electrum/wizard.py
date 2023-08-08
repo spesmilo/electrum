@@ -3,7 +3,9 @@ import os
 
 from typing import List, NamedTuple, Any, Dict, Optional
 
+from electrum.keystore import hardware_keystore
 from electrum.logging import get_logger
+from electrum.plugin import run_hook
 from electrum.slip39 import EncryptedSeed
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
@@ -74,8 +76,6 @@ class AbstractWizard:
         if 'next' not in nav:
             # finished
             is_finished = True
-            # self.finished(wizard_data)
-            # return WizardViewState(None, wizard_data, {})
             new_view = WizardViewState(None, wizard_data, {})
         else:
             view_next = nav['next']
@@ -185,7 +185,7 @@ class NewWalletWizard(AbstractWizard):
 
     _logger = get_logger(__name__)
 
-    def __init__(self, daemon):
+    def __init__(self, daemon, plugins):
         AbstractWizard.__init__(self)
         self.navmap = {
             'wallet_name': {
@@ -211,13 +211,16 @@ class NewWalletWizard(AbstractWizard):
                 'last': lambda d: self.is_single_password() and not
                                   (self.needs_derivation_path(d) or self.is_multisig(d))
             },
+            'choose_hardware_device': {
+                'next': self.on_hardware_device,
+            },
             'script_and_derivation': {
-                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
+                'next': lambda d: self.wallet_password_view(d) if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_master_key': {
-                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
+                'next': lambda d: self.wallet_password_view(d) if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
@@ -228,15 +231,18 @@ class NewWalletWizard(AbstractWizard):
                 'next': self.on_cosigner_keystore_type
             },
             'multisig_cosigner_key': {
-                'next': lambda d: 'wallet_password' if self.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'next': lambda d: self.wallet_password_view(d) if self.last_cosigner(d) else 'multisig_cosigner_keystore',
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'multisig_cosigner_seed': {
                 'next': self.on_have_cosigner_seed,
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d)
             },
+            'multisig_cosigner_hardware': {
+                'next': self.on_hardware_device,
+            },
             'multisig_cosigner_script_and_derivation': {
-                'next': lambda d: 'wallet_password' if self.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'next': lambda d: self.wallet_password_view(d) if self.last_cosigner(d) else 'multisig_cosigner_keystore',
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'imported': {
@@ -245,9 +251,13 @@ class NewWalletWizard(AbstractWizard):
             },
             'wallet_password': {
                 'last': True
+            },
+            'wallet_password_hardware': {
+                'last': True
             }
         }
         self._daemon = daemon
+        self.plugins = plugins
 
     def start(self, initial_data=None):
         if initial_data is None:
@@ -292,8 +302,21 @@ class NewWalletWizard(AbstractWizard):
         return {
             'createseed': 'create_seed',
             'haveseed': 'have_seed',
-            'masterkey': 'have_master_key'
+            'masterkey': 'have_master_key',
+            'hardware': 'choose_hardware_device'
         }.get(t)
+
+    def is_hardware(self, wizard_data):
+        return wizard_data['keystore_type'] == 'hardware'
+
+    def wallet_password_view(self, wizard_data):
+        return 'wallet_password_hardware' if self.is_hardware(wizard_data) else 'wallet_password'
+
+    def on_hardware_device(self, wizard_data):
+        _type, _info = wizard_data['hardware_device']
+        run_hook('init_wallet_wizard', self)
+        plugin = self.plugins.get_plugin(_type)
+        return plugin.wizard_entry_for_device(_info)
 
     def on_have_or_confirm_seed(self, wizard_data):
         if self.needs_derivation_path(wizard_data):
@@ -315,7 +338,8 @@ class NewWalletWizard(AbstractWizard):
         t = wizard_data['cosigner_keystore_type']
         return {
             'key': 'multisig_cosigner_key',
-            'seed': 'multisig_cosigner_seed'
+            'seed': 'multisig_cosigner_seed',
+            'hardware': 'multisig_cosigner_hardware'
         }.get(t)
 
     def on_have_cosigner_seed(self, wizard_data):
@@ -330,6 +354,9 @@ class NewWalletWizard(AbstractWizard):
     def last_cosigner(self, wizard_data):
         # check if we have the final number of cosigners. Doesn't check if cosigner data itself is complete
         # (should be validated by wizardcomponents)
+        if not self.is_multisig(wizard_data):
+            return True
+
         if len(wizard_data['multisig_cosigner_data']) < (wizard_data['multisig_participants'] - 1):
             return False
 
@@ -337,8 +364,7 @@ class NewWalletWizard(AbstractWizard):
 
     def has_duplicate_masterkeys(self, wizard_data) -> bool:
         """Multisig wallets need distinct master keys. If True, need to prevent wallet-creation."""
-        xpubs = []
-        xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key())
+        xpubs = [self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key()]
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
             xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], data).get_master_public_key())
@@ -492,13 +518,30 @@ class NewWalletWizard(AbstractWizard):
                 pass
             else:
                 raise Exception(f"unexpected keystore type: {type(keystore)}")
+        elif data['keystore_type'] == 'hardware':  # TODO: prelim impl
+            k = self.hw_keystore(data)
+            if isinstance(k, keystore.Xpub):  # has xpub
+                t1 = xpub_type(k.xpub)
+                if data['wallet_type'] == 'multisig':
+                    if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+                else:
+                    if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+            # elif isinstance(k, keystore.Old_KeyStore):
+            #     pass
+            else:
+                raise Exception(f"unexpected keystore type: {type(keystore)}")
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
         if data['encrypt']:
             if k and k.may_have_password():
                 k.update_password(None, data['password'])
-            storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
+            enc_version = StorageEncryptionVersion.USER_PASSWORD
+            if data['keystore_type'] == 'hardware':
+                enc_version = StorageEncryptionVersion.XPUB_PASSWORD
+            storage.set_password(data['password'], enc_version=enc_version)
 
         db = WalletDB('', storage=storage, manual_upgrades=False)
         db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
@@ -545,6 +588,17 @@ class NewWalletWizard(AbstractWizard):
 
         db.load_plugins()
         db.write()
+
+    def hw_keystore(self, data):
+        return hardware_keystore({
+            'type': 'hardware',
+            'hw_type': data['hw_type'],
+            'derivation': data['derivation_path'],
+            'root_fingerprint': data['root_fingerprint'],
+            'xpub': data['master_key'],
+            'label': data['label'],
+            'soft_device_id': data['soft_device_id']
+        })
 
 
 class ServerConnectWizard(AbstractWizard):

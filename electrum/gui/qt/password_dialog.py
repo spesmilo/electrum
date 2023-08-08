@@ -136,6 +136,7 @@ class PasswordLayout(object):
                                        and not force_disable_encrypt_cb)
         self.new_pw.textChanged.connect(enable_OK)
         self.conf_pw.textChanged.connect(enable_OK)
+        enable_OK()
 
         self.vbox = vbox
 

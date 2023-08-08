@@ -524,3 +524,30 @@ class TrezorPlugin(HW_PluginBase):
             for o in tx.outputs()
         ]
         return t
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo') -> str:
+        return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'trezor_start': {
+                'next': 'trezor_xpub',
+            },
+            'trezor_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'trezor_not_initialized': {
+                'next': 'trezor_choose_new_recover',
+            },
+            'trezor_choose_new_recover': {
+                'next': 'trezor_do_init',
+            },
+            'trezor_do_init': {
+                'next': 'trezor_start',
+            },
+        }
+        wizard.navmap_merge(views)

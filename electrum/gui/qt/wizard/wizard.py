@@ -1,3 +1,4 @@
+import threading
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
@@ -8,7 +9,7 @@ from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout,
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.gui.qt.util import Buttons, icon_path
+from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from electrum.gui.qt import QElectrumApplication
 
 
-class QEAbstractWizard(QDialog):
+class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     # def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
@@ -25,8 +26,11 @@ class QEAbstractWizard(QDialog):
         QDialog.__init__(self, None)
         self.app = app
         self.config = config
-        self.plugins = plugins
-        # self.gui_thread = gui_object.gui_thread
+        # self.plugins = plugins
+
+        # compat
+        self.gui_thread = threading.current_thread()
+
         self.setMinimumSize(600, 400)
 
         self.title = QLabel()
@@ -43,9 +47,9 @@ class QEAbstractWizard(QDialog):
 
         please_wait_layout = QVBoxLayout()
         please_wait_layout.addStretch(1)
-        please_wait_l = QLabel(_("Please wait..."))
-        please_wait_l.setAlignment(Qt.AlignCenter)
-        please_wait_layout.addWidget(please_wait_l)
+        self.please_wait_l = QLabel(_("Please wait..."))
+        self.please_wait_l.setAlignment(Qt.AlignCenter)
+        please_wait_layout.addWidget(self.please_wait_l)
         please_wait_layout.addStretch(1)
         self.please_wait = QWidget()
         self.please_wait.setLayout(please_wait_layout)
@@ -156,6 +160,7 @@ class QEAbstractWizard(QDialog):
         self.next_button.setEnabled(page.valid)
         self.main_widget.setVisible(not page.busy and not bool(page.error))
         self.please_wait.setVisible(page.busy)
+        self.please_wait_l.setText(page.busy_msg if page.busy_msg else _("Please wait..."))
         self.error_msg.setText(str(page.error))
         self.error.setVisible(not page.busy and bool(page.error))
         icon = page.params.get('icon', icon_path('electrum.png'))
@@ -213,6 +218,7 @@ class WizardComponent(QWidget):
         self.setLayout(layout if layout else QVBoxLayout(self))
         self.wizard_data = {}
         self.title = title if title is not None else 'No title'
+        self.busy_msg = ''
         self.wizard = wizard
         self._error = ''
         self._valid = False
@@ -262,6 +268,7 @@ class WizardComponent(QWidget):
         self.updated.emit(self)
 
     # returns (sub)dict of current cosigner (or root if first)
+    # TODO: maybe just always expose self.cosigner_data in wizardcomponent so we can avoid this call
     def _current_cosigner(self, wizard_data):
         wdata = wizard_data
         if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
