@@ -697,7 +697,6 @@ class LNWallet(LNWorker):
         self.sent_buckets = dict()                    # payment_key -> (amount_sent, amount_failed)
         self.received_mpp_htlcs = dict()              # type: Dict[bytes, ReceivedMPPStatus]  # payment_key -> ReceivedMPPStatus
 
-        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
         self.inflight_payments = set()        # (not persisted) keys of invoices that are in PR_INFLIGHT state
         for payment_hash in self.get_payments(status='inflight').keys():
@@ -710,6 +709,7 @@ class LNWallet(LNWorker):
         # payment_hash -> callback, timeout:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Tuple[Callable[[bytes], None], int]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
+        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
 
     def has_deterministic_node_id(self) -> bool:

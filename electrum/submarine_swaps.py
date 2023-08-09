@@ -152,6 +152,8 @@ class SwapManager(Logger):
         for payment_hash, swap in self.swaps.items():
             swap._payment_hash = bytes.fromhex(payment_hash)
             self._add_or_reindex_swap(swap)
+            if not swap.is_reverse and not swap.is_redeemed:
+                self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
 
         self.prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
         for k, swap in self.swaps.items():
