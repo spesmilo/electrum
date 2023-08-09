@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
     from .lnonion import OnionRoutingFailure
+    from .simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -49,6 +50,7 @@ HTLC_SUCCESS_WEIGHT = 703
 COMMITMENT_TX_WEIGHT = 724
 HTLC_OUTPUT_WEIGHT = 172
 
+LN_MAX_FUNDING_SAT_LEGACY = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
 
 # dummy address for fee estimation of funding tx
@@ -92,7 +94,7 @@ class ChannelConfig(StoredObject):
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
     upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes)
 
-    def validate_params(self, *, funding_sat: int) -> None:
+    def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
         for key in (
                 self.payment_basepoint,
@@ -105,6 +107,12 @@ class ChannelConfig(StoredObject):
                 raise Exception(f"{conf_name}. invalid pubkey in channel config")
         if funding_sat < MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} sat < {MIN_FUNDING_SAT}")
+        if not peer_features.supports(LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT):
+            # MUST set funding_satoshis to less than 2^24 satoshi
+            if funding_sat > LN_MAX_FUNDING_SAT_LEGACY:
+                raise Exception(f"funding_sat too high: {funding_sat} sat > {LN_MAX_FUNDING_SAT_LEGACY} (legacy limit)")
+        if funding_sat > config.LIGHTNING_MAX_FUNDING_SAT:
+            raise Exception(f"funding_sat too high: {funding_sat} sat > {config.LIGHTNING_MAX_FUNDING_SAT} (config setting)")
         # MUST set push_msat to equal or less than 1000 * funding_satoshis
         if not (0 <= self.initial_msat <= 1000 * funding_sat):
             raise Exception(f"{conf_name}. insane initial_msat={self.initial_msat}. (funding_sat={funding_sat})")
@@ -139,10 +147,12 @@ class ChannelConfig(StoredObject):
             funding_sat: int,
             is_local_initiator: bool,  # whether we are the funder
             initial_feerate_per_kw: int,
+            config: 'SimpleConfig',
+            peer_features: 'LnFeatures',
     ) -> None:
         # first we validate the configs separately
-        local_config.validate_params(funding_sat=funding_sat)
-        remote_config.validate_params(funding_sat=funding_sat)
+        local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
+        remote_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         # now do tests that need access to both configs
         if is_local_initiator:
             funder, fundee = LOCAL, REMOTE
@@ -209,10 +219,10 @@ class LocalConfig(ChannelConfig):
             kwargs['payment_basepoint'] = keypair_generator(LnKeyFamily.PAYMENT_BASE)
         return LocalConfig(**kwargs)
 
-    def validate_params(self, *, funding_sat: int) -> None:
+    def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
         # run base checks regardless whether LOCAL/REMOTE config
-        super().validate_params(funding_sat=funding_sat)
+        super().validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         # run some stricter checks on LOCAL config (make sure we ourselves do the sane thing,
         # even if we are lenient with REMOTE for compatibility reasons)
         HTLC_MINIMUM_MSAT_MIN = 1

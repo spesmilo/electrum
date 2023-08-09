@@ -603,9 +603,6 @@ class Peer(Logger):
     def is_shutdown_anysegwit(self):
         return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
 
-    def supports_large_channels(self):
-        return self.features.supports(LnFeatures.OPTION_SUPPORT_LARGE_CHANNELS)
-
     def is_channel_type(self):
         return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
 
@@ -662,7 +659,7 @@ class Peer(Logger):
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
         )
-        local_config.validate_params(funding_sat=funding_sat)
+        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=self.features)
         return local_config
 
     def temporarily_reserve_funding_tx_change_address(func):
@@ -807,6 +804,8 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=True,
             initial_feerate_per_kw=feerate,
+            config=self.network.config,
+            peer_features=self.features,
         )
 
         # -> funding created
@@ -967,6 +966,8 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=False,
             initial_feerate_per_kw=feerate,
+            config=self.network.config,
+            peer_features=self.features,
         )
 
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
