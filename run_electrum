@@ -376,12 +376,15 @@ def main():
     # Note: it is ok to call set_language() again later, but note that any call only applies
     #       to not-yet-evaluated strings.
     if cmdname == 'gui':
-        from electrum.gui.default_lang import get_default_language
         gui_name = config.GUI_NAME
         lang = config.LOCALIZATION_LANGUAGE
         if not lang:
-            lang = get_default_language(gui_name=gui_name)
-            _logger.info(f"get_default_language: detected default as {lang=!r}")
+            try:
+                from electrum.gui.default_lang import get_default_language
+                lang = get_default_language(gui_name=gui_name)
+                _logger.info(f"get_default_language: detected default as {lang=!r}")
+            except ImportError as e:
+                _logger.info(f"get_default_language: failed. got exc={e!r}")
         set_language(lang)
 
     if config.get('testnet'):
