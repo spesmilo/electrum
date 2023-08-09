@@ -15,7 +15,8 @@ from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, 
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent)
+                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent,
+                         QContextMenuEvent)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
                           QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
@@ -38,6 +39,8 @@ from electrum.qrreader import MissingQrDetectionLib
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from .installwizard import InstallWizard
+    from .paytoedit import PayToEdit
+
     from electrum.simple_config import SimpleConfig
 
 
@@ -529,7 +532,7 @@ def get_iconname_camera() -> str:
     return "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
 
 
-def editor_contextMenuEvent(self, p, e):
+def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> None:
     m = self.createStandardContextMenu()
     m.addSeparator()
     m.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), p.on_qr_from_camera_input_btn)
