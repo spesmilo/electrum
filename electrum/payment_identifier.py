@@ -104,7 +104,7 @@ class PaymentIdentifier(Logger):
         * lightning address
     """
 
-    def __init__(self, wallet: 'Abstract_Wallet', text: str):
+    def __init__(self, wallet: Optional['Abstract_Wallet'], text: str):
         Logger.__init__(self)
         self._state = PaymentIdentifierState.EMPTY
         self.wallet = wallet
@@ -262,7 +262,7 @@ class PaymentIdentifier(Logger):
             self._type = PaymentIdentifierType.SPK
             self.spk = scriptpubkey
             self.set_state(PaymentIdentifierState.AVAILABLE)
-        elif contact := self.contacts.by_name(text):
+        elif self.contacts and (contact := self.contacts.by_name(text)):
             if contact['type'] == 'address':
                 self._type = PaymentIdentifierType.BIP21
                 self.bip21 = {
