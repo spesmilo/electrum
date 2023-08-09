@@ -36,7 +36,7 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED
-from electrum.lnonion import OnionFailureCode
+from electrum.lnonion import OnionFailureCode, OnionRoutingFailure
 from electrum.lnutil import UpdateAddHtlc
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
@@ -169,8 +169,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.sent_htlcs_q = defaultdict(asyncio.Queue)
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
-        self.trampoline_forwardings = set()
-        self.trampoline_forwarding_failures = {}
+        self.final_onion_forwardings = set()
+        self.final_onion_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
         self.stopping_soon = False
@@ -749,6 +749,7 @@ class TestPeer(ElectrumTestCase):
     async def _test_simple_payment(
             self,
             test_trampoline: bool,
+            test_failure:bool=False,
             test_hold_invoice=False,
             test_bundle=False,
             test_bundle_timeout=False
@@ -765,12 +766,16 @@ class TestPeer(ElectrumTestCase):
             else:
                 raise PaymentFailure()
         lnaddr, pay_req = self.prepare_invoice(w2)
-        if test_hold_invoice:
-            payment_hash = lnaddr.paymenthash
+        payment_hash = lnaddr.paymenthash
+        if test_failure or test_hold_invoice:
             preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
-            async def cb(payment_hash):
-                w2.save_preimage(payment_hash, preimage)
-            w2.register_callback_for_hold_invoice(payment_hash, cb, 60)
+            if test_hold_invoice:
+                async def cb(payment_hash):
+                    if not test_failure:
+                        w2.save_preimage(payment_hash, preimage)
+                    else:
+                        raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+                w2.register_callback_for_hold_invoice(payment_hash, cb)
 
         if test_bundle:
             lnaddr2, pay_req2 = self.prepare_invoice(w2)
@@ -799,10 +804,15 @@ class TestPeer(ElectrumTestCase):
         await f()
 
     @needs_test_with_all_chacha20_implementations
-    async def test_simple_payment(self):
+    async def test_simple_payment_success(self):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
                 await self._test_simple_payment(test_trampoline=test_trampoline)
+
+    async def test_simple_payment_failure(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentFailure):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_failure=True)
 
     async def test_payment_bundle(self):
         for test_trampoline in [False, True]:
@@ -814,10 +824,15 @@ class TestPeer(ElectrumTestCase):
             with self.assertRaises(PaymentFailure):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True, test_bundle_timeout=True)
 
-    async def test_simple_payment_with_hold_invoice(self):
+    async def test_simple_payment_success_with_hold_invoice(self):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True)
+
+    async def test_simple_payment_failure_with_hold_invoice(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentFailure):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True, test_failure=True)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_race(self):

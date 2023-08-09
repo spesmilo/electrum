@@ -1887,12 +1887,7 @@ class Peer(Logger):
             if preimage:
                 return preimage, None
             else:
-                # for hold invoices, trigger callback
-                cb, timeout = hold_invoice_callback
-                if int(time.time()) < timeout:
-                    return None, lambda: cb(payment_hash)
-                else:
-                    raise exc_incorrect_or_unknown_pd
+                return None, lambda: hold_invoice_callback(payment_hash)
 
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry
@@ -1903,8 +1898,8 @@ class Peer(Logger):
 
         preimage = self.lnworker.get_preimage(payment_hash)
         if not preimage:
-            self.logger.info(f"missing callback {payment_hash.hex()}")
-            return None, None
+            self.logger.info(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
+            raise exc_incorrect_or_unknown_pd
 
         expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
         expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
@@ -2424,23 +2419,23 @@ class Peer(Logger):
                     # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
                     if not self.lnworker.enable_htlc_forwarding:
                         pass
-                    elif payment_key in self.lnworker.trampoline_forwardings:
+                    elif payment_key in self.lnworker.final_onion_forwardings:
                         # we are already forwarding this payment
                         self.logger.info(f"we are already forwarding this.")
                     else:
                         # add to list of ongoing payments
-                        self.lnworker.trampoline_forwardings.add(payment_key)
+                        self.lnworker.final_onion_forwardings.add(payment_key)
                         # clear previous failures
-                        self.lnworker.trampoline_forwarding_failures.pop(payment_key, None)
+                        self.lnworker.final_onion_forwarding_failures.pop(payment_key, None)
                         async def wrapped_callback():
                             forwarding_coro = forwarding_callback()
                             try:
                                 await forwarding_coro
                             except OnionRoutingFailure as e:
-                                self.lnworker.trampoline_forwarding_failures[payment_key] = e
+                                self.lnworker.final_onion_forwarding_failures[payment_key] = e
                             finally:
                                 # remove from list of payments, so that another attempt can be initiated
-                                self.lnworker.trampoline_forwardings.remove(payment_key)
+                                self.lnworker.final_onion_forwardings.remove(payment_key)
                         asyncio.ensure_future(wrapped_callback())
                         fw_info = payment_key.hex()
                         return None, fw_info, None
@@ -2449,7 +2444,7 @@ class Peer(Logger):
                 payment_key = bytes.fromhex(forwarding_info)
                 preimage = self.lnworker.get_preimage(payment_hash)
                 # get (and not pop) failure because the incoming payment might be multi-part
-                error_reason = self.lnworker.trampoline_forwarding_failures.get(payment_key)
+                error_reason = self.lnworker.final_onion_forwarding_failures.get(payment_key)
                 if error_reason:
                     self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
                     raise error_reason

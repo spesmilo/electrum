@@ -247,7 +247,7 @@ class SwapManager(Logger):
                             self.logger.info(f'found confirmed refund')
                             payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
                             payment_key = swap.payment_hash + payment_secret
-                            self.lnworker.fail_trampoline_forwarding(payment_key)
+                            self.lnworker.fail_final_onion_forwarding(payment_key)
 
                 if delta < 0:
                     # too early for refund
@@ -343,7 +343,7 @@ class SwapManager(Logger):
             )
             # add payment info to lnworker
             self.lnworker.add_payment_info_for_hold_invoice(payment_hash, main_amount_sat)
-            self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback, 60*60*24)
+            self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
             prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
             _, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=prepay_hash,

@@ -703,8 +703,8 @@ class LNWallet(LNWorker):
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
-        self.trampoline_forwardings = set()
-        self.trampoline_forwarding_failures = {} # todo: should be persisted
+        self.final_onion_forwardings = set()
+        self.final_onion_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
         # payment_hash -> callback, timeout:
@@ -1954,11 +1954,8 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
         self.save_payment_info(info, write_to_disk=False)
 
-    def register_callback_for_hold_invoice(
-        self, payment_hash: bytes, cb: Callable[[bytes], None], timeout: int,
-    ):
-        expiry = int(time.time()) + timeout
-        self.hold_invoice_callbacks[payment_hash] = cb, expiry
+    def register_callback_for_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], None]):
+        self.hold_invoice_callbacks[payment_hash] = cb
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
@@ -2758,7 +2755,7 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
-    def fail_trampoline_forwarding(self, payment_key):
+    def fail_final_onion_forwarding(self, payment_key):
         """ use this to fail htlcs received for hold invoices"""
         e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        self.trampoline_forwarding_failures[payment_key] = e
+        self.final_onion_forwarding_failures[payment_key] = e
