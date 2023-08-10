@@ -51,6 +51,7 @@ class SwapServer(Logger, EventListener):
         pairs = {
             "info": [],
             "warnings": [],
+            "htlcFirst": True,
             "pairs": {
                 "BTC/BTC": {
                     "rate": 1,

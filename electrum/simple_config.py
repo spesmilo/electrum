@@ -890,7 +890,6 @@ class SimpleConfig(Logger):
     LIGHTNING_USE_GOSSIP = ConfigVar('use_gossip', default=False, type_=bool)
     LIGHTNING_USE_RECOVERABLE_CHANNELS = ConfigVar('use_recoverable_channels', default=True, type_=bool)
     LIGHTNING_ALLOW_INSTANT_SWAPS = ConfigVar('allow_instant_swaps', default=False, type_=bool)
-    LIGHTNING_SWAP_HTLC_FIRST = ConfigVar('swap_htlc_first', default=False, type_=bool)
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
 

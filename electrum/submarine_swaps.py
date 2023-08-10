@@ -181,6 +181,7 @@ class SwapManager(Logger):
         self.percentage = 0
         self._min_amount = None
         self._max_amount = None
+        self.server_supports_htlc_first = False
         self.wallet = wallet
         self.lnworker = lnworker
 
@@ -531,7 +532,7 @@ class SwapManager(Logger):
         refund_privkey = os.urandom(32)
         refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
 
-        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+        if self.server_supports_htlc_first:
             self.logger.info('requesting preimage hash for swap')
             request_data = {
                 "invoiceAmount": lightning_amount_sat,
@@ -580,7 +581,7 @@ class SwapManager(Logger):
         lockup_address = data["address"]
         redeem_script = data["redeemScript"]
         # verify redeem_script is built with our pubkey and preimage
-        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+        if self.server_supports_htlc_first:
             claim_pubkey, _ = check_reverse_redeem_script(redeem_script, lockup_address, payment_hash, locktime, refund_pubkey=refund_pubkey)
         else:
             claim_pubkey, _ = check_normal_redeem_script(redeem_script, lockup_address, payment_hash, locktime, refund_pubkey=refund_pubkey)
@@ -605,7 +606,7 @@ class SwapManager(Logger):
             prepay=False)
 
         tx = self.create_funding_tx(swap, tx, password)
-        if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
+        if self.server_supports_htlc_first:
             # send invoice to server and wait for htlcs
             request_data = {
                 "preimageHash": payment_hash.hex(),
@@ -780,6 +781,7 @@ class SwapManager(Logger):
         limits = pairs['pairs']['BTC/BTC']['limits']
         self._min_amount = limits['minimal']
         self._max_amount = limits['maximal']
+        self.server_supports_htlc_first = pairs.get('htlcFirst', False)
 
     def pairs_filename(self):
         return os.path.join(self.wallet.config.path, 'swap_pairs')
