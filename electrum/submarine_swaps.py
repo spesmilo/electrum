@@ -234,7 +234,7 @@ class SwapManager(Logger):
                     # fixme: should consider cltv of ln payment
                     self.logger.info(f'locktime too close {key}')
                     continue
-                success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=1)
+                success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=10)
                 if not success:
                     self.logger.info(f'failed to pay invoice {key}')
                     continue
