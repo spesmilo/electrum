@@ -1250,13 +1250,13 @@ class LnFeatures(IntFlag):
         you can do:
           myfeatures.supports(LnFeatures.VAR_ONION_OPT)
         """
-        enabled_bits = list_enabled_bits(feature)
-        if len(enabled_bits) != 1:
+        if (1 << (feature.bit_length() - 1)) != feature:
             raise ValueError(f"'feature' cannot be a combination of features: {feature}")
-        flag = enabled_bits[0]
-        our_flags = set(list_enabled_bits(self))
-        return (flag in our_flags
-                or get_ln_flag_pair_of_bit(flag) in our_flags)
+        if feature.bit_length() % 2 == 0:  # feature is OPT
+            feature_other = feature >> 1
+        else:  # feature is REQ
+            feature_other = feature << 1
+        return (self & feature != 0) or (self & feature_other != 0)
 
     def get_names(self) -> Sequence[str]:
         r = []

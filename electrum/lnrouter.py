@@ -493,7 +493,7 @@ class LNPathFinder(Logger):
                 # it's ok if we are missing the node_announcement (node_info) for this node,
                 # but if we have it, we enforce that they support var_onion_optin
                 node_features = LnFeatures(node_info.features)
-                if not node_features.supports(LnFeatures.VAR_ONION_OPT):
+                if not node_features.supports(LnFeatures.VAR_ONION_OPT):  # note: this is kind of slow. could be cached.
                     return float('inf'), 0
             route_edge = RouteEdge.from_channel_policy(
                 channel_policy=channel_policy,
