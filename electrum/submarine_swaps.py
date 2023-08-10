@@ -347,7 +347,8 @@ class SwapManager(Logger):
         if key in self.swaps:
             swap = self.swaps[key]
             if swap.funding_txid is None:
-                await self.broadcast_funding_tx(swap, None, None)
+                tx = self.create_funding_tx(swap, None, None)
+                await self.broadcast_funding_tx(swap, tx)
 
     def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
         """ server method """
@@ -359,7 +360,7 @@ class SwapManager(Logger):
             WITNESS_TEMPLATE_REVERSE_SWAP,
             {1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
         )
-        return self.add_normal_swap(
+        swap, invoice, prepay_invoice = self.add_normal_swap(
             redeem_script=redeem_script,
             locktime=locktime,
             onchain_amount_sat=onchain_amount_sat,
@@ -370,6 +371,8 @@ class SwapManager(Logger):
             invoice=None,
             prepay=True,
         )
+        self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
+        return swap, invoice, prepay_invoice
 
     def add_normal_swap(self, *, redeem_script=None, locktime=None, onchain_amount_sat=None, lightning_amount_sat=None, payment_hash=None, our_privkey=None, their_pubkey=None, invoice=None, prepay=None):
         """ if invoice is None, create a hold invoice """
@@ -390,7 +393,6 @@ class SwapManager(Logger):
             )
             # add payment info to lnworker
             self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
-            self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
 
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
@@ -602,6 +604,7 @@ class SwapManager(Logger):
             invoice=invoice,
             prepay=False)
 
+        tx = self.create_funding_tx(swap, tx, password)
         if self.wallet.config.LIGHTNING_SWAP_HTLC_FIRST:
             # send invoice to server and wait for htlcs
             request_data = {
@@ -615,16 +618,18 @@ class SwapManager(Logger):
                 json=request_data,
                 timeout=30)
             data = json.loads(response)
+            async def callback(payment_hash):
+                await self.broadcast_funding_tx(swap, tx)
+            self.lnworker.register_callback_for_hold_invoice(payment_hash, callback)
             # wait for funding tx
             while swap.funding_txid is None:
                 await asyncio.sleep(0.1)
         else:
             # broadcast funding tx right away
-            await self.broadcast_funding_tx(swap, tx, password)
+            await self.broadcast_funding_tx(swap, tx)
         return swap.funding_txid
 
-    @log_exceptions
-    async def broadcast_funding_tx(self, swap, tx, password):
+    def create_funding_tx(self, swap, tx, password):
         # create funding tx
         # note: rbf must not decrease payment
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
@@ -637,7 +642,10 @@ class SwapManager(Logger):
             tx.add_outputs([funding_output])
             tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
+        return tx
 
+    @log_exceptions
+    async def broadcast_funding_tx(self, swap, tx):
         await self.network.broadcast_transaction(tx)
         swap.funding_txid = tx.txid()
 
