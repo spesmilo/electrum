@@ -41,7 +41,7 @@ class SwapServer(Logger, EventListener):
 
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port)
         await site.start()
         self.logger.info(f"now running and listening. addr={self.addr}")
 

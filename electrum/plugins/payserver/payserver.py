@@ -94,9 +94,7 @@ class PayServer(Logger, EventListener):
     def base_url(self):
         payserver = self.config.PAYSERVER_ADDRESS
         payserver = NetAddress.from_string(payserver)
-        use_ssl = bool(self.config.SSL_KEYFILE_PATH)
-        protocol = 'https' if use_ssl else 'http'
-        return '%s://%s:%d'%(protocol, payserver.host, payserver.port)
+        return 'http://%s:%d'%(payserver.host, payserver.port)
 
     @property
     def root(self):
@@ -123,7 +121,7 @@ class PayServer(Logger, EventListener):
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port)
         await site.start()
         self.logger.info(f"now running and listening. addr={self.addr}")
 

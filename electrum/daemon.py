@@ -373,7 +373,7 @@ class WatchTowerServer(AuthenticatedServer):
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port)
         await site.start()
         self.logger.info(f"now running and listening. addr={self.addr}")
 

@@ -3,7 +3,6 @@ import threading
 import time
 import os
 import stat
-import ssl
 from decimal import Decimal
 from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set
 from numbers import Real
@@ -757,22 +756,6 @@ class SimpleConfig(Logger):
             device = ''
         return device
 
-    def get_ssl_context(self):
-        ssl_keyfile = self.SSL_KEYFILE_PATH
-        ssl_certfile = self.SSL_CERTFILE_PATH
-        if ssl_keyfile and ssl_certfile:
-            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
-            return ssl_context
-
-    def get_ssl_domain(self):
-        from .paymentrequest import check_ssl_config
-        if self.SSL_KEYFILE_PATH and self.SSL_CERTFILE_PATH:
-            SSL_identity = check_ssl_config(self)
-        else:
-            SSL_identity = None
-        return SSL_identity
-
     def get_netaddress(self, key: Union[str, ConfigVar, ConfigVarWithConfig]) -> Optional[NetAddress]:
         if isinstance(key, (ConfigVar, ConfigVarWithConfig)):
             key = key.key()
@@ -965,8 +948,6 @@ class SimpleConfig(Logger):
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
-    SSL_CERTFILE_PATH = ConfigVar('ssl_certfile', default='', type_=str)
-    SSL_KEYFILE_PATH = ConfigVar('ssl_keyfile', default='', type_=str)
     # submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
