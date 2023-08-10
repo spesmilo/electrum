@@ -852,7 +852,7 @@ class SimpleConfig(Logger):
         elif constants.net == constants.BitcoinTestnet:
             default = 'https://swaps.electrum.org/testnet'
         else:
-            default = 'http://localhost:5455/api'
+            default = 'http://localhost:5455'
         return self.SWAPSERVER_URL or default
 
     # config variables ----->

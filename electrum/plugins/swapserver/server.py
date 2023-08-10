@@ -34,10 +34,10 @@ class SwapServer(Logger, EventListener):
     @log_exceptions
     async def run(self):
         app = web.Application()
-        app.add_routes([web.get('/api/getpairs', self.get_pairs)])
-        app.add_routes([web.post('/api/createswap', self.create_swap)])
-        app.add_routes([web.post('/api/createnormalswap', self.create_normal_swap)])
-        app.add_routes([web.post('/api/addswapinvoice', self.add_swap_invoice)])
+        app.add_routes([web.get('/getpairs', self.get_pairs)])
+        app.add_routes([web.post('/createswap', self.create_swap)])
+        app.add_routes([web.post('/createnormalswap', self.create_normal_swap)])
+        app.add_routes([web.post('/addswapinvoice', self.add_swap_invoice)])
 
         runner = web.AppRunner(app)
         await runner.setup()
