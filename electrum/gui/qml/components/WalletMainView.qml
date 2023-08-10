@@ -312,6 +312,10 @@ Item {
             })
             dialog.open()
         }
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
+            dialog.open()
+        }
     }
 
     Component {
