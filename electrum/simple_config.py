@@ -47,6 +47,15 @@ FEERATE_PER_KW_MIN_RELAY_LIGHTNING = 253
 FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
 
 
+def default_swapserver_url():
+    if constants.net == constants.BitcoinMainnet:
+        return 'https://swaps.electrum.org/api'
+    elif constants.net == constants.BitcoinTestnet:
+        return 'https://swaps.electrum.org/testnet'
+    else:
+        return 'http://localhost:5455/api'
+
+
 _logger = get_logger(__name__)
 
 
@@ -845,14 +854,6 @@ class SimpleConfig(Logger):
                     f"Either use config.cv.{name}.set() or assign to config.{name} instead.")
         return CVLookupHelper()
 
-    def get_swapserver_url(self):
-        if constants.net == constants.BitcoinMainnet:
-            return self.SWAPSERVER_URL_MAINNET
-        elif constants.net == constants.BitcoinTestnet:
-            return self.SWAPSERVER_URL_TESTNET
-        else:
-            return self.SWAPSERVER_URL_REGTEST
-
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
@@ -966,9 +967,7 @@ class SimpleConfig(Logger):
     SSL_CERTFILE_PATH = ConfigVar('ssl_certfile', default='', type_=str)
     SSL_KEYFILE_PATH = ConfigVar('ssl_keyfile', default='', type_=str)
     # submarine swap server
-    SWAPSERVER_URL_MAINNET = ConfigVar('swapserver_url_mainnet', default='https://swaps.electrum.org/api', type_=str)
-    SWAPSERVER_URL_TESTNET = ConfigVar('swapserver_url_testnet', default='https://swaps.electrum.org/testnet', type_=str)
-    SWAPSERVER_URL_REGTEST = ConfigVar('swapserver_url_regtest', default='http://localhost:5455/api', type_=str)
+    SWAPSERVER_URL = ConfigVar('swapserver_url', default=default_swapserver_url(), type_=str)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar('use_watchtower', default=False, type_=bool)
