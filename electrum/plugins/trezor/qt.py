@@ -5,20 +5,23 @@ from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
                              QLineEdit, QRadioButton, QCheckBox, QWidget,
-                             QMessageBox, QFileDialog, QSlider, QTabWidget)
+                             QMessageBox, QSlider, QTabWidget)
 
-from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                  OkButton, CloseButton, PasswordLineEdit, getOpenFileName, ChoicesLayout)
 from electrum.i18n import _
+from electrum.logging import Logger
 from electrum.plugin import hook
 
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available
+from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
+
+from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton, PasswordLineEdit, getOpenFileName, ChoiceWidget)
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation
+from electrum.gui.qt.wizard.wizard import WizardComponent
+
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
                      PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
-from ...gui.qt.wizard.wallet import WCScriptAndDerivation
-from ...gui.qt.wizard.wizard import WizardComponent
-from ...logging import Logger
+
 
 PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
@@ -261,15 +264,7 @@ class QtPlugin(QtPluginBase):
 
         wizard.exec_layout(vbox)
 
-        return TrezorInitSettings(
-            word_count=vbox.bg_numwords.checkedId(),
-            label=vbox.name.text(),
-            pin_enabled=vbox.cb_pin.isChecked(),
-            passphrase_enabled=vbox.cb_phrase.isChecked(),
-            recovery_type=vbox.bg_rectype.checkedId() if vbox.bg_rectype else None,
-            backup_type=vbox.bg_backuptype.checkedId(),
-            no_backup=vbox.cb_no_backup.isChecked() if vbox.cb_no_backup else False,
-        )
+        return vbox.get_settings()
 
 
 class InitSettingsLayout(QVBoxLayout):
@@ -442,6 +437,17 @@ class InitSettingsLayout(QVBoxLayout):
             expert_vbox.addWidget(self.cb_no_backup)
 
         self.addWidget(expert_widget)
+
+    def get_settings(self):
+        return TrezorInitSettings(
+            word_count=self.bg_numwords.checkedId(),
+            label=self.name.text(),
+            pin_enabled=self.cb_pin.isChecked(),
+            passphrase_enabled=self.cb_phrase.isChecked(),
+            recovery_type=self.bg_rectype.checkedId() if self.bg_rectype else None,
+            backup_type=self.bg_backuptype.checkedId(),
+            no_backup=self.cb_no_backup.isChecked() if self.cb_no_backup else False,
+        )
 
 
 class Plugin(TrezorPlugin, QtPlugin):
@@ -798,9 +804,13 @@ class WCTrezorXPub(WizardComponent, Logger):
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('trezor')
         self._busy = True
-        self.xpub = None
 
-        self.ok_l = WWLabel('Retrieved Hardware Information')
+        self.xpub = None
+        self.root_fingerprint = None
+        self.label = None
+        self.soft_device_id = None
+
+        self.ok_l = WWLabel(_('Hardware keystore added to wallet'))
         self.ok_l.setAlignment(Qt.AlignCenter)
         self.layout().addWidget(self.ok_l)
 
@@ -810,7 +820,7 @@ class WCTrezorXPub(WizardComponent, Logger):
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)
 
-        cosigner = self._current_cosigner(self.wizard_data)
+        cosigner = self.wizard.current_cosigner(self.wizard_data)
         xtype = cosigner['script_type']
         derivation = cosigner['derivation_path']
 
@@ -836,18 +846,24 @@ class WCTrezorXPub(WizardComponent, Logger):
 
     def validate(self):
         if self.xpub and not self.error:
-            self.valid = True
+            self.apply()
+            valid, error = self.wizard.check_multisig_constraints(self.wizard_data)
+            if not valid:
+                self.error = '\n'.join([
+                    _('Could not add hardware keystore to wallet'),
+                    error
+                ])
+            self.valid = valid
         else:
             self.valid = False
 
     def apply(self):
-        if self.valid:
-            cosigner_data = self._current_cosigner(self.wizard_data)
-            cosigner_data['hw_type'] = 'trezor'
-            cosigner_data['master_key'] = self.xpub
-            cosigner_data['root_fingerprint'] = self.root_fingerprint
-            cosigner_data['label'] = self.label
-            cosigner_data['soft_device_id'] = self.soft_device_id
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        cosigner_data['hw_type'] = 'trezor'
+        cosigner_data['master_key'] = self.xpub
+        cosigner_data['root_fingerprint'] = self.root_fingerprint
+        cosigner_data['label'] = self.label
+        cosigner_data['soft_device_id'] = self.soft_device_id
 
 
 class WCTrezorInitMethod(WizardComponent, Logger):
@@ -863,16 +879,14 @@ class WCTrezorInitMethod(WizardComponent, Logger):
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
             (TIM_RECOVER, _("Recover from a seed you have previously written down")),
         ]
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
 
         self._valid = True
 
     def apply(self):
-        self.wizard_data['trezor_init'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['trezor_init'] = self.choice_w.selected_item[0]
 
 
 class WCTrezorInitParams(WizardComponent):
@@ -891,17 +905,7 @@ class WCTrezorInitParams(WizardComponent):
         self.busy = False
 
     def apply(self):
-        vbox = self.settings_layout
-        trezor_settings = TrezorInitSettings(
-            word_count=vbox.bg_numwords.checkedId(),
-            label=vbox.name.text(),
-            pin_enabled=vbox.cb_pin.isChecked(),
-            passphrase_enabled=vbox.cb_phrase.isChecked(),
-            recovery_type=vbox.bg_rectype.checkedId() if vbox.bg_rectype else None,
-            backup_type=vbox.bg_backuptype.checkedId(),
-            no_backup=vbox.cb_no_backup.isChecked() if vbox.cb_no_backup else False,
-        )
-        self.wizard_data['trezor_settings'] = trezor_settings
+        self.wizard_data['trezor_settings'] = self.settings_layout.get_settings()
 
 
 class WCTrezorInit(WizardComponent, Logger):

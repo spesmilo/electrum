@@ -538,6 +538,7 @@ class TrezorPlugin(HW_PluginBase):
             },
             'trezor_xpub': {
                 'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
             'trezor_not_initialized': {

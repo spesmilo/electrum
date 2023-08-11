@@ -51,8 +51,8 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, parent=None):
         NewWalletWizard.__init__(self, daemon, plugins)
-        QEAbstractWizard.__init__(self, config, app, plugins, daemon)
-        self._daemon = daemon  # TODO: dedupe
+        QEAbstractWizard.__init__(self, config, app)
+
         self._path = path
 
         # attach gui classes to views
@@ -408,7 +408,7 @@ class WCEnterExt(WizardComponent):
             self.valid = False
             return
 
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
 
         if self.wizard_data['wallet_type'] == 'multisig':
             if 'seed_variant' in cosigner_data and cosigner_data['seed_variant'] in ['bip39', 'slip39']:
@@ -429,7 +429,7 @@ class WCEnterExt(WizardComponent):
             self.valid = True
 
     def apply(self):
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         cosigner_data['seed_extra_words'] = self.ext_edit.text()
 
 
@@ -521,7 +521,7 @@ class WCHaveSeed(WizardComponent):
             self.valid = seed_valid
 
     def apply(self):
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
 
         cosigner_data['seed'] = self.slayout.get_seed()
         cosigner_data['seed_variant'] = self.slayout.seed_type
@@ -619,28 +619,19 @@ class WCScriptAndDerivation(WizardComponent):
     def validate(self):
         self.apply()
 
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         derivation_valid = is_bip32_derivation(cosigner_data['derivation_path'])
 
-        # TODO: refactor to wizard.current_cosigner_is_hardware
-        cosigner_is_hardware = cosigner_data == self.wizard_data and self.wizard_data['keystore_type'] == 'hardware'
-        if 'cosigner_keystore_type' in self.wizard_data and self.wizard_data['cosigner_keystore_type'] == 'hardware':
-            cosigner_is_hardware = True
-
-        if self.wizard.is_multisig(self.wizard_data) and derivation_valid and not cosigner_is_hardware:
-            if self.wizard.has_duplicate_masterkeys(self.wizard_data):
-                self._logger.debug('Duplicate master keys!')
+        if derivation_valid:
+            valid, error = self.wizard.check_multisig_constraints(self.wizard_data)
+            if not valid:
                 # TODO: user feedback
-                derivation_valid = False
-            elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
-                self._logger.debug('Heterogenous master keys!')
-                # TODO: user feedback
-                derivation_valid = False
+                self.logger.error(error)
 
-        self.valid = derivation_valid
+        self.valid = valid
 
     def apply(self):
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         cosigner_data['script_type'] = self.choice_w.selected_item[0]
         cosigner_data['derivation_path'] = str(self.derivation_path_edit.text())
 
@@ -745,7 +736,7 @@ class WCHaveMasterKey(WizardComponent):
 
     def apply(self):
         text = self.slayout.get_text()
-        cosigner_data = self._current_cosigner(self.wizard_data)
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         cosigner_data['master_key'] = text
 
 

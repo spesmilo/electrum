@@ -1,8 +1,9 @@
 import copy
 import os
 
-from typing import List, NamedTuple, Any, Dict, Optional
+from typing import List, NamedTuple, Any, Dict, Optional, Tuple
 
+from electrum.i18n import _
 from electrum.keystore import hardware_keystore
 from electrum.logging import get_logger
 from electrum.plugin import run_hook
@@ -270,7 +271,7 @@ class NewWalletWizard(AbstractWizard):
         raise NotImplementedError()
 
     # returns (sub)dict of current cosigner (or root if first)
-    def _current_cosigner(self, wizard_data):
+    def current_cosigner(self, wizard_data):
         wdata = wizard_data
         if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
             cosigner = wizard_data['multisig_current_cosigner']
@@ -278,11 +279,11 @@ class NewWalletWizard(AbstractWizard):
         return wdata
 
     def needs_derivation_path(self, wizard_data):
-        wdata = self._current_cosigner(wizard_data)
+        wdata = self.current_cosigner(wizard_data)
         return 'seed_variant' in wdata and wdata['seed_variant'] in ['bip39', 'slip39']
 
     def wants_ext(self, wizard_data):
-        wdata = self._current_cosigner(wizard_data)
+        wdata = self.current_cosigner(wizard_data)
         return 'seed_variant' in wdata and wdata['seed_extend']
 
     def is_multisig(self, wizard_data):
@@ -343,8 +344,8 @@ class NewWalletWizard(AbstractWizard):
         }.get(t)
 
     def on_have_cosigner_seed(self, wizard_data):
-        current_cosigner_data = wizard_data['multisig_cosigner_data'][str(wizard_data['multisig_current_cosigner'])]
-        if self.needs_derivation_path(wizard_data) and 'derivation_path' not in current_cosigner_data:
+        current_cosigner = self.current_cosigner(wizard_data)
+        if self.needs_derivation_path(wizard_data) and 'derivation_path' not in current_cosigner:
             return 'multisig_cosigner_script_and_derivation'
         elif self.last_cosigner(wizard_data):
             return 'wallet_password'
@@ -420,6 +421,47 @@ class NewWalletWizard(AbstractWizard):
             return keystore.from_master_key(data['master_key'])
         else:
             raise Exception('no seed or master_key in data')
+
+    def is_current_cosigner_hardware(self, wizard_data):
+        cosigner_data = self.current_cosigner(wizard_data)
+        cosigner_is_hardware = cosigner_data == wizard_data and wizard_data['keystore_type'] == 'hardware'
+        if 'cosigner_keystore_type' in wizard_data and wizard_data['cosigner_keystore_type'] == 'hardware':
+            cosigner_is_hardware = True
+        return cosigner_is_hardware
+
+    def check_multisig_constraints(self, wizard_data: dict) -> Tuple[bool, str]:
+        if not self.is_multisig(wizard_data):
+            return True, ''
+
+        # current cosigner might be incomplete. In that case, return valid
+        cosigner_data = self.current_cosigner(wizard_data)
+        if self.needs_derivation_path(wizard_data):
+            if 'derivation_path' not in cosigner_data:
+                self.logger.debug('defer multisig check: missing derivation_path')
+                return True, ''
+        if self.wants_ext(wizard_data):
+            if 'seed_extra_words' not in cosigner_data:
+                self.logger.debug('defer multisig check: missing extra words')
+                return True, ''
+        if self.is_current_cosigner_hardware(wizard_data):
+            if 'master_key' not in cosigner_data:
+                self._logger.debug('defer multisig check: missing master_key')
+                return True, ''
+
+        user_info = ''
+
+        if self.has_duplicate_masterkeys(wizard_data):
+            self._logger.debug('Duplicate master keys!')
+            user_info = _('Duplicate master keys')
+            multisig_keys_valid = False
+        elif self.has_heterogeneous_masterkeys(wizard_data):
+            self._logger.debug('Heterogenous master keys!')
+            user_info = _('Heterogenous master keys')
+            multisig_keys_valid = False
+        else:
+            multisig_keys_valid = True
+
+        return multisig_keys_valid, user_info
 
     def validate_seed(self, seed, seed_variant, wallet_type):
         seed_type = ''

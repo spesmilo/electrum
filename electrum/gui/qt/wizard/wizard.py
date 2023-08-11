@@ -22,11 +22,10 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     # def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
-    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: 'Daemon'):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication'):
         QDialog.__init__(self, None)
         self.app = app
         self.config = config
-        # self.plugins = plugins
 
         # compat
         self.gui_thread = threading.current_thread()
@@ -266,12 +265,3 @@ class WizardComponent(QWidget):
     @pyqtSlot()
     def on_updated(self, *args):
         self.updated.emit(self)
-
-    # returns (sub)dict of current cosigner (or root if first)
-    # TODO: maybe just always expose self.cosigner_data in wizardcomponent so we can avoid this call
-    def _current_cosigner(self, wizard_data):
-        wdata = wizard_data
-        if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
-            cosigner = wizard_data['multisig_current_cosigner']
-            wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
-        return wdata
