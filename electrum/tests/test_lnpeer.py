@@ -31,7 +31,7 @@ from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo
+from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
@@ -168,7 +168,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_settle = True
         self.enable_htlc_forwarding = True
         self.received_mpp_htlcs = dict()
-        self.sent_htlcs_q = defaultdict(asyncio.Queue)
+        self._paysessions = dict()
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
         self.final_onion_forwardings = set()
@@ -232,18 +232,22 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             await self.channel_db.stopped_event.wait()
 
     async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
-        return [r async for r in self.create_routes_for_payment(
-            amount_msat=amount_msat,
-            final_total_msat=amount_msat,
-            invoice_pubkey=decoded_invoice.pubkey.serialize(),
-            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
-            r_tags=decoded_invoice.get_routing_info('r'),
-            invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_level=0,
-            failed_trampoline_routes=[],
-            use_two_trampolines=False,
+        paysession = PaySession(
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
+            initial_trampoline_fee_level=0,
+            invoice_features=decoded_invoice.get_features(),
+            r_tags=decoded_invoice.get_routing_info('r'),
+            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
+            amount_to_pay=amount_msat,
+            invoice_pubkey=decoded_invoice.pubkey.serialize(),
+        )
+        paysession.use_two_trampolines = False
+        payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
+        self._paysessions[payment_key] = paysession
+        return [r async for r in self.create_routes_for_payment(
+            amount_msat=amount_msat,
+            paysession=paysession,
             full_path=full_path)]
 
     get_payments = LNWallet.get_payments
@@ -854,9 +858,6 @@ class TestPeer(ElectrumTestCase):
             _maybe_send_commitment2 = p2.maybe_send_commitment
             lnaddr2, pay_req2 = self.prepare_invoice(w2)
             lnaddr1, pay_req1 = self.prepare_invoice(w1)
-            # create the htlc queues now (side-effecting defaultdict)
-            q1 = w1.sent_htlcs_q[lnaddr2.paymenthash + lnaddr2.payment_secret]
-            q2 = w2.sent_htlcs_q[lnaddr1.paymenthash + lnaddr1.payment_secret]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
             route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0].route
@@ -901,9 +902,9 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            htlc_log1 = await q1.get()
+            htlc_log1 = await w1._paysessions[lnaddr2.paymenthash + lnaddr2.payment_secret].sent_htlcs_q.get()
             self.assertTrue(htlc_log1.success)
-            htlc_log2 = await q2.get()
+            htlc_log2 = await w2._paysessions[lnaddr1.paymenthash + lnaddr1.payment_secret].sent_htlcs_q.get()
             self.assertTrue(htlc_log2.success)
             raise PaymentDone()
 
