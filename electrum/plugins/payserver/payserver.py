@@ -29,7 +29,6 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Optional
 
 from aiohttp import web
-from aiorpcx import NetAddress
 
 from electrum import util
 from electrum.util import log_exceptions, ignore_exceptions
@@ -80,8 +79,7 @@ class PayServer(Logger, EventListener):
         assert self.has_www_dir(), self.WWW_DIR
         self.config = config
         self.wallet = wallet
-        url = self.config.PAYSERVER_ADDRESS
-        self.addr = NetAddress.from_string(url)
+        self.port = self.config.PAYSERVER_PORT
         self.pending = defaultdict(asyncio.Event)
         self.register_callbacks()
 
@@ -92,9 +90,7 @@ class PayServer(Logger, EventListener):
 
     @property
     def base_url(self):
-        payserver = self.config.PAYSERVER_ADDRESS
-        payserver = NetAddress.from_string(payserver)
-        return 'http://%s:%d'%(payserver.host, payserver.port)
+        return 'http://localhost:%d'%self.port
 
     @property
     def root(self):
@@ -121,9 +117,9 @@ class PayServer(Logger, EventListener):
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port)
+        site = web.TCPSite(runner, host='localhost', port=self.port)
         await site.start()
-        self.logger.info(f"now running and listening. addr={self.addr}")
+        self.logger.info(f"running and listening on port {self.port}")
 
     async def create_request(self, request):
         params = await request.post()

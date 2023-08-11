@@ -3,7 +3,6 @@ import asyncio
 from collections import defaultdict
 
 from aiohttp import web
-from aiorpcx import NetAddress
 
 from electrum.util import log_exceptions, ignore_exceptions
 from electrum.logging import Logger
@@ -24,7 +23,7 @@ class SwapServer(Logger, EventListener):
         self.config = config
         self.wallet = wallet
         self.sm = self.wallet.lnworker.swap_manager
-        self.addr = NetAddress.from_string(self.config.SWAPSERVER_ADDRESS)
+        self.port = self.config.SWAPSERVER_PORT
         self.register_callbacks() # eventlistener
 
         self.pending = defaultdict(asyncio.Event)
@@ -41,9 +40,9 @@ class SwapServer(Logger, EventListener):
 
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port)
+        site = web.TCPSite(runner, host='localhost', port=self.port)
         await site.start()
-        self.logger.info(f"now running and listening. addr={self.addr}")
+        self.logger.info(f"running and listening on port {self.port}")
 
     async def get_pairs(self, r):
         sm = self.sm

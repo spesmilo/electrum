@@ -9,7 +9,6 @@ from numbers import Real
 from functools import cached_property
 
 from copy import deepcopy
-from aiorpcx import NetAddress
 
 from . import util
 from . import constants
@@ -756,17 +755,6 @@ class SimpleConfig(Logger):
             device = ''
         return device
 
-    def get_netaddress(self, key: Union[str, ConfigVar, ConfigVarWithConfig]) -> Optional[NetAddress]:
-        if isinstance(key, (ConfigVar, ConfigVarWithConfig)):
-            key = key.key()
-        assert isinstance(key, str), key
-        text = self.get(key)
-        if text:
-            try:
-                return NetAddress.from_string(text)
-            except Exception:
-                pass
-
     def format_amount(
         self,
         amount_sat,
@@ -950,22 +938,22 @@ class SimpleConfig(Logger):
 
     # submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
+    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
+
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar('use_watchtower', default=False, type_=bool)
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
     # run WT locally
     WATCHTOWER_SERVER_ENABLED = ConfigVar('run_watchtower', default=False, type_=bool)
-    WATCHTOWER_SERVER_ADDRESS = ConfigVar('watchtower_address', default=None, type_=str)
+    WATCHTOWER_SERVER_PORT = ConfigVar('watchtower_port', default=None, type_=int)
     WATCHTOWER_SERVER_USER = ConfigVar('watchtower_user', default=None, type_=str)
     WATCHTOWER_SERVER_PASSWORD = ConfigVar('watchtower_password', default=None, type_=str)
 
-    PAYSERVER_ADDRESS = ConfigVar('payserver_address', default='localhost:8080', type_=str)
+    PAYSERVER_PORT = ConfigVar('payserver_port', default=8080, type_=int)
     PAYSERVER_ROOT = ConfigVar('payserver_root', default='/r', type_=str)
     PAYSERVER_ALLOW_CREATE_INVOICE = ConfigVar('payserver_allow_create_invoice', default=False, type_=bool)
-
-    SWAPSERVER_ADDRESS = ConfigVar('swapserver_address', default='localhost:5455', type_=str)
 
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 

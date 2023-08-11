@@ -413,7 +413,7 @@ if [[ $1 == "configure_test_watchtower" ]]; then
     $carol setconfig -o run_watchtower true
     $carol setconfig -o watchtower_user wtuser
     $carol setconfig -o watchtower_password wtpassword
-    $carol setconfig -o watchtower_address 127.0.0.1:12345
+    $carol setconfig -o watchtower_port 12345
     $bob setconfig -o watchtower_url http://wtuser:wtpassword@127.0.0.1:12345
 fi
 
