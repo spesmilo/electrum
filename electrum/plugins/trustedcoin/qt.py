@@ -55,7 +55,7 @@ from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
 if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
     from electrum.wallet import Abstract_Wallet
-    from electrum.wizard import NewWalletWizard
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
 
 class TOS(QTextEdit):
@@ -334,18 +334,14 @@ class Plugin(TrustedCoinPlugin):
         self.check_otp(window, short_id, otp_secret, xpub3, pw.get_amount(), cb_lost.isChecked())
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
-        pass
-
-    @hook
-    def init_wallet_wizard(self, wizard: 'QEWalletWizard'):
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         # FIXME: self.so is currently scoped to plugin, which is shared among wizards. This is wrong
         # refactor to be a member of the wizard instance
         self.so = QSignalObject(self, wizard, None)
         self.extend_wizard(wizard)
         self._wizard = wizard
 
-    def extend_wizard(self, wizard: 'NewWalletWizard'):
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'trustedcoin_start': {

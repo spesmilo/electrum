@@ -1,7 +1,7 @@
 import os
 import base64
 import json
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from electrum import bip32, constants
 from electrum.crypto import sha256
@@ -15,9 +15,12 @@ from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, Device
 from electrum.network import Network
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase
-from ..hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum.plugins.hw_wallet import HW_PluginBase, HardwareClientBase
+from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 

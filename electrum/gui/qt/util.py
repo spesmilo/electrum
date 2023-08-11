@@ -460,10 +460,13 @@ class ChoicesLayout(object):
 class ChoiceWidget(QWidget):
     itemSelected = pyqtSignal([int], arguments=['index'])
 
-    def __init__(self, *, message=None, choices=[], selected=None):
+    def __init__(self, *, message=None, choices=None, selected=None):
         QWidget.__init__(self)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
+
+        if choices is None:
+            choices = []
 
         self.selected_index = -1
         self.selected_item = None

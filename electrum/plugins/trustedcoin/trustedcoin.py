@@ -22,14 +22,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import asyncio
+
 import socket
 import json
 import base64
 import time
 import hashlib
-from collections import defaultdict
-from typing import Dict, Union, Sequence, List
+from typing import Dict, Union, Sequence, List, TYPE_CHECKING
 
 from urllib.parse import urljoin
 from urllib.parse import quote
@@ -48,6 +47,9 @@ from electrum.storage import StorageEncryptionVersion
 from electrum.network import Network
 from electrum.base_wizard import BaseWizard, WizardWalletPasswordSetting
 from electrum.logging import Logger
+
+if TYPE_CHECKING:
+    from electrum.wizard import NewWalletWizard
 
 
 def get_signing_xpub(xtype):

@@ -1,5 +1,6 @@
 import threading
 from functools import partial
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal, Qt
 
@@ -15,6 +16,9 @@ from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
 from .jade import JadePlugin
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
 
 class Plugin(JadePlugin, QtPluginBase):
@@ -36,11 +40,11 @@ class Plugin(JadePlugin, QtPluginBase):
             menu.addAction(_("Show on Jade"), show_address)
 
     @hook
-    def init_wallet_wizard(self, wizard: 'QEWalletWizard'):
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         self.extend_wizard(wizard)
 
     # insert trezor pages in new wallet wizard
-    def extend_wizard(self, wizard: 'NewWalletWizard'):
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'jade_start': { 'gui': WCScriptAndDerivation },

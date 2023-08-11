@@ -1,21 +1,23 @@
-import traceback
-import sys
-from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING, Sequence
+from typing import NamedTuple, Any, Optional, TYPE_CHECKING, Sequence
 
-from electrum.util import bfh, versiontuple, UserCancelled, UserFacingException
+from electrum.util import bfh, UserCancelled, UserFacingException
 from electrum.bip32 import BIP32Node
 from electrum import descriptor
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.logging import get_logger
 
-from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
+from electrum.plugins.hw_wallet import HW_PluginBase
+from electrum.plugins.hw_wallet.plugin import is_any_tx_output_on_change_branch, \
+    trezor_validate_op_return_output_and_get_data, LibraryFoundButUnusable, OutdatedHwFirmwareException
+
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 

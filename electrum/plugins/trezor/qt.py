@@ -1,5 +1,6 @@
 from functools import partial
 import threading
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
@@ -22,8 +23,10 @@ from electrum.gui.qt.wizard.wizard import WizardComponent
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
                      PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
 
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
-PASSPHRASE_HELP_SHORT =_(
+PASSPHRASE_HELP_SHORT = _(
     "Passphrases allow you to access new wallets, each "
     "hidden behind a particular case-sensitive passphrase.")
 PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
@@ -463,11 +466,11 @@ class Plugin(TrezorPlugin, QtPlugin):
         return PinMatrixWidget
 
     @hook
-    def init_wallet_wizard(self, wizard: 'QEWalletWizard'):
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         self.extend_wizard(wizard)
 
     # insert trezor pages in new wallet wizard
-    def extend_wizard(self, wizard: 'NewWalletWizard'):
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'trezor_start': { 'gui': WCScriptAndDerivation },
