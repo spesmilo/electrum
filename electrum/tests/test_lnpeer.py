@@ -241,6 +241,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
+            uses_trampoline=False,
         )
         paysession.use_two_trampolines = False
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
@@ -861,6 +862,7 @@ class TestPeer(ElectrumTestCase):
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
             route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0].route
+            paysession1 = w1._paysessions[lnaddr2.paymenthash + lnaddr2.payment_secret]
             shi1 = SentHtlcInfo(
                 route=route1,
                 payment_secret_orig=lnaddr2.payment_secret,
@@ -873,13 +875,14 @@ class TestPeer(ElectrumTestCase):
             )
             await w1.pay_to_route(
                 sent_htlc_info=shi1,
-                payment_hash=lnaddr2.paymenthash,
+                paysession=paysession1,
                 min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
             route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0].route
+            paysession2 = w2._paysessions[lnaddr1.paymenthash + lnaddr1.payment_secret]
             shi2 = SentHtlcInfo(
                 route=route2,
                 payment_secret_orig=lnaddr1.payment_secret,
@@ -892,7 +895,7 @@ class TestPeer(ElectrumTestCase):
             )
             await w2.pay_to_route(
                 sent_htlc_info=shi2,
-                payment_hash=lnaddr1.paymenthash,
+                paysession=paysession2,
                 min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
@@ -902,9 +905,9 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            htlc_log1 = await w1._paysessions[lnaddr2.paymenthash + lnaddr2.payment_secret].sent_htlcs_q.get()
+            htlc_log1 = await paysession1.sent_htlcs_q.get()
             self.assertTrue(htlc_log1.success)
-            htlc_log2 = await w2._paysessions[lnaddr1.paymenthash + lnaddr1.payment_secret].sent_htlcs_q.get()
+            htlc_log2 = await paysession2.sent_htlcs_q.get()
             self.assertTrue(htlc_log2.success)
             raise PaymentDone()
 
@@ -1603,9 +1606,10 @@ class TestPeer(ElectrumTestCase):
                 trampoline_fee_level=None,
                 trampoline_route=None,
             )
+            paysession = w1._paysessions[lnaddr.paymenthash + lnaddr.payment_secret]
             pay = w1.pay_to_route(
                 sent_htlc_info=shi,
-                payment_hash=lnaddr.paymenthash,
+                paysession=paysession,
                 min_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
             )
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
