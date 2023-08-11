@@ -1296,6 +1296,7 @@ class LNWallet(LNWorker):
         self.failed_trampoline_routes = []
         start_time = time.time()
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
+        nhtlcs_inflight = 0
         while True:
             amount_to_send = amount_to_pay - amount_inflight
             if amount_to_send > 0:
@@ -1319,6 +1320,7 @@ class LNWallet(LNWorker):
                 )
                 # 2. send htlcs
                 async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
+                    nhtlcs_inflight += 1
                     amount_inflight += sent_htlc_info.amount_receiver_msat
                     if amount_inflight > amount_to_pay:  # safety belts
                         raise Exception(f"amount_inflight={amount_inflight} > amount_to_pay={amount_to_pay}")
@@ -1329,16 +1331,17 @@ class LNWallet(LNWorker):
                         min_cltv_expiry=cltv_delta,
                         trampoline_onion=trampoline_onion,
                     )
-                # invoice_status is triggered in self.set_invoice_status when it actally changes.
+                # invoice_status is triggered in self.set_invoice_status when it actually changes.
                 # It is also triggered here to update progress for a lightning payment in the GUI
                 # (e.g. attempt counter)
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex(), PR_INFLIGHT)
             # 3. await a queue
-            self.logger.info(f"amount inflight {amount_inflight}")
-            htlc_log = await self.sent_htlcs_q[payment_key].get()
+            self.logger.info(f"(paysession for RHASH {payment_hash.hex()}) {amount_inflight=}. {nhtlcs_inflight=}")
+            htlc_log = await self.sent_htlcs_q[payment_key].get()  # TODO maybe wait a bit, more failures might come
             amount_inflight -= htlc_log.amount_msat
-            if amount_inflight < 0:
-                raise Exception(f"amount_inflight={amount_inflight} < 0")
+            nhtlcs_inflight -= 1
+            if amount_inflight < 0 or nhtlcs_inflight < 0:
+                raise Exception(f"{amount_inflight=}, {nhtlcs_inflight=}. both should be >= 0 !")
             log.append(htlc_log)
             if htlc_log.success:
                 if self.network.path_finder:
