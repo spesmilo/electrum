@@ -153,6 +153,9 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
     # TODO revise ad-hoc heuristics
     if cltv > NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
         return False
+    # FIXME in case of MPP, the fee checks are done independently for each part,
+    #       which is ok for the proportional checks but not for the absolute ones.
+    #       This is not that big of a deal though as we don't split into *too many* parts.
     if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
         return False
     return True

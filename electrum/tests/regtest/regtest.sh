@@ -93,6 +93,7 @@ if [[ $1 == "init" ]]; then
     $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
     $agent setconfig --offline lightning_to_self_delay 144
+    $agent setconfig --offline test_force_disable_mpp True
     # alice is funded, bob is listening
     if [[ $2 == "bob" ]]; then
         $bob setconfig --offline lightning_listen localhost:9735

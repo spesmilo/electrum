@@ -869,6 +869,7 @@ class SimpleConfig(Logger):
     TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = ConfigVar('test_fail_htlcs_with_temp_node_failure', default=False, type_=bool)
     TEST_FAIL_HTLCS_AS_MALFORMED = ConfigVar('test_fail_malformed_htlc', default=False, type_=bool)
     TEST_FORCE_MPP = ConfigVar('test_force_mpp', default=False, type_=bool)
+    TEST_FORCE_DISABLE_MPP = ConfigVar('test_force_disable_mpp', default=False, type_=bool)
     TEST_SHUTDOWN_FEE = ConfigVar('test_shutdown_fee', default=None, type_=int)
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)

@@ -83,7 +83,7 @@ from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
-from .mpp_split import suggest_splits
+from .mpp_split import suggest_splits, SplitConfigRating
 from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
 
 if TYPE_CHECKING:
@@ -661,6 +661,8 @@ class LNWallet(LNWorker):
     MPP_EXPIRY = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
     PAYMENT_TIMEOUT = 120
+    MPP_SPLIT_PART_FRACTION = 0.2
+    MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
@@ -1604,12 +1606,21 @@ class LNWallet(LNWorker):
         else:
             return random.choice(list(hardcoded_trampoline_nodes().values())).pubkey
 
-    def suggest_splits(self, amount_msat: int, my_active_channels, invoice_features, r_tags):
+    def suggest_splits(
+        self,
+        *,
+        amount_msat: int,
+        final_total_msat: int,
+        my_active_channels: Sequence[Channel],
+        invoice_features: LnFeatures,
+        r_tags,
+    ) -> List['SplitConfigRating']:
         channels_with_funds = {
             (chan.channel_id, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
             for chan in my_active_channels
         }
         self.logger.info(f"channels_with_funds: {channels_with_funds}")
+        exclude_single_part_payments = False
         if self.uses_trampoline():
             # in the case of a legacy payment, we don't allow splitting via different
             # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
@@ -1621,10 +1632,15 @@ class LNWallet(LNWorker):
         else:
             exclude_multinode_payments = False
             exclude_single_channel_splits = False
+            if invoice_features.supports(LnFeatures.BASIC_MPP_OPT) and not self.config.TEST_FORCE_DISABLE_MPP:
+                # if amt is still large compared to total_msat, split it:
+                if (amount_msat / final_total_msat > self.MPP_SPLIT_PART_FRACTION
+                        and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT):
+                    exclude_single_part_payments = True
         split_configurations = suggest_splits(
             amount_msat,
             channels_with_funds,
-            exclude_single_part_payments=False,
+            exclude_single_part_payments=exclude_single_part_payments,
             exclude_multinode_payments=exclude_multinode_payments,
             exclude_single_channel_splits=exclude_single_channel_splits
         )
@@ -1664,13 +1680,21 @@ class LNWallet(LNWorker):
                 chan.is_active() and not chan.is_frozen_for_sending()]
         # try random order
         random.shuffle(my_active_channels)
-        split_configurations = self.suggest_splits(amount_msat, my_active_channels, invoice_features, r_tags)
+        split_configurations = self.suggest_splits(
+            amount_msat=amount_msat,
+            final_total_msat=final_total_msat,
+            my_active_channels=my_active_channels,
+            invoice_features=invoice_features,
+            r_tags=r_tags,
+        )
         for sc in split_configurations:
             is_multichan_mpp = len(sc.config.items()) > 1
             is_mpp = sum(len(x) for x in list(sc.config.values())) > 1
             if is_mpp and not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
             if not is_mpp and self.config.TEST_FORCE_MPP:
+                continue
+            if is_mpp and self.config.TEST_FORCE_DISABLE_MPP:
                 continue
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
             routes = []

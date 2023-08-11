@@ -133,6 +133,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     PAYMENT_TIMEOUT = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
     INITIAL_TRAMPOLINE_FEE_LEVEL = 0
+    MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
+    MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
