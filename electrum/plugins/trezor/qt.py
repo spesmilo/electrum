@@ -826,7 +826,7 @@ class WCTrezorXPub(WizardComponent, Logger):
 
         def get_xpub_task(client, derivation, xtype):
             try:
-                self.xpub = client.get_xpub(derivation, xtype)
+                self.xpub = client.get_xpub(derivation, xtype, True)
                 self.root_fingerprint = client.request_root_fingerprint_from_device()
                 self.label = client.label()
                 self.soft_device_id = client.get_soft_device_id()
@@ -914,6 +914,9 @@ class WCTrezorInit(WizardComponent, Logger):
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('trezor')
+
+        self.layout().addWidget(WWLabel('Done'))
+
         self._busy = True
 
     def on_ready(self):
@@ -937,7 +940,6 @@ class WCTrezorInit(WizardComponent, Logger):
     def init_done(self):
         self.logger.info('Done initialize device')
         self.busy = False
-        self.layout().addWidget(WWLabel('Done'))
 
     def apply(self):
         pass
