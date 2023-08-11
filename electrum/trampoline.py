@@ -2,7 +2,7 @@ import os
 import bitstring
 import random
 
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List
+from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence
 
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
@@ -141,7 +141,7 @@ def trampoline_policy(
         raise NoPathFound()
 
 
-def extend_trampoline_route(
+def _extend_trampoline_route(
         route: List,
         start_node: bytes,
         end_node: bytes,
@@ -161,7 +161,7 @@ def extend_trampoline_route(
             node_features=trampoline_features))
 
 
-def choose_second_trampoline(my_trampoline, trampolines, failed_routes):
+def _choose_second_trampoline(my_trampoline, trampolines, failed_routes: Iterable[Sequence[str]]):
     if my_trampoline in trampolines:
         trampolines.remove(my_trampoline)
     for r in failed_routes:
@@ -184,7 +184,7 @@ def create_trampoline_route(
         r_tags,
         trampoline_fee_level: int,
         use_two_trampolines: bool,
-        failed_routes: list,
+        failed_routes: Iterable[Sequence[str]],
 ) -> LNPaymentRoute:
     # we decide whether to convert to a legacy payment
     is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
@@ -194,14 +194,14 @@ def create_trampoline_route(
     second_trampoline = None
 
     # our first trampoline hop is decided by the channel we use
-    extend_trampoline_route(route, my_pubkey, my_trampoline, trampoline_fee_level)
+    _extend_trampoline_route(route, my_pubkey, my_trampoline, trampoline_fee_level)
 
     if is_legacy:
         # we add another different trampoline hop for privacy
         if use_two_trampolines:
             trampolines = trampolines_by_id()
-            second_trampoline = choose_second_trampoline(my_trampoline, list(trampolines.keys()), failed_routes)
-            extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
+            second_trampoline = _choose_second_trampoline(my_trampoline, list(trampolines.keys()), failed_routes)
+            _extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
         invoice_routing_info = encode_routing_info(r_tags)
@@ -219,11 +219,11 @@ def create_trampoline_route(
             else:
                 add_trampoline = True
             if add_trampoline:
-                second_trampoline = choose_second_trampoline(my_trampoline, invoice_trampolines, failed_routes)
-                extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
+                second_trampoline = _choose_second_trampoline(my_trampoline, invoice_trampolines, failed_routes)
+                _extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
 
     # final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
-    extend_trampoline_route(route, route[-1].end_node, invoice_pubkey, trampoline_fee_level, pay_fees=False)
+    _extend_trampoline_route(route, route[-1].end_node, invoice_pubkey, trampoline_fee_level, pay_fees=False)
     # check that we can pay amount and fees
     for edge in route[::-1]:
         amount_msat += edge.fee_for_edge(amount_msat)
@@ -294,7 +294,7 @@ def create_trampoline_route_and_onion(
         local_height: int,
         trampoline_fee_level: int,
         use_two_trampolines: bool,
-        failed_routes: list):
+        failed_routes: Iterable[Sequence[str]]):
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,

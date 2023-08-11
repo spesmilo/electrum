@@ -1294,8 +1294,8 @@ class LNWallet(LNWorker):
         # sometimes need to fall back to a single trampoline forwarder, at the expense
         # of privacy
         use_two_trampolines = True
-        self.trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
-        self.failed_trampoline_routes = []
+        trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
+        failed_trampoline_routes = []
         start_time = time.time()
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         nhtlcs_inflight = 0
@@ -1315,7 +1315,8 @@ class LNWallet(LNWorker):
                     full_path=full_path,
                     payment_hash=payment_hash,
                     payment_secret=payment_secret,
-                    trampoline_fee_level=self.trampoline_fee_level,
+                    trampoline_fee_level=trampoline_fee_level,
+                    failed_trampoline_routes=failed_trampoline_routes,
                     use_two_trampolines=use_two_trampolines,
                     fwd_trampoline_onion=fwd_trampoline_onion,
                     channels=channels,
@@ -1326,7 +1327,7 @@ class LNWallet(LNWorker):
                     amount_inflight += sent_htlc_info.amount_receiver_msat
                     if amount_inflight > amount_to_pay:  # safety belts
                         raise Exception(f"amount_inflight={amount_inflight} > amount_to_pay={amount_to_pay}")
-                    sent_htlc_info = sent_htlc_info._replace(trampoline_fee_level=self.trampoline_fee_level)
+                    sent_htlc_info = sent_htlc_info._replace(trampoline_fee_level=trampoline_fee_level)
                     await self.pay_to_route(
                         sent_htlc_info=sent_htlc_info,
                         payment_hash=payment_hash,
@@ -1338,7 +1339,7 @@ class LNWallet(LNWorker):
                 # (e.g. attempt counter)
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex(), PR_INFLIGHT)
             # 3. await a queue
-            self.logger.info(f"(paysession for RHASH {payment_hash.hex()}) {amount_inflight=}. {nhtlcs_inflight=}")
+            self.logger.info(f"paysession for RHASH {payment_hash.hex()} waiting... {amount_inflight=}. {nhtlcs_inflight=}")
             htlc_log = await self.sent_htlcs_q[payment_key].get()  # TODO maybe wait a bit, more failures might come
             amount_inflight -= htlc_log.amount_msat
             nhtlcs_inflight -= 1
@@ -1373,12 +1374,14 @@ class LNWallet(LNWorker):
             # trampoline
             if self.uses_trampoline():
                 def maybe_raise_trampoline_fee(htlc_log):
-                    if htlc_log.trampoline_fee_level == self.trampoline_fee_level:
-                        self.trampoline_fee_level += 1
-                        self.failed_trampoline_routes = []
-                        self.logger.info(f'raising trampoline fee level {self.trampoline_fee_level}')
+                    nonlocal trampoline_fee_level
+                    nonlocal failed_trampoline_routes
+                    if htlc_log.trampoline_fee_level == trampoline_fee_level:
+                        trampoline_fee_level += 1
+                        failed_trampoline_routes = []
+                        self.logger.info(f'raising trampoline fee level {trampoline_fee_level}')
                     else:
-                        self.logger.info(f'NOT raising trampoline fee level, already at {self.trampoline_fee_level}')
+                        self.logger.info(f'NOT raising trampoline fee level, already at {trampoline_fee_level}')
                 # FIXME The trampoline nodes in the path are chosen randomly.
                 #       Some of the errors might depend on how we have chosen them.
                 #       Having more attempts is currently useful in part because of the randomness,
@@ -1402,8 +1405,10 @@ class LNWallet(LNWorker):
                     trampoline_route = htlc_log.route
                     r = [hop.end_node.hex() for hop in trampoline_route]
                     self.logger.info(f'failed trampoline route: {r}')
-                    assert r not in self.failed_trampoline_routes
-                    self.failed_trampoline_routes.append(r)
+                    if r not in failed_trampoline_routes:
+                        failed_trampoline_routes.append(r)
+                    else:
+                        pass  # maybe the route was reused between different MPP parts
                     continue
                 else:
                     raise PaymentFailure(failure_msg.code_name())
@@ -1658,6 +1663,7 @@ class LNWallet(LNWorker):
             payment_hash: bytes,
             payment_secret: bytes,
             trampoline_fee_level: int,
+            failed_trampoline_routes: Iterable[Sequence[str]],
             use_two_trampolines: bool,
             fwd_trampoline_onion=None,
             full_path: LNPaymentPath = None,
@@ -1731,7 +1737,7 @@ class LNWallet(LNWorker):
                                 local_height=local_height,
                                 trampoline_fee_level=trampoline_fee_level,
                                 use_two_trampolines=use_two_trampolines,
-                                failed_routes=self.failed_trampoline_routes)
+                                failed_routes=failed_trampoline_routes)
                             # node_features is only used to determine is_tlv
                             per_trampoline_secret = os.urandom(32)
                             per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount

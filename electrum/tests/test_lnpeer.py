@@ -240,6 +240,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             r_tags=decoded_invoice.get_routing_info('r'),
             invoice_features=decoded_invoice.get_features(),
             trampoline_fee_level=0,
+            failed_trampoline_routes=[],
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
