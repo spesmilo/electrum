@@ -40,7 +40,8 @@ from electrum.logging import Logger, get_logger
 from electrum.base_wizard import GoBack, UserCancelled
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
-                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ChoicesLayout, ColorScheme)
+                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ColorScheme,
+                                  ChoiceWidget)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -431,16 +432,14 @@ class WCChooseSeed(WizardComponent):
             ('haveseed',    _('I already have a seed')),
         ]
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
 
         self._valid = True
 
     def apply(self):
-        self.wizard_data['keystore_type'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['keystore_type'] = self.choice_w.selected_item[0]
 
 
 class WCTerms(WizardComponent):
@@ -639,13 +638,11 @@ class WCKeepDisable(WizardComponent):
             ('disable', _('Disable')),
         ]
 
-        self.c_values = [x[0] for x in choices]
-        c_titles = [x[1] for x in choices]
-        self.clayout = ChoicesLayout(message, c_titles)
-        self.layout().addLayout(self.clayout.layout())
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
 
         self._valid = True
 
     def apply(self):
-        self.wizard_data['trustedcoin_keepordisable'] = self.c_values[self.clayout.selected_index()]
+        self.wizard_data['trustedcoin_keepordisable'] = self.choice_w.selected_item[0]
