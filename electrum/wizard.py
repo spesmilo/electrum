@@ -4,6 +4,7 @@ import os
 from typing import List, NamedTuple, Any, Dict, Optional, Tuple
 
 from electrum.i18n import _
+from electrum.interface import ServerAddr
 from electrum.keystore import hardware_keystore
 from electrum.logging import get_logger
 from electrum.plugin import run_hook
@@ -647,24 +648,56 @@ class ServerConnectWizard(AbstractWizard):
 
     _logger = get_logger(__name__)
 
-    def __init__(self, daemon):
+    def __init__(self, daemon: 'Daemon'):
         AbstractWizard.__init__(self)
         self.navmap = {
             'autoconnect': {
                 'next': 'server_config',
+                'accept': self.do_configure_autoconnect,
                 'last': lambda d: d['autoconnect']
             },
             'proxy_ask': {
                 'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
             },
             'proxy_config': {
-                'next': 'autoconnect'
+                'next': 'autoconnect',
+                'accept': self.do_configure_proxy
             },
             'server_config': {
+                'accept': self.do_configure_server,
                 'last': True
             }
         }
         self._daemon = daemon
+
+    def do_configure_proxy(self, wizard_data):
+        proxy_settings = wizard_data['proxy']
+        if not self._daemon.network:
+            self._logger.debug('not configuring proxy, electrum config wants offline mode')
+            return
+        self._logger.debug(f'configuring proxy: {proxy_settings!r}')
+        net_params = self._daemon.network.get_parameters()
+        if not proxy_settings['enabled']:
+            proxy_settings = None
+        net_params = net_params._replace(proxy=proxy_settings)
+        self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
+
+    def do_configure_server(self, wizard_data):
+        self._logger.debug(f'configuring server: {wizard_data!r}')
+        net_params = self._daemon.network.get_parameters()
+        try:
+            server = ServerAddr.from_str_with_inference(wizard_data['server'])
+            if not server:
+                raise Exception('failed to parse server %s' % wizard_data['server'])
+        except Exception:
+            return
+        net_params = net_params._replace(server=server, auto_connect=wizard_data['autoconnect'])
+        self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
+
+    def do_configure_autoconnect(self, wizard_data):
+        self._logger.debug(f'configuring autoconnect: {wizard_data!r}')
+        if self._daemon.config.cv.NETWORK_AUTO_CONNECT.is_modifiable():
+            self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data['autoconnect']
 
     def start(self, initial_data=None):
         if initial_data is None:

@@ -46,16 +46,7 @@ class WCAutoConnect(WizardComponent):
         self._valid = True
 
     def apply(self):
-        r = self.choice_w.selected_index
-        self.wizard_data['autoconnect'] = (r == 0)
-        # if r == 1:
-        #     nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
-        #     if self.exec_layout(nlayout.layout()):
-        #         nlayout.accept()
-        #         self.config.NETWORK_AUTO_CONNECT = network.auto_connect
-        # else:
-        #     network.auto_connect = True
-        #     self.config.NETWORK_AUTO_CONNECT = True
+        self.wizard_data['autoconnect'] = (self.choice_w.selected_item[0] == 'autoconnect')
 
 
 class WCProxyAsk(WizardComponent):
@@ -70,29 +61,31 @@ class WCProxyAsk(WizardComponent):
         self._valid = True
 
     def apply(self):
-        r = self.choice_w.selected_index
-        self.wizard_data['want_proxy'] = (r == 0)
+        self.wizard_data['want_proxy'] = (self.choice_w.selected_item[0] == 'yes')
 
 
 class WCProxyConfig(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
-        pw = ProxyWidget(self)
-        self.layout().addWidget(pw)
+        self.pw = ProxyWidget(self)
+        self.pw.proxy_cb.setChecked(True)
+        self.pw.proxy_host.setText('localhost')
+        self.pw.proxy_port.setText('9050')
+        self.layout().addWidget(self.pw)
         self.layout().addStretch(1)
+        self._valid = True
 
     def apply(self):
-        # TODO
-        pass
+        self.wizard_data['proxy'] = self.pw.get_proxy_settings()
 
 
 class WCServerConfig(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_("Server"))
-        sw = ServerWidget(self)
-        self.layout().addWidget(sw)
-        self.layout().addStretch(1)
+        self.sw = ServerWidget(wizard._daemon.network, self)
+        self.layout().addWidget(self.sw)
+        self._valid = True
 
     def apply(self):
-        # TODO
-        pass
+        self.wizard_data['autoconnect'] = self.sw.autoconnect_cb.isChecked()
+        self.wizard_data['server'] = self.sw.server_e.text()
