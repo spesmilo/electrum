@@ -5,10 +5,9 @@ import os
 import sys
 import html
 import threading
-import asyncio
 from typing import TYPE_CHECKING, Set
 
-from PyQt5.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLocale,
+from PyQt5.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
@@ -60,6 +59,7 @@ if 'ANDROID_DATA' in os.environ:
     jview = jpythonActivity.getWindow().getDecorView()
 
 notification = None
+
 
 class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
@@ -319,6 +319,7 @@ class QEAppController(BaseCrashReporter, QObject):
             self._secureWindow = secure
             self.secureWindowChanged.emit()
 
+
 class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
@@ -376,7 +377,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.plugins = plugins
         self._qeconfig = QEConfig(config)
         self._qenetwork = QENetwork(daemon.network, self._qeconfig)
-        self.daemon = QEDaemon(daemon)
+        self.daemon = QEDaemon(daemon, self.plugins)
         self.appController = QEAppController(self, self.daemon, self.plugins)
         self._maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self.appController)
@@ -412,6 +413,7 @@ class ElectrumQmlApplication(QGuiApplication):
         if re.search('file:///.*TypeError: Cannot read property.*null$', file):
             return
         self.logger.warning(file)
+
 
 class Exception_Hook(QObject, Logger):
     _report_exception = pyqtSignal(object, object, object, object)
