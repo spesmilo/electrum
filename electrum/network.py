@@ -477,7 +477,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.requested_fee_estimates()
         histogram = await interface.get_fee_histogram()
         self.config.mempool_fees = histogram
-        self.logger.info(f'fee_histogram {histogram}')
+        self.logger.info(f'fee_histogram {len(histogram)}')
         util.trigger_callback('fee_histogram', self.config.mempool_fees)
 
     def get_parameters(self) -> NetworkParameters:
