@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Optional, Dict, Union
 from decimal import Decimal
 import math
+import time
 
 import attr
 import aiohttp
@@ -124,6 +125,8 @@ class SwapServerError(Exception):
     def __str__(self):
         return _("The swap server errored or is unreachable.")
 
+def now():
+    return int(time.time())
 
 @stored_in('submarine_swaps')
 @attr.s
@@ -217,28 +220,30 @@ class SwapManager(Logger):
         asyncio.run_coroutine_threadsafe(network.taskgroup.spawn(coro), network.asyncio_loop)
 
     async def pay_pending_invoices(self):
-        # FIXME this method can raise, which is not properly handled...?
-        self.invoices_to_pay = set()
+        self.invoices_to_pay = {}
         while True:
-            await asyncio.sleep(1)
-            for key in list(self.invoices_to_pay):
+            await asyncio.sleep(5)
+            for key, not_before in list(self.invoices_to_pay.items()):
+                if now() < not_before:
+                    continue
                 swap = self.swaps.get(key)
                 if not swap:
                     continue
                 invoice = self.wallet.get_invoice(key)
                 if not invoice:
                     continue
-                current_height = self.network.get_local_height()
-                delta = swap.locktime - current_height
-                if delta <= MIN_LOCKTIME_DELTA:
-                    # fixme: should consider cltv of ln payment
-                    self.logger.info(f'locktime too close {key}')
+                self.logger.info(f'trying to pay invoice {key}')
+                try:
+                    success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=10)
+                except Exception as e:
+                    success = False
+                if success:
+                    self.invoices_to_pay.pop(key)
                     continue
-                success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=10)
-                if not success:
-                    self.logger.info(f'failed to pay invoice {key}')
-                    continue
-                self.invoices_to_pay.remove(key)
+                # retry in 10 minutes
+                self.logger.info(f'failed to pay invoice {key}')
+                self.invoices_to_pay[key] = now() + 600
+
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -297,13 +302,21 @@ class SwapManager(Logger):
                     continue
             else:
                 if swap.preimage is None:
+                    swap.preimage = self.lnworker.get_preimage(swap.payment_hash)
+                if swap.preimage is None:
                     if funding_conf <= 0:
                         continue
-                    preimage = self.lnworker.get_preimage(swap.payment_hash)
-                    if preimage is None:
-                        self.invoices_to_pay.add(swap.payment_hash.hex())
+                    key = swap.payment_hash.hex()
+                    if -delta <= MIN_LOCKTIME_DELTA:
+                        if key in self.invoices_to_pay:
+                            # fixme: should consider cltv of ln payment
+                            self.logger.info(f'locktime too close {key} {delta}')
+                            self.invoices_to_pay.pop(key, None)
                         continue
-                    swap.preimage = preimage
+                    if key not in self.invoices_to_pay:
+                        self.invoices_to_pay[key] = 0
+                    continue
+
                 if self.network.config.TEST_SWAPSERVER_REFUND:
                     # for testing: do not create claim tx
                     continue
@@ -502,7 +515,7 @@ class SwapManager(Logger):
             swap = self.get_swap(payment_hash)
             assert sha256(swap.preimage) == payment_hash
             assert swap.spending_txid is None
-            self.invoices_to_pay.add(key)
+            self.invoices_to_pay[key] = 0
 
     async def normal_swap(
             self,
