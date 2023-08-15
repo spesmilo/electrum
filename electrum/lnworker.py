@@ -1604,7 +1604,7 @@ class LNWallet(LNWorker):
         else:
             blacklist = True
         if blacklist:
-            self.network.path_finder.liquidity_hints.add_to_blacklist(failing_channel)
+            self.network.path_finder.add_edge_to_blacklist(short_channel_id=failing_channel)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
