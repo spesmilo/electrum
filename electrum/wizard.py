@@ -182,6 +182,9 @@ class AbstractWizard:
             return result
         return sanitize(_stack_item)
 
+    def get_wizard_data(self):
+        return copy.deepcopy(self._current.wizard_data)
+
 
 class NewWalletWizard(AbstractWizard):
 

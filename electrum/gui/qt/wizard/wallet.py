@@ -53,6 +53,8 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         NewWalletWizard.__init__(self, daemon, plugins)
         QEAbstractWizard.__init__(self, config, app)
 
+        self.setWindowTitle(_('Create/Restore wallet'))
+
         self._path = path
 
         # attach gui classes to views
@@ -77,7 +79,19 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'wallet_password_hardware': { 'gui': WCWalletPasswordHardware }
         })
 
-        # modify default flow, insert seed extension entry/confirm as separate views
+        # add open existing wallet from wizard, incl hw unlock
+        self.navmap_merge({
+            'wallet_name': {
+                'next': lambda d: 'hw_unlock' if d['wallet_needs_hw_unlock'] else 'wallet_type',
+                'last': lambda d: d['wallet_exists'] and not d['wallet_needs_hw_unlock']
+            },
+            'hw_unlock': {
+                'last': True,
+                'gui': WCChooseHWDevice
+            }
+        })
+
+        # insert seed extension entry/confirm as separate views
         self.navmap_merge({
             'create_seed': {
                 'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed'
@@ -164,6 +178,10 @@ class WCWalletName(WizardComponent):
         if os.path.isdir(path):
             raise Exception("wallet path cannot point to a directory")
 
+        self.wallet_exists = False
+        self.wallet_is_open = False
+        self.wallet_needs_hw_unlock = False
+
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(_('Wallet') + ':'))
         self.name_e = QLineEdit()
@@ -175,11 +193,11 @@ class WCWalletName(WizardComponent):
         msg_label = WWLabel('')
         self.layout().addWidget(msg_label)
         hbox2 = QHBoxLayout()
-        pw_e = PasswordLineEdit('', self)
-        pw_e.setFixedWidth(17 * char_width_in_lineedit())
+        self.pw_e = PasswordLineEdit('', self)
+        self.pw_e.setFixedWidth(17 * char_width_in_lineedit())
         pw_label = QLabel(_('Password') + ':')
         hbox2.addWidget(pw_label)
-        hbox2.addWidget(pw_e)
+        hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         self.layout().addLayout(hbox2)
 
@@ -208,15 +226,19 @@ class WCWalletName(WizardComponent):
             nonlocal temp_storage
             temp_storage = None
             msg = None
+            self.wallet_exists = False
+            self.wallet_is_open = False
+            self.wallet_needs_hw_unlock = False
             if filename:
                 path = os.path.join(wallet_folder, filename)
-                # wallet_from_memory = get_wallet_from_daemon(path)
                 wallet_from_memory = self.wizard._daemon.get_wallet(path)
                 try:
                     if wallet_from_memory:
                         temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
+                        self.wallet_is_open = True
                     else:
                         temp_storage = WalletStorage(path)
+                    self.wallet_exists = temp_storage.file_exists()
                 except (StorageReadWriteError, WalletFileException) as e:
                     msg = _('Cannot read file') + f'\n{repr(e)}'
                 except Exception as e:
@@ -224,12 +246,11 @@ class WCWalletName(WizardComponent):
                     msg = _('Cannot read file') + f'\n{repr(e)}'
             else:
                 msg = ""
-            # self.next_button.setEnabled(temp_storage is not None)
             self.valid = temp_storage is not None
             user_needs_to_enter_password = False
             if temp_storage:
                 if not temp_storage.file_exists():
-                    msg =_("This file does not exist.") + '\n' \
+                    msg = _("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
                 elif not wallet_from_memory:
                     if temp_storage.is_encrypted_with_user_pw():
@@ -239,22 +260,23 @@ class WCWalletName(WizardComponent):
                     elif temp_storage.is_encrypted_with_hw_device():
                         msg = _("This file is encrypted using a hardware device.") + '\n' \
                               + _("Press 'Next' to choose device to decrypt.")
+                        self.wallet_needs_hw_unlock = True
                     else:
                         msg = _("Press 'Next' to open this wallet.")
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
-                        + _("Press 'Next' to create/focus window.")
+                          + _("Press 'Next' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
             msg_label.setText(msg)
             widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
                 pw_label.show()
-                pw_e.show()
-                pw_e.setFocus()
+                self.pw_e.show()
             else:
                 pw_label.hide()
-                pw_e.hide()
+                self.pw_e.hide()
+            self.on_updated()
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
@@ -263,7 +285,17 @@ class WCWalletName(WizardComponent):
         self.name_e.setText(os.path.basename(path))
 
     def apply(self):
-        self.wizard_data['wallet_name'] = self.name_e.text()
+        if self.wallet_exists:
+            # use full path
+            path = self.wizard._path
+            wallet_folder = os.path.dirname(path)
+            self.wizard_data['wallet_name'] = os.path.join(wallet_folder, self.name_e.text())
+        else:
+            self.wizard_data['wallet_name'] = self.name_e.text()
+        self.wizard_data['wallet_exists'] = self.wallet_exists
+        self.wizard_data['wallet_is_open'] = self.wallet_is_open
+        self.wizard_data['wallet_open_password'] = self.pw_e.text()
+        self.wizard_data['wallet_needs_hw_unlock'] = self.wallet_needs_hw_unlock
 
 
 class WCWalletType(WizardComponent):
@@ -1102,5 +1134,4 @@ class WCWalletPasswordHardware(WizardComponent):
             client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
             # client.handler = self.plugin.create_handler(self.wizard)
             self.wizard_data['password'] = client.get_password_for_storage_encryption()
-
 

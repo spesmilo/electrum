@@ -19,6 +19,8 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
         ServerConnectWizard.__init__(self, daemon)
         QEAbstractWizard.__init__(self, config, app)
 
+        self.setWindowTitle(_('Network and server configuration'))
+
         # attach view names
         self.navmap_merge({
             'autoconnect': { 'gui': WCAutoConnect },

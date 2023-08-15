@@ -264,4 +264,7 @@ class WizardComponent(QWidget):
 
     @pyqtSlot()
     def on_updated(self, *args):
-        self.updated.emit(self)
+        try:
+            self.updated.emit(self)
+        except RuntimeError:
+            pass
