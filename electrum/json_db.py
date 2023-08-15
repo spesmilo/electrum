@@ -28,7 +28,7 @@ import json
 from typing import TYPE_CHECKING
 
 from . import util
-from .util import WalletFileException
+from .util import WalletFileException, profiler
 from .logging import Logger
 
 if TYPE_CHECKING:
@@ -272,6 +272,7 @@ class JsonDB(Logger):
         with self.lock:
             self._write(storage)
 
+    @profiler
     def _write(self, storage: 'WalletStorage'):
         if threading.current_thread().daemon:
             self.logger.warning('daemon thread cannot write db')
