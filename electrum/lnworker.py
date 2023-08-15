@@ -1589,7 +1589,7 @@ class LNWallet(LNWorker):
             else:
                 # apply the channel update or get blacklisted
                 blacklist, update = self._handle_chanupd_from_failed_htlc(
-                    payload, route=route, sender_idx=sender_idx)
+                    payload, route=route, sender_idx=sender_idx, failure_msg=failure_msg)
                 # we interpret a temporary channel failure as a liquidity issue
                 # in the channel and update our liquidity hints accordingly
                 if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
@@ -1606,7 +1606,12 @@ class LNWallet(LNWorker):
         if blacklist:
             self.network.path_finder.add_edge_to_blacklist(short_channel_id=failing_channel)
 
-    def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
+    def _handle_chanupd_from_failed_htlc(
+        self, payload, *,
+        route: LNPaymentRoute,
+        sender_idx: int,
+        failure_msg: OnionRoutingFailure,
+    ) -> Tuple[bool, bool]:
         blacklist = False
         update = False
         try:
@@ -1626,7 +1631,12 @@ class LNWallet(LNWorker):
             # maybe it is a private channel (and data in invoice was outdated)
             self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
             start_node_id = route[sender_idx].node_id
-            update = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+            cache_ttl = None
+            if failure_msg.code == OnionFailureCode.CHANNEL_DISABLED:
+                # eclair sends CHANNEL_DISABLED if its peer is offline. E.g. we might be trying to pay
+                # a mobile phone with the app closed. So we cache this with a short TTL.
+                cache_ttl = self.channel_db.PRIVATE_CHAN_UPD_CACHE_TTL_SHORT
+            update = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id, cache_ttl=cache_ttl)
             blacklist = not update
         elif r == UpdateStatus.EXPIRED:
             blacklist = True

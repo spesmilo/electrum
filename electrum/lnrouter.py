@@ -407,6 +407,7 @@ class LNPathFinder(Logger):
             return False
         if blacklist_expiration < now:
             return False
+            # TODO rm expired entries from cache (note: perf vs thread-safety)
         return True
 
     def add_edge_to_blacklist(
@@ -480,12 +481,12 @@ class LNPathFinder(Logger):
         if channel_info is None:
             return float('inf'), 0
         channel_policy = self.channel_db.get_policy_for_node(
-            short_channel_id, start_node, my_channels=my_channels, private_route_edges=private_route_edges)
+            short_channel_id, start_node, my_channels=my_channels, private_route_edges=private_route_edges, now=now)
         if channel_policy is None:
             return float('inf'), 0
         # channels that did not publish both policies often return temporary channel failure
         channel_policy_backwards = self.channel_db.get_policy_for_node(
-            short_channel_id, end_node, my_channels=my_channels, private_route_edges=private_route_edges)
+            short_channel_id, end_node, my_channels=my_channels, private_route_edges=private_route_edges, now=now)
         if (channel_policy_backwards is None
                 and not is_mine
                 and short_channel_id not in private_route_edges):
