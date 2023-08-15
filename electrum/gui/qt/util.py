@@ -1335,10 +1335,7 @@ class ImageGraphicsEffect(QObject):
         return result
 
 
-
-
 class QtEventListener(EventListener):
-
     qt_callback_signal = QtCore.pyqtSignal(tuple)
 
     def register_callbacks(self):
@@ -1346,12 +1343,16 @@ class QtEventListener(EventListener):
         EventListener.register_callbacks(self)
 
     def unregister_callbacks(self):
-        self.qt_callback_signal.disconnect()
+        try:
+            self.qt_callback_signal.disconnect()
+        except RuntimeError:  # wrapped Qt object might be deleted
+            pass
         EventListener.unregister_callbacks(self)
 
     def on_qt_callback_signal(self, args):
         func = args[0]
         return func(self, *args[1:])
+
 
 # decorator for members of the QtEventListener class
 def qt_event_listener(func):
