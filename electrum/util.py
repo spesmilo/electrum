@@ -21,6 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import binascii
+import concurrent.futures
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
@@ -1871,11 +1872,12 @@ def randrange(bound: int) -> int:
     return secrets.randbelow(bound - 1) + 1
 
 
-class CallbackManager:
+class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
 
     def __init__(self):
+        Logger.__init__(self)
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
         self._running_cb_futs = set()
@@ -1901,18 +1903,25 @@ class CallbackManager:
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
-            # FIXME: if callback throws, we will lose the traceback
-            if asyncio.iscoroutinefunction(callback):
+            if asyncio.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
                 # keep strong references around to avoid GC issues:
                 self._running_cb_futs.add(fut)
-                fut.add_done_callback(lambda fut_: self._running_cb_futs.remove(fut_))
-            elif get_running_loop() == loop:
-                # run callback immediately, so that it is guaranteed
-                # to have been executed when this method returns
-                callback(*args)
-            else:
-                loop.call_soon_threadsafe(callback, *args)
+                def on_done(fut_: concurrent.futures.Future):
+                    assert fut_.done()
+                    self._running_cb_futs.remove(fut_)
+                    if exc := fut_.exception():
+                        self.logger.error(f"cb errored. {event=}. {exc=}", exc_info=exc)
+                fut.add_done_callback(on_done)
+            else:  # non-async cb
+                # note: the cb needs to run in the asyncio thread
+                if get_running_loop() == loop:
+                    # run callback immediately, so that it is guaranteed
+                    # to have been executed when this method returns
+                    callback(*args)
+                else:
+                    # note: if cb raises, asyncio will log the exception
+                    loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
