@@ -579,10 +579,15 @@ class GenericInputHandler:
         if setText is None:
             setText = self.setText
         from .qrreader import scan_qr_from_image
+        screenshots = [screen.grabWindow(0).toImage()
+                       for screen in QApplication.instance().screens()]
+        if all(screen.allGray() for screen in screenshots):
+            show_error(_("Failed to take screenshot."))
+            return
         scanned_qr = None
-        for screen in QApplication.instance().screens():
+        for screenshot in screenshots:
             try:
-                scan_result = scan_qr_from_image(screen.grabWindow(0).toImage())
+                scan_result = scan_qr_from_image(screenshot)
             except MissingQrDetectionLib as e:
                 show_error(_("Unable to scan image.") + "\n" + repr(e))
                 return
