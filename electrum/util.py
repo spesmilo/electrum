@@ -1724,7 +1724,9 @@ def resolve_dns_srv(host: str):
 
 def randrange(bound: int) -> int:
     """Return a random integer k such that 1 <= k < bound, uniformly
-    distributed across that range."""
+    distributed across that range.
+    This is guaranteed to be cryptographically strong.
+    """
     # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
     # hence transformations:
     return secrets.randbelow(bound - 1) + 1
