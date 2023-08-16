@@ -17,7 +17,7 @@ from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
 
 from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
                                   OkButton, CloseButton, PasswordLineEdit, getOpenFileName, ChoiceWidget)
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
@@ -478,6 +478,7 @@ class Plugin(TrezorPlugin, QtPlugin):
             'trezor_not_initialized': { 'gui': WCTrezorInitMethod },
             'trezor_choose_new_recover': { 'gui': WCTrezorInitParams },
             'trezor_do_init': { 'gui': WCTrezorInit },
+            'trezor_unlock': {'gui': WCHWUnlock},
         }
         wizard.navmap_merge(views)
 

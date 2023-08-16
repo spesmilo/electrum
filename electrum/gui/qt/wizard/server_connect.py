@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 
 from electrum.i18n import _
-from .wizard import QEAbstractWizard, WizardComponent
 from electrum.wizard import ServerConnectWizard
 from electrum.gui.qt.network_dialog import ProxyWidget, ServerWidget
 from electrum.gui.qt.util import ChoiceWidget
+from .wizard import QEAbstractWizard, WizardComponent
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -21,7 +21,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
         self.setWindowTitle(_('Network and server configuration'))
 
-        # attach view names
+        # attach gui classes
         self.navmap_merge({
             'autoconnect': { 'gui': WCAutoConnect },
             'proxy_ask': { 'gui': WCProxyAsk },

@@ -529,8 +529,11 @@ class TrezorPlugin(HW_PluginBase):
 
     # new wizard
 
-    def wizard_entry_for_device(self, device_info: 'DeviceInfo') -> str:
-        return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:  # new wallet
+            return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
+        else:  # unlock existing wallet
+            return 'trezor_unlock'
 
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
@@ -551,6 +554,9 @@ class TrezorPlugin(HW_PluginBase):
             },
             'trezor_do_init': {
                 'next': 'trezor_start',
+            },
+            'trezor_unlock': {
+                'last': True
             },
         }
         wizard.navmap_merge(views)

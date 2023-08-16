@@ -12,7 +12,7 @@ from electrum.logging import Logger
 from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.plugins.hw_wallet import plugin
 from electrum.gui.qt.util import WWLabel
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
 from .jade import JadePlugin
@@ -50,6 +50,7 @@ class Plugin(JadePlugin, QtPluginBase):
             'jade_start': { 'gui': WCScriptAndDerivation },
             'jade_xpub': { 'gui': WCJadeXPub },
             'jade_not_initialized': {'gui': WCJadeNope},
+            'jade_unlock': {'gui': WCHWUnlock}
         }
         wizard.navmap_merge(views)
 
@@ -64,7 +65,9 @@ class Jade_Handler(QtHandlerBase):
         super(Jade_Handler, self).__init__(win, 'Jade')
 
 
-class WCJadeXPub(WizardComponent, Logger): # TODO: almost verbatim copy of trezor WCTrezorXPub, generalize!
+# TODO: almost verbatim copy of trezor WCTrezorXPub, generalize!
+# problem: client.get_xpub is not uniform
+class WCJadeXPub(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Hardware wallet information'))
         Logger.__init__(self)
@@ -139,3 +142,4 @@ class WCJadeNope(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Jade not initialized'))
         self.layout().addWidget(WWLabel(_('This Jade is not initialized. Cannot continue')))
+

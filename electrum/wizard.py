@@ -174,6 +174,7 @@ class AbstractWizard:
 
     def sanitize_stack_item(self, _stack_item) -> dict:
         sensitive_keys = ['seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password']
+
         def sanitize(_dict):
             result = {}
             for item in _dict:
@@ -322,11 +323,11 @@ class NewWalletWizard(AbstractWizard):
     def wallet_password_view(self, wizard_data: dict) -> str:
         return 'wallet_password_hardware' if self.is_hardware(wizard_data) else 'wallet_password'
 
-    def on_hardware_device(self, wizard_data: dict) -> str:
+    def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
         _type, _info = wizard_data['hardware_device']
-        run_hook('init_wallet_wizard', self)
+        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         plugin = self.plugins.get_plugin(_type)
-        return plugin.wizard_entry_for_device(_info)
+        return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 
     def on_have_or_confirm_seed(self, wizard_data: dict) -> str:
         if self.needs_derivation_path(wizard_data):

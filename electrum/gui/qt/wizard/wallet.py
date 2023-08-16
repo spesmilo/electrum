@@ -86,8 +86,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
                 'last': lambda d: d['wallet_exists'] and not d['wallet_needs_hw_unlock']
             },
             'hw_unlock': {
-                'last': True,
-                'gui': WCChooseHWDevice
+                # 'last': True,
+                'gui': WCChooseHWDevice,
+                'next': lambda d: self.on_hardware_device(d, new_wallet=False)
             }
         })
 
@@ -156,17 +157,11 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
         path = os.path.join(os.path.dirname(self._daemon.config.get_wallet_path()), data['wallet_name'])
 
-        try:
-            super().create_storage(path, data)
+        super().create_storage(path, data)
 
-            # minimally populate self after create
-            self._password = data['password']
-            self.path = path
-
-            return True
-        except Exception as e:
-            self._logger.error(f"createStorage errored: {e!r}")
-            return False
+        # minimally populate self after create
+        self._password = data['password']
+        self.path = path
 
 
 class WCWalletName(WizardComponent):
@@ -262,10 +257,10 @@ class WCWalletName(WizardComponent):
                               + _("Press 'Next' to choose device to decrypt.")
                         self.wallet_needs_hw_unlock = True
                     else:
-                        msg = _("Press 'Next' to open this wallet.")
+                        msg = _("Press 'Finish' to open this wallet.")
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
-                          + _("Press 'Next' to create/focus window.")
+                          + _("Press 'Finish' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
             msg_label.setText(msg)
@@ -294,7 +289,7 @@ class WCWalletName(WizardComponent):
             self.wizard_data['wallet_name'] = self.name_e.text()
         self.wizard_data['wallet_exists'] = self.wallet_exists
         self.wizard_data['wallet_is_open'] = self.wallet_is_open
-        self.wizard_data['wallet_open_password'] = self.pw_e.text()
+        self.wizard_data['password'] = self.pw_e.text()
         self.wizard_data['wallet_needs_hw_unlock'] = self.wallet_needs_hw_unlock
 
 
@@ -1135,3 +1130,53 @@ class WCWalletPasswordHardware(WizardComponent):
             # client.handler = self.plugin.create_handler(self.wizard)
             self.wizard_data['password'] = client.get_password_for_storage_encryption()
 
+
+class WCHWUnlock(WizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('unlock'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self.plugin = None
+        self._busy = True
+        self.password = None
+
+        self.ok_l = WWLabel(_('Hardware successfully unlocked'))
+        self.ok_l.setAlignment(Qt.AlignCenter)
+        self.layout().addWidget(self.ok_l)
+
+    def on_ready(self):
+        _name, _info = self.wizard_data['hardware_device']
+        self.plugin = self.plugins.get_plugin(_info.plugin_name)
+        self.title = _('Unlocking {} ({})').format(_info.model_name, _info.label)
+
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        client.handler = self.plugin.create_handler(self.wizard)
+
+        def unlock_task(client):
+            try:
+                self.password = client.get_password_for_storage_encryption()
+            except Exception as e:
+                # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
+                self.error = repr(e)
+                self.logger.error(repr(e))
+            self.unlock_done()
+
+        t = threading.Thread(target=unlock_task, args=(client,), daemon=True)
+        t.start()
+
+    def unlock_done(self):
+        self.logger.debug(f'Done unlock')
+        self.busy = False
+        self.validate()
+
+    def validate(self):
+        if self.password and not self.error:
+            self.apply()
+            self.valid = True
+        else:
+            self.valid = False
+
+    def apply(self):
+        if self.valid:
+            self.wizard_data['password'] = self.password

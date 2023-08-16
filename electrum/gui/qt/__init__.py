@@ -30,7 +30,9 @@ import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List, Sequence
 
-from electrum import GuiImportError
+from electrum import GuiImportError, WalletStorage
+from .wizard.server_connect import QEServerConnectWizard
+from .wizard.wallet import QENewWalletWizard
 
 try:
     import PyQt5
@@ -401,6 +403,48 @@ class ElectrumGui(BaseElectrumGui, Logger):
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
+        dialog = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
+        result = dialog.exec()
+        # TODO: use dialog.open() instead to avoid new event loop spawn?
+        self.logger.info(f'{result}')
+        if result == QENewWalletWizard.Rejected:
+            self.logger.info('ok bye bye')
+            return
+
+        d = dialog.get_wizard_data()
+
+        if d['wallet_is_open']:
+            for window in self.windows:
+                if window.wallet.storage.path == d['wallet_name']:
+                    return window.wallet
+            raise Exception('found by wizard but not here?!')
+
+        if not d['wallet_exists']:
+            self.logger.info('about to create wallet')
+            dialog.create_storage()
+            wallet_file = dialog.path
+        else:
+            wallet_file = d['wallet_name']
+
+        storage = WalletStorage(wallet_file)
+        if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
+            storage.decrypt(d['password'])
+
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        # TODO
+        # wizard.run_upgrades(storage, db)
+        # TODO
+        # return if wallet creation is not complete
+        # if storage is None or db.get_action():
+        #     return
+
+        wallet = Wallet(db, storage, config=self.config)
+        wallet.start_network(self.daemon.network)
+        self.daemon.add_wallet(wallet)
+        return wallet
+
+
+    def _start_wizard_to_select_or_create_wallet2(self, path) -> Optional[Abstract_Wallet]:
         wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
         try:
             path, storage = wizard.select_storage(path, self.daemon.get_wallet)
@@ -441,9 +485,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if self.daemon.network:
             # first-start network-setup
             if not self.config.cv.NETWORK_AUTO_CONNECT.is_set():
-                wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
-                wizard.init_network(self.daemon.network)
-                wizard.terminate()
+                dialog = QEServerConnectWizard(self.config, self.app, self.plugins, self.daemon)
+                dialog.exec()
             # start network
             self.daemon.start_network()
 

@@ -482,8 +482,11 @@ class JadePlugin(HW_PluginBase):
 
     # new wizard
 
-    def wizard_entry_for_device(self, device_info: 'DeviceInfo') -> str:
-        return 'jade_start' if device_info.initialized else 'jade_not_initialized'
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'jade_start' if device_info.initialized else 'jade_not_initialized'
+        else:
+            return 'jade_unlock'
 
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
@@ -496,6 +499,9 @@ class JadePlugin(HW_PluginBase):
                 'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
-            'jade_not_initialized': {}
+            'jade_not_initialized': {},
+            'jade_unlock': {
+                'last': True
+            },
         }
         wizard.navmap_merge(views)

@@ -13,15 +13,12 @@ from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
-    from electrum.daemon import Daemon
     from electrum.gui.qt import QElectrumApplication
 
 
 class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    # def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication'):
         QDialog.__init__(self, None)
         self.app = app
@@ -51,6 +48,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         please_wait_layout.addWidget(self.please_wait_l)
         please_wait_layout.addStretch(1)
         self.please_wait = QWidget()
+        self.please_wait.setVisible(False)
         self.please_wait.setLayout(please_wait_layout)
 
         error_layout = QVBoxLayout()
@@ -63,6 +61,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         error_layout.addWidget(self.error_msg)
         error_layout.addStretch(1)
         self.error = QWidget()
+        self.error.setVisible(False)
         self.error.setLayout(error_layout)
 
         outer_vbox = QVBoxLayout(self)
