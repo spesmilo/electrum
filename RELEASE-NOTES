@@ -1,3 +1,29 @@
+# Release 4.4.6 (August 18, 2023)
+ * Lightning:
+   - fix: cannot sweep from channel after local-force-close, if using
+     imported channel backup (#8536). Fixing this required adding a
+     new field (local_payment_pubkey) to the channel backup
+     import/export format and bumping its version number
+     (v0->v1). Both v0 and v1 can be imported, and we only export v1
+     backups. When you force close a channel, the GUI will prompt you
+     to save a backup. In that case, you must export the backup using
+     the updated Electrum, and not rely on a backup made with an older
+     release of Electrum.  Note that if you request a force close from
+     the remote node or co-op close, you do not need to save a channel
+     backup.
+   - fix: we would sometimes attempt sending MPP even if not supported
+     by the invoice (2cf6173c)
+ * QML GUI:
+   - fix lnurl-pay when config.BTC_AMOUNTS_ADD_THOUSANDS_SEP is True
+     (5b4df759)
+ * Hardware wallets:
+   - Trezor: support longer than 9 character PIN codes (#8526)
+   - Jade: support more custom-built DIY Jade devices (#8546)
+ * Builds/binaries:
+   - include AppStream metainfo.xml in tarballs (#8501)
+ * fix: exceptions in some callbacks got lost and not logged (3e6580b9)
+
+
 # Release 4.4.5 (June 20, 2023)
  * Hardware wallets:
    - jade: fix regression in sign_transaction (#8463)
