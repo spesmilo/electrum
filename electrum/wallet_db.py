@@ -54,7 +54,7 @@ from .version import ELECTRUM_VERSION
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 52     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 53     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -238,6 +238,7 @@ class WalletDB(JsonDB):
         self._convert_version_50()
         self._convert_version_51()
         self._convert_version_52()
+        self._convert_version_53()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -1065,6 +1066,15 @@ class WalletDB(JsonDB):
             # should not get here; get_seed_version should have caught this
             raise Exception(f'unsupported wallet file: version_51 with error {error_code}')
         self.data['seed_version'] = 52
+
+    def _convert_version_53(self):
+        if not self._is_upgrade_method_needed(52, 52):
+            return
+        cbs = self.data.get('imported_channel_backups', {})
+        for channel_id, cb in list(cbs.items()):
+            if 'local_payment_pubkey' not in cb:
+                cb['local_payment_pubkey'] = None
+        self.data['seed_version'] = 53
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
