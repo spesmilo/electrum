@@ -2,7 +2,7 @@ import os
 import bitstring
 import random
 
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence
+from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set
 
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
@@ -97,7 +97,7 @@ def encode_routing_info(r_tags):
     return result.tobytes()
 
 
-def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, List[bytes]]:
+def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
     """Returns if we deal with a legacy payment and the list of trampoline pubkeys in the invoice.
     """
     invoice_features = LnFeatures(invoice_features)
@@ -109,7 +109,7 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, List[bytes]]:
         # Any trampoline node should be able to figure out a path to the receiver and
         # we can use an e2e payment.
         if not r_tags:
-            return False, []
+            return False, set()
         else:
             # - We choose one routing hint at random, and
             #   use end-to-end trampoline if that node is a trampoline-forwarder (TF).
@@ -120,10 +120,11 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, List[bytes]]:
             #   recipient only has recv-capacity with T2.
             singlehop_r_tags = [x for x in r_tags if len(x) == 1]
             invoice_trampolines = [x[0][0] for x in singlehop_r_tags if is_hardcoded_trampoline(x[0][0])]
+            invoice_trampolines = set(invoice_trampolines)
             return False, invoice_trampolines
     # if trampoline receiving is not supported or the forwarder is not known as a trampoline,
     # we send a legacy payment
-    return True, []
+    return True, set()
 
 
 def trampoline_policy(
@@ -161,17 +162,23 @@ def _extend_trampoline_route(
             node_features=trampoline_features))
 
 
-def _choose_second_trampoline(my_trampoline, trampolines, failed_routes: Iterable[Sequence[str]]):
+def _choose_second_trampoline(
+    my_trampoline: bytes,
+    trampolines: Iterable[bytes],
+    failed_routes: Iterable[Sequence[str]],
+) -> bytes:
+    trampolines = set(trampolines)
     if my_trampoline in trampolines:
-        trampolines.remove(my_trampoline)
+        trampolines.discard(my_trampoline)
     for r in failed_routes:
         if len(r) > 2:
             t2 = bytes.fromhex(r[1])
             if t2 in trampolines:
-                trampolines.remove(t2)
+                trampolines.discard(t2)
     if not trampolines:
         raise NoPathFound('all routes have failed')
-    return random.choice(trampolines)
+    return random.choice(list(trampolines))
+
 
 def create_trampoline_route(
         *,

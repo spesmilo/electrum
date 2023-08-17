@@ -2349,12 +2349,12 @@ class LNWallet(LNWorker):
                 fee_base_msat,
                 fee_proportional_millionths,
                 cltv_expiry_delta)]))
-        trampoline_hints = []
+        trampoline_hints = set()  # "set", to avoid duplicate t-hints
         for r in routing_hints:
             node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
             if len(r[1])== 1 and self.is_trampoline_peer(node_id):
-                trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
-        return routing_hints, trampoline_hints
+                trampoline_hints.add(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
+        return routing_hints, list(trampoline_hints)
 
     def delete_payment_info(self, payment_hash_hex: str):
         # This method is called when an invoice or request is deleted by the user.
