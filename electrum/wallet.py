@@ -309,8 +309,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def __init__(self, db: WalletDB, *, config: SimpleConfig):
 
-        if not db.is_ready_to_be_used_by_wallet():
-            raise Exception("storage not ready to be used by Abstract_Wallet")
+        #if not db.is_ready_to_be_used_by_wallet():
+        #    raise Exception("storage not ready to be used by Abstract_Wallet")
 
         self.config = config
         assert self.config is not None, "config must not be None"

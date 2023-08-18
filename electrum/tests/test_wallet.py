@@ -15,7 +15,7 @@ from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
-from electrum.wallet_db import WalletDB
+from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
 from electrum import util
 
@@ -60,14 +60,14 @@ class TestWalletStorage(WalletTestCase):
             contents = f.write(contents)
 
         storage = WalletStorage(self.wallet_path)
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=True)
+        db = JsonDB(storage.read(), storage=storage)
         self.assertEqual("b", db.get("a"))
         self.assertEqual("d", db.get("c"))
 
     def test_write_dictionary_to_file(self):
 
         storage = WalletStorage(self.wallet_path)
-        db = WalletDB('', storage=storage, manual_upgrades=True)
+        db = JsonDB('', storage=storage)
 
         some_dict = {
             u"a": u"b",
@@ -110,7 +110,7 @@ class FakeWallet:
     def __init__(self, fiat_value):
         super().__init__()
         self.fiat_value = fiat_value
-        self.db = WalletDB("{}", storage=None, manual_upgrades=True)
+        self.db = WalletDB('', storage=None, manual_upgrades=True)
         self.adb = FakeADB()
         self.db.transactions = self.db.verified_tx = {'abc':'Tx'}
 
