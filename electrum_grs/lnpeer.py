@@ -659,7 +659,7 @@ class Peer(Logger):
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
         )
-        local_config.validate_params(funding_sat=funding_sat)
+        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=self.features)
         return local_config
 
     def temporarily_reserve_funding_tx_change_address(func):
@@ -804,6 +804,8 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=True,
             initial_feerate_per_kw=feerate,
+            config=self.network.config,
+            peer_features=self.features,
         )
 
         # -> funding created
@@ -964,6 +966,8 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=False,
             initial_feerate_per_kw=feerate,
+            config=self.network.config,
+            peer_features=self.features,
         )
 
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
@@ -1742,6 +1746,8 @@ class Peer(Logger):
         except OnionRoutingFailure as e:
             raise
         except PaymentFailure as e:
+            self.logger.debug(
+                f"maybe_forward_trampoline. PaymentFailure for {payment_hash.hex()=}, {payment_secret.hex()=}: {e!r}")
             # FIXME: adapt the error code
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
 
@@ -1826,14 +1832,25 @@ class Peer(Logger):
             log_fail_reason(f"'payment_secret' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        payment_status = self.lnworker.check_mpp_status(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
-        if payment_status is None:
+        from .lnworker import RecvMPPResolution
+        mpp_resolution = self.lnworker.check_mpp_status(
+            payment_secret=payment_secret_from_onion,
+            short_channel_id=chan.short_channel_id,
+            htlc=htlc,
+            expected_msat=total_msat,
+        )
+        if mpp_resolution == RecvMPPResolution.WAITING:
             return None, None
-        elif payment_status is False:
+        elif mpp_resolution == RecvMPPResolution.EXPIRED:
             log_fail_reason(f"MPP_TIMEOUT")
             raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+        elif mpp_resolution == RecvMPPResolution.FAILED:
+            log_fail_reason(f"mpp_resolution is FAILED")
+            raise exc_incorrect_or_unknown_pd
+        elif mpp_resolution == RecvMPPResolution.ACCEPTED:
+            pass  # continue
         else:
-            assert payment_status is True
+            raise Exception(f"unexpected {mpp_resolution=}")
 
         payment_hash = htlc.payment_hash
 
@@ -1874,12 +1891,7 @@ class Peer(Logger):
             if preimage:
                 return preimage, None
             else:
-                # for hold invoices, trigger callback
-                cb, timeout = hold_invoice_callback
-                if int(time.time()) < timeout:
-                    return None, lambda: cb(payment_hash)
-                else:
-                    raise exc_incorrect_or_unknown_pd
+                return None, lambda: hold_invoice_callback(payment_hash)
 
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry
@@ -1890,8 +1902,8 @@ class Peer(Logger):
 
         preimage = self.lnworker.get_preimage(payment_hash)
         if not preimage:
-            self.logger.info(f"missing callback {payment_hash.hex()}")
-            return None, None
+            self.logger.info(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
+            raise exc_incorrect_or_unknown_pd
 
         expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
         expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
@@ -2411,23 +2423,23 @@ class Peer(Logger):
                     # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
                     if not self.lnworker.enable_htlc_forwarding:
                         pass
-                    elif payment_key in self.lnworker.trampoline_forwardings:
+                    elif payment_key in self.lnworker.final_onion_forwardings:
                         # we are already forwarding this payment
                         self.logger.info(f"we are already forwarding this.")
                     else:
                         # add to list of ongoing payments
-                        self.lnworker.trampoline_forwardings.add(payment_key)
+                        self.lnworker.final_onion_forwardings.add(payment_key)
                         # clear previous failures
-                        self.lnworker.trampoline_forwarding_failures.pop(payment_key, None)
+                        self.lnworker.final_onion_forwarding_failures.pop(payment_key, None)
                         async def wrapped_callback():
                             forwarding_coro = forwarding_callback()
                             try:
                                 await forwarding_coro
                             except OnionRoutingFailure as e:
-                                self.lnworker.trampoline_forwarding_failures[payment_key] = e
+                                self.lnworker.final_onion_forwarding_failures[payment_key] = e
                             finally:
                                 # remove from list of payments, so that another attempt can be initiated
-                                self.lnworker.trampoline_forwardings.remove(payment_key)
+                                self.lnworker.final_onion_forwardings.remove(payment_key)
                         asyncio.ensure_future(wrapped_callback())
                         fw_info = payment_key.hex()
                         return None, fw_info, None
@@ -2436,7 +2448,7 @@ class Peer(Logger):
                 payment_key = bytes.fromhex(forwarding_info)
                 preimage = self.lnworker.get_preimage(payment_hash)
                 # get (and not pop) failure because the incoming payment might be multi-part
-                error_reason = self.lnworker.trampoline_forwarding_failures.get(payment_key)
+                error_reason = self.lnworker.final_onion_forwarding_failures.get(payment_key)
                 if error_reason:
                     self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
                     raise error_reason

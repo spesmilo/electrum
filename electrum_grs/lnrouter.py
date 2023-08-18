@@ -27,6 +27,7 @@ import queue
 from collections import defaultdict
 from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set
 import time
+import threading
 from threading import RLock
 import attr
 from math import inf
@@ -42,7 +43,6 @@ if TYPE_CHECKING:
 
 DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
-BLACKLIST_DURATION = 3600  # how long (in seconds) a channel remains blacklisted
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 
 
@@ -153,6 +153,9 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
     # TODO revise ad-hoc heuristics
     if cltv > NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
         return False
+    # FIXME in case of MPP, the fee checks are done independently for each part,
+    #       which is ok for the proportional checks but not for the absolute ones.
+    #       This is not that big of a deal though as we don't split into *too many* parts.
     if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
         return False
     return True
@@ -170,7 +173,7 @@ def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
 
 class LiquidityHint:
     """Encodes the amounts that can and cannot be sent over the direction of a
-    channel and whether the channel is blacklisted.
+    channel.
 
     A LiquidityHint is the value of a dict, which is keyed to node ids and the
     channel.
@@ -181,7 +184,6 @@ class LiquidityHint:
         self._cannot_send_forward = None
         self._can_send_backward = None
         self._cannot_send_backward = None
-        self.blacklist_timestamp = 0
         self.hint_timestamp = 0
         self._inflight_htlcs_forward = 0
         self._inflight_htlcs_backward = 0
@@ -294,10 +296,8 @@ class LiquidityHint:
             self._inflight_htlcs_backward = max(0, self._inflight_htlcs_forward - 1)
 
     def __repr__(self):
-        is_blacklisted = False if not self.blacklist_timestamp else int(time.time()) - self.blacklist_timestamp < BLACKLIST_DURATION
         return f"forward: can send: {self._can_send_forward} msat, cannot send: {self._cannot_send_forward} msat, htlcs: {self._inflight_htlcs_forward}\n" \
-               f"backward: can send: {self._can_send_backward} msat, cannot send: {self._cannot_send_backward} msat, htlcs: {self._inflight_htlcs_backward}\n" \
-               f"blacklisted: {is_blacklisted}"
+               f"backward: can send: {self._can_send_backward} msat, cannot send: {self._cannot_send_backward} msat, htlcs: {self._inflight_htlcs_backward}\n"
 
 
 class LiquidityHintMgr:
@@ -380,22 +380,6 @@ class LiquidityHintMgr:
         return success_fee + inflight_htlc_fee
 
     @with_lock
-    def add_to_blacklist(self, channel_id: ShortChannelID):
-        hint = self.get_hint(channel_id)
-        now = int(time.time())
-        hint.blacklist_timestamp = now
-
-    @with_lock
-    def get_blacklist(self) -> Set[ShortChannelID]:
-        now = int(time.time())
-        return set(k for k, v in self._liquidity_hints.items() if now - v.blacklist_timestamp < BLACKLIST_DURATION)
-
-    @with_lock
-    def clear_blacklist(self):
-        for k, v in self._liquidity_hints.items():
-            v.blacklist_timestamp = 0
-
-    @with_lock
     def reset_liquidity_hints(self):
         for k, v in self._liquidity_hints.items():
             v.hint_timestamp = 0
@@ -414,6 +398,34 @@ class LNPathFinder(Logger):
         Logger.__init__(self)
         self.channel_db = channel_db
         self.liquidity_hints = LiquidityHintMgr()
+        self._edge_blacklist = dict()  # type: Dict[ShortChannelID, int]  # scid -> expiration
+        self._blacklist_lock = threading.Lock()
+
+    def _is_edge_blacklisted(self, short_channel_id: ShortChannelID, *, now: int) -> bool:
+        blacklist_expiration = self._edge_blacklist.get(short_channel_id)
+        if blacklist_expiration is None:
+            return False
+        if blacklist_expiration < now:
+            return False
+            # TODO rm expired entries from cache (note: perf vs thread-safety)
+        return True
+
+    def add_edge_to_blacklist(
+        self,
+        short_channel_id: ShortChannelID,
+        *,
+        now: int = None,
+        duration: int = 3600,  # seconds
+    ) -> None:
+        if now is None:
+            now = int(time.time())
+        with self._blacklist_lock:
+            blacklist_expiration = self._edge_blacklist.get(short_channel_id, 0)
+            self._edge_blacklist[short_channel_id] = max(blacklist_expiration, now + duration)
+
+    def clear_blacklist(self):
+        with self._blacklist_lock:
+            self._edge_blacklist = dict()
 
     def update_liquidity_hints(
             self,
@@ -447,7 +459,7 @@ class LNPathFinder(Logger):
     def _edge_cost(
             self,
             *,
-            short_channel_id: bytes,
+            short_channel_id: ShortChannelID,
             start_node: bytes,
             end_node: bytes,
             payment_amt_msat: int,
@@ -455,10 +467,13 @@ class LNPathFinder(Logger):
             is_mine=False,
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+            now: int,  # unix ts
     ) -> Tuple[float, int]:
         """Heuristic cost (distance metric) of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
         """
+        if self._is_edge_blacklisted(short_channel_id, now=now):
+            return float('inf'), 0
         if private_route_edges is None:
             private_route_edges = {}
         channel_info = self.channel_db.get_channel_info(
@@ -466,12 +481,12 @@ class LNPathFinder(Logger):
         if channel_info is None:
             return float('inf'), 0
         channel_policy = self.channel_db.get_policy_for_node(
-            short_channel_id, start_node, my_channels=my_channels, private_route_edges=private_route_edges)
+            short_channel_id, start_node, my_channels=my_channels, private_route_edges=private_route_edges, now=now)
         if channel_policy is None:
             return float('inf'), 0
         # channels that did not publish both policies often return temporary channel failure
         channel_policy_backwards = self.channel_db.get_policy_for_node(
-            short_channel_id, end_node, my_channels=my_channels, private_route_edges=private_route_edges)
+            short_channel_id, end_node, my_channels=my_channels, private_route_edges=private_route_edges, now=now)
         if (channel_policy_backwards is None
                 and not is_mine
                 and short_channel_id not in private_route_edges):
@@ -493,7 +508,7 @@ class LNPathFinder(Logger):
                 # it's ok if we are missing the node_announcement (node_info) for this node,
                 # but if we have it, we enforce that they support var_onion_optin
                 node_features = LnFeatures(node_info.features)
-                if not node_features.supports(LnFeatures.VAR_ONION_OPT):
+                if not node_features.supports(LnFeatures.VAR_ONION_OPT):  # note: this is kind of slow. could be cached.
                     return float('inf'), 0
             route_edge = RouteEdge.from_channel_policy(
                 channel_policy=channel_policy,
@@ -534,12 +549,12 @@ class LNPathFinder(Logger):
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
         # to properly calculate compound routing fees.
-        blacklist = self.liquidity_hints.get_blacklist()
         distance_from_start = defaultdict(lambda: float('inf'))
         distance_from_start[nodeB] = 0
         previous_hops = {}  # type: Dict[bytes, PathEdge]
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
+        now = int(time.time())
 
         # main loop of search
         while nodes_to_explore.qsize() > 0:
@@ -566,7 +581,7 @@ class LNPathFinder(Logger):
 
             for edge_channel_id in channels_for_endnode:
                 assert isinstance(edge_channel_id, bytes)
-                if blacklist and edge_channel_id in blacklist:
+                if self._is_edge_blacklisted(edge_channel_id, now=now):
                     continue
                 channel_info = self.channel_db.get_channel_info(
                     edge_channel_id, my_channels=my_sending_channels, private_route_edges=private_route_edges)
@@ -586,7 +601,9 @@ class LNPathFinder(Logger):
                     ignore_costs=(edge_startnode == nodeA),
                     is_mine=is_mine,
                     my_channels=my_sending_channels,
-                    private_route_edges=private_route_edges)
+                    private_route_edges=private_route_edges,
+                    now=now,
+                )
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                     distance_from_start[edge_startnode] = alt_dist_to_neighbour

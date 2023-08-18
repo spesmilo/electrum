@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
 from electrum_grs.i18n import _
 from electrum_grs.bitcoin import is_address
 from electrum_grs.transaction import PartialTxInput, PartialTxOutput
-from electrum_grs.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
+from electrum_grs.lnutil import MIN_FUNDING_SAT
 from electrum_grs.util import profiler
 
 from .util import ColorScheme, MONOSPACE_FONT, EnterButton
@@ -243,7 +243,7 @@ class UTXOList(MyTreeView):
         if self.wallet.lnworker is None:
             return False
         value = sum(x.value_sats() for x in coins)
-        return value >= MIN_FUNDING_SAT and value <= LN_MAX_FUNDING_SAT
+        return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT
 
     def open_channel_with_coins(self, coins):
         # todo : use a single dialog in new flow

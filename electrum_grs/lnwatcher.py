@@ -325,7 +325,7 @@ class WatchTower(LNWatcher):
     LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
-        adb = AddressSynchronizer(WalletDB({}, manual_upgrades=False), network.config, name=self.diagnostic_name())
+        adb = AddressSynchronizer(WalletDB({}, storage=None, manual_upgrades=False), network.config, name=self.diagnostic_name())
         adb.start_network(network)
         LNWatcher.__init__(self, adb, network)
         self.network = network

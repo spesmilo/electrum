@@ -306,7 +306,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     lnworker: Optional['LNWallet']
     network: Optional['Network']
 
-    def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
+    def __init__(self, db: WalletDB, *, config: SimpleConfig):
 
         if not db.is_ready_to_be_used_by_wallet():
             raise Exception("storage not ready to be used by Abstract_Wallet")
@@ -314,7 +314,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = storage
+        self.storage = db.storage
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -393,25 +393,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             await run_in_thread(self.synchronize)
 
     def save_db(self):
-        if self.storage:
-            self.db.write(self.storage)
+        if self.db.storage:
+            self.db.write()
 
     def save_backup(self, backup_dir):
-        new_db = WalletDB(self.db.dump(), manual_upgrades=False)
+        new_path = os.path.join(backup_dir, self.basename() + '.backup')
+        new_storage = WalletStorage(new_path)
+        new_storage._encryption_version = self.storage._encryption_version
+        new_storage.pubkey = self.storage.pubkey
 
+        new_db = WalletDB(self.db.dump(), storage=new_storage, manual_upgrades=False)
         if self.lnworker:
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
             new_db.put('lightning_privkey2', None)
-
-        new_path = os.path.join(backup_dir, self.basename() + '.backup')
-        new_storage = WalletStorage(new_path)
-        new_storage._encryption_version = self.storage._encryption_version
-        new_storage.pubkey = self.storage.pubkey
         new_db.set_modified(True)
-        new_db.write(new_storage)
+        new_db.write()
         return new_path
 
     def has_lightning(self) -> bool:
@@ -3059,8 +3058,8 @@ class Imported_Wallet(Simple_Wallet):
     wallet_type = 'imported'
     txin_type = 'address'
 
-    def __init__(self, db, storage, *, config):
-        Abstract_Wallet.__init__(self, db, storage, config=config)
+    def __init__(self, db, *, config):
+        Abstract_Wallet.__init__(self, db, config=config)
         self.use_change = db.get('use_change', False)
 
     def is_watching_only(self):
@@ -3277,9 +3276,9 @@ class Imported_Wallet(Simple_Wallet):
 
 class Deterministic_Wallet(Abstract_Wallet):
 
-    def __init__(self, db, storage, *, config):
+    def __init__(self, db, *, config):
         self._ephemeral_addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]
-        Abstract_Wallet.__init__(self, db, storage, config=config)
+        Abstract_Wallet.__init__(self, db, config=config)
         self.gap_limit = db.get('gap_limit', 20)
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
@@ -3492,8 +3491,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
     """ Deterministic Wallet with a single pubkey per address """
 
-    def __init__(self, db, storage, *, config):
-        Deterministic_Wallet.__init__(self, db, storage, config=config)
+    def __init__(self, db, *, config):
+        Deterministic_Wallet.__init__(self, db, config=config)
 
     def get_public_key(self, address):
         sequence = self.get_address_index(address)
@@ -3530,10 +3529,10 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
 
-    def __init__(self, db, storage, *, config):
+    def __init__(self, db, *, config):
         self.wallet_type = db.get('wallet_type')
         self.m, self.n = multisig_type(self.wallet_type)
-        Deterministic_Wallet.__init__(self, db, storage, config=config)
+        Deterministic_Wallet.__init__(self, db, config=config)
         # sanity checks
         for ks in self.get_keystores():
             if not isinstance(ks, keystore.Xpub):
@@ -3630,10 +3629,10 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, db: 'WalletDB', storage: Optional[WalletStorage], *, config: SimpleConfig):
+    def __new__(self, db: 'WalletDB', *, config: SimpleConfig):
         wallet_type = db.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
-        wallet = WalletClass(db, storage, config=config)
+        wallet = WalletClass(db, config=config)
         return wallet
 
     @staticmethod
@@ -3651,7 +3650,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
-    db = WalletDB('', manual_upgrades=False)
+    db = WalletDB('', storage=storage, manual_upgrades=False)
 
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase)
@@ -3661,7 +3660,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
         db.put('lightning_xprv', k.get_lightning_xprv(None))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
-    wallet = Wallet(db, storage, config=config)
+    wallet = Wallet(db, config=config)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
@@ -3690,10 +3689,10 @@ def restore_wallet_from_text(
             raise Exception("Remove the existing wallet first!")
     if encrypt_file is None:
         encrypt_file = True
-    db = WalletDB('', manual_upgrades=False)
+    db = WalletDB('', storage=storage, manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):
-        wallet = Imported_Wallet(db, storage, config=config)
+        wallet = Imported_Wallet(db, config=config)
         addresses = text.split()
         good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -3702,7 +3701,7 @@ def restore_wallet_from_text(
     elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
         k = keystore.Imported_KeyStore({})
         db.put('keystore', k.dump())
-        wallet = Imported_Wallet(db, storage, config=config)
+        wallet = Imported_Wallet(db, config=config)
         keys = keystore.get_private_keys(text, allow_spaces_inside_key=False)
         good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -3721,9 +3720,9 @@ def restore_wallet_from_text(
         db.put('wallet_type', 'standard')
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
-        wallet = Wallet(db, storage, config=config)
-    if storage:
-        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
+        wallet = Wallet(db, config=config)
+    if db.storage:
+        assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "

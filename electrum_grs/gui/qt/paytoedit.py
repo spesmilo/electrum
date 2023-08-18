@@ -167,6 +167,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
         )
 
         self.text_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.text_edit, self)
+        self.line_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.line_edit, self)
 
         self.edit_timer = QTimer(self)
         self.edit_timer.setSingleShot(True)

@@ -60,8 +60,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
+        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 

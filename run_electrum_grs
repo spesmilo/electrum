@@ -152,27 +152,19 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
-    # will we need a password
-    if not storage.is_encrypted():
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        use_encryption = db.get('use_encryption')
-    else:
-        use_encryption = True
-
     # commands needing password
     if ((cmd.requires_wallet and storage.is_encrypted() and server is False)\
        or (cmdname == 'load_wallet' and storage.is_encrypted())\
-       or (cmd.requires_password and use_encryption)):
+       or cmd.requires_password):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
-        elif config.get('password'):
+        elif config.get('password') is not None:
             password = config.get('password')
+            if password == '':
+                password = None
         else:
-            password = prompt_password('Password:', False)
-            if not password:
-                print_msg("Error: Password required")
-                sys_exit(1)
+            password = prompt_password('Password:', None)
     else:
         password = None
 
@@ -234,8 +226,8 @@ async def run_offline_command(config, config_options, plugins: 'Plugins'):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        wallet = Wallet(db, storage, config=config)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
+        wallet = Wallet(db, config=config)
         config_options['wallet'] = wallet
     else:
         wallet = None
@@ -376,12 +368,15 @@ def main():
     # Note: it is ok to call set_language() again later, but note that any call only applies
     #       to not-yet-evaluated strings.
     if cmdname == 'gui':
-        from electrum_grs.gui.default_lang import get_default_language
         gui_name = config.GUI_NAME
         lang = config.LOCALIZATION_LANGUAGE
         if not lang:
-            lang = get_default_language(gui_name=gui_name)
-            _logger.info(f"get_default_language: detected default as {lang=!r}")
+            try:
+                from electrum_grs.gui.default_lang import get_default_language
+                lang = get_default_language(gui_name=gui_name)
+                _logger.info(f"get_default_language: detected default as {lang=!r}")
+            except ImportError as e:
+                _logger.info(f"get_default_language: failed. got exc={e!r}")
         set_language(lang)
 
     if config.get('testnet'):
@@ -508,6 +503,12 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         else:
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
+                sys_exit(1)
+            lockfile = daemon.get_lockfile(config)
+            if os.path.exists(lockfile):
+                print_stderr("Daemon already running (lockfile detected)")
+                print_stderr("Run 'electrum-grs stop' to stop the daemon.")
+                print_stderr("Run this command without --offline to interact with the daemon")
                 sys_exit(1)
             init_cmdline(config_options, wallet_path, False, config=config)
             plugins = init_plugins(config, 'cmdline')

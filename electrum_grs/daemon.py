@@ -357,8 +357,8 @@ class CommandsServer(AuthenticatedServer):
 
 class WatchTowerServer(AuthenticatedServer):
 
-    def __init__(self, network: 'Network', netaddress):
-        self.addr = netaddress
+    def __init__(self, network: 'Network', port:int):
+        self.port = port
         self.config = network.config
         self.network = network
         watchtower_user = self.config.WATCHTOWER_SERVER_USER or ""
@@ -373,9 +373,9 @@ class WatchTowerServer(AuthenticatedServer):
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(self.runner, host='localhost', port=self.port)
         await site.start()
-        self.logger.info(f"now running and listening. addr={self.addr}")
+        self.logger.info(f"running and listening on port {self.port}")
 
     async def get_ctn(self, *args):
         return await self.lnwatcher.get_ctn(*args)
@@ -453,8 +453,8 @@ class Daemon(Logger):
         assert not self.config.NETWORK_OFFLINE
         assert self.network
         # server-side watchtower
-        if watchtower_address := self.config.get_netaddress(self.config.cv.WATCHTOWER_SERVER_ADDRESS):
-            self.watchtower = WatchTowerServer(self.network, watchtower_address)
+        if watchtower_port := self.config.WATCHTOWER_SERVER_PORT:
+            self.watchtower = WatchTowerServer(self.network, watchtower_port)
             asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.watchtower.run), self.asyncio_loop)
 
         self.network.start(jobs=[self.fx.run])
@@ -511,14 +511,14 @@ class Daemon(Logger):
                 return
             storage.decrypt(password)
         # read data, pass it to db
-        db = WalletDB(storage.read(), manual_upgrades=manual_upgrades)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=manual_upgrades)
         if db.requires_split():
             return
         if db.requires_upgrade():
             return
         if db.get_action():
             return
-        wallet = Wallet(db, storage, config=config)
+        wallet = Wallet(db, config=config)
         return wallet
 
     @with_wallet_lock

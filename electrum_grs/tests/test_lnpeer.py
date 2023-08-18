@@ -31,12 +31,12 @@ from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum_grs.lnchannel import ChannelState, PeerState, Channel
 from electrum_grs.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum_grs.channel_db import ChannelDB
-from electrum_grs.lnworker import LNWallet, NoPathFound
+from electrum_grs.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession
 from electrum_grs.lnmsg import encode_msg, decode_msg
 from electrum_grs import lnmsg
 from electrum_grs.logging import console_stderr_handler, Logger
 from electrum_grs.lnworker import PaymentInfo, RECEIVED
-from electrum_grs.lnonion import OnionFailureCode
+from electrum_grs.lnonion import OnionFailureCode, OnionRoutingFailure
 from electrum_grs.lnutil import UpdateAddHtlc
 from electrum_grs.lnutil import LOCAL, REMOTE
 from electrum_grs.invoices import PR_PAID, PR_UNPAID
@@ -133,6 +133,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     PAYMENT_TIMEOUT = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
     INITIAL_TRAMPOLINE_FEE_LEVEL = 0
+    MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
+    MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
@@ -166,11 +168,11 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_settle = True
         self.enable_htlc_forwarding = True
         self.received_mpp_htlcs = dict()
-        self.sent_htlcs = defaultdict(asyncio.Queue)
+        self._paysessions = dict()
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
-        self.trampoline_forwardings = set()
-        self.trampoline_forwarding_failures = {}
+        self.final_onion_forwardings = set()
+        self.final_onion_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
         self.stopping_soon = False
@@ -230,17 +232,23 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             await self.channel_db.stopped_event.wait()
 
     async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
-        return [r async for r in self.create_routes_for_payment(
-            amount_msat=amount_msat,
-            final_total_msat=amount_msat,
-            invoice_pubkey=decoded_invoice.pubkey.serialize(),
-            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
-            r_tags=decoded_invoice.get_routing_info('r'),
-            invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_level=0,
-            use_two_trampolines=False,
+        paysession = PaySession(
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
+            initial_trampoline_fee_level=0,
+            invoice_features=decoded_invoice.get_features(),
+            r_tags=decoded_invoice.get_routing_info('r'),
+            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
+            amount_to_pay=amount_msat,
+            invoice_pubkey=decoded_invoice.pubkey.serialize(),
+            uses_trampoline=False,
+        )
+        paysession.use_two_trampolines = False
+        payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
+        self._paysessions[payment_key] = paysession
+        return [r async for r in self.create_routes_for_payment(
+            amount_msat=amount_msat,
+            paysession=paysession,
             full_path=full_path)]
 
     get_payments = LNWallet.get_payments
@@ -283,13 +291,13 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
     update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
-    get_mpp_status = LNWallet.get_mpp_status
-    set_mpp_status = LNWallet.set_mpp_status
+    set_mpp_resolution = LNWallet.set_mpp_resolution
     is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
     get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
     maybe_cleanup_mpp_status = LNWallet.maybe_cleanup_mpp_status
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
+    _get_payment_key = LNWallet._get_payment_key
 
 
 class MockTransport:
@@ -740,7 +748,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(SuccessfulTest):
             await f()
 
-    async def _activate_trampoline(self, w):
+    async def _activate_trampoline(self, w: MockLNWallet):
         if w.network.channel_db:
             w.network.channel_db.stop()
             await w.network.channel_db.stopped_event.wait()
@@ -749,6 +757,7 @@ class TestPeer(ElectrumTestCase):
     async def _test_simple_payment(
             self,
             test_trampoline: bool,
+            test_failure:bool=False,
             test_hold_invoice=False,
             test_bundle=False,
             test_bundle_timeout=False
@@ -765,12 +774,16 @@ class TestPeer(ElectrumTestCase):
             else:
                 raise PaymentFailure()
         lnaddr, pay_req = self.prepare_invoice(w2)
-        if test_hold_invoice:
-            payment_hash = lnaddr.paymenthash
+        payment_hash = lnaddr.paymenthash
+        if test_failure or test_hold_invoice:
             preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
-            async def cb(payment_hash):
-                w2.save_preimage(payment_hash, preimage)
-            w2.register_callback_for_hold_invoice(payment_hash, cb, 60)
+            if test_hold_invoice:
+                async def cb(payment_hash):
+                    if not test_failure:
+                        w2.save_preimage(payment_hash, preimage)
+                    else:
+                        raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+                w2.register_callback_for_hold_invoice(payment_hash, cb)
 
         if test_bundle:
             lnaddr2, pay_req2 = self.prepare_invoice(w2)
@@ -799,10 +812,15 @@ class TestPeer(ElectrumTestCase):
         await f()
 
     @needs_test_with_all_chacha20_implementations
-    async def test_simple_payment(self):
+    async def test_simple_payment_success(self):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
                 await self._test_simple_payment(test_trampoline=test_trampoline)
+
+    async def test_simple_payment_failure(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentFailure):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_failure=True)
 
     async def test_payment_bundle(self):
         for test_trampoline in [False, True]:
@@ -814,10 +832,15 @@ class TestPeer(ElectrumTestCase):
             with self.assertRaises(PaymentFailure):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True, test_bundle_timeout=True)
 
-    async def test_simple_payment_with_hold_invoice(self):
+    async def test_simple_payment_success_with_hold_invoice(self):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True)
+
+    async def test_simple_payment_failure_with_hold_invoice(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentFailure):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True, test_failure=True)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_race(self):
@@ -836,39 +859,44 @@ class TestPeer(ElectrumTestCase):
             _maybe_send_commitment2 = p2.maybe_send_commitment
             lnaddr2, pay_req2 = self.prepare_invoice(w2)
             lnaddr1, pay_req1 = self.prepare_invoice(w1)
-            # create the htlc queues now (side-effecting defaultdict)
-            q1 = w1.sent_htlcs[lnaddr2.paymenthash]
-            q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
-            route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0]
-            amount_msat = lnaddr2.get_amount_msat()
-            await w1.pay_to_route(
+            route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0].route
+            paysession1 = w1._paysessions[lnaddr2.paymenthash + lnaddr2.payment_secret]
+            shi1 = SentHtlcInfo(
                 route=route1,
-                amount_msat=amount_msat,
-                total_msat=amount_msat,
-                amount_receiver_msat=amount_msat,
-                payment_hash=lnaddr2.paymenthash,
-                min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
-                payment_secret=lnaddr2.payment_secret,
-                trampoline_fee_level=0,
+                payment_secret_orig=lnaddr2.payment_secret,
+                payment_secret_bucket=lnaddr2.payment_secret,
+                amount_msat=lnaddr2.get_amount_msat(),
+                bucket_msat=lnaddr2.get_amount_msat(),
+                amount_receiver_msat=lnaddr2.get_amount_msat(),
+                trampoline_fee_level=None,
                 trampoline_route=None,
+            )
+            await w1.pay_to_route(
+                sent_htlc_info=shi1,
+                paysession=paysession1,
+                min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
-            route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0]
-            amount_msat = lnaddr1.get_amount_msat()
-            await w2.pay_to_route(
+            route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0].route
+            paysession2 = w2._paysessions[lnaddr1.paymenthash + lnaddr1.payment_secret]
+            shi2 = SentHtlcInfo(
                 route=route2,
-                amount_msat=amount_msat,
-                total_msat=amount_msat,
-                amount_receiver_msat=amount_msat,
-                payment_hash=lnaddr1.paymenthash,
-                min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
-                payment_secret=lnaddr1.payment_secret,
-                trampoline_fee_level=0,
+                payment_secret_orig=lnaddr1.payment_secret,
+                payment_secret_bucket=lnaddr1.payment_secret,
+                amount_msat=lnaddr1.get_amount_msat(),
+                bucket_msat=lnaddr1.get_amount_msat(),
+                amount_receiver_msat=lnaddr1.get_amount_msat(),
+                trampoline_fee_level=None,
                 trampoline_route=None,
+            )
+            await w2.pay_to_route(
+                sent_htlc_info=shi2,
+                paysession=paysession2,
+                min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
@@ -877,10 +905,10 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            htlc_log1 = await q1.get()
-            assert htlc_log1.success
-            htlc_log2 = await q2.get()
-            assert htlc_log2.success
+            htlc_log1 = await paysession1.sent_htlcs_q.get()
+            self.assertTrue(htlc_log1.success)
+            htlc_log2 = await paysession2.sent_htlcs_q.get()
+            self.assertTrue(htlc_log2.success)
             raise PaymentDone()
 
         async def f():
@@ -1184,10 +1212,7 @@ class TestPeer(ElectrumTestCase):
             if not bob_forwarding:
                 graph.workers['bob'].enable_htlc_forwarding = False
             if alice_uses_trampoline:
-                if graph.workers['alice'].network.channel_db:
-                    graph.workers['alice'].network.channel_db.stop()
-                    await graph.workers['alice'].network.channel_db.stopped_event.wait()
-                    graph.workers['alice'].network.channel_db = None
+                await self._activate_trampoline(graph.workers['alice'])
             else:
                 assert graph.workers['alice'].network.channel_db is not None
             lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
@@ -1433,7 +1458,7 @@ class TestPeer(ElectrumTestCase):
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
             # alice sends htlc
-            route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
+            route = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0].route
             p1.pay(route=route,
                    chan=alice_channel,
                    amount_msat=lnaddr.get_amount_msat(),
@@ -1556,7 +1581,8 @@ class TestPeer(ElectrumTestCase):
         lnaddr, pay_req = self.prepare_invoice(w2)
 
         lnaddr = w1._check_invoice(pay_req)
-        route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
+        shi = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0]
+        route, amount_msat = shi.route, shi.amount_msat
         assert amount_msat == lnaddr.get_amount_msat()
 
         await w1.force_close_channel(alice_channel.channel_id)
@@ -1570,19 +1596,21 @@ class TestPeer(ElectrumTestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
-            payment_hash = lnaddr.paymenthash
-            payment_secret = lnaddr.payment_secret
-            pay = w1.pay_to_route(
+            shi = SentHtlcInfo(
                 route=route,
+                payment_secret_orig=lnaddr.payment_secret,
+                payment_secret_bucket=lnaddr.payment_secret,
                 amount_msat=amount_msat,
-                total_msat=amount_msat,
+                bucket_msat=amount_msat,
                 amount_receiver_msat=amount_msat,
-                payment_hash=payment_hash,
-                payment_secret=payment_secret,
-                min_cltv_expiry=min_cltv_expiry,
-                trampoline_fee_level=0,
+                trampoline_fee_level=None,
                 trampoline_route=None,
+            )
+            paysession = w1._paysessions[lnaddr.paymenthash + lnaddr.payment_secret]
+            pay = w1.pay_to_route(
+                sent_htlc_info=shi,
+                paysession=paysession,
+                min_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
             )
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):

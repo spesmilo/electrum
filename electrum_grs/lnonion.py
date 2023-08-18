@@ -25,7 +25,7 @@
 
 import io
 import hashlib
-from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional
+from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
 from enum import IntEnum
 
 from . import ecc
@@ -356,7 +356,7 @@ class FailedToDecodeOnionError(Exception): pass
 
 class OnionRoutingFailure(Exception):
 
-    def __init__(self, code: int, data: bytes):
+    def __init__(self, code: Union[int, 'OnionFailureCode'], data: bytes):
         self.code = code
         self.data = data
 

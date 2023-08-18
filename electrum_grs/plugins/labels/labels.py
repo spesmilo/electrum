@@ -137,7 +137,7 @@ class LabelsPlugin(BasePlugin):
         if response["labels"] is None or len(response["labels"]) == 0:
             self.logger.info('no new labels')
             return
-        self.logger.debug(f"labels received {response!r}")
+        #self.logger.debug(f"labels received {response!r}")
         self.logger.info(f'received {len(response["labels"])} labels')
         result = {}
         for label in response["labels"]:
