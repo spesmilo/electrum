@@ -16,6 +16,7 @@ LOG_TEMPLATE = {
     'revack_pending': False,
     'next_htlc_id': 0,
     'ctn': -1,               # oldest unrevoked ctx of sub
+    'delta_msat': {}
 }
 
 
@@ -42,8 +43,9 @@ class HTLCManager:
         # and we ourselves often take log.lock (via StoredDict.__getitem__).
         # Hence, to avoid deadlocks, we reuse this same lock.
         self.lock = log.lock
-
         self._init_maybe_active_htlc_ids()
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
 
     @with_lock
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -62,6 +64,12 @@ class HTLCManager:
 
     def _set_revack_pending(self, sub: HTLCOwner, pending: bool) -> None:
         self.log[sub]['revack_pending'] = pending
+
+    def get_agreeable_ctn(self, ctn, owner):
+        if ctn is not None and ctn <= self.ctn_latest(owner):
+            return ctn
+        else:
+            return None
 
     def get_next_htlc_id(self, sub: HTLCOwner) -> int:
         return self.log[sub]['next_htlc_id']
@@ -156,11 +164,13 @@ class HTLCManager:
         assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self._set_revack_pending(REMOTE, True)
         self.log[LOCAL]['was_revoke_last'] = False
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
 
     @with_lock
     def recv_ctx(self) -> None:
         assert self.ctn_latest(LOCAL) == self.ctn_oldest_unrevoked(LOCAL), (self.ctn_latest(LOCAL), self.ctn_oldest_unrevoked(LOCAL))
         self._set_revack_pending(LOCAL, True)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
 
     @with_lock
     def send_rev(self) -> None:
@@ -207,6 +217,101 @@ class HTLCManager:
 
         # no need to keep local update raw msgs anymore, they have just been ACKed.
         self.log[LOCAL]['unacked_updates'].pop(self.log[REMOTE]['ctn'], None)
+
+    @with_lock
+    def is_expecting_rev(self) -> bool:
+        # returns whether recv_rev would set the local_ctn of pending updates
+        x = False
+        # htlcs
+        for htlc_id in self._maybe_active_htlc_ids[LOCAL]:
+            ctns = self.log[LOCAL]['locked_in'][htlc_id]
+            if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
+                x = True
+        for log_action in ('settles', 'fails'):
+            for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
+                ctns = self.log[REMOTE][log_action].get(htlc_id, None)
+                if ctns is None: continue
+                if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
+                    x = True
+        # fee updates
+        for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
+            if fee_update.ctn_local is None and fee_update.ctn_remote <= self.ctn_latest(REMOTE):
+                x = True
+        return x
+
+    def get_active_htlcs(self):
+        active_htlcs = {LOCAL:{}, REMOTE:{}}
+        for proposer in [LOCAL, REMOTE]:
+            for htlc_id in self._maybe_active_htlc_ids[proposer]:
+                htlc_update = self.get_htlc_update(proposer, htlc_id)
+                if htlc_update.local_ctn_in is None and htlc_update.remote_ctn_in is None:
+                    continue
+                # remove inactive htlcs
+                if htlc_update.local_ctn_out is not None and htlc_update.remote_ctn_out is not None:
+                    continue
+                active_htlcs[proposer][htlc_id] = htlc_update
+        return active_htlcs
+
+    def get_inactive_htlc_balance(self, proposer: HTLCOwner, owner) -> bytes:
+        _msat = self.log[proposer]['delta_msat'].get(owner, 0)
+
+        for htlc_id in self.log[proposer]['adds'].keys():
+            htlc_update = self.get_htlc_update(proposer, htlc_id)
+            local_ctn_in = htlc_update.local_ctn_in
+            local_ctn_out = htlc_update.local_ctn_out
+            remote_ctn_in = htlc_update.remote_ctn_in
+            remote_ctn_out = htlc_update.remote_ctn_out
+            if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
+                _msat += htlc_update.amount_msat
+            if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
+                _msat += htlc_update.amount_msat
+        return _msat
+
+    def get_fee_update(self, initiator, key):
+        from .peerbackup import FeeUpdateX
+        fee_update = self.log[initiator]['fee_updates'][key]
+        ctn_local = self.get_agreeable_ctn(fee_update.ctn_local, LOCAL)
+        ctn_remote = self.get_agreeable_ctn(fee_update.ctn_remote, REMOTE)
+        if ctn_local is None and ctn_remote is None:
+            return
+        return FeeUpdateX(
+            feerate=fee_update.rate,
+            local_ctn=ctn_local,
+            remote_ctn=ctn_remote,
+        )
+
+    def get_htlc_update(self, proposer, htlc_id):
+        from .peerbackup import HtlcUpdate
+        add = self.log[proposer]['adds'][htlc_id]
+        locked_in = self.log[proposer]['locked_in'].get(htlc_id, {})
+        settles = self.log[proposer]['settles'].get(htlc_id, {})
+        fails = self.log[proposer]['fails'].get(htlc_id, {})
+        local_ctn_in = self.get_agreeable_ctn(locked_in.get(LOCAL), LOCAL)
+        local_ctn_settle = self.get_agreeable_ctn(settles.get(LOCAL), LOCAL)
+        local_ctn_fail = self.get_agreeable_ctn(fails.get(LOCAL), LOCAL)
+        remote_ctn_in = self.get_agreeable_ctn(locked_in.get(REMOTE), REMOTE)
+        remote_ctn_settle = self.get_agreeable_ctn(settles.get(REMOTE), REMOTE)
+        remote_ctn_fail = self.get_agreeable_ctn(fails.get(REMOTE), REMOTE)
+        is_success = local_ctn_settle is not None or remote_ctn_settle is not None
+        if is_success:
+            local_ctn_out = local_ctn_settle
+            remote_ctn_out = remote_ctn_settle
+        else:
+            local_ctn_out = local_ctn_fail
+            remote_ctn_out = remote_ctn_fail
+        htlc_update = HtlcUpdate(
+            amount_msat = add.amount_msat,
+            payment_hash = add.payment_hash,
+            cltv_abs = add.cltv_abs,
+            timestamp = add.timestamp,
+            htlc_id = add.htlc_id,
+            is_success = is_success,
+            local_ctn_in = local_ctn_in,
+            local_ctn_out = local_ctn_out,
+            remote_ctn_in = remote_ctn_in,
+            remote_ctn_out = remote_ctn_out,
+        )
+        return htlc_update
 
     @with_lock
     def _update_maybe_active_htlc_ids(self) -> None:
@@ -257,7 +362,8 @@ class HTLCManager:
         if self.log[REMOTE]['locked_in']:
             self.log[REMOTE]['next_htlc_id'] = max([int(x) for x in self.log[REMOTE]['locked_in'].keys()]) + 1
         else:
-            self.log[REMOTE]['next_htlc_id'] = 0
+            # fixme: test this
+            self.log[REMOTE]['next_htlc_id'] = self._remote_next_htlc_id
         # htlcs removed
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in list(self.log[LOCAL][log_action].items()):
@@ -515,6 +621,12 @@ class HTLCManager:
         if ctn is None:
             ctn = self.ctn_oldest_unrevoked(ctx_owner)
         balance = initial_balance_msat
+
+        # fixme: we should use a channel flag
+        if 'delta_msat' in self.log[whose]:
+            balance -= self.log[whose]['delta_msat'].get(ctx_owner, 0)
+            balance += self.log[-whose]['delta_msat'].get(ctx_owner, 0)
+
         if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
             balance += self._balance_delta * whose
             considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]

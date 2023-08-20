@@ -342,7 +342,7 @@ class LNSerializer:
                 if row[0] == "msgtype":
                     # msgtype,<msgname>,<value>[,<option>]
                     msg_type_name = row[1]
-                    if name == 'onion_wire':
+                    if name in ['onion_wire', 'peerbackup_wire']:
                         msg_type_int = _parse_msgtype_intvalue_for_onion_wire(str(row[2]))
                     else:
                         msg_type_int = int(row[2])
