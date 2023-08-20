@@ -86,6 +86,21 @@ class TestLightningAB(TestLightning):
         self.run_shell(['lnwatcher_waits_until_fees_go_down'])
 
 
+class TestPeerbackup(TestLightning):
+    agents = {
+        'alice': {
+            'use_gossip': 'false',
+        },
+        'bob': {
+            'lightning_listen': 'localhost:9735',
+            'lightning_peerbackup_server': 'true'
+        }
+    }
+
+    def test_peerbackup_restore(self):
+        self.run_shell(['peerbackup_restore'])
+
+
 class TestLightningSwapserver(TestLightning):
     agents = {
         'alice': {
@@ -157,6 +172,7 @@ class TestLightningJIT(TestLightning):
             'lightning_listen': 'localhost:9735',
             'lightning_forward_payments': 'true',
             'accept_zeroconf_channels': 'true',
+            'lightning_peerbackup_server': 'true',
         },
         'carol': {
         }

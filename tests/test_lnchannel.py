@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
 
-def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
+def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig, lnwallet) -> RemoteConfig:
     """converts Alice's local config to Bob's remote config (neutering private keys, etc)"""
     ctn = 0
     pcp_secret = lnutil.get_per_commitment_secret_from_seed(
@@ -83,6 +83,7 @@ def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
         current_per_commitment_point=None,
         current_commitment_signature=None,
         current_htlc_signatures=None,
+        encrypted_seed=lnwallet.encrypt_channel_seed(lconfig.channel_seed),
     )
     return rconfig
 
@@ -118,6 +119,7 @@ def create_channel_state(
             'log': {},
             'unfulfilled_htlcs': {},
             'revocation_store': {},
+            'remote_revocation_store': {},
             'channel_type': channel_type,
     }
     return StoredDict(state, None)
@@ -201,7 +203,7 @@ def create_test_channels(
                 other_node_id=bob_pubkey,
                 channel_type=channel_type,
                 local_config=alice_lconfig,
-                remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig),
+                remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig, bob_lnwallet),
             ),
             name=f"{alice_name}->{bob_name}",
             initial_feerate=feerate,
@@ -216,7 +218,7 @@ def create_test_channels(
                 other_node_id=alice_pubkey,
                 channel_type=channel_type,
                 local_config=bob_lconfig,
-                remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig),
+                remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig, alice_lnwallet),
             ),
             name=f"{bob_name}->{alice_name}",
             initial_feerate=feerate,

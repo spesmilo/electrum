@@ -965,6 +965,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
         long_desc=lambda: _("Do not set this below dust limit"),
     )
 
+    # serve channel backups
+    LIGHTNING_PEERBACKUP_SERVER = ConfigVar('lightning_peerbackup_server', default=False, type_=bool)
+
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 

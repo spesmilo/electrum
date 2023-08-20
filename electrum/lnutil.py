@@ -273,8 +273,7 @@ class LocalConfig(ChannelConfig):
 @stored_as('remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
-    pass
-
+    encrypted_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
 
 @stored_in('fee_updates')
 @attr.s
@@ -282,7 +281,6 @@ class FeeUpdate(StoredObject):
     rate = attr.ib(type=int)  # in sat/kw
     ctn_local = attr.ib(default=None, type=int)
     ctn_remote = attr.ib(default=None, type=int)
-
 
 @stored_as('constraints')
 @attr.s
@@ -544,6 +542,19 @@ class RevocationStore:
         self.storage = storage
         self.buckets = storage['buckets']
 
+    @classmethod
+    def from_seed_and_index(cls, seed, index):
+        # this is vastly inefficient, but ok for now...
+        storage = {
+            'index': RevocationStore.START_INDEX,
+            'buckets': {},
+        }
+        s = RevocationStore(storage)
+        for i in range(index):
+            secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
+            s.add_next_entry(secret)
+        return s
+
     def add_next_entry(self, hsh):
         index = self.storage['index']
         new_element = ShachainElement(index=index, secret=hsh)
@@ -568,6 +579,9 @@ class RevocationStore:
                 continue
             return element.secret
         raise UnableToDeriveSecret()
+
+    def serialize(self):
+        pass
 
 
 def count_trailing_zeros(index):
@@ -618,6 +632,13 @@ def get_pcp_from_seed(seed: bytes, i: int) -> bytes:
     per_commitment_secret = get_per_commitment_secret_from_seed(seed, i)
     return secret_to_pubkey(int.from_bytes(per_commitment_secret, 'big'))
 
+def get_revocations_from_seed(seed:bytes, ctn:int):
+    revocations = b''
+    for i in range(49):
+        ctn_i = pow(2, i)
+        secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - ctn_i)
+        revocations += ctn
+    return revocations
 
 def secret_to_pubkey(secret: int) -> bytes:
     assert type(secret) is int
@@ -1526,6 +1547,18 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_ZEROCONF_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ZEROCONF_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
+    OPTION_ELECTRUM_PEERBACKUP_CLIENT_REQ = 1 << 152
+    OPTION_ELECTRUM_PEERBACKUP_CLIENT_OPT = 1 << 153
+
+    _ln_feature_contexts[OPTION_ELECTRUM_PEERBACKUP_CLIENT_REQ] = (LNFC.INIT)
+    _ln_feature_contexts[OPTION_ELECTRUM_PEERBACKUP_CLIENT_OPT] = (LNFC.INIT)
+
+    OPTION_ELECTRUM_PEERBACKUP_SERVER_REQ = 1 << 154
+    OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT = 1 << 155
+
+    _ln_feature_contexts[OPTION_ELECTRUM_PEERBACKUP_SERVER_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:
         features = self  # copy
@@ -1690,6 +1723,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
         | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_REQ
+        | LnFeatures.OPTION_ELECTRUM_PEERBACKUP_CLIENT_OPT | LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
 )
 
 

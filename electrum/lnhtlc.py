@@ -42,8 +42,35 @@ class HTLCManager:
         # and we ourselves often take log.lock (via StoredDict.__getitem__).
         # Hence, to avoid deadlocks, we reuse this same lock.
         self.lock = log.lock
-
         self._init_maybe_active_htlc_ids()
+        self._is_local_ctn_reached = self.is_local_ctn_reached()
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
+
+    def is_local_ctn_reached(self):
+        # detect whether local ctn is reached in log values
+        # todo: add test for this. make more efficient
+        # fixme: ctn might be reached fee updates, but we have changed what we send
+        def max_over_dict(dd):
+            result = max([-1] + [(d.get(LOCAL) if d.get(LOCAL) is not None else -1) for htlc_id, d in dd.items()])
+            return result
+        local_ctn = self.log[LOCAL]['ctn']
+        max_local_ctn = max([
+            max_over_dict(self.log[LOCAL]['locked_in']),
+            max_over_dict(self.log[REMOTE]['locked_in']),
+            max_over_dict(self.log[LOCAL]['settles']),
+            max_over_dict(self.log[REMOTE]['settles']),
+            max_over_dict(self.log[LOCAL]['fails']),
+            max_over_dict(self.log[REMOTE]['fails']),
+            max([-1] + [(d.ctn_local or -1) for htlc_id, d in self.log[LOCAL]['fee_updates'].items()]),
+            max([-1] + [(d.ctn_local or -1) for htlc_id, d in self.log[REMOTE]['fee_updates'].items()]),
+        ])
+        if max_local_ctn == local_ctn:
+            return True
+        else:
+            # this assert does not work anymore when htlc history is not available
+            #assert max_local_ctn + 1 == local_ctn, f'max_local_ctn={max_local_ctn}, local_ctn={local_ctn}'
+            return False
 
     @with_lock
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -62,6 +89,13 @@ class HTLCManager:
 
     def _set_revack_pending(self, sub: HTLCOwner, pending: bool) -> None:
         self.log[sub]['revack_pending'] = pending
+
+    def get_ctn_if_lower_than_latest(self, proposer, name, htlc_id, owner):
+        ctn = self.log[proposer][name].get(htlc_id, {}).get(owner)
+        if ctn is not None and ctn <= self.ctn_latest(owner):
+            return ctn
+        else:
+            return None
 
     def get_next_htlc_id(self, sub: HTLCOwner) -> int:
         return self.log[sub]['next_htlc_id']
@@ -156,11 +190,13 @@ class HTLCManager:
         assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self._set_revack_pending(REMOTE, True)
         self.log[LOCAL]['was_revoke_last'] = False
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
 
     @with_lock
     def recv_ctx(self) -> None:
         assert self.ctn_latest(LOCAL) == self.ctn_oldest_unrevoked(LOCAL), (self.ctn_latest(LOCAL), self.ctn_oldest_unrevoked(LOCAL))
         self._set_revack_pending(LOCAL, True)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
 
     @with_lock
     def send_rev(self) -> None:
@@ -186,27 +222,31 @@ class HTLCManager:
 
     @with_lock
     def recv_rev(self) -> None:
+        next_local_ctn = self.ctn_latest(LOCAL) + int(self._is_local_ctn_reached)
+
         self.log[REMOTE]['ctn'] += 1
         self._set_revack_pending(REMOTE, False)
         # htlcs
         for htlc_id in self._maybe_active_htlc_ids[LOCAL]:
             ctns = self.log[LOCAL]['locked_in'][htlc_id]
             if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
-                ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+                ctns[LOCAL] = next_local_ctn
         for log_action in ('settles', 'fails'):
             for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
                 ctns = self.log[REMOTE][log_action].get(htlc_id, None)
                 if ctns is None: continue
                 if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
-                    ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+                    ctns[LOCAL] = next_local_ctn
         self._update_maybe_active_htlc_ids()
         # fee updates
         for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
             if fee_update.ctn_local is None and fee_update.ctn_remote <= self.ctn_latest(REMOTE):
-                fee_update.ctn_local = self.ctn_latest(LOCAL) + 1
+                fee_update.ctn_local = next_local_ctn
 
         # no need to keep local update raw msgs anymore, they have just been ACKed.
         self.log[LOCAL]['unacked_updates'].pop(self.log[REMOTE]['ctn'], None)
+        # reset this
+        self._is_local_ctn_reached = True
 
     @with_lock
     def _update_maybe_active_htlc_ids(self) -> None:
@@ -257,7 +297,8 @@ class HTLCManager:
         if self.log[REMOTE]['locked_in']:
             self.log[REMOTE]['next_htlc_id'] = max([int(x) for x in self.log[REMOTE]['locked_in'].keys()]) + 1
         else:
-            self.log[REMOTE]['next_htlc_id'] = 0
+            # fixme: test this
+            self.log[REMOTE]['next_htlc_id'] = self._remote_next_htlc_id
         # htlcs removed
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in list(self.log[LOCAL][log_action].items()):

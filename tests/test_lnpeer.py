@@ -52,6 +52,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
 from electrum.wallet import Abstract_Wallet, Standard_Wallet
+from electrum.wallet_db import WalletDB
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -558,6 +559,11 @@ class TestPeer(ElectrumTestCase):
         for ab, peer_ab in peers.items():
             peer_ab.mark_open(channels[ab])
 
+        for w in workers.values():
+            w.features |= LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+        for p in peers.values():
+            p.features |= LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+
         graph = Graph(
             workers=workers,
             peers=peers,
@@ -612,6 +618,8 @@ class TestPeerDirect(TestPeer):
 
     def prepare_peers(
             self, alice_channel: Channel, bob_channel: Channel,
+            alice_peerbackup_server = True,
+            bob_peerbackup_server = True,
     ):
         graph = self.prepare_chans_and_peers_in_graph(
             self.GRAPH_DEFINITIONS['single_chan'],
@@ -619,15 +627,54 @@ class TestPeerDirect(TestPeer):
         )
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
+
+        if not alice_peerbackup_server:
+            w1.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+            p1.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+        if not bob_peerbackup_server:
+            w2.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+            p2.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+
         return p1, p2, w1, w2
 
     async def test_reestablish(self):
-        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
-        p1, p2 = graph.peers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        #graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        #p1, p2 = graph.peers.values()
+        #alice_channel, bob_channel = graph.channels.values()
+
+        random_seed = os.urandom(32)
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        alice_channel, bob_channel = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+
+        p1, p2, w1, w2 = self.prepare_peers(
+            alice_channel, bob_channel,
+            alice_peerbackup_server=False,
+            bob_peerbackup_server=True)
+
+        # pay an invoice, so that we have exchanged commitment signed
+        async def pay():
+            await p1.initialized
+            p1.maybe_update_fee(alice_channel)
+            await asyncio.sleep(1)
+
+            #lnaddr, pay_req = self.prepare_invoice(w2)
+            #result, log = await w1.pay_invoice(pay_req)
+            #self.assertEqual(result, True)
+            gath.cancel()
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(asyncio.CancelledError):
+            await gath
 
         for chan in (alice_channel, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
+            chan.logger.info('disconnected')
+
+        # fresh peers
+        p1, p2, w1, w2 = self.prepare_peers(
+            alice_channel, bob_channel,
+            alice_peerbackup_server=False,
+            bob_peerbackup_server=True)
+
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
@@ -640,12 +687,24 @@ class TestPeerDirect(TestPeer):
             await gath
 
     async def test_reestablish_with_old_state(self):
-        async def f(alice_slow: bool, bob_slow: bool):
+        async def f(alice_slow: bool, bob_slow: bool, peerbackups:bool):
             random_seed = os.urandom(32)
             alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
             alice_channel, bob_channel = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
             alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)  # these are identical
-            p1, p2, w1, w2 = self.prepare_peers(alice_channel, bob_channel)
+
+            if peerbackups:
+                alice_peerbackup_server=False
+                bob_peerbackup_server=True
+            else:
+                alice_peerbackup_server=False
+                bob_peerbackup_server=False
+
+            p1, p2, w1, w2 = self.prepare_peers(
+                alice_channel, bob_channel,
+                alice_peerbackup_server=alice_peerbackup_server,
+                bob_peerbackup_server=bob_peerbackup_server)
+
             lnaddr, pay_req = self.prepare_invoice(w2)
             async def pay():
                 result, log = await w1.pay_invoice(pay_req)
@@ -654,37 +713,60 @@ class TestPeerDirect(TestPeer):
             gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
             with self.assertRaises(asyncio.CancelledError):
                 await gath
-            p1, p2, w1, w2 = self.prepare_peers(alice_channel_0, bob_channel)
+            p1, p2, w1, w2 = self.prepare_peers(
+                alice_channel_0, bob_channel,
+                alice_peerbackup_server=alice_peerbackup_server,
+                bob_peerbackup_server=bob_peerbackup_server)
+
             for chan in (alice_channel_0, bob_channel):
                 chan.peer_state = PeerState.DISCONNECTED
 
-            async def alice_sends_reest():
-                if alice_slow: await asyncio.sleep(0.05)
-                await p1.reestablish_channel(alice_channel_0)
-            async def bob_sends_reest():
-                if bob_slow: await asyncio.sleep(0.05)
-                await p2.reestablish_channel(bob_channel)
+            if peerbackups:
+                #assert not p1.is_peerbackup_server()
+                #assert p2.is_peerbackup_server()
+                async def reestablish():
+                    await asyncio.gather(
+                        p1.reestablish_channel(alice_channel_0),
+                        p2.reestablish_channel(bob_channel))
+                    self.assertEqual(alice_channel_0.peer_state, PeerState.REESTABLISHING)
+                    chan_id = alice_channel_0.channel_id
+                    alice_channel = w1.get_channel_by_id(chan_id)
+                    self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
+                    self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
+                    gath.cancel()
+                gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
+                with self.assertRaises(asyncio.CancelledError):
+                    await gath
+            else:
+                async def alice_sends_reest():
+                    if alice_slow: await asyncio.sleep(0.05)
+                    await p1.reestablish_channel(alice_channel_0)
+                async def bob_sends_reest():
+                    if bob_slow: await asyncio.sleep(0.05)
+                    await p2.reestablish_channel(bob_channel)
 
-            with self.assertRaises(GracefulDisconnect):
-                async with OldTaskGroup() as group:
-                    await group.spawn(p1._message_loop())
-                    await group.spawn(p1.htlc_switch())
-                    await group.spawn(p2._message_loop())
-                    await group.spawn(p2.htlc_switch())
-                    await group.spawn(alice_sends_reest)
-                    await group.spawn(bob_sends_reest)
-            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
-            self.assertEqual(alice_channel_0._state, ChannelState.WE_ARE_TOXIC)
-            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
+                with self.assertRaises(GracefulDisconnect):
+                    async with OldTaskGroup() as group:
+                        await group.spawn(p1._message_loop())
+                        await group.spawn(p1.htlc_switch())
+                        await group.spawn(p2._message_loop())
+                        await group.spawn(p2.htlc_switch())
+                        await group.spawn(alice_sends_reest)
+                        await group.spawn(bob_sends_reest)
+                self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+                self.assertEqual(alice_channel_0._state, ChannelState.WE_ARE_TOXIC)
+                self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
 
         with self.subTest(msg="both fast"):
             # FIXME: we want to test the case where both Alice and Bob sends channel-reestablish before
             #        receiving what the other sent. This is not a reliable way to do that...
-            await f(alice_slow=False, bob_slow=False)
+            await f(alice_slow=False, bob_slow=False, peerbackups=False)
         with self.subTest(msg="alice is slow"):
-            await f(alice_slow=True, bob_slow=False)
+            await f(alice_slow=True, bob_slow=False, peerbackups=False)
         with self.subTest(msg="bob is slow"):
-            await f(alice_slow=False, bob_slow=True)
+            await f(alice_slow=False, bob_slow=True, peerbackups=False)
+        with self.subTest(msg="peerbackups"):
+            await f(alice_slow=False, bob_slow=True, peerbackups=True)
 
     @staticmethod
     def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:

@@ -276,8 +276,9 @@ class TestLNMsg(ElectrumTestCase):
                          {'channel_id': b'\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01',
                           'signature': b"\x06\x11)Q\xd0\xa6\xd7\xfc\x1d\xbc\xa3\xbd\x1c\xdb\xda\x9a\xcf\xee\x7ff\x8b<\n6\xbd\x94O~/0['K\xa4ja'\x9e\x15\x16;-7lfK\xb3H\x1d|^\x10z[&\x83\x01\xe3\x9a\xeb\xbd\xa2}-",
                           'num_htlcs': 5,
-                          'htlc_signature': bfh("6548bd093a2bd2f4f053f0c6eb2c5f541d55eb8a2ede4d35fe974e5d3cd0eec3138bfd4115f4483c3b14e7988b48811d2da75f29f5e6eee691251fb4fba5a2610ba8fe7007117fe1c9fa1a6b01805c84cfffbb0eba674b64342c7cac567dea50728c1bb1aadc6d23fc2f4145027eafca82d6072cc9ce6529542099f728a0521e4b2044df5d02f7f2cdf84404762b1979528aa689a3e060a2a90ba8ef9a83d24d31ffb0d95c71d9fb9049b24ecf2c949c1486e7eb3ae160d70d54e441dc785dc57f7f3c9901b9537398c66f546cfc1d65e0748895d14699342c407fe119ac17db079b103720124a5ba22d4ba14c12832324dea9cb60c61ee74376ee7dcffdd1836e354aa8838ce3b37854fa91465cc40c73b702915e3580bfebaace805d52373b57ac755ebe4a8fe97e5fc21669bea124b809c79968479148f7174f39b8014542")}
-                          ),
+                          'htlc_signature': bfh("6548bd093a2bd2f4f053f0c6eb2c5f541d55eb8a2ede4d35fe974e5d3cd0eec3138bfd4115f4483c3b14e7988b48811d2da75f29f5e6eee691251fb4fba5a2610ba8fe7007117fe1c9fa1a6b01805c84cfffbb0eba674b64342c7cac567dea50728c1bb1aadc6d23fc2f4145027eafca82d6072cc9ce6529542099f728a0521e4b2044df5d02f7f2cdf84404762b1979528aa689a3e060a2a90ba8ef9a83d24d31ffb0d95c71d9fb9049b24ecf2c949c1486e7eb3ae160d70d54e441dc785dc57f7f3c9901b9537398c66f546cfc1d65e0748895d14699342c407fe119ac17db079b103720124a5ba22d4ba14c12832324dea9cb60c61ee74376ee7dcffdd1836e354aa8838ce3b37854fa91465cc40c73b702915e3580bfebaace805d52373b57ac755ebe4a8fe97e5fc21669bea124b809c79968479148f7174f39b8014542"),
+                           'commitment_signed_tlvs':{},
+                          }),
                          decode_msg(bfh("0084010101010101010101010101010101010101010101010101010101010101010106112951d0a6d7fc1dbca3bd1cdbda9acfee7f668b3c0a36bd944f7e2f305b274ba46a61279e15163b2d376c664bb3481d7c5e107a5b268301e39aebbda27d2d00056548bd093a2bd2f4f053f0c6eb2c5f541d55eb8a2ede4d35fe974e5d3cd0eec3138bfd4115f4483c3b14e7988b48811d2da75f29f5e6eee691251fb4fba5a2610ba8fe7007117fe1c9fa1a6b01805c84cfffbb0eba674b64342c7cac567dea50728c1bb1aadc6d23fc2f4145027eafca82d6072cc9ce6529542099f728a0521e4b2044df5d02f7f2cdf84404762b1979528aa689a3e060a2a90ba8ef9a83d24d31ffb0d95c71d9fb9049b24ecf2c949c1486e7eb3ae160d70d54e441dc785dc57f7f3c9901b9537398c66f546cfc1d65e0748895d14699342c407fe119ac17db079b103720124a5ba22d4ba14c12832324dea9cb60c61ee74376ee7dcffdd1836e354aa8838ce3b37854fa91465cc40c73b702915e3580bfebaace805d52373b57ac755ebe4a8fe97e5fc21669bea124b809c79968479148f7174f39b8014542")))
         # single htlc
         self.assertEqual(bfh("008401010101010101010101010101010101010101010101010101010101010101013b14af0c549dfb1fb287ff57c012371b3932996db5929eda5f251704751fb49d0dc2dcb88e5021575cb572fb71693758543f97d89e9165f913bfb7488d7cc26500012d31103b9f6e71131e4fee86fdfbdeba90e52b43fcfd11e8e53811cd4d59b2575ae6c3c82f85bea144c88cc35e568f1e6bdd0c57337e86de0b5da7cd9994067a"),
@@ -292,8 +293,9 @@ class TestLNMsg(ElectrumTestCase):
                          {'channel_id': b'\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01',
                           'signature': b';\x14\xaf\x0cT\x9d\xfb\x1f\xb2\x87\xffW\xc0\x127\x1b92\x99m\xb5\x92\x9e\xda_%\x17\x04u\x1f\xb4\x9d\r\xc2\xdc\xb8\x8eP!W\\\xb5r\xfbqi7XT?\x97\xd8\x9e\x91e\xf9\x13\xbf\xb7H\x8d|\xc2e',
                           'num_htlcs': 1,
-                          'htlc_signature': bfh("2d31103b9f6e71131e4fee86fdfbdeba90e52b43fcfd11e8e53811cd4d59b2575ae6c3c82f85bea144c88cc35e568f1e6bdd0c57337e86de0b5da7cd9994067a")}
-                          ),
+                          'htlc_signature': bfh("2d31103b9f6e71131e4fee86fdfbdeba90e52b43fcfd11e8e53811cd4d59b2575ae6c3c82f85bea144c88cc35e568f1e6bdd0c57337e86de0b5da7cd9994067a"),
+                          'commitment_signed_tlvs': {},
+                          }),
                          decode_msg(bfh("008401010101010101010101010101010101010101010101010101010101010101013b14af0c549dfb1fb287ff57c012371b3932996db5929eda5f251704751fb49d0dc2dcb88e5021575cb572fb71693758543f97d89e9165f913bfb7488d7cc26500012d31103b9f6e71131e4fee86fdfbdeba90e52b43fcfd11e8e53811cd4d59b2575ae6c3c82f85bea144c88cc35e568f1e6bdd0c57337e86de0b5da7cd9994067a")))
         # zero htlcs
         self.assertEqual(bfh("008401010101010101010101010101010101010101010101010101010101010101014e206ecf904d9237b1c5b4e08513555e9a5932c45b5f68be8764ce998df635ae04f6ce7bbcd3b4fd08e2daab7f9059b287ecab4155367b834682633497173f450000"),
@@ -308,8 +310,9 @@ class TestLNMsg(ElectrumTestCase):
                          {'channel_id': b'\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01',
                           'signature': b'N n\xcf\x90M\x927\xb1\xc5\xb4\xe0\x85\x13U^\x9aY2\xc4[_h\xbe\x87d\xce\x99\x8d\xf65\xae\x04\xf6\xce{\xbc\xd3\xb4\xfd\x08\xe2\xda\xab\x7f\x90Y\xb2\x87\xec\xabAU6{\x83F\x82c4\x97\x17?E',
                           'num_htlcs': 0,
-                          'htlc_signature': bfh("")}
-                          ),
+                          'htlc_signature': bfh(""),
+                          'commitment_signed_tlvs': {},
+                          }),
                          decode_msg(bfh("008401010101010101010101010101010101010101010101010101010101010101014e206ecf904d9237b1c5b4e08513555e9a5932c45b5f68be8764ce998df635ae04f6ce7bbcd3b4fd08e2daab7f9059b287ecab4155367b834682633497173f450000")))
 
     def test_encode_decode_msg__init(self):
