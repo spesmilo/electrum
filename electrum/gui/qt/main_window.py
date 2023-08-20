@@ -1534,6 +1534,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             'util': util,
             'bitcoin': bitcoin,
             'lnutil': lnutil,
+            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else []
         })
 
         c = commands.Commands(
