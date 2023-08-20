@@ -915,6 +915,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             "and also separately the max size of the current log file. "
             "Hence, the max disk usage will be twice this value."),
     )
+    DEBUG_PEERBACKUPS = ConfigVar('debug_peerbackups', default=False, type_=bool)
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
         'language', default="", type_=str,
@@ -964,6 +965,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
         short_desc=lambda: _("Amount that must be kept on-chain in order to sweep anchor output channels"),
         long_desc=lambda: _("Do not set this below dust limit"),
     )
+
+    # serve channel backups
+    LIGHTNING_PEERBACKUP_SERVER = ConfigVar('lightning_peerbackup_server', default=False, type_=bool)
 
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
