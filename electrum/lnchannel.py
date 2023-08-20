@@ -59,6 +59,7 @@ from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo, Ma
 from .lnsweep import sweep_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
+from .peerbackup import PeerBackup
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
@@ -375,7 +376,7 @@ class AbstractChannel(Logger, ABC):
                 self.logger.warning(f"dropping incoming channel, funding tx not found in mempool")
                 self.lnworker.remove_channel(self.channel_id)
         elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
-            chan_age = now() - self.storage['init_timestamp']
+            chan_age = now() - self.storage['init_timestamp'] if 'init_timestamp' in self.storage else 0
             # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
             # or if the LSP did double spent the funding tx/never published it intentionally
             # only remove a timed out OPEN channel if we are connected to the network to prevent removing it if we went
@@ -651,6 +652,7 @@ class ChannelBackup(AbstractChannel):
             upfront_shutdown_script='',
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
+            encrypted_seed=None,
         )
 
     def can_be_deleted(self):
@@ -804,6 +806,7 @@ class Channel(AbstractChannel):
         self.peer_state = PeerState.DISCONNECTED
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
+        self.remote_revocation_store = RevocationStore(state["remote_revocation_store"]) if 'remote_revocation_store' in state else None
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self.unconfirmed_closing_txid = None # not a state, only for GUI
@@ -1413,6 +1416,9 @@ class Channel(AbstractChannel):
             self.config[LOCAL].current_per_commitment_point = self.config[LOCAL].next_per_commitment_point
             self.config[LOCAL].next_per_commitment_point = next_point
             self.hm.send_rev()
+            # fixme: we might send revack multiple times
+            self.remote_revocation_store.add_next_entry(last_secret)
+
         return RevokeAndAck(last_secret, next_point)
 
     def receive_revocation(self, revocation: RevokeAndAck):
@@ -1728,7 +1734,7 @@ class Channel(AbstractChannel):
         """Settle/fulfill a pending received HTLC.
         Action must be initiated by LOCAL.
         """
-        self.logger.info("settle_htlc")
+        self.logger.info(f"settle_htlc {htlc_id}")
         assert self.can_update_ctx(proposer=LOCAL), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(REMOTE, htlc_id)
         if htlc.payment_hash != sha256(preimage):
@@ -1746,7 +1752,7 @@ class Channel(AbstractChannel):
         """Settle/fulfill a pending offered HTLC.
         Action must be initiated by REMOTE.
         """
-        self.logger.info("receive_htlc_settle")
+        self.logger.info(f"receive_htlc_settle {htlc_id}")
         assert self.can_update_ctx(proposer=REMOTE), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         if htlc.payment_hash != sha256(preimage):
@@ -2013,3 +2019,141 @@ class Channel(AbstractChannel):
             self.logger.info('funding outpoint mismatch')
             return False
         return True
+
+    def receive_peerbackup_signature(self, signature: bytes, owner: HTLCOwner):
+        peerbackup = self.get_their_peerbackup(owner)
+        peerbackup_bytes = peerbackup.to_bytes(owner=owner, blank_timestamps=True)
+        sighash = sha256d(peerbackup_bytes)
+        pubkey = self.config[REMOTE].multisig_key.pubkey
+        ctn = self.hm.log[owner]['ctn']
+        ctn = peerbackup.local_ctn if owner == LOCAL else peerbackup.remote_ctn
+        if not ECPubkey(pubkey).ecdsa_verify(signature, sighash):
+            filename = "their_local_state" if owner == LOCAL else "their_remote_state"
+            filename = self.diagnostic_name() + '_' + filename + '_%d'%ctn
+            peerbackup.save_debug_file(filename, peerbackup_bytes)
+            self.logger.info(f'receive_new_peerbackup {owner.name} {ctn=}: incorrect signature')
+            raise Exception(f'receive_new_peerbackup {owner.name} {ctn=}: incorrect signature')
+        else:
+            self.logger.info(f'receive_new_peerbackup {owner.name} {ctn=}: good signature')
+        peerbackup_bytes_with_timestamps = peerbackup.to_bytes(owner=owner)
+        ctn = peerbackup.local_ctn if owner == LOCAL else peerbackup.remote_ctn
+        key = 'their_signed_remote_peerbackup' if owner == REMOTE else 'their_signed_local_peerbackup'
+        self.storage[key] = ctn, peerbackup_bytes_with_timestamps.hex(), signature.hex()
+        # test consensus after merge and split
+        merged_pb_bytes = self.get_their_peerbackup_for_reestablish()
+        if merged_pb_bytes:
+            merged_pb = PeerBackup.from_bytes(merged_pb_bytes)
+            merged_bytes = merged_pb.to_bytes(owner=owner, blank_timestamps=True)
+            if peerbackup_bytes != merged_bytes:
+                filename = "their_local_state" if owner == LOCAL else "their_remote_state"
+                filename = self.diagnostic_name() + '_' + filename + '_%d'%ctn
+                peerbackup.save_debug_file(filename, peerbackup_bytes)
+                peerbackup.save_debug_file(filename + '.merged', merged_bytes)
+                raise Exception(f'receive_new_peerbackup: merge error')
+
+    def get_our_peerbackup(self, owner) -> dict:
+        with self.hm.lock:
+            return PeerBackup.from_channel(self, LOCAL, owner)
+
+    def get_their_peerbackup(self, owner) -> dict:
+        with self.hm.lock:
+            return PeerBackup.from_channel(self, REMOTE, owner)
+
+    def get_our_peerbackup_hash_key(self, owner, ctn) -> str:
+        # we may have to store two hashes simultaneously, if there are two unrevoked states
+        return ('our_local_state_hash' if owner == LOCAL else 'our_remote_state_hash') + '_%d'%ctn
+
+    def get_our_peerbackup_signature(self, owner):
+        peerbackup = self.get_our_peerbackup(owner)
+        peerbackup_bytes = peerbackup.to_bytes(owner=owner, blank_timestamps=True)
+        sighash = sha256d(peerbackup_bytes)
+        privkey = self.config[LOCAL].multisig_key.privkey
+        signature = ecc.ECPrivkey(privkey).ecdsa_sign(sighash, sigencode=ecc.ecdsa_sig64_from_r_and_s)
+        pubkey = self.config[LOCAL].multisig_key.pubkey
+        assert ECPubkey(pubkey).ecdsa_verify(signature, sighash)
+        ctn = self.hm.log[owner]['ctn']
+        debug_filename = self.diagnostic_name() + '_' + ("our_local_state" if owner == LOCAL else "our_remote_state") + '_%d'%ctn
+        peerbackup.save_debug_file(debug_filename, peerbackup_bytes)
+        key = self.get_our_peerbackup_hash_key(owner, ctn)
+        self.storage[key] = sighash.hex()
+        return signature
+
+    def get_their_peerbackup_signature(self, owner):
+        # signatures sent in channel_reestablish
+        key = 'their_signed_local_peerbackup' if owner == LOCAL else 'their_signed_remote_peerbackup'
+        ctn, peerbackup, their_signature = self.storage[key]
+        return bytes.fromhex(their_signature)
+
+    def get_their_peerbackup_for_reestablish(self):
+        their_signed_local_peerbackup = self.storage.get('their_signed_local_peerbackup')
+        their_signed_remote_peerbackup = self.storage.get('their_signed_remote_peerbackup')
+        if not their_signed_local_peerbackup or not their_signed_remote_peerbackup:
+            return
+        local_ctn, local_peerbackup, local_sig = their_signed_local_peerbackup
+        remote_ctn, remote_peerbackup, remote_sig = their_signed_remote_peerbackup
+        local_peerbackup_bytes = bytes.fromhex(local_peerbackup)
+        remote_peerbackup_bytes = bytes.fromhex(remote_peerbackup)
+        peerbackup_bytes = PeerBackup.merge_peerbackup_bytes(self.lnworker.config, local_peerbackup_bytes, remote_peerbackup_bytes)
+        return peerbackup_bytes
+
+    def time_commitment_hash(self, owner, ctn, timestamp):
+        timetuple = (
+            int.to_bytes(int(owner==LOCAL), length=1, byteorder="little", signed=False)
+            + int.to_bytes(timestamp, length=8, byteorder="little", signed=False)
+            + int.to_bytes(ctn, length=4, byteorder="little", signed=False)
+        )
+        return sha256d(timetuple)
+
+    def get_their_last_signed_peerbackup(self, owner):
+        key = 'their_signed_local_peerbackup' if owner == LOCAL else 'their_signed_remote_peerbackup'
+        return self.storage.get(key)
+
+    def get_time_commitment(self, owner):
+        peerbackup = self.get_their_last_signed_peerbackup(owner)
+        if peerbackup:
+            ctn, peerbackup, their_signature = peerbackup
+        else:
+            ctn = 0
+        timestamp = int(1000*time.time()) # 1ms precision
+        sighash = self.time_commitment_hash(owner, ctn, timestamp)
+        privkey = self.config[LOCAL].multisig_key.privkey
+        signature = ecc.ECPrivkey(privkey).ecdsa_sign(sighash, sigencode=ecc.ecdsa_sig64_from_r_and_s)
+        self.logger.info(f'sending time commitment with {owner.name} {ctn} {timestamp}')
+        return ctn, timestamp, signature
+
+    def receive_time_commitment(self, owner, ctn, timestamp, signature):
+        # verify signature
+        self.logger.info(f'receive_time_commitment {owner.name} {ctn} {timestamp}')
+        sighash = self.time_commitment_hash(owner, ctn, timestamp)
+        assert ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(signature, sighash)
+        # compare to previously received
+        key = 'local_time_commitment' if owner == LOCAL else 'remote_time_commitment'
+        if time_commitment := self.storage.get(key):
+            old_ctn, old_timestamp, old_signature = time_commitment
+            assert ctn >= old_ctn
+            if ctn > old_ctn:
+                assert timestamp > old_timestamp
+        # update locally stored commitment
+        self.storage[key] = (ctn, timestamp, signature)
+        # the previous hash can be removed now
+        prev_key = self.get_our_peerbackup_hash_key(owner, ctn - 1)
+        self.storage.pop(prev_key, None)
+
+    def verify_peerbackup(self, owner, peerbackup_bytes, signature):
+        peerbackup = PeerBackup.from_bytes(peerbackup_bytes)
+        peerbackup_bytes = peerbackup.to_bytes(owner=owner, blank_timestamps=True)
+        ctn = peerbackup.local_ctn if owner==LOCAL else peerbackup.remote_ctn
+        sighash = sha256d(peerbackup_bytes)
+        key = self.get_our_peerbackup_hash_key(owner, ctn)
+        our_sighash = bytes.fromhex(self.storage.get(key, ''))
+        if not our_sighash:
+            self.logger.info('cannot compare sighashes')
+        elif sighash != our_sighash:
+            peerbackup.save_debug_file('received_'+ key, peerbackup_bytes)
+            raise Exception(f'received peerbackup does not match our last sent {owner.name}')
+        pubkey = self.config[LOCAL].multisig_key.pubkey
+        if not ECPubkey(pubkey).ecdsa_verify(signature, sighash):
+            peerbackup.save_debug_file('received_'+ key, peerbackup_bytes)
+            raise Exception(f'incorrect peerbackup signature: {owner.name}')
+        self.logger.info(f'good peerbackup signature {owner.name}')
+        return ctn

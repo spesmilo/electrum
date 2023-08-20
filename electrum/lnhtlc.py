@@ -3,9 +3,15 @@ from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
+from .logging import get_logger
+from .crypto import sha256
+
+_logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from .json_db import StoredDict
+
+INITIAL_HISTORY_HASH = bytes(32)
 
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
@@ -16,6 +22,7 @@ LOG_TEMPLATE = {
     'revack_pending': False,
     'next_htlc_id': 0,
     'ctn': -1,               # oldest unrevoked ctx of sub
+    'initial_state': {},     # proposer -> 'initial_state' -> ctx_owner -> (amount_msat, hash)
 }
 
 
@@ -42,8 +49,25 @@ class HTLCManager:
         # and we ourselves often take log.lock (via StoredDict.__getitem__).
         # Hence, to avoid deadlocks, we reuse this same lock.
         self.lock = log.lock
-
         self._init_maybe_active_htlc_ids()
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
+
+    def hash_htlc_history(self, htlc_history, role, proposer:HTLCOwner, owner, first_hash) -> bytes:
+        _msat = 0
+        _hash = first_hash
+        for htlc_update in htlc_history:
+            if role == REMOTE:
+                # in order to achieve consensus, htlcs are hashed
+                # from the perspective of the client
+                htlc_update.flip()
+            _bytes2 = htlc_update.to_bytes(LOCAL, owner=owner, blank_timestamps=True)
+            assert _bytes2 is not None
+            _hash = sha256(_hash + _bytes2)
+            _msat += htlc_update.amount_msat
+        if htlc_history:
+            _logger.info(f'hash_htlc_history {role.name} {proposer.name} {owner.name} len {len(htlc_history)} {first_hash.hex()[0:20]} -> {_hash.hex()[0:20]}')
+        return _hash, _msat
 
     @with_lock
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -62,6 +86,12 @@ class HTLCManager:
 
     def _set_revack_pending(self, sub: HTLCOwner, pending: bool) -> None:
         self.log[sub]['revack_pending'] = pending
+
+    def get_agreeable_ctn(self, ctn, owner):
+        if ctn is not None and ctn <= self.ctn_latest(owner):
+            return ctn
+        else:
+            return None
 
     def get_next_htlc_id(self, sub: HTLCOwner) -> int:
         return self.log[sub]['next_htlc_id']
@@ -156,11 +186,13 @@ class HTLCManager:
         assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self._set_revack_pending(REMOTE, True)
         self.log[LOCAL]['was_revoke_last'] = False
+        self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
 
     @with_lock
     def recv_ctx(self) -> None:
         assert self.ctn_latest(LOCAL) == self.ctn_oldest_unrevoked(LOCAL), (self.ctn_latest(LOCAL), self.ctn_oldest_unrevoked(LOCAL))
         self._set_revack_pending(LOCAL, True)
+        self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
 
     @with_lock
     def send_rev(self) -> None:
@@ -209,6 +241,178 @@ class HTLCManager:
         self.log[LOCAL]['unacked_updates'].pop(self.log[REMOTE]['ctn'], None)
 
     @with_lock
+    def is_expecting_rev(self) -> bool:
+        # returns whether recv_rev would set the local_ctn of pending updates
+        x = False
+        # htlcs
+        for htlc_id in self._maybe_active_htlc_ids[LOCAL]:
+            ctns = self.log[LOCAL]['locked_in'][htlc_id]
+            if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
+                x = True
+        for log_action in ('settles', 'fails'):
+            for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
+                ctns = self.log[REMOTE][log_action].get(htlc_id, None)
+                if ctns is None: continue
+                if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
+                    x = True
+        # fee updates
+        for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
+            if fee_update.ctn_local is None and fee_update.ctn_remote <= self.ctn_latest(REMOTE):
+                x = True
+        return x
+
+    def get_active_htlcs(self, role, owner):
+        active_htlcs = {LOCAL:{}, REMOTE:{}}
+        for proposer in [LOCAL, REMOTE]:
+            for htlc_id in self._maybe_active_htlc_ids[proposer]:
+                u = self.get_htlc_update(proposer, role, owner, htlc_id)
+                # remove empty
+                if u.local_ctn_in is None and u.remote_ctn_in is None:
+                    continue
+                # remove inactive htlcs
+                if owner == REMOTE:
+                    # this is CS: remote matters
+                    if role == LOCAL and u.remote_ctn_out is not None:
+                        continue
+                    if role == REMOTE and u.local_ctn_out is not None:
+                        continue
+                if owner == LOCAL:
+                    # this is revack
+                    if role == LOCAL and u.local_ctn_out is not None:
+                        if proposer == LOCAL and u.remote_ctn_in is not None and u.remote_ctn_out is not None:
+                            if u.remote_ctn_out == self.ctn_latest(REMOTE) + 1:
+                                # still active
+                                pass
+                            else:
+                                continue
+                        else:
+                            continue
+                    if role == REMOTE and u.remote_ctn_out is not None:
+                        if proposer == REMOTE and u.local_ctn_in is not None and u.local_ctn_out is not None:
+                            if u.local_ctn_out == self.ctn_latest(LOCAL) + 1:
+                                # still active
+                                pass
+                            else:
+                                continue
+                        else:
+                            continue
+                active_htlcs[proposer][htlc_id] = u
+        return active_htlcs
+
+    def get_htlc_history(self, role: HTLCOwner, proposer: HTLCOwner, owner: HTLCOwner) -> int:
+        active_htlcs = self.get_active_htlcs(role, owner)
+        htlc_history = []
+        for htlc_id in sorted(self.log[proposer]['adds'].keys()):
+            if htlc_id in active_htlcs[proposer]:
+                continue
+            u = self.get_htlc_update(proposer, role, owner, htlc_id)
+            assert u.remote_ctn_out is None or u.remote_ctn_out <= self.ctn_latest(REMOTE)
+            assert u.local_ctn_out is None or u.local_ctn_out <= self.ctn_latest(LOCAL)
+            if u.local_ctn_in is None and u.remote_ctn_in is None:
+                continue
+            htlc_history.append(u)
+        return htlc_history
+
+    def get_initial_state(self, proposer, owner):
+        initial_msat, first_hash_hex = self.log[proposer]['initial_state'].get(owner, (0, INITIAL_HISTORY_HASH.hex()))
+        first_hash = bytes.fromhex(first_hash_hex)
+        return initial_msat, first_hash
+
+    def get_htlc_history_hash(self, role, proposer, owner) -> Tuple[bytes, int]:
+        htlc_history = self.get_htlc_history(role, proposer, owner)
+        initial_msat, first_hash = self.get_initial_state(proposer, owner)
+        history_hash, msat = self.hash_htlc_history(
+            htlc_history,
+            role,
+            proposer=proposer,
+            owner=owner,
+            first_hash=first_hash)
+        return history_hash, initial_msat + msat
+
+    def get_fee_update(self, initiator, key):
+        from .peerbackup import FeeUpdateX
+        fee_update = self.log[initiator]['fee_updates'][key]
+        ctn_local = self.get_agreeable_ctn(fee_update.ctn_local, LOCAL)
+        ctn_remote = self.get_agreeable_ctn(fee_update.ctn_remote, REMOTE)
+        if ctn_local is None and ctn_remote is None:
+            return
+        return FeeUpdateX(
+            feerate=fee_update.rate,
+            local_ctn=ctn_local,
+            remote_ctn=ctn_remote,
+        )
+
+    def get_htlc_update(self, proposer, role, owner, htlc_id):
+        # role = owner of the peerbackup
+        # owner: LOCAL for revack, REMOTE for sig
+        from .peerbackup import HtlcUpdate
+        add = self.log[proposer]['adds'][htlc_id]
+        locked_in = self.log[proposer]['locked_in'].get(htlc_id, {})
+        settles = self.log[proposer]['settles'].get(htlc_id, {})
+        fails = self.log[proposer]['fails'].get(htlc_id, {})
+        local_in = locked_in.get(LOCAL)
+        local_settle = settles.get(LOCAL)
+        local_fail = fails.get(LOCAL)
+        remote_in = locked_in.get(REMOTE)
+        remote_settle = settles.get(REMOTE)
+        remote_fail = fails.get(REMOTE)
+        is_success = local_settle is not None or remote_settle is not None
+        if is_success:
+            local_out = local_settle
+            remote_out = remote_settle
+        else:
+            local_out = local_fail
+            remote_out = remote_fail
+
+        ctn_latest_remote = self.ctn_latest(REMOTE)
+        ctn_latest_local = self.ctn_latest(LOCAL)
+
+        # filter agreeable ctns
+        if role == LOCAL:
+            if owner == LOCAL:
+                # this is revack:
+                local_in = self.get_agreeable_ctn(local_in, LOCAL)
+                local_out = self.get_agreeable_ctn(local_out, LOCAL)
+                # remote values are unchanged. written down for clarity
+                remote_in = remote_in
+                remote_out = remote_out
+            if owner == REMOTE:
+                # this is CS
+                local_in = None
+                local_out = None
+                remote_out = self.get_agreeable_ctn(remote_out, REMOTE)
+                remote_in = self.get_agreeable_ctn(remote_in, REMOTE)
+
+        elif role == REMOTE:
+            if owner == LOCAL:
+                # this is revack:
+                remote_in = self.get_agreeable_ctn(remote_in, REMOTE)
+                remote_out = self.get_agreeable_ctn(remote_out, REMOTE)
+                # unchanged
+                local_in = local_in
+                local_out = local_out
+            if owner == REMOTE:
+                # this is CS
+                remote_in = None
+                remote_out = None
+                local_out = self.get_agreeable_ctn(local_out, LOCAL)
+                local_in = self.get_agreeable_ctn(local_in, LOCAL)
+
+        htlc_update = HtlcUpdate(
+            amount_msat = add.amount_msat,
+            payment_hash = add.payment_hash,
+            cltv_abs = add.cltv_abs,
+            timestamp = add.timestamp,
+            htlc_id = add.htlc_id,
+            is_success = is_success,
+            local_ctn_in = local_in,
+            local_ctn_out = local_out,
+            remote_ctn_in = remote_in,
+            remote_ctn_out = remote_out,
+        )
+        return htlc_update
+
+    @with_lock
     def _update_maybe_active_htlc_ids(self) -> None:
         # - Loosely, we want a set that contains the htlcs that are
         #   not "removed and revoked from all ctxs of both parties". (self._maybe_active_htlc_ids)
@@ -220,16 +424,20 @@ class HTLCManager:
         for htlc_proposer in (LOCAL, REMOTE):
             for log_action in ('settles', 'fails'):
                 for htlc_id in list(self._maybe_active_htlc_ids[htlc_proposer]):
+                    locked_in = self.log[htlc_proposer]['locked_in'][htlc_id]
                     ctns = self.log[htlc_proposer][log_action].get(htlc_id, None)
                     if ctns is None: continue
-                    if (ctns[LOCAL] is not None
+                    if (locked_in[LOCAL] is not None and locked_in[REMOTE] is not None \
+                            and ctns[LOCAL] is not None
                             and ctns[LOCAL] <= self.ctn_oldest_unrevoked(LOCAL) - sanity_margin
                             and ctns[REMOTE] is not None
                             and ctns[REMOTE] <= self.ctn_oldest_unrevoked(REMOTE) - sanity_margin):
+
                         self._maybe_active_htlc_ids[htlc_proposer].remove(htlc_id)
                         if log_action == 'settles':
                             htlc = self.log[htlc_proposer]['adds'][htlc_id]  # type: UpdateAddHtlc
-                            self._balance_delta -= htlc.amount_msat * htlc_proposer
+                            if locked_in.get(LOCAL) is not None and locked_in.get(REMOTE) is not None:
+                                self._balance_delta -= htlc.amount_msat * htlc_proposer
 
     @with_lock
     def _init_maybe_active_htlc_ids(self):
@@ -257,7 +465,8 @@ class HTLCManager:
         if self.log[REMOTE]['locked_in']:
             self.log[REMOTE]['next_htlc_id'] = max([int(x) for x in self.log[REMOTE]['locked_in'].keys()]) + 1
         else:
-            self.log[REMOTE]['next_htlc_id'] = 0
+            # fixme: test this
+            self.log[REMOTE]['next_htlc_id'] = self._remote_next_htlc_id
         # htlcs removed
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in list(self.log[LOCAL][log_action].items()):
@@ -515,6 +724,13 @@ class HTLCManager:
         if ctn is None:
             ctn = self.ctn_oldest_unrevoked(ctx_owner)
         balance = initial_balance_msat
+
+        if 'initial_state' in self.log[whose]:
+            delta_offered, _ = self.get_initial_state(whose, ctx_owner)
+            delta_received, _ = self.get_initial_state(-whose, ctx_owner)
+            balance -= delta_offered
+            balance += delta_received
+
         if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
             balance += self._balance_delta * whose
             considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]
@@ -524,6 +740,10 @@ class HTLCManager:
             considered_recv_htlc_ids = self.log[-whose]['settles']
         # sent htlcs
         for htlc_id in considered_sent_htlc_ids:
+            locked_in = self.log[whose]['locked_in'].get(htlc_id, None)
+            if ctx_owner == REMOTE and locked_in and locked_in[ctx_owner] is None:
+                # remnant. must be added only to LOCAL
+                continue
             ctns = self.log[whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue
@@ -532,6 +752,9 @@ class HTLCManager:
                 balance -= htlc.amount_msat
         # recv htlcs
         for htlc_id in considered_recv_htlc_ids:
+            locked_in = self.log[-whose]['locked_in'].get(htlc_id, None)
+            if ctx_owner == REMOTE and locked_in and locked_in[ctx_owner] is None:
+                continue
             ctns = self.log[-whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue

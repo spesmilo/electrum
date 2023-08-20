@@ -559,6 +559,11 @@ class TestPeer(ElectrumTestCase):
         for ab, peer_ab in peers.items():
             peer_ab.mark_open(channels[ab])
 
+        for w in workers.values():
+            w.features |= LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+        for p in peers.values():
+            p.features |= LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+
         graph = Graph(
             workers=workers,
             peers=peers,
@@ -639,6 +644,8 @@ class TestPeerDirect(TestPeer):
 
     def prepare_peers(
             self, alice_channel: Channel, bob_channel: Channel,
+            alice_peerbackup_server = True,
+            bob_peerbackup_server = True,
     ):
         graph = self.prepare_chans_and_peers_in_graph(
             self.GRAPH_DEFINITIONS['single_chan'],
@@ -646,15 +653,47 @@ class TestPeerDirect(TestPeer):
         )
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
+
+        if not alice_peerbackup_server:
+            w1.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+            p1.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+        if not bob_peerbackup_server:
+            w2.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+            p2.features &= ~ LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
+
         return p1, p2, w1, w2
 
     async def test_reestablish(self):
-        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
-        p1, p2 = graph.peers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        random_seed = os.urandom(32)
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        alice_channel, bob_channel = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+
+        p1, p2, w1, w2 = self.prepare_peers(
+            alice_channel, bob_channel,
+            alice_peerbackup_server=False,
+            bob_peerbackup_server=True)
+
+        # send fee update, so that we have exchanged commitment signed
+        async def pay():
+            await p1.initialized
+            p1.maybe_update_fee(alice_channel)
+            await asyncio.sleep(1)
+            gath.cancel()
+
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(asyncio.CancelledError):
+            await gath
 
         for chan in (alice_channel, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
+            chan.logger.info('disconnected')
+
+        # fresh peers
+        p1, p2, w1, w2 = self.prepare_peers(
+            alice_channel, bob_channel,
+            alice_peerbackup_server=False,
+            bob_peerbackup_server=True)
+
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
@@ -672,7 +711,12 @@ class TestPeerDirect(TestPeer):
             alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
             alice_channel, bob_channel = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
             alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)  # these are identical
-            p1, p2, w1, w2 = self.prepare_peers(alice_channel, bob_channel)
+
+            p1, p2, w1, w2 = self.prepare_peers(
+                alice_channel, bob_channel,
+                alice_peerbackup_server=False,
+                bob_peerbackup_server=False)
+
             lnaddr, pay_req = self.prepare_invoice(w2)
             async def pay():
                 result, log = await w1.pay_invoice(pay_req)
@@ -681,7 +725,11 @@ class TestPeerDirect(TestPeer):
             gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
             with self.assertRaises(asyncio.CancelledError):
                 await gath
-            p1, p2, w1, w2 = self.prepare_peers(alice_channel_0, bob_channel)
+            p1, p2, w1, w2 = self.prepare_peers(
+                alice_channel_0, bob_channel,
+                alice_peerbackup_server=False,
+                bob_peerbackup_server=False)
+
             for chan in (alice_channel_0, bob_channel):
                 chan.peer_state = PeerState.DISCONNECTED
 
