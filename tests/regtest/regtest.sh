@@ -255,6 +255,33 @@ if [[ $1 == "backup" ]]; then
 fi
 
 
+if [[ $1 == "peerbackup_restore" ]]; then
+    seed=$($alice getseed --password='')
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='')
+    new_blocks 3
+    wait_until_channel_open alice
+    # create some htlc history
+    for i in $(seq 1 10);
+    do
+	invoice=$($bob add_request 0.001 --lightning --memo "payment $i" | jq -r ".lightning_invoice")
+	$alice lnpay $invoice --timeout=1 || true
+       # create copies for manual testing
+       cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.$i
+    done
+    $alice stop
+    mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.orig
+    $alice -o restore "$seed"
+    $alice daemon -d
+    $alice load_wallet
+    # alice needs to connect to bob
+    $alice add_peer $bob_node
+    wait_until_channel_open alice
+fi
+
+
 if [[ $1 == "backup_local_forceclose" ]]; then
     # Alice does a local-force-close, and then restores from seed before sweeping CSV-locked coins
     wait_for_balance alice 1

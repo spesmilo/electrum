@@ -55,7 +55,8 @@ from .transaction import (
     Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
 )
 from .crypto import (
-    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
+    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac,
+    chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 )
 
 from .onion_message import OnionMessageManager
@@ -205,6 +206,7 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_SCID_ALIAS_OPT
     | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
     | LnFeatures.OPTION_CHANNEL_TYPE_REQ
+    | LnFeatures.OPTION_ELECTRUM_PEERBACKUP_CLIENT_OPT
 )
 
 LNGOSSIP_FEATURES = (
@@ -1014,6 +1016,8 @@ class LNWallet(Logger):
                 features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
                 features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
+            if self.config.LIGHTNING_PEERBACKUP_SERVER:
+                features |= LnFeatures.OPTION_ELECTRUM_PEERBACKUP_SERVER_OPT
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.lnpeermgr = LNPeerManager(self.node_keypair, features=features, config=self.config, lnwallet_or_lngossip=self)
@@ -1298,7 +1302,8 @@ class LNWallet(Logger):
             label = self.wallet.get_label_for_rhash(key)
             if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
-            preimage = self.get_preimage(payment_hash).hex()
+            preimage = self.get_preimage(payment_hash)
+            preimage = preimage.hex() if preimage else None
             group_id = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
             item = LightningHistoryItem(
                 type='payment',
@@ -1602,7 +1607,8 @@ class LNWallet(Logger):
     def add_channel(self, chan: Channel):
         with self.lock:
             self._channels[chan.channel_id] = chan
-        self.lnwatcher.add_channel(chan)
+        if self.lnwatcher:
+            self.lnwatcher.add_channel(chan)
 
     def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
@@ -1709,6 +1715,12 @@ class LNWallet(Logger):
         # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
         #       (not have the 16 byte MAC). Otherwise, the latter would be preferable.
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
+
+    def encrypt_channel_seed(self, seed: bytes) -> bytes:
+        return chacha20_poly1305_encrypt(key=self.backup_key, data=seed, nonce=bytes(12))
+
+    def decrypt_channel_seed(self, encrypted_data: bytes) -> bytes:
+        return chacha20_poly1305_decrypt(key=self.backup_key, data=encrypted_data, nonce=bytes(12))
 
     def mktx_for_open_channel(
             self, *,
