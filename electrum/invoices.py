@@ -94,13 +94,18 @@ class BaseInvoice(StoredObject):
     """
     Base class for Invoice and Request
     In the code, we use 'invoice' for outgoing payments, and 'request' for incoming payments.
+
+    TODO this class is getting too complicated for "attrs"... maybe we should rewrite it without.
     """
 
     # mandatory fields
-    amount_msat = attr.ib(kw_only=True)  # type: Optional[Union[int, str]]  # can be '!' or None
+    amount_msat = attr.ib(  # can be '!' or None
+        kw_only=True, on_setattr=attr.setters.validate)  # type: Optional[Union[int, str]]
     message = attr.ib(type=str, kw_only=True)
-    time = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int))  # timestamp of the invoice
-    exp = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int))   # expiration delay (relative). 0 means never
+    time = attr.ib(  # timestamp of the invoice
+        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
+    exp = attr.ib(  # expiration delay (relative). 0 means never
+        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
 
     # optional fields.
     # an request (incoming) can be satisfied onchain, using lightning or using a swap
@@ -108,7 +113,8 @@ class BaseInvoice(StoredObject):
 
     # onchain only
     outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: Optional[List[PartialTxOutput]]
-    height = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int)) # only for receiving
+    height = attr.ib(  # only for receiving
+        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
