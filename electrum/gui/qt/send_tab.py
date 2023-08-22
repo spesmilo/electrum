@@ -511,13 +511,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # must not be None
         return self.amount_e.get_amount() or 0
 
-    def on_finalize_done(self, pi):
+    def on_finalize_done(self, pi: PaymentIdentifier):
         self.showSpinner(False)
         self.update_fields()
         if pi.error:
             self.show_error(pi.error)
             return
-        invoice = pi.get_invoice(self.get_amount(), self.get_message())
+        invoice = pi.bolt11
         self.pending_invoice = invoice
         self.logger.debug(f'after finalize invoice: {invoice!r}')
         self.do_pay_invoice(invoice)
