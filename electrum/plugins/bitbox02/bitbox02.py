@@ -24,6 +24,8 @@ import electrum.ecc as ecc
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
+if TYPE_CHECKING:
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -720,3 +722,29 @@ class BitBox02Plugin(HW_PluginBase):
         # distinguish devices.
         id_ = str(d['path'])
         return device._replace(id_=id_)
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'bitbox_start' if device_info.initialized else 'bitbox_not_initialized'
+        else:
+            return 'bitbox_unlock'
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'bitbox_start': {
+                'next': 'bitbox_xpub',
+            },
+            'bitbox_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'bitbox_not_initialized': {},
+            'bitbox_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)
