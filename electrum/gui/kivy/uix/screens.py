@@ -351,7 +351,7 @@ class SendScreen(CScreen, Logger):
                 assert type(amount_sat) is int
                 invoice = Invoice.from_bech32(address)
                 if invoice.amount_msat is None:
-                    invoice.amount_msat = int(amount_sat * 1000)
+                    invoice.set_amount_msat(int(amount_sat * 1000))
                 return invoice
             else:
                 # on-chain
