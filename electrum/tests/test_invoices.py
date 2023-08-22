@@ -287,6 +287,8 @@ class TestBaseInvoice(ElectrumTestCase):
         with self.assertRaises(InvoiceError):
             invoice.amount_msat = 10**20
         with self.assertRaises(InvoiceError):
+            invoice.set_amount_msat(10**20)
+        with self.assertRaises(InvoiceError):
             invoice2 = Invoice(
                 amount_msat=10**20,
                 message="mymsg",

@@ -605,7 +605,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if invoice.amount_msat is None:
                 amount_sat = self.parse_amount(self.str_amount)
                 if amount_sat:
-                    invoice.amount_msat = int(amount_sat * 1000)
+                    invoice.set_amount_msat(int(amount_sat * 1000))
                 else:
                     self.show_error(_('No amount'))
                     return
