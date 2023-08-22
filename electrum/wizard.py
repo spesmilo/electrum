@@ -469,7 +469,7 @@ class NewWalletWizard(AbstractWizard):
             db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
 
         db.load_plugins()
-        db.write(storage)
+        db.write()
 
 class ServerConnectWizard(AbstractWizard):
 

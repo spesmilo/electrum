@@ -119,7 +119,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
             self.createSuccess.emit()
         except Exception as e:
-            self._logger.error(f"createStorage errored: {e!r}")
+            self._logger.exception(f"createStorage errored: {e!r}")
             self.createError.emit(str(e))
 
 
