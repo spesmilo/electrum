@@ -488,7 +488,7 @@ class JadePlugin(HW_PluginBase):
         else:
             return 'jade_unlock'
 
-    # insert trezor pages in new wallet wizard
+    # insert jade pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'jade_start': {

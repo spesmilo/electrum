@@ -488,3 +488,29 @@ class KeepKeyPlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'keepkey_start' if device_info.initialized else 'keepkey_not_initialized'
+        else:
+            return 'keepkey_unlock'
+
+    # insert keepkey pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'keepkey_start': {
+                'next': 'keepkey_xpub',
+            },
+            'keepkey_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'keepkey_not_initialized': {},
+            'keepkey_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

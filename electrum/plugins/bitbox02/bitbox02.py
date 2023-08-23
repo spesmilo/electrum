@@ -731,7 +731,7 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             return 'bitbox02_unlock'
 
-    # insert trezor pages in new wallet wizard
+    # insert bitbox02 pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'bitbox02_start': {

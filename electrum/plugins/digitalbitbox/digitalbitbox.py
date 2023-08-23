@@ -780,7 +780,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         else:
             return 'dbitbox_unlock'
 
-    # insert trezor pages in new wallet wizard
+    # insert digitalbitbox pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'dbitbox_start': {

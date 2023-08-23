@@ -47,7 +47,7 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         self.extend_wizard(wizard)
 
-    # insert trezor pages in new wallet wizard
+    # insert digitalbitbox pages in new wallet wizard
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
