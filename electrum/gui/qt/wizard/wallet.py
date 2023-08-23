@@ -86,7 +86,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
                 'last': lambda d: d['wallet_exists'] and not d['wallet_needs_hw_unlock']
             },
             'hw_unlock': {
-                # 'last': True,
                 'gui': WCChooseHWDevice,
                 'next': lambda d: self.on_hardware_device(d, new_wallet=False)
             }
@@ -830,7 +829,7 @@ class WCMultisig(WizardComponent):
 
 class WCImport(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Import Bitcoin Addresses'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Import Bitcoin Addresses or Private Keys'))
         message = _(
             'Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
         header_layout = QHBoxLayout()
@@ -1111,7 +1110,7 @@ class WCChooseHWDevice(WizardComponent, Logger):
 
 class WCWalletPasswordHardware(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Password HW'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Encrypt using hardware'))
         self.plugins = wizard.plugins
 
         self.playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
@@ -1133,7 +1132,7 @@ class WCWalletPasswordHardware(WizardComponent):
 
 class WCHWUnlock(WizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('unlock'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Unlocking hardware'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = None
@@ -1157,18 +1156,13 @@ class WCHWUnlock(WizardComponent, Logger):
             try:
                 self.password = client.get_password_for_storage_encryption()
             except Exception as e:
-                # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
-                self.error = repr(e)
+                self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.error(repr(e))
-            self.unlock_done()
+            self.busy = False
+            self.validate()
 
         t = threading.Thread(target=unlock_task, args=(client,), daemon=True)
         t.start()
-
-    def unlock_done(self):
-        self.logger.debug(f'Done unlock')
-        self.busy = False
-        self.validate()
 
     def validate(self):
         if self.password and not self.error:
@@ -1180,3 +1174,85 @@ class WCHWUnlock(WizardComponent, Logger):
     def apply(self):
         if self.valid:
             self.wizard_data['password'] = self.password
+
+
+class WCHWXPub(WizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Retrieving extended public key from hardware'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self.plugin = None
+        self._busy = True
+
+        self.xpub = None
+        self.root_fingerprint = None
+        self.label = None
+        self.soft_device_id = None
+
+        self.ok_l = WWLabel(_('Hardware keystore added to wallet'))
+        self.ok_l.setAlignment(Qt.AlignCenter)
+        self.layout().addWidget(self.ok_l)
+
+    def on_ready(self):
+        _name, _info = self.wizard_data['hardware_device']
+        self.plugin = self.plugins.get_plugin(_info.plugin_name)
+        self.title = _('Retrieving extended public key from {} ({})').format(_info.model_name, _info.label)
+
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if not client.handler:
+            client.handler = self.plugin.create_handler(self.wizard)
+
+        cosigner = self.wizard.current_cosigner(self.wizard_data)
+        xtype = cosigner['script_type']
+        derivation = cosigner['derivation_path']
+
+        def get_xpub_task(client, derivation, xtype):
+            try:
+                self.xpub = self.get_xpub_from_client(client, derivation, xtype)
+                self.root_fingerprint = client.request_root_fingerprint_from_device()
+                self.label = client.label()
+                self.soft_device_id = client.get_soft_device_id()
+            except Exception as e:
+                self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
+                self.logger.error(repr(e))
+            self.logger.debug(f'Done retrieve xpub: {self.xpub}')
+            self.busy = False
+            self.validate()
+
+        t = threading.Thread(target=get_xpub_task, args=(client, derivation, xtype), daemon=True)
+        t.start()
+
+    def get_xpub_from_client(self, client, derivation, xtype):  # override for HWW specific client if needed
+        return client.get_xpub(derivation, xtype)
+
+    def validate(self):
+        if self.xpub and not self.error:
+            self.apply()
+            valid, error = self.wizard.check_multisig_constraints(self.wizard_data)
+            if not valid:
+                self.error = '\n'.join([
+                    _('Could not add hardware keystore to wallet'),
+                    error
+                ])
+            self.valid = valid
+        else:
+            self.valid = False
+
+    def apply(self):
+        _name, _info = self.wizard_data['hardware_device']
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        cosigner_data['hw_type'] = _info.plugin_name
+        cosigner_data['master_key'] = self.xpub
+        cosigner_data['root_fingerprint'] = self.root_fingerprint
+        cosigner_data['label'] = self.label
+        cosigner_data['soft_device_id'] = self.soft_device_id
+
+
+class WCHWUninitialized(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Hardware not initialized'))
+
+    def on_ready(self):
+        _name, _info = self.wizard_data['hardware_device']
+        self.layout().addWidget(WWLabel(_('This {} is not initialized. Cannot continue').format(_info.model_name)))
