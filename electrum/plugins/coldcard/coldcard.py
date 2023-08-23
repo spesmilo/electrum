@@ -612,6 +612,32 @@ class ColdcardPlugin(HW_PluginBase):
             keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
             return
 
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'coldcard_start' if device_info.initialized else 'coldcard_not_initialized'
+        else:
+            return 'coldcard_unlock'
+
+    # insert coldcard pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'coldcard_start': {
+                'next': 'coldcard_xpub',
+            },
+            'coldcard_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'coldcard_not_initialized': {},
+            'coldcard_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)
+
 
 def xfp_int_from_xfp_bytes(fp_bytes: bytes) -> int:
     return int.from_bytes(fp_bytes, byteorder="little", signed=False)
