@@ -771,3 +771,29 @@ class DigitalBitboxPlugin(HW_PluginBase):
             "echo": xpub['echo'],
         }
         self.comserver_post_notification(verify_request_payload, handler=keystore.handler)
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'dbitbox_start' if device_info.initialized else 'dbitbox_not_initialized'
+        else:
+            return 'dbitbox_unlock'
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'dbitbox_start': {
+                'next': 'dbitbox_xpub',
+            },
+            'dbitbox_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'dbitbox_not_initialized': {},
+            'dbitbox_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

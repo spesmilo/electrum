@@ -1,4 +1,5 @@
 from functools import partial
+from typing import TYPE_CHECKING
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -7,6 +8,10 @@ from electrum.wallet import Standard_Wallet, Abstract_Wallet
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .digitalbitbox import DigitalBitboxPlugin
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWXPub, WCHWUninitialized, WCHWUnlock
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
 
 class Plugin(DigitalBitboxPlugin, QtPluginBase):
@@ -37,6 +42,21 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
                 keystore.thread.add(partial(self.show_address, wallet, addr, keystore))
 
             menu.addAction(_("Show on {}").format(self.device), show_address)
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        super().extend_wizard(wizard)
+        views = {
+            'dbitbox_start': {'gui': WCScriptAndDerivation},
+            'dbitbox_xpub': {'gui': WCHWXPub},
+            'dbitbox_not_initialized': {'gui': WCHWUninitialized},
+            'dbitbox_unlock': {'gui': WCHWUnlock}
+        }
+        wizard.navmap_merge(views)
 
 
 class DigitalBitbox_Handler(QtHandlerBase):
