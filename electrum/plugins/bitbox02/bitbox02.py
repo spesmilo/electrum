@@ -727,23 +727,23 @@ class BitBox02Plugin(HW_PluginBase):
 
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:
-            return 'bitbox_start' if device_info.initialized else 'bitbox_not_initialized'
+            return 'bitbox02_start' if device_info.initialized else 'bitbox02_not_initialized'
         else:
-            return 'bitbox_unlock'
+            return 'bitbox02_unlock'
 
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
-            'bitbox_start': {
-                'next': 'bitbox_xpub',
+            'bitbox02_start': {
+                'next': 'bitbox02_xpub',
             },
-            'bitbox_xpub': {
+            'bitbox02_xpub': {
                 'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
                 'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
-            'bitbox_not_initialized': {},
-            'bitbox_unlock': {
+            'bitbox02_not_initialized': {},
+            'bitbox02_unlock': {
                 'last': True
             },
         }
