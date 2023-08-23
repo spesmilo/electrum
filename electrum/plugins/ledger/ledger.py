@@ -1465,3 +1465,30 @@ class LedgerPlugin(HW_PluginBase):
         txin_type = wallet.get_txin_type(address)
 
         keystore.show_address(sequence, txin_type)
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'ledger_start' if device_info.initialized else 'ledger_not_initialized'
+        else:
+            return 'ledger_unlock'
+
+    # insert ledger pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'ledger_start': {
+                'next': 'ledger_xpub',
+            },
+            'ledger_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'ledger_not_initialized': {},
+            'ledger_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)
+

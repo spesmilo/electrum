@@ -1,4 +1,5 @@
 from functools import partial
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QInputDialog, QLabel, QVBoxLayout, QLineEdit
@@ -11,6 +12,10 @@ from electrum.gui.qt.util import WindowModalDialog
 from .ledger import LedgerPlugin, Ledger_Client
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
 
 class Plugin(LedgerPlugin, QtPluginBase):
@@ -30,6 +35,22 @@ class Plugin(LedgerPlugin, QtPluginBase):
             def show_address():
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
             menu.addAction(_("Show on Ledger"), show_address)
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert ledger pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        super().extend_wizard(wizard)
+        views = {
+            'ledger_start': {'gui': WCScriptAndDerivation},
+            'ledger_xpub': {'gui': WCHWXPub},
+            'ledger_not_initialized': {'gui': WCHWUninitialized},
+            'ledger_unlock': {'gui': WCHWUnlock}
+        }
+        wizard.navmap_merge(views)
+
 
 class Ledger_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
