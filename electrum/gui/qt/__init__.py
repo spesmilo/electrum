@@ -430,7 +430,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
             storage.decrypt(d['password'])
 
-        db = WalletDB(storage.read(), manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
         # TODO
         # wizard.run_upgrades(storage, db)
         # TODO
@@ -438,7 +438,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # if storage is None or db.get_action():
         #     return
 
-        wallet = Wallet(db, storage, config=self.config)
+        wallet = Wallet(db, config=self.config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
         return wallet
