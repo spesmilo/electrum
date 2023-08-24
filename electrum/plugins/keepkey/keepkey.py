@@ -19,6 +19,8 @@ from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validat
 if TYPE_CHECKING:
     import usb1
     from .client import KeepKeyClient
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 
 # TREZOR initialization methods

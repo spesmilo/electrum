@@ -15,6 +15,7 @@ import struct
 import sys
 import time
 import copy
+from typing import TYPE_CHECKING
 
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
@@ -36,6 +37,9 @@ from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 

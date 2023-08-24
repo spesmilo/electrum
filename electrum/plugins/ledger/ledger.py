@@ -4,8 +4,7 @@
 from abc import ABC, abstractmethod
 import base64
 import hashlib
-from typing import Dict, List, Optional, Sequence, Tuple
-
+from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from electrum import bip32, constants, ecc
 from electrum import descriptor
@@ -24,6 +23,9 @@ from electrum.wallet import Standard_Wallet
 from ..hw_wallet import HardwareClientBase, HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 

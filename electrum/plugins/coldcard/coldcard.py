@@ -21,6 +21,9 @@ from electrum.logging import get_logger
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
