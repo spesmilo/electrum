@@ -209,7 +209,7 @@ class Plugins(DaemonThread):
 
     def run(self):
         while self.is_running():
-            time.sleep(0.1)
+            self.wake_up_event.wait(0.1)  # time.sleep(0.1) OR event
             self.run_jobs()
         self.on_stop()
 
