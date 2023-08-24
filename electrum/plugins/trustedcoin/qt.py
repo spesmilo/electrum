@@ -49,7 +49,7 @@ from electrum.gui.qt.installwizard import InstallWizard
 from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
-from .qt_common import QSignalObject
+from .qt_common import TrustedcoinPluginQObject
 from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
 
 
@@ -336,11 +336,8 @@ class Plugin(TrustedCoinPlugin):
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
-        # FIXME: self.so is currently scoped to plugin, which is shared among wizards. This is wrong
-        # refactor to be a member of the wizard instance
-        self.so = QSignalObject(self, wizard, None)
+        wizard.trustedcoin_qhelper = TrustedcoinPluginQObject(self, wizard, None)
         self.extend_wizard(wizard)
-        self._wizard = wizard
 
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
@@ -445,7 +442,6 @@ class WCChooseSeed(WizardComponent):
 class WCTerms(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Terms and conditions'))
-        self.plugin = wizard.plugins.get_plugin('trustedcoin')
         self._has_tos = False
 
     def on_ready(self):
@@ -461,13 +457,13 @@ class WCTerms(WizardComponent):
         self.fetch_terms_and_conditions()
 
     def fetch_terms_and_conditions(self):
-        self.plugin.so.busyChanged.connect(self.on_busy_changed)
-        self.plugin.so.termsAndConditionsRetrieved.connect(self.on_terms_retrieved)
-        self.plugin.so.termsAndConditionsError.connect(self.on_terms_error)
-        self.plugin.so.fetchTermsAndConditions()
+        self.wizard.trustedcoin_qhelper.busyChanged.connect(self.on_busy_changed)
+        self.wizard.trustedcoin_qhelper.termsAndConditionsRetrieved.connect(self.on_terms_retrieved)
+        self.wizard.trustedcoin_qhelper.termsAndConditionsError.connect(self.on_terms_error)
+        self.wizard.trustedcoin_qhelper.fetchTermsAndConditions()
 
     def on_busy_changed(self):
-        self.busy = self.plugin.so.busy
+        self.busy = self.wizard.trustedcoin_qhelper.busy
 
     def on_terms_retrieved(self, tos: str) -> None:
         self._has_tos = True
@@ -493,7 +489,6 @@ class WCShowConfirmOTP(WizardComponent):
 
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Authenticator secret'))
-        self.plugin = wizard.plugins.get_plugin('trustedcoin')
         self._otp_verified = False
 
         self.new_otp = QWidget()
@@ -553,16 +548,16 @@ class WCShowConfirmOTP(WizardComponent):
         self.layout().addStretch(1)
 
     def on_ready(self):
-        self.plugin.so.busyChanged.connect(self.on_busy_changed)
-        self.plugin.so.remoteKeyError.connect(self.on_remote_key_error)
-        self.plugin.so.otpSuccess.connect(self.on_otp_success)
-        self.plugin.so.otpError.connect(self.on_otp_error)
-        self.plugin.so.remoteKeyError.connect(self.on_remote_key_error)
+        self.wizard.trustedcoin_qhelper.busyChanged.connect(self.on_busy_changed)
+        self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
+        self.wizard.trustedcoin_qhelper.otpSuccess.connect(self.on_otp_success)
+        self.wizard.trustedcoin_qhelper.otpError.connect(self.on_otp_error)
+        self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
 
-        self.plugin.so.createKeystore(self.wizard_data['2fa_email'])
+        self.wizard.trustedcoin_qhelper.createKeystore(self.wizard_data['2fa_email'])
 
     def update(self):
-        is_new = bool(self.plugin.so.remoteKeyState != 'wallet_known')
+        is_new = bool(self.wizard.trustedcoin_qhelper.remoteKeyState != 'wallet_known')
         self.new_otp.setVisible(is_new)
         self.exist_otp.setVisible(not is_new)
         self.authlabelnew.setVisible(is_new)
@@ -570,15 +565,15 @@ class WCShowConfirmOTP(WizardComponent):
         self.resetlabel.setVisible(not is_new and not self._otp_verified)
         self.button.setVisible(not is_new and not self._otp_verified)
 
-        if self.plugin.so.otpSecret:
-            self.secretlabel.setText(self.plugin.so.otpSecret)
+        if self.wizard.trustedcoin_qhelper.otpSecret:
+            self.secretlabel.setText(self.wizard.trustedcoin_qhelper.otpSecret)
             uri = 'otpauth://totp/Electrum 2FA %s?secret=%s&digits=6' % (
-                self.wizard_data['wallet_name'], self.plugin.so.otpSecret)
+                self.wizard_data['wallet_name'], self.wizard.trustedcoin_qhelper.otpSecret)
             self.qr.setData(uri)
 
     def on_busy_changed(self):
-        if not self.plugin.so._verifyingOtp:
-            self.busy = self.plugin.so.busy
+        if not self.wizard.trustedcoin_qhelper._verifyingOtp:
+            self.busy = self.wizard.trustedcoin_qhelper.busy
             if not self.busy:
                 self.update()
 
@@ -588,7 +583,7 @@ class WCShowConfirmOTP(WizardComponent):
 
     def on_request_otp(self):
         self.otp_status_l.setVisible(False)
-        self.plugin.so.resetOtpSecret()
+        self.wizard.trustedcoin_qhelper.resetOtpSecret()
         self.update()
 
     def on_otp_success(self):
@@ -615,7 +610,7 @@ class WCShowConfirmOTP(WizardComponent):
         text = self.otp_e.text()
         if len(text) == 6:
             # verify otp
-            self.plugin.so.checkOtp(self.plugin.so.shortId, int(text))
+            self.wizard.trustedcoin_qhelper.checkOtp(self.wizard.trustedcoin_qhelper.shortId, int(text))
             self.setEnabled(False)
             self.spinner_l.setVisible(True)
             self.spinner.start()

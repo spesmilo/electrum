@@ -1,6 +1,7 @@
 import threading
 import socket
 import base64
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
 
@@ -10,8 +11,11 @@ from electrum.bip32 import BIP32Node
 from .trustedcoin import (server, ErrorConnectingServer, MOBILE_DISCLAIMER, TrustedCoinException)
 from electrum.gui.qt_common.plugins import PluginQObject
 
+if TYPE_CHECKING:
+    from electrum.wizard import NewWalletWizard
 
-class QSignalObject(PluginQObject):
+
+class TrustedcoinPluginQObject(PluginQObject):
     canSignWithoutServerChanged = pyqtSignal()
     termsAndConditionsRetrieved = pyqtSignal([str], arguments=['message'])
     termsAndConditionsError = pyqtSignal([str], arguments=['message'])
@@ -28,7 +32,7 @@ class QSignalObject(PluginQObject):
 
     requestOtp = pyqtSignal()
 
-    def __init__(self, plugin, wizard, parent):
+    def __init__(self, plugin, wizard: 'NewWalletWizard', parent):
         super().__init__(plugin, parent)
         self.wizard = wizard
         self._canSignWithoutServer = False
@@ -121,7 +125,7 @@ class QSignalObject(PluginQObject):
         self._otpSecret = ''
         self.otpSecretChanged.emit()
 
-        wizard_data = self.wizard._current.wizard_data
+        wizard_data = self.wizard.get_wizard_data()
 
         xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys(wizard_data)
 
@@ -180,7 +184,7 @@ class QSignalObject(PluginQObject):
     def resetOtpSecret(self):
         self.remoteKeyState = ''
 
-        wizard_data = self.wizard._current.wizard_data
+        wizard_data = self.wizard.get_wizard_data()
 
         xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys(wizard_data)
 

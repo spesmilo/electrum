@@ -5,7 +5,7 @@ from electrum.plugin import hook
 from electrum.util import UserFacingException
 
 from electrum.gui.qml.qewallet import QEWallet
-from .qt_common import QSignalObject
+from .qt_common import TrustedcoinPluginQObject
 
 from .trustedcoin import TrustedCoinPlugin, TrustedCoinException
 
@@ -41,9 +41,12 @@ class Plugin(TrustedCoinPlugin):
         self.logger.debug(f'init_qml hook called, gui={str(type(app))}')
         self._app = app
         wizard = self._app.daemon.newWalletWizard
-        # important: QSignalObject needs to be parented, as keeping a ref
+        # important: TrustedcoinPluginQObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
-        self.so = QSignalObject(self, wizard, self._app)
+        # Note: storing the trustedcoin qt helper in the plugin is different from the desktop client,
+        # which stores the helper in the wizard object. As the mobile client only shows a single wizard
+        # at a time, this is ok for now.
+        self.so = TrustedcoinPluginQObject(self, wizard, self._app)
         # extend wizard
         self.extend_wizard(wizard)
 
