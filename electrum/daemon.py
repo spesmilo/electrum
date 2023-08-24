@@ -608,7 +608,6 @@ class Daemon(Logger):
 
     def run_gui(self) -> None:
         assert self.config
-        assert self._plugins
         threading.current_thread().name = 'GUI'
         gui_name = self.config.GUI_NAME
         if gui_name in ['lite', 'classic']:
