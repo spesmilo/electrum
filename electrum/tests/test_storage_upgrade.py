@@ -10,6 +10,8 @@ from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum import constants
 from electrum import util
+from electrum.plugin import Plugins
+from electrum.simple_config import SimpleConfig
 
 from . import as_testnet
 from .test_wallet import WalletTestCase
@@ -297,25 +299,19 @@ class TestStorageUpgrade(WalletTestCase):
 
     plugins: 'electrum.plugin.Plugins'
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        from electrum.plugin import Plugins
-        from electrum.simple_config import SimpleConfig
-
-        cls.__electrum_path = tempfile.mkdtemp()
-        config = SimpleConfig({'electrum_path': cls.__electrum_path})
-
+    def setUp(self):
+        super().setUp()
+        self.__electrum_path = tempfile.mkdtemp()
+        config = SimpleConfig({'electrum_path': self.__electrum_path})
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        cls.plugins = Plugins(config, gui_name)
+        self.plugins = Plugins(config, gui_name)
 
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(cls.__electrum_path)
-        cls.plugins.stop()
-        cls.plugins.stopped_event.wait()
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.__electrum_path)
+        self.plugins.stop()
+        self.plugins.stopped_event.wait()
 
     async def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:
