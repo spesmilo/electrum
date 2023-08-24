@@ -18,6 +18,8 @@ from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validat
 
 if TYPE_CHECKING:
     from .client import SafeTClient
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 # Safe-T mini initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -460,3 +462,29 @@ class SafeTPlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
+
+    # new wizard
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'safet_start' if device_info.initialized else 'safet_not_initialized'
+        else:
+            return 'safet_unlock'
+
+    # insert safe_t pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'safet_start': {
+                'next': 'safet_xpub',
+            },
+            'safet_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'safet_not_initialized': {},
+            'safet_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

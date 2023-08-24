@@ -1,5 +1,5 @@
 from functools import partial
-import threading
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
 from PyQt5.QtGui import QRegExpValidator
@@ -16,7 +16,10 @@ from electrum.plugin import hook
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
 
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
 PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
@@ -183,6 +186,22 @@ class Plugin(SafeTPlugin, QtPlugin):
     def pin_matrix_widget_class(self):
         from safetlib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert safe_t pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        # TODO: device initialization not ported yet to new wizard
+        super().extend_wizard(wizard)
+        views = {
+            'safet_start': {'gui': WCScriptAndDerivation},
+            'safet_xpub': {'gui': WCHWXPub},
+            'safet_not_initialized': {'gui': WCHWUninitialized},
+            'safet_unlock': {'gui': WCHWUnlock}
+        }
+        wizard.navmap_merge(views)
 
 
 class SettingsDialog(WindowModalDialog):
