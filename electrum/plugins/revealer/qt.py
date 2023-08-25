@@ -422,8 +422,8 @@ class Plugin(RevealerPlugin):
         delta_h = round(image.width()/self.abstand_v)
         delta_v = round(image.height()/self.abstand_h)
 
-        size_h = 2028+((int(self.calibration_h)*2028/(2028-(delta_h*2)+int(self.calibration_h)))/2)
-        size_v = 1284+((int(self.calibration_v)*1284/(1284-(delta_v*2)+int(self.calibration_v)))/2)
+        size_h = round(2028+((int(self.calibration_h)*2028/(2028-(delta_h*2)+int(self.calibration_h)))//2))
+        size_v = round(1284+((int(self.calibration_v)*1284/(1284-(delta_v*2)+int(self.calibration_v)))//2))
 
         image =  image.scaled(size_h, size_v)
 
@@ -492,8 +492,8 @@ class Plugin(RevealerPlugin):
         painter.begin(base_img)
 
         total_distance_h = round(base_img.width() / self.abstand_v)
-        dist_v = round(total_distance_h) / 2
-        dist_h = round(total_distance_h) / 2
+        dist_v = round(total_distance_h) // 2
+        dist_h = round(total_distance_h) // 2
 
         img = img.scaledToWidth(base_img.width() - (2 * (total_distance_h)))
         painter.drawImage(total_distance_h,
@@ -533,11 +533,11 @@ class Plugin(RevealerPlugin):
 
         pen = QPen(Qt.black, 1)
         painter.setPen(pen)
-        painter.drawLine(0, base_img.height()/2, total_distance_h, base_img.height()/2)
-        painter.drawLine(base_img.width()/2, 0, base_img.width()/2, total_distance_h)
+        painter.drawLine(0, base_img.height()//2, total_distance_h, base_img.height()//2)
+        painter.drawLine(base_img.width()//2, 0, base_img.width()//2, total_distance_h)
 
-        painter.drawLine(base_img.width()-total_distance_h, base_img.height()/2, base_img.width(), base_img.height()/2)
-        painter.drawLine(base_img.width()/2, base_img.height(), base_img.width()/2, base_img.height() - total_distance_h)
+        painter.drawLine(base_img.width()-total_distance_h, base_img.height()//2, base_img.width(), base_img.height()//2)
+        painter.drawLine(base_img.width()//2, base_img.height(), base_img.width()//2, base_img.height() - total_distance_h)
 
         #print code
         f_size = 37
@@ -555,13 +555,13 @@ class Plugin(RevealerPlugin):
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
 
                 painter.drawImage(((total_distance_h))+11, ((total_distance_h))+11,
-                                  QImage(icon_path('electrumb.png')).scaledToWidth(2.1*(total_distance_h), Qt.SmoothTransformation))
+                                  QImage(icon_path('electrumb.png')).scaledToWidth(round(2.1*total_distance_h), Qt.SmoothTransformation))
 
                 painter.setPen(QPen(Qt.white, border_thick*8))
-                painter.drawLine(base_img.width()-((total_distance_h))-(border_thick*8)/2-(border_thick/2)-2,
-                                (base_img.height()-((total_distance_h)))-((border_thick*8)/2)-(border_thick/2)-2,
-                                base_img.width()-((total_distance_h))-(border_thick*8)/2-(border_thick/2)-2 - 77,
-                                (base_img.height()-((total_distance_h)))-((border_thick*8)/2)-(border_thick/2)-2)
+                painter.drawLine(int(base_img.width()-total_distance_h-(border_thick*8)/2-(border_thick/2)-2),
+                                 int(base_img.height()-total_distance_h-((border_thick*8)/2)-(border_thick/2)-2),
+                                 int(base_img.width()-total_distance_h-(border_thick*8)/2-(border_thick/2)-2 - 77),
+                                 int(base_img.height()-total_distance_h-((border_thick*8)/2)-(border_thick/2)-2))
                 painter.setPen(QColor(0,0,0,255))
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick - 11,
                                        base_img.height()-total_distance_h - border_thick), Qt.AlignRight,
@@ -581,40 +581,42 @@ class Plugin(RevealerPlugin):
                 painter.drawLine(dist_h, 0,  dist_h, base_img.height())
                 painter.drawLine(0, base_img.height()-dist_v, base_img.width(), base_img.height()-(dist_v))
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
-                logo = QImage(icon_path('revealer_c.png')).scaledToWidth(1.3*(total_distance_h))
-                painter.drawImage((total_distance_h)+ (border_thick), ((total_distance_h))+ (border_thick), logo, Qt.SmoothTransformation)
+                logo = QImage(icon_path('revealer_c.png')).scaledToWidth(round(1.3*(total_distance_h)))
+                painter.drawImage(int(total_distance_h+border_thick), int(total_distance_h+border_thick), logo, Qt.SmoothTransformation)
 
                 #frame around logo
                 painter.setPen(QPen(Qt.black, border_thick))
-                painter.drawLine(total_distance_h+border_thick, total_distance_h+logo.height()+3*(border_thick/2),
-                                 total_distance_h+logo.width()+border_thick, total_distance_h+logo.height()+3*(border_thick/2))
-                painter.drawLine(logo.width()+total_distance_h+3*(border_thick/2), total_distance_h+(border_thick),
-                                 total_distance_h+logo.width()+3*(border_thick/2), total_distance_h+logo.height()+(border_thick))
+                painter.drawLine(int(total_distance_h+border_thick), int(total_distance_h+logo.height()+3*(border_thick/2)),
+                                 int(total_distance_h+logo.width()+border_thick), int(total_distance_h+logo.height()+3*(border_thick/2)))
+                painter.drawLine(int(logo.width()+total_distance_h+3*(border_thick/2)), int(total_distance_h+(border_thick)),
+                                 int(total_distance_h+logo.width()+3*(border_thick/2)), int(total_distance_h+logo.height()+(border_thick)))
 
                 #frame around code/qr
                 qr_size = 179
 
-                painter.drawLine((base_img.width()-((total_distance_h))-(border_thick/2)-2)-qr_size,
-                                (base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2,
-                                 (base_img.width()/2+(total_distance_h/2)-border_thick-(border_thick*8)/2)-qr_size,
-                                (base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2)
+                painter.drawLine(int((base_img.width()-((total_distance_h))-(border_thick/2)-2)-qr_size),
+                                 int((base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2),
+                                 int((base_img.width()//2+(total_distance_h/2)-border_thick-(border_thick*8)//2)-qr_size),
+                                 int((base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2))
 
-                painter.drawLine((base_img.width()/2+(total_distance_h/2)-border_thick-(border_thick*8)/2)-qr_size,
-                                (base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2,
-                                 base_img.width()/2 + (total_distance_h/2)-border_thick-(border_thick*8)/2-qr_size,
-                                 ((base_img.height()-((total_distance_h)))-(border_thick/2)-2))
+                painter.drawLine(int((base_img.width()//2+(total_distance_h/2)-border_thick-(border_thick*8)//2)-qr_size),
+                                 int((base_img.height()-((total_distance_h)))-((border_thick*8))-(border_thick/2)-2),
+                                 int(base_img.width()//2 + (total_distance_h/2)-border_thick-(border_thick*8)//2-qr_size),
+                                 int((base_img.height()-((total_distance_h)))-(border_thick/2)-2))
 
                 painter.setPen(QPen(Qt.white, border_thick * 8))
                 painter.drawLine(
-                    base_img.width() - ((total_distance_h)) - (border_thick * 8) / 2 - (border_thick / 2) - 2,
-                    (base_img.height() - ((total_distance_h))) - ((border_thick * 8) / 2) - (border_thick / 2) - 2,
-                    base_img.width() / 2 + (total_distance_h / 2) - border_thick - qr_size,
-                    (base_img.height() - ((total_distance_h))) - ((border_thick * 8) / 2) - (border_thick / 2) - 2)
+                    int(base_img.width() - ((total_distance_h)) - (border_thick * 8) / 2 - (border_thick / 2) - 2),
+                    int((base_img.height() - ((total_distance_h))) - ((border_thick * 8) / 2) - (border_thick / 2) - 2),
+                    int(base_img.width() / 2 + (total_distance_h / 2) - border_thick - qr_size),
+                    int((base_img.height() - ((total_distance_h))) - ((border_thick * 8) / 2) - (border_thick / 2) - 2))
 
                 painter.setPen(QColor(0,0,0,255))
-                painter.drawText(QRect(((base_img.width()/2) +21)-qr_size, base_img.height()-107,
-                                       base_img.width()-total_distance_h - border_thick -93,
-                                       base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.versioned_seed.get_ui_string_version_plus_seed())
+                painter.drawText(QRect(int(((base_img.width()/2) +21)-qr_size),
+                                       int(base_img.height()-107),
+                                       int(base_img.width()-total_distance_h - border_thick -93),
+                                       int(base_img.height()-total_distance_h - border_thick)),
+                                 Qt.AlignLeft, self.versioned_seed.get_ui_string_version_plus_seed())
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size,
                                        base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.versioned_seed.checksum)
 
@@ -626,16 +628,18 @@ class Plugin(RevealerPlugin):
                                 qr_size, qr_size)
                 painter.drawImage(target, qr_qt)
                 painter.setPen(QPen(Qt.black, 4))
-                painter.drawLine(base_img.width()-65-qr_size,
-                                base_img.height()-65-qr_size,
-                                 base_img.width() - 65 - qr_size,
-                                (base_img.height() - ((total_distance_h))) - ((border_thick * 8)) - (border_thick / 2) - 4
-                                 )
-                painter.drawLine(base_img.width()-65-qr_size,
-                                base_img.height()-65-qr_size,
-                                 base_img.width() - 65,
-                                base_img.height()-65-qr_size
-                                 )
+                painter.drawLine(
+                    int(base_img.width()-65-qr_size),
+                    int(base_img.height()-65-qr_size),
+                    int(base_img.width() - 65 - qr_size),
+                    int((base_img.height() - total_distance_h) - (border_thick * 8) - (border_thick / 2) - 4),
+                )
+                painter.drawLine(
+                    int(base_img.width()-65-qr_size),
+                    int(base_img.height()-65-qr_size),
+                    int(base_img.width() - 65),
+                    int(base_img.height()-65-qr_size),
+                )
                 painter.end()
 
         else: # calibration only
@@ -660,30 +664,31 @@ class Plugin(RevealerPlugin):
             cal_painter.setFont(QFont("DejaVu Sans Mono", 21, QFont.Bold))
             for x in range(-n,n):
                 #lines on bottom (vertical calibration)
-                cal_painter.drawLine((((base_img.width())/(n*2)) *(x))+ (base_img.width()/2)-13,
-                                 x+2+base_img.height()-(dist_v),
-                                 (((base_img.width())/(n*2)) *(x))+ (base_img.width()/2)+13,
-                                 x+2+base_img.height()-(dist_v))
+                cal_painter.drawLine(int((((base_img.width())/(n*2)) *(x))+ (base_img.width()//2)-13),
+                                     int(x+2+base_img.height()-(dist_v)),
+                                     int((((base_img.width())/(n*2)) *(x))+ (base_img.width()//2)+13),
+                                     int(x+2+base_img.height()-(dist_v)))
 
                 num_pos = 9
                 if x > 9 : num_pos = 17
                 if x < 0 : num_pos = 20
                 if x < -9: num_pos = 27
 
-                cal_painter.drawText((((base_img.width())/(n*2)) *(x))+ (base_img.width()/2)-num_pos,
-                                 50+base_img.height()-(dist_v),
-                                  str(x))
+                cal_painter.drawText(int((((base_img.width())/(n*2)) *(x)) + (base_img.width()//2)-num_pos),
+                                     int(50+base_img.height()-(dist_v)),
+                                     str(x))
 
                 #lines on the right (horizontal calibrations)
 
-                cal_painter.drawLine(x+2+(base_img.width()-(dist_h)),
-                                 ((base_img.height()/(2*n)) *(x))+ (base_img.height()/n)+(base_img.height()/2)-13,
-                                 x+2+(base_img.width()-(dist_h)),
-                                 ((base_img.height()/(2*n)) *(x))+ (base_img.height()/n)+(base_img.height()/2)+13)
+                cal_painter.drawLine(int(x+2+(base_img.width()-(dist_h))),
+                                     int(((base_img.height()/(2*n)) *(x))+ (base_img.height()/n)+(base_img.height()//2)-13),
+                                     int(x+2+(base_img.width()-(dist_h))),
+                                     int(((base_img.height()/(2*n)) *(x))+ (base_img.height()/n)+(base_img.height()//2)+13))
 
 
-                cal_painter.drawText(30+(base_img.width()-(dist_h)),
-                                ((base_img.height()/(2*n)) *(x))+ (base_img.height()/2)+13, str(x))
+                cal_painter.drawText(int(30+(base_img.width()-(dist_h))),
+                                     int(((base_img.height()/(2*n)) *(x))+ (base_img.height()//2)+13),
+                                     str(x))
 
             cal_painter.end()
             base_img = cal_img
@@ -704,8 +709,8 @@ class Plugin(RevealerPlugin):
         qrpainter.begin(base_img)
         boxsize = 5
         size = k * boxsize
-        left = (base_img.width() - size)/2
-        top = (base_img.height() - size)/2
+        left = (base_img.width() - size)//2
+        top = (base_img.height() - size)//2
         qrpainter.setBrush(Qt.black)
         qrpainter.setPen(Qt.black)
 
