@@ -411,6 +411,7 @@ class Daemon(Logger):
         if 'wallet_path' in config.cmdline_options:
             self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
                                 "Use the load_wallet command instead.")
+        self._plugins = None  # type: Optional[Plugins]
         self.asyncio_loop = util.get_asyncio_loop()
         if not self.config.NETWORK_OFFLINE:
             self.network = Network(config, daemon=self)
@@ -560,6 +561,9 @@ class Daemon(Logger):
         return True
 
     def run_daemon(self):
+        # init plugins
+        self._plugins = Plugins(self.config, 'cmdline')
+        # block until we are stopping
         try:
             self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
@@ -590,6 +594,11 @@ class Daemon(Logger):
                     if self.network:
                         await group.spawn(self.network.stop(full_shutdown=True))
                     await group.spawn(self.taskgroup.cancel_remaining())
+            if self._plugins:
+                self.logger.info("stopping plugins")
+                self._plugins.stop()
+                async with ignore_after(1):
+                    await self._plugins.stopped_event_async.wait()
         finally:
             if self.listen_jsonrpc:
                 self.logger.info("removing lockfile")
@@ -597,18 +606,20 @@ class Daemon(Logger):
             self.logger.info("stopped")
             self._stopped_event.set()
 
-    def run_gui(self, config: 'SimpleConfig', plugins: 'Plugins'):
+    def run_gui(self) -> None:
+        assert self.config
         threading.current_thread().name = 'GUI'
-        gui_name = config.GUI_NAME
+        gui_name = self.config.GUI_NAME
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
+        self._plugins = Plugins(self.config, gui_name)  # init plugins
         self.logger.info(f'launching GUI: {gui_name}')
         try:
             try:
                 gui = __import__('electrum_grs.gui.' + gui_name, fromlist=['electrum_grs'])
             except GuiImportError as e:
                 sys.exit(str(e))
-            self.gui_object = gui.ElectrumGui(config=config, daemon=self, plugins=plugins)
+            self.gui_object = gui.ElectrumGui(config=self.config, daemon=self, plugins=self._plugins)
             if not self._stop_entered:
                 self.gui_object.main()
             else:

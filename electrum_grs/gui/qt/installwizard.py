@@ -393,7 +393,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.run(action)
             for k, v in self.data.items():
                 db.put(k, v)
-            db.write(storage)
+            db.write()
             return
 
         if db.requires_upgrade():

@@ -451,10 +451,9 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            plugins = init_plugins(config, config.GUI_NAME)
             d = daemon.Daemon(config, fd, start_network=False)
             try:
-                d.run_gui(config, plugins)
+                d.run_gui()
             except BaseException as e:
                 _logger.exception('daemon.run_gui errored')
                 sys_exit(1)
@@ -469,7 +468,6 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # run daemon
-            init_plugins(config, 'cmdline')
             d = daemon.Daemon(config, fd)
             d.run_daemon()
             sys_exit(0)
@@ -515,7 +513,11 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
-                result = fut.result()
+                try:
+                    result = fut.result()
+                finally:
+                    plugins.stop()
+                    plugins.stopped_event.wait(1)
             except Exception as e:
                 print_stderr(str(e) or repr(e))
                 sys_exit(1)

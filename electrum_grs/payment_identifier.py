@@ -117,7 +117,7 @@ class PaymentIdentifier(Logger):
         # more than one of those may be set
         self.multiline_outputs = None
         self._is_max = False
-        self.bolt11 = None
+        self.bolt11 = None  # type: Optional[Invoice]
         self.bip21 = None
         self.spk = None
         #
@@ -406,7 +406,7 @@ class PaymentIdentifier(Logger):
             if invoice.get_amount_sat() != amount_sat:
                 raise Exception("lnurl returned invoice with wrong amount")
             # this will change what is returned by get_fields_for_GUI
-            self.bolt11 = bolt11_invoice
+            self.bolt11 = invoice
             self.set_state(PaymentIdentifierState.AVAILABLE)
         except Exception as e:
             self.error = str(e)

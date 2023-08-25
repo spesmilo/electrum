@@ -370,7 +370,9 @@ class DaemonThread(threading.Thread, Logger):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
-        self.stopped_event = threading.Event()  # set when fully stopped
+        self.stopped_event = threading.Event()        # set when fully stopped
+        self.stopped_event_async = asyncio.Event()    # set when fully stopped
+        self.wake_up_event = threading.Event()  # for perf optimisation of polling in run()
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -404,6 +406,8 @@ class DaemonThread(threading.Thread, Logger):
     def stop(self):
         with self.running_lock:
             self.running = False
+            self.wake_up_event.set()
+            self.wake_up_event.clear()
 
     def on_stop(self):
         if 'ANDROID_DATA' in os.environ:
@@ -412,6 +416,8 @@ class DaemonThread(threading.Thread, Logger):
             self.logger.info("jnius detach")
         self.logger.info("stopped")
         self.stopped_event.set()
+        loop = get_asyncio_loop()
+        loop.call_soon_threadsafe(self.stopped_event_async.set)
 
 
 def print_stderr(*args):
