@@ -12,4 +12,4 @@ Example setup:
 
 """
 
-available_for = ['qt', 'cmdline']
+available_for = ['cmdline']
