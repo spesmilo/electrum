@@ -657,17 +657,18 @@ class LNGossip(LNWorker):
 
 class PaySession(Logger):
     def __init__(
-        self,
-        *,
-        payment_hash: bytes,
-        payment_secret: bytes,
-        initial_trampoline_fee_level: int,
-        invoice_features: int,
-        r_tags,
-        min_cltv_expiry: int,
-        amount_to_pay: int,  # total payment amount final receiver will get
-        invoice_pubkey: bytes,
-        uses_trampoline: bool,  # whether sender uses trampoline or gossip
+            self,
+            *,
+            payment_hash: bytes,
+            payment_secret: bytes,
+            initial_trampoline_fee_level: int,
+            invoice_features: int,
+            r_tags,
+            min_cltv_expiry: int,
+            amount_to_pay: int,  # total payment amount final receiver will get
+            invoice_pubkey: bytes,
+            uses_trampoline: bool,  # whether sender uses trampoline or gossip
+            use_two_trampolines: bool,  # whether legacy payments will try to use two trampolines
     ):
         assert payment_hash
         assert payment_secret
@@ -688,7 +689,7 @@ class PaySession(Logger):
         self.uses_trampoline = uses_trampoline
         self.trampoline_fee_level = initial_trampoline_fee_level
         self.failed_trampoline_routes = []
-        self.use_two_trampolines = True
+        self.use_two_trampolines = use_two_trampolines
         self._sent_buckets = dict()  # psecret_bucket -> (amount_sent, amount_failed)
 
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
@@ -1432,6 +1433,7 @@ class LNWallet(LNWorker):
             amount_to_pay=amount_to_pay,
             invoice_pubkey=node_pubkey,
             uses_trampoline=self.uses_trampoline(),
+            use_two_trampolines=self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
 
