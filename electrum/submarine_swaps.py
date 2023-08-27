@@ -513,10 +513,11 @@ class SwapManager(Logger):
         key = invoice.rhash
         payment_hash = bytes.fromhex(key)
         assert key in self.swaps
+        swap = self.swaps[key]
+        assert swap.lightning_amount == int(invoice.get_amount_sat())
         self.wallet.save_invoice(invoice)
         if pay_now:
             # check that we have the preimage
-            swap = self.get_swap(payment_hash)
             assert sha256(swap.preimage) == payment_hash
             assert swap.spending_txid is None
             self.invoices_to_pay[key] = 0
