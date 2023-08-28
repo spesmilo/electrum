@@ -33,6 +33,7 @@ from typing import Optional, TYPE_CHECKING, List, Sequence
 from electrum import GuiImportError, WalletStorage
 from .wizard.server_connect import QEServerConnectWizard
 from .wizard.wallet import QENewWalletWizard
+from electrum.wizard import WizardViewState
 
 try:
     import PyQt5
@@ -435,10 +436,23 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 wizard.run_upgrades(db)
             except UserCancelled:
                 return
-        # TODO
-        # return if wallet creation is not complete
-        # if storage is None or db.get_action():
-        #     return
+
+        if action := db.get_action():
+            # wallet creation is not complete, 2fa online phase
+            assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
+            data = {
+                'xprv1': db.get('x1/')['xprv'],
+                'xpub1': db.get('x1/')['xpub'],
+                'xpub2': db.get('x2/')['xpub'],
+            }
+            wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
+                                       start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
+            result = wizard.exec()
+            if result == QENewWalletWizard.Rejected:
+                self.logger.info('ok bye bye')
+                return
+            db.put('x3/', wizard.get_wizard_data()['x3/'])
+            db.write()
 
         wallet = Wallet(db, config=self.config)
         wallet.start_network(self.daemon.network)

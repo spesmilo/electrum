@@ -821,7 +821,7 @@ class TrustedCoinPlugin(BasePlugin):
             'trustedcoin_show_confirm_otp': {
                 'accept': self.on_accept_otp_secret,
                 'next': 'wallet_password',
-                'last': lambda d: wizard.is_single_password()
+                'last': lambda d: wizard.is_single_password() or 'xprv1' in d
             }
         }
         wizard.navmap_merge(views)
@@ -832,12 +832,11 @@ class TrustedCoinPlugin(BasePlugin):
         # wizard = self._wizard
         # wizard_data = wizard._current.wizard_data
 
-        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], wizard_data['seed_extra_words'])
-
-        # NOTE: at this point, old style wizard creates a wallet file (w. password if set) and
-        # stores the keystores and wizard state, in order to separate offline seed creation
-        # and online retrieval of the OTP secret. For mobile, we don't do this, but
-        # for desktop the wizard should support this usecase.
+        if 'seed' not in wizard_data:
+            # online continuation
+            xprv1, xpub1, xprv2, xpub2 = (wizard_data['xprv1'], wizard_data['xpub1'], None, wizard_data['xpub2'])
+        else:
+            xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], wizard_data['seed_extra_words'])
 
         data = {'x1/': {'xpub': xpub1}, 'x2/': {'xpub': xpub2}}
 

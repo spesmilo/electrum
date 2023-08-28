@@ -1,3 +1,4 @@
+import copy
 import threading
 from abc import abstractmethod
 from typing import TYPE_CHECKING
@@ -14,12 +15,13 @@ from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.gui.qt import QElectrumApplication
+    from electrum.wizard import WizardViewState
 
 
 class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication'):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', *, start_viewstate: 'WizardViewState' = None):
         QDialog.__init__(self, None)
         self.app = app
         self.config = config
@@ -92,6 +94,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.icon_filename = None
         self.set_icon('electrum.png')
 
+        self.start_viewstate = start_viewstate
+
         self.show()
         self.raise_()
 
@@ -109,8 +113,11 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         return QSize(800, 600)
 
     def strt(self):
-        view = self.start_wizard()
-        self.load_next_component(view)
+        if self.start_viewstate is not None:
+            viewstate = self._current = self.start_viewstate
+        else:
+            viewstate = self.start_wizard()
+        self.load_next_component(viewstate.view, viewstate.wizard_data)
 
     def load_next_component(self, view, wdata=None, params=None):
         if wdata is None:
@@ -124,7 +131,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         except Exception as e:
             self._logger.error(f'not a class: {comp!r}')
             raise e
-        page.wizard_data = wdata
+        page.wizard_data = copy.deepcopy(wdata)
         page.params = params
         page.updated.connect(self.on_page_updated)
         self._logger.debug(f'{page!r}')
@@ -187,9 +194,9 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
             next = self.submit(wd)
             self.load_next_component(next.view, next.wizard_data, next.params)
 
-    def start_wizard(self) -> str:
+    def start_wizard(self) -> 'WizardViewState':
         self.start()
-        return self._current.view
+        return self._current
 
     def view_to_component(self, view) -> QWidget:
         return self.navmap[view]['gui']

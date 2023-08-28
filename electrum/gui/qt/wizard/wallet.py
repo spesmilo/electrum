@@ -50,9 +50,9 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, parent=None):
+    def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, *, start_viewstate=None):
         NewWalletWizard.__init__(self, daemon, plugins)
-        QEAbstractWizard.__init__(self, config, app)
+        QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
 
         self.setWindowTitle(_('Create/Restore wallet'))
 
