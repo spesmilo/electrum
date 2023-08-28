@@ -1474,6 +1474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.exec_()
 
     def show_lightning_invoice(self, invoice: Invoice):
+        from electrum.util import format_short_id
         lnaddr = lndecode(invoice.lightning_invoice)
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
@@ -1508,6 +1509,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         invoice_e.setText(invoice.lightning_invoice)
         grid.addWidget(QLabel(_('Text') + ':'), 8, 0)
         grid.addWidget(invoice_e, 8, 1)
+        r_tags = lnaddr.get_routing_info('r')
+        r_tags = '\n'.join(repr([(x[0].hex(), format_short_id(x[1]), x[2], x[3]) for x in r]) for r in r_tags)
+        routing_e = QTextEdit(str(r_tags))
+        grid.addWidget(QLabel(_("Routing Hints") + ':'), 9, 0)
+        grid.addWidget(routing_e, 9, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d),))
         d.exec_()

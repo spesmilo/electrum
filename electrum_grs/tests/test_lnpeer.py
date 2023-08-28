@@ -242,6 +242,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
+            use_two_trampolines=False,
         )
         paysession.use_two_trampolines = False
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret

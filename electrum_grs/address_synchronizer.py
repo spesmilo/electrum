@@ -193,6 +193,7 @@ class AddressSynchronizer(Logger, EventListener):
     @event_listener
     def on_event_blockchain_updated(self, *args):
         self._get_balance_cache = {}  # invalidate cache
+        self.db.put('stored_height', self.get_local_height())
 
     async def stop(self):
         if self.network:
@@ -206,7 +207,6 @@ class AddressSynchronizer(Logger, EventListener):
                 self.synchronizer = None
                 self.verifier = None
                 self.unregister_callbacks()
-                self.db.put('stored_height', self.get_local_height())
 
     def add_address(self, address):
         if address not in self.db.history:

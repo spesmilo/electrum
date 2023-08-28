@@ -42,6 +42,7 @@ CLAIM_FEE_SIZE = 136
 LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
 
 MIN_LOCKTIME_DELTA = 60
+LOCKTIME_DELTA_REFUND = 70
 
 WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_HASH160,
@@ -369,7 +370,7 @@ class SwapManager(Logger):
 
     def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
         """ server method """
-        locktime = self.network.get_local_height() + 140
+        locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         our_privkey = os.urandom(32)
         our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
@@ -451,7 +452,7 @@ class SwapManager(Logger):
 
     def create_reverse_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
         """ server method. payment_hash is not None for old clients """
-        locktime = self.network.get_local_height() + 140
+        locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
@@ -512,10 +513,11 @@ class SwapManager(Logger):
         key = invoice.rhash
         payment_hash = bytes.fromhex(key)
         assert key in self.swaps
+        swap = self.swaps[key]
+        assert swap.lightning_amount == int(invoice.get_amount_sat())
         self.wallet.save_invoice(invoice)
         if pay_now:
             # check that we have the preimage
-            swap = self.get_swap(payment_hash)
             assert sha256(swap.preimage) == payment_hash
             assert swap.spending_txid is None
             self.invoices_to_pay[key] = 0

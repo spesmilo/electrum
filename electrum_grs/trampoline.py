@@ -117,7 +117,8 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
             singlehop_r_tags = [x for x in r_tags if len(x) == 1]
             invoice_trampolines = [x[0][0] for x in singlehop_r_tags if is_hardcoded_trampoline(x[0][0])]
             invoice_trampolines = set(invoice_trampolines)
-            return False, invoice_trampolines
+            if invoice_trampolines:
+                return False, invoice_trampolines
     # if trampoline receiving is not supported or the forwarder is not known as a trampoline,
     # we send a legacy payment
     return True, set()
@@ -208,6 +209,8 @@ def create_trampoline_route(
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
         invoice_routing_info = encode_routing_info(r_tags)
+        # lnwire invoice_features for trampoline is u64
+        invoice_features = invoice_features & 0xffffffffffffffff
         route[-1].invoice_routing_info = invoice_routing_info
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey

@@ -130,6 +130,14 @@ class SettingsDialog(QDialog, QtEventListener):
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
+        help_legacy_add_trampoline = messages.MSG_LEGACY_ADD_TRAMPOLINE
+        legacy_add_trampoline_cb = QCheckBox(_("Add extra trampoline to legacy payments"))
+        legacy_add_trampoline_cb.setToolTip(messages.to_rtf(help_legacy_add_trampoline))
+        legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
+        def on_legacy_add_trampoline_checked(b):
+            self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = bool(b)
+        legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
+
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
             _("If you have private a watchtower, enter its URL here."),
@@ -372,6 +380,7 @@ class SettingsDialog(QDialog, QtEventListener):
         units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
+        lightning_widgets.append((legacy_add_trampoline_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
