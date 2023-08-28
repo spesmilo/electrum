@@ -43,8 +43,7 @@ except Exception as e:
         "you may try 'sudo apt-get install python3-pyqt5'") from e
 
 from PyQt5.QtGui import QGuiApplication
-from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
-                             QMessageBox)
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
@@ -68,7 +67,7 @@ from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
-from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
+from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -403,15 +402,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
-        dialog = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
-        result = dialog.exec()
+        wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
+        result = wizard.exec()
         # TODO: use dialog.open() instead to avoid new event loop spawn?
         self.logger.info(f'{result}')
         if result == QENewWalletWizard.Rejected:
             self.logger.info('ok bye bye')
             return
 
-        d = dialog.get_wizard_data()
+        d = wizard.get_wizard_data()
 
         if d['wallet_is_open']:
             for window in self.windows:
@@ -421,8 +420,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
         if not d['wallet_exists']:
             self.logger.info('about to create wallet')
-            dialog.create_storage()
-            wallet_file = dialog.path
+            wizard.create_storage()
+            wallet_file = wizard.path
         else:
             wallet_file = d['wallet_name']
 
@@ -430,9 +429,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
             storage.decrypt(d['password'])
 
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
-        # TODO
-        # wizard.run_upgrades(storage, db)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=True)
+        if db.requires_split() or db.requires_upgrade():
+            try:
+                wizard.run_upgrades(db)
+            except UserCancelled:
+                return
         # TODO
         # return if wallet creation is not complete
         # if storage is None or db.get_action():

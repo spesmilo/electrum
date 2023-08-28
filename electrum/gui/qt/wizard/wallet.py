@@ -1,13 +1,14 @@
 import os
 import sys
 import threading
+import time
 
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal
 from PyQt5.QtGui import QPen, QPainter, QPalette
 from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
-                             QFileDialog, QSlider, QGridLayout)
+                             QFileDialog, QSlider, QGridLayout, QDialog, QApplication)
 
 from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
 from electrum.daemon import Daemon
@@ -15,7 +16,7 @@ from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
-from electrum.util import WalletFileException, get_new_wallet_name
+from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -26,7 +27,7 @@ from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
 from electrum.gui.qt.seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
-                                  ChoiceWidget)
+                                  ChoiceWidget, MessageBoxMixin)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -46,7 +47,7 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
 
 
-class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
+class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, parent=None):
@@ -161,6 +162,66 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         # minimally populate self after create
         self._password = data['password']
         self.path = path
+
+    def run_upgrades(self, db: 'WalletDB') -> None:
+        storage = db.storage
+        path = storage.path
+        if db.requires_split():
+            msg = _(
+                "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+                "Do you want to split your wallet into multiple files?").format(path)
+            if not self.question(msg):
+                return
+            file_list = db.split_accounts(path)
+            msg = _('Your accounts have been moved to') + ':\n' + '\n'.join(file_list) + '\n\n' + _(
+                'Do you want to delete the old file') + ':\n' + path
+            if self.question(msg):
+                os.remove(path)
+                self.show_warning(_('The file was removed'))
+            # raise now, to avoid having the old storage opened
+            raise UserCancelled()
+        if db.requires_upgrade():
+            self.waiting_dialog(db.upgrade, _('Upgrading wallet format...'))
+
+    def waiting_dialog(self, task, msg, on_finished=None):
+        dialog = QDialog()
+        label = WWLabel(msg)
+        vbox = QVBoxLayout()
+        vbox.addSpacing(100)
+        label.setMinimumWidth(300)
+        label.setAlignment(Qt.AlignCenter)
+        vbox.addWidget(label)
+        vbox.addSpacing(100)
+        dialog.setLayout(vbox)
+        dialog.setModal(True)
+
+        exc = None
+
+        def task_wrap(task, dialog):
+            nonlocal exc
+            try:
+                task()
+            except Exception as e:
+                exc = e
+
+        t = threading.Thread(target=task_wrap, args=(task, dialog))
+        t.start()
+
+        dialog.show()
+
+        while True:
+            QApplication.processEvents()
+            t.join(1.0/60)
+            if not t.is_alive():
+                break
+
+        dialog.close()
+
+        if exc:
+            raise exc
+
+        if on_finished:
+            on_finished()
 
 
 class WCWalletName(WizardComponent):
