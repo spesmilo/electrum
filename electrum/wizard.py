@@ -606,14 +606,15 @@ class NewWalletWizard(AbstractWizard):
             db.put('keystore', k.dump())
         elif data['wallet_type'] == '2fa':
             db.put('x1/', k.dump())
-            if data['trustedcoin_keepordisable'] == 'disable':
+            if 'trustedcoin_keepordisable' in data and data['trustedcoin_keepordisable'] == 'disable':
                 k2 = keystore.from_xprv(data['x2/']['xprv'])
                 if data['encrypt'] and k2.may_have_password():
                     k2.update_password(None, data['password'])
                 db.put('x2/', k2.dump())
             else:
                 db.put('x2/', data['x2/'])
-            db.put('x3/', data['x3/'])
+            if 'x3/' in data:
+                db.put('x3/', data['x3/'])
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
             if not isinstance(k, keystore.Xpub):

@@ -38,6 +38,7 @@ from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger, get_logger
 from electrum.base_wizard import GoBack, UserCancelled
+from electrum import keystore
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
                                   CancelButton, Buttons, icon_path, WWLabel, CloseButton, ColorScheme,
@@ -51,7 +52,6 @@ from electrum.gui.qt.wizard.wizard import WizardComponent
 
 from .qt_common import TrustedcoinPluginQObject
 from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
-
 
 if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
@@ -406,6 +406,38 @@ class Plugin(TrustedCoinPlugin):
         }
         wizard.navmap_merge(ext)
 
+        # insert page offering choice to go online or continue on another system
+        ext_online = {
+            'trustedcoin_continue_online': {
+                'gui': WCContinueOnline,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_go_online'] else 'wallet_password',
+                'accept': self.on_continue_online,
+                'last': lambda d: not d['trustedcoin_go_online'] and wizard.is_single_password()
+            },
+            'trustedcoin_confirm_seed': {
+                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_continue_online'
+            },
+            'trustedcoin_confirm_ext': {
+                'next': 'trustedcoin_continue_online',
+            },
+            'trustedcoin_keep_disable': {
+                'next': lambda d: 'trustedcoin_continue_online' if d['trustedcoin_keepordisable'] != 'disable'
+                else 'wallet_password',
+            }
+        }
+        wizard.navmap_merge(ext_online)
+
+    def on_continue_online(self, wizard_data):
+        if not wizard_data['trustedcoin_go_online']:
+            self.logger.debug('Staying offline, create keystores here')
+            xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.create_keys(wizard_data)
+            k1 = keystore.from_xprv(xprv1)
+            k2 = keystore.from_xpub(xpub2)
+
+            wizard_data['x1/'] = k1.dump()
+            wizard_data['x2/'] = k2.dump()
+
 
 class WCDisclaimer(WizardComponent):
     def __init__(self, parent, wizard):
@@ -641,3 +673,36 @@ class WCKeepDisable(WizardComponent):
 
     def apply(self):
         self.wizard_data['trustedcoin_keepordisable'] = self.choice_w.selected_item[0]
+
+
+class WCContinueOnline(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Continue Online'))
+
+    def on_ready(self):
+        path = os.path.join(os.path.dirname(self.wizard._daemon.config.get_wallet_path()), self.wizard_data['wallet_name'])
+        msg = [
+            _("Your wallet file is: {}.").format(path),
+            _("You need to be online in order to complete the creation of "
+              "your wallet. If you want to continue online, keep the checkbox "
+              "checked and press Next."),
+            _("If you want this system to stay offline "
+              "and continue the completion of the wallet on an online system, "
+              "uncheck the checkbox and press Finish.")
+        ]
+
+        self.layout().addWidget(WWLabel('\n\n'.join(msg)))
+        self.layout().addStretch(1)
+
+        self.cb_online = QCheckBox(_('Go online to complete wallet creation'))
+        self.cb_online.setChecked(True)
+        self.cb_online.stateChanged.connect(self.on_updated)
+        # self.cb_online.setToolTip(_("Check this box to request a new secret. You will need to retype your seed."))
+        self.layout().addWidget(self.cb_online)
+        self.layout().setAlignment(self.cb_online, Qt.AlignHCenter)
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['trustedcoin_go_online'] = self.cb_online.isChecked()

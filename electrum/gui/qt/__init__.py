@@ -26,7 +26,6 @@
 import os
 import signal
 import sys
-import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List, Sequence
 
@@ -34,6 +33,7 @@ from electrum import GuiImportError, WalletStorage
 from .wizard.server_connect import QEServerConnectWizard
 from .wizard.wallet import QENewWalletWizard
 from electrum.wizard import WizardViewState
+from electrum.keystore import load_keystore
 
 try:
     import PyQt5
@@ -422,6 +422,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not d['wallet_exists']:
             self.logger.info('about to create wallet')
             wizard.create_storage()
+            if d['wallet_type'] == '2fa' and 'x3/' not in d:
+                return
             wallet_file = wizard.path
         else:
             wallet_file = d['wallet_name']
@@ -440,8 +442,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if action := db.get_action():
             # wallet creation is not complete, 2fa online phase
             assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
+            k1 = load_keystore(db, 'x1/')
+            if 'password' in d and d['password']:
+                xprv = k1.get_master_private_key(d['password'])
+            else:
+                xprv = db.get('x1/')['xprv']
             data = {
-                'xprv1': db.get('x1/')['xprv'],
+                'wallet_name': os.path.basename(wallet_file),
+                'xprv1': xprv,
                 'xpub1': db.get('x1/')['xpub'],
                 'xpub2': db.get('x2/')['xpub'],
             }
