@@ -1474,7 +1474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.exec_()
 
     def show_lightning_invoice(self, invoice: Invoice):
-        from electrum.util import format_short_id
+        from electrum_grs.util import format_short_id
         lnaddr = lndecode(invoice.lightning_invoice)
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
