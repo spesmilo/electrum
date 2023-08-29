@@ -13,6 +13,7 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
                                   OkButton, CloseButton, ChoiceWidget)
 from electrum.i18n import _
 from electrum.plugin import hook
+from electrum.logging import Logger
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
@@ -310,7 +311,7 @@ class KeepkeyInitLayout(QVBoxLayout):
             item = self.bg.checkedId()
             pin = self.cb_pin.isChecked()
         else:
-            item = ' '.join(str(clean_text(text)).split())
+            item = ' '.join(str(clean_text(self.text_e)).split())
             pin = str(self.pin.text())
 
         return item, self.label_e.text(), pin, self.cb_phrase.isChecked()

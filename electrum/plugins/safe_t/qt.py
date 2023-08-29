@@ -13,6 +13,7 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
                                   OkButton, CloseButton, getOpenFileName, ChoiceWidget)
 from electrum.i18n import _
 from electrum.plugin import hook
+from electrum.logging import Logger
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
@@ -20,7 +21,6 @@ from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
 from electrum.gui.qt.wizard.wizard import WizardComponent
-from ...logging import Logger
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
