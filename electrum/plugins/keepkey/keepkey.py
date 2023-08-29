@@ -219,7 +219,7 @@ class KeepKeyPlugin(HW_PluginBase):
         ]
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            settings = self.request_keepkey_init_settings(wizard, method, self.device)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.daemon = True
             t.start()
@@ -510,7 +510,15 @@ class KeepKeyPlugin(HW_PluginBase):
                 'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
-            'keepkey_not_initialized': {},
+            'keepkey_not_initialized': {
+                'next': 'keepkey_choose_new_recover',
+            },
+            'keepkey_choose_new_recover': {
+                'next': 'keepkey_do_init',
+            },
+            'keepkey_do_init': {
+                'next': 'keepkey_start',
+            },
             'keepkey_unlock': {
                 'last': True
             },
