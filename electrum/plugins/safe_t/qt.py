@@ -1,3 +1,4 @@
+import threading
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -9,14 +10,17 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QMessageBox, QFileDialog, QSlider, QTabWidget)
 
 from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                  OkButton, CloseButton, getOpenFileName)
+                                  OkButton, CloseButton, getOpenFileName, ChoiceWidget)
 from electrum.i18n import _
 from electrum.plugin import hook
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
-from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
+
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
+from electrum.gui.qt.wizard.wizard import WizardComponent
+from ...logging import Logger
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -95,84 +99,99 @@ class QtPlugin(QtPluginBase):
         keystore.thread.add(connect, on_success=show_dialog)
 
     def request_safe_t_init_settings(self, wizard, method, device):
-        vbox = QVBoxLayout()
-        next_enabled = True
+        safe_t_init_layout = SafeTInitLayout(method, device)
+        safe_t_init_layout.validChanged.connect(wizard.next_button.setEnabled)
+        next_enabled = method != TIM_PRIVKEY
+        wizard.exec_layout(safe_t_init_layout, next_enabled=next_enabled)
+
+        return safe_t_init_layout.get_settings()
+
+
+def clean_text(widget):
+    text = widget.toPlainText().strip()
+    return ' '.join(text.split())
+
+
+class SafeTInitLayout(QVBoxLayout):
+    validChanged = pyqtSignal([bool], arguments=['valid'])
+
+    def __init__(self, method, device):
+        super().__init__()
+
+        self.method = method
+
         label = QLabel(_("Enter a label to name your device:"))
-        name = QLineEdit()
+        self.label_e = QLineEdit()
         hl = QHBoxLayout()
         hl.addWidget(label)
-        hl.addWidget(name)
+        hl.addWidget(self.label_e)
         hl.addStretch(1)
-        vbox.addLayout(hl)
-
-        def clean_text(widget):
-            text = widget.toPlainText().strip()
-            return ' '.join(text.split())
+        self.addLayout(hl)
 
         if method in [TIM_NEW, TIM_RECOVER]:
             gb = QGroupBox()
             hbox1 = QHBoxLayout()
             gb.setLayout(hbox1)
-            vbox.addWidget(gb)
+            self.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
-            bg = QButtonGroup()
+            self.bg = QButtonGroup()
             for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
                 rb.setText(_("{:d} words").format(count))
-                bg.addButton(rb)
-                bg.setId(rb, i)
+                self.bg.addButton(rb)
+                self.bg.setId(rb, i)
                 hbox1.addWidget(rb)
                 rb.setChecked(True)
-            cb_pin = QCheckBox(_('Enable PIN protection'))
-            cb_pin.setChecked(True)
+            self.cb_pin = QCheckBox(_('Enable PIN protection'))
+            self.cb_pin.setChecked(True)
         else:
-            text = QTextEdit()
-            text.setMaximumHeight(60)
+            self.text_e = QTextEdit()
+            self.text_e.setMaximumHeight(60)
             if method == TIM_MNEMONIC:
                 msg = _("Enter your BIP39 mnemonic:")
+                # TODO: no validation?
             else:
                 msg = _("Enter the master private key beginning with xprv:")
+
                 def set_enabled():
                     from electrum.bip32 import is_xprv
-                    wizard.next_button.setEnabled(is_xprv(clean_text(text)))
-                text.textChanged.connect(set_enabled)
-                next_enabled = False
+                    self.validChanged.emit(is_xprv(clean_text(self.text_e)))
+                self.text_e.textChanged.connect(set_enabled)
 
-            vbox.addWidget(QLabel(msg))
-            vbox.addWidget(text)
-            pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
-            pin.setMaximumWidth(100)
+            self.addWidget(QLabel(msg))
+            self.addWidget(self.text_e)
+            self.pin = QLineEdit()
+            self.pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
+            self.pin.setMaximumWidth(100)
             hbox_pin = QHBoxLayout()
             hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
-            hbox_pin.addWidget(pin)
+            hbox_pin.addWidget(self.pin)
             hbox_pin.addStretch(1)
 
         if method in [TIM_NEW, TIM_RECOVER]:
-            vbox.addWidget(WWLabel(RECOMMEND_PIN))
-            vbox.addWidget(cb_pin)
+            self.addWidget(WWLabel(RECOMMEND_PIN))
+            self.addWidget(self.cb_pin)
         else:
-            vbox.addLayout(hbox_pin)
+            self.addLayout(hbox_pin)
 
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
-        cb_phrase = QCheckBox(_('Enable passphrases'))
-        cb_phrase.setChecked(False)
-        vbox.addWidget(passphrase_msg)
-        vbox.addWidget(passphrase_warning)
-        vbox.addWidget(cb_phrase)
+        self.cb_phrase = QCheckBox(_('Enable passphrases'))
+        self.cb_phrase.setChecked(False)
+        self.addWidget(passphrase_msg)
+        self.addWidget(passphrase_warning)
+        self.addWidget(self.cb_phrase)
 
-        wizard.exec_layout(vbox, next_enabled=next_enabled)
-
-        if method in [TIM_NEW, TIM_RECOVER]:
-            item = bg.checkedId()
-            pin = cb_pin.isChecked()
+    def get_settings(self):
+        if self.method in [TIM_NEW, TIM_RECOVER]:
+            item = self.bg.checkedId()
+            pin = self.cb_pin.isChecked()
         else:
-            item = ' '.join(str(clean_text(text)).split())
-            pin = str(pin.text())
+            item = ' '.join(str(clean_text(self.text_e)).split())
+            pin = str(self.pin.text())
 
-        return (item, name.text(), pin, cb_phrase.isChecked())
+        return item, self.label_e.text(), pin, self.cb_phrase.isChecked()
 
 
 class Plugin(SafeTPlugin, QtPlugin):
@@ -193,12 +212,13 @@ class Plugin(SafeTPlugin, QtPlugin):
 
     # insert safe_t pages in new wallet wizard
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
-        # TODO: device initialization not ported yet to new wizard
         super().extend_wizard(wizard)
         views = {
             'safet_start': {'gui': WCScriptAndDerivation},
             'safet_xpub': {'gui': WCHWXPub},
-            'safet_not_initialized': {'gui': WCHWUninitialized},
+            'safet_not_initialized': {'gui': WCSafeTInitMethod},
+            'safet_choose_new_recover': {'gui': WCSafeTInitParams},
+            'safet_do_init': {'gui': WCSafeTInit},
             'safet_unlock': {'gui': WCHWUnlock}
         }
         wizard.navmap_merge(views)
@@ -520,3 +540,90 @@ class SettingsDialog(WindowModalDialog):
 
         # Update information
         invoke_client(None)
+
+
+class WCSafeTInitMethod(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
+
+    def on_ready(self):
+        _name, _info = self.wizard_data['hardware_device']
+        msg = _("Choose how you want to initialize your {}.\n\n"
+                "The first two methods are secure as no secret information "
+                "is entered into your computer.\n\n"
+                "For the last two methods you input secrets on your keyboard "
+                "and upload them to your {}, and so you should "
+                "only do those on a computer you know to be trustworthy "
+                "and free of malware."
+                ).format(_info.model_name, _info.model_name)
+        choices = [
+            # Must be short as QT doesn't word-wrap radio button text
+            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
+            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
+            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
+            (TIM_PRIVKEY, _("Upload a master private key"))
+        ]
+        self.choice_w = ChoiceWidget(message=msg, choices=choices)
+        self.layout().addWidget(self.choice_w)
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['safe_t_init'] = self.choice_w.selected_item[0]
+
+
+class WCSafeTInitParams(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Set-up safe-t'))
+        self.plugins = wizard.plugins
+        self._busy = True
+
+    def on_ready(self):
+        _name, _info = self.wizard_data['hardware_device']
+        self.settings_layout = SafeTInitLayout(self.plugins.device_manager, self.wizard_data['safe_t_init'], _info.device.id_)
+        self.layout().addLayout(self.settings_layout)
+        self.layout().addStretch(1)
+
+        self.valid = self.wizard_data['safe_t_init'] != TIM_PRIVKEY
+        self.busy = False
+
+    def apply(self):
+        self.wizard_data['safe_t_settings'] = self.settings_layout.get_settings()
+
+
+class WCSafeTInit(WizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Set-up safe-t'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self.plugin = self.plugins.get_plugin('safe_t')
+
+        self.layout().addWidget(WWLabel('Done'))
+
+        self._busy = True
+
+    def on_ready(self):
+        settings = self.wizard_data['safe_t_settings']
+        method = self.wizard_data['safe_t_init']
+        _name, _info = self.wizard_data['hardware_device']
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        client.handler = self.plugin.create_handler(self.wizard)
+
+        def initialize_device_task(settings, method, device_id, wizard, handler):
+            self.plugin._initialize_device(settings, method, device_id, wizard, handler)
+            self.init_done()
+
+        t = threading.Thread(
+            target=initialize_device_task,
+            args=(settings, method, device_id, None, client.handler),
+            daemon=True)
+        t.start()
+
+    def init_done(self):
+        self.logger.info('Done initialize device')
+        self.busy = False
+
+    def apply(self):
+        pass

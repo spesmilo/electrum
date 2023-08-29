@@ -482,7 +482,15 @@ class SafeTPlugin(HW_PluginBase):
                 'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
-            'safet_not_initialized': {},
+            'safet_not_initialized': {
+                'next': 'safet_choose_new_recover',
+            },
+            'safet_choose_new_recover': {
+                'next': 'safet_do_init',
+            },
+            'safet_do_init': {
+                'next': 'safet_start',
+            },
             'safet_unlock': {
                 'last': True
             },
