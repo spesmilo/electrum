@@ -145,16 +145,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         self._path = path
 
     def is_single_password(self):
-        # TODO: also take into account if possible with existing set of wallets. see qedaemon.py
-        return self._daemon.config.WALLET_USE_SINGLE_PASSWORD
+        # not supported on desktop
+        return False
 
     def create_storage(self, single_password: str = None):
         self._logger.info('Creating wallet from wizard data')
-        data = self._current.wizard_data
-
-        if self.is_single_password() and single_password:
-            data['encrypt'] = True
-            data['password'] = single_password
+        data = self.get_wizard_data()
 
         path = os.path.join(os.path.dirname(self._daemon.config.get_wallet_path()), data['wallet_name'])
 
@@ -198,14 +194,14 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
 
         exc = None
 
-        def task_wrap(task, dialog):
+        def task_wrap(task):
             nonlocal exc
             try:
                 task()
             except Exception as e:
                 exc = e
 
-        t = threading.Thread(target=task_wrap, args=(task, dialog))
+        t = threading.Thread(target=task_wrap, args=(task,))
         t.start()
 
         dialog.show()
