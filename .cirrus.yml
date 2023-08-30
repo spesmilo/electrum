@@ -24,12 +24,6 @@ task:
            # enable additional checks:
            PYTHONASYNCIODEBUG: "1"
            PYTHONDEVMODE: "1"
-    - name: Tox PyPy
-      allow_failures: true
-      env:
-        ELECTRUM_IMAGE: pypy:3
-        TOXENV: pypy3
-        ELECTRUM_PYTHON_NAME: pypy3
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI && cat $ELECTRUM_REQUIREMENTS
