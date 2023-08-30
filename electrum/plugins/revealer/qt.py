@@ -8,6 +8,9 @@ Copyright:
     2017 Tiago Romagnani Silveira
     2023 Soren Stoutner <soren@stoutner.com>
 
+Distributed under the MIT software license, see the accompanying
+file LICENCE or http://www.opensource.org/licenses/mit-license.php
+
 '''
 
 import os
