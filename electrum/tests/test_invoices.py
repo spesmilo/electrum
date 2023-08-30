@@ -5,10 +5,10 @@ from . import ElectrumTestCase
 
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import restore_wallet_from_text, Standard_Wallet, Abstract_Wallet
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, BaseInvoice
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, BaseInvoice, Invoice, LN_EXPIRY_NEVER
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTxOutput
-from electrum.util import TxMinedInfo
+from electrum.util import TxMinedInfo, InvoiceError
 
 
 class TestWalletPaymentRequests(ElectrumTestCase):
@@ -266,3 +266,41 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         BaseInvoice._get_cur_time = lambda *args: time.time() + 200_000
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr2))
         self.assertEqual(pr2, wallet1.get_request_by_addr(addr1))
+
+
+class TestBaseInvoice(ElectrumTestCase):
+    TESTNET = True
+
+    async def test_arg_validation(self):
+        amount_sat = 10_000
+        outputs = [PartialTxOutput.from_address_and_value("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", amount_sat)]
+        invoice = Invoice(
+            amount_msat=amount_sat * 1000,
+            message="mymsg",
+            time=1692716965,
+            exp=LN_EXPIRY_NEVER,
+            outputs=outputs,
+            bip70=None,
+            height=0,
+            lightning_invoice=None,
+        )
+        with self.assertRaises(InvoiceError):
+            invoice.amount_msat = 10**20
+        with self.assertRaises(InvoiceError):
+            invoice.set_amount_msat(10**20)
+        with self.assertRaises(InvoiceError):
+            invoice2 = Invoice(
+                amount_msat=10**20,
+                message="mymsg",
+                time=1692716965,
+                exp=LN_EXPIRY_NEVER,
+                outputs=outputs,
+                bip70=None,
+                height=0,
+                lightning_invoice=None,
+            )
+        with self.assertRaises(TypeError):
+            invoice.time = "asd"
+        with self.assertRaises(TypeError):
+            invoice.exp = "asd"
+

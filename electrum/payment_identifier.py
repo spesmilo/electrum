@@ -674,7 +674,7 @@ def invoice_from_payment_identifier(
         if not invoice:
             return
         if invoice.amount_msat is None:
-            invoice.amount_msat = int(amount_sat * 1000)
+            invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
         outputs = pi.get_onchain_outputs(amount_sat)

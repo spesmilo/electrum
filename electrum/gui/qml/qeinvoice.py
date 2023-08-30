@@ -379,8 +379,7 @@ class QEInvoice(QObject, QtEventListener):
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
                 raise Exception('can not pay 0 amount')
-            # TODO: is update amount_msat for overrideAmount sufficient?
-            self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+            self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
 
         self._wallet.pay_lightning_invoice(self._effectiveInvoice)
 
@@ -627,9 +626,9 @@ class QEInvoiceParser(QEInvoice):
 
         if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
             if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
-                self._effectiveInvoice.amount_msat = '!'
+                self._effectiveInvoice.set_amount_msat('!')
             else:
-                self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+                self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
 
         self.canSave = False
 

@@ -54,7 +54,7 @@ from .version import ELECTRUM_VERSION
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 53     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 54     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -239,6 +239,7 @@ class WalletDB(JsonDB):
         self._convert_version_51()
         self._convert_version_52()
         self._convert_version_53()
+        self._convert_version_54()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -1075,6 +1076,23 @@ class WalletDB(JsonDB):
             if 'local_payment_pubkey' not in cb:
                 cb['local_payment_pubkey'] = None
         self.data['seed_version'] = 53
+
+    def _convert_version_54(self):
+        # note: similar to convert_version_38
+        if not self._is_upgrade_method_needed(53, 53):
+            return
+        from .bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN
+        max_sats = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, item in list(d.items()):
+                amount_msat = item['amount_msat']
+                if amount_msat == '!':
+                    continue
+                if not (isinstance(amount_msat, int) and 0 <= amount_msat <= max_sats * 1000):
+                    del d[key]
+        self.data['seed_version'] = 54
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
