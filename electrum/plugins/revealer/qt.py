@@ -310,7 +310,7 @@ class Plugin(RevealerPlugin):
         self.custom_secret_maximum_characters_warning_label = QLabel("<font color='red'>"
                                                        + _("This version supports a maximum of {} characters.").format(self.MAX_PLAINTEXT_LEN)
                                                        +"</font>")
-        one_time_pad_warning_label = QLabel("<b>" + _("Warning ") + "</b>: " + _("Each Revealer is a one-time-pad; use it for a single secret."))
+        one_time_pad_warning_label = QLabel("<b>" + _("Warning ") + "</b>: " + _("each Revealer is a one-time-pad, use it for a single secret."))
 
         # Allow users to select text in the labels.
         ready_to_encrypt_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
