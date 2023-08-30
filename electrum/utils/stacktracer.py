@@ -26,31 +26,43 @@
 
 
 """Stack tracer for multi-threaded applications.
-
+Useful for debugging deadlocks and hangs.
 
 Usage:
+    import stacktracer
+    stacktracer.trace_start("trace.html", interval=5)
+    ...
+    stacktracer.trace_stop()
 
-import stacktracer
-stacktracer.start_trace("trace.html",interval=5,auto=True) # Set auto flag to always update file!
-....
-stacktracer.stop_trace()
+This will create a file named "trace.html" showing the stack traces of all threads,
+updated every 5 seconds.
 """
 
+import os
 import sys
+import threading
+import time
 import traceback
+from typing import Optional
+
+# 3rd-party dependency:
 from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.formatters import HtmlFormatter
 
 
-# Taken from http://bzimmer.ziclix.com/2008/12/17/python-thread-dumps/
+def _thread_from_id(ident) -> Optional[threading.Thread]:
+    return threading._active.get(ident)
+
 
 def stacktraces():
+    """Taken from http://bzimmer.ziclix.com/2008/12/17/python-thread-dumps/"""
     code = []
-    for threadId, stack in sys._current_frames().items():
-        code.append("\n# ThreadID: %s" % threadId)
+    for thread_id, stack in sys._current_frames().items():
+        thread = _thread_from_id(thread_id)
+        code.append(f"\n# thread_id={thread_id}. thread={thread}")
         for filename, lineno, name, line in traceback.extract_stack(stack):
-            code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
+            code.append(f'File: "{filename}", line {lineno}, in {name}')
             if line:
                 code.append("  %s" % (line.strip()))
 
@@ -61,14 +73,11 @@ def stacktraces():
     ))
 
 
-# This part was made by nagylzs
-import os
-import time
-import threading
-
-
 class TraceDumper(threading.Thread):
-    """Dump stack traces into a given file periodically."""
+    """Dump stack traces into a given file periodically.
+
+    # written by nagylzs
+    """
 
     def __init__(self, fpath, interval, auto):
         """
@@ -86,10 +95,10 @@ class TraceDumper(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        while not self.stop_requested.isSet():
+        while not self.stop_requested.is_set():
             time.sleep(self.interval)
             if self.auto or not os.path.isfile(self.fpath):
-                self.stacktraces()
+                self.dump_stacktraces()
 
     def stop(self):
         self.stop_requested.set()
@@ -97,26 +106,23 @@ class TraceDumper(threading.Thread):
         try:
             if os.path.isfile(self.fpath):
                 os.unlink(self.fpath)
-        except:
+        except OSError:
             pass
 
-    def stacktraces(self):
-        fout = file(self.fpath, "wb+")
-        try:
+    def dump_stacktraces(self):
+        with open(self.fpath, "w+") as fout:
             fout.write(stacktraces())
-        finally:
-            fout.close()
 
 
-_tracer = None
+_tracer = None  # type: Optional[TraceDumper]
 
 
-def trace_start(fpath, interval=5, auto=True):
+def trace_start(fpath, interval=5, *, auto=True):
     """Start tracing into the given file."""
     global _tracer
     if _tracer is None:
         _tracer = TraceDumper(fpath, interval, auto)
-        _tracer.setDaemon(True)
+        _tracer.daemon = True
         _tracer.start()
     else:
         raise Exception("Already tracing to %s" % _tracer.fpath)
@@ -128,5 +134,5 @@ def trace_stop():
     if _tracer is None:
         raise Exception("Not tracing, cannot stop.")
     else:
-        _trace.stop()
-        _trace = None
+        _tracer.stop()
+        _tracer = None
