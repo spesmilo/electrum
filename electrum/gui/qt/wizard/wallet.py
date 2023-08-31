@@ -16,7 +16,7 @@ from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
-from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled
+from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled, UserFacingException
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -1271,6 +1271,9 @@ class WCHWXPub(WizardComponent, Logger):
                 self.root_fingerprint = client.request_root_fingerprint_from_device()
                 self.label = client.label()
                 self.soft_device_id = client.get_soft_device_id()
+            except UserFacingException as e:
+                self.error = str(e)
+                self.logger.error(repr(e))
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.error(repr(e))
