@@ -14,7 +14,7 @@ from electrum.plugin import hook
 from electrum.keystore import ScriptTypeNotSupported
 
 from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
-from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
+from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available, OutdatedHwFirmwareException
 
 from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
                                   OkButton, CloseButton, PasswordLineEdit, getOpenFileName, ChoiceWidget)
@@ -803,6 +803,11 @@ class WCTrezorXPub(WCHWXPub):
         _name, _info = self.wizard_data['hardware_device']
         if xtype not in self.plugin.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}').format(_info.model_name))
+        if not client.is_uptodate():
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                     .format(_info.model_name, _info.label, self.plugin.firmware_URL))
+            raise OutdatedHwFirmwareException(msg)
         return client.get_xpub(derivation, xtype, True)
 
 
@@ -810,9 +815,20 @@ class WCTrezorInitMethod(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
         Logger.__init__(self)
+        self.plugin = None
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
+        self.plugin = self.plugins.get_plugin(_info.plugin_name)
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if not client.is_uptodate():
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                     .format(_info.model_name, _info.label, self.plugin.firmware_URL))
+            self.error = msg
+            return
+
         message = _('Choose how you want to initialize your {}.').format(_info.model_name)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
