@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
 from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.plugin import hook
+from electrum.keystore import ScriptTypeNotSupported
 
 from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
@@ -799,6 +800,9 @@ class WCTrezorXPub(WCHWXPub):
         WCHWXPub.__init__(self, parent, wizard)
 
     def get_xpub_from_client(self, client, derivation, xtype):
+        _name, _info = self.wizard_data['hardware_device']
+        if xtype not in self.plugin.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}').format(_info.model_name))
         return client.get_xpub(derivation, xtype, True)
 
 

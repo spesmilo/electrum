@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushB
 from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
 from electrum.daemon import Daemon
 from electrum.i18n import _
-from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation
+from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled
@@ -1282,6 +1282,9 @@ class WCHWXPub(WizardComponent, Logger):
         t.start()
 
     def get_xpub_from_client(self, client, derivation, xtype):  # override for HWW specific client if needed
+        _name, _info = self.wizard_data['hardware_device']
+        if xtype not in self.plugin.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}').format(_info.model_name))
         return client.get_xpub(derivation, xtype)
 
     def validate(self):

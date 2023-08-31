@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 class HW_PluginBase(BasePlugin):
     keystore_class: Type['Hardware_KeyStore']
     libraries_available: bool
+    SUPPORTED_XTYPES = ()
 
     # define supported library versions:  minimum_library <= x < maximum_library
     minimum_library = (0,)
