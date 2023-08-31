@@ -38,7 +38,6 @@ from electrum.qrreader import MissingQrDetectionLib
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
-    from .installwizard import InstallWizard
     from .paytoedit import PayToEdit
 
     from electrum.simple_config import SimpleConfig

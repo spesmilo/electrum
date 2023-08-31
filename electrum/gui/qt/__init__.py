@@ -58,7 +58,6 @@ except ImportError as e:
 
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
-from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
@@ -67,7 +66,6 @@ from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
 
-from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
@@ -499,8 +497,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         try:
             self.init_network()
         except UserCancelled:
-            return
-        except GoBack:
             return
         except Exception as e:
             self.logger.exception('')

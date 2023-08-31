@@ -19,7 +19,7 @@ from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
 if TYPE_CHECKING:
@@ -97,14 +97,6 @@ class QtPlugin(QtPluginBase):
             if device_id:
                 SettingsDialog(window, self, keystore, device_id).exec_()
         keystore.thread.add(connect, on_success=show_dialog)
-
-    def request_safe_t_init_settings(self, wizard, method, device):
-        safe_t_init_layout = SafeTInitLayout(method, device)
-        safe_t_init_layout.validChanged.connect(wizard.next_button.setEnabled)
-        next_enabled = method != TIM_PRIVKEY
-        wizard.exec_layout(safe_t_init_layout, next_enabled=next_enabled)
-
-        return safe_t_init_layout.get_settings()
 
 
 def clean_text(widget):
@@ -611,13 +603,13 @@ class WCSafeTInit(WizardComponent, Logger):
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)
 
-        def initialize_device_task(settings, method, device_id, wizard, handler):
-            self.plugin._initialize_device(settings, method, device_id, wizard, handler)
+        def initialize_device_task(settings, method, device_id, handler):
+            self.plugin._initialize_device(settings, method, device_id, handler)
             self.init_done()
 
         t = threading.Thread(
             target=initialize_device_task,
-            args=(settings, method, device_id, None, client.handler),
+            args=(settings, method, device_id, client.handler),
             daemon=True)
         t.start()
 

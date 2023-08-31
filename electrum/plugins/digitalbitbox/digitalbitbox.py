@@ -30,7 +30,6 @@ from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.util import to_string, UserCancelled, UserFacingException, bfh
-from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
@@ -691,7 +690,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
         dev.open_path(device.path)
         return dev
 
-
     def create_client(self, device, handler):
         if device.interface_number == 0 or device.usage_page == 0xffff:
             client = self.get_dbb_device(device)
@@ -701,20 +699,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
         else:
             return None
 
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        if purpose == HWD_SETUP_NEW_WALLET:
-            client.setupRunning = True
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m/44'/0'", 'standard'))
-        return client
-
-
     def is_mobile_paired(self):
         return ENCRYPTION_PRIVKEY_KEY in self.digitalbitbox_config
-
 
     def comserver_post_notification(self, payload, *, handler: 'HardwareHandlerBase'):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
@@ -731,18 +717,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
         except Exception as e:
             _logger.exception("")
             handler.show_error(repr(e))  # repr because str(Exception()) == ''
-
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        if is_all_public_derivation(derivation):
-            raise Exception(f"The {self.device} does not reveal xpubs corresponding to non-hardened paths. (path: {derivation})")
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        client.check_device_dialog()
-        xpub = client.get_xpub(derivation, xtype)
-        return xpub
-
 
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True):

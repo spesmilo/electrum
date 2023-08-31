@@ -1,4 +1,3 @@
-import time, os
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -7,13 +6,11 @@ from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayo
 
 from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
                                   getSaveFileName)
-from electrum.gui.qt.transaction_dialog import TxDialog
 from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Multisig_Wallet
-from electrum.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase

@@ -262,13 +262,6 @@ class QtPlugin(QtPluginBase):
                 SettingsDialog(window, self, keystore, device_id).exec_()
         keystore.thread.add(connect, on_success=show_dialog)
 
-    def request_trezor_init_settings(self, wizard, method, device_id):
-        vbox = InitSettingsLayout(self.device_manager(), method, device_id)
-
-        wizard.exec_layout(vbox)
-
-        return vbox.get_settings()
-
 
 class InitSettingsLayout(QVBoxLayout):
     def __init__(self, devmgr, method, device_id) -> QVBoxLayout:
@@ -870,13 +863,13 @@ class WCTrezorInit(WizardComponent, Logger):
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)
 
-        def initialize_device_task(settings, method, device_id, wizard, handler):
-            self.plugin._initialize_device(settings, method, device_id, wizard, handler)
+        def initialize_device_task(settings, method, device_id, handler):
+            self.plugin._initialize_device(settings, method, device_id, handler)
             self.init_done()
 
         t = threading.Thread(
             target=initialize_device_task,
-            args=(settings, method, device_id, None, client.handler),
+            args=(settings, method, device_id, client.handler),
             daemon=True)
         t.start()
 

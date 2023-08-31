@@ -9,13 +9,11 @@ from electrum import bip32, constants
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import PartialTransaction, Sighash
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
+from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.util import UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
 from electrum.logging import get_logger
 from electrum.plugin import Device, DeviceInfo, runs_in_hwd_thread
 from electrum.simple_config import SimpleConfig
-from electrum.json_db import StoredDict
 from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.bitcoin import OnchainOutputType
 
@@ -667,30 +665,6 @@ class BitBox02Plugin(HW_PluginBase):
     @runs_in_hwd_thread
     def create_client(self, device, handler) -> BitBox02Client:
         return BitBox02Client(handler, device, self.config, plugin=self)
-
-    def setup_device(
-        self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int
-    ):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        assert isinstance(client, BitBox02Client)
-        if client.bitbox02_device is None:
-            wizard.run_task_without_blocking_gui(
-                task=lambda client=client: client.pairing_dialog())
-        client.fail_if_not_initialized()
-        return client
-
-    def get_xpub(
-        self, device_id: str, derivation: str, xtype: str, wizard: BaseWizard
-    ):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(
-                _("This type of script is not supported with {}: {}").format(self.device, xtype)
-            )
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        assert isinstance(client, BitBox02Client)
-        assert client.bitbox02_device is not None
-        return client.get_xpub(derivation, xtype)
 
     @runs_in_hwd_thread
     def show_address(

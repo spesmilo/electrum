@@ -221,14 +221,6 @@ class QtPlugin(QtPluginBase):
                 SettingsDialog(window, self, keystore, device_id).exec_()
         keystore.thread.add(connect, on_success=show_dialog)
 
-    def request_keepkey_init_settings(self, wizard, method, device):
-        keepkey_init_layout = KeepkeyInitLayout(method, device)
-        keepkey_init_layout.validChanged.connect(wizard.next_button.setEnabled)
-        next_enabled = method != TIM_PRIVKEY
-        wizard.exec_layout(keepkey_init_layout, next_enabled=next_enabled)
-
-        return keepkey_init_layout.get_settings()
-
 
 def clean_text(widget):
     text = widget.toPlainText().strip()
@@ -678,13 +670,13 @@ class WCKeepkeyInit(WizardComponent, Logger):
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)
 
-        def initialize_device_task(settings, method, device_id, wizard, handler):
-            self.plugin._initialize_device(settings, method, device_id, wizard, handler)
+        def initialize_device_task(settings, method, device_id, handler):
+            self.plugin._initialize_device(settings, method, device_id, handler)
             self.init_done()
 
         t = threading.Thread(
             target=initialize_device_task,
-            args=(settings, method, device_id, None, client.handler),
+            args=(settings, method, device_id, client.handler),
             daemon=True)
         t.start()
 

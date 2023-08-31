@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from electrum import bip32, constants, ecc
 from electrum import descriptor
-from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
 from electrum.bitcoin import EncodeBase58Check, int_to_hex, is_b58_address, is_segwit_script_type, var_int
 from electrum.crypto import hash_160
@@ -1440,19 +1439,6 @@ class LedgerPlugin(HW_PluginBase):
         except Exception as e:
             self.logger.info(f"cannot connect at {device.path} {e}", exc_info=e)
         return None
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client: Ledger_Client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_master_fingerprint())
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        return client.get_xpub(derivation, xtype)
 
     @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):

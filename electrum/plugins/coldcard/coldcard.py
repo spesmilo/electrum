@@ -2,8 +2,8 @@
 # Coldcard Electrum plugin main code.
 #
 #
-import os, time, io
-import traceback
+import os
+import time
 from typing import TYPE_CHECKING, Optional
 import struct
 
@@ -15,7 +15,6 @@ from electrum.keystore import Hardware_KeyStore, KeyStoreWithMPK
 from electrum.transaction import PartialTransaction
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
 from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
@@ -520,22 +519,6 @@ class ColdcardPlugin(HW_PluginBase):
         except Exception as e:
             self.logger.exception('late failure connecting to device?')
             return None
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        # this seems to be part of the pairing process only, not during normal ops?
-        # base_wizard:on_hw_derivation
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        client.ping_check()
-
-        xpub = client.get_xpub(derivation, xtype)
-        return xpub
 
     @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,

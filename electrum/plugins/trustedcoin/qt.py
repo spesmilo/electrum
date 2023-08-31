@@ -37,7 +37,6 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger, get_logger
-from electrum.base_wizard import GoBack, UserCancelled
 from electrum import keystore
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
@@ -46,7 +45,6 @@ from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, 
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
-from electrum.gui.qt.installwizard import InstallWizard
 from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
@@ -224,25 +222,6 @@ class Plugin(TrustedCoinPlugin):
         grid.addWidget(QLabel(_("Your wallet has {} prepaid transactions.").format(n)), i, 0)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
-
-    def go_online_dialog(self, wizard: InstallWizard):
-        msg = [
-            _("Your wallet file is: {}.").format(os.path.abspath(wizard.path)),
-            _("You need to be online in order to complete the creation of "
-              "your wallet.  If you generated your seed on an offline "
-              'computer, click on "{}" to close this window, move your '
-              "wallet file to an online computer, and reopen it with "
-              "Electrum.").format(_('Cancel')),
-            _('If you are online, click on "{}" to continue.').format(_('Next'))
-        ]
-        msg = '\n\n'.join(msg)
-        wizard.reset_stack()
-        try:
-            wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
-        except (GoBack, UserCancelled):
-            # user clicked 'Cancel' and decided to move wallet file manually
-            storage, db = wizard.create_storage(wizard.path)
-            raise
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()

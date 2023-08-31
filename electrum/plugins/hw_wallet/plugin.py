@@ -24,15 +24,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type, Iterable, Any
-from functools import partial
+from typing import TYPE_CHECKING, Sequence, Optional, Type, Iterable, Any
 
-from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr, DeviceInfo,
+from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr,
                              assert_runs_in_hwd_thread, runs_in_hwd_thread)
 from electrum.i18n import _
 from electrum.bitcoin import is_address, opcodes
-from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.util import versiontuple, UserFacingException
+from electrum.transaction import TxOutput, PartialTransaction
 from electrum.bip32 import BIP32Node
 from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.keystore import Xpub, Hardware_KeyStore
@@ -40,7 +39,6 @@ from electrum.keystore import Xpub, Hardware_KeyStore
 if TYPE_CHECKING:
     import threading
     from electrum.wallet import Abstract_Wallet
-    from electrum.base_wizard import BaseWizard
 
 
 class HW_PluginBase(BasePlugin):
@@ -89,25 +87,6 @@ class HW_PluginBase(BasePlugin):
                 self.device_manager().unpair_pairing_code(keystore.pairing_code())
                 if keystore.thread:
                     keystore.thread.stop()
-
-    def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
-        devmgr = self.device_manager()
-        client = wizard.run_task_without_blocking_gui(
-            task=partial(devmgr.client_by_id, device_id))
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
-        return client
-
-    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose) -> 'HardwareClientBase':
-        """Called when creating a new wallet or when using the device to decrypt
-        an existing wallet. Select the device to use.  If the device is
-        uninitialized, go through the initialization process.
-
-        Runs in GUI thread.
-        """
-        raise NotImplementedError()
 
     def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True, *,
                    devices: Sequence['Device'] = None,
@@ -192,11 +171,8 @@ class HW_PluginBase(BasePlugin):
                       handler: Optional['HardwareHandlerBase']) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
-    def get_xpub(self, device_id: str, derivation: str, xtype, wizard: 'BaseWizard') -> str:
-        raise NotImplementedError()
-
     def create_handler(self, window) -> 'HardwareHandlerBase':
-        # note: in Qt GUI, 'window' is either an ElectrumWindow or an InstallWizard
+        # note: in Qt GUI, 'window' is either an ElectrumWindow or an QENewWalletWizard
         raise NotImplementedError()
 
     def can_recognize_device(self, device: Device) -> bool:
@@ -207,7 +183,6 @@ class HW_PluginBase(BasePlugin):
 
 
 class HardwareClientBase:
-
     handler = None  # type: Optional['HardwareHandlerBase']
 
     def __init__(self, *, plugin: 'HW_PluginBase'):

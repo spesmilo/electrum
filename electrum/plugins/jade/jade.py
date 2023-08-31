@@ -10,7 +10,6 @@ from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from electrum.wallet import Multisig_Wallet
 from electrum.util import UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, Device
 from electrum.network import Network
@@ -438,22 +437,6 @@ class JadePlugin(HW_PluginBase):
             raise OutdatedHwFirmwareException(msg)
 
         return client
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-
-        # Call authenticate on hww to ensure unlocked and suitable for network
-        # May involve user entering PIN on (or even setting up!) hardware device
-        wizard.run_task_without_blocking_gui(task=lambda: client.authenticate())
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        xpub = client.get_xpub(derivation, xtype)
-        return xpub
 
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
