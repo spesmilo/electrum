@@ -5,7 +5,7 @@ from electrum.plugin import hook
 from electrum.util import UserFacingException
 
 from electrum.gui.qml.qewallet import QEWallet
-from .qt_common import TrustedcoinPluginQObject
+from .common_qt import TrustedcoinPluginQObject
 
 from .trustedcoin import TrustedCoinPlugin, TrustedCoinException
 

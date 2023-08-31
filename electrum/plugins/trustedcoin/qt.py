@@ -50,7 +50,7 @@ from electrum.gui.qt.installwizard import InstallWizard
 from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
 from electrum.gui.qt.wizard.wizard import WizardComponent
 
-from .qt_common import TrustedcoinPluginQObject
+from .common_qt import TrustedcoinPluginQObject
 from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
 
 if TYPE_CHECKING:

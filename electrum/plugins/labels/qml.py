@@ -6,7 +6,7 @@ from electrum.i18n import _
 from electrum.plugin import hook
 
 from electrum.gui.qml.qewallet import QEWallet
-from electrum.gui.qt_common.plugins import PluginQObject
+from electrum.gui.common_qt.plugins import PluginQObject
 
 from .labels import LabelsPlugin
 

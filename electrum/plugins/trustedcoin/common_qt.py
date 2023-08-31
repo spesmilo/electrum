@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.bip32 import BIP32Node
 
 from .trustedcoin import (server, ErrorConnectingServer, MOBILE_DISCLAIMER, TrustedCoinException)
-from electrum.gui.qt_common.plugins import PluginQObject
+from electrum.gui.common_qt.plugins import PluginQObject
 
 if TYPE_CHECKING:
     from electrum.wizard import NewWalletWizard
