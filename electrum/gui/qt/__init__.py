@@ -467,33 +467,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.daemon.add_wallet(wallet)
         return wallet
 
-
-    def _start_wizard_to_select_or_create_wallet2(self, path) -> Optional[Abstract_Wallet]:
-        wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
-        try:
-            path, storage = wizard.select_storage(path, self.daemon.get_wallet)
-            # storage is None if file does not exist
-            if storage is None:
-                wizard.path = path  # needed by trustedcoin plugin
-                wizard.run('new')
-                storage, db = wizard.create_storage(path)
-            else:
-                db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
-                wizard.run_upgrades(storage, db)
-        except (UserCancelled, GoBack):
-            return
-        except WalletAlreadyOpenInMemory as e:
-            return e.wallet
-        finally:
-            wizard.terminate()
-        # return if wallet creation is not complete
-        if storage is None or db.get_action():
-            return
-        wallet = Wallet(db, config=self.config)
-        wallet.start_network(self.daemon.network)
-        self.daemon.add_wallet(wallet)
-        return wallet
-
     def close_window(self, window: ElectrumWindow):
         if window in self.windows:
             self.windows.remove(window)
