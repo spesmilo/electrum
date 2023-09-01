@@ -1,6 +1,4 @@
-import threading
-from typing import TYPE_CHECKING, Optional, Dict, Any
-import asyncio
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS, QTimer
@@ -9,16 +7,11 @@ from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.invoices import (Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
                                PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
-from electrum.lnaddr import LnInvoiceException
 from electrum.transaction import PartialTxOutput, TxOutput
-from electrum.util import InvoiceError, get_asyncio_loop
-from electrum.lnutil import format_short_channel_id, IncompatibleOrInsaneFeatures
-from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
+from electrum.lnutil import format_short_channel_id
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
-from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier,
-                                         PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
-from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
+from electrum.payment_identifier import (PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
@@ -392,6 +385,7 @@ class QEInvoice(QObject, QtEventListener):
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
+
 class QEInvoiceParser(QEInvoice):
     _logger = get_logger(__name__)
 
@@ -530,10 +524,9 @@ class QEInvoiceParser(QEInvoice):
                     self.validationError.emit('no_lightning',
                         _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                     return
-                if self._wallet.wallet.lnworker and not self._wallet.wallet.lnworker.channels:
+                if self._wallet.wallet.lnworker and not self._wallet.wallet.lnworker.channels and not lninvoice.get_address():
                     self.validationWarning.emit('no_channels',
                         _('Detected valid Lightning invoice, but there are no open channels'))
-
                 self.setValidLightningInvoice(lninvoice)
                 self.validationSuccess.emit()
             elif self._pi.type == PaymentIdentifierType.BIP21:
@@ -543,7 +536,6 @@ class QEInvoiceParser(QEInvoice):
                     self.validationSuccess.emit()
                 else:
                     self._validateRecipient_bip21_onchain(self._pi.bip21)
-
 
     def _validateRecipient_bip21_onchain(self, bip21: Dict[str, Any]) -> None:
         if 'amount' not in bip21:

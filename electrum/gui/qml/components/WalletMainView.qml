@@ -63,6 +63,29 @@ Item {
         dialog.open()
     }
 
+    function payOnchain() {
+        var dialog = confirmPaymentDialog.createObject(mainView, {
+                address: invoice.address,
+                satoshis: invoice.amountOverride.isEmpty
+                    ? invoice.amount
+                    : invoice.amountOverride,
+                message: invoice.message
+        })
+        var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
+        dialog.accepted.connect(function() {
+            if (!canComplete) {
+                if (Daemon.currentWallet.isWatchOnly) {
+                    dialog.finalizer.saveOrShow()
+                } else {
+                    dialog.finalizer.sign()
+                }
+            } else {
+                dialog.finalizer.signAndSend()
+            }
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
         id: menu
 
@@ -327,29 +350,23 @@ Item {
             height: parent.height
 
             onDoPay: {
-                if (invoice.invoiceType == Invoice.OnchainInvoice
-                    || (invoice.invoiceType == Invoice.LightningInvoice
-                        && invoice.amountOverride.isEmpty
-                            ? invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend
-                            : invoice.amountOverride.satsInt > Daemon.currentWallet.lightningCanSend
-                        ))
-                    {
-                    var dialog = confirmPaymentDialog.createObject(mainView, {
-                            address: invoice.address,
-                            satoshis: invoice.amountOverride.isEmpty ? invoice.amount : invoice.amountOverride,
-                            message: invoice.message
+                var lninvoiceButPayOnchain = false
+                if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
+                    // ln invoice with fallback
+                    var amountToSend = invoice.amountOverride.isEmpty
+                        ? invoice.amount.satsInt
+                        : invoice.amountOverride.satsInt
+                    if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                        lninvoiceButPayOnchain = true
+                    }
+                }
+                if (invoice.invoiceType == Invoice.OnchainInvoice || lninvoiceButPayOnchain) {
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Insufficient balance to pay over Lightning. Pay on-chain instead?'),
+                        yesno: true
                     })
-                    var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
                     dialog.accepted.connect(function() {
-                        if (!canComplete) {
-                            if (Daemon.currentWallet.isWatchOnly) {
-                                dialog.finalizer.saveOrShow()
-                            } else {
-                                dialog.finalizer.sign()
-                            }
-                        } else {
-                            dialog.finalizer.signAndSend()
-                        }
+                        payOnchain()
                     })
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
