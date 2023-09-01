@@ -63,7 +63,7 @@ Item {
         dialog.open()
     }
 
-    function payOnchain() {
+    function payOnchain(invoice) {
         var dialog = confirmPaymentDialog.createObject(mainView, {
                 address: invoice.address,
                 satoshis: invoice.amountOverride.isEmpty
@@ -361,7 +361,7 @@ Item {
                     }
                 }
                 if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                    payOnchain()
+                    payOnchain(invoice)
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     if (lninvoiceButPayOnchain) {
                         var dialog = app.messageDialog.createObject(mainView, {
@@ -369,7 +369,7 @@ Item {
                             yesno: true
                         })
                         dialog.accepted.connect(function() {
-                            payOnchain()
+                            payOnchain(invoice)
                         })
                         dialog.open()
                     } else {
