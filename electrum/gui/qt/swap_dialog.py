@@ -256,7 +256,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
             )
-            self.window.run_coroutine_from_thread(coro, _('Swapping funds'))
+            self.window.run_coroutine_from_thread(coro, _('Swapping funds'), on_result=self.on_result)
             return True
         else:
             lightning_amount = self.recv_amount_e.get_amount()
@@ -325,15 +325,16 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             tx=tx,
             channels=self.channels,
         )
-        def on_result(txid):
-            msg = _("Submarine swap") + ': ' + (_("Success") if txid else _("Expired")) + '\n'
-            if txid:
-                msg += _("Funding transaction") + ': ' + txid + '\n'
-                msg += _("Please remain online until your transaction is confirmed")
-            else:
-                msg += _("The server failed to send lightning funds to you")
-            self.window.show_error_signal.emit(msg)
-        self.window.run_coroutine_from_thread(coro, _('Swapping funds'), on_result=on_result)
+        self.window.run_coroutine_from_thread(coro, _('Swapping funds'), on_result=self.on_result)
+
+    def on_result(self, txid):
+        msg = _("Submarine swap") + ': ' + (_("Success") if txid else _("Expired")) + '\n\n'
+        if txid:
+            msg += _("Funding transaction") + ': ' + txid + '\n'
+            msg += _("Please remain online until the funding transaction is confirmed.")
+        else:
+            msg += _("Lightning funds were not received.")
+        self.window.show_error_signal.emit(msg)
 
     def get_description(self):
         onchain_funds = "onchain funds"
