@@ -360,18 +360,22 @@ Item {
                         lninvoiceButPayOnchain = true
                     }
                 }
-                if (invoice.invoiceType == Invoice.OnchainInvoice || lninvoiceButPayOnchain) {
-                    var dialog = app.messageDialog.createObject(mainView, {
-                        title: qsTr('Insufficient balance to pay over Lightning. Pay on-chain instead?'),
-                        yesno: true
-                    })
-                    dialog.accepted.connect(function() {
-                        payOnchain()
-                    })
-                    dialog.open()
+                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                    payOnchain()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                    console.log('About to pay lightning invoice')
-                    invoice.payLightningInvoice()
+                    if (lninvoiceButPayOnchain) {
+                        var dialog = app.messageDialog.createObject(mainView, {
+                            title: qsTr('Insufficient balance to pay over Lightning. Pay on-chain instead?'),
+                            yesno: true
+                        })
+                        dialog.accepted.connect(function() {
+                            payOnchain()
+                        })
+                        dialog.open()
+                    } else {
+                        console.log('About to pay lightning invoice')
+                        invoice.payLightningInvoice()
+                    }
                 }
             }
 
