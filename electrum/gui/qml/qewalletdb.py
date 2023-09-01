@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
@@ -189,7 +190,7 @@ class QEWalletDB(QObject):
             return
         if self._db.get_action():
             self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
-            return
+            raise WalletFileException(_('This wallet has an action pending. This is currently not supported on mobile'))
 
         if self._db.requires_upgrade():
             self._logger.warning('wallet requires upgrade, upgrading')
