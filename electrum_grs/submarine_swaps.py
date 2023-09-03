@@ -20,6 +20,7 @@ from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
+from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -392,7 +393,18 @@ class SwapManager(Logger):
         self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
         return swap, invoice, prepay_invoice
 
-    def add_normal_swap(self, *, redeem_script=None, locktime=None, onchain_amount_sat=None, lightning_amount_sat=None, payment_hash=None, our_privkey=None, their_pubkey=None, invoice=None, prepay=None):
+    def add_normal_swap(
+            self, *,
+            redeem_script=None,
+            locktime=None,
+            onchain_amount_sat=None,
+            lightning_amount_sat=None,
+            payment_hash=None,
+            our_privkey=None,
+            their_pubkey=None,
+            invoice=None,
+            prepay=None,
+    ):
         """ if invoice is None, create a hold invoice """
         if prepay:
             prepay_amount_sat = self.get_claim_fee() * 2
@@ -405,7 +417,7 @@ class SwapManager(Logger):
                 payment_hash=payment_hash,
                 amount_msat=invoice_amount_sat * 1000,
                 message='Submarine swap',
-                expiry=3600 * 24,
+                expiry=300,
                 fallback_address=None,
                 channels=None,
             )
@@ -418,7 +430,7 @@ class SwapManager(Logger):
                 payment_hash=prepay_hash,
                 amount_msat=prepay_amount_sat * 1000,
                 message='Submarine swap mining fees',
-                expiry=3600 * 24,
+                expiry=300,
                 fallback_address=None,
                 channels=None,
             )
@@ -641,7 +653,8 @@ class SwapManager(Logger):
                 await self.broadcast_funding_tx(swap, tx)
             self.lnworker.register_callback_for_hold_invoice(payment_hash, callback)
             # wait for funding tx
-            while swap.funding_txid is None:
+            lnaddr = lndecode(invoice)
+            while swap.funding_txid is None and not lnaddr.is_expired():
                 await asyncio.sleep(0.1)
         else:
             # broadcast funding tx right away

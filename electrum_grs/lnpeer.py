@@ -2445,13 +2445,16 @@ class Peer(Logger):
                         return None, fw_info, None
             else:
                 # trampoline- HTLC we are supposed to forward, and have already forwarded
-                payment_key = bytes.fromhex(forwarding_info)
+                payment_key_outer_onion = bytes.fromhex(forwarding_info)
                 preimage = self.lnworker.get_preimage(payment_hash)
-                # get (and not pop) failure because the incoming payment might be multi-part
-                error_reason = self.lnworker.final_onion_forwarding_failures.get(payment_key)
-                if error_reason:
-                    self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
-                    raise error_reason
+                payment_secret_inner_onion = self.lnworker.get_payment_secret(payment_hash)
+                payment_key_inner_onion = payment_hash + payment_secret_inner_onion
+                for payment_key in [payment_key_inner_onion, payment_key_outer_onion]:
+                    # get (and not pop) failure because the incoming payment might be multi-part
+                    error_reason = self.lnworker.final_onion_forwarding_failures.get(payment_key)
+                    if error_reason:
+                        self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
+                        raise error_reason
 
         elif not forwarding_info:
             # HTLC we are supposed to forward, but haven't forwarded yet

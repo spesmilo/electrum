@@ -1,0 +1,49 @@
+{
+    "accounts": {
+        "0": {
+            "change": [
+                "03cbd39265f007d39045ccab5833e1ae16c357f9d35e67099d8e41940bf63ec330",
+                "03c94e9590d9bcd579caae15d062053e2820fe2a405c153dd4dca4618b7172ea6f",
+                "028a875b6f7e56f8cba66a1cec5dc1dfca9df79b7c92702d0a551c6c1b49d0f59b"
+            ],
+            "receiving": [
+                "02fa100994f912df3e9538c244856828531f84e707f4d9eccfdd312c2e3ef7cf10",
+                "02fe230740aa27ace4f4b2e8b330cd57792051acf03652ae1622704d7eb7d4e5e4",
+                "03e3f65a991f417d69a732e040090c8c2f18baf09c3a9dc8aa465949aeb0b3271f",
+                "0382aa34a9cb568b14ebae35e69b3be6462d9ed8f30d48e0a6983e5af74fa441d3",
+                "03dfd8638e751e48fd42bf020874f49fbb5f54e96eff67d72eeeda3aa2f84f01c6",
+                "033904139de555bdf978e45931702c27837312ed726736eeff340ca6e0a439d232",
+                "03c6ca845d5bd9055f8889edcd53506cf714ac1042d9e059db630ec7e1af34133d",
+                "030b3bafc8a4ff8822951d4983f65b9bc43552c8181937188ba8c26e4c1d1be3ab",
+                "03828c371d3984ca5a248997a3e096ce21f9aeeb2f2a16457784b92a55e2aef288",
+                "033f42b4fbc434a587f6c6a0d10ac401f831a77c9e68453502a50fe278b6d9265c",
+                "0384e2c23268e2eb88c674c860519217af42fd6816273b299f0a6c39ddcc05bfa2",
+                "0257c60adde9edca8c14b6dd804004abc66bac17cc2acbb0490fcab8793289b921",
+                "02e2a67b1618a3a449f45296ea72a8fa9d8be6c58759d11d038c2fe034981efa73",
+                "02a9ef53a502b3a38c2849b130e2b20de9e89b023274463ea1a706ed92719724eb",
+                "037fc8802a11ba7ef06682908c24bcaedca1e2240111a1dd229bf713e2aa1d65a1",
+                "03ea0685fbd134545869234d1f219fff951bc3ec9e3e7e41d8b90283cd3f445470",
+                "0296bbe06cdee522b6ee654cc3592fce1795e9ff4dc0e2e2dea8acaf6d2d6b953b",
+                "036beac563bc85f9bc479a15d1937ea8e2c20637825a134c01d257d43addab217a",
+                "03389a4a6139de61a2e0e966b07d7b25b0c5f3721bf6fdcad20e7ae11974425bd9",
+                "026cffa2321319433518d75520c3a852542e0fa8b95e2cf4af92932a7c48ee9dbd"
+            ],
+            "xpub": "xpub661MyMwAqRbcGDxKhL5YS1kaB5B7q8H6xPZwCrgZ1iE2XXaiUeqD9MFEYRAuX7UNfdAED9yhAZdCB4ZS8dFrGDVU3x9ZK8uej8u8Pa2DLMq"
+        }
+    },
+    "accounts_expanded": {},
+    "master_private_keys": {
+        "x/": "xprv9s21ZrQH143K3jsrbJYY4soqd3LdRfZFbAeLQUGwTNh3ejFZw7WxbYvkhAmPM88Swt1JwFX6DVGjPXeUcGcqa1XFuJPeiQaC9wiZ16PTKgQ"
+    },
+    "master_public_keys": {
+        "x/": "xpub661MyMwAqRbcGDxKhL5YS1kaB5B7q8H6xPZwCrgZ1iE2XXaiUeqD9MFEYRAuX7UNfdAED9yhAZdCB4ZS8dFrGDVU3x9ZK8uej8u8Pa2DLMq"
+    },
+    "pruned_txo": {},
+    "seed": "flat toe story egg tide casino leave liquid strike cat busy knife absorb",
+    "seed_version": 11,
+    "transactions": {},
+    "txi": {},
+    "txo": {},
+    "use_encryption": false,
+    "wallet_type": "standard"
+}

@@ -481,8 +481,8 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     @staticmethod
     def choose_preferred_address(addr_list: Sequence[Tuple[str, int, int]]) -> Tuple[str, int, int]:
         assert len(addr_list) >= 1
-        # choose first one that is an IP
-        for host, port, timestamp in addr_list:
+        # choose the most recent one that is an IP
+        for host, port, timestamp in sorted(addr_list, key=lambda a: -a[2]):
             if is_ip_address(host):
                 return host, port, timestamp
         # otherwise choose one at random
