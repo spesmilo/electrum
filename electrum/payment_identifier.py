@@ -120,6 +120,7 @@ class PaymentIdentifier(Logger):
         self.bolt11 = None  # type: Optional[Invoice]
         self.bip21 = None
         self.spk = None
+        self.spk_is_address = False
         #
         self.emaillike = None
         self.domainlike = None
@@ -258,9 +259,11 @@ class PaymentIdentifier(Logger):
                     except InvoiceError as e:
                         self.logger.debug(self._get_error_from_invoiceerror(e))
                 self.set_state(PaymentIdentifierState.AVAILABLE)
-        elif scriptpubkey := self.parse_output(text):
+        elif self.parse_output(text)[0]:
+            scriptpubkey, is_address = self.parse_output(text)
             self._type = PaymentIdentifierType.SPK
             self.spk = scriptpubkey
+            self.spk_is_address = is_address
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.contacts and (contact := self.contacts.by_name(text)):
             if contact['type'] == 'address':
@@ -464,7 +467,8 @@ class PaymentIdentifier(Logger):
             return [PartialTxOutput(scriptpubkey=self.spk, value=amount)]
         elif self.bip21:
             address = self.bip21.get('address')
-            scriptpubkey = self.parse_output(address)
+            scriptpubkey, is_address = self.parse_output(address)
+            assert is_address  # unlikely, but make sure it is an address, not a script
             return [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)]
         else:
             raise Exception('not onchain')
@@ -499,25 +503,25 @@ class PaymentIdentifier(Logger):
             x, y = line.split(',')
         except ValueError:
             raise Exception("expected two comma-separated values: (address, amount)") from None
-        scriptpubkey = self.parse_output(x)
+        scriptpubkey, is_address = self.parse_output(x)
         if not scriptpubkey:
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
         return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 
-    def parse_output(self, x: str) -> bytes:
+    def parse_output(self, x: str) -> Tuple[bytes, bool]:
         try:
             address = self.parse_address(x)
-            return bytes.fromhex(bitcoin.address_to_script(address))
+            return bytes.fromhex(bitcoin.address_to_script(address)), True
         except Exception as e:
             pass
         try:
             script = self.parse_script(x)
-            return bytes.fromhex(script)
+            return bytes.fromhex(script), False
         except Exception as e:
             pass
 
-        # raise Exception("Invalid address or script.")
+        return None, False
 
     def parse_script(self, x: str):
         script = ''
