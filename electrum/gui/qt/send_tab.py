@@ -224,9 +224,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(_('Invalid payment identifier'))
 
     def spend_max(self):
-        assert self.payto_e.payment_identifier is not None
+        if self.payto_e.payment_identifier is None:
+            return
+
         assert self.payto_e.payment_identifier.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE,
-                                                        PaymentIdentifierType.OPENALIAS]
+                                                        PaymentIdentifierType.BIP21, PaymentIdentifierType.OPENALIAS]
+        assert not self.payto_e.payment_identifier.is_amount_locked()
+
         if run_hook('abort_send', self):
             return
         outputs = self.payto_e.payment_identifier.get_onchain_outputs('!')
@@ -436,6 +440,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 self.amount_e.setToolTip(_('Amount must be between %d and %d sat.') % (amin, amax))
             else:
                 self.amount_e.setToolTip('')
+
+        # resolve '!' in amount editor if it was set before PI
+        if not lock_max and self.amount_e.text() == '!':
+            self.spend_max()
 
         pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
 
