@@ -238,13 +238,20 @@ class UntrustedServerReturnedError(NetworkException):
     def get_message_for_gui(self) -> str:
         return str(self)
 
-    def __str__(self):
-        return _("The server returned an error.")
-
-    def __repr__(self):
+    def get_untrusted_message(self) -> str:
         e = self.original_exception
         return (f"<UntrustedServerReturnedError "
                 f"[DO NOT TRUST THIS MESSAGE] original_exception: {error_text_str_to_safe_str(repr(e))}>")
+
+    def __str__(self):
+        # We should not show the untrusted text from self.original_exception,
+        # to avoid accidentally showing it in the GUI.
+        return _("The server returned an error.")
+
+    def __repr__(self):
+        # We should not show the untrusted text from self.original_exception,
+        # to avoid accidentally showing it in the GUI.
+        return f"<UntrustedServerReturnedError {str(self)!r}>"
 
 
 _INSTANCE = None
@@ -899,7 +906,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             except aiorpcx.jsonrpc.CodeMessageError as e:
                 wrapped_exc = UntrustedServerReturnedError(original_exception=e)
                 # log (sanitized) untrusted error text now, to ease debugging
-                self.logger.debug(f"got error from server for {func.__qualname__}: {wrapped_exc!r}")
+                self.logger.debug(f"got error from server for {func.__qualname__}: {wrapped_exc.get_untrusted_message()!r}")
                 raise wrapped_exc from e
         return wrapper
 
