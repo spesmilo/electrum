@@ -2039,12 +2039,13 @@ class LNWallet(LNWorker):
         return payment_hash
 
     def bundle_payments(self, hash_list):
-        self.payment_bundles.append(hash_list)
+        payment_keys = [self._get_payment_key(x) for x in hash_list]
+        self.payment_bundles.append(payment_keys)
 
-    def get_payment_bundle(self, payment_hash):
-        for hash_list in self.payment_bundles:
-            if payment_hash in hash_list:
-                return hash_list
+    def get_payment_bundle(self, payment_key):
+        for key_list in self.payment_bundles:
+            if payment_key in key_list:
+                return key_list
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
@@ -2093,13 +2094,9 @@ class LNWallet(LNWorker):
             payment_key=payment_key, scid=short_channel_id, htlc=htlc, expected_msat=expected_msat)
         mpp_resolution = self.received_mpp_htlcs[payment_key].resolution
         if mpp_resolution == RecvMPPResolution.WAITING:
-            bundle = self.get_payment_bundle(payment_hash)
+            bundle = self.get_payment_bundle(payment_key)
             if bundle:
-                payment_keys = [self._get_payment_key(h) for h in bundle]
-                if payment_key not in payment_keys:
-                    # outer trampoline onion secret differs from inner onion
-                    # the latter, not the former, might be part of a bundle
-                    payment_keys = [payment_key]
+                payment_keys = bundle
             else:
                 payment_keys = [payment_key]
             first_timestamp = min([self.get_first_timestamp_of_mpp(pkey) for pkey in payment_keys])
