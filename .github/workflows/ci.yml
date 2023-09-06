@@ -95,33 +95,6 @@ jobs:
         with:
           name: electrum-grs-${{ github.sha }}-source-only-tarball
 
-  android-kivy-all:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Builder image
-        run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
-      - name: Compile Android apk
-        env:
-           ENCODED_STRING: ${{ secrets.ANDROID_SIGNING_KEY}}
-        run: |
-          TMP_KEYSTORE_FILE_PATH="${RUNNER_TEMP}"/keystore
-          mkdir "${TMP_KEYSTORE_FILE_PATH}"
-          echo $ENCODED_STRING | base64 -di > "${TMP_KEYSTORE_FILE_PATH}"/electrumgrs.keystore
-          sudo mkdir --parents /.buildozer/.gradle
-          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle -v $TMP_KEYSTORE_FILE_PATH:/root/.keystore --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh kivy all release ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: electrum-grs-${{ github.sha }}-android-kivy
-          path: dist/*.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: electrum-grs-${{ github.sha }}-android-kivy
-
   android-qml-all:
     runs-on: ubuntu-latest
     steps:
