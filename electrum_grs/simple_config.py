@@ -925,6 +925,7 @@ class SimpleConfig(Logger):
     CLI_TIMEOUT = ConfigVar('timeout', default=60, type_=float)
     AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = ConfigVar('check_updates', default=False, type_=bool)
     WRITE_LOGS_TO_DISK = ConfigVar('log_to_file', default=False, type_=bool)
+    LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=10, type_=int)
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar('language', default="", type_=str)
     BLOCKCHAIN_PREFERRED_BLOCK = ConfigVar('blockchain_preferred_block', default=None)

@@ -117,9 +117,9 @@ class TruncatingMemoryHandler(logging.handlers.MemoryHandler):
         super().close()
 
 
-def _delete_old_logs(path, keep=10):
+def _delete_old_logs(path, *, num_files_keep: int):
     files = sorted(list(pathlib.Path(path).glob("electrum_grs_log_*.log")), reverse=True)
-    for f in files[keep:]:
+    for f in files[num_files_keep:]:
         try:
             os.remove(str(f))
         except OSError as e:
@@ -127,12 +127,12 @@ def _delete_old_logs(path, keep=10):
 
 
 _logfile_path = None
-def _configure_file_logging(log_directory: pathlib.Path):
+def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int):
     global _logfile_path
     assert _logfile_path is None, 'file logging already initialized'
     log_directory.mkdir(exist_ok=True)
 
-    _delete_old_logs(log_directory)
+    _delete_old_logs(log_directory, num_files_keep=num_files_keep)
 
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
@@ -327,7 +327,8 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
         log_to_file |= is_android_debug_apk()
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
-        _configure_file_logging(log_directory)
+        num_files_keep = config.LOGS_NUM_FILES_KEEP
+        _configure_file_logging(log_directory, num_files_keep=num_files_keep)
 
     # clean up and delete in-memory logs
     global _inmemory_startup_logs

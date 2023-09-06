@@ -1,5 +1,5 @@
 task:
-  name: Windows build
+  name: "build: Windows"
   container:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
@@ -28,7 +28,7 @@ task:
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build (QML $APK_ARCH)
+  name: "build: Android (QML $APK_ARCH)"
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
@@ -54,7 +54,7 @@ task:
     path: "dist/*"
 
 #task:
-#  name: MacOS build (M1)
+#  name: "build: macOS"
 #  macos_instance:
 #    image: ghcr.io/cirruslabs/macos-monterey-xcode:13.3.1
 #  env:
@@ -84,7 +84,7 @@ task:
 #    path: "dist/*"
 
 task:
-  name: AppImage build
+  name: "build: AppImage"
   container:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
@@ -124,13 +124,13 @@ task:
   binaries_artifacts:
     path: "dist/*"
   matrix:
-    - name: tarball build
-    - name: source-only tarball build
+    - name: "build: tarball"
+    - name: "build: source-only tarball"
       env:
         OMIT_UNCLEAN_FILES: 1
 
 task:
-  name: Submodules
+  name: "check submodules"
   container:
     image: python:3.8
     cpu: 1
