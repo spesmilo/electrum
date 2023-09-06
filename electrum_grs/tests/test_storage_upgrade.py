@@ -319,17 +319,14 @@ class TestStorageUpgrade(WalletTestCase):
 
     def setUp(self):
         super().setUp()
-        self.__electrum_path = tempfile.mkdtemp()
-        config = SimpleConfig({'electrum_path': self.__electrum_path})
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        self.plugins = Plugins(config, gui_name)
+        self.plugins = Plugins(self.config, gui_name)
 
     def tearDown(self):
-        super().tearDown()
-        shutil.rmtree(self.__electrum_path)
         self.plugins.stop()
         self.plugins.stopped_event.wait()
+        super().tearDown()
 
     async def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:

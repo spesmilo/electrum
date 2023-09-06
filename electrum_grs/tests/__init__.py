@@ -48,6 +48,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
         self._test_lock.acquire()
         super().setUp()
         self.electrum_path = tempfile.mkdtemp()
+        assert util._asyncio_event_loop is None, "global event loop already set?!"
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -55,10 +56,12 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
         # IsolatedAsyncioTestCase creates event loops with debug=True, which makes the tests take ~4x time
         if not (os.environ.get("PYTHONASYNCIODEBUG") or os.environ.get("PYTHONDEVMODE")):
             loop.set_debug(False)
+        util._asyncio_event_loop = loop
 
     def tearDown(self):
         shutil.rmtree(self.electrum_path)
         super().tearDown()
+        util._asyncio_event_loop = None  # cleared here, at the ~last possible moment. asyncTearDown is too early.
         self._test_lock.release()
 
 

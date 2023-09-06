@@ -36,10 +36,9 @@ class WalletTestCase(ElectrumTestCase):
 
     def setUp(self):
         super(WalletTestCase, self).setUp()
-        self.user_dir = tempfile.mkdtemp()
-        self.config = SimpleConfig({'electrum_path': self.user_dir})
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-        self.wallet_path = os.path.join(self.user_dir, "somewallet")
+        self.wallet_path = os.path.join(self.electrum_path, "somewallet")
 
         self._saved_stdout = sys.stdout
         self._stdout_buffer = StringIO()
@@ -47,7 +46,6 @@ class WalletTestCase(ElectrumTestCase):
 
     def tearDown(self):
         super(WalletTestCase, self).tearDown()
-        shutil.rmtree(self.user_dir)
         # Restore the "real" stdout
         sys.stdout = self._saved_stdout
 

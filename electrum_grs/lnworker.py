@@ -2580,7 +2580,7 @@ class LNWallet(LNWorker):
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    def schedule_force_closing(self, chan_id: bytes) -> 'asyncio.Task[None]':
+    def schedule_force_closing(self, chan_id: bytes) -> 'asyncio.Task[bool]':
         """Schedules a task to force-close the channel and returns it.
         Network-related exceptions are suppressed.
         (automatic rebroadcasts will be scheduled)
