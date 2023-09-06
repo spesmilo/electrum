@@ -53,7 +53,7 @@ task:
     CI_PULL_REQUEST: $CIRRUS_PR
     # in addition, COVERALLS_REPO_TOKEN is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - Flake8 Mandatory
+    - "linter: Flake8 Mandatory"
 
 task:
   name: "locale: upload to crowdin"
@@ -76,7 +76,7 @@ task:
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - Tox Python 3.8
+    - "unittests: Tox Python 3.8"
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
@@ -117,7 +117,7 @@ task:
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
   depends_on:
-    - Flake8 Mandatory
+    - "linter: Flake8 Mandatory"
 
 task:
   container:
@@ -178,7 +178,7 @@ task:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
   depends_on:
-    - Tox Python 3.8
+    - "unittests: Tox Python 3.8"
 
 task:
   name: "build: Android (QML $APK_ARCH)"
@@ -206,7 +206,7 @@ task:
   binaries_artifacts:
     path: "dist/*"
   depends_on:
-    - Tox Python 3.8
+    - "unittests: Tox Python 3.8"
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
@@ -264,7 +264,7 @@ task:
   env:
     CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
   depends_on:
-    - Tox Python 3.8
+    - "unittests: Tox Python 3.8"
 
 task:
   container:
@@ -287,7 +287,7 @@ task:
       env:
         OMIT_UNCLEAN_FILES: 1
   depends_on:
-    - Tox Python 3.8
+    - "unittests: Tox Python 3.8"
 
 task:
   name: "check submodules"
