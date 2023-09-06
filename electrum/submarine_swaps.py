@@ -194,8 +194,9 @@ class SwapManager(Logger):
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
         self._swaps_by_lockup_address = {}  # type: Dict[str, SwapData]
-        for payment_hash, swap in self.swaps.items():
-            swap._payment_hash = bytes.fromhex(payment_hash)
+        for payment_hash_hex, swap in self.swaps.items():
+            payment_hash = bytes.fromhex(payment_hash_hex)
+            swap._payment_hash = payment_hash
             self._add_or_reindex_swap(swap)
             if not swap.is_reverse and not swap.is_redeemed:
                 self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
@@ -369,7 +370,7 @@ class SwapManager(Logger):
                 tx = self.create_funding_tx(swap, None, None)
                 await self.broadcast_funding_tx(swap, tx)
 
-    def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash=None, their_pubkey=None):
+    def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash: bytes=None, their_pubkey=None):
         """ server method """
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         our_privkey = os.urandom(32)
