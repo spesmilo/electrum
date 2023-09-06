@@ -4,3 +4,6 @@
 [submodule "electrum_grs/www"]
 	path = electrum_grs/plugins/payserver/www
 	url = https://github.com/Groestlcoin/electrum-http.git
+[submodule "electrum_grs/gui/kivy/theming/atlas"]
+	path = electrum_grs/gui/kivy/theming/atlas
+	url = https://github.com/Groestlcoin/electrum-grs-kivy-atlas.git
