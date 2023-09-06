@@ -815,6 +815,7 @@ class WCTrezorInitMethod(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
         Logger.__init__(self)
+        self.plugins = wizard.plugins
         self.plugin = None
 
     def on_ready(self):

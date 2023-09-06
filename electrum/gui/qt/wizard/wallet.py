@@ -221,9 +221,10 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             on_finished()
 
 
-class WCWalletName(WizardComponent):
+class WCWalletName(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Electrum wallet'))
+        Logger.__init__(self)
 
         path = wizard._path
 
@@ -459,11 +460,10 @@ class WCConfirmSeed(WizardComponent):
         pass
 
 
-class WCEnterExt(WizardComponent):
-    _logger = get_logger(__name__)
-
+class WCEnterExt(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Seed Extension'))
+        Logger.__init__(self)
 
         message = '\n'.join([
             _('You may extend your seed with custom words.'),
@@ -500,11 +500,11 @@ class WCEnterExt(WizardComponent):
                 self.valid = True
             else:
                 if self.wizard.has_duplicate_masterkeys(self.wizard_data):
-                    self._logger.debug('Duplicate master keys!')
+                    self.logger.debug('Duplicate master keys!')
                     # TODO: user feedback
                     self.valid = False
                 elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
-                    self._logger.debug('Heterogenous master keys!')
+                    self.logger.debug('Heterogenous master keys!')
                     # TODO: user feedback
                     self.valid = False
                 else:
@@ -536,11 +536,11 @@ class WCConfirmExt(WizardComponent):
         pass
 
 
-class WCHaveSeed(WizardComponent):
-    _logger = get_logger(__name__)
-
+class WCHaveSeed(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Enter Seed'))
+        Logger.__init__(self)
+
         self.layout().addWidget(WWLabel(_('Please enter your seed phrase in order to restore your wallet.')))
 
         # TODO: SeedLayout assumes too much in parent, refactor SeedLayout
@@ -594,11 +594,11 @@ class WCHaveSeed(WizardComponent):
         else:
             self.apply()
             if self.wizard.has_duplicate_masterkeys(self.wizard_data):
-                self._logger.debug('Duplicate master keys!')
+                self.logger.debug('Duplicate master keys!')
                 # TODO: user feedback
                 seed_valid = False
             elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
-                self._logger.debug('Heterogenous master keys!')
+                self.logger.debug('Heterogenous master keys!')
                 # TODO: user feedback
                 seed_valid = False
 
@@ -617,11 +617,10 @@ class WCHaveSeed(WizardComponent):
         cosigner_data['seed_extra_words'] = ''  # empty default
 
 
-class WCScriptAndDerivation(WizardComponent):
-    _logger = get_logger(__name__)
-
+class WCScriptAndDerivation(WizardComponent, Logger):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Script type and Derivation path'))
+        Logger.__init__(self)
 
     def on_ready(self):
         message1 = _('Choose the type of addresses in your wallet.')
