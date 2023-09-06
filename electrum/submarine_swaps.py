@@ -361,7 +361,7 @@ class SwapManager(Logger):
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
-    async def hold_invoice_callback(self, payment_hash):
+    async def hold_invoice_callback(self, payment_hash: bytes) -> None:
         # note: this assumes the keystore is not encrypted
         key = payment_hash.hex()
         if key in self.swaps:
