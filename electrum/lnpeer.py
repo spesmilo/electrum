@@ -2422,7 +2422,7 @@ class Peer(Logger):
                     payment_key = payment_hash + payment_secret
                     # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
                     if not self.lnworker.enable_htlc_forwarding:
-                        pass
+                        return None, None, None
                     elif payment_key in self.lnworker.final_onion_forwardings:
                         # we are already forwarding this payment
                         self.logger.info(f"we are already forwarding this.")
