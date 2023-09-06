@@ -326,10 +326,10 @@ class TestStorageUpgrade(WalletTestCase):
         self.plugins = Plugins(config, gui_name)
 
     def tearDown(self):
-        super().tearDown()
         shutil.rmtree(self.__electrum_path)
         self.plugins.stop()
         self.plugins.stopped_event.wait()
+        super().tearDown()
 
     async def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:
