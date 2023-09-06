@@ -63,7 +63,6 @@ if TYPE_CHECKING:
 _logger = get_logger(__name__)
 
 
-# note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
     "unconfirmed.png",
     "warning.png",

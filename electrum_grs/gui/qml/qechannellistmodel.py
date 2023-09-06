@@ -5,10 +5,12 @@ from electrum_grs.lnchannel import ChannelState
 from electrum_grs.lnutil import LOCAL, REMOTE
 from electrum_grs.logging import get_logger
 from electrum_grs.util import Satoshis
+from electrum_grs.gui import messages
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
 from .qemodelfilter import QEFilterProxyModel
+
 
 class QEChannelListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -195,3 +197,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         self._fm_nobackups = self.filterModel('is_backup', False)
         return self._fm_nobackups
 
+    @pyqtSlot(result=str)
+    def lightningWarningMessage(self):
+        return messages.MSG_LIGHTNING_WARNING

@@ -31,10 +31,4 @@ def get_default_language(*, gui_name: Optional[str] = None) -> str:
         except Exception:
             name = QLocale.system().name()
         return name if name in languages else "en_GB"
-    elif gui_name == "kivy":
-        if "ANDROID_DATA" not in os.environ:
-            return "en_UK"
-        # FIXME: CJK/Arabic/etc languages do not work at all with kivy due to font issues,
-        #        so it is easiest to just default to English... (see #2032)
-        return "en_UK"
     return ""

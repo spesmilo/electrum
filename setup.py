@@ -62,7 +62,7 @@ setup(
     extras_require=extras_require,
     packages=(['electrum_grs',]
               + [('electrum_grs.'+pkg) for pkg in
-                 find_packages('electrum_grs', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
+                 find_packages('electrum_grs', exclude=["tests"])]),
     package_dir={
         'electrum_grs': 'electrum_grs'
     },

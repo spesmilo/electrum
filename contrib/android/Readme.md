@@ -107,12 +107,6 @@ sudo apt-get install qtvirtualkeyboard-plugin
 
 Run electrum-grs with the `-g` switch: `electrum_grs -g qml`
 
-### The Kivy GUI can be run directly on Linux Desktop. How?
-Install Kivy.
-
-Build atlas: `(cd contrib/android/; make theming)`
-
-Run electrum-grs with the `-g` switch: `electrum_grs -g kivy`
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk

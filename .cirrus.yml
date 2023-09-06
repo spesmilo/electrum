@@ -28,32 +28,6 @@ task:
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build (Kivy $APK_ARCH)
-  container:
-    dockerfile: contrib/android/Dockerfile
-    cpu: 2
-    memory: 2G
-  env:
-    APK_ARCH: arm64-v8a
-  packages_tld_folder_cache:
-    folder: packages
-    fingerprint_script:
-      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
-      - git ls-files -s contrib/android/
-  p4a_cache:
-    folders:
-      - ".buildozer/android/platform/build-$APK_ARCH/packages"
-      - ".buildozer/android/platform/build-$APK_ARCH/build"
-    fingerprint_script:
-      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
-      - git ls-files -s contrib/android/
-      - echo "kivy $APK_ARCH"
-  build_script:
-    - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
-  binaries_artifacts:
-    path: "dist/*"
-
-task:
   name: Android build (QML $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile

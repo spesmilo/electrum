@@ -318,11 +318,10 @@ def main():
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         import importlib.util
-        android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
         config_options = {
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
-            SimpleConfig.GUI_NAME.key(): android_gui,
+            SimpleConfig.GUI_NAME.key(): 'qml',
             SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
         }
         if util.get_android_package_name() == "org.groestlcoin.testnet.electrumgrs":

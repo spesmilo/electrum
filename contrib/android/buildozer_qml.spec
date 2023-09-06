@@ -62,7 +62,6 @@ requirements =
     groestlcoin_hash==1.0.1
 
 # (str) Presplash of the application
-#presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
 presplash.filename = %(source.dir)s/electrum_grs/gui/icons/electrum_presplash.png
 
 # (str) Icon of the application
