@@ -2441,8 +2441,9 @@ class Peer(Logger):
                                 # remove from list of payments, so that another attempt can be initiated
                                 self.lnworker.final_onion_forwardings.remove(payment_key)
                         asyncio.ensure_future(wrapped_callback())
-                        fw_info = payment_key.hex()
-                        return None, fw_info, None
+                    # return fw_info so that maybe_fulfill_htlc will not be called again
+                    fw_info = payment_key.hex()
+                    return None, fw_info, None
             else:
                 # trampoline- HTLC we are supposed to forward, and have already forwarded
                 payment_key_outer_onion = bytes.fromhex(forwarding_info)
