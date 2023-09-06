@@ -4,7 +4,7 @@ task:
     cpu: 1
     memory: 2G
   matrix:
-    - name: Tox Python $ELECTRUM_PYTHON_VERSION
+    - name: "unittests: Tox Python $ELECTRUM_PYTHON_VERSION"
       env:
         ELECTRUM_IMAGE: python:$ELECTRUM_PYTHON_VERSION
         TOXENV: py3
@@ -18,7 +18,7 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.10
        - env:
            ELECTRUM_PYTHON_VERSION: 3.11
-       - name: Tox Python 3 debug mode
+       - name: "unittests: Tox Python 3 debug mode"
          env:
            ELECTRUM_PYTHON_VERSION: 3
            # enable additional checks:
@@ -56,7 +56,7 @@ task:
     - Flake8 Mandatory
 
 task:
-  name: Locale
+  name: "locale: upload to crowdin"
   container:
     image: $ELECTRUM_IMAGE
     cpu: 1
@@ -80,7 +80,7 @@ task:
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
-  name: Regtest functional tests
+  name: "Regtest functional tests"
   compute_engine_instance:
     image_project: cirrus-images
     image: family/docker-builder
@@ -135,7 +135,7 @@ task:
     ELECTRUM_IMAGE: python:3.8
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
   matrix:
-    - name: Flake8 Mandatory
+    - name: "linter: Flake8 Mandatory"
       env:
         # list of error codes:
         # - https://flake8.pycqa.org/en/latest/user/error-codes.html
@@ -143,14 +143,14 @@ task:
         # - https://github.com/PyCQA/flake8-bugbear/tree/8c0e7eb04217494d48d0ab093bf5b31db0921989#list-of-warnings
         ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,F63,F7,F82,W191,W29,B
         ELECTRUM_LINTERS_IGNORE: B007,B009,B010,B019
-    - name: Flake8 Non-Mandatory
+    - name: "linter: Flake8 Non-Mandatory"
       env:
         ELECTRUM_LINTERS: E,F,W,C90,B
         ELECTRUM_LINTERS_IGNORE: ""
       allow_failures: true
 
 task:
-  name: Windows build
+  name: "build: Windows"
   container:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
@@ -181,7 +181,7 @@ task:
     - Tox Python 3.8
 
 task:
-  name: Android build (QML $APK_ARCH)
+  name: "build: Android (QML $APK_ARCH)"
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
@@ -210,7 +210,7 @@ task:
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
-#  name: MacOS build
+#  name: "build: macOS"
 #  macos_instance:
 #    image: catalina-xcode-11.3.1
 #  env:
@@ -240,7 +240,7 @@ task:
 #    path: "dist/*"
 
 task:
-  name: AppImage build
+  name: "build: AppImage"
   container:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
@@ -282,15 +282,15 @@ task:
   binaries_artifacts:
     path: "dist/*"
   matrix:
-    - name: tarball build
-    - name: source-only tarball build
+    - name: "build: tarball"
+    - name: "build: source-only tarball"
       env:
         OMIT_UNCLEAN_FILES: 1
   depends_on:
     - Tox Python 3.8
 
 task:
-  name: Submodules
+  name: "check submodules"
   container:
     image: python:3.8
     cpu: 1
