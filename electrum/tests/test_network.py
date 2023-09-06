@@ -7,19 +7,18 @@ from electrum.simple_config import SimpleConfig
 from electrum import blockchain
 from electrum.interface import Interface, ServerAddr
 from electrum.crypto import sha256
+from electrum.util import OldTaskGroup
 from electrum import util
 
 from . import ElectrumTestCase
 
 
-class MockTaskGroup:
-    async def spawn(self, x): return
-
 class MockNetwork:
-    taskgroup = MockTaskGroup()
 
     def __init__(self):
         self.asyncio_loop = util.get_asyncio_loop()
+        self.taskgroup = OldTaskGroup()
+
 
 class MockInterface(Interface):
     def __init__(self, config):
@@ -32,6 +31,7 @@ class MockInterface(Interface):
                                                 parent=None, forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         self.tip = 12
         self.blockchain._size = self.tip + 1
+
     async def get_block_header(self, height, assert_mode):
         assert self.q.qsize() > 0, (height, assert_mode)
         item = await self.q.get()
@@ -39,6 +39,10 @@ class MockInterface(Interface):
         assert item['block_height'] == height, (item['block_height'], height)
         assert assert_mode in item['mock'], (assert_mode, item)
         return item
+
+    async def run(self):
+        return
+
 
 class TestNetwork(ElectrumTestCase):
 
