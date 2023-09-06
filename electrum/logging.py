@@ -340,9 +340,6 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
         root_logger.removeHandler(_inmemory_startup_logs)
         _inmemory_startup_logs = None
 
-    # if using kivy, avoid kivy's own logs to get printed twice
-    logging.getLogger('kivy').propagate = False
-
     from . import ELECTRUM_VERSION
     from .constants import GIT_REPO_URL
     _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - {GIT_REPO_URL}")
@@ -357,9 +354,6 @@ def get_logfile_path() -> Optional[pathlib.Path]:
 
 def describe_os_version() -> str:
     if 'ANDROID_DATA' in os.environ:
-        #from kivy import utils
-        #if utils.platform != "android":
-        #    return utils.platform
         import jnius
         bv = jnius.autoclass('android.os.Build$VERSION')
         b = jnius.autoclass('android.os.Build')
