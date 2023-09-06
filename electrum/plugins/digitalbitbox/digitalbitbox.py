@@ -15,7 +15,7 @@ import struct
 import sys
 import time
 import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
@@ -69,8 +69,8 @@ MIN_MAJOR_VERSION = 5
 ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
 CHANNEL_ID_KEY = 'comserverchannelid'
 
-class DigitalBitbox_Client(HardwareClientBase):
 
+class DigitalBitbox_Client(HardwareClientBase):
     def __init__(self, plugin, hidDevice):
         HardwareClientBase.__init__(self, plugin=plugin)
         self.dbb_hid = hidDevice
@@ -79,6 +79,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         self.isInitialized = False
         self.setupRunning = False
         self.usbReportSize = 64 # firmware > v2.0.0
+
+    def device_model_name(self) -> Optional[str]:
+        return 'Digital BitBox'
 
     @runs_in_hwd_thread
     def close(self):

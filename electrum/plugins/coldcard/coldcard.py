@@ -59,7 +59,6 @@ CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
 
 class CKCCClient(HardwareClientBase):
-
     def __init__(self, plugin, handler, dev_path, *, is_simulator=False):
         HardwareClientBase.__init__(self, plugin=plugin)
         self.device = plugin.device
@@ -79,6 +78,9 @@ class CKCCClient(HardwareClientBase):
 
         # NOTE: MiTM test is delayed until we have a hint as to what XPUB we
         # should expect. It's also kinda slow.
+
+    def device_model_name(self) -> Optional[str]:
+        return 'Coldcard'
 
     def __repr__(self):
         return '<CKCCClient: xfp=%s label=%r>' % (xfp2str(self.dev.master_fingerprint),

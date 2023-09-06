@@ -72,6 +72,9 @@ class BitBox02Client(HardwareClientBase):
         if self.bitbox_hid_info is None:
             raise Exception("No BitBox02 detected")
 
+    def device_model_name(self) -> Optional[str]:
+        return 'BitBox02'
+
     def is_initialized(self) -> bool:
         return True
 

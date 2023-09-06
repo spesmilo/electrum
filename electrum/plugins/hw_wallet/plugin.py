@@ -23,7 +23,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+from abc import abstractmethod
 from typing import TYPE_CHECKING, Sequence, Optional, Type, Iterable, Any
 
 from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr,
@@ -249,6 +249,7 @@ class HardwareClientBase:
         password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
         return password
 
+    @abstractmethod
     def device_model_name(self) -> Optional[str]:
         """Return the name of the model of this device, which might be displayed in the UI.
         E.g. for Trezor, "Trezor One" or "Trezor T".
