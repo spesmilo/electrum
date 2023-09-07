@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
+    requestNext = pyqtSignal()
+
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', *, start_viewstate: 'WizardViewState' = None):
         QDialog.__init__(self, None)
         self.app = app
@@ -40,7 +42,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.clicked.connect(self.on_next_button_clicked)
         self.next_button.setDefault(True)
-
+        self.requestNext.connect(self.on_next_button_clicked)
         self.logo = QLabel()
 
         please_wait_layout = QVBoxLayout()

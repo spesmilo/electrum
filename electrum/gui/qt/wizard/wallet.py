@@ -1228,6 +1228,9 @@ class WCHWUnlock(WizardComponent, Logger):
         else:
             self.valid = False
 
+        if self.valid:
+            self.wizard.requestNext.emit()  # via signal, so it triggers Next/Finish on GUI thread after on_updated()
+
     def apply(self):
         if self.valid:
             self.wizard_data['password'] = self.password
@@ -1301,6 +1304,9 @@ class WCHWXPub(WizardComponent, Logger):
             self.valid = valid
         else:
             self.valid = False
+
+        if self.valid:
+            self.wizard.requestNext.emit()  # via signal, so it triggers Next/Finish on GUI thread after on_updated()
 
     def apply(self):
         _name, _info = self.wizard_data['hardware_device']
