@@ -1078,6 +1078,11 @@ class WCChooseHWDevice(WizardComponent, Logger):
 
         self.valid = True
 
+        if self.valid:
+            self.wizard.next_button.setFocus()
+        else:
+            self.rescan_button.setFocus()
+
     def failed_getting_device_infos(self, debug_msg, name, e):
         # nonlocal debug_msg
         err_str_oneline = ' // '.join(str(e).splitlines())
