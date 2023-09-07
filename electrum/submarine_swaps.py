@@ -206,7 +206,7 @@ class SwapManager(Logger):
             if swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
         # api url
-        self.api_url = wallet.config.get_swapserver_url()
+        self.api_url = wallet.config.SWAPSERVER_URL
         # init default min & max
         self.init_min_max_values()
 

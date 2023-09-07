@@ -4,7 +4,7 @@ import time
 import os
 import stat
 from decimal import Decimal
-from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set
+from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set, Callable
 from numbers import Real
 from functools import cached_property
 
@@ -54,23 +54,34 @@ FINAL_CONFIG_VERSION = 3
 
 class ConfigVar(property):
 
-    def __init__(self, key: str, *, default, type_=None):
+    def __init__(
+        self,
+        key: str,
+        *,
+        default: Union[Any, Callable[['SimpleConfig'], Any]],  # typically a literal, but can also be a callable
+        type_=None,
+    ):
         self._key = key
         self._default = default
         self._type = type_
         property.__init__(self, self._get_config_value, self._set_config_value)
 
     def _get_config_value(self, config: 'SimpleConfig'):
-        value = config.get(self._key, default=self._default)
-        if self._type is not None and value != self._default:
-            assert value is not None, f"got None for key={self._key!r}"
-            try:
-                value = self._type(value)
-            except Exception as e:
-                raise ValueError(
-                    f"ConfigVar.get type-check and auto-conversion failed. "
-                    f"key={self._key!r}. type={self._type}. value={value!r}") from e
-        return value
+        with config.lock:
+            if config.is_set(self._key):
+                value = config.get(self._key)
+                if self._type is not None:
+                    assert value is not None, f"got None for key={self._key!r}"
+                    try:
+                        value = self._type(value)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ConfigVar.get type-check and auto-conversion failed. "
+                            f"key={self._key!r}. type={self._type}. value={value!r}") from e
+            else:
+                d = self._default
+                value = d(config) if callable(d) else d
+            return value
 
     def _set_config_value(self, config: 'SimpleConfig', value, *, save=True):
         if self._type is not None and value is not None:
@@ -817,14 +828,14 @@ class SimpleConfig(Logger):
                     f"Either use config.cv.{name}.set() or assign to config.{name} instead.")
         return CVLookupHelper()
 
-    def get_swapserver_url(self):
+    def _default_swapserver_url(self) -> str:
         if constants.net == constants.BitcoinMainnet:
             default = 'https://swaps.electrum.org/api'
         elif constants.net == constants.BitcoinTestnet:
             default = 'https://swaps.electrum.org/testnet'
         else:
             default = 'http://localhost:5455'
-        return self.SWAPSERVER_URL or default
+        return default
 
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
@@ -940,7 +951,7 @@ class SimpleConfig(Logger):
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
     # submarine swap server
-    SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
+    SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
     SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
 
