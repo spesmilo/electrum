@@ -193,15 +193,18 @@ class HardwareClientBase:
     def device_manager(self) -> 'DeviceMgr':
         return self.plugin.device_manager()
 
+    @abstractmethod
     def is_pairable(self) -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
     def close(self):
         raise NotImplementedError()
 
     def timeout(self, cutoff) -> None:
         pass
 
+    @abstractmethod
     def is_initialized(self) -> bool:
         """True if initialized, False if wiped."""
         raise NotImplementedError()
@@ -253,8 +256,9 @@ class HardwareClientBase:
     def device_model_name(self) -> Optional[str]:
         """Return the name of the model of this device, which might be displayed in the UI.
         E.g. for Trezor, "Trezor One" or "Trezor T".
+        If this method is not defined for a plugin, the plugin name is used as default
         """
-        return None
+        return self.plugin.name
 
     def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:
         """Called during wallet creation in the wizard, before the keystore
