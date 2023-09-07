@@ -802,7 +802,7 @@ class Transaction:
         if is_segwit:
             marker = vds.read_bytes(1)
             if marker != b'\x01':
-                raise ValueError('invalid txn marker byte: {}'.format(marker))
+                raise SerializationError('invalid txn marker byte: {}'.format(marker))
             n_vin = vds.read_compact_size()
         if n_vin < 1:
             raise SerializationError('tx needs to have at least 1 input')

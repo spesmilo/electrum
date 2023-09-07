@@ -49,6 +49,7 @@ from .bip32 import BIP32Node
 from .i18n import _
 from .transaction import (Transaction, multisig_script, TxOutput, PartialTransaction, PartialTxOutput,
                           tx_from_any, PartialTxInput, TxOutpoint)
+from . import transaction
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
@@ -779,8 +780,19 @@ class Commands:
 
     @command('wp')
     async def bumpfee(self, tx, new_fee_rate, from_coins=None, decrease_payment=False, password=None, unsigned=False, wallet: Abstract_Wallet = None):
-        """ Bump the Fee for an unconfirmed Transaction """
-        tx = Transaction(tx)
+        """Bump the fee for an unconfirmed transaction.
+        'tx' can be either a raw hex tx or a txid. If txid, the corresponding tx must already be part of the wallet history.
+        """
+        if is_hash256_str(tx):  # txid
+            tx = wallet.db.get_transaction(tx)
+            if tx is None:
+                raise Exception("Transaction not in wallet.")
+        else:  # raw tx
+            try:
+                tx = Transaction(tx)
+                tx.deserialize()
+            except transaction.SerializationError as e:
+                raise Exception(f"Failed to deserialize transaction: {e}") from e
         domain_coins = from_coins.split(',') if from_coins else None
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
