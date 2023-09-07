@@ -79,10 +79,7 @@ class AbstractWizard:
         # make a clone for next view
         wizard_data = copy.deepcopy(wizard_data)
 
-        is_finished = False
         if 'next' not in nav:
-            # finished
-            is_finished = True
             new_view = WizardViewState(None, wizard_data, {})
         else:
             view_next = nav['next']
@@ -118,9 +115,6 @@ class AbstractWizard:
 
         self.log_stack()
 
-        if is_finished:
-            self.finished(wizard_data)
-
         return new_view
 
     def resolve_prev(self):
@@ -153,9 +147,6 @@ class AbstractWizard:
             return is_last
         else:
             raise Exception(f'last handler for view {view} is not callable nor a bool literal')
-
-    def finished(self, wizard_data: dict):
-        self._logger.debug('finished.')
 
     def reset(self):
         self._stack = []

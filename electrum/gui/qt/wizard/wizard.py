@@ -193,8 +193,10 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         wd = page.wizard_data.copy()
         if self.is_last(wd):
             self.submit(wd)
-            self.finished(wd)
-            self.accept()
+            if self.is_finalized(wd):
+                self.accept()
+            else:
+                self.prev()  # rollback the submit above
         else:
             next = self.submit(wd)
             self.load_next_component(next.view, next.wizard_data, next.params)
@@ -218,6 +220,10 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
     def is_last(self, wizard_data: dict) -> bool:
         wdata = wizard_data.copy()
         return self.is_last_view(self._current.view, wdata)
+
+    def is_finalized(self, wizard_data: dict) -> bool:
+        ''' Final check before closing the wizard. '''
+        return True
 
 
 class WizardComponent(QWidget):

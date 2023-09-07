@@ -16,7 +16,7 @@ from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
-from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled, UserFacingException
+from electrum.util import WalletFileException, get_new_wallet_name, UserCancelled, UserFacingException, InvalidPassword
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -180,6 +180,29 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             raise UserCancelled()
         if db.requires_upgrade():
             self.waiting_dialog(db.upgrade, _('Upgrading wallet format...'))
+
+    def is_finalized(self, wizard_data: dict) -> bool:
+        # check decryption of existing wallet and keep wizard open if incorrect.
+
+        if not wizard_data['wallet_exists'] or wizard_data['wallet_is_open']:
+            return True
+
+        wallet_file = wizard_data['wallet_name']
+
+        storage = WalletStorage(wallet_file)
+        if not storage.is_encrypted_with_user_pw() and not storage.is_encrypted_with_hw_device():
+            return True
+
+        try:
+            storage.decrypt(wizard_data['password'])
+        except InvalidPassword:
+            if storage.is_encrypted_with_hw_device():
+                self.show_message('This hardware device could not decrypt this wallet. Is it the correct one?')
+            else:
+                self.show_message('Invalid password')
+            return False
+
+        return True
 
     def waiting_dialog(self, task, msg, on_finished=None):
         dialog = QDialog()
