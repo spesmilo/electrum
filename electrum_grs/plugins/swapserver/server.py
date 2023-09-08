@@ -11,8 +11,8 @@ from electrum_grs.util import EventListener
 from electrum_grs.lnaddr import lndecode
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
-    from electrum.wallet import Abstract_Wallet
+    from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.wallet import Abstract_Wallet
 
 
 class SwapServer(Logger, EventListener):

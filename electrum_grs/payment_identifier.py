@@ -386,7 +386,7 @@ class PaymentIdentifier(Logger):
                 raise Exception("Unexpected missing LNURL data")
 
             if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
-                self.error = _('Amount must be between {} and {} sat.').format(
+                self.error = _('Amount must be between {} and {} gro.').format(
                     self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
                 self.set_state(PaymentIdentifierState.INVALID_AMOUNT)
                 return
