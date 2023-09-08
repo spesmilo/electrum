@@ -23,7 +23,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import TYPE_CHECKING, Sequence, Optional, Type, Iterable, Any
 
 from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr,
@@ -183,7 +183,7 @@ class HW_PluginBase(BasePlugin):
         return device.product_key in self.DEVICE_IDS
 
 
-class HardwareClientBase:
+class HardwareClientBase(ABC):
     handler = None  # type: Optional['HardwareHandlerBase']
 
     def __init__(self, *, plugin: 'HW_PluginBase'):
@@ -195,11 +195,11 @@ class HardwareClientBase:
 
     @abstractmethod
     def is_pairable(self) -> bool:
-        raise NotImplementedError()
+        pass
 
     @abstractmethod
     def close(self):
-        raise NotImplementedError()
+        pass
 
     def timeout(self, cutoff) -> None:
         pass
@@ -207,7 +207,7 @@ class HardwareClientBase:
     @abstractmethod
     def is_initialized(self) -> bool:
         """True if initialized, False if wiped."""
-        raise NotImplementedError()
+        pass
 
     def label(self) -> Optional[str]:
         """The name given by the user to the device.
@@ -230,11 +230,13 @@ class HardwareClientBase:
         root_fp = self.request_root_fingerprint_from_device()
         return root_fp
 
+    @abstractmethod
     def has_usable_connection_with_device(self) -> bool:
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def get_xpub(self, bip32_path: str, xtype) -> str:
-        raise NotImplementedError()
+        pass
 
     @runs_in_hwd_thread
     def request_root_fingerprint_from_device(self) -> str:
@@ -252,7 +254,6 @@ class HardwareClientBase:
         password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
         return password
 
-    @abstractmethod
     def device_model_name(self) -> Optional[str]:
         """Return the name of the model of this device, which might be displayed in the UI.
         E.g. for Trezor, "Trezor One" or "Trezor T".
