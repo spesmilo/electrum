@@ -29,7 +29,7 @@ import time
 import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
-                    Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
+                    Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping, Set)
 import concurrent
 from concurrent import futures
 from functools import wraps, partial
@@ -56,12 +56,13 @@ hooks = {}
 class Plugins(DaemonThread):
 
     LOGGING_SHORTCUT = 'p'
+    pkgpath = os.path.dirname(plugins.__file__)
+    _all_found_plugins = None  # type: Optional[Dict[str, dict]]
 
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
         self.name = 'Plugins'  # set name of thread
-        self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
@@ -72,21 +73,33 @@ class Plugins(DaemonThread):
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
+    @classmethod
+    def find_all_plugins(cls) -> Mapping[str, dict]:
+        """Return a map of all found plugins: name -> description.
+        Note that plugins not available for the current GUI are also included.
+        """
+        if cls._all_found_plugins is None:
+            cls._all_found_plugins = dict()
+            for loader, name, ispkg in pkgutil.iter_modules([cls.pkgpath]):
+                full_name = f'electrum.plugins.{name}'
+                spec = importlib.util.find_spec(full_name)
+                if spec is None:  # pkgutil found it but importlib can't ?!
+                    raise Exception(f"Error pre-loading {full_name}: no spec")
+                try:
+                    module = importlib.util.module_from_spec(spec)
+                    # sys.modules needs to be modified for relative imports to work
+                    # see https://stackoverflow.com/a/50395128
+                    sys.modules[spec.name] = module
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
+                d = module.__dict__
+                assert name not in cls._all_found_plugins
+                cls._all_found_plugins[name] = d
+        return cls._all_found_plugins
+
     def load_plugins(self):
-        for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
-            full_name = f'electrum.plugins.{name}'
-            spec = importlib.util.find_spec(full_name)
-            if spec is None:  # pkgutil found it but importlib can't ?!
-                raise Exception(f"Error pre-loading {full_name}: no spec")
-            try:
-                module = importlib.util.module_from_spec(spec)
-                # sys.modules needs to be modified for relative imports to work
-                # see https://stackoverflow.com/a/50395128
-                sys.modules[spec.name] = module
-                spec.loader.exec_module(module)
-            except Exception as e:
-                raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
-            d = module.__dict__
+        for name, d in self.find_all_plugins().items():
             gui_good = self.gui_name in d.get('available_for', [])
             if not gui_good:
                 continue
@@ -146,6 +159,15 @@ class Plugins(DaemonThread):
         self.plugins.pop(name)
         p.close()
         self.logger.info(f"closed {name}")
+
+    @classmethod
+    def is_plugin_enabler_config_key(cls, key: str) -> bool:
+        if not key.startswith('use_'):
+            return False
+        # note: the 'use_' prefix is not sufficient to check, there are
+        #       non-plugin-related config keys that also have it... hence:
+        name = key[4:]
+        return name in cls.find_all_plugins()
 
     def toggle(self, name: str) -> Optional['BasePlugin']:
         p = self.get(name)
