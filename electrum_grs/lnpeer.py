@@ -1885,14 +1885,6 @@ class Peer(Logger):
                     trampoline_onion=trampoline_onion)
                 return None, callback
 
-        preimage = self.lnworker.get_preimage(payment_hash)
-        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
-        if hold_invoice_callback:
-            if preimage:
-                return preimage, None
-            else:
-                return None, lambda: hold_invoice_callback(payment_hash)
-
         # TODO don't accept payments twice for same invoice
         # TODO check invoice expiry
         info = self.lnworker.get_payment_info(payment_hash)
@@ -1901,12 +1893,9 @@ class Peer(Logger):
             raise exc_incorrect_or_unknown_pd
 
         preimage = self.lnworker.get_preimage(payment_hash)
-        if not preimage:
-            self.logger.info(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
-            raise exc_incorrect_or_unknown_pd
-
         expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
-        expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
+        if preimage:
+            expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
         if payment_secret_from_onion not in expected_payment_secrets:
             log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
             raise exc_incorrect_or_unknown_pd
@@ -1914,6 +1903,15 @@ class Peer(Logger):
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
+
+        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
+        if hold_invoice_callback and not preimage:
+            return None, lambda: hold_invoice_callback(payment_hash)
+
+        if not preimage:
+            self.logger.info(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
+            raise exc_incorrect_or_unknown_pd
+
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         return preimage, None
 

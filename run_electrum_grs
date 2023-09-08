@@ -116,7 +116,7 @@ _logger = get_logger(__name__)
 
 
 # get password routine
-def prompt_password(prompt, confirm=True):
+def prompt_password(prompt: str, *, confirm: bool = True) -> Optional[str]:
     import getpass
     password = getpass.getpass(prompt, stream=None)
     if password and confirm:
@@ -128,7 +128,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig'):
+def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'SimpleConfig'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -153,9 +153,9 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if ((cmd.requires_wallet and storage.is_encrypted() and server is False)\
-       or (cmdname == 'load_wallet' and storage.is_encrypted())\
-       or cmd.requires_password):
+    if ((cmd.requires_wallet and storage.is_encrypted() and not rpcserver)
+            or (cmdname == 'load_wallet' and storage.is_encrypted())
+            or cmd.requires_password):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
@@ -164,7 +164,7 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
             if password == '':
                 password = None
         else:
-            password = prompt_password('Password:', None)
+            password = prompt_password('Password:', confirm=False)
     else:
         password = None
 
@@ -309,7 +309,7 @@ def main():
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
-            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', confirm=False)
 
     # parse command line
     parser = get_parser()
@@ -480,7 +480,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
         if not config.NETWORK_OFFLINE:
-            init_cmdline(config_options, wallet_path, True, config=config)
+            init_cmdline(config_options, wallet_path, rpcserver=True, config=config)
             timeout = config.CLI_TIMEOUT
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
@@ -507,7 +507,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 print_stderr("Run 'electrum-grs stop' to stop the daemon.")
                 print_stderr("Run this command without --offline to interact with the daemon")
                 sys_exit(1)
-            init_cmdline(config_options, wallet_path, False, config=config)
+            init_cmdline(config_options, wallet_path, rpcserver=False, config=config)
             plugins = init_plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)

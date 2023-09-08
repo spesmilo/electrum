@@ -3,9 +3,10 @@ import sys
 import os
 import tempfile
 import shutil
-
 from io import StringIO
-from electrum_grs.simple_config import (SimpleConfig, read_user_config)
+
+from electrum_grs.simple_config import SimpleConfig, read_user_config
+from electrum_grs import constants
 
 from . import ElectrumTestCase
 
@@ -146,6 +147,22 @@ class Test_SimpleConfig(ElectrumTestCase):
 
         config.NETWORK_MAX_INCOMING_MSG_SIZE = None
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+    def test_configvars_get_default_value_complex_fn(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual("https://swaps.groestlcoin.org/api", config.SWAPSERVER_URL)
+
+        config.SWAPSERVER_URL = "http://localhost:9999"
+        self.assertEqual("http://localhost:9999", config.SWAPSERVER_URL)
+
+        config.SWAPSERVER_URL = None
+        self.assertEqual("https://swaps.groestlcoin.org/api", config.SWAPSERVER_URL)
+
+        constants.set_testnet()
+        try:
+            self.assertEqual("https://testnet-swaps.groestlcoin.org/api", config.SWAPSERVER_URL)
+        finally:
+            constants.set_mainnet()
 
     def test_configvars_is_set(self):
         config = SimpleConfig(self.options)

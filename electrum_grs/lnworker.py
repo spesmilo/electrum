@@ -11,7 +11,7 @@ import operator
 import enum
 from enum import IntEnum, Enum
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
-                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict, Callable)
+                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict, Callable, Awaitable)
 import threading
 import socket
 import aiohttp
@@ -811,8 +811,8 @@ class LNWallet(LNWorker):
         self.final_onion_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
-        # payment_hash -> callback, timeout:
-        self.hold_invoice_callbacks = {}                # type: Dict[bytes, Tuple[Callable[[bytes], None], int]]
+        # payment_hash -> callback:
+        self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
@@ -2039,8 +2039,11 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
         self.save_payment_info(info, write_to_disk=False)
 
-    def register_callback_for_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], None]):
+    def register_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], Awaitable[None]]):
         self.hold_invoice_callbacks[payment_hash] = cb
+
+    def unregister_hold_invoice(self, payment_hash: bytes):
+        self.hold_invoice_callbacks.pop(payment_hash)
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()

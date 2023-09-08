@@ -288,7 +288,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
     _force_close_channel = LNWallet._force_close_channel
     suggest_splits = LNWallet.suggest_splits
-    register_callback_for_hold_invoice = LNWallet.register_callback_for_hold_invoice
+    register_hold_invoice = LNWallet.register_hold_invoice
+    unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
     update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
@@ -784,7 +785,7 @@ class TestPeer(ElectrumTestCase):
                         w2.save_preimage(payment_hash, preimage)
                     else:
                         raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-                w2.register_callback_for_hold_invoice(payment_hash, cb)
+                w2.register_hold_invoice(payment_hash, cb)
 
         if test_bundle:
             lnaddr2, pay_req2 = self.prepare_invoice(w2)

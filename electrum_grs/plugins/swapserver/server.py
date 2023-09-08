@@ -1,6 +1,7 @@
 import os
 import asyncio
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from aiohttp import web
 
@@ -8,6 +9,11 @@ from electrum_grs.util import log_exceptions, ignore_exceptions
 from electrum_grs.logging import Logger
 from electrum_grs.util import EventListener
 from electrum_grs.lnaddr import lndecode
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+    from electrum.wallet import Abstract_Wallet
+
 
 class SwapServer(Logger, EventListener):
     """
@@ -18,7 +24,7 @@ class SwapServer(Logger, EventListener):
 
     WWW_DIR = os.path.join(os.path.dirname(__file__), 'www')
 
-    def __init__(self, config, wallet):
+    def __init__(self, config: 'SimpleConfig', wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         self.config = config
         self.wallet = wallet
