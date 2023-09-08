@@ -1200,16 +1200,6 @@ class Commands:
         ]
 
     @command('wnl')
-    async def dumpgraph(self, wallet: Abstract_Wallet = None):
-        return wallet.lnworker.channel_db.to_dict()
-
-    @command('n')
-    async def inject_fees(self, fees):
-        # e.g. use from Qt console:  inject_fees("{25: 1009, 10: 15962, 5: 18183, 2: 23239}")
-        fee_est = ast.literal_eval(fees)
-        self.network.update_fee_estimates(fee_est=fee_est)
-
-    @command('wnl')
     async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):
         wallet.lnworker.enable_htlc_settle = b
 
