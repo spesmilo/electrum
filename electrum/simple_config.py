@@ -68,6 +68,7 @@ class ConfigVar(property):
         self._default = default
         self._type = type_
         property.__init__(self, self._get_config_value, self._set_config_value)
+        assert key not in _config_var_from_key, f"duplicate config key str: {key!r}"
         _config_var_from_key[key] = self
 
     def _get_config_value(self, config: 'SimpleConfig'):
@@ -105,8 +106,8 @@ class ConfigVar(property):
         return f"<ConfigVar key={self._key!r}>"
 
     def __deepcopy__(self, memo):
-        cv = ConfigVar(self._key, default=self._default, type_=self._type)
-        return cv
+        # We can be considered ~stateless. State is stored in the config, which is external.
+        return self
 
 
 class ConfigVarWithConfig:
