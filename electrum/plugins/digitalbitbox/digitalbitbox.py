@@ -35,6 +35,7 @@ from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+from ..hw_wallet.plugin import OperationCancelled
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo
@@ -50,10 +51,13 @@ except ImportError as e:
     DIGIBOX = False
 
 
+class DeviceErased(UserFacingException):
+    pass
 
 # ----------------------------------------------------------------------------------
 # USB HID interface
 #
+
 
 def to_hexstr(s):
     return binascii.hexlify(s).decode('ascii')
@@ -63,6 +67,7 @@ def derive_keys(x):
     h = sha256d(x)
     h = hashlib.sha512(h).digest()
     return (h[:32],h[32:])
+
 
 MIN_MAJOR_VERSION = 5
 
@@ -78,7 +83,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         self.password = None
         self.isInitialized = False
         self.setupRunning = False
-        self.usbReportSize = 64 # firmware > v2.0.0
+        self.usbReportSize = 64  # firmware > v2.0.0
 
     def device_model_name(self) -> Optional[str]:
         return 'Digital BitBox'
@@ -92,14 +97,11 @@ class DigitalBitbox_Client(HardwareClientBase):
                 pass
         self.opened = False
 
-
     def is_pairable(self):
         return True
 
-
     def is_initialized(self):
         return self.dbb_has_password()
-
 
     def is_paired(self):
         return self.password is not None
@@ -142,10 +144,8 @@ class DigitalBitbox_Client(HardwareClientBase):
             return True
         return False
 
-
     def stretch_key(self, key: bytes):
         return to_hexstr(hashlib.pbkdf2_hmac('sha512', key, b'Digital Bitbox', iterations = 20480))
-
 
     def backup_password_dialog(self):
         msg = _("Enter the password used when the backup was created:")
@@ -162,7 +162,6 @@ class DigitalBitbox_Client(HardwareClientBase):
             else:
                 return password.encode('utf8')
 
-
     def password_dialog(self, msg):
         while True:
             password = self.handler.get_passphrase(msg, False)
@@ -178,7 +177,7 @@ class DigitalBitbox_Client(HardwareClientBase):
                 self.password = password.encode('utf8')
                 return True
 
-    def check_device_dialog(self):
+    def check_firmware_version(self):
         match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+',
                           run_in_hwd_thread(self.dbb_hid.get_serial_number_string))
         if match is None:
@@ -186,6 +185,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         major_version = int(match.group(1))
         if major_version < MIN_MAJOR_VERSION:
             raise Exception("Please upgrade to the newest firmware using the BitBox Desktop app: https://shiftcrypto.ch/start")
+
+    def check_device_dialog(self):
+        self.check_firmware_version()
         # Set password if fresh device
         if self.password is None and not self.dbb_has_password():
             if not self.setupRunning:
@@ -230,28 +232,22 @@ class DigitalBitbox_Client(HardwareClientBase):
             self.mobile_pairing_dialog()
         return self.isInitialized
 
-
     def recover_or_erase_dialog(self):
         msg = _("The Digital Bitbox is already seeded. Choose an option:") + "\n"
         choices = [
             (_("Create a wallet using the current seed")),
-            (_("Load a wallet from the micro SD card (the current seed is overwritten)")),
             (_("Erase the Digital Bitbox"))
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
-            return  # user cancelled
-        if reply == 2:
+            raise UserCancelled()
+        if reply == 1:
             self.dbb_erase()
-        elif reply == 1:
-            if not self.dbb_load_backup():
-                return
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
                 raise UserFacingException(_("Full 2FA enabled. This is not supported yet."))
             # Use existing seed
         self.isInitialized = True
-
 
     def seed_device_dialog(self):
         msg = _("Choose how to initialize your Digital Bitbox:") + "\n"
@@ -261,7 +257,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
-            return  # user cancelled
+            raise UserCancelled()
         if reply == 0:
             self.dbb_generate_wallet()
         else:
@@ -301,7 +297,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         ]
         reply = self.handler.query_choice(_('Mobile pairing options'), choices)
         if reply is None:
-            return  # user cancelled
+            raise UserCancelled()
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
@@ -321,7 +317,6 @@ class DigitalBitbox_Client(HardwareClientBase):
         if 'error' in reply:
             raise UserFacingException(reply['error']['message'])
 
-
     def dbb_erase(self):
         self.handler.show_message(_("Are you sure you want to erase the Digital Bitbox?") + "\n\n" +
                                   _("To continue, touch the Digital Bitbox's light for 3 seconds.") + "\n\n" +
@@ -329,11 +324,12 @@ class DigitalBitbox_Client(HardwareClientBase):
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
         self.handler.finished()
         if 'error' in hid_reply:
+            if hid_reply['error'].get('code') in (600, 601):
+                raise OperationCancelled()
             raise UserFacingException(hid_reply['error']['message'])
         else:
             self.password = None
-            raise UserFacingException('Device erased')
-
+            raise DeviceErased('Device erased')
 
     def dbb_load_backup(self, show_msg=True):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
@@ -341,10 +337,10 @@ class DigitalBitbox_Client(HardwareClientBase):
             raise UserFacingException(backups['error']['message'])
         f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
         if f is None:
-            return False  # user cancelled
+            raise UserCancelled()
         key = self.backup_password_dialog()
         if key is None:
-            raise Exception('Canceled by user')
+            raise UserCancelled('No backup password provided')
         key = self.stretch_key(key)
         if show_msg:
             self.handler.show_message(_("Loading backup...") + "\n\n" +
@@ -354,6 +350,8 @@ class DigitalBitbox_Client(HardwareClientBase):
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
+            if hid_reply['error'].get('code') in (600, 601):
+                raise OperationCancelled()
             raise UserFacingException(hid_reply['error']['message'])
         return True
 
@@ -459,10 +457,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
     def give_error(self, message):
         raise Exception(message)
 
-
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
-
 
     def sign_message(self, sequence, message, password, *, script_type=None):
         sig = None
@@ -519,11 +515,9 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 else:
                     raise Exception(_("Could not sign message"))
 
-
         except BaseException as e:
             self.give_error(e)
         return sig
-
 
     def sign_transaction(self, tx, password):
         if tx.is_complete():
@@ -753,11 +747,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
         }
         self.comserver_post_notification(verify_request_payload, handler=keystore.handler)
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:
-            return 'dbitbox_start' if device_info.initialized else 'dbitbox_not_initialized'
+            return 'dbitbox_start'
         else:
             return 'dbitbox_unlock'
 
@@ -772,7 +764,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
                 'accept': wizard.maybe_master_pubkey,
                 'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
             },
-            'dbitbox_not_initialized': {},
             'dbitbox_unlock': {
                 'last': True
             },

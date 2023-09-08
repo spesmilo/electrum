@@ -27,7 +27,8 @@ from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
 from electrum.gui.qt.seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
-                                  ChoiceWidget, MessageBoxMixin)
+                                  ChoiceWidget, MessageBoxMixin, WindowModalDialog, ChoicesLayout, CancelButton,
+                                  Buttons, OkButton)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -219,6 +220,22 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
 
         if on_finished:
             on_finished()
+
+    def query_choice(self, msg, choices, title=None, default_choice=None):
+        # Needed by QtHandler for hardware wallets
+        if title is None:
+            title = _('Question')
+        dialog = WindowModalDialog(self.top_level_window(), title=title)
+        dialog.setMinimumWidth(400)
+        clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
+        vbox = QVBoxLayout(dialog)
+        vbox.addLayout(clayout.layout())
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
+        cancel_button.setFocus()
+        if not dialog.exec_():
+            return None
+        return clayout.selected_index()
 
 
 class WCWalletName(WizardComponent, Logger):
@@ -1030,20 +1047,13 @@ class WCChooseHWDevice(WizardComponent, Logger):
         self.device_list.setLayout(self.device_list_layout)
         self.choice_w = None
 
-        self.rescan_button = QPushButton(_('Rescan devices'))
-        self.rescan_button.clicked.connect(self.on_rescan)
-
         self.layout().addWidget(self.error_l)
         self.layout().addWidget(self.device_list)
         self.layout().addStretch(1)
-        self.layout().addWidget(self.rescan_button)
 
         self.c_values = []
 
     def on_ready(self):
-        self.scan_devices()
-
-    def on_rescan(self):
         self.scan_devices()
 
     def on_scan_failed(self, code, message):
@@ -1080,8 +1090,6 @@ class WCChooseHWDevice(WizardComponent, Logger):
 
         if self.valid:
             self.wizard.next_button.setFocus()
-        else:
-            self.rescan_button.setFocus()
 
     def failed_getting_device_infos(self, debug_msg, name, e):
         # nonlocal debug_msg
@@ -1141,8 +1149,7 @@ class WCChooseHWDevice(WizardComponent, Logger):
             if not debug_msg:
                 debug_msg = '  {}'.format(_('No exceptions encountered.'))
             if not devices:
-                msg = (_('No hardware device detected.') + '\n' +
-                       _('To trigger a rescan, press \'Rescan devices\'.') + '\n\n')
+                msg = (_('No hardware device detected.') + '\n\n')
                 if sys.platform == 'win32':
                     msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
                              'and do "Remove device". Then, plug your device again.') + '\n'

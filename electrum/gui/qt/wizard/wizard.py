@@ -22,6 +22,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     requestNext = pyqtSignal()
+    requestPrev = pyqtSignal()
 
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', *, start_viewstate: 'WizardViewState' = None):
         QDialog.__init__(self, None)
@@ -42,6 +43,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.clicked.connect(self.on_next_button_clicked)
         self.next_button.setDefault(True)
+        self.requestPrev.connect(self.on_back_button_clicked)
         self.requestNext.connect(self.on_next_button_clicked)
         self.logo = QLabel()
 
@@ -57,9 +59,9 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
         error_layout = QVBoxLayout()
         error_layout.addStretch(1)
-        error_l = QLabel(_("Error!"))
-        error_l.setAlignment(Qt.AlignCenter)
-        error_layout.addWidget(error_l)
+        # error_l = QLabel(_("Error!"))
+        # error_l.setAlignment(Qt.AlignCenter)
+        # error_layout.addWidget(error_l)
         self.error_msg = WWLabel()
         self.error_msg.setAlignment(Qt.AlignCenter)
         error_layout.addWidget(self.error_msg)

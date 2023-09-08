@@ -361,3 +361,7 @@ class OutdatedHwFirmwareException(UserFacingException):
             return str(self) + "\n\n" + suffix
         else:
             return suffix
+
+
+class OperationCancelled(UserFacingException):
+    pass
