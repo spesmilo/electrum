@@ -61,7 +61,7 @@ from .lnutil import extract_nodeid
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook, DeviceMgr
 from .version import ELECTRUM_VERSION
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, config_vars
 from .invoices import Invoice
 from . import submarine_swaps
 from . import GuiImportError
@@ -305,6 +305,8 @@ class Commands:
     @command('')
     async def getconfig(self, key):
         """Return a configuration variable. """
+        if key not in config_vars:
+            raise Exception(f'Unknown config variable: {key}')
         return self.config.get(key)
 
     @classmethod
@@ -321,6 +323,8 @@ class Commands:
     @command('')
     async def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
+        if key not in config_vars:
+            raise Exception(f'Unknown config variable: {key}')
         value = self._setconfig_normalize_value(key, value)
         if self.daemon and key == SimpleConfig.RPC_USERNAME.key():
             self.daemon.commands_server.rpc_user = value

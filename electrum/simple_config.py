@@ -51,6 +51,7 @@ _logger = get_logger(__name__)
 
 FINAL_CONFIG_VERSION = 3
 
+config_vars = {}
 
 class ConfigVar(property):
 
@@ -65,6 +66,7 @@ class ConfigVar(property):
         self._default = default
         self._type = type_
         property.__init__(self, self._get_config_value, self._set_config_value)
+        config_vars[key] = self
 
     def _get_config_value(self, config: 'SimpleConfig'):
         with config.lock:
@@ -283,6 +285,10 @@ class SimpleConfig(Logger):
             out = self.cmdline_options.get(key)
             if out is None:
                 out = self.user_config.get(key, default)
+                if out is None:
+                    cv = config_vars.get(key)
+                    if cv:
+                        out = cv._get_config_value(self)
         return out
 
     def is_set(self, key: Union[str, ConfigVar, ConfigVarWithConfig]) -> bool:
