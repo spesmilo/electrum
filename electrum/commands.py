@@ -59,7 +59,7 @@ from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
 from .lnutil import extract_nodeid
 from .lnpeer import channel_id_from_funding_tx
-from .plugin import run_hook, DeviceMgr
+from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import Invoice
@@ -305,7 +305,11 @@ class Commands:
     @command('')
     async def getconfig(self, key):
         """Return a configuration variable. """
-        return self.config.get(key)
+        if Plugins.is_plugin_enabler_config_key(key):
+            return self.config.get(key)
+        else:
+            cv = self.config.cv.from_key(key)
+            return cv.get()
 
     @classmethod
     def _setconfig_normalize_value(cls, key, value):
@@ -326,7 +330,11 @@ class Commands:
             self.daemon.commands_server.rpc_user = value
         if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():
             self.daemon.commands_server.rpc_password = value
-        self.config.set_key(key, value)
+        if Plugins.is_plugin_enabler_config_key(key):
+            self.config.set_key(key, value)
+        else:
+            cv = self.config.cv.from_key(key)
+            cv.set(value)
         return True
 
     @command('')

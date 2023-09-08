@@ -160,6 +160,15 @@ class Plugins(DaemonThread):
         p.close()
         self.logger.info(f"closed {name}")
 
+    @classmethod
+    def is_plugin_enabler_config_key(cls, key: str) -> bool:
+        if not key.startswith('use_'):
+            return False
+        # note: the 'use_' prefix is not sufficient to check, there are
+        #       non-plugin-related config keys that also have it... hence:
+        name = key[4:]
+        return name in cls.find_all_plugins()
+
     def toggle(self, name: str) -> Optional['BasePlugin']:
         p = self.get(name)
         return self.disable(name) if p else self.enable(name)
