@@ -724,7 +724,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
             coro = sm.wait_for_htlcs_and_broadcast(swap, tx.swap_invoice, tx)
-            self.window.run_coroutine_from_thread(coro, _('Awaiting lightning payment..'), on_result=self.window.on_swap_result)
+            self.window.run_coroutine_dialog(
+                coro, _('Awaiting swap payment...'),
+                on_result=self.window.on_swap_result,
+                on_cancelled=lambda: sm.cancel_normal_swap(swap))
             return
 
         def broadcast_thread():

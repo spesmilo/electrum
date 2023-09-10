@@ -317,16 +317,25 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.ok_button.setEnabled(bool(send_amount) and bool(recv_amount))
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
-        tx = self._create_tx(onchain_amount)
-        assert tx
-        coro = self.swap_manager.normal_swap(
+        dummy_tx = self._create_tx(onchain_amount)
+        assert dummy_tx
+        sm = self.swap_manager
+        coro = sm.request_normal_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
-            password=password,
-            tx=tx,
             channels=self.channels,
         )
-        self.window.run_coroutine_from_thread(coro, _('Swapping funds'), on_result=self.window.on_swap_result)
+        try:
+            swap, invoice = self.network.run_from_another_thread(coro)
+        except Exception as e:
+            self.window.show_error(str(e))
+            return
+        tx = sm.create_funding_tx(swap, dummy_tx, password)
+        coro2 = sm.wait_for_htlcs_and_broadcast(swap, invoice, tx)
+        self.window.run_coroutine_dialog(
+            coro2, _('Awaiting swap payment...'),
+            on_result=self.window.on_swap_result,
+            on_cancelled=lambda: sm.cancel_normal_swap(swap))
 
     def get_description(self):
         onchain_funds = "onchain funds"
