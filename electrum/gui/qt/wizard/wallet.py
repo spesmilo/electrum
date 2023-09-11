@@ -720,9 +720,9 @@ class WCScriptAndDerivation(WizardComponent, Logger):
         self.apply()
 
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-        derivation_valid = is_bip32_derivation(cosigner_data['derivation_path'])
+        valid = is_bip32_derivation(cosigner_data['derivation_path'])
 
-        if derivation_valid:
+        if valid:
             valid, error = self.wizard.check_multisig_constraints(self.wizard_data)
             if not valid:
                 # TODO: user feedback

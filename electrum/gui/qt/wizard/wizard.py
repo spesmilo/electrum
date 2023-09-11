@@ -167,7 +167,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.back_button.setEnabled(not page.busy)
         self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
-        self.next_button.setEnabled(page.valid)
+        self.next_button.setEnabled(not page.busy and page.valid)
         self.main_widget.setVisible(not page.busy and not bool(page.error))
         self.please_wait.setVisible(page.busy)
         self.please_wait_l.setText(page.busy_msg if page.busy_msg else _("Please wait..."))

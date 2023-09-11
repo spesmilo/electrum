@@ -31,18 +31,17 @@ _logger = get_logger(__name__)
 try:
     from bitbox02 import bitbox02
     from bitbox02 import util
-    from bitbox02.communication import (
-        devices,
-        HARDENED,
-        u2fhid,
-        bitbox_api_protocol,
-        FirmwareVersionOutdatedException,
-    )
+    from bitbox02.communication import (devices, HARDENED, u2fhid, bitbox_api_protocol,
+                                        FirmwareVersionOutdatedException)
     requirements_ok = True
 except ImportError as e:
     if not (isinstance(e, ModuleNotFoundError) and e.name == 'bitbox02'):
         _logger.exception('error importing bitbox02 plugin deps')
     requirements_ok = False
+
+
+class BitBox02NotInitialized(UserFacingException):
+    pass
 
 
 class BitBox02Client(HardwareClientBase):
@@ -119,7 +118,7 @@ class BitBox02Client(HardwareClientBase):
             bitbox02_config = self.config.get("bitbox02")
             noise_keys = bitbox02_config.get("remote_static_noise_keys")
             if noise_keys is not None:
-                if pubkey.hex() in [noise_key for noise_key in noise_keys]:
+                if pubkey.hex() in noise_keys:
                     return True
             return False
 
@@ -192,7 +191,7 @@ class BitBox02Client(HardwareClientBase):
     def fail_if_not_initialized(self) -> None:
         assert self.bitbox02_device
         if not self.bitbox02_device.device_info()["initialized"]:
-            raise Exception(
+            raise BitBox02NotInitialized(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
             )
 
@@ -248,12 +247,8 @@ class BitBox02Client(HardwareClientBase):
         else:
             raise Exception("invalid xtype:{}".format(xtype))
 
-        return self.bitbox02_device.btc_xpub(
-            keypath=xpub_keypath,
-            xpub_type=out_type,
-            coin=coin_network,
-            display=display,
-        )
+        return self.bitbox02_device.btc_xpub(keypath=xpub_keypath, xpub_type=out_type, coin=coin_network,
+                                             display=display)
 
     @runs_in_hwd_thread
     def label(self) -> str:
@@ -565,6 +560,7 @@ class BitBox02Client(HardwareClientBase):
         )
         return signature
 
+
 class BitBox02_KeyStore(Hardware_KeyStore):
     hw_type = "bitbox02"
     device = "BitBox02"
@@ -600,7 +596,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
         return client.sign_message(keypath, message.encode("utf-8"), script_type)
 
-
     @runs_in_hwd_thread
     def sign_transaction(self, tx: PartialTransaction, password: str):
         if tx.is_complete():
@@ -612,7 +607,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
             try:
                 self.handler.show_message("Authorize Transaction...")
                 client.sign_transaction(self, tx, self.handler.get_wallet())
-
             finally:
                 self.handler.finished()
 
@@ -638,6 +632,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         except Exception as e:
             self.logger.exception("")
             self.handler.show_error(e)
+
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
@@ -700,9 +695,9 @@ class BitBox02Plugin(HW_PluginBase):
         id_ = str(d['path'])
         return device._replace(id_=id_)
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        # Note: device_info.initialized for this hardware doesn't imply a seed is present,
+        # only that it has firmware installed
         if new_wallet:
             return 'bitbox02_start' if device_info.initialized else 'bitbox02_not_initialized'
         else:
