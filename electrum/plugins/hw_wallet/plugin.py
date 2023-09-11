@@ -201,7 +201,7 @@ class HardwareClientBase(ABC):
     def close(self):
         pass
 
-    def timeout(self, cutoff) -> None:
+    def timeout(self, cutoff) -> None:  # noqa: B027
         pass
 
     @abstractmethod
@@ -261,7 +261,7 @@ class HardwareClientBase(ABC):
         """
         return self.plugin.name
 
-    def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:
+    def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:  # noqa: B027
         """Called during wallet creation in the wizard, before the keystore
         is constructed for the first time. 'd' is the dict that will be
         passed to the keystore constructor.
