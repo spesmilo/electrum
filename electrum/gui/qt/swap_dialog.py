@@ -294,6 +294,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 raise InvalidSwapParameters("swap_manager.max_amount_forward_swap() is None")
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
+        self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = False
         outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('swap'), onchain_amount)]
         try:
             tx = self.window.wallet.make_unsigned_transaction(
