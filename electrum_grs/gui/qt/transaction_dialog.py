@@ -46,7 +46,7 @@ from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.util import quantize_feerate
 from electrum_grs import bitcoin
 
-from electrum_grs.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
+from electrum_grs.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, get_dummy_address
 from electrum_grs.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs import simple_config
@@ -123,6 +123,8 @@ class TxInOutWidget(QWidget):
             legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
+        self.txo_color_swap = TxOutputColoring(
+            legend=_("Submarine swap address"), color=ColorScheme.BLUE, tooltip=_("Submarine swap address"))
         self.outputs_header = QLabel()
         self.outputs_textedit = QTextBrowserWithDefaultSize(750, 100)
         self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
@@ -139,6 +141,7 @@ class TxInOutWidget(QWidget):
         outheader_hbox.addWidget(self.txo_color_recv.legend_label)
         outheader_hbox.addWidget(self.txo_color_change.legend_label)
         outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
+        outheader_hbox.addWidget(self.txo_color_swap.legend_label)
 
         vbox = QVBoxLayout()
         vbox.addLayout(self.inheader_hbox)
@@ -164,9 +167,10 @@ class TxInOutWidget(QWidget):
         lnk.setToolTip(_('Click to open, right-click for menu'))
         lnk.setAnchor(True)
         lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
-        tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
+        tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
         def addr_text_format(addr: str) -> QTextCharFormat:
-            nonlocal tf_used_recv, tf_used_change, tf_used_2fa
+            nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
+            sm = self.wallet.lnworker.swap_manager
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     tf_used_change = True
@@ -179,6 +183,9 @@ class TxInOutWidget(QWidget):
                 fmt.setAnchor(True)
                 fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
                 return fmt
+            elif sm and sm.is_lockup_address_for_a_swap(addr) or addr==get_dummy_address('swap'):
+                tf_used_swap = True
+                return self.txo_color_swap.text_char_format
             elif self.wallet.is_billing_address(addr):
                 tf_used_2fa = True
                 return self.txo_color_2fa.text_char_format
@@ -267,6 +274,7 @@ class TxInOutWidget(QWidget):
         self.txo_color_recv.legend_label.setVisible(tf_used_recv)
         self.txo_color_change.legend_label.setVisible(tf_used_change)
         self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
+        self.txo_color_swap.legend_label.setVisible(tf_used_swap)
 
     def _open_internal_link(self, target):
         """Accepts either a str txid, str address, or a QUrl which should be

@@ -199,6 +199,12 @@ class Test_SimpleConfig(ElectrumTestCase):
         config.NETWORK_MAX_INCOMING_MSG_SIZE = 2_222_222
         self.assertEqual(5_555_555, config.NETWORK_MAX_INCOMING_MSG_SIZE)
 
+    def test_configvars_from_key(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(config.cv.NETWORK_SERVER, config.cv.from_key("server"))
+        with self.assertRaises(KeyError):
+            config.cv.from_key("server333")
+
     def test_depth_target_to_fee(self):
         config = SimpleConfig(self.options)
         config.mempool_fees = [[49, 100110], [10, 121301], [6, 153731], [5, 125872], [1, 36488810]]

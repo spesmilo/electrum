@@ -52,6 +52,9 @@ _logger = get_logger(__name__)
 FINAL_CONFIG_VERSION = 3
 
 
+_config_var_from_key = {}  # type: Dict[str, 'ConfigVar']
+
+
 class ConfigVar(property):
 
     def __init__(
@@ -65,6 +68,8 @@ class ConfigVar(property):
         self._default = default
         self._type = type_
         property.__init__(self, self._get_config_value, self._set_config_value)
+        assert key not in _config_var_from_key, f"duplicate config key str: {key!r}"
+        _config_var_from_key[key] = self
 
     def _get_config_value(self, config: 'SimpleConfig'):
         with config.lock:
@@ -101,8 +106,8 @@ class ConfigVar(property):
         return f"<ConfigVar key={self._key!r}>"
 
     def __deepcopy__(self, memo):
-        cv = ConfigVar(self._key, default=self._default, type_=self._type)
-        return cv
+        # We can be considered ~stateless. State is stored in the config, which is external.
+        return self
 
 
 class ConfigVarWithConfig:
@@ -131,6 +136,11 @@ class ConfigVarWithConfig:
 
     def __repr__(self):
         return f"<ConfigVarWithConfig key={self.key()!r}>"
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, ConfigVarWithConfig):
+            return False
+        return self._config is other._config and self._config_var is other._config_var
 
 
 class SimpleConfig(Logger):
@@ -818,9 +828,17 @@ class SimpleConfig(Logger):
         """
         class CVLookupHelper:
             def __getattribute__(self, name: str) -> ConfigVarWithConfig:
+                if name in ("from_key", ):  # don't apply magic, just use standard lookup
+                    return super().__getattribute__(name)
                 config_var = config.__class__.__getattribute__(type(config), name)
                 if not isinstance(config_var, ConfigVar):
                     raise AttributeError()
+                return ConfigVarWithConfig(config=config, config_var=config_var)
+            def from_key(self, key: str) -> ConfigVarWithConfig:
+                try:
+                    config_var = _config_var_from_key[key]
+                except KeyError:
+                    raise KeyError(f"No ConfigVar with key={key!r}") from None
                 return ConfigVarWithConfig(config=config, config_var=config_var)
             def __setattr__(self, name, value):
                 raise Exception(
@@ -859,6 +877,7 @@ class SimpleConfig(Logger):
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
+    WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar('send_change_to_lightning', default=False, type_=bool)
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
     FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)
