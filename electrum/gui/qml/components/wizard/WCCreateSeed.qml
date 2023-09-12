@@ -53,6 +53,8 @@ WizardComponent {
 
             Label {
                 Layout.topMargin: constants.paddingMedium
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
                 text: qsTr('Your wallet generation seed is:')
             }
 
@@ -68,8 +70,9 @@ WizardComponent {
                 }
             }
 
-            CheckBox {
+            ElCheckBox {
                 id: extendcb
+                Layout.fillWidth: true
                 text: qsTr('Extend seed with custom words')
             }
 
