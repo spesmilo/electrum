@@ -99,23 +99,28 @@ WizardComponent {
             width: parent.width
 
             Label {
+                Layout.fillWidth: true
                 text: qsTr('Choose the type of addresses in your wallet.')
+                wrapMode: Text.Wrap
             }
 
             // standard
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2pkh'
                 text: qsTr('legacy (p2pkh)')
                 visible: !isMultisig
             }
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wpkh-p2sh'
                 text: qsTr('wrapped segwit (p2wpkh-p2sh)')
                 visible: !isMultisig
             }
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wpkh'
                 checked: !isMultisig
@@ -124,7 +129,8 @@ WizardComponent {
             }
 
             // multisig
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2sh'
                 text: qsTr('legacy multisig (p2sh)')
@@ -132,7 +138,8 @@ WizardComponent {
                 enabled: !cosigner || wizard_data['script_type'] == 'p2sh'
                 checked: cosigner ? wizard_data['script_type'] == 'p2sh' : false
             }
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh-p2sh'
                 text: qsTr('p2sh-segwit multisig (p2wsh-p2sh)')
@@ -140,7 +147,8 @@ WizardComponent {
                 enabled: !cosigner || wizard_data['script_type'] == 'p2wsh-p2sh'
                 checked: cosigner ? wizard_data['script_type'] == 'p2wsh-p2sh' : false
             }
-            RadioButton {
+            ElRadioButton {
+                Layout.fillWidth: true
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh'
                 text: qsTr('native segwit multisig (p2wsh)')

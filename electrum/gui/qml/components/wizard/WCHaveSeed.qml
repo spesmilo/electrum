@@ -209,12 +209,14 @@ WizardComponent {
                 }
             }
 
-            CheckBox {
+            ElCheckBox {
                 id: extendcb
                 Layout.columnSpan: 2
+                Layout.fillWidth: true
                 text: qsTr('Extend seed with custom words')
                 onCheckedChanged: startValidationTimer()
             }
+
             TextField {
                 id: customwordstext
                 visible: extendcb.checked
