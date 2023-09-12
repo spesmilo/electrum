@@ -1,9 +1,9 @@
 # Release 4.4.6 (August 18, 2023) (security update)
  * Lightning:
    - security fix: multiple lightning-related security issues have
-     been fixed. We will disclose these in detail on 2023-09-11.
-     These release notes will also be updated at that time.
-     In the meantime, please update.
+     been fixed. See disclosures:
+     - https://github.com/spesmilo/electrum/security/advisories/GHSA-9gpc-prj9-89x7
+     - https://github.com/spesmilo/electrum/security/advisories/GHSA-8r85-vp7r-hjxf
    - fix: cannot sweep from channel after local-force-close, if using
      imported channel backup (#8536). Fixing this required adding a
      new field (local_payment_pubkey) to the channel backup
