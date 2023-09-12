@@ -244,7 +244,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             uses_trampoline=False,
             use_two_trampolines=False,
         )
-        paysession.use_two_trampolines = False
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
         self._paysessions[payment_key] = paysession
         return [r async for r in self.create_routes_for_payment(

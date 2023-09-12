@@ -52,8 +52,7 @@ Downloading the network gossip uses quite some bandwidth and storage, and is not
 MSG_LEGACY_ADD_TRAMPOLINE = _(
 """When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy.
 
-This will result in longer routes; it might increase your fees and decrease the success rate of your payments.
-"""
+This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""
 )
 
 MGS_CONFLICTING_BACKUP_INSTANCE = _(
