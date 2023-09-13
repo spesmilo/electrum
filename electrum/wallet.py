@@ -318,6 +318,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
+        self._password_in_memory = None  # see self.unlock
         Logger.__init__(self)
 
         self.network = None
@@ -2786,6 +2787,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         encrypt_keystore = self.can_have_keystore_encryption()
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         self.save_db()
+        self.unlock(None)
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -3034,6 +3036,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def synchronize(self) -> int:
         """Returns the number of new addresses we generated."""
         return 0
+
+    def unlock(self, password):
+        self.logger.info(f'unlocking wallet')
+        if password:
+            self.check_password(password)
+        self._password_in_memory = password
+
+    def get_unlocked_password(self):
+        return self._password_in_memory
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

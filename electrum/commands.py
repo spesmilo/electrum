@@ -146,6 +146,12 @@ def command(s):
                         if wallet is None:
                             raise Exception('wallet not loaded')
                         kwargs['wallet'] = wallet
+                if cmd.requires_password and password is None:
+                    password = wallet.get_unlocked_password()
+                    if password:
+                        kwargs['password'] = password
+                    else:
+                        raise Exception('Password required. Unlock the wallet, or add a --password option to your command')
             wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
             if cmd.requires_wallet and not wallet:
                 raise Exception('wallet not loaded')
@@ -620,6 +626,12 @@ class Commands:
         ret["dnspython.version"] = dns.__version__
 
         return ret
+
+    @command('w')
+    async def unlock(self, password=None, wallet: Abstract_Wallet = None):
+        """Unlock the wallet. The wallet password will be stored in memory"""
+        wallet.unlock(password)
+        return "wallet unlocked" if password else "wallet locked"
 
     @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
