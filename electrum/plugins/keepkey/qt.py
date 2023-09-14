@@ -642,11 +642,15 @@ class WCKeepkeyInitParams(WizardComponent):
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
         self.settings_layout = KeepkeyInitLayout(self.wizard_data['keepkey_init'], _info.device.id_)
+        self.settings_layout.validChanged.connect(self.on_settings_valid_changed)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 
-        self.valid = self.wizard_data['keepkey_init'] != TIM_PRIVKEY
+        self.valid = self.wizard_data['keepkey_init'] != TIM_PRIVKEY  # TODO: only privkey is validated
         self.busy = False
+
+    def on_settings_valid_changed(self, is_valid: bool):
+        self.valid = is_valid
 
     def apply(self):
         self.wizard_data['keepkey_settings'] = self.settings_layout.get_settings()
@@ -672,8 +676,14 @@ class WCKeepkeyInit(WizardComponent, Logger):
         client.handler = self.plugin.create_handler(self.wizard)
 
         def initialize_device_task(settings, method, device_id, handler):
-            self.plugin._initialize_device(settings, method, device_id, handler)
-            self.init_done()
+            try:
+                self.plugin._initialize_device(settings, method, device_id, handler)
+                self.valid = True
+            except Exception as e:
+                self.valid = False
+                self.error = repr(e)
+            finally:
+                self.init_done()
 
         t = threading.Thread(
             target=initialize_device_task,

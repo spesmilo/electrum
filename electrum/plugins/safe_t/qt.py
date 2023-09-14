@@ -574,11 +574,15 @@ class WCSafeTInitParams(WizardComponent):
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
         self.settings_layout = SafeTInitLayout(self.wizard_data['safe_t_init'], _info.device.id_)
+        self.settings_layout.validChanged.connect(self.on_settings_valid_changed)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 
         self.valid = self.wizard_data['safe_t_init'] != TIM_PRIVKEY
         self.busy = False
+
+    def on_settings_valid_changed(self, is_valid: bool):
+        self.valid = is_valid
 
     def apply(self):
         self.wizard_data['safe_t_settings'] = self.settings_layout.get_settings()
@@ -604,8 +608,14 @@ class WCSafeTInit(WizardComponent, Logger):
         client.handler = self.plugin.create_handler(self.wizard)
 
         def initialize_device_task(settings, method, device_id, handler):
-            self.plugin._initialize_device(settings, method, device_id, handler)
-            self.init_done()
+            try:
+                self.plugin._initialize_device(settings, method, device_id, handler)
+                self.valid = True
+            except Exception as e:
+                self.valid = False
+                self.error = repr(e)
+            finally:
+                self.init_done()
 
         t = threading.Thread(
             target=initialize_device_task,
