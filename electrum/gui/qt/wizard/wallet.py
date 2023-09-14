@@ -498,6 +498,8 @@ class WCConfirmSeed(WizardComponent):
         )
         self.layout().addLayout(self.slayout)
 
+        wizard.app.clipboard().clear()
+
     def apply(self):
         pass
 
@@ -1072,13 +1074,26 @@ class WCChooseHWDevice(WizardComponent, Logger):
         self.device_list.setLayout(self.device_list_layout)
         self.choice_w = None
 
+        self.rescan_button = QPushButton(_('Rescan devices'))
+        self.rescan_button.clicked.connect(self.on_rescan)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(self.rescan_button)
+        hbox.addStretch(1)
+
         self.layout().addWidget(self.error_l)
         self.layout().addWidget(self.device_list)
+        self.layout().addStretch(1)
+        self.layout().addLayout(hbox)
         self.layout().addStretch(1)
 
         self.c_values = []
 
     def on_ready(self):
+        self.scan_devices()
+
+    def on_rescan(self):
         self.scan_devices()
 
     def on_scan_failed(self, code, message):
@@ -1115,6 +1130,9 @@ class WCChooseHWDevice(WizardComponent, Logger):
 
         if self.valid:
             self.wizard.next_button.setFocus()
+        else:
+            self.rescan_button.setFocus()
+
 
     def failed_getting_device_infos(self, debug_msg, name, e):
         # nonlocal debug_msg

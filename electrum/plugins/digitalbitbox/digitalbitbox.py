@@ -120,6 +120,10 @@ class DigitalBitbox_Client(HardwareClientBase):
 
     def get_xpub(self, bip32_path, xtype):
         assert xtype in self.plugin.SUPPORTED_XTYPES
+
+        if is_all_public_derivation(bip32_path):
+            raise UserFacingException(_('This device does not reveal xpubs corresponding to non-hardened paths'))
+
         reply = self._get_xpub(bip32_path)
         if reply:
             xpub = reply['xpub']

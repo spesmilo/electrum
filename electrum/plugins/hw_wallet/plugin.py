@@ -38,6 +38,7 @@ from electrum.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
     import threading
+    from electrum.plugin import DeviceInfo
     from electrum.wallet import Abstract_Wallet
 
 
@@ -272,6 +273,7 @@ class HardwareClientBase(ABC):
         is constructed for the first time. 'd' is the dict that will be
         passed to the keystore constructor.
         """
+        # TODO: this is only used by coldcard. determine if this needs to stay generalized
         pass
 
 
