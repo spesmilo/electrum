@@ -182,6 +182,12 @@ class HW_PluginBase(BasePlugin):
         """
         return device.product_key in self.DEVICE_IDS
 
+    @abstractmethod
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet: bool) -> str:
+        """Return view name for device
+        """
+        pass
+
 
 class HardwareClientBase(ABC):
     handler = None  # type: Optional['HardwareHandlerBase']

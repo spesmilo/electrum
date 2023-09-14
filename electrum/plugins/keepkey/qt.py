@@ -231,6 +231,7 @@ class KeepkeyInitLayout(QVBoxLayout):
     validChanged = pyqtSignal([bool], arguments=['valid'])
 
     def __init__(self, method, device):
+        QVBoxLayout.__init__(self)
         self.method = method
 
         label = QLabel(_("Enter a label to name your device:"))
@@ -257,8 +258,8 @@ class KeepkeyInitLayout(QVBoxLayout):
                 self.bg.setId(rb, i)
                 hbox1.addWidget(rb)
                 rb.setChecked(True)
-            cb_pin = QCheckBox(_('Enable PIN protection'))
-            cb_pin.setChecked(True)
+            self.cb_pin = QCheckBox(_('Enable PIN protection'))
+            self.cb_pin.setChecked(True)
         else:
             self.text_e = QTextEdit()
             self.text_e.setMaximumHeight(60)
@@ -285,7 +286,7 @@ class KeepkeyInitLayout(QVBoxLayout):
 
         if method in [TIM_NEW, TIM_RECOVER]:
             self.addWidget(WWLabel(RECOMMEND_PIN))
-            self.addWidget(cb_pin)
+            self.addWidget(self.cb_pin)
         else:
             self.addLayout(hbox_pin)
 
@@ -331,9 +332,9 @@ class Plugin(KeepKeyPlugin, QtPlugin):
         views = {
             'keepkey_start': {'gui': WCScriptAndDerivation},
             'keepkey_xpub': {'gui': WCHWXPub},
-            'safet_not_initialized': {'gui': WCKeepkeyInitMethod},
-            'safet_choose_new_recover': {'gui': WCKeepkeyInitParams},
-            'safet_do_init': {'gui': WCKeepkeyInit},
+            'keepkey_not_initialized': {'gui': WCKeepkeyInitMethod},
+            'keepkey_choose_new_recover': {'gui': WCKeepkeyInitParams},
+            'keepkey_do_init': {'gui': WCKeepkeyInit},
             'keepkey_unlock': {'gui': WCHWUnlock}
         }
         wizard.navmap_merge(views)
@@ -640,7 +641,7 @@ class WCKeepkeyInitParams(WizardComponent):
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
-        self.settings_layout = KeepkeyInitLayout(self.plugins.device_manager, self.wizard_data['keepkey_init'], _info.device.id_)
+        self.settings_layout = KeepkeyInitLayout(self.wizard_data['keepkey_init'], _info.device.id_)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 

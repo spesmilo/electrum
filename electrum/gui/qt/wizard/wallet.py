@@ -366,6 +366,8 @@ class WCWalletName(WizardComponent, Logger):
             if user_needs_to_enter_password:
                 pw_label.show()
                 self.pw_e.show()
+                if not self.name_e.hasFocus():
+                    self.pw_e.setFocus(True)
             else:
                 pw_label.hide()
                 self.pw_e.hide()

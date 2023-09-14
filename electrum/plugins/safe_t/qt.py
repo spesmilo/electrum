@@ -573,7 +573,7 @@ class WCSafeTInitParams(WizardComponent):
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
-        self.settings_layout = SafeTInitLayout(self.plugins.device_manager, self.wizard_data['safe_t_init'], _info.device.id_)
+        self.settings_layout = SafeTInitLayout(self.wizard_data['safe_t_init'], _info.device.id_)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 
