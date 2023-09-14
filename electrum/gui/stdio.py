@@ -115,8 +115,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 time_str = 'unconfirmed'
 
             label = self.wallet.get_label_for_txid(hist_item.txid)
-            messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
-                                          format_satoshis(hist_item.balance, whitespaces=True)))
+            messages.append(format_str % (
+                time_str, label,
+                format_satoshis(hist_item.delta, whitespaces=True),
+                format_satoshis(hist_item.balance, whitespaces=True)))
 
         self.print_list(messages[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 

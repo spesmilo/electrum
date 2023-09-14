@@ -20,7 +20,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     # define listmodel rolemap
     _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp',
-                 'incoming','value','balance','date','label','txpos_in_block','fee',
+                 'incoming','value','date','label','txpos_in_block','fee',
                  'inputs','outputs','section','type','lightning','payment_hash','key','complete')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
@@ -127,13 +127,11 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
         if item['lightning']:
             item['value'] = QEAmount(amount_sat=item['value'].value, amount_msat=item['amount_msat'])
-            item['balance'] = QEAmount(amount_sat=item['balance'].value, amount_msat=item['amount_msat'])
             if item['type'] == 'payment':
                 item['incoming'] = True if item['direction'] == 'received' else False
             item['confirmations'] = 0
         else:
             item['value'] = QEAmount(amount_sat=item['value'].value)
-            item['balance'] = QEAmount(amount_sat=item['balance'].value)
 
         if 'txid' in item:
             tx = self.wallet.db.get_transaction(item['txid'])
