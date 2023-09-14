@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
 
 
-class HW_PluginBase(BasePlugin):
+class HW_PluginBase(BasePlugin, ABC):
     keystore_class: Type['Hardware_KeyStore']
     libraries_available: bool
     SUPPORTED_XTYPES = ()
