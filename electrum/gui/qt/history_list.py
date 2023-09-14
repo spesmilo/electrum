@@ -342,7 +342,7 @@ class HistoryModel(CustomModel, Logger):
         balance = 0
         for node in self._root._children:
             balance += node._data['value'].value
-            node._data['balance'] = Satoshis(balance
+            node._data['balance'] = Satoshis(balance)
 
         new_length = self._root.childCount()
         self.beginInsertRows(QModelIndex(), 0, new_length-1)
