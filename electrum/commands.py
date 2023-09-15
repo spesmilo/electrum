@@ -146,12 +146,12 @@ def command(s):
                         if wallet is None:
                             raise Exception('wallet not loaded')
                         kwargs['wallet'] = wallet
-                if cmd.requires_password and password is None:
-                    password = wallet.get_unlocked_password()
-                    if password:
-                        kwargs['password'] = password
-                    else:
-                        raise Exception('Password required. Unlock the wallet, or add a --password option to your command')
+                    if cmd.requires_password and password is None and wallet.has_password():
+                        password = wallet.get_unlocked_password()
+                        if password:
+                            kwargs['password'] = password
+                        else:
+                            raise Exception('Password required. Unlock the wallet, or add a --password option to your command')
             wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
             if cmd.requires_wallet and not wallet:
                 raise Exception('wallet not loaded')
