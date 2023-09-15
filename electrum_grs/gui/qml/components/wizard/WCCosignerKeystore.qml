@@ -78,13 +78,13 @@ WizardComponent {
             text: qsTr('Add cosigner #%1 of %2 to your multi-sig wallet').arg(cosigner).arg(participants)
             wrapMode: Text.Wrap
         }
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'key'
             checked: true
             text: qsTr('Cosigner key')
         }
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'seed'
             text: qsTr('Cosigner seed')

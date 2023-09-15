@@ -2017,15 +2017,21 @@ class LNWallet(LNWorker):
                 return key_list
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
-        assert sha256(preimage) == payment_hash
+        if sha256(preimage) != payment_hash:
+            raise Exception("tried to save incorrect preimage for payment_hash")
         self.preimages[payment_hash.hex()] = preimage.hex()
         if write_to_disk:
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
-        r = self.preimages.get(payment_hash.hex())
-        return bytes.fromhex(r) if r else None
+        preimage_hex = self.preimages.get(payment_hash.hex())
+        if preimage_hex is None:
+            return None
+        preimage_bytes = bytes.fromhex(preimage_hex)
+        if sha256(preimage_bytes) != payment_hash:
+            raise Exception("found incorrect preimage for payment_hash")
+        return preimage_bytes
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""

@@ -164,9 +164,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         domain = self.wallet.get_addresses()
         self.history = []
         self.txid = []
+        balance_sat = 0
         for item in self.wallet.get_full_history().values():
             amount_sat = item['value'].value
-            balance_sat = item['balance'].value
+            balance_sat += amount_sat
             if item.get('lightning'):
                 timestamp = item['timestamp']
                 label = self.wallet.get_label_for_rhash(item['payment_hash'])

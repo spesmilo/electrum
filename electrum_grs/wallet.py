@@ -1280,7 +1280,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for k, v in sorted(list(transactions_tmp.items()), key=sort_key):
             transactions[k] = v
         now = time.time()
-        balance = 0
         for item in transactions.values():
             # add on-chain and lightning values
             value = Decimal(0)
@@ -1288,10 +1287,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 value += item['bc_value'].value
             if item.get('ln_value'):
                 value += item.get('ln_value').value
-            # note: 'value' and 'balance' has msat precision (as LN has msat precision)
+            # note: 'value' has msat precision (as LN has msat precision)
             item['value'] = Satoshis(value)
-            balance += value
-            item['balance'] = Satoshis(balance)
             if include_fiat:
                 txid = item.get('txid')
                 if not item.get('lightning') and txid:

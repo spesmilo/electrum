@@ -1428,7 +1428,8 @@ class Channel(AbstractChannel):
         self.logger.info("settle_htlc")
         assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(REMOTE, htlc_id)
-        assert htlc.payment_hash == sha256(preimage)
+        if htlc.payment_hash != sha256(preimage):
+            raise Exception("incorrect preimage for HTLC")
         assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
 
@@ -1450,7 +1451,8 @@ class Channel(AbstractChannel):
         """
         self.logger.info("receive_htlc_settle")
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
-        assert htlc.payment_hash == sha256(preimage)
+        if htlc.payment_hash != sha256(preimage):
+            raise RemoteMisbehaving("received incorrect preimage for HTLC")
         assert htlc_id not in self.hm.log[LOCAL]['settles']
         with self.db_lock:
             self.hm.recv_settle(htlc_id)

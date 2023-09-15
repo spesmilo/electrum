@@ -2,6 +2,8 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
+import "../controls"
+
 WizardComponent {
     valid: wallettypegroup.checkedButton !== null
 
@@ -26,18 +28,21 @@ WizardComponent {
             text: qsTr('What kind of wallet do you want to create?')
             wrapMode: Text.Wrap
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: wallettypegroup
             property string wallettype: 'standard'
             checked: true
             text: qsTr('Standard Wallet')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: wallettypegroup
             property string wallettype: 'multisig'
             text: qsTr('Multi-signature wallet')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: wallettypegroup
             property string wallettype: 'imported'
             text: qsTr('Import Groestlcoin addresses or private keys')

@@ -320,7 +320,7 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
 class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst running a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent: QWidget, message: str, task, on_success=None, on_error=None):
+    def __init__(self, parent: QWidget, message: str, task, on_success=None, on_error=None, on_cancel=None):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
@@ -328,6 +328,10 @@ class WaitingDialog(WindowModalDialog):
         self.message_label = QLabel(message)
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.message_label)
+        if on_cancel:
+            self.cancel_button = CancelButton(self)
+            self.cancel_button.clicked.connect(on_cancel)
+            vbox.addLayout(Buttons(self.cancel_button))
         self.accepted.connect(self.on_accepted)
         self.show()
         self.thread = TaskThread(self)

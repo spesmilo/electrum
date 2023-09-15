@@ -252,7 +252,14 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
-    def fail_normal_swap(self, swap):
+    def cancel_normal_swap(self, swap):
+        """ we must not have broadcast the funding tx """
+        if swap.funding_txid is not None:
+            self.logger.info(f'cannot fail swap {swap.payment_hash.hex()}: already funded')
+            return
+        self._fail_normal_swap(swap)
+
+    def _fail_normal_swap(self, swap):
         if swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             self.logger.info(f'failing normal swap {swap.payment_hash.hex()}')
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
@@ -282,7 +289,7 @@ class SwapManager(Logger):
                 if not swap.is_reverse:
                     # we might have received HTLCs and double spent the funding tx
                     # in that case we need to fail the HTLCs
-                    self.fail_normal_swap(swap)
+                    self._fail_normal_swap(swap)
             txin = None
 
         if txin:
@@ -321,7 +328,7 @@ class SwapManager(Logger):
                     else:
                         # refund tx
                         if spent_height > 0:
-                            self.fail_normal_swap(swap)
+                            self._fail_normal_swap(swap)
                             return
                 if delta < 0:
                     # too early for refund
@@ -688,7 +695,6 @@ class SwapManager(Logger):
         else:
             # broadcast funding tx right away
             await self.broadcast_funding_tx(swap, tx)
-            # fixme: if broadcast fails, we need to fail htlcs and cancel the swap
         return swap.funding_txid
 
     def create_funding_tx(self, swap, tx, password):
@@ -723,8 +729,8 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def broadcast_funding_tx(self, swap, tx):
-        await self.network.broadcast_transaction(tx)
         swap.funding_txid = tx.txid()
+        await self.network.broadcast_transaction(tx)
 
     async def reverse_swap(
             self,

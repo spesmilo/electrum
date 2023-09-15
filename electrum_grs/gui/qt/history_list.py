@@ -206,8 +206,8 @@ class HistoryNode(CustomNode):
             v_str = window.format_amount(value, is_diff=True, whitespaces=whitespaces, add_thousands_sep=add_thousands_sep)
             return QVariant(v_str)
         elif col == HistoryColumns.BALANCE:
-            balance = tx_item['balance'].value
-            balance_str = window.format_amount(balance, whitespaces=whitespaces, add_thousands_sep=add_thousands_sep)
+            balance = tx_item['balance'].value if 'balance' in tx_item else None
+            balance_str = window.format_amount(balance, whitespaces=whitespaces, add_thousands_sep=add_thousands_sep) if balance is not None else ''
             return QVariant(balance_str)
         elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
             value_str = window.fx.format_fiat(tx_item['fiat_value'].value, add_thousands_sep=add_thousands_sep)
@@ -322,7 +322,6 @@ class HistoryModel(CustomModel, Logger):
                     # add child to parent
                     parent.addChild(node)
                     # update parent data
-                    parent._data['balance'] = tx_item['balance']
                     parent._data['value'] += tx_item['value']
                     if 'group_label' in tx_item:
                         parent._data['label'] = tx_item['group_label']
@@ -338,6 +337,12 @@ class HistoryModel(CustomModel, Logger):
                         parent._data['timestamp'] = tx_item['timestamp']
                         parent._data['height'] = tx_item['height']
                         parent._data['confirmations'] = tx_item['confirmations']
+
+        # compute balance once all children have beed added
+        balance = 0
+        for node in self._root._children:
+            balance += node._data['value'].value
+            node._data['balance'] = Satoshis(balance)
 
         new_length = self._root.childCount()
         self.beginInsertRows(QModelIndex(), 0, new_length-1)

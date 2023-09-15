@@ -109,21 +109,21 @@ ElDialog {
                         id: closetypegroup
                     }
 
-                    RadioButton {
+                    ElRadioButton {
                         id: closetypeCoop
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'cooperative'
                         enabled: !channeldetails.isClosing && channeldetails.canCoopClose
                         text: qsTr('Cooperative close')
                     }
-                    RadioButton {
+                    ElRadioButton {
                         id: closetypeRemoteForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'remote_force'
                         enabled: !channeldetails.isClosing && channeldetails.canForceClose
                         text: qsTr('Request Force-close')
                     }
-                    RadioButton {
+                    ElRadioButton {
                         id: closetypeLocalForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'local_force'
