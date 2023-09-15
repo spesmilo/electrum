@@ -364,4 +364,6 @@ class OutdatedHwFirmwareException(UserFacingException):
 
 
 class OperationCancelled(UserFacingException):
+    """Emitted when an operation is cancelled by user on a HW device
+    """
     pass

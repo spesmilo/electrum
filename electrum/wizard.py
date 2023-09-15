@@ -560,7 +560,7 @@ class NewWalletWizard(AbstractWizard):
             elif isinstance(k, keystore.Old_KeyStore):
                 pass
             else:
-                raise Exception(f"unexpected keystore type: {type(keystore)}")
+                raise Exception(f"unexpected keystore type: {type(k)}")
         elif data['keystore_type'] == 'hardware':  # TODO: prelim impl
             k = self.hw_keystore(data)
             if isinstance(k, keystore.Xpub):  # has xpub
@@ -571,10 +571,8 @@ class NewWalletWizard(AbstractWizard):
                 else:
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                         raise Exception('wrong key type %s' % t1)
-            # elif isinstance(k, keystore.Old_KeyStore):
-            #     pass
             else:
-                raise Exception(f"unexpected keystore type: {type(keystore)}")
+                raise Exception(f"unexpected keystore type: {type(k)}")
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
@@ -582,7 +580,7 @@ class NewWalletWizard(AbstractWizard):
             if k and k.may_have_password():
                 k.update_password(None, data['password'])
             enc_version = StorageEncryptionVersion.USER_PASSWORD
-            if data['keystore_type'] == 'hardware':
+            if 'keystore_type' in data and data['keystore_type'] == 'hardware':
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
