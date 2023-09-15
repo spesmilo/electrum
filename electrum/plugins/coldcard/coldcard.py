@@ -87,15 +87,14 @@ class CKCCClient(HardwareClientBase):
                                                         self.label())
 
     @runs_in_hwd_thread
-    def verify_connection(self, expected_xfp: int, expected_xpub=None):
+    def verify_connection(self, expected_xfp: int, expected_xpub: str):
         ex = (expected_xfp, expected_xpub)
 
         if self._expected_device == ex:
             # all is as expected
             return
 
-        if expected_xpub is None:
-            expected_xpub = self.dev.master_xpub
+        assert expected_xpub
 
         if ((self._expected_device is not None)
                 or (self.dev.master_fingerprint != expected_xfp)
@@ -113,9 +112,6 @@ class CKCCClient(HardwareClientBase):
         self.dev.check_mitm(expected_xpub=expected_xpub)
 
         self._expected_device = ex
-
-        if not getattr(self, 'ckcc_xpub', None):
-            self.ckcc_xpub = expected_xpub
 
         _logger.info("Successfully verified against MiTM")
 
@@ -146,7 +142,7 @@ class CKCCClient(HardwareClientBase):
 
         return lab
 
-    def manipulate_keystore_dict_during_wizard_setup(self, d: dict):
+    def _get_ckcc_master_xpub_from_device(self):
         master_xpub = self.dev.master_xpub
         if master_xpub is not None:
             try:
@@ -156,7 +152,7 @@ class CKCCClient(HardwareClientBase):
                     _('Invalid xpub magic. Make sure your {} device is set to the correct chain.').format(self.device) + ' ' +
                     _('You might have to unplug and plug it in again.')
                 ) from None
-            d['ckcc_xpub'] = master_xpub
+            return master_xpub
 
     @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
@@ -272,6 +268,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         xfp = self.get_root_fingerprint()
         assert xfp is not None
         return xfp_int_from_xfp_bytes(bfh(xfp))
+
+    def opportunistically_fill_in_missing_info_from_device(self, client: 'CKCCClient'):
+        super().opportunistically_fill_in_missing_info_from_device(client)
+        if self.ckcc_xpub is None:
+            self.ckcc_xpub = client._get_ckcc_master_xpub_from_device()
+            self.is_requesting_to_be_rewritten_to_wallet_file = True
 
     def get_client(self, *args, **kwargs):
         # called when user tries to do something like view address, sign somthing.

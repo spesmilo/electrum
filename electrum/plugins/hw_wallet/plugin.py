@@ -268,14 +268,6 @@ class HardwareClientBase(ABC):
         """
         return self.plugin.name
 
-    def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:  # noqa: B027
-        """Called during wallet creation in the wizard, before the keystore
-        is constructed for the first time. 'd' is the dict that will be
-        passed to the keystore constructor.
-        """
-        # TODO: this is only used by coldcard. determine if this needs to stay generalized
-        pass
-
 
 class HardwareHandlerBase:
     """An interface between the GUI and the device handling logic for handling I/O."""
