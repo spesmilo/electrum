@@ -389,12 +389,13 @@ class SwapManager(Logger):
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
     async def hold_invoice_callback(self, payment_hash: bytes) -> None:
-        # note: this assumes the keystore is not encrypted
+        # note: this assumes the wallet has been unlocked
         key = payment_hash.hex()
         if key in self.swaps:
             swap = self.swaps[key]
             if swap.funding_txid is None:
-                tx = self.create_funding_tx(swap, None, None)
+                password = self.wallet.get_unlocked_password()
+                tx = self.create_funding_tx(swap, None, password)
                 await self.broadcast_funding_tx(swap, tx)
 
     def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash: bytes=None, their_pubkey=None):
