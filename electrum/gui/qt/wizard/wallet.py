@@ -1134,12 +1134,7 @@ class WCChooseHWDevice(WizardComponent, Logger):
             self.rescan_button.setFocus()
 
 
-    def failed_getting_device_infos(self, debug_msg, name, e):
-        # nonlocal debug_msg
-        err_str_oneline = ' // '.join(str(e).splitlines())
-        self.logger.warning(f'error getting device infos for {name}: {err_str_oneline}')
-        indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
-        debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
+
 
     def scan_devices(self):
         self.valid = False
@@ -1152,6 +1147,13 @@ class WCChooseHWDevice(WizardComponent, Logger):
             devices = []  # type: List[Tuple[str, DeviceInfo]]
             devmgr = self.plugins.device_manager
             debug_msg = ''
+
+            def failed_getting_device_infos(name, e):
+                nonlocal debug_msg
+                err_str_oneline = ' // '.join(str(e).splitlines())
+                self.logger.warning(f'error getting device infos for {name}: {err_str_oneline}')
+                indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+                debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
 
             # scan devices
             try:
@@ -1178,15 +1180,15 @@ class WCChooseHWDevice(WizardComponent, Logger):
                         device_infos = devmgr.list_pairable_device_infos(
                             handler=None, plugin=plugin, devices=scanned_devices, include_failing_clients=True)
                     except HardwarePluginLibraryUnavailable as e:
-                        self.failed_getting_device_infos(debug_msg, name, e)
+                        failed_getting_device_infos(name, e)
                         continue
                     except BaseException as e:
                         self.logger.exception('')
-                        self.failed_getting_device_infos(debug_msg, name, e)
+                        failed_getting_device_infos(name, e)
                         continue
                     device_infos_failing = list(filter(lambda di: di.exception is not None, device_infos))
                     for di in device_infos_failing:
-                        self.failed_getting_device_infos(debug_msg, name, di.exception)
+                        failed_getting_device_infos(name, di.exception)
                     device_infos_working = list(filter(lambda di: di.exception is None, device_infos))
                     devices += list(map(lambda x: (name, x), device_infos_working))
             if not debug_msg:
