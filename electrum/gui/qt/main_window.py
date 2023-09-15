@@ -2430,10 +2430,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def do_import_labels(self):
         def on_import():
             self.need_update.set()
-        import_meta_gui(self, _('labels'), self.wallet.import_labels, on_import)
+        import_meta_gui(self, _('labels'), self.wallet.import_labels, on_import, file_type="jsonl|json")
 
     def do_export_labels(self):
-        export_meta_gui(self, _('labels'), self.wallet.export_labels)
+        export_meta_gui(self, _('labels'), self.wallet.export_labels, file_type="jsonl")
 
     def import_invoices(self):
         import_meta_gui(self, _('invoices'), self.wallet.import_invoices, self.send_tab.invoice_list.update)
@@ -2856,4 +2856,3 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             msg += _("Lightning funds were not received.")
             self.show_error_signal.emit(msg)
-

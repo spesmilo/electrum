@@ -1034,8 +1034,11 @@ class AcceptFileDragDrop:
         raise NotImplementedError()
 
 
-def import_meta_gui(electrum_window: 'ElectrumWindow', title, importer, on_success):
-    filter_ = "JSON (*.json);;All files (*)"
+def import_meta_gui(electrum_window: 'ElectrumWindow', title, importer, on_success, file_type="json"):
+    if file_type == "json":
+        filter_ = "JSON (*.json);;All files (*)"
+    elif file_type == "jsonl|json":
+        filter_ = "JSONL (*.jsonl);;JSON (*.json);;All files (*)"
     filename = getOpenFileName(
         parent=electrum_window,
         title=_("Open {} file").format(title),
@@ -1053,12 +1056,12 @@ def import_meta_gui(electrum_window: 'ElectrumWindow', title, importer, on_succe
         on_success()
 
 
-def export_meta_gui(electrum_window: 'ElectrumWindow', title, exporter):
-    filter_ = "JSON (*.json);;All files (*)"
+def export_meta_gui(electrum_window: 'ElectrumWindow', title, exporter, file_type="json"):
+    filter_ = "{} (*.{});;All files (*)".format(file_type.upper(), file_type)
     filename = getSaveFileName(
         parent=electrum_window,
         title=_("Select file to save your {}").format(title),
-        filename='electrum_{}.json'.format(title),
+        filename='electrum_{}.{}'.format(title, file_type),
         filter=filter_,
         config=electrum_window.config,
     )

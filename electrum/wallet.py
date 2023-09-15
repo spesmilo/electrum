@@ -28,6 +28,7 @@
 
 import os
 import sys
+import io
 import random
 import time
 import json
@@ -51,6 +52,7 @@ from aiorpcx import timeout_after, TaskTimeout, ignore_after, run_in_thread
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
+from .bip329 import export_bip329_labels, import_bip329_labels, is_json_file
 from .crypto import sha256
 from . import util
 from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore_exceptions,
@@ -636,12 +638,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return changed
 
     def import_labels(self, path):
-        data = read_json_file(path)
-        for key, value in data.items():
-            self.set_label(key, value)
+        if is_json_file(path):
+            data = read_json_file(path) # Process as `legacy format`
+            for key, value in data.items():
+                self.set_label(key, value)
+        else:
+            with open(path, 'r', encoding='utf-8') as file:
+                data = file.read()
+            import_bip329_labels(stream=data, wallet=self)
 
     def export_labels(self, path):
-        write_json_file(path, self.get_all_labels())
+        if isinstance(path, str):
+            output_stream = io.StringIO()
+        else:
+            output_stream = path
+        export_bip329_labels(stream=output_stream, wallet=self)
+        if isinstance(path, str):
+            with open(path, 'w', encoding='utf-8') as file:
+                file.write(output_stream.getvalue())
 
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if not self.db.get_transaction(txid):
