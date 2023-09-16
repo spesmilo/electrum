@@ -170,7 +170,7 @@ class TxInOutWidget(QWidget):
         tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
         def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
-            sm = self.wallet.lnworker.swap_manager
+            sm = self.wallet.lnworker.swap_manager if self.wallet.lnworker else None
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     tf_used_change = True
