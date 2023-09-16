@@ -68,11 +68,19 @@ Pane {
                     }
 
                     Label {
-                        visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt == 0
+                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
                         text: txdetails.amount.satsInt > 0
-                                ? qsTr('Amount received')
-                                : qsTr('Amount sent')
+                                ? qsTr('Amount received onchain')
+                                : qsTr('Amount sent onchain')
                         color: Material.accentColor
+                    }
+
+                    FormattedAmount {
+                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
+                        Layout.preferredWidth: 1
+                        Layout.fillWidth: true
+                        amount: txdetails.amount
+                        timestamp: txdetails.timestamp
                     }
 
                     Label {
@@ -86,7 +94,7 @@ Pane {
                     }
 
                     FormattedAmount {
-                        visible: !txdetails.isUnrelated
+                        visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
                         amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount

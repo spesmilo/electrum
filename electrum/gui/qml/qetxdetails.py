@@ -284,10 +284,18 @@ class QETxDetails(QObject, QtEventListener):
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
 
         if self._wallet.wallet.lnworker:
+            # Calling lnworker.get_onchain_history and wallet.get_full_history here
+            # is inefficient. We should probably pass the tx_item to the constructor.
             lnworker_history = self._wallet.wallet.lnworker.get_onchain_history()
             if self._txid in lnworker_history:
                 item = lnworker_history[self._txid]
-                self._lnamount.satsInt = int(item['amount_msat'] / 1000)
+                group_id = item.get('group_id')
+                if group_id:
+                    full_history = self._wallet.wallet.get_full_history()
+                    group_item = full_history['group:'+ group_id]
+                    self._lnamount.satsInt = int(group_item['ln_value'].value)
+                else:
+                    self._lnamount.satsInt = int(item['amount_msat'] / 1000)
             else:
                 self._lnamount.satsInt = 0
 
