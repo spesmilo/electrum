@@ -301,42 +301,11 @@ class HistoryModel(CustomModel, Logger):
         parents = {}
         for tx_item in transactions.values():
             node = HistoryNode(self, tx_item)
-            group_id = tx_item.get('group_id')
-            if group_id is None:
-                self._root.addChild(node)
-            else:
-                parent = parents.get(group_id)
-                if parent is None:
-                    # create parent if it does not exist
-                    self._root.addChild(node)
-                    parents[group_id] = node
-                else:
-                    # if parent has no children, create two children
-                    if parent.childCount() == 0:
-                        child_data = dict(parent.get_data())
-                        node1 = HistoryNode(self, child_data)
-                        parent.addChild(node1)
-                        parent._data['label'] = child_data.get('group_label')
-                        parent._data['bc_value'] = child_data.get('bc_value', Satoshis(0))
-                        parent._data['ln_value'] = child_data.get('ln_value', Satoshis(0))
-                    # add child to parent
-                    parent.addChild(node)
-                    # update parent data
-                    parent._data['value'] += tx_item['value']
-                    if 'group_label' in tx_item:
-                        parent._data['label'] = tx_item['group_label']
-                    if 'bc_value' in tx_item:
-                        parent._data['bc_value'] += tx_item['bc_value']
-                    if 'ln_value' in tx_item:
-                        parent._data['ln_value'] += tx_item['ln_value']
-                    if 'fiat_value' in tx_item:
-                        parent._data['fiat_value'] += tx_item['fiat_value']
-                    if tx_item.get('txid') == group_id:
-                        parent._data['lightning'] = False
-                        parent._data['txid'] = tx_item['txid']
-                        parent._data['timestamp'] = tx_item['timestamp']
-                        parent._data['height'] = tx_item['height']
-                        parent._data['confirmations'] = tx_item['confirmations']
+            self._root.addChild(node)
+            for child_item in tx_item.get('children', []):
+                child_node = HistoryNode(self, child_item)
+                # add child to parent
+                node.addChild(child_node)
 
         # compute balance once all children have beed added
         balance = 0
