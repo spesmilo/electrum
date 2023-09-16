@@ -1044,10 +1044,8 @@ class LNWallet(LNWorker):
             if swap:
                 if swap.is_reverse:
                     item['group_id'] = swap.spending_txid
-                    item['group_label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
                 else:
                     item['group_id'] = swap.funding_txid
-                    item['group_label'] = 'Forward swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
             # done
             out[payment_hash] = item
         return out
@@ -1119,7 +1117,14 @@ class LNWallet(LNWorker):
                 direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             else:
                 amount_msat = 0
-            label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
+
+            if swap.is_reverse:
+                group_label = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
+            else:
+                group_label = 'Forward swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
+            self._labels_cache[txid] = group_label
+
+            label = _('Claim transaction') if swap.is_reverse else _('Funding transaction')
             delta = current_height - swap.locktime
             if self.wallet.adb.is_mine(swap.lockup_address):
                 tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
@@ -1127,12 +1132,11 @@ class LNWallet(LNWorker):
                     label += ' (%s)' % _('waiting for funding tx confirmation')
                 if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
-            self._labels_cache[txid] = label
             out[txid] = {
                 'group_id': txid,
                 'amount_msat': 0, # must be zero for onchain tx
                 'type': 'swap',
-                'label': _('Funding transaction'),
+                'label': label,
             }
             if not swap.is_reverse:
                 # if the spending_tx is in the wallet, this will add it

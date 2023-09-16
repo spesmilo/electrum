@@ -1292,9 +1292,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 key = 'group:' + group_id
                 parent = transactions.get(key)
+                label = self.get_label_for_txid(group_id)
                 if parent is None:
                     parent = {
-                        'label': tx_item.get('group_label'),
+                        'label': label,
                         'fiat_value': Fiat(Decimal(0), fx.ccy) if fx else None,
                         'bc_value': Satoshis(0),
                         'ln_value': Satoshis(0),
@@ -1527,24 +1528,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
 
     def _get_default_label_for_txid(self, tx_hash: str) -> str:
-        if self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
-            return label
+        labels = []
         # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
         if not self.db.get_txi_addresses(tx_hash):
             # no inputs are ismine -> likely incoming payment -> concat labels of output addresses
-            labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
                 label = self.get_label_for_address(addr)
                 if label:
                     labels.append(label)
-            return ', '.join(labels)
         else:
             # some inputs are ismine -> likely outgoing payment
-            labels = []
             for invoice in self.get_relevant_invoices_for_tx(tx_hash):
                 if invoice.message:
                     labels.append(invoice.message)
-            return ', '.join(labels)
+        if not labels and self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
+            labels.append(label)
+        return ', '.join(labels)
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
