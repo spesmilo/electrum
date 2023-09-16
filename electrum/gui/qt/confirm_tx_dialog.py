@@ -39,6 +39,7 @@ from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
+from electrum.bitcoin import DummyAddress
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    BlockingWaitingDialog, PasswordLineEdit, WWLabel, read_QIcon)
@@ -574,7 +575,7 @@ class TxEditor(WindowModalDialog):
                 self.error = long_warning
             else:
                 messages.append(long_warning)
-        if self.tx.has_dummy_output('swap'):
+        if self.tx.has_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):

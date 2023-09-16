@@ -60,7 +60,8 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
-from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold, get_dummy_address
+from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException
 from .crypto import sha256d
 from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
@@ -1767,7 +1768,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     amount = change[0].value
                     ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
                     if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
-                        tx.replace_output_address(change[0].address, get_dummy_address('swap'))
+                        tx.replace_output_address(change[0].address, DummyAddress.SWAP)
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).
@@ -2385,6 +2386,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if not isinstance(tx, PartialTransaction):
             return
+        if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
+            raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
         # note: swap signing does not require the password
         swap = self.get_swap_by_claim_tx(tx)
         if swap:

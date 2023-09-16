@@ -2891,6 +2891,27 @@ class TestWalletSending(ElectrumTestCase):
                         self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.txid())
                         self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.wtxid())
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_we_dont_sign_tx_including_dummy_address(self, mock_save_db):
+        wallet1 = self.create_standard_wallet_from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver')
+
+        # bootstrap wallet1
+        funding_tx = Transaction('01000000014576dacce264c24d81887642b726f5d64aa7825b21b350c7b75a57f337da6845010000006b483045022100a3f8b6155c71a98ad9986edd6161b20d24fad99b6463c23b463856c0ee54826d02200f606017fd987696ebbe5200daedde922eee264325a184d5bbda965ba5160821012102e5c473c051dae31043c335266d0ef89c1daab2f34d885cc7706b267f3269c609ffffffff0240420f00000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c42a2ddb90e000000001976a914c384950342cb6f8df55175b48586838b03130fad88ac00000000')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('add2535aedcbb5ba79cc2260868bb9e57f328738ca192937f2c92e0e94c19203', funding_txid)
+        wallet1.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet1 -> dummy address
+        outputs = [PartialTxOutput.from_address_and_value(bitcoin.DummyAddress.CHANNEL, 250000)]
+
+        with self.assertRaises(bitcoin.DummyAddressUsedInTxException):
+            tx = wallet1.mktx(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+
+        coins = wallet1.get_spendable_coins(domain=None)
+        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        with self.assertRaises(bitcoin.DummyAddressUsedInTxException):
+            wallet1.sign_transaction(tx, password=None)
+
 
 class TestWalletOfflineSigning(ElectrumTestCase):
     TESTNET = True

@@ -6,7 +6,7 @@ from typing import Union
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
 from electrum.i18n import _
-from electrum.bitcoin import get_dummy_address
+from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop
@@ -245,7 +245,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         # this is just to estimate the maximal spendable onchain amount for HTLC
         self.update_tx('!')
         try:
-            max_onchain_spend = self._tx.output_value_for_address(get_dummy_address('swap'))
+            max_onchain_spend = self._tx.output_value_for_address(DummyAddress.SWAP)
         except AttributeError:  # happens if there are no utxos
             max_onchain_spend = 0
         reverse = int(min(lnworker.num_sats_can_send(),
@@ -283,7 +283,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._tx = None
             self.valid = False
             return
-        outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('swap'), onchain_amount)]
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         coins = self._wallet.wallet.get_spendable_coins(None)
         try:
             self._tx = self._wallet.wallet.make_unsigned_transaction(

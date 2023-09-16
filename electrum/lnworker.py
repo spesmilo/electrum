@@ -56,7 +56,7 @@ from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
-from .bitcoin import redeem_script_to_address, get_dummy_address
+from .bitcoin import redeem_script_to_address, DummyAddress
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -1281,7 +1281,7 @@ class LNWallet(LNWorker):
             funding_sat: int,
             node_id: bytes,
             fee_est=None) -> PartialTransaction:
-        outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('channel'), funding_sat)]
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.CHANNEL, funding_sat)]
         if self.has_recoverable_channels():
             dummy_scriptpubkey = make_op_return(self.cb_data(node_id))
             outputs.append(PartialTxOutput(scriptpubkey=dummy_scriptpubkey, value=0))
@@ -2562,7 +2562,7 @@ class LNWallet(LNWorker):
             # check that we can send onchain
             swap_server_mining_fee = 10000 # guessing, because we have not called get_pairs yet
             swap_funding_sat = swap_recv_amount + swap_server_mining_fee
-            swap_output = PartialTxOutput.from_address_and_value(get_dummy_address('swap'), int(swap_funding_sat))
+            swap_output = PartialTxOutput.from_address_and_value(DummyAddress.SWAP, int(swap_funding_sat))
             if not self.wallet.can_pay_onchain([swap_output], coins=coins):
                 continue
             return (chan, swap_recv_amount)
