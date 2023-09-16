@@ -252,21 +252,22 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
-    def cancel_normal_swap(self, swap):
+    def cancel_normal_swap(self, swap: SwapData):
         """ we must not have broadcast the funding tx """
         if swap.funding_txid is not None:
-            self.logger.info(f'cannot fail swap {swap.payment_hash.hex()}: already funded')
+            self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
             return
-        self._fail_normal_swap(swap)
+        self._fail_swap(swap, 'user cancelled')
 
-    def _fail_normal_swap(self, swap):
-        if swap.payment_hash in self.lnworker.hold_invoice_callbacks:
-            self.logger.info(f'failing normal swap {swap.payment_hash.hex()}')
+    def _fail_swap(self, swap: SwapData, reason: str):
+        self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
+        if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
             payment_key = swap.payment_hash + payment_secret
             self.lnworker.fail_final_onion_forwarding(payment_key)
         self.lnwatcher.remove_callback(swap.lockup_address)
+        self.swaps.pop(swap.payment_hash.hex())
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -285,12 +286,11 @@ class SwapManager(Logger):
             break
         else:
             # swap not funded.
-            if delta >= 0:
-                if not swap.is_reverse:
-                    # we might have received HTLCs and double spent the funding tx
-                    # in that case we need to fail the HTLCs
-                    self._fail_normal_swap(swap)
             txin = None
+            # if it is a normal swap, we might have double spent the funding tx
+            # in that case we need to fail the HTLCs
+            if delta >= 0:
+                self._fail_swap(swap, 'expired')
 
         if txin:
             # the swap is funded
@@ -328,7 +328,7 @@ class SwapManager(Logger):
                     else:
                         # refund tx
                         if spent_height > 0:
-                            self._fail_normal_swap(swap)
+                            self._fail_swap(swap, 'refund tx confirmed')
                             return
                 if delta < 0:
                     # too early for refund
