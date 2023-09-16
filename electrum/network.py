@@ -48,7 +48,7 @@ from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
                    bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
                    nullcontext, error_text_str_to_safe_str)
-from .bitcoin import COIN
+from .bitcoin import COIN, DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain
 from . import bitcoin
@@ -923,6 +923,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             raise RequestTimedOut()
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
+            raise DummyAddressUsedInTxException("tried to broadcast tx with dummy address!")
         try:
             out = await self.interface.session.send_request('blockchain.transaction.broadcast', [tx.serialize()], timeout=timeout)
             # note: both 'out' and exception messages are untrusted input from the server

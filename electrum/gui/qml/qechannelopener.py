@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.gui import messages
 from electrum.util import bfh
 from electrum.lnutil import extract_nodeid, ConnStringFormatError
-from electrum.bitcoin import get_dummy_address
+from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
 
@@ -182,7 +182,7 @@ class QEChannelOpener(QObject, AuthMixin):
         """
         self._logger.debug('opening channel')
         # read funding_sat from tx; converts '!' to int value
-        funding_sat = funding_tx.output_value_for_address(get_dummy_address('channel'))
+        funding_sat = funding_tx.output_value_for_address(DummyAddress.CHANNEL)
         lnworker = self._wallet.wallet.lnworker
 
         def open_thread():

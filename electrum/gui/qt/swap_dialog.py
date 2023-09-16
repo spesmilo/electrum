@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
-from electrum.bitcoin import get_dummy_address
+from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
 from electrum.gui import messages
@@ -173,7 +173,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
     def _spend_max_forward_swap(self, tx: Optional[PartialTransaction]) -> None:
         if tx:
-            amount = tx.output_value_for_address(get_dummy_address('swap'))
+            amount = tx.output_value_for_address(DummyAddress.SWAP)
             self.send_amount_e.setAmount(amount)
         else:
             self.send_amount_e.setAmount(None)
@@ -295,7 +295,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = False
-        outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('swap'), onchain_amount)]
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         try:
             tx = self.window.wallet.make_unsigned_transaction(
                 coins=coins,

@@ -17,7 +17,7 @@ from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Tr
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions, BelowDustLimit, OldTaskGroup
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
-from .bitcoin import dust_threshold, get_dummy_address
+from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode
@@ -190,7 +190,7 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.lnworker = lnworker
         self.taskgroup = None
-        self.dummy_address = get_dummy_address('swap')
+        self.dummy_address = DummyAddress.SWAP
 
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
@@ -706,13 +706,13 @@ class SwapManager(Logger):
             funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
             tx = self.wallet.create_transaction(outputs=[funding_output], rbf=True, password=password)
         else:
-            tx.replace_dummy_output('swap', swap.lockup_address)
+            tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
             tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
         return tx
 
     @log_exceptions
-    async def request_swap_for_tx(self, tx):
+    async def request_swap_for_tx(self, tx: 'PartialTransaction'):
         for o in tx.outputs():
             if o.address == self.dummy_address:
                 change_amount = o.value
@@ -725,7 +725,7 @@ class SwapManager(Logger):
         swap, invoice = await self.request_normal_swap(
             lightning_amount_sat = lightning_amount_sat,
             expected_onchain_amount_sat=change_amount)
-        tx.replace_dummy_output('swap', swap.lockup_address)
+        tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
         return swap, invoice, tx
 
     @log_exceptions

@@ -46,7 +46,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.util import quantize_feerate
 from electrum import bitcoin
 
-from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, get_dummy_address
+from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, DummyAddress
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
@@ -183,7 +183,7 @@ class TxInOutWidget(QWidget):
                 fmt.setAnchor(True)
                 fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
                 return fmt
-            elif sm and sm.is_lockup_address_for_a_swap(addr) or addr==get_dummy_address('swap'):
+            elif sm and sm.is_lockup_address_for_a_swap(addr) or addr == DummyAddress.SWAP:
                 tf_used_swap = True
                 return self.txo_color_swap.text_char_format
             elif self.wallet.is_billing_address(addr):
