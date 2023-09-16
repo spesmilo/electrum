@@ -1134,13 +1134,20 @@ class LNWallet(LNWorker):
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             self._labels_cache[txid] = label
             out[txid] = {
-                'txid': txid,
                 'group_id': txid,
-                'amount_msat': 0,
-                #'amount_msat': amount_msat, # must not be added
+                'amount_msat': 0, # must be zero for onchain tx
                 'type': 'swap',
-                'label': self.get_label_for_txid(txid),
+                'label': _('Funding transaction'),
             }
+            if not swap.is_reverse:
+                # if the spending_tx is in the wallet, this will add it
+                # to the group (see wallet.get_full_history)
+                out[swap.spending_txid] = {
+                    'group_id': txid,
+                    'amount_msat': 0, # must be zero for onchain tx
+                    'type': 'swap',
+                    'label': _('Refund transaction'),
+                }
         return out
 
     def get_history(self):
