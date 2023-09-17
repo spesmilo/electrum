@@ -1599,6 +1599,14 @@ class Peer(Logger):
             next_chan_scid = ShortChannelID(_next_chan_scid)
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        try:
+            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
+        except Exception:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        try:
+            next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
+        except Exception:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = chain.height()
         if next_chan is None:
@@ -1612,17 +1620,9 @@ class Peer(Logger):
                 f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
                 f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        try:
-            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except Exception:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if not next_chan.can_pay(next_amount_msat_htlc):
             log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        try:
-            next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
-        except Exception:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if htlc.cltv_expiry - next_cltv_expiry < next_chan.forwarding_cltv_expiry_delta:
             log_fail_reason(
                 f"INCORRECT_CLTV_EXPIRY. "
