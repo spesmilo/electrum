@@ -882,11 +882,6 @@ class LNWallet(LNWorker):
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
 
-    def get_channel_by_scid(self, scid: bytes) -> Optional[Channel]:
-        for chan in self._channels.values():
-            if chan.short_channel_id == scid:
-                return chan
-
     def diagnostic_name(self):
         return self.wallet.diagnostic_name()
 

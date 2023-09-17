@@ -1282,8 +1282,8 @@ class Commands:
         from .lnutil import ShortChannelID
         from_scid = ShortChannelID.from_str(from_scid)
         dest_scid = ShortChannelID.from_str(dest_scid)
-        from_channel = wallet.lnworker.get_channel_by_scid(from_scid)
-        dest_channel = wallet.lnworker.get_channel_by_scid(dest_scid)
+        from_channel = wallet.lnworker.get_channel_by_short_id(from_scid)
+        dest_channel = wallet.lnworker.get_channel_by_short_id(dest_scid)
         amount_sat = satoshis(amount)
         success, log = await wallet.lnworker.rebalance_channels(
             from_channel,
