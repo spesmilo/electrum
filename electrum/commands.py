@@ -1140,19 +1140,8 @@ class Commands:
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
-        coins = wallet.get_spendable_coins(None)
-        node_id, rest = extract_nodeid(connection_string)
-        funding_tx = wallet.lnworker.mktx_for_open_channel(
-            coins=coins,
-            funding_sat=funding_sat,
-            node_id=node_id,
-            fee_est=None)
-        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(
-            connect_str=connection_string,
-            funding_tx=funding_tx,
-            funding_sat=funding_sat,
-            push_sat=push_sat,
-            password=password)
+        peer = await wallet.lnworker.add_peer(connection_string)
+        chan = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
         return chan.funding_outpoint.to_str()
 
     @command('')

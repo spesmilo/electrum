@@ -1216,15 +1216,31 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     @log_exceptions
+    async def open_channel_with_peer(self, peer, funding_sat, push_sat, password):
+        coins = self.wallet.get_spendable_coins(None)
+        node_id = peer.pubkey
+        funding_tx = self.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=funding_sat,
+            node_id=node_id,
+            fee_est=None)
+        chan, funding_tx = await self._open_channel_coroutine(
+            peer=peer,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
+            push_sat=push_sat,
+            password=password)
+        return chan
+
+    @log_exceptions
     async def _open_channel_coroutine(
             self, *,
-            connect_str: str,
+            peer: Peer,
             funding_tx: PartialTransaction,
             funding_sat: int,
             push_sat: int,
             password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
 
-        peer = await self.add_peer(connect_str)
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
@@ -1315,8 +1331,14 @@ class LNWallet(LNWorker):
                      funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
         if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over maximum."))
+
+        fut = asyncio.run_coroutine_threadsafe(self.add_peer(connect_str), self.network.asyncio_loop)
+        try:
+            peer = fut.result()
+        except concurrent.futures.TimeoutError:
+            raise Exception(_("add peer timed out"))
         coro = self._open_channel_coroutine(
-            connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
+            peer=peer, funding_tx=funding_tx, funding_sat=funding_sat,
             push_sat=push_amt_sat, password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
