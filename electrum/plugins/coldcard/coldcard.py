@@ -602,8 +602,6 @@ class ColdcardPlugin(HW_PluginBase):
             keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
             return
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:
             return 'coldcard_start' if device_info.initialized else 'coldcard_not_initialized'

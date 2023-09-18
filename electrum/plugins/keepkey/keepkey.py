@@ -425,8 +425,6 @@ class KeepKeyPlugin(HW_PluginBase):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:
             return 'keepkey_start' if device_info.initialized else 'keepkey_not_initialized'

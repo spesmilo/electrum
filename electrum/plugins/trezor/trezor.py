@@ -465,8 +465,6 @@ class TrezorPlugin(HW_PluginBase):
         ]
         return t
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:  # new wallet
             return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'

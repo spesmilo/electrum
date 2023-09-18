@@ -885,18 +885,22 @@ class WCTrezorInit(WizardComponent, Logger):
         client.handler = self.plugin.create_handler(self.wizard)
 
         def initialize_device_task(settings, method, device_id, handler):
-            self.plugin._initialize_device(settings, method, device_id, handler)
-            self.init_done()
+            try:
+                self.plugin._initialize_device(settings, method, device_id, handler)
+                self.logger.info('Done initialize device')
+                self.valid = True
+                self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
+            except Exception as e:
+                self.valid = False
+                self.error = repr(e)
+            finally:
+                self.busy = False
 
         t = threading.Thread(
             target=initialize_device_task,
             args=(settings, method, device_id, client.handler),
             daemon=True)
         t.start()
-
-    def init_done(self):
-        self.logger.info('Done initialize device')
-        self.busy = False
 
     def apply(self):
         pass

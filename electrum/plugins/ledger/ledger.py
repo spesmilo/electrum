@@ -1454,8 +1454,6 @@ class LedgerPlugin(HW_PluginBase):
 
         keystore.show_address(sequence, txin_type)
 
-    # new wizard
-
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         if new_wallet:
             return 'ledger_start' if device_info.initialized else 'ledger_not_initialized'
