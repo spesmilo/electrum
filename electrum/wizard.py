@@ -338,8 +338,8 @@ class NewWalletWizard(AbstractWizard):
     def on_cosigner_keystore_type(self, wizard_data: dict) -> str:
         t = wizard_data['cosigner_keystore_type']
         return {
-            'key': 'multisig_cosigner_key',
-            'seed': 'multisig_cosigner_seed',
+            'masterkey': 'multisig_cosigner_key',
+            'haveseed': 'multisig_cosigner_seed',
             'hardware': 'multisig_cosigner_hardware'
         }.get(t)
 
@@ -396,7 +396,7 @@ class NewWalletWizard(AbstractWizard):
         return False
 
     def keystore_from_data(self, wallet_type: str, data: dict):
-        if 'seed' in data:
+        if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
             if data['seed_variant'] == 'electrum':
                 return keystore.from_seed(data['seed'], data['seed_extra_words'], True)
             elif data['seed_variant'] == 'bip39':
@@ -417,8 +417,10 @@ class NewWalletWizard(AbstractWizard):
                 return keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
             else:
                 raise Exception('Unsupported seed variant %s' % data['seed_variant'])
-        elif 'master_key' in data:
+        elif data['keystore_type'] == 'masterkey' and 'master_key' in data:
             return keystore.from_master_key(data['master_key'])
+        elif data['keystore_type'] == 'hardware':
+            return self.hw_keystore(data)
         else:
             raise Exception('no seed or master_key in data')
 

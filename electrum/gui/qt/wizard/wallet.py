@@ -769,8 +769,8 @@ class WCCosignerKeystore(WizardComponent):
 
         message = _('Add a cosigner to your multi-sig wallet')
         choices = [
-            ('key', _('Enter cosigner key')),
-            ('seed', _('Enter cosigner seed')),
+            ('masterkey', _('Enter cosigner key')),
+            ('haveseed', _('Enter cosigner seed')),
             ('hardware', _('Cosign with hardware device'))
         ]
 
@@ -806,7 +806,9 @@ class WCCosignerKeystore(WizardComponent):
     def apply(self):
         self.wizard_data['cosigner_keystore_type'] = self.choice_w.selected_item[0]
         self.wizard_data['multisig_current_cosigner'] = self.cosigner
-        self.wizard_data['multisig_cosigner_data'][str(self.cosigner)] = {}
+        self.wizard_data['multisig_cosigner_data'][str(self.cosigner)] = {
+            'keystore_type': self.choice_w.selected_item[0]
+        }
 
 
 class WCHaveMasterKey(WizardComponent):
@@ -1214,8 +1216,8 @@ class WCChooseHWDevice(WizardComponent, Logger):
 
     def apply(self):
         if self.choice_w:
-            # TODO: data is not (de)serializable yet, wizard_data cannot be persisted
-            self.wizard_data['hardware_device'] = self.choice_w.selected_item[0]
+            cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+            cosigner_data['hardware_device'] = self.choice_w.selected_item[0]
 
 
 class WCWalletPasswordHardware(WizardComponent):
@@ -1307,7 +1309,8 @@ class WCHWXPub(WizardComponent, Logger):
         self.layout().addWidget(self.ok_l)
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = cosigner_data['hardware_device']
         self.plugin = self.plugins.get_plugin(_info.plugin_name)
         self.title = _('Retrieving extended public key from {} ({})').format(_info.model_name, _info.label)
 
@@ -1316,9 +1319,8 @@ class WCHWXPub(WizardComponent, Logger):
         if not client.handler:
             client.handler = self.plugin.create_handler(self.wizard)
 
-        cosigner = self.wizard.current_cosigner(self.wizard_data)
-        xtype = cosigner['script_type']
-        derivation = cosigner['derivation_path']
+        xtype = cosigner_data['script_type']
+        derivation = cosigner_data['derivation_path']
 
         def get_xpub_task(client, derivation, xtype):
             try:
@@ -1340,7 +1342,8 @@ class WCHWXPub(WizardComponent, Logger):
         t.start()
 
     def get_xpub_from_client(self, client, derivation, xtype):  # override for HWW specific client if needed
-        _name, _info = self.wizard_data['hardware_device']
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = cosigner_data['hardware_device']
         if xtype not in self.plugin.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}').format(_info.model_name))
         return client.get_xpub(derivation, xtype)
@@ -1362,8 +1365,8 @@ class WCHWXPub(WizardComponent, Logger):
             self.wizard.requestNext.emit()  # via signal, so it triggers Next/Finish on GUI thread after on_updated()
 
     def apply(self):
-        _name, _info = self.wizard_data['hardware_device']
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = cosigner_data['hardware_device']
         cosigner_data['hw_type'] = _info.plugin_name
         cosigner_data['master_key'] = self.xpub
         cosigner_data['root_fingerprint'] = self.root_fingerprint
@@ -1376,7 +1379,8 @@ class WCHWUninitialized(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_('Hardware not initialized'))
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
+        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = cosigner_data['hardware_device']
         label = WWLabel(_('This {} is not initialized. Use manufacturer tooling to initialize the device.').format(_info.model_name))
         label.setAlignment(Qt.AlignCenter)
         self.layout().addWidget(label)
