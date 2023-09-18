@@ -45,8 +45,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _("Allow instant swaps"), self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
-            tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
+            self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())

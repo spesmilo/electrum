@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QPushButton, QWidget, QHBoxLayout)
 
 from electrum.i18n import _, languages
-from electrum import util, coinchooser, paymentrequest
+from electrum import util, paymentrequest
 from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
@@ -43,8 +43,17 @@ from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
 
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
+    from electrum.simple_config import SimpleConfig, ConfigVarWithConfig
     from .main_window import ElectrumWindow
+
+
+def checkbox_from_configvar(cv: 'ConfigVarWithConfig') -> QCheckBox:
+    short_desc = cv.get_short_desc()
+    assert short_desc is not None, f"short_desc missing for {cv}"
+    cb = QCheckBox(short_desc)
+    if (long_desc := cv.get_long_desc()) is not None:
+        cb.setToolTip(messages.to_rtf(long_desc))
+    return cb
 
 
 class SettingsDialog(QDialog, QtEventListener):
@@ -67,8 +76,7 @@ class SettingsDialog(QDialog, QtEventListener):
         tabs = QTabWidget()
 
         # language
-        lang_help = _('Select which language is used in the GUI (after restart).')
-        lang_label = HelpLabel(_('Language') + ':', lang_help)
+        lang_label = HelpLabel.from_configvar(self.config.cv.LOCALIZATION_LANGUAGE)
         lang_combo = QComboBox()
         lang_combo.addItems(list(languages.values()))
         lang_keys = list(languages.keys())
@@ -87,8 +95,7 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.need_restart = True
         lang_combo.currentIndexChanged.connect(on_lang)
 
-        nz_help = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
+        nz_label = HelpLabel.from_configvar(self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT)
         nz = QSpinBox()
         nz.setMinimum(0)
         nz.setMaximum(self.config.decimal_point)
@@ -105,9 +112,7 @@ class SettingsDialog(QDialog, QtEventListener):
         nz.valueChanged.connect(on_nz)
 
         # lightning
-        help_trampoline = messages.MSG_HELP_TRAMPOLINE
-        trampoline_cb = QCheckBox(_("Use trampoline routing"))
-        trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
+        trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_USE_GOSSIP)
         trampoline_cb.setChecked(not self.config.LIGHTNING_USE_GOSSIP)
         def on_trampoline_checked(use_trampoline):
             use_trampoline = bool(use_trampoline)
@@ -130,21 +135,13 @@ class SettingsDialog(QDialog, QtEventListener):
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
-        help_legacy_add_trampoline = messages.MSG_LEGACY_ADD_TRAMPOLINE
-        legacy_add_trampoline_cb = QCheckBox(_("Add extra trampoline to legacy payments"))
-        legacy_add_trampoline_cb.setToolTip(messages.to_rtf(help_legacy_add_trampoline))
+        legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
         legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
         def on_legacy_add_trampoline_checked(b):
             self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = bool(b)
         legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
 
-        help_remote_wt = ' '.join([
-            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
-            _("If you have private a watchtower, enter its URL here."),
-            _("Check our online documentation if you want to configure Electrum as a watchtower."),
-        ])
-        remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
+        remote_wt_cb = checkbox_from_configvar(self.config.cv.WATCHTOWER_CLIENT_ENABLED)
         remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
         def on_remote_wt_checked(x):
             self.config.WATCHTOWER_CLIENT_ENABLED = bool(x)
@@ -158,17 +155,13 @@ class SettingsDialog(QDialog, QtEventListener):
             self.config.WATCHTOWER_CLIENT_URL = url
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
 
-        msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
-              + _('The following alias providers are available:') + '\n'\
-              + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
-              + 'For more information, see https://openalias.org'
-        alias_label = HelpLabel(_('OpenAlias') + ':', msg)
+        alias_label = HelpLabel.from_configvar(self.config.cv.OPENALIAS_ID)
         alias = self.config.OPENALIAS_ID
         self.alias_e = QLineEdit(alias)
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
-        msat_cb = QCheckBox(_("Show Lightning amounts with msat precision"))
+        msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
         def on_msat_checked(v):
             prec = 3 if v == Qt.Checked else 0
@@ -198,7 +191,7 @@ class SettingsDialog(QDialog, QtEventListener):
             self.app.refresh_amount_edits_signal.emit()
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
 
-        thousandsep_cb = QCheckBox(_("Add thousand separators to bitcoin amounts"))
+        thousandsep_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         def on_set_thousandsep(v):
             checked = v == Qt.Checked
@@ -210,9 +203,7 @@ class SettingsDialog(QDialog, QtEventListener):
 
         qr_combo = QComboBox()
         qr_combo.addItem("Default", "default")
-        msg = (_("For scanning QR codes.") + "\n"
-               + _("Install the zbar package to enable this."))
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
+        qr_label = HelpLabel.from_configvar(self.config.cv.VIDEO_DEVICE_PATH)
         from .qrreader import find_system_cameras
         system_cameras = find_system_cameras()
         for cam_desc, cam_path in system_cameras.items():
@@ -228,53 +219,31 @@ class SettingsDialog(QDialog, QtEventListener):
         colortheme_combo.addItem(_('Dark'), 'dark')
         index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
-        colortheme_label = QLabel(_('Color theme') + ':')
+        colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
         def on_colortheme(x):
             self.config.GUI_QT_COLOR_THEME = colortheme_combo.itemData(x)
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
-        updatecheck_cb = QCheckBox(_("Automatically check for software updates"))
+        updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         def on_set_updatecheck(v):
             self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = (v == Qt.Checked)
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
-        filelogging_cb = QCheckBox(_("Write logs to file"))
+        filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
         filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
         def on_set_filelogging(v):
             self.config.WRITE_LOGS_TO_DISK = (v == Qt.Checked)
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
-        filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
-
-
-        def fmt_docs(key, klass):
-            lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
-            return '\n'.join([key, "", " ".join(lines)])
-
-        choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-        if len(choosers) > 1:
-            chooser_name = coinchooser.get_name(self.config)
-            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-            chooser_combo = QComboBox()
-            chooser_combo.addItems(choosers)
-            i = choosers.index(chooser_name) if chooser_name in choosers else 0
-            chooser_combo.setCurrentIndex(i)
-            def on_chooser(x):
-                chooser_name = choosers[chooser_combo.currentIndex()]
-                self.config.WALLET_COIN_CHOOSER_POLICY = chooser_name
-            chooser_combo.currentIndexChanged.connect(on_chooser)
 
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
         if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
             block_explorers.remove(BLOCK_EX_CUSTOM_ITEM)
         block_explorers.append(BLOCK_EX_CUSTOM_ITEM)
-        msg = _('Choose which online block explorer to use for functions that open a web browser')
-        block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
+        block_ex_label = HelpLabel.from_configvar(self.config.cv.BLOCK_EXPLORER)
         block_ex_combo = QComboBox()
         block_ex_custom_e = QLineEdit(str(self.config.BLOCK_EXPLORER_CUSTOM or ''))
         block_ex_combo.addItems(block_explorers)
@@ -309,7 +278,7 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_hbox_w.setLayout(block_ex_hbox)
 
         # Fiat Currency
-        self.history_rates_cb = QCheckBox(_('Download historical rates'))
+        self.history_rates_cb = checkbox_from_configvar(self.config.cv.FX_HISTORY_RATES)
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
@@ -391,8 +360,6 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
-        if len(choosers) > 1:
-            misc_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),

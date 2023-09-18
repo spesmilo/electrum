@@ -441,10 +441,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _('Download missing data'), self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
-            tooltip=_(
-                'Download parent transactions from the network.\n'
-                'Allows filling in missing fee and input details.'),
+            self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
             callback=self.maybe_fetch_txin_data)
         vbox.addLayout(toolbar)
 

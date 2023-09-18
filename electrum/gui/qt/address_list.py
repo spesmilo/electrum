@@ -123,11 +123,11 @@ class AddressList(MyTreeView):
         addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
         self.main_window.show_address(addr)
 
-    def create_toolbar(self, config):
+    def create_toolbar(self, config: 'SimpleConfig'):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_addr_label = toolbar.itemAt(0).widget()
         self._toolbar_checkbox = menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar())
-        menu.addConfig(_('Show Fiat balances'), config.cv.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES, callback=self.main_window.app.update_fiat_signal.emit)
+        menu.addConfig(config.cv.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES, callback=self.main_window.app.update_fiat_signal.emit)
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
         return toolbar
