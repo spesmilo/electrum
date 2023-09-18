@@ -1119,12 +1119,11 @@ class WCChooseHWDevice(WizardComponent, Logger):
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
 
-        # remove old component before adding anew
-        a = self.device_list.layout().itemAt(0)
-        self.device_list.layout().removeItem(a)
+        if self.choice_w:
+            self.device_list_layout.removeWidget(self.choice_w)
 
         self.choice_w = ChoiceWidget(message=msg, choices=choices)
-        self.device_list.layout().addWidget(self.choice_w)
+        self.device_list_layout.addWidget(self.choice_w)
 
         self.valid = True
 
@@ -1132,9 +1131,6 @@ class WCChooseHWDevice(WizardComponent, Logger):
             self.wizard.next_button.setFocus()
         else:
             self.rescan_button.setFocus()
-
-
-
 
     def scan_devices(self):
         self.valid = False
