@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QPushButton, QWidget, QHBoxLayout)
 
 from electrum.i18n import _, languages
-from electrum import util, coinchooser, paymentrequest
+from electrum import util, paymentrequest
 from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
@@ -248,26 +248,6 @@ class SettingsDialog(QDialog, QtEventListener):
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
 
-
-        def fmt_docs(key, klass):
-            lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
-            return '\n'.join([key, "", " ".join(lines)])
-
-        choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-        if len(choosers) > 1:
-            chooser_name = coinchooser.get_name(self.config)
-            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-            chooser_combo = QComboBox()
-            chooser_combo.addItems(choosers)
-            i = choosers.index(chooser_name) if chooser_name in choosers else 0
-            chooser_combo.setCurrentIndex(i)
-            def on_chooser(x):
-                chooser_name = choosers[chooser_combo.currentIndex()]
-                self.config.WALLET_COIN_CHOOSER_POLICY = chooser_name
-            chooser_combo.currentIndexChanged.connect(on_chooser)
-
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
         if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
@@ -391,8 +371,6 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
-        if len(choosers) > 1:
-            misc_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
