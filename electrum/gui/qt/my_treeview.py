@@ -62,6 +62,8 @@ from electrum.logging import Logger
 from electrum.qrreader import MissingQrDetectionLib
 from electrum.simple_config import ConfigVarWithConfig
 
+from electrum.gui import messages
+
 from .util import read_QIcon
 
 if TYPE_CHECKING:
@@ -82,13 +84,23 @@ class MyMenu(QMenu):
         m.setToolTip(tooltip)
         return m
 
-    def addConfig(self, text: str, configvar: 'ConfigVarWithConfig', *, tooltip='', callback=None) -> QAction:
+    def addConfig(
+        self,
+        configvar: 'ConfigVarWithConfig',
+        *,
+        callback=None,
+        short_desc: Optional[str] = None,
+    ) -> QAction:
         assert isinstance(configvar, ConfigVarWithConfig), configvar
+        if short_desc is None:
+            short_desc = configvar.get_short_desc()
+            assert short_desc is not None, f"short_desc missing for {configvar}"
         b = configvar.get()
-        m = self.addAction(text, lambda: self._do_toggle_config(configvar, callback=callback))
+        m = self.addAction(short_desc, lambda: self._do_toggle_config(configvar, callback=callback))
         m.setCheckable(True)
         m.setChecked(bool(b))
-        m.setToolTip(tooltip)
+        if (long_desc := configvar.get_long_desc()) is not None:
+            m.setToolTip(messages.to_rtf(long_desc))
         return m
 
     def _do_toggle_config(self, configvar: 'ConfigVarWithConfig', *, callback):
