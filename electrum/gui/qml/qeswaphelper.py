@@ -59,7 +59,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._canCancel = False
         self._swap = None
         self._fut_htlc_wait = None
-        
+
         self._service_available = False
         self._send_amount = 0
         self._receive_amount = 0
