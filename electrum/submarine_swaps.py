@@ -674,6 +674,11 @@ class SwapManager(Logger):
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
         if self.server_supports_htlc_first:
+            async def callback(payment_hash):
+                await self.broadcast_funding_tx(swap, tx)
+
+            self.lnworker.register_hold_invoice(payment_hash, callback)
+
             # send invoice to server and wait for htlcs
             request_data = {
                 "preimageHash": payment_hash.hex(),
@@ -686,9 +691,6 @@ class SwapManager(Logger):
                 json=request_data,
                 timeout=30)
             data = json.loads(response)
-            async def callback(payment_hash):
-                await self.broadcast_funding_tx(swap, tx)
-            self.lnworker.register_hold_invoice(payment_hash, callback)
             # wait for funding tx
             lnaddr = lndecode(invoice)
             while swap.funding_txid is None and not lnaddr.is_expired():
@@ -739,7 +741,7 @@ class SwapManager(Logger):
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
             channels = None,
-    ) -> bool:
+    ) -> Optional[str]:
         """send on Lightning, receive on-chain
 
         - User generates preimage, RHASH. Sends RHASH to server.
