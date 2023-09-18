@@ -12,8 +12,7 @@ from electrum.slip39 import EncryptedSeed
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
-from electrum import keystore, mnemonic
-from electrum import bitcoin
+from electrum import keystore, mnemonic, bitcoin
 from electrum.mnemonic import is_any_2fa_seed_type
 
 if TYPE_CHECKING:
@@ -496,7 +495,7 @@ class NewWalletWizard(AbstractWizard):
             seed_valid = False
         elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
-        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
+        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
 
         self._logger.debug(f'seed verified: {seed_valid}, type={seed_type}, validation_message={validation_message}')
@@ -560,8 +559,8 @@ class NewWalletWizard(AbstractWizard):
             elif isinstance(k, keystore.Old_KeyStore):
                 pass
             else:
-                raise Exception(f"unexpected keystore type: {type(k)}")
-        elif data['keystore_type'] == 'hardware':  # TODO: prelim impl
+                raise Exception(f'unexpected keystore type: {type(k)}')
+        elif data['keystore_type'] == 'hardware':
             k = self.hw_keystore(data)
             if isinstance(k, keystore.Xpub):  # has xpub
                 t1 = xpub_type(k.xpub)
@@ -572,7 +571,7 @@ class NewWalletWizard(AbstractWizard):
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                         raise Exception('wrong key type %s' % t1)
             else:
-                raise Exception(f"unexpected keystore type: {type(k)}")
+                raise Exception(f'unexpected keystore type: {type(k)}')
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
@@ -607,16 +606,16 @@ class NewWalletWizard(AbstractWizard):
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
             if not isinstance(k, keystore.Xpub):
-                raise Exception(f"unexpected keystore(main) type={type(k)} in multisig. not bip32.")
+                raise Exception(f'unexpected keystore(main) type={type(k)} in multisig. not bip32.')
             k_xpub_type = xpub_type(k.xpub)
-            db.put('wallet_type', '%dof%d' % (data['multisig_signatures'],data['multisig_participants']))
+            db.put('wallet_type', '%dof%d' % (data['multisig_signatures'], data['multisig_participants']))
             db.put('x1/', k.dump())
             for cosigner in data['multisig_cosigner_data']:
                 cosigner_keystore = self.keystore_from_data('multisig', data['multisig_cosigner_data'][cosigner])
                 if not isinstance(cosigner_keystore, keystore.Xpub):
-                    raise Exception(f"unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.")
+                    raise Exception(f'unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.')
                 if k_xpub_type != xpub_type(cosigner_keystore.xpub):
-                    raise Exception("multisig wallet needs to have homogeneous xpub types")
+                    raise Exception('multisig wallet needs to have homogeneous xpub types')
                 if data['encrypt'] and cosigner_keystore.may_have_password():
                     cosigner_keystore.update_password(None, data['password'])
                 db.put(f'x{cosigner}/', cosigner_keystore.dump())
