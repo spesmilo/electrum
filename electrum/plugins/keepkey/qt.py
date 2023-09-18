@@ -276,12 +276,12 @@ class KeepkeyInitLayout(QVBoxLayout):
 
             self.addWidget(QLabel(msg))
             self.addWidget(self.text_e)
-            pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
-            pin.setMaximumWidth(100)
+            self.pin = QLineEdit()
+            self.pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
+            self.pin.setMaximumWidth(100)
             hbox_pin = QHBoxLayout()
             hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
-            hbox_pin.addWidget(pin)
+            hbox_pin.addWidget(self.pin)
             hbox_pin.addStretch(1)
 
         if method in [TIM_NEW, TIM_RECOVER]:
