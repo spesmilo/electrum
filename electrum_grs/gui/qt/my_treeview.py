@@ -62,7 +62,7 @@ from electrum_grs.logging import Logger
 from electrum_grs.qrreader import MissingQrDetectionLib
 from electrum_grs.simple_config import ConfigVarWithConfig
 
-from electrum.gui import messages
+from electrum_grs.gui import messages
 
 from .util import read_QIcon
 
