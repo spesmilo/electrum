@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum_grs.i18n import _
 from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates
-from electrum_grs.bitcoin import get_dummy_address
+from electrum_grs.bitcoin import DummyAddress
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction
 
 from electrum_grs.gui import messages
@@ -45,8 +45,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _("Allow instant swaps"), self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
-            tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
+            self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())
@@ -173,7 +172,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
     def _spend_max_forward_swap(self, tx: Optional[PartialTransaction]) -> None:
         if tx:
-            amount = tx.output_value_for_address(get_dummy_address('swap'))
+            amount = tx.output_value_for_address(DummyAddress.SWAP)
             self.send_amount_e.setAmount(amount)
         else:
             self.send_amount_e.setAmount(None)
@@ -295,7 +294,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = False
-        outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('swap'), onchain_amount)]
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         try:
             tx = self.window.wallet.make_unsigned_transaction(
                 coins=coins,

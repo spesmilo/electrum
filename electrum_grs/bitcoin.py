@@ -28,7 +28,7 @@ from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
 import enum
 from enum import IntEnum, Enum
 
-from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
+from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str, classproperty
 from . import version
 from . import segwit_addr
 from . import constants
@@ -754,6 +754,29 @@ def is_minikey(text: str) -> bool:
 def minikey_to_private_key(text: str) -> bytes:
     return sha256(text)
 
-# dummy address for fee estimation of funding tx
-def get_dummy_address(purpose):
+
+def _get_dummy_address(purpose: str) -> str:
     return redeem_script_to_address('p2wsh', sha256(bytes(purpose, "utf8")).hex())
+
+_dummy_addr_funcs = set()
+class DummyAddress:
+    """dummy address for fee estimation of funding tx
+    Use e.g. as: DummyAddress.CHANNEL
+    """
+    def purpose(func):
+        _dummy_addr_funcs.add(func)
+        return classproperty(func)
+
+    @purpose
+    def CHANNEL(self) -> str:
+        return _get_dummy_address("channel")
+    @purpose
+    def SWAP(self) -> str:
+        return _get_dummy_address("swap")
+
+    @classmethod
+    def is_dummy_address(cls, addr: str) -> bool:
+        return addr in (f(cls) for f in _dummy_addr_funcs)
+
+
+class DummyAddressUsedInTxException(Exception): pass

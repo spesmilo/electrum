@@ -60,7 +60,8 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
-from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold, get_dummy_address
+from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException
 from .crypto import sha256d
 from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
@@ -318,6 +319,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
+        self._password_in_memory = None  # see self.unlock
         Logger.__init__(self)
 
         self.network = None
@@ -1239,7 +1241,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions_tmp[txid] = tx_item
-        # add lnworker onchain transactions
+        # add lnworker onchain transactions to transactions_tmp
+        # add group_id to tx that are in a group
         lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
         for txid, item in lnworker_history.items():
             if txid in transactions_tmp:
@@ -1276,20 +1279,51 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ts = tx_item.get('monotonic_timestamp') or tx_item.get('timestamp') or float('inf')
             height = self.adb.tx_height_to_sort_height(tx_item.get('height'))
             return ts, height
+        # create groups
         transactions = OrderedDictWithIndex()
-        for k, v in sorted(list(transactions_tmp.items()), key=sort_key):
-            transactions[k] = v
+        for k, tx_item in sorted(list(transactions_tmp.items()), key=sort_key):
+            group_id = tx_item.get('group_id')
+            if not group_id:
+                transactions[k] = tx_item
+            else:
+                key = 'group:' + group_id
+                parent = transactions.get(key)
+                if parent is None:
+                    parent = {
+                        'label': tx_item.get('group_label'),
+                        'fiat_value': Fiat(Decimal(0), fx.ccy) if fx else None,
+                        'bc_value': Satoshis(0),
+                        'ln_value': Satoshis(0),
+                        'value': Satoshis(0),
+                        'children': [],
+                        'timestamp': 0,
+                        'fee_sat': 0,
+                    }
+                    transactions[key] = parent
+                if 'bc_value' in tx_item:
+                    parent['bc_value'] += tx_item['bc_value']
+                if 'ln_value' in tx_item:
+                    parent['ln_value'] += tx_item['ln_value']
+                parent['value'] = parent['bc_value'] + parent['ln_value']
+                if 'fiat_value' in tx_item:
+                    parent['fiat_value'] += tx_item['fiat_value']
+                if tx_item.get('txid') == group_id:
+                    parent['lightning'] = False
+                    parent['txid'] = tx_item['txid']
+                    parent['timestamp'] = tx_item['timestamp']
+                    parent['height'] = tx_item['height']
+                    parent['confirmations'] = tx_item['confirmations']
+                parent['children'].append(tx_item)
+
         now = time.time()
         for item in transactions.values():
             # add on-chain and lightning values
-            value = Decimal(0)
-            if item.get('bc_value'):
-                value += item['bc_value'].value
-            if item.get('ln_value'):
-                value += item.get('ln_value').value
             # note: 'value' has msat precision (as LN has msat precision)
-            item['value'] = Satoshis(value)
+            item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
+            for child in item.get('children', []):
+                child['value'] = child.get('bc_value', Satoshis(0)) + child.get('ln_value', Satoshis(0))
             if include_fiat:
+                value = item['value'].value
                 txid = item.get('txid')
                 if not item.get('lightning') and txid:
                     fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
@@ -1766,7 +1800,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     amount = change[0].value
                     ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
                     if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
-                        tx.replace_output_address(change[0].address, get_dummy_address('swap'))
+                        tx.replace_output_address(change[0].address, DummyAddress.SWAP)
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).
@@ -2384,6 +2418,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if not isinstance(tx, PartialTransaction):
             return
+        if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
+            raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
         # note: swap signing does not require the password
         swap = self.get_swap_by_claim_tx(tx)
         if swap:
@@ -2786,6 +2822,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         encrypt_keystore = self.can_have_keystore_encryption()
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         self.save_db()
+        self.unlock(None)
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -3034,6 +3071,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def synchronize(self) -> int:
         """Returns the number of new addresses we generated."""
         return 0
+
+    def unlock(self, password):
+        self.logger.info(f'unlocking wallet')
+        if password:
+            self.check_password(password)
+        self._password_in_memory = password
+
+    def get_unlocked_password(self):
+        return self._password_in_memory
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

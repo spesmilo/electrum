@@ -46,7 +46,7 @@ from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.util import quantize_feerate
 from electrum_grs import bitcoin
 
-from electrum_grs.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, get_dummy_address
+from electrum_grs.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, DummyAddress
 from electrum_grs.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs import simple_config
@@ -170,7 +170,7 @@ class TxInOutWidget(QWidget):
         tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
         def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
-            sm = self.wallet.lnworker.swap_manager
+            sm = self.wallet.lnworker.swap_manager if self.wallet.lnworker else None
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     tf_used_change = True
@@ -183,7 +183,7 @@ class TxInOutWidget(QWidget):
                 fmt.setAnchor(True)
                 fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
                 return fmt
-            elif sm and sm.is_lockup_address_for_a_swap(addr) or addr==get_dummy_address('swap'):
+            elif sm and sm.is_lockup_address_for_a_swap(addr) or addr == DummyAddress.SWAP:
                 tf_used_swap = True
                 return self.txo_color_swap.text_char_format
             elif self.wallet.is_billing_address(addr):
@@ -441,10 +441,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _('Download missing data'), self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
-            tooltip=_(
-                'Download parent transactions from the network.\n'
-                'Allows filling in missing fee and input details.'),
+            self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
             callback=self.maybe_fetch_txin_data)
         vbox.addLayout(toolbar)
 

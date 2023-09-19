@@ -25,7 +25,7 @@
 
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, Callable
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
@@ -39,6 +39,7 @@ from electrum_grs.plugin import run_hook
 from electrum_grs.transaction import Transaction, PartialTransaction
 from electrum_grs.wallet import InternalAddressCorruption
 from electrum_grs.simple_config import SimpleConfig
+from electrum_grs.bitcoin import DummyAddress
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    BlockingWaitingDialog, PasswordLineEdit, WWLabel, read_QIcon)
@@ -46,6 +47,7 @@ from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelBut
 from .fee_slider import FeeSlider, FeeComboBox
 
 if TYPE_CHECKING:
+    from electrum_grs.simple_config import ConfigVarWithConfig
     from .main_window import ElectrumWindow
 
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
@@ -383,24 +385,17 @@ class TxEditor(WindowModalDialog):
             m.setChecked(b)
             m.setToolTip(tooltip)
             return m
-        add_pref_action(
-            self.config.GUI_QT_TX_EDITOR_SHOW_IO,
-            self.toggle_io_visibility,
-            _('Show inputs and outputs'), '')
-        add_pref_action(
-            self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS,
-            self.toggle_fee_details,
-            _('Edit fees manually'), '')
-        add_pref_action(
-            self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME,
-            self.toggle_locktime,
-            _('Edit Locktime'), '')
+        def add_cv_action(configvar: 'ConfigVarWithConfig', action: Callable[[], None]):
+            b = configvar.get()
+            short_desc = configvar.get_short_desc()
+            assert short_desc is not None, f"short_desc missing for {configvar}"
+            tooltip = configvar.get_long_desc() or ""
+            return add_pref_action(b, action, short_desc, tooltip)
+        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_IO, self.toggle_io_visibility)
+        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS, self.toggle_fee_details)
+        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, self.toggle_locktime)
         self.pref_menu.addSeparator()
-        add_pref_action(
-            self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
-            self.toggle_send_change_to_lightning,
-            _('Send change to Lightning'),
-            _('If possible, send the change of this transaction to your channels, with a submarine swap'))
+        add_cv_action(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, self.toggle_send_change_to_lightning)
         add_pref_action(
             self.wallet.use_change,
             self.toggle_use_change,
@@ -415,24 +410,9 @@ class TxEditor(WindowModalDialog):
                 _('This may result in higher transactions fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
-        add_pref_action(
-            self.config.WALLET_BATCH_RBF,
-            self.toggle_batch_rbf,
-            _('Batch unconfirmed transactions'),
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
-            _('This will save fees, but might have unwanted effects in terms of privacy'))
-        add_pref_action(
-            self.config.WALLET_SPEND_CONFIRMED_ONLY,
-            self.toggle_confirmed_only,
-            _('Spend only confirmed coins'),
-            _('Spend only confirmed inputs.'))
-        add_pref_action(
-            self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING,
-            self.toggle_output_rounding,
-            _('Enable output value rounding'),
-            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' + \
-            _('This might improve your privacy somewhat.') + '\n' + \
-            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
+        add_cv_action(self.config.cv.WALLET_BATCH_RBF, self.toggle_batch_rbf)
+        add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
+        add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -574,7 +554,7 @@ class TxEditor(WindowModalDialog):
                 self.error = long_warning
             else:
                 messages.append(long_warning)
-        if self.tx.has_dummy_output('swap'):
+        if self.tx.has_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):

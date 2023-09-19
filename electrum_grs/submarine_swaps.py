@@ -17,7 +17,7 @@ from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Tr
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions, BelowDustLimit, OldTaskGroup
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
-from .bitcoin import dust_threshold, get_dummy_address
+from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode
@@ -190,7 +190,7 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.lnworker = lnworker
         self.taskgroup = None
-        self.dummy_address = get_dummy_address('swap')
+        self.dummy_address = DummyAddress.SWAP
 
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
@@ -252,21 +252,22 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
-    def cancel_normal_swap(self, swap):
+    def cancel_normal_swap(self, swap: SwapData):
         """ we must not have broadcast the funding tx """
         if swap.funding_txid is not None:
-            self.logger.info(f'cannot fail swap {swap.payment_hash.hex()}: already funded')
+            self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
             return
-        self._fail_normal_swap(swap)
+        self._fail_swap(swap, 'user cancelled')
 
-    def _fail_normal_swap(self, swap):
-        if swap.payment_hash in self.lnworker.hold_invoice_callbacks:
-            self.logger.info(f'failing normal swap {swap.payment_hash.hex()}')
+    def _fail_swap(self, swap: SwapData, reason: str):
+        self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
+        if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
             payment_key = swap.payment_hash + payment_secret
             self.lnworker.fail_final_onion_forwarding(payment_key)
         self.lnwatcher.remove_callback(swap.lockup_address)
+        self.swaps.pop(swap.payment_hash.hex())
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -285,12 +286,11 @@ class SwapManager(Logger):
             break
         else:
             # swap not funded.
-            if delta >= 0:
-                if not swap.is_reverse:
-                    # we might have received HTLCs and double spent the funding tx
-                    # in that case we need to fail the HTLCs
-                    self._fail_normal_swap(swap)
             txin = None
+            # if it is a normal swap, we might have double spent the funding tx
+            # in that case we need to fail the HTLCs
+            if delta >= 0:
+                self._fail_swap(swap, 'expired')
 
         if txin:
             # the swap is funded
@@ -328,7 +328,7 @@ class SwapManager(Logger):
                     else:
                         # refund tx
                         if spent_height > 0:
-                            self._fail_normal_swap(swap)
+                            self._fail_swap(swap, 'refund tx confirmed')
                             return
                 if delta < 0:
                     # too early for refund
@@ -389,12 +389,13 @@ class SwapManager(Logger):
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
     async def hold_invoice_callback(self, payment_hash: bytes) -> None:
-        # note: this assumes the keystore is not encrypted
+        # note: this assumes the wallet has been unlocked
         key = payment_hash.hex()
         if key in self.swaps:
             swap = self.swaps[key]
             if swap.funding_txid is None:
-                tx = self.create_funding_tx(swap, None, None)
+                password = self.wallet.get_unlocked_password()
+                tx = self.create_funding_tx(swap, None, password)
                 await self.broadcast_funding_tx(swap, tx)
 
     def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash: bytes=None, their_pubkey=None):
@@ -673,6 +674,11 @@ class SwapManager(Logger):
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
         if self.server_supports_htlc_first:
+            async def callback(payment_hash):
+                await self.broadcast_funding_tx(swap, tx)
+
+            self.lnworker.register_hold_invoice(payment_hash, callback)
+
             # send invoice to server and wait for htlcs
             request_data = {
                 "preimageHash": payment_hash.hex(),
@@ -685,9 +691,6 @@ class SwapManager(Logger):
                 json=request_data,
                 timeout=30)
             data = json.loads(response)
-            async def callback(payment_hash):
-                await self.broadcast_funding_tx(swap, tx)
-            self.lnworker.register_hold_invoice(payment_hash, callback)
             # wait for funding tx
             lnaddr = lndecode(invoice)
             while swap.funding_txid is None and not lnaddr.is_expired():
@@ -705,13 +708,13 @@ class SwapManager(Logger):
             funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
             tx = self.wallet.create_transaction(outputs=[funding_output], rbf=True, password=password)
         else:
-            tx.replace_dummy_output('swap', swap.lockup_address)
+            tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
             tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
         return tx
 
     @log_exceptions
-    async def request_swap_for_tx(self, tx):
+    async def request_swap_for_tx(self, tx: 'PartialTransaction'):
         for o in tx.outputs():
             if o.address == self.dummy_address:
                 change_amount = o.value
@@ -724,7 +727,7 @@ class SwapManager(Logger):
         swap, invoice = await self.request_normal_swap(
             lightning_amount_sat = lightning_amount_sat,
             expected_onchain_amount_sat=change_amount)
-        tx.replace_dummy_output('swap', swap.lockup_address)
+        tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
         return swap, invoice, tx
 
     @log_exceptions
@@ -738,7 +741,7 @@ class SwapManager(Logger):
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
             channels = None,
-    ) -> bool:
+    ) -> Optional[str]:
         """send on Lightning, receive on-chain
 
         - User generates preimage, RHASH. Sends RHASH to server.

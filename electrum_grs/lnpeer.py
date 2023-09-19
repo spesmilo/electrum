@@ -24,7 +24,7 @@ from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str)
 from . import transaction
-from .bitcoin import make_op_return, get_dummy_address
+from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
@@ -812,7 +812,7 @@ class Peer(Logger):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = PartialTxOutput.from_address_and_value(funding_address, funding_sat)
-        funding_tx.replace_dummy_output('channel', funding_address)
+        funding_tx.replace_output_address(DummyAddress.CHANNEL, funding_address)
         # find and encrypt op_return data associated to funding_address
         has_onchain_backup = self.lnworker and self.lnworker.has_recoverable_channels()
         if has_onchain_backup:
@@ -1599,6 +1599,14 @@ class Peer(Logger):
             next_chan_scid = ShortChannelID(_next_chan_scid)
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        try:
+            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
+        except Exception:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        try:
+            next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
+        except Exception:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = chain.height()
         if next_chan is None:
@@ -1612,17 +1620,9 @@ class Peer(Logger):
                 f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
                 f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        try:
-            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except Exception:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if not next_chan.can_pay(next_amount_msat_htlc):
             log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        try:
-            next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
-        except Exception:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if htlc.cltv_expiry - next_cltv_expiry < next_chan.forwarding_cltv_expiry_delta:
             log_fail_reason(
                 f"INCORRECT_CLTV_EXPIRY. "

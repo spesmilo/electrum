@@ -5,20 +5,6 @@ def to_rtf(msg):
     return '\n'.join(['<p>' + x + '</p>' for x in msg.split('\n\n')])
 
 
-MSG_RECOVERABLE_CHANNELS = _(
-"""Add extra data to your channel funding transactions, so that a static backup can be recovered from your seed.
-
-Note that static backups only allow you to request a force-close with the remote node. This assumes that the remote node is still online, did not lose its data, and accepts to force close the channel.
-
-If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."""
-)
-
-MSG_CONFIG_INSTANT_SWAPS = _(
-"""If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed.
-
-Note you are at risk of losing the funds in the swap, if the funding transaction never confirms."""
-)
-
 MSG_COOPERATIVE_CLOSE = _(
 """Your node will negotiate the transaction fee with the remote node. This method of closing the channel usually results in the lowest fees."""
 )
@@ -42,18 +28,6 @@ MSG_LIGHTNING_SCB_WARNING = _(
 )
 
 MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + "\n\n" + MSG_LIGHTNING_SCB_WARNING
-
-MSG_HELP_TRAMPOLINE = _(
-"""Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip).
-
-Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes."""
-)
-
-MSG_LEGACY_ADD_TRAMPOLINE = _(
-"""When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy.
-
-This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""
-)
 
 MGS_CONFLICTING_BACKUP_INSTANCE = _(
 """Another instance of this wallet (same seed) has an open channel with the same remote node. If you create this channel, you will not be able to use both wallets at the same time.

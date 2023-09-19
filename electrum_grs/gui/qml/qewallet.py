@@ -668,6 +668,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot(str, result=bool)
     def verifyPassword(self, password):
+        if not self.wallet.has_password():
+            return not bool(password)
         try:
             self.wallet.check_password(password)
             return True

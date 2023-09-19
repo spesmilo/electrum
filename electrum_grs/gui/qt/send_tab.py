@@ -11,7 +11,7 @@ from PyQt5.QtGui import QMovie, QColor
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import Logger
-
+from electrum_grs.bitcoin import DummyAddress
 from electrum_grs.plugin import run_hook
 from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum_grs.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
@@ -326,11 +326,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
         is_preview = conf_dlg.is_preview
 
-        if tx.has_dummy_output('swap'):
+        if tx.has_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
             coro = sm.request_swap_for_tx(tx)
             swap, invoice, tx = self.network.run_from_another_thread(coro)
-            assert not tx.has_dummy_output('swap')
+            assert not tx.has_dummy_output(DummyAddress.SWAP)
             tx.swap_invoice = invoice
             tx.swap_payment_hash = swap.payment_hash
 

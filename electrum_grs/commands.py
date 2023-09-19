@@ -146,6 +146,12 @@ def command(s):
                         if wallet is None:
                             raise Exception('wallet not loaded')
                         kwargs['wallet'] = wallet
+                    if cmd.requires_password and password is None and wallet.has_password():
+                        password = wallet.get_unlocked_password()
+                        if password:
+                            kwargs['password'] = password
+                        else:
+                            raise Exception('Password required. Unlock the wallet, or add a --password option to your command')
             wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
             if cmd.requires_wallet and not wallet:
                 raise Exception('wallet not loaded')
@@ -620,6 +626,12 @@ class Commands:
         ret["dnspython.version"] = dns.__version__
 
         return ret
+
+    @command('w')
+    async def unlock(self, password=None, wallet: Abstract_Wallet = None):
+        """Unlock the wallet. The wallet password will be stored in memory"""
+        wallet.unlock(password)
+        return "wallet unlocked" if password else "wallet locked"
 
     @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
@@ -1128,19 +1140,8 @@ class Commands:
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
-        coins = wallet.get_spendable_coins(None)
-        node_id, rest = extract_nodeid(connection_string)
-        funding_tx = wallet.lnworker.mktx_for_open_channel(
-            coins=coins,
-            funding_sat=funding_sat,
-            node_id=node_id,
-            fee_est=None)
-        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(
-            connect_str=connection_string,
-            funding_tx=funding_tx,
-            funding_sat=funding_sat,
-            push_sat=push_sat,
-            password=password)
+        peer = await wallet.lnworker.add_peer(connection_string)
+        chan = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
         return chan.funding_outpoint.to_str()
 
     @command('')
@@ -1270,8 +1271,8 @@ class Commands:
         from .lnutil import ShortChannelID
         from_scid = ShortChannelID.from_str(from_scid)
         dest_scid = ShortChannelID.from_str(dest_scid)
-        from_channel = wallet.lnworker.get_channel_by_scid(from_scid)
-        dest_channel = wallet.lnworker.get_channel_by_scid(dest_scid)
+        from_channel = wallet.lnworker.get_channel_by_short_id(from_scid)
+        dest_channel = wallet.lnworker.get_channel_by_short_id(dest_scid)
         amount_sat = satoshis(amount)
         success, log = await wallet.lnworker.rebalance_channels(
             from_channel,

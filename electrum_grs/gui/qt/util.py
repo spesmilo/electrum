@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from .paytoedit import PayToEdit
 
     from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.simple_config import ConfigVarWithConfig
 
 
 if platform.system() == 'Windows':
@@ -151,6 +152,10 @@ class HelpLabel(HelpMixin, QLabel):
         HelpMixin.__init__(self, help_text)
         self.app = QCoreApplication.instance()
         self.font = self.font()
+
+    @classmethod
+    def from_configvar(cls, cv: 'ConfigVarWithConfig') -> 'HelpLabel':
+        return HelpLabel(cv.get_short_desc() + ':', cv.get_long_desc())
 
     def mouseReleaseEvent(self, x):
         self.show_help()

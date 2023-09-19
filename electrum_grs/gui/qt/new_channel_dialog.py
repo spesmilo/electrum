@@ -35,10 +35,8 @@ class NewChannelDialog(WindowModalDialog):
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
-        recov_tooltip = messages.to_rtf(messages.MSG_RECOVERABLE_CHANNELS)
         menu.addConfig(
-            _("Create recoverable channels"), self.config.cv.LIGHTNING_USE_RECOVERABLE_CHANNELS,
-            tooltip=recov_tooltip,
+            self.config.cv.LIGHTNING_USE_RECOVERABLE_CHANNELS,
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
         msg = _('Choose a remote node and an amount to fund the channel.')

@@ -51,7 +51,7 @@ import electrum_grs
 from electrum_grs.gui import messages
 from electrum_grs import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
-from electrum_grs.bitcoin import COIN, is_address, get_dummy_address
+from electrum_grs.bitcoin import COIN, is_address, DummyAddress
 from electrum_grs.plugin import run_hook, BasePlugin
 from electrum_grs.i18n import _
 from electrum_grs.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
@@ -1303,7 +1303,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):
         # read funding_sat from tx; converts '!' to int value
-        funding_sat = funding_tx.output_value_for_address(get_dummy_address('channel'))
+        funding_sat = funding_tx.output_value_for_address(DummyAddress.CHANNEL)
         def task():
             return self.wallet.lnworker.open_channel(
                 connect_str=connect_str,

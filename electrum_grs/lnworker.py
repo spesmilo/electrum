@@ -56,7 +56,7 @@ from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
-from .bitcoin import redeem_script_to_address, get_dummy_address
+from .bitcoin import redeem_script_to_address, DummyAddress
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -851,11 +851,6 @@ class LNWallet(LNWorker):
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
 
-    def get_channel_by_scid(self, scid: bytes) -> Optional[Channel]:
-        for chan in self._channels.values():
-            if chan.short_channel_id == scid:
-                return chan
-
     def diagnostic_name(self):
         return self.wallet.diagnostic_name()
 
@@ -1103,13 +1098,20 @@ class LNWallet(LNWorker):
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             self._labels_cache[txid] = label
             out[txid] = {
-                'txid': txid,
                 'group_id': txid,
-                'amount_msat': 0,
-                #'amount_msat': amount_msat, # must not be added
+                'amount_msat': 0, # must be zero for onchain tx
                 'type': 'swap',
-                'label': self.get_label_for_txid(txid),
+                'label': _('Funding transaction'),
             }
+            if not swap.is_reverse:
+                # if the spending_tx is in the wallet, this will add it
+                # to the group (see wallet.get_full_history)
+                out[swap.spending_txid] = {
+                    'group_id': txid,
+                    'amount_msat': 0, # must be zero for onchain tx
+                    'type': 'swap',
+                    'label': _('Refund transaction'),
+                }
         return out
 
     def get_history(self):
@@ -1183,15 +1185,31 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     @log_exceptions
+    async def open_channel_with_peer(self, peer, funding_sat, push_sat, password):
+        coins = self.wallet.get_spendable_coins(None)
+        node_id = peer.pubkey
+        funding_tx = self.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=funding_sat,
+            node_id=node_id,
+            fee_est=None)
+        chan, funding_tx = await self._open_channel_coroutine(
+            peer=peer,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
+            push_sat=push_sat,
+            password=password)
+        return chan
+
+    @log_exceptions
     async def _open_channel_coroutine(
             self, *,
-            connect_str: str,
+            peer: Peer,
             funding_tx: PartialTransaction,
             funding_sat: int,
             push_sat: int,
             password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
 
-        peer = await self.add_peer(connect_str)
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
@@ -1243,7 +1261,7 @@ class LNWallet(LNWorker):
             funding_sat: int,
             node_id: bytes,
             fee_est=None) -> PartialTransaction:
-        outputs = [PartialTxOutput.from_address_and_value(get_dummy_address('channel'), funding_sat)]
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.CHANNEL, funding_sat)]
         if self.has_recoverable_channels():
             dummy_scriptpubkey = make_op_return(self.cb_data(node_id))
             outputs.append(PartialTxOutput(scriptpubkey=dummy_scriptpubkey, value=0))
@@ -1282,8 +1300,14 @@ class LNWallet(LNWorker):
                      funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
         if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over maximum."))
+
+        fut = asyncio.run_coroutine_threadsafe(self.add_peer(connect_str), self.network.asyncio_loop)
+        try:
+            peer = fut.result()
+        except concurrent.futures.TimeoutError:
+            raise Exception(_("add peer timed out"))
         coro = self._open_channel_coroutine(
-            connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
+            peer=peer, funding_tx=funding_tx, funding_sat=funding_sat,
             push_sat=push_amt_sat, password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
@@ -1295,6 +1319,8 @@ class LNWallet(LNWorker):
     def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
+                return chan
+            if chan.get_remote_scid_alias() == short_channel_id:
                 return chan
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
@@ -2524,7 +2550,7 @@ class LNWallet(LNWorker):
             # check that we can send onchain
             swap_server_mining_fee = 10000 # guessing, because we have not called get_pairs yet
             swap_funding_sat = swap_recv_amount + swap_server_mining_fee
-            swap_output = PartialTxOutput.from_address_and_value(get_dummy_address('swap'), int(swap_funding_sat))
+            swap_output = PartialTxOutput.from_address_and_value(DummyAddress.SWAP, int(swap_funding_sat))
             if not self.wallet.can_pay_onchain([swap_output], coins=coins):
                 continue
             return (chan, swap_recv_amount)
