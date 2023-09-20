@@ -1316,7 +1316,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 parent['children'].append(tx_item)
 
         now = time.time()
-        for item in transactions.values():
+        for key, item in transactions.items():
+            children = item.get('children', [])
+            if len(children) == 1:
+                transactions[key] = children[0]
             # add on-chain and lightning values
             # note: 'value' has msat precision (as LN has msat precision)
             item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
