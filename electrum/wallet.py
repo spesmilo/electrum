@@ -315,7 +315,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = db.storage
+        self.storage = db.storage  # type: Optional[WalletStorage]
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -363,6 +363,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._up_to_date = False
 
         self.test_addresses_sanity()
+        if self.storage and self.has_storage_encryption():
+            if (se := self.storage.get_encryption_version()) != (ae := self.get_available_storage_encryption_version()):
+                raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
+
         self.register_callbacks()
 
     def _init_lnworker(self):
