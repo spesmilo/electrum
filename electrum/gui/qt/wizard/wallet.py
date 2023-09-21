@@ -1277,14 +1277,29 @@ class WCHWUnlock(WizardComponent, Logger):
         t.start()
 
     def validate(self):
+        self.valid = False
         if self.password and not self.error:
-            self.apply()
-            self.valid = True
-        else:
-            self.valid = False
+            if not self.check_hw_decrypt():
+                self.error = _('This hardware device could not decrypt this wallet. Is it the correct one?')
+            else:
+                self.apply()
+                self.valid = True
 
         if self.valid:
             self.wizard.requestNext.emit()  # via signal, so it triggers Next/Finish on GUI thread after on_updated()
+
+    def check_hw_decrypt(self):
+        wallet_file = self.wizard_data['wallet_name']
+
+        storage = WalletStorage(wallet_file)
+        if not storage.is_encrypted_with_hw_device():
+            return True
+
+        try:
+            storage.decrypt(self.password)
+        except InvalidPassword:
+            return False
+        return True
 
     def apply(self):
         if self.valid:

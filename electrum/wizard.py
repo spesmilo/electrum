@@ -273,7 +273,7 @@ class NewWalletWizard(AbstractWizard):
     # returns (sub)dict of current cosigner (or root if first)
     def current_cosigner(self, wizard_data: dict) -> dict:
         wdata = wizard_data
-        if wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in wizard_data:
+        if wizard_data.get('wallet_type') == 'multisig' and 'multisig_current_cosigner' in wizard_data:
             cosigner = wizard_data['multisig_current_cosigner']
             wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
         return wdata
@@ -311,7 +311,9 @@ class NewWalletWizard(AbstractWizard):
         return wizard_data['keystore_type'] == 'hardware'
 
     def wallet_password_view(self, wizard_data: dict) -> str:
-        return 'wallet_password_hardware' if self.is_hardware(wizard_data) else 'wallet_password'
+        if self.is_hardware(wizard_data) and wizard_data['wallet_type'] == 'standard':
+            return 'wallet_password_hardware'
+        return 'wallet_password'
 
     def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
         _type, _info = wizard_data['hardware_device']
@@ -581,7 +583,7 @@ class NewWalletWizard(AbstractWizard):
             if k and k.may_have_password():
                 k.update_password(None, data['password'])
             enc_version = StorageEncryptionVersion.USER_PASSWORD
-            if 'keystore_type' in data and data['keystore_type'] == 'hardware':
+            if data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard':
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
