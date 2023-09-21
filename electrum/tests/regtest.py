@@ -19,12 +19,12 @@ class TestLightning(unittest.TestCase):
         test_name = self.id().split('.')[-1]
         sys.stdout.write("***** %s ******\n" % test_name)
         # initialize and get funds
-        for agent in self.agents:
+        for agent, config_options in self.agents.items():
             self.run_shell(['init', agent])
+            for k, v in config_options.items():
+                self.run_shell(['setconfig', agent, k, v])
         # mine a block so that funds are confirmed
         self.run_shell(['new_block'])
-        # extra configuration (optional)
-        self.run_shell(['configure_' + test_name])
         # start daemons
         for agent in self.agents:
             self.run_shell(['start', agent])
@@ -35,23 +35,23 @@ class TestLightning(unittest.TestCase):
 
 
 class TestUnixSockets(TestLightning):
-    agents = []
+    agents = {}
 
     def test_unixsockets(self):
         self.run_shell(['unixsockets'])
 
 
 class TestLightningAB(TestLightning):
-    agents = ['alice', 'bob']
+    agents = {
+        'alice': {
+        },
+        'bob': {
+            'lightning_listen': 'localhost:9735',
+        }
+    }
 
     def test_collaborative_close(self):
         self.run_shell(['collaborative_close'])
-
-    def test_swapserver_success(self):
-        self.run_shell(['swapserver_success'])
-
-    def test_swapserver_refund(self):
-        self.run_shell(['swapserver_refund'])
 
     def test_backup(self):
         self.run_shell(['backup'])
@@ -75,8 +75,39 @@ class TestLightningAB(TestLightning):
         self.run_shell(['breach_with_spent_htlc'])
 
 
-class TestLightningABC(TestLightning):
-    agents = ['alice', 'bob', 'carol']
+class TestLightningSwapserver(TestLightning):
+    agents = {
+        'alice': {
+        },
+        'bob': {
+            'lightning_listen': 'localhost:9735',
+            'use_swapserver': 'true',
+        }
+    }
+
+    def test_swapserver_success(self):
+        self.run_shell(['swapserver_success'])
+
+    def test_swapserver_refund(self):
+        self.run_shell(['swapserver_refund'])
+
+
+
+class TestLightningWatchtower(TestLightning):
+    agents = {
+        'alice':{
+        },
+        'bob':{
+            'lightning_listen': 'localhost:9735',
+            'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
+        },
+        'carol':{
+            'run_watchtower': 'true',
+            'watchtower_user': 'wtuser',
+            'watchtower_password': 'wtpassword',
+            'watchtower_port': '12345',
+        }
+    }
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])
