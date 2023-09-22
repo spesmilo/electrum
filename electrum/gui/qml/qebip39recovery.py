@@ -26,7 +26,6 @@ class QEBip39RecoveryListModel(QAbstractListModel):
 
     recoveryFailed = pyqtSignal()
     stateChanged = pyqtSignal()
-    # userinfoChanged = pyqtSignal()
 
     # define listmodel rolemap
     _ROLE_NAMES=('description', 'derivation_path', 'script_type')
@@ -112,7 +111,7 @@ class QEBip39RecoveryListModel(QAbstractListModel):
         if isinstance(e, concurrent.futures.CancelledError):
             self.state = QEBip39RecoveryListModel.State.Cancelled
             return
-        self._logger.error(f"recovery error", exc_info=exc_info)
+        self._logger.error(f'recovery error', exc_info=exc_info)
         self.state = QEBip39RecoveryListModel.State.Failed
         self._thread.stop()
 

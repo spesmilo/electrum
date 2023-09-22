@@ -31,6 +31,7 @@ class QtEventListener(EventListener):
 # decorator for members of the QtEventListener class
 def qt_event_listener(func):
     func = event_listener(func)
+
     @wraps(func)
     def decorator(self, *args):
         self.qt_callback_signal.emit( (func,) + args)
@@ -56,10 +57,11 @@ def status_update_timer_interval(exp):
 
     return interval
 
+
 # TODO: copied from desktop client, this could be moved to a set of common code.
 class TaskThread(QThread, Logger):
-    '''Thread that runs background tasks.  Callbacks are guaranteed
-    to happen in the context of its parent.'''
+    """Thread that runs background tasks.  Callbacks are guaranteed
+    to happen in the context of its parent."""
 
     class Task(NamedTuple):
         task: Callable

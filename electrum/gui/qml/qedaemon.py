@@ -28,23 +28,24 @@ class QEWalletListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES= ('name','path','active')
+    _ROLE_NAMES= ('name', 'path', 'active')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
     def __init__(self, daemon, parent=None):
         QAbstractListModel.__init__(self, parent)
         self.daemon = daemon
+        self._wallets = []
         self.reload()
 
     def rowCount(self, index):
-        return len(self.wallets)
+        return len(self._wallets)
 
     def roleNames(self):
         return self._ROLE_MAP
 
     def data(self, index, role):
-        (wallet_name, wallet_path) = self.wallets[index.row()]
+        (wallet_name, wallet_path) = self._wallets[index.row()]
         role_index = role - Qt.UserRole
         role_name = self._ROLE_NAMES[role_index]
         if role_name == 'name':
@@ -58,7 +59,7 @@ class QEWalletListModel(QAbstractListModel):
     def reload(self):
         self._logger.debug('enumerating available wallets')
         self.beginResetModel()
-        self.wallets = []
+        self._wallets = []
         self.endResetModel()
 
         available = []
@@ -72,18 +73,18 @@ class QEWalletListModel(QAbstractListModel):
             self.add_wallet(wallet_path = path)
 
     def add_wallet(self, wallet_path):
-        self.beginInsertRows(QModelIndex(), len(self.wallets), len(self.wallets))
+        self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
         wallet_name = os.path.basename(wallet_path)
         wallet_path = standardize_path(wallet_path)
         item = (wallet_name, wallet_path)
-        self.wallets.append(item)
+        self._wallets.append(item)
         self.endInsertRows()
 
     def remove_wallet(self, path):
         i = 0
         wallets = []
         remove = -1
-        for wallet_name, wallet_path in self.wallets:
+        for wallet_name, wallet_path in self._wallets:
             if wallet_path == path:
                 remove = i
             else:
@@ -92,12 +93,12 @@ class QEWalletListModel(QAbstractListModel):
 
         if remove >= 0:
             self.beginRemoveRows(QModelIndex(), i, i)
-            self.wallets = wallets
+            self._wallets = wallets
             self.endRemoveRows()
 
     @pyqtSlot(str, result=bool)
     def wallet_name_exists(self, name):
-        for wallet_name, wallet_path in self.wallets:
+        for wallet_name, wallet_path in self._wallets:
             if name == wallet_name:
                 return True
         return False
@@ -105,7 +106,7 @@ class QEWalletListModel(QAbstractListModel):
     @pyqtSlot(str)
     def updateWallet(self, path):
         i = 0
-        for wallet_name, wallet_path in self.wallets:
+        for wallet_name, wallet_path in self._wallets:
             if wallet_path == path:
                 mi = self.createIndex(i, i)
                 self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
@@ -166,7 +167,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str, str)
     def loadWallet(self, path=None, password=None):
         if path is None:
-            self._path = self.daemon.config.get('wallet_path') # command line -w option
+            self._path = self.daemon.config.get('wallet_path')  # command line -w option
             if self._path is None:
                 self._path = self.daemon.config.GUI_LAST_WALLET
         else:
@@ -201,7 +202,7 @@ class QEDaemon(AuthMixin, QObject):
             self.loadingChanged.emit()
 
             try:
-                local_password = password # need this in local scope
+                local_password = password  # need this in local scope
                 wallet = self.daemon.load_wallet(self._path, local_password)
 
                 if wallet is None:
@@ -238,7 +239,7 @@ class QEDaemon(AuthMixin, QObject):
 
     @pyqtSlot()
     @pyqtSlot(str)
-    def _on_backend_wallet_loaded(self, password = None):
+    def _on_backend_wallet_loaded(self, password=None):
         self._logger.debug('_on_backend_wallet_loaded')
         wallet = self.daemon.get_wallet(self._path)
         assert wallet is not None
@@ -246,7 +247,6 @@ class QEDaemon(AuthMixin, QObject):
         self.availableWallets.updateWallet(self._path)
         self._current_wallet.password = password if password else None
         self.walletLoaded.emit(self._name, self._path)
-
 
     @pyqtSlot(QEWallet)
     @pyqtSlot(QEWallet, bool)

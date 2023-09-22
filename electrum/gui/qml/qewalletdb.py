@@ -85,7 +85,7 @@ class QEWalletDB(QObject):
 
     @pyqtProperty('QString', notify=passwordChanged)
     def password(self):
-        return '' # no read access
+        return ''  # no read access
 
     @password.setter
     def password(self, wallet_password):
@@ -142,7 +142,6 @@ class QEWalletDB(QObject):
                 self.invalidPassword.emit()
         else:  # storage not encrypted; but it might still have a keystore pw
             # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
-            #       this also completely ignores db.requires_split(), db.get_action(), etc
             try:
                 db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
             except WalletRequiresSplit as e:

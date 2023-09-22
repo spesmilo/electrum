@@ -17,7 +17,7 @@ from .util import QtEventListener, event_listener
 class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
-    class State: # subset, only ones we currently need in UI
+    class State:  # subset, only ones we currently need in UI
         Closed = ChannelState.CLOSED
         Redeemed = ChannelState.REDEEMED
 

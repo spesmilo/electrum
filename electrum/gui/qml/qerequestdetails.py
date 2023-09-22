@@ -83,7 +83,6 @@ class QERequestDetails(QObject, QtEventListener):
             self.keyChanged.emit()
             self.initRequest()
 
-    statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
     def status(self):
         return self._wallet.wallet.get_invoice_status(self._req)
@@ -133,7 +132,6 @@ class QERequestDetails(QObject, QtEventListener):
     def bip21(self):
         return self._req.get_bip21_URI() if self._req else ''
 
-
     def initRequest(self):
         if self._wallet is None or self._key is None:
             return
@@ -159,7 +157,6 @@ class QERequestDetails(QObject, QtEventListener):
                     self._logger.debug(f'setting status update timer to {interval}')
                     self._timer.setInterval(interval)  # msec
                     self._timer.start()
-
 
     @pyqtSlot()
     def updateStatusString(self):

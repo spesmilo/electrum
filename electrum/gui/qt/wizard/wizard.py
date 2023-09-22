@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 
 
 class QEAbstractWizard(QDialog, MessageBoxMixin):
+    """ Concrete subclasses of QEAbstractWizard must also inherit from a concrete AbstractWizard subclass.
+        QEAbstractWizard forms the base for all QtWidgets GUI based wizards, while AbstractWizard defines
+        the base for non-gui wizard flow navigation functionality.
+    """
     _logger = get_logger(__name__)
 
     requestNext = pyqtSignal()

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING, List, Dict, Any
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
@@ -29,6 +29,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
+        self._invoices = []
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -41,13 +42,13 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
             raise e
 
     def rowCount(self, index):
-        return len(self.invoices)
+        return len(self._invoices)
 
     def roleNames(self):
         return self._ROLE_MAP
 
     def data(self, index, role):
-        invoice = self.invoices[index.row()]
+        invoice = self._invoices[index.row()]
         role_index = role - Qt.UserRole
         value = invoice[self._ROLE_NAMES[role_index]]
 
@@ -59,7 +60,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     def clear(self):
         self.beginResetModel()
-        self.invoices = []
+        self._invoices = []
         self.endResetModel()
 
     @pyqtSlot()
@@ -71,7 +72,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
         self.clear()
         self.beginInsertRows(QModelIndex(), 0, len(invoices) - 1)
-        self.invoices = invoices
+        self._invoices = invoices
         self.endInsertRows()
 
         self.set_status_timer()
@@ -79,7 +80,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def add_invoice(self, invoice: BaseInvoice):
         # skip if already in list
         key = invoice.get_id()
-        for x in self.invoices:
+        for x in self._invoices:
             if x['key'] == key:
                 return
 
@@ -87,7 +88,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self._logger.debug(str(item))
 
         self.beginInsertRows(QModelIndex(), 0, 0)
-        self.invoices.insert(0, item)
+        self._invoices.insert(0, item)
         self.endInsertRows()
 
         self.set_status_timer()
@@ -97,29 +98,29 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.add_invoice(self.get_invoice_for_key(key))
 
     def delete_invoice(self, key: str):
-        for i, invoice in enumerate(self.invoices):
+        for i, invoice in enumerate(self._invoices):
             if invoice['key'] == key:
                 self.beginRemoveRows(QModelIndex(), i, i)
-                self.invoices.pop(i)
+                self._invoices.pop(i)
                 self.endRemoveRows()
                 break
         self.set_status_timer()
 
     def get_model_invoice(self, key: str):
-        for invoice in self.invoices:
+        for invoice in self._invoices:
             if invoice['key'] == key:
                 return invoice
         return None
 
     @pyqtSlot(str, int)
     def updateInvoice(self, key, status):
-        self._logger.debug('updating invoice for %s to %d' % (key,status))
-        for i, item in enumerate(self.invoices):
+        self._logger.debug(f'updating invoice for {key} to {status}')
+        for i, item in enumerate(self._invoices):
             if item['key'] == key:
                 invoice = self.get_invoice_for_key(key)
                 item['status'] = status
                 item['status_str'] = invoice.get_status_str(status)
-                index = self.index(i,0)
+                index = self.index(i, 0)
                 self.dataChanged.emit(index, index, [self._ROLE_RMAP['status'], self._ROLE_RMAP['status_str']])
                 return
 
@@ -137,7 +138,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     def set_status_timer(self):
         nearest_interval = LN_EXPIRY_NEVER
-        for invoice in self.invoices:
+        for invoice in self._invoices:
             if invoice['status'] != PR_EXPIRED:
                 if invoice['expiry'] > 0 and invoice['expiry'] != LN_EXPIRY_NEVER:
                     interval = status_update_timer_interval(invoice['timestamp'] + invoice['expiry'])
@@ -150,11 +151,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     @pyqtSlot()
     def updateStatusStrings(self):
-        for i, item in enumerate(self.invoices):
+        for i, item in enumerate(self._invoices):
             invoice = self.get_invoice_for_key(item['key'])
             item['status'] = self.wallet.get_invoice_status(invoice)
             item['status_str'] = invoice.get_status_str(item['status'])
-            index = self.index(i,0)
+            index = self.index(i, 0)
             self.dataChanged.emit(index, index, [self._ROLE_RMAP['status'], self._ROLE_RMAP['status_str']])
 
         self.set_status_timer()
@@ -205,6 +206,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
 
     def get_invoice_as_dict(self, invoice: Invoice):
         return self.wallet.export_invoice(invoice)
+
 
 class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def __init__(self, wallet, parent=None):

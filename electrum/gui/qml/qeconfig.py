@@ -7,12 +7,13 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularEx
 from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.i18n import set_language, languages
 from electrum.logging import get_logger
-from electrum.util import DECIMAL_POINT_DEFAULT, base_unit_name_to_decimal_point
-from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
-from electrum.simple_config import SimpleConfig
+from electrum.util import base_unit_name_to_decimal_point
 
 from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 class QEConfig(AuthMixin, QObject):
@@ -251,7 +252,7 @@ class QEConfig(AuthMixin, QObject):
         return self.config.BTC_AMOUNTS_DECIMAL_POINT
 
     def max_precision(self):
-        return self.decimal_point() + 0 #self.extra_precision
+        return self.decimal_point() + 0  # self.extra_precision
 
     @pyqtSlot(str, result=QEAmount)
     def unitsToSats(self, unitAmount):
@@ -275,4 +276,4 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtSlot('quint64', result=float)
     def satsToUnits(self, satoshis):
-        return satoshis / pow(10,self.config.decimal_point)
+        return satoshis / pow(10, self.config.decimal_point)

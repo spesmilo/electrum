@@ -4,13 +4,14 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import format_time, AddTransactionException, TxMinedInfo
+from electrum.util import format_time, TxMinedInfo
 from electrum.transaction import tx_from_any, Transaction
 from electrum.network import Network
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
+
 
 class QETxDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
@@ -68,13 +69,13 @@ class QETxDetails(QObject, QtEventListener):
     @event_listener
     def on_event_verified(self, wallet, txid, info):
         if wallet == self._wallet.wallet and txid == self._txid:
-            self._logger.debug('verified event for our txid %s' % txid)
+            self._logger.debug(f'verified event for our txid {txid}')
             self.update()
 
     @event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
-            self._logger.debug('new_transaction event for our txid %s' % self._txid)
+            self._logger.debug(f'new_transaction event for our txid {txid}')
             self.update()
 
     walletChanged = pyqtSignal()
@@ -292,7 +293,7 @@ class QETxDetails(QObject, QtEventListener):
                 group_id = item.get('group_id')
                 if group_id:
                     full_history = self._wallet.wallet.get_full_history()
-                    group_item = full_history['group:'+ group_id]
+                    group_item = full_history['group:' + group_id]
                     self._lnamount.satsInt = int(group_item['ln_value'].value)
                 else:
                     self._lnamount.satsInt = int(item['amount_msat'] / 1000)

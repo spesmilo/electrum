@@ -13,9 +13,13 @@ if TYPE_CHECKING:
 
 
 class QEAbstractWizard(QObject):
+    """ Concrete subclasses of QEAbstractWizard must also inherit from a concrete AbstractWizard subclass.
+        QEAbstractWizard forms the base for all QML GUI based wizards, while AbstractWizard defines
+        the base for non-gui wizard flow navigation functionality.
+    """
     _logger = get_logger(__name__)
 
-    def __init__(self, parent = None):
+    def __init__(self, parent=None):
         QObject.__init__(self, parent)
 
     @pyqtSlot(result=str)
@@ -45,32 +49,33 @@ class QEAbstractWizard(QObject):
 
 
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
-
     createError = pyqtSignal([str], arguments=["error"])
     createSuccess = pyqtSignal()
 
-    def __init__(self, daemon: 'QEDaemon', plugins: 'Plugins', parent = None):
+    def __init__(self, daemon: 'QEDaemon', plugins: 'Plugins', parent=None):
         NewWalletWizard.__init__(self, daemon.daemon, plugins)
         QEAbstractWizard.__init__(self, parent)
         self._qedaemon = daemon
+        self._path = None
+        self._password = None
 
         # attach view names and accept handlers
         self.navmap_merge({
-            'wallet_name': { 'gui': 'WCWalletName' },
-            'wallet_type': { 'gui': 'WCWalletType' },
-            'keystore_type': { 'gui': 'WCKeystoreType' },
-            'create_seed': { 'gui': 'WCCreateSeed' },
-            'confirm_seed': { 'gui': 'WCConfirmSeed' },
-            'have_seed': { 'gui': 'WCHaveSeed' },
-            'script_and_derivation': { 'gui': 'WCScriptAndDerivation' },
-            'have_master_key': { 'gui': 'WCHaveMasterKey' },
-            'multisig': { 'gui': 'WCMultisig' },
-            'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
-            'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
-            'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
-            'multisig_cosigner_script_and_derivation': { 'gui': 'WCScriptAndDerivation' },
-            'imported': { 'gui': 'WCImport' },
-            'wallet_password': { 'gui': 'WCWalletPassword' }
+            'wallet_name': {'gui': 'WCWalletName'},
+            'wallet_type': {'gui': 'WCWalletType'},
+            'keystore_type': {'gui': 'WCKeystoreType'},
+            'create_seed': {'gui': 'WCCreateSeed'},
+            'confirm_seed': {'gui': 'WCConfirmSeed'},
+            'have_seed': {'gui': 'WCHaveSeed'},
+            'script_and_derivation': {'gui': 'WCScriptAndDerivation'},
+            'have_master_key': {'gui': 'WCHaveMasterKey'},
+            'multisig': {'gui': 'WCMultisig'},
+            'multisig_cosigner_keystore': {'gui': 'WCCosignerKeystore'},
+            'multisig_cosigner_key': {'gui': 'WCHaveMasterKey'},
+            'multisig_cosigner_seed': {'gui': 'WCHaveSeed'},
+            'multisig_cosigner_script_and_derivation': {'gui': 'WCScriptAndDerivation'},
+            'imported': {'gui': 'WCImport'},
+            'wallet_password': {'gui': 'WCWalletPassword'}
         })
 
     pathChanged = pyqtSignal()
@@ -127,15 +132,14 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
-
     def __init__(self, daemon: 'QEDaemon', parent=None):
         ServerConnectWizard.__init__(self, daemon.daemon)
         QEAbstractWizard.__init__(self, parent)
 
         # attach view names
         self.navmap_merge({
-            'autoconnect': { 'gui': 'WCAutoConnect' },
-            'proxy_ask': { 'gui': 'WCProxyAsk' },
-            'proxy_config': { 'gui': 'WCProxyConfig' },
-            'server_config': { 'gui': 'WCServerConfig' },
+            'autoconnect': {'gui': 'WCAutoConnect'},
+            'proxy_ask': {'gui': 'WCProxyAsk'},
+            'proxy_config': {'gui': 'WCProxyConfig'},
+            'server_config': {'gui': 'WCServerConfig'},
         })

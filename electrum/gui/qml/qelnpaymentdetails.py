@@ -45,7 +45,7 @@ class QELnPaymentDetails(QObject):
     @key.setter
     def key(self, key: str):
         if self._key != key:
-            self._logger.debug('key set -> %s' % key)
+            self._logger.debug(f'key set -> {key}')
             self._key = key
             self.keyChanged.emit()
             self.update()
@@ -104,7 +104,7 @@ class QELnPaymentDetails(QObject):
         self._label = tx['label']
         self._date = format_time(tx['timestamp'])
         self._timestamp = tx['timestamp']
-        self._status = 'settled' # TODO: other states? get_lightning_history is deciding the filter for us :(
+        self._status = 'settled'  # TODO: other states? get_lightning_history is deciding the filter for us :(
         self._phash = tx['payment_hash']
         self._preimage = tx['preimage']
 

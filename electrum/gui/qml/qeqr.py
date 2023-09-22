@@ -16,6 +16,7 @@ from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
 from electrum.util import profiler, get_asyncio_loop
 
+
 class QEQRParser(QObject):
     _logger = get_logger(__name__)
 
@@ -28,6 +29,7 @@ class QEQRParser(QObject):
 
         self._busy = False
         self._image = None
+        self._data = None
 
         self._text = text
         self.qrreader = get_qr_reader()
@@ -118,10 +120,12 @@ class QEQRParser(QObject):
             result.append(QPoint(x+self.scan_pos_x, y+self.scan_pos_y))
         return result
 
+
 class QEQRImageProvider(QQuickImageProvider):
     def __init__(self, max_size, parent=None):
         super().__init__(QQuickImageProvider.Image)
         self._max_size = max_size
+        self.qimg = None
 
     _logger = get_logger(__name__)
 
@@ -161,6 +165,7 @@ class QEQRImageProvider(QQuickImageProvider):
             self.qimg.fill(QColor('gray'))
         return self.qimg, self.qimg.size()
 
+
 # helper for placing icon exactly where it should go on the QR code
 # pyqt5 is unwilling to accept slots on QEQRImageProvider, so we need to define
 # a separate class (sigh)
@@ -187,6 +192,11 @@ class QEQRImageProviderHelper(QObject):
         qr.box_size = math.floor(pixelsize/modules)
         # calculate icon width in modules
         icon_modules = int(modules / 5)
-        icon_modules += (icon_modules+1)%2 # force odd
+        icon_modules += (icon_modules+1) % 2  # force odd
 
-        return { 'modules': modules, 'box_size': qr.box_size, 'icon_modules': icon_modules, 'valid' : valid }
+        return {
+            'modules': modules,
+            'box_size': qr.box_size,
+            'icon_modules': icon_modules,
+            'valid': valid
+        }

@@ -2,7 +2,6 @@ import os
 import signal
 import sys
 import threading
-import traceback
 from typing import TYPE_CHECKING
 
 try:
@@ -15,11 +14,10 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTranslator, QTimer, pyqtSignal,
-                          QT_VERSION_STR, PYQT_VERSION_STR)
+from PyQt5.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt5.QtGui import QGuiApplication
 
-from electrum.i18n import _, set_language, languages
+from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
@@ -29,7 +27,6 @@ if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
-    from electrum.wallet import Abstract_Wallet
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
 
@@ -86,7 +83,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
         self.timer.setInterval(500)  # msec
-        self.timer.timeout.connect(lambda: None) # periodically enter python scope
+        self.timer.timeout.connect(lambda: None)  # periodically enter python scope
 
         # hook for crash reporter
         Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
