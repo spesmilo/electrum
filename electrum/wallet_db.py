@@ -1164,8 +1164,8 @@ class WalletDBUpgrader(Logger):
 
 class WalletDB(JsonDB):
 
-    def __init__(self, s, *, storage=None, manual_upgrades=True):
-        self._upgrade = not manual_upgrades
+    def __init__(self, s, *, storage=None, upgrade=False):
+        self._upgrade = upgrade
         JsonDB.__init__(self, s, storage, encoder=MyEncoder)
         # create pointers
         self.load_transactions()
@@ -1634,7 +1634,7 @@ class WalletDB(JsonDB):
         for data in split_data:
             path = root_path + '.' + data['suffix']
             item_storage = WalletStorage(path)
-            db = WalletDB(json.dumps(data), storage=item_storage, manual_upgrades=False)
+            db = WalletDB(json.dumps(data), storage=item_storage, upgrades=True)
             db.write()
             file_list.append(path)
         return file_list

@@ -144,7 +144,7 @@ class QEWalletDB(QObject):
             # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
             #       this also completely ignores db.requires_split(), db.get_action(), etc
             try:
-                db = WalletDB(self._storage.read(), storage=self._storage, manual_upgrades=False)
+                db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
             except WalletRequiresSplit as e:
                 raise WalletFileException(_('This wallet requires to be split. This is currently not supported on mobile'))
             wallet = Wallet(db, config=self._config)
@@ -166,7 +166,7 @@ class QEWalletDB(QObject):
         """can raise WalletFileException"""
         # needs storage accessible
         try:
-            self._db = WalletDB(self._storage.read(), storage=self._storage, manual_upgrades=False)
+            self._db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
         except WalletRequiresSplit as e:
             self._logger.warning('wallet requires split')
             raise WalletFileException(_('This wallet needs splitting. This is not supported on mobile'))

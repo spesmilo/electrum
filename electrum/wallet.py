@@ -408,7 +408,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         new_storage._encryption_version = self.storage._encryption_version
         new_storage.pubkey = self.storage.pubkey
 
-        new_db = WalletDB(self.db.dump(), storage=new_storage, manual_upgrades=False)
+        new_db = WalletDB(self.db.dump(), storage=new_storage, upgrade=True)
         if self.lnworker:
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
@@ -3709,7 +3709,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
-    db = WalletDB('', storage=storage, manual_upgrades=False)
+    db = WalletDB('', storage=storage, upgrade=True)
 
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase)
@@ -3748,7 +3748,7 @@ def restore_wallet_from_text(
             raise Exception("Remove the existing wallet first!")
     if encrypt_file is None:
         encrypt_file = True
-    db = WalletDB('', storage=storage, manual_upgrades=False)
+    db = WalletDB('', storage=storage, upgrade=True)
     text = text.strip()
     if keystore.is_address_list(text):
         wallet = Imported_Wallet(db, config=config)

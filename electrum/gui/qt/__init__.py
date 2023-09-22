@@ -431,7 +431,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             storage.decrypt(d['password'])
 
         try:
-            db = WalletDB(storage.read(), storage=storage, manual_upgrades=True)
+            db = WalletDB(storage.read(), storage=storage, upgrade=True)
         except WalletRequiresSplit as e:
             try:
                 wizard.run_split(storage, e._split_data)
