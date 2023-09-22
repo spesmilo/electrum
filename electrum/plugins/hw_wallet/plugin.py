@@ -23,29 +23,29 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from abc import abstractmethod, ABC
+from typing import TYPE_CHECKING, Sequence, Optional, Type, Iterable, Any
 
-from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type, Iterable, Any
-from functools import partial
-
-from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr, DeviceInfo,
+from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr,
                              assert_runs_in_hwd_thread, runs_in_hwd_thread)
 from electrum.i18n import _
 from electrum.bitcoin import is_address, opcodes
-from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.util import versiontuple, UserFacingException
+from electrum.transaction import TxOutput, PartialTransaction
 from electrum.bip32 import BIP32Node
 from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
     import threading
+    from electrum.plugin import DeviceInfo
     from electrum.wallet import Abstract_Wallet
-    from electrum.base_wizard import BaseWizard
 
 
-class HW_PluginBase(BasePlugin):
+class HW_PluginBase(BasePlugin, ABC):
     keystore_class: Type['Hardware_KeyStore']
     libraries_available: bool
+    SUPPORTED_XTYPES = ()
 
     # define supported library versions:  minimum_library <= x < maximum_library
     minimum_library = (0,)
@@ -89,25 +89,6 @@ class HW_PluginBase(BasePlugin):
                 self.device_manager().unpair_pairing_code(keystore.pairing_code())
                 if keystore.thread:
                     keystore.thread.stop()
-
-    def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
-        devmgr = self.device_manager()
-        client = wizard.run_task_without_blocking_gui(
-            task=partial(devmgr.client_by_id, device_id))
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
-        return client
-
-    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose) -> 'HardwareClientBase':
-        """Called when creating a new wallet or when using the device to decrypt
-        an existing wallet. Select the device to use.  If the device is
-        uninitialized, go through the initialization process.
-
-        Runs in GUI thread.
-        """
-        raise NotImplementedError()
 
     def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True, *,
                    devices: Sequence['Device'] = None,
@@ -192,11 +173,8 @@ class HW_PluginBase(BasePlugin):
                       handler: Optional['HardwareHandlerBase']) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
-    def get_xpub(self, device_id: str, derivation: str, xtype, wizard: 'BaseWizard') -> str:
-        raise NotImplementedError()
-
     def create_handler(self, window) -> 'HardwareHandlerBase':
-        # note: in Qt GUI, 'window' is either an ElectrumWindow or an InstallWizard
+        # note: in Qt GUI, 'window' is either an ElectrumWindow or an QENewWalletWizard
         raise NotImplementedError()
 
     def can_recognize_device(self, device: Device) -> bool:
@@ -205,9 +183,14 @@ class HW_PluginBase(BasePlugin):
         """
         return device.product_key in self.DEVICE_IDS
 
+    @abstractmethod
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet: bool) -> str:
+        """Return view name for device
+        """
+        pass
 
-class HardwareClientBase:
 
+class HardwareClientBase(ABC):
     handler = None  # type: Optional['HardwareHandlerBase']
 
     def __init__(self, *, plugin: 'HW_PluginBase'):
@@ -217,18 +200,21 @@ class HardwareClientBase:
     def device_manager(self) -> 'DeviceMgr':
         return self.plugin.device_manager()
 
+    @abstractmethod
     def is_pairable(self) -> bool:
-        raise NotImplementedError()
-
-    def close(self):
-        raise NotImplementedError()
-
-    def timeout(self, cutoff) -> None:
         pass
 
+    @abstractmethod
+    def close(self):
+        pass
+
+    def timeout(self, cutoff) -> None:  # noqa: B027
+        pass
+
+    @abstractmethod
     def is_initialized(self) -> bool:
         """True if initialized, False if wiped."""
-        raise NotImplementedError()
+        pass
 
     def label(self) -> Optional[str]:
         """The name given by the user to the device.
@@ -251,11 +237,13 @@ class HardwareClientBase:
         root_fp = self.request_root_fingerprint_from_device()
         return root_fp
 
+    @abstractmethod
     def has_usable_connection_with_device(self) -> bool:
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def get_xpub(self, bip32_path: str, xtype) -> str:
-        raise NotImplementedError()
+        pass
 
     @runs_in_hwd_thread
     def request_root_fingerprint_from_device(self) -> str:
@@ -276,15 +264,9 @@ class HardwareClientBase:
     def device_model_name(self) -> Optional[str]:
         """Return the name of the model of this device, which might be displayed in the UI.
         E.g. for Trezor, "Trezor One" or "Trezor T".
+        If this method is not defined for a plugin, the plugin name is used as default
         """
-        return None
-
-    def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:
-        """Called during wallet creation in the wizard, before the keystore
-        is constructed for the first time. 'd' is the dict that will be
-        passed to the keystore constructor.
-        """
-        pass
+        return self.plugin.name
 
 
 class HardwareHandlerBase:
@@ -379,3 +361,9 @@ class OutdatedHwFirmwareException(UserFacingException):
             return str(self) + "\n\n" + suffix
         else:
             return suffix
+
+
+class OperationCancelled(UserFacingException):
+    """Emitted when an operation is cancelled by user on a HW device
+    """
+    pass

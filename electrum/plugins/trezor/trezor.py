@@ -1,21 +1,22 @@
-import traceback
-import sys
-from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING, Sequence
+from typing import NamedTuple, Any, Optional, TYPE_CHECKING, Sequence
 
-from electrum.util import bfh, versiontuple, UserCancelled, UserFacingException
+from electrum.util import bfh, UserCancelled, UserFacingException
 from electrum.bip32 import BIP32Node
 from electrum import descriptor
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.keystore import Hardware_KeyStore
-from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.logging import get_logger
 
-from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
+from electrum.plugins.hw_wallet import HW_PluginBase
+from electrum.plugins.hw_wallet.plugin import is_any_tx_output_on_change_branch, \
+    trezor_validate_op_return_output_and_get_data, LibraryFoundButUnusable, OutdatedHwFirmwareException
+
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -212,43 +213,8 @@ class TrezorPlugin(HW_PluginBase):
     def get_coin_name(self):
         return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
-    def initialize_device(self, device_id, wizard, handler):
-        # Initialization method
-        msg = _("Choose how you want to initialize your {}.").format(self.device, self.device)
-        choices = [
-            # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
-        ]
-        def f(method):
-            import threading
-            settings = self.request_trezor_init_settings(wizard, method, device_id)
-            t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.daemon = True
-            t.start()
-            exit_code = wizard.loop.exec_()
-            if exit_code != 0:
-                # this method (initialize_device) was called with the expectation
-                # of leaving the device in an initialized state when finishing.
-                # signal that this is not the case:
-                raise UserCancelled()
-        wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
-
-    def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
-        exit_code = 0
-        try:
-            self._initialize_device(settings, method, device_id, wizard, handler)
-        except UserCancelled:
-            exit_code = 1
-        except BaseException as e:
-            self.logger.exception('')
-            handler.show_error(repr(e))
-            exit_code = 1
-        finally:
-            wizard.loop.exit(exit_code)
-
     @runs_in_hwd_thread
-    def _initialize_device(self, settings: TrezorInitSettings, method, device_id, wizard, handler):
+    def _initialize_device(self, settings: TrezorInitSettings, method, device_id, handler):
         if method == TIM_RECOVER and settings.recovery_type == RecoveryDeviceType.ScrambledWords:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
@@ -294,32 +260,6 @@ class TrezorPlugin(HW_PluginBase):
             public_key=bip32node.eckey.get_public_key_bytes(compressed=True),
         )
         return HDNodePathType(node=node, address_n=address_n)
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-
-        if not client.is_uptodate():
-            msg = (_('Outdated {} firmware for device labelled {}. Please '
-                     'download the updated firmware from {}')
-                   .format(self.device, client.label(), self.firmware_URL))
-            raise OutdatedHwFirmwareException(msg)
-
-        if not device_info.initialized:
-            self.initialize_device(device_id, wizard, client.handler)
-        is_creating_wallet = purpose == HWD_SETUP_NEW_WALLET
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub('m', 'standard', creating=is_creating_wallet))
-        client.used()
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        xpub = client.get_xpub(derivation, xtype)
-        client.used()
-        return xpub
 
     def get_trezor_input_script_type(self, electrum_txin_type: str):
         if electrum_txin_type in ('p2wpkh', 'p2wsh'):
@@ -524,3 +464,35 @@ class TrezorPlugin(HW_PluginBase):
             for o in tx.outputs()
         ]
         return t
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:  # new wallet
+            return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
+        else:  # unlock existing wallet
+            return 'trezor_unlock'
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'trezor_start': {
+                'next': 'trezor_xpub',
+            },
+            'trezor_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'trezor_not_initialized': {
+                'next': 'trezor_choose_new_recover',
+            },
+            'trezor_choose_new_recover': {
+                'next': 'trezor_do_init',
+            },
+            'trezor_do_init': {
+                'next': 'trezor_start',
+            },
+            'trezor_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

@@ -1,11 +1,15 @@
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
-from PyQt5.QtQml import QQmlApplicationEngine
 
 from electrum.logging import get_logger
 from electrum import mnemonic
 from electrum.wizard import NewWalletWizard, ServerConnectWizard
+
+if TYPE_CHECKING:
+    from electrum.gui.qml.qedaemon import QEDaemon
+    from electrum.plugin import Plugins
 
 
 class QEAbstractWizard(QObject):
@@ -26,7 +30,6 @@ class QEAbstractWizard(QObject):
     @pyqtSlot('QJSValue', result='QVariant')
     def submit(self, wizard_data):
         wdata = wizard_data.toVariant()
-        self.log_state(wdata)
         view = self.resolve_next(self._current.view, wdata)
         return { 'view': view.view, 'wizard_data': view.wizard_data }
 
@@ -46,10 +49,10 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     createError = pyqtSignal([str], arguments=["error"])
     createSuccess = pyqtSignal()
 
-    def __init__(self, daemon, parent = None):
-        NewWalletWizard.__init__(self, daemon)
+    def __init__(self, daemon: 'QEDaemon', plugins: 'Plugins', parent = None):
+        NewWalletWizard.__init__(self, daemon.daemon, plugins)
         QEAbstractWizard.__init__(self, parent)
-        self._daemon = daemon
+        self._qedaemon = daemon
 
         # attach view names and accept handlers
         self.navmap_merge({
@@ -59,13 +62,13 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'create_seed': { 'gui': 'WCCreateSeed' },
             'confirm_seed': { 'gui': 'WCConfirmSeed' },
             'have_seed': { 'gui': 'WCHaveSeed' },
-            'bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'script_and_derivation': { 'gui': 'WCScriptAndDerivation' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': 'WCMultisig' },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
             'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
-            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
+            'multisig_cosigner_script_and_derivation': { 'gui': 'WCBIP39Refine' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
@@ -81,7 +84,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self.pathChanged.emit()
 
     def is_single_password(self):
-        return self._daemon.singlePasswordEnabled
+        return self._qedaemon.singlePasswordEnabled
 
     @pyqtSlot('QJSValue', result=bool)
     def hasDuplicateMasterKeys(self, js_data):
@@ -108,7 +111,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             data['encrypt'] = True
             data['password'] = single_password
 
-        path = os.path.join(os.path.dirname(self._daemon.daemon.config.get_wallet_path()), data['wallet_name'])
+        path = os.path.join(os.path.dirname(self._qedaemon.daemon.config.get_wallet_path()), data['wallet_name'])
 
         try:
             self.create_storage(path, data)
@@ -125,10 +128,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
-    def __init__(self, daemon, parent = None):
-        ServerConnectWizard.__init__(self, daemon)
+    def __init__(self, daemon: 'QEDaemon', parent=None):
+        ServerConnectWizard.__init__(self, daemon.daemon)
         QEAbstractWizard.__init__(self, parent)
-        self._daemon = daemon
 
         # attach view names
         self.navmap_merge({

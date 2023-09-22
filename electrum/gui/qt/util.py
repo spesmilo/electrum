@@ -38,7 +38,6 @@ from electrum.qrreader import MissingQrDetectionLib
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
-    from .installwizard import InstallWizard
     from .paytoedit import PayToEdit
 
     from electrum.simple_config import SimpleConfig
@@ -455,6 +454,50 @@ class ChoicesLayout(object):
 
     def selected_index(self):
         return self.group.checkedId()
+
+
+class ChoiceWidget(QWidget):
+    itemSelected = pyqtSignal([int], arguments=['index'])
+
+    def __init__(self, *, message=None, choices=None, selected=None):
+        QWidget.__init__(self)
+        vbox = QVBoxLayout()
+        self.setLayout(vbox)
+
+        if choices is None:
+            choices = []
+
+        self.selected_index = -1
+        self.selected_item = None
+        self.choices = choices
+
+        if message and len(message) > 50:
+            vbox.addWidget(WWLabel(message))
+            message = ""
+        gb2 = QGroupBox(message)
+        vbox.addWidget(gb2)
+        vbox2 = QVBoxLayout()
+        gb2.setLayout(vbox2)
+        self.group = group = QButtonGroup()
+        assert isinstance(choices, list)
+        iterator = enumerate(choices)
+        for i, c in iterator:
+            button = QRadioButton(gb2)
+            button.setText(c[1])
+            vbox2.addWidget(button)
+            group.addButton(button)
+            group.setId(button, i)
+            if (i == 0 and selected is None) or c[0] == selected:
+                self.selected_index = i
+                self.selected_item = c
+                button.setChecked(True)
+        group.buttonClicked.connect(self.on_selected)
+
+    def on_selected(self, button):
+        self.selected_index = self.group.id(button)
+        self.selected_item = self.choices[self.selected_index]
+        self.itemSelected.emit(self.selected_index)
+
 
 def address_field(addresses):
     hbox = QHBoxLayout()
@@ -1291,10 +1334,7 @@ class ImageGraphicsEffect(QObject):
         return result
 
 
-
-
 class QtEventListener(EventListener):
-
     qt_callback_signal = QtCore.pyqtSignal(tuple)
 
     def register_callbacks(self):
@@ -1302,12 +1342,16 @@ class QtEventListener(EventListener):
         EventListener.register_callbacks(self)
 
     def unregister_callbacks(self):
-        self.qt_callback_signal.disconnect()
+        try:
+            self.qt_callback_signal.disconnect()
+        except RuntimeError:  # wrapped Qt object might be deleted
+            pass
         EventListener.unregister_callbacks(self)
 
     def on_qt_callback_signal(self, args):
         func = args[0]
         return func(self, *args[1:])
+
 
 # decorator for members of the QtEventListener class
 def qt_event_listener(func):

@@ -1,5 +1,6 @@
 import os
 import threading
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
@@ -7,16 +8,19 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import WalletFileException, standardize_path
-from electrum.wallet import Abstract_Wallet
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
-from electrum.daemon import Daemon
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
 from .qewalletdb import QEWalletDB
 from .qewizard import QENewWalletWizard, QEServerConnectWizard
+
+if TYPE_CHECKING:
+    from electrum.daemon import Daemon
+    from electrum.plugin import Plugins
+
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
@@ -108,6 +112,7 @@ class QEWalletListModel(QAbstractListModel):
                 return
             i += 1
 
+
 class QEDaemon(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
@@ -135,9 +140,10 @@ class QEDaemon(AuthMixin, QObject):
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    def __init__(self, daemon: 'Daemon', parent=None):
+    def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
         self.daemon = daemon
+        self.plugins = plugins
         self.qefx = QEFX(daemon.fx, daemon.config)
 
         self._backendWalletLoaded.connect(self._on_backend_wallet_loaded)
@@ -334,7 +340,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtProperty(QENewWalletWizard, notify=newWalletWizardChanged)
     def newWalletWizard(self):
         if not self._new_wallet_wizard:
-            self._new_wallet_wizard = QENewWalletWizard(self)
+            self._new_wallet_wizard = QENewWalletWizard(self, self.plugins)
 
         return self._new_wallet_wizard
 

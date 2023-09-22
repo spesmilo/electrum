@@ -1,7 +1,7 @@
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty, QObject
+from PyQt5.QtCore import pyqtSignal, pyqtProperty, QObject
 
-from electrum.i18n import _
 from electrum.logging import get_logger
+
 
 class PluginQObject(QObject):
     logger = get_logger(__name__)
@@ -23,6 +23,8 @@ class PluginQObject(QObject):
 
     @pyqtProperty(bool, notify=busyChanged)
     def busy(self): return self._busy
+
+    # below only used for QML, not compatible yet with Qt
 
     @pyqtProperty(bool, notify=pluginEnabledChanged)
     def pluginEnabled(self): return self.plugin.is_enabled()

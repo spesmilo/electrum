@@ -4,12 +4,10 @@
 from abc import ABC, abstractmethod
 import base64
 import hashlib
-from typing import Dict, List, Optional, Sequence, Tuple
-
+from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from electrum import bip32, constants, ecc
 from electrum import descriptor
-from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
 from electrum.bitcoin import EncodeBase58Check, int_to_hex, is_b58_address, is_segwit_script_type, var_int
 from electrum.crypto import hash_160
@@ -24,6 +22,9 @@ from electrum.wallet import Standard_Wallet
 from ..hw_wallet import HardwareClientBase, HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -1439,19 +1440,6 @@ class LedgerPlugin(HW_PluginBase):
             self.logger.info(f"cannot connect at {device.path} {e}", exc_info=e)
         return None
 
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client: Ledger_Client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_master_fingerprint())
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        return client.get_xpub(derivation, xtype)
-
     @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
@@ -1465,3 +1453,28 @@ class LedgerPlugin(HW_PluginBase):
         txin_type = wallet.get_txin_type(address)
 
         keystore.show_address(sequence, txin_type)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'ledger_start' if device_info.initialized else 'ledger_not_initialized'
+        else:
+            return 'ledger_unlock'
+
+    # insert ledger pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'ledger_start': {
+                'next': 'ledger_xpub',
+            },
+            'ledger_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'ledger_not_initialized': {},
+            'ledger_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)
+

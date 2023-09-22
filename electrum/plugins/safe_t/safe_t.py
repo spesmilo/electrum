@@ -1,23 +1,21 @@
-from binascii import hexlify, unhexlify
-import traceback
-import sys
-from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING, Sequence
+from typing import Optional, TYPE_CHECKING, Sequence
 
-from electrum.util import bfh, versiontuple, UserCancelled, UserFacingException
+from electrum.util import UserFacingException
 from electrum.bip32 import BIP32Node
 from electrum import descriptor
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.keystore import Hardware_KeyStore
-from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
 
 if TYPE_CHECKING:
     from .client import SafeTClient
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 # Safe-T mini initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -156,52 +154,8 @@ class SafeTPlugin(HW_PluginBase):
     def get_coin_name(self):
         return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
-    def initialize_device(self, device_id, wizard, handler):
-        # Initialization method
-        msg = _("Choose how you want to initialize your {}.\n\n"
-                "The first two methods are secure as no secret information "
-                "is entered into your computer.\n\n"
-                "For the last two methods you input secrets on your keyboard "
-                "and upload them to your {}, and so you should "
-                "only do those on a computer you know to be trustworthy "
-                "and free of malware."
-        ).format(self.device, self.device)
-        choices = [
-            # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
-            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
-            (TIM_PRIVKEY, _("Upload a master private key"))
-        ]
-        def f(method):
-            import threading
-            settings = self.request_safe_t_init_settings(wizard, method, self.device)
-            t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.daemon = True
-            t.start()
-            exit_code = wizard.loop.exec_()
-            if exit_code != 0:
-                # this method (initialize_device) was called with the expectation
-                # of leaving the device in an initialized state when finishing.
-                # signal that this is not the case:
-                raise UserCancelled()
-        wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
-
-    def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
-        exit_code = 0
-        try:
-            self._initialize_device(settings, method, device_id, wizard, handler)
-        except UserCancelled:
-            exit_code = 1
-        except BaseException as e:
-            self.logger.exception('')
-            handler.show_error(repr(e))
-            exit_code = 1
-        finally:
-            wizard.loop.exit(exit_code)
-
     @runs_in_hwd_thread
-    def _initialize_device(self, settings, method, device_id, wizard, handler):
+    def _initialize_device(self, settings, method, device_id, handler):
         item, label, pin_protection, passphrase_protection = settings
 
         if method == TIM_RECOVER:
@@ -251,24 +205,6 @@ class SafeTPlugin(HW_PluginBase):
             public_key=bip32node.eckey.get_public_key_bytes(compressed=True),
         )
         return self.types.HDNodePathType(node=node, address_n=address_n)
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        if not device_info.initialized:
-            self.initialize_device(device_id, wizard, client.handler)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m", 'standard'))
-        client.used()
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        xpub = client.get_xpub(derivation, xtype)
-        client.used()
-        return xpub
 
     def get_safet_input_script_type(self, electrum_txin_type: str):
         if electrum_txin_type in ('p2wpkh', 'p2wsh'):
@@ -460,3 +396,35 @@ class SafeTPlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'safet_start' if device_info.initialized else 'safet_not_initialized'
+        else:
+            return 'safet_unlock'
+
+    # insert safe_t pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'safet_start': {
+                'next': 'safet_xpub',
+            },
+            'safet_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'safet_not_initialized': {
+                'next': 'safet_choose_new_recover',
+            },
+            'safet_choose_new_recover': {
+                'next': 'safet_do_init',
+            },
+            'safet_do_init': {
+                'next': 'safet_start',
+            },
+            'safet_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

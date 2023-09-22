@@ -25,7 +25,7 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
@@ -46,6 +46,14 @@ if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
 
 
+MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
+                              + _("You have multiple consecutive whitespaces or leading/trailing "
+                                  "whitespaces in your passphrase.") + " " \
+                              + _("This is discouraged.") + " " \
+                              + _("Due to a bug, old versions of Electrum will NOT be creating the "
+                                  "same wallet as newer versions or other software.")
+
+
 def seed_warning_msg(seed):
     return ''.join([
         "<p>",
@@ -63,6 +71,8 @@ def seed_warning_msg(seed):
 
 
 class SeedLayout(QVBoxLayout):
+
+    updated = pyqtSignal()
 
     def seed_options(self):
         dialog = QDialog()
@@ -120,6 +130,7 @@ class SeedLayout(QVBoxLayout):
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.seed_type = seed_type_values[clayout.selected_index()] if len(seed_types) >= 2 else 'electrum'
+        self.updated.emit()
 
     def __init__(
             self,
