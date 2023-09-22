@@ -68,7 +68,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
             'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
-            'multisig_cosigner_script_and_derivation': { 'gui': 'WCBIP39Refine' },
+            'multisig_cosigner_script_and_derivation': { 'gui': 'WCScriptAndDerivation' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
