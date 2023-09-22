@@ -74,20 +74,6 @@ ElDialog {
                 color: constants.colorError
                 font.pixelSize: constants.fontSizeLarge
             }
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                visible: wallet_db.requiresSplit
-                text: qsTr('Wallet requires splitting')
-                font.pixelSize: constants.fontSizeLarge
-            }
-
-            FlatButton {
-                Layout.alignment: Qt.AlignHCenter
-                visible: wallet_db.requiresSplit
-                text: qsTr('Split wallet')
-                onClicked: wallet_db.doSplit()
-            }
         }
 
         FlatButton {
@@ -113,11 +99,6 @@ ElDialog {
     WalletDB {
         id: wallet_db
         path: openwalletdialog.path
-        onSplitFinished: {
-            // if wallet needed splitting, we close the pane and refresh the wallet list
-            Daemon.availableWallets.reload()
-            openwalletdialog.close()
-        }
         onReadyChanged: {
             if (ready) {
                 Daemon.loadWallet(openwalletdialog.path, password.text)

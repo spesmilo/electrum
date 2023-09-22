@@ -1,16 +1,13 @@
-import os
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.storage import WalletStorage, StorageEncryptionVersion
+from electrum.storage import WalletStorage
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
-from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum.util import InvalidPassword, WalletFileException, send_exception_to_crash_reporter
-from electrum import keystore
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -26,8 +23,6 @@ class QEWalletDB(QObject):
     needsHWDeviceChanged = pyqtSignal()
     passwordChanged = pyqtSignal()
     validPasswordChanged = pyqtSignal()
-    requiresSplitChanged = pyqtSignal()
-    splitFinished = pyqtSignal()
     readyChanged = pyqtSignal()
     invalidPassword = pyqtSignal()
 
@@ -45,7 +40,6 @@ class QEWalletDB(QObject):
         self._needsPassword = False
         self._needsHWDevice = False
         self._password = ''
-        self._requiresSplit = False
         self._validPassword = True
 
         self._storage = None
@@ -101,10 +95,6 @@ class QEWalletDB(QObject):
         self._password = wallet_password
         self.passwordChanged.emit()
 
-    @pyqtProperty(bool, notify=requiresSplitChanged)
-    def requiresSplit(self):
-        return self._requiresSplit
-
     @pyqtProperty(bool, notify=validPasswordChanged)
     def validPassword(self):
         return self._validPassword
@@ -131,16 +121,6 @@ class QEWalletDB(QObject):
             self.walletOpenProblem.emit(str(e))
             if e.should_report_crash:
                 send_exception_to_crash_reporter(e)
-
-    @pyqtSlot()
-    def doSplit(self):
-        self._logger.warning('doSplit')
-        if not self._requiresSplit:
-            return
-
-        self._db.split_accounts(self._path)
-
-        self.splitFinished.emit()
 
     def _load_storage(self):
         """can raise WalletFileException"""
@@ -185,9 +165,7 @@ class QEWalletDB(QObject):
         self._db = WalletDB(self._storage.read(), storage=self._storage, manual_upgrades=True)
         if self._db.requires_split():
             self._logger.warning('wallet requires split')
-            self._requiresSplit = True
-            self.requiresSplitChanged.emit()
-            return
+            raise WalletFileException(_('This wallet needs splitting. This is not supported on mobile'))
         if self._db.get_action():
             self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
             raise WalletFileException(_('This wallet has an action pending. This is currently not supported on mobile'))
