@@ -414,14 +414,14 @@ class SettingsDialog(WindowModalDialog):
                 msg = _("After disabling passphrases, you can only pair this "
                         "Electrum wallet if it had an empty passphrase.  "
                         "If its passphrase was not empty, you will need to "
-                        "create a new wallet with the install wizard.  You "
-                        "can use this wallet again at any time by re-enabling "
-                        "passphrases and entering its passphrase.")
+                        "create a new wallet.  You can use this wallet again "
+                        "at any time by re-enabling passphrases and entering "
+                        "its passphrase.")
             else:
                 msg = _("Your current Electrum wallet can only be used with "
                         "an empty passphrase.  You must create a separate "
-                        "wallet with the install wizard for other passphrases "
-                        "as each one generates a new set of addresses.")
+                        "wallet for other passphrases as each one generates "
+                        "a new set of addresses.")
             msg += "\n\n" + _("Are you sure you want to proceed?")
             if not self.question(msg, title=title):
                 return
