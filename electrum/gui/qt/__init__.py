@@ -61,7 +61,7 @@ from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.wallet_db import WalletDB
+from electrum.wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade
 from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
@@ -430,10 +430,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
             storage.decrypt(d['password'])
 
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=True)
-        if db.requires_split() or db.requires_upgrade():
+        try:
+            db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        except WalletRequiresSplit as e:
             try:
-                wizard.run_upgrades(db)
+                wizard.run_split(storage, e._split_data)
             except UserCancelled:
                 return
 

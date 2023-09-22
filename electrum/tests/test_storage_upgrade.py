@@ -7,7 +7,7 @@ import asyncio
 import inspect
 
 import electrum
-from electrum.wallet_db import WalletDB
+from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
 from electrum.wallet import Wallet
 from electrum import constants
 from electrum import util
@@ -331,35 +331,34 @@ class TestStorageUpgrade(WalletTestCase):
     async def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:
             # test manual upgrades
-            db = self._load_db_from_json_string(wallet_json=wallet_json,
-                                                manual_upgrades=True)
-            self.assertFalse(db.requires_split())
-            if db.requires_upgrade():
-                db.upgrade()
+            try:
+                db = self._load_db_from_json_string(
+                    wallet_json=wallet_json,
+                    upgrade=False)
+            except WalletRequiresUpgrade:
+                db = self._load_db_from_json_string(
+                    wallet_json=wallet_json,
+                    upgrade=True)
                 await self._sanity_check_upgraded_db(db)
-            # test automatic upgrades
-            db2 = self._load_db_from_json_string(wallet_json=wallet_json,
-                                                 manual_upgrades=False)
-            await self._sanity_check_upgraded_db(db2)
-            return db2
+            return db
         else:
-            db = self._load_db_from_json_string(wallet_json=wallet_json,
-                                                manual_upgrades=True)
-            self.assertTrue(db.requires_split())
-            split_data = db.get_split_accounts()
-            self.assertEqual(accounts, len(split_data))
-            for item in split_data:
-                data = json.dumps(item)
-                new_db = WalletDB(data, storage=None, manual_upgrades=False)
-                await self._sanity_check_upgraded_db(new_db)
+            try:
+                db = self._load_db_from_json_string(
+                    wallet_json=wallet_json,
+                    upgrade=False)
+            except WalletRequiresSplit as e:
+                split_data = e._split_data
+                self.assertEqual(accounts, len(split_data))
+                for item in split_data:
+                    data = json.dumps(item)
+                    new_db = WalletDB(data, storage=None, upgrade=True)
+                    await self._sanity_check_upgraded_db(new_db)
 
     async def _sanity_check_upgraded_db(self, db):
-        self.assertFalse(db.requires_split())
-        self.assertFalse(db.requires_upgrade())
         wallet = Wallet(db, config=self.config)
         await wallet.stop()
 
     @staticmethod
-    def _load_db_from_json_string(*, wallet_json, manual_upgrades):
-        db = WalletDB(wallet_json, storage=None, manual_upgrades=manual_upgrades)
+    def _load_db_from_json_string(*, wallet_json, upgrade):
+        db = WalletDB(wallet_json, storage=None, upgrade=upgrade)
         return db

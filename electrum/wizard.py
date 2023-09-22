@@ -587,7 +587,7 @@ class NewWalletWizard(AbstractWizard):
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
-        db = WalletDB('', storage=storage, manual_upgrades=False)
+        db = WalletDB('', storage=storage, upgrade=True)
         db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
 
         db.put('wallet_type', data['wallet_type'])

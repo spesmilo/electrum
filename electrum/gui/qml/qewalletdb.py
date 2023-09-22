@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.storage import WalletStorage
-from electrum.wallet_db import WalletDB
+from electrum.wallet_db import WalletDB, WalletRequiresSplit
 from electrum.wallet import Wallet
 from electrum.util import InvalidPassword, WalletFileException, send_exception_to_crash_reporter
 
@@ -143,7 +143,10 @@ class QEWalletDB(QObject):
         else:  # storage not encrypted; but it might still have a keystore pw
             # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
             #       this also completely ignores db.requires_split(), db.get_action(), etc
-            db = WalletDB(self._storage.read(), storage=self._storage, manual_upgrades=False)
+            try:
+                db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
+            except WalletRequiresSplit as e:
+                raise WalletFileException(_('This wallet requires to be split. This is currently not supported on mobile'))
             wallet = Wallet(db, config=self._config)
             self.needsPassword = wallet.has_password()
             if self.needsPassword:
@@ -162,18 +165,14 @@ class QEWalletDB(QObject):
     def _load_db(self):
         """can raise WalletFileException"""
         # needs storage accessible
-        self._db = WalletDB(self._storage.read(), storage=self._storage, manual_upgrades=True)
-        if self._db.requires_split():
+        try:
+            self._db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
+        except WalletRequiresSplit as e:
             self._logger.warning('wallet requires split')
             raise WalletFileException(_('This wallet needs splitting. This is not supported on mobile'))
         if self._db.get_action():
             self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
             raise WalletFileException(_('This wallet has an action pending. This is currently not supported on mobile'))
-
-        if self._db.requires_upgrade():
-            self._logger.warning('wallet requires upgrade, upgrading')
-            self._db.upgrade()
-            self._db.write()
 
         self._ready = True
         self.readyChanged.emit()

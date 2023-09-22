@@ -47,7 +47,7 @@ from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
 from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
-from .wallet_db import WalletDB
+from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -481,13 +481,13 @@ class Daemon(Logger):
         return func_wrapper
 
     @with_wallet_lock
-    def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
+    def load_wallet(self, path, password, *, upgrade=False) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
         if wallet := self._wallets.get(wallet_key):
             return wallet
-        wallet = self._load_wallet(path, password, manual_upgrades=manual_upgrades, config=self.config)
+        wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
         if wallet is None:
             return
         wallet.start_network(self.network)
@@ -500,7 +500,7 @@ class Daemon(Logger):
             path,
             password,
             *,
-            manual_upgrades: bool = True,
+            upgrade: bool = False,
             config: SimpleConfig,
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -512,10 +512,11 @@ class Daemon(Logger):
                 return
             storage.decrypt(password)
         # read data, pass it to db
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=manual_upgrades)
-        if db.requires_split():
+        try:
+            db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
+        except WalletRequiresSplit:
             return
-        if db.requires_upgrade():
+        except WalletRequiresUpgrade:
             return
         if db.get_action():
             return
@@ -653,7 +654,7 @@ class Daemon(Logger):
             #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
-                    wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
+                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config)
                 except util.InvalidPassword:
                     pass
                 except Exception:
