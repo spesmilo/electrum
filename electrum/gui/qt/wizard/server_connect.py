@@ -41,7 +41,7 @@ class WCAutoConnect(WizardComponent):
                   "select a server manually.")
         choices = [('autoconnect', _("Auto connect")),
                    ('select', _("Select server manually"))]
-        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='autoconnect')
         self.choice_w.itemSelected.connect(self.on_updated)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
@@ -55,9 +55,11 @@ class WCProxyAsk(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
         message = _("Do you use a local proxy service such as TOR to reach the internet?")
-        choices = [('yes', _("Yes")),
-                   ('no', _("No"))]
-        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        choices = [
+            ('no', _("No")),
+            ('yes', _("Yes")),
+        ]
+        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='no')
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
