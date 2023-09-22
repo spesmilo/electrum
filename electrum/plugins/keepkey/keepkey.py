@@ -211,7 +211,7 @@ class KeepKeyPlugin(HW_PluginBase):
             client.reset_device(True, strength, passphrase_protection,
                                 pin_protection, label, language)
         elif method == TIM_RECOVER:
-            word_count = 6 * (item + 2)  # 12, 18 or 24
+            word_count = 24  # looks like this value is ignored by the device, but it has to be one of {12,18,24}
             client.step = 0
             client.recovery_device(word_count, passphrase_protection,
                                        pin_protection, label, language)
