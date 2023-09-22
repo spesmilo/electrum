@@ -75,7 +75,7 @@ class QETxDetails(QObject, QtEventListener):
     @event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
-            self._logger.debug(f'new_transaction event for our txid {txid}')
+            self._logger.debug(f'new_transaction event for our txid {self._txid}')
             self.update()
 
     walletChanged = pyqtSignal()
