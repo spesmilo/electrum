@@ -118,7 +118,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
     #     self.app.processEvents()
 
     def sizeHint(self) -> QSize:
-        return QSize(800, 600)
+        return QSize(600, 400)
 
     def strt(self):
         if self.start_viewstate is not None:
