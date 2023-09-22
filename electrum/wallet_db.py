@@ -1634,7 +1634,7 @@ class WalletDB(JsonDB):
         for data in split_data:
             path = root_path + '.' + data['suffix']
             item_storage = WalletStorage(path)
-            db = WalletDB(json.dumps(data), storage=item_storage, upgrades=True)
+            db = WalletDB(json.dumps(data), storage=item_storage, upgrade=True)
             db.write()
             file_list.append(path)
         return file_list
