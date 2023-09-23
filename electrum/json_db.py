@@ -176,6 +176,9 @@ class JsonDB(Logger):
         data = self.load_data(s)
         # convert to StoredDict
         self.data = StoredDict(data, self, [])
+        # write file in case there was a db upgrade
+        if self.storage and self.storage.file_exists():
+            self.write()
 
     def load_data(self, s:str) -> dict:
         """ overloaded in wallet_db """
