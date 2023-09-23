@@ -94,16 +94,16 @@ if [[ $1 == "init" ]]; then
     $agent setconfig --offline server 127.0.0.1:51001:t
     $agent setconfig --offline lightning_to_self_delay 144
     $agent setconfig --offline test_force_disable_mpp True
-    # alice is funded, bob is listening
-    if [[ $2 == "bob" ]]; then
-        $bob setconfig --offline lightning_listen localhost:9735
-        $bob setconfig --offline use_swapserver true
-    fi
     echo "funding $2"
     # note: changing the funding amount affects all tests, as they rely on "wait_for_balance"
     $groestlcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
 fi
 
+if [[ $1 == "setconfig" ]]; then
+    # use this to set config vars that need to be set before the daemon is started
+    agent="./run_electrum --regtest -D /tmp/$2"
+    $agent setconfig --offline $3 $4
+fi
 
 # start daemons. Bob is started first because he is listening
 if [[ $1 == "start" ]]; then
@@ -406,16 +406,6 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob load_wallet
     wait_for_balance bob 1.039
     $bob getbalance
-fi
-
-
-if [[ $1 == "configure_test_watchtower" ]]; then
-    # carol is the watchtower of bob
-    $carol setconfig -o run_watchtower true
-    $carol setconfig -o watchtower_user wtuser
-    $carol setconfig -o watchtower_password wtpassword
-    $carol setconfig -o watchtower_port 12345
-    $bob setconfig -o watchtower_url http://wtuser:wtpassword@127.0.0.1:12345
 fi
 
 if [[ $1 == "watchtower" ]]; then

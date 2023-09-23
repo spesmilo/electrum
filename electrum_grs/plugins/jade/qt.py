@@ -1,16 +1,20 @@
 from functools import partial
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QLabel, QVBoxLayout
 
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 from electrum_grs.wallet import Standard_Wallet
-from electrum_grs.gui.qt.util import WindowModalDialog
+
+from electrum_grs.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum_grs.plugins.hw_wallet import plugin
+from electrum_grs.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WCHWUninitialized
 
 from .jade import JadePlugin
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available
+
+if TYPE_CHECKING:
+    from electrum_grs.gui.qt.wizard.wallet import QENewWalletWizard
 
 
 class Plugin(JadePlugin, QtPluginBase):
@@ -20,7 +24,7 @@ class Plugin(JadePlugin, QtPluginBase):
     def create_handler(self, window):
         return Jade_Handler(window)
 
-    @only_hook_if_libraries_available
+    @plugin.only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
@@ -30,6 +34,22 @@ class Plugin(JadePlugin, QtPluginBase):
             def show_address():
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
             menu.addAction(_("Show on Jade"), show_address)
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert jade pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        super().extend_wizard(wizard)
+        views = {
+            'jade_start': {'gui': WCScriptAndDerivation},
+            'jade_xpub': {'gui': WCHWXPub},
+            'jade_not_initialized': {'gui': WCHWUninitialized},
+            'jade_unlock': {'gui': WCHWUnlock}
+        }
+        wizard.navmap_merge(views)
+
 
 class Jade_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()

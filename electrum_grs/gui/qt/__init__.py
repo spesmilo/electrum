@@ -26,11 +26,14 @@
 import os
 import signal
 import sys
-import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List, Sequence
 
-from electrum_grs import GuiImportError
+from electrum_grs import GuiImportError, WalletStorage
+from .wizard.server_connect import QEServerConnectWizard
+from .wizard.wallet import QENewWalletWizard
+from electrum_grs.wizard import WizardViewState
+from electrum_grs.keystore import load_keystore
 
 try:
     import PyQt5
@@ -41,8 +44,7 @@ except Exception as e:
         "you may try 'sudo apt-get install python3-pyqt5'") from e
 
 from PyQt5.QtGui import QGuiApplication
-from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
-                             QMessageBox)
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
@@ -56,17 +58,15 @@ except ImportError as e:
 
 from electrum_grs.i18n import _, set_language
 from electrum_grs.plugin import run_hook
-from electrum_grs.base_wizard import GoBack
 from electrum_grs.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum_grs.wallet import Wallet, Abstract_Wallet
-from electrum_grs.wallet_db import WalletDB
+from electrum_grs.wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade
 from electrum_grs.logging import Logger
 from electrum_grs.gui import BaseElectrumGui
 from electrum_grs.simple_config import SimpleConfig
 
-from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
-from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
+from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -147,6 +147,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # maybe set dark theme
         self._default_qtstylesheet = self.app.styleSheet()
         self.reload_app_stylesheet()
+
+        # always load 2fa
+        self.plugins.load_plugin('trustedcoin')
 
         run_hook('init_qt', self)
 
@@ -398,26 +401,66 @@ class ElectrumGui(BaseElectrumGui, Logger):
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
-        wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
+        wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
+        result = wizard.exec()
+        # TODO: use dialog.open() instead to avoid new event loop spawn?
+        self.logger.info(f'{result}')
+        if result == QENewWalletWizard.Rejected:
+            self.logger.info('ok bye bye')
+            return
+
+        d = wizard.get_wizard_data()
+
+        if d['wallet_is_open']:
+            for window in self.windows:
+                if window.wallet.storage.path == d['wallet_name']:
+                    return window.wallet
+            raise Exception('found by wizard but not here?!')
+
+        if not d['wallet_exists']:
+            self.logger.info('about to create wallet')
+            wizard.create_storage()
+            if d['wallet_type'] == '2fa' and 'x3' not in d:
+                return
+            wallet_file = wizard.path
+        else:
+            wallet_file = d['wallet_name']
+
+        storage = WalletStorage(wallet_file)
+        if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
+            storage.decrypt(d['password'])
+
         try:
-            path, storage = wizard.select_storage(path, self.daemon.get_wallet)
-            # storage is None if file does not exist
-            if storage is None:
-                wizard.path = path  # needed by trustedcoin plugin
-                wizard.run('new')
-                storage, db = wizard.create_storage(path)
+            db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        except WalletRequiresSplit as e:
+            try:
+                wizard.run_split(storage, e._split_data)
+            except UserCancelled:
+                return
+
+        if action := db.get_action():
+            # wallet creation is not complete, 2fa online phase
+            assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
+            k1 = load_keystore(db, 'x1')
+            if 'password' in d and d['password']:
+                xprv = k1.get_master_private_key(d['password'])
             else:
-                db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
-                wizard.run_upgrades(storage, db)
-        except (UserCancelled, GoBack):
-            return
-        except WalletAlreadyOpenInMemory as e:
-            return e.wallet
-        finally:
-            wizard.terminate()
-        # return if wallet creation is not complete
-        if storage is None or db.get_action():
-            return
+                xprv = db.get('x1')['xprv']
+            data = {
+                'wallet_name': os.path.basename(wallet_file),
+                'xprv1': xprv,
+                'xpub1': db.get('x1')['xpub'],
+                'xpub2': db.get('x2')['xpub'],
+            }
+            wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
+                                       start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
+            result = wizard.exec()
+            if result == QENewWalletWizard.Rejected:
+                self.logger.info('ok bye bye')
+                return
+            db.put('x3', wizard.get_wizard_data()['x3'])
+            db.write()
+
         wallet = Wallet(db, config=self.config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
@@ -438,9 +481,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if self.daemon.network:
             # first-start network-setup
             if not self.config.cv.NETWORK_AUTO_CONNECT.is_set():
-                wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
-                wizard.init_network(self.daemon.network)
-                wizard.terminate()
+                dialog = QEServerConnectWizard(self.config, self.app, self.plugins, self.daemon)
+                dialog.exec()
             # start network
             self.daemon.start_network()
 
@@ -456,8 +498,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         try:
             self.init_network()
         except UserCancelled:
-            return
-        except GoBack:
             return
         except Exception as e:
             self.logger.exception('')

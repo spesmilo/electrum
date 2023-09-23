@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum_grs import mnemonic
 from electrum_grs import keystore
 from electrum_grs.i18n import _
-from electrum_grs.bip32 import is_bip32_derivation, normalize_bip32_derivation, xpub_type
+from electrum_grs.bip32 import is_bip32_derivation, xpub_type
 from electrum_grs.logging import get_logger
 from electrum_grs.slip39 import decode_mnemonic, Slip39Error
 from electrum_grs.util import get_asyncio_loop
@@ -13,7 +13,6 @@ from electrum_grs.transaction import tx_from_any
 from electrum_grs.mnemonic import Mnemonic, is_any_2fa_seed_type
 from electrum_grs.old_mnemonic import wordlist as old_wordlist
 
-from .qetypes import QEAmount
 
 class QEBitcoin(QObject):
     _logger = get_logger(__name__)
@@ -79,7 +78,7 @@ class QEBitcoin(QObject):
             if is_checksum:
                 seed_type = 'bip39'
                 seed_valid = True
-        elif seed_variant == 'slip39': # TODO: incomplete impl, this code only validates a single share.
+        elif seed_variant == 'slip39':  # TODO: incomplete impl, this code only validates a single share.
             try:
                 share = decode_mnemonic(seed)
                 seed_type = 'slip39'

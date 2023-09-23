@@ -57,6 +57,8 @@ def check_password_strength(password):
 
 PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
 
+MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
+                     + _("Leave this field empty if you want to disable encryption.")
 
 class PasswordLayout(object):
 
@@ -134,6 +136,7 @@ class PasswordLayout(object):
                                        and not force_disable_encrypt_cb)
         self.new_pw.textChanged.connect(enable_OK)
         self.conf_pw.textChanged.connect(enable_OK)
+        enable_OK()
 
         self.vbox = vbox
 

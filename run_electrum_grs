@@ -227,7 +227,7 @@ async def run_offline_command(config, config_options, plugins: 'Plugins'):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
         wallet = Wallet(db, config=config)
         config_options['wallet'] = wallet
     else:

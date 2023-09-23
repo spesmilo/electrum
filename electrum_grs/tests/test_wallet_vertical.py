@@ -51,7 +51,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None):
-        db = storage.WalletDB('', storage=None, manual_upgrades=False)
+        db = storage.WalletDB('', storage=None, upgrade=True)
         db.put('keystore', ks.dump())
         db.put('gap_limit', gap_limit or cls.gap_limit)
         w = Standard_Wallet(db, config=config)
@@ -60,7 +60,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_imported_wallet(cls, *, config: SimpleConfig, privkeys: bool):
-        db = storage.WalletDB('', storage=None, manual_upgrades=False)
+        db = storage.WalletDB('', storage=None, upgrade=True)
         if privkeys:
             k = keystore.Imported_KeyStore({})
             db.put('keystore', k.dump())
@@ -71,10 +71,10 @@ class WalletIntegrityHelper:
     def create_multisig_wallet(cls, keystores: Sequence, multisig_type: str, *,
                                config: SimpleConfig, gap_limit=None):
         """Creates a multisig wallet."""
-        db = storage.WalletDB('', storage=None, manual_upgrades=True)
+        db = storage.WalletDB('', storage=None, upgrade=False)
         for i, ks in enumerate(keystores):
             cosigner_index = i + 1
-            db.put('x%d/' % cosigner_index, ks.dump())
+            db.put('x%d' % cosigner_index, ks.dump())
         db.put('wallet_type', multisig_type)
         db.put('gap_limit', gap_limit or cls.gap_limit)
         w = Multisig_Wallet(db, config=config)
@@ -190,8 +190,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(ks2.xpub, xpub2)
 
         long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
+            {'x1': {'xpub': xpub1},
+             'x2': {'xpub': xpub2}})
         xtype = bip32.xpub_type(xpub1)
         xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
         ks3 = keystore.from_xpub(xpub3)
@@ -225,8 +225,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(ks2.xpub, xpub2)
 
         long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
+            {'x1': {'xpub': xpub1},
+             'x2': {'xpub': xpub2}})
         xtype = bip32.xpub_type(xpub1)
         xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
         ks3 = keystore.from_xpub(xpub3)
@@ -259,8 +259,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(ks2.xpub, xpub2)
 
         long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
+            {'x1': {'xpub': xpub1},
+             'x2': {'xpub': xpub2}})
         xtype = bip32.xpub_type(xpub1)
         xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
         ks3 = keystore.from_xpub(xpub3)

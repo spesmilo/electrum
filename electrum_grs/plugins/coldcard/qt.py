@@ -1,26 +1,27 @@
-import time, os
 from functools import partial
-import copy
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
 from electrum_grs.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
                                   getSaveFileName)
-from electrum_grs.gui.qt.transaction_dialog import TxDialog
 from electrum_grs.gui.qt.main_window import ElectrumWindow
 
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 from electrum_grs.wallet import Multisig_Wallet
-from electrum_grs.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
+from electrum_grs.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWXPub, WCHWUninitialized, WCHWUnlock
 
+if TYPE_CHECKING:
+    from electrum_grs.gui.qt.wizard.wallet import QENewWalletWizard
 
 CC_DEBUG = False
+
 
 class Plugin(ColdcardPlugin, QtPluginBase):
     icon_unpaired = "coldcard_unpaired.png"
@@ -81,6 +82,21 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         # When they click on the icon for CC we come here.
         # - doesn't matter if device not connected, continue
         CKCCSettingsDialog(window, self, keystore).exec_()
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert coldcard pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        super().extend_wizard(wizard)
+        views = {
+            'coldcard_start': {'gui': WCScriptAndDerivation},
+            'coldcard_xpub': {'gui': WCHWXPub},
+            'coldcard_not_initialized': {'gui': WCHWUninitialized},
+            'coldcard_unlock': {'gui': WCHWUnlock}
+        }
+        wizard.navmap_merge(views)
 
 
 class Coldcard_Handler(QtHandlerBase):

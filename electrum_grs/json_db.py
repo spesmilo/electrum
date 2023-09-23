@@ -34,8 +34,6 @@ from .logging import Logger
 if TYPE_CHECKING:
     from .storage import WalletStorage
 
-JsonDBJsonEncoder = util.MyEncoder
-
 def modifier(func):
     def wrapper(self, *args, **kwargs):
         with self.lock:
@@ -168,24 +166,31 @@ class StoredDict(dict):
 
 class JsonDB(Logger):
 
-    def __init__(self, data, storage=None):
+    def __init__(self, s: str, storage=None, encoder=None):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = storage
+        self.encoder = encoder
         self._modified = False
         # load data
-        if data:
-            self.load_data(data)
-        else:
-            self.data = {}
+        data, was_upgraded = self.load_data(s)
+        # convert to StoredDict
+        self.data = StoredDict(data, self, [])
+        # write file in case there was a db upgrade
+        if was_upgraded and self.storage and self.storage.file_exists():
+            self.write()
 
-    def load_data(self, s):
+    def load_data(self, s:str) -> dict:
+        """ overloaded in wallet_db """
+        if s == '':
+            return {}, False
         try:
-            self.data = json.loads(s)
+            data = json.loads(s)
         except Exception:
             raise WalletFileException("Cannot read wallet file. (parsing failed)")
-        if not isinstance(self.data, dict):
+        if not isinstance(data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
+        return data, False
 
     def set_modified(self, b):
         with self.lock:
@@ -204,8 +209,8 @@ class JsonDB(Logger):
     @modifier
     def put(self, key, value):
         try:
-            json.dumps(key, cls=JsonDBJsonEncoder)
-            json.dumps(value, cls=JsonDBJsonEncoder)
+            json.dumps(key, cls=self.encoder)
+            json.dumps(value, cls=self.encoder)
         except Exception:
             self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
             return False
@@ -235,7 +240,7 @@ class JsonDB(Logger):
             self.data,
             indent=4 if human_readable else None,
             sort_keys=bool(human_readable),
-            cls=JsonDBJsonEncoder,
+            cls=self.encoder,
         )
 
     def _should_convert_to_stored_dict(self, key) -> bool:

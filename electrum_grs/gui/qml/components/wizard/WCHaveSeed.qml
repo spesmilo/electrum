@@ -68,6 +68,9 @@ WizardComponent {
         valid = false
         validationtext.text = ''
 
+        if (extendcb.checked && customwordstext.text == '')
+            return
+
         var validSeed = bitcoin.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
         if (!cosigner || !validSeed) {
             valid = validSeed

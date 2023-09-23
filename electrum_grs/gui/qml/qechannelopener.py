@@ -27,9 +27,10 @@ class QEChannelOpener(QObject, AuthMixin):
     conflictingBackup = pyqtSignal([str], arguments=['message'])
     channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
-    channelOpenSuccess = pyqtSignal([str,bool,int,bool], arguments=['cid','has_onchain_backup','min_depth','tx_complete'])
+    channelOpenSuccess = pyqtSignal([str, bool, int, bool],
+                                    arguments=['cid', 'has_onchain_backup', 'min_depth', 'tx_complete'])
 
-    dataChanged = pyqtSignal() # generic notify signal
+    dataChanged = pyqtSignal()  # generic notify signal
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,6 +41,10 @@ class QEChannelOpener(QObject, AuthMixin):
         self._valid = False
         self._opentx = None
         self._txdetails = None
+
+        self._finalizer = None
+        self._node_pubkey = None
+        self._connect_str_resolved = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -124,7 +129,7 @@ class QEChannelOpener(QObject, AuthMixin):
             self.validChanged.emit()
             return
 
-        self._logger.debug('amount=%s' % str(self._amount))
+        self._logger.debug(f'amount={self._amount}')
         if not self._amount or not (self._amount.satsInt > 0 or self._amount.isMax):
             self._valid = False
             self.validChanged.emit()
@@ -136,9 +141,9 @@ class QEChannelOpener(QObject, AuthMixin):
     @pyqtSlot(str, result=bool)
     def validateConnectString(self, connect_str):
         try:
-            node_id, rest = extract_nodeid(connect_str)
+            extract_nodeid(connect_str)
         except ConnStringFormatError as e:
-            self._logger.debug(f"invalid connect_str. {e!r}")
+            self._logger.debug(f'invalid connect_str. {e!r}')
             return False
         return True
 
@@ -199,13 +204,13 @@ class QEChannelOpener(QObject, AuthMixin):
                                              chan.constraints.funding_txn_minimum_depth, funding_tx.is_complete())
 
                 # TODO: handle incomplete TX
-                #if not funding_tx.is_complete():
-                    #self._txdetails = QETxDetails(self)
-                    #self._txdetails.rawTx = funding_tx
-                    #self._txdetails.wallet = self._wallet
-                    #self.txDetailsChanged.emit()
+                # if not funding_tx.is_complete():
+                #     self._txdetails = QETxDetails(self)
+                #     self._txdetails.rawTx = funding_tx
+                #     self._txdetails.wallet = self._wallet
+                #     self.txDetailsChanged.emit()
 
-            except (CancelledError,TimeoutError):
+            except (CancelledError, TimeoutError):
                 error = _('Could not connect to channel peer')
             except Exception as e:
                 error = str(e)
@@ -215,7 +220,6 @@ class QEChannelOpener(QObject, AuthMixin):
                 if error:
                     self._logger.exception("Problem opening channel: %s", error)
                     self.channelOpenError.emit(error)
-
 
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)

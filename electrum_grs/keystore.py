@@ -58,6 +58,8 @@ if TYPE_CHECKING:
 
 class CannotDerivePubkey(Exception): pass
 
+class ScriptTypeNotSupported(Exception): pass
+
 
 def also_test_none_password(check_password_fn):
     """Decorator for check_password, simply to give a friendlier exception if

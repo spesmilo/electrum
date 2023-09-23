@@ -297,7 +297,7 @@ class SwapManager(Logger):
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
-            funding_conf = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex()).conf
+            funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
@@ -307,10 +307,16 @@ class SwapManager(Logger):
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
                 elif spent_height == TX_HEIGHT_LOCAL:
-                    if txin.block_height > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS:
+                    if funding_height.conf > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS:
                         tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                         self.logger.info(f'broadcasting tx {txin.spent_txid}')
                         await self.network.broadcast_transaction(tx)
+                    elif funding_height.height == TX_HEIGHT_LOCAL:
+                        # the funding tx was double spent.
+                        # this will remove both funding and child (spending tx) from adb
+                        self.lnwatcher.adb.remove_transaction(swap.funding_txid)
+                        swap.funding_txid = None
+                        swap.spending_txid = None
                 else:
                     # spending tx is in mempool
                     pass
@@ -337,7 +343,7 @@ class SwapManager(Logger):
                 if swap.preimage is None:
                     swap.preimage = self.lnworker.get_preimage(swap.payment_hash)
                 if swap.preimage is None:
-                    if funding_conf <= 0:
+                    if funding_height.conf <= 0:
                         return
                     key = swap.payment_hash.hex()
                     if -delta <= MIN_LOCKTIME_DELTA:

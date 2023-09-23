@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, QObject
 
 from electrum_grs.logging import get_logger
 from electrum_grs import constants
@@ -173,12 +173,11 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_unknown_channels(self, unknown):
-        if unknown == 0 and self._gossipUnknownChannels == 0: # TODO: backend sends a lot of unknown=0 events
+        if unknown == 0 and self._gossipUnknownChannels == 0:  # TODO: backend sends a lot of unknown=0 events
             return
         self._logger.debug(f'unknown channels {unknown}')
         self._gossipUnknownChannels = unknown
         self.gossipUpdated.emit()
-        #self.lightning_gossip_num_queries = unknown
 
     def on_gossip_setting_changed(self):
         if not self.network:
@@ -205,7 +204,8 @@ class QENetwork(QObject, QtEventListener):
         net_params = self.network.get_parameters()
         try:
             server = ServerAddr.from_str_with_inference(server)
-            if not server: raise Exception("failed to parse")
+            if not server:
+                raise Exception('failed to parse')
         except Exception:
             return
         net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect)
@@ -215,7 +215,7 @@ class QENetwork(QObject, QtEventListener):
     def serverWithStatus(self):
         server = self._server
         if not self.network.is_connected():  # connecting or disconnected
-            return f"{server} (connecting...)"
+            return f'{server} (connecting...)'
         return server
 
     @pyqtProperty(str, notify=statusChanged)
@@ -244,7 +244,7 @@ class QENetwork(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def networkName(self):
-        return constants.net.__name__.replace('Bitcoin','')
+        return constants.net.__name__.replace('Bitcoin', '')
 
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
@@ -275,7 +275,7 @@ class QENetwork(QObject, QtEventListener):
             'peers': self._gossipPeers,
             'unknown_channels': self._gossipUnknownChannels,
             'db_nodes': self._gossipDbNodes,
-            'db_channels': self._gossipDbChannels ,
+            'db_channels': self._gossipDbChannels,
             'db_policies': self._gossipDbPolicies
         }
 

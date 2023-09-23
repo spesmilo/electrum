@@ -19,7 +19,9 @@ WizardComponent {
     function apply() {
         wizard_data['cosigner_keystore_type'] = keystoregroup.checkedButton.keystoretype
         wizard_data['multisig_current_cosigner'] = cosigner
-        wizard_data['multisig_cosigner_data'][cosigner.toString()] = {}
+        wizard_data['multisig_cosigner_data'][cosigner.toString()] = {
+            'keystore_type': keystoregroup.checkedButton.keystoretype
+        }
     }
 
     ButtonGroup {
@@ -80,13 +82,13 @@ WizardComponent {
         }
         ElRadioButton {
             ButtonGroup.group: keystoregroup
-            property string keystoretype: 'key'
+            property string keystoretype: 'masterkey'
             checked: true
             text: qsTr('Cosigner key')
         }
         ElRadioButton {
             ButtonGroup.group: keystoregroup
-            property string keystoretype: 'seed'
+            property string keystoretype: 'haveseed'
             text: qsTr('Cosigner seed')
         }
     }

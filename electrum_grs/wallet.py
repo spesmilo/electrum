@@ -309,13 +309,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def __init__(self, db: WalletDB, *, config: SimpleConfig):
 
-        if not db.is_ready_to_be_used_by_wallet():
-            raise Exception("storage not ready to be used by Abstract_Wallet")
+        #if not db.is_ready_to_be_used_by_wallet():
+        #    raise Exception("storage not ready to be used by Abstract_Wallet")
 
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = db.storage
+        self.storage = db.storage  # type: Optional[WalletStorage]
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -363,6 +363,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._up_to_date = False
 
         self.test_addresses_sanity()
+        if self.storage and self.has_storage_encryption():
+            if (se := self.storage.get_encryption_version()) != (ae := self.get_available_storage_encryption_version()):
+                raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
+
         self.register_callbacks()
 
     def _init_lnworker(self):
@@ -404,7 +408,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         new_storage._encryption_version = self.storage._encryption_version
         new_storage.pubkey = self.storage.pubkey
 
-        new_db = WalletDB(self.db.dump(), storage=new_storage, manual_upgrades=False)
+        new_db = WalletDB(self.db.dump(), storage=new_storage, upgrade=True)
         if self.lnworker:
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
@@ -1316,7 +1320,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 parent['children'].append(tx_item)
 
         now = time.time()
-        for item in transactions.values():
+        for key, item in transactions.items():
+            children = item.get('children', [])
+            if len(children) == 1:
+                transactions[key] = children[0]
             # add on-chain and lightning values
             # note: 'value' has msat precision (as LN has msat precision)
             item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
@@ -3608,9 +3615,9 @@ class Multisig_Wallet(Deterministic_Wallet):
     def load_keystore(self):
         self.keystores = {}
         for i in range(self.n):
-            name = 'x%d/'%(i+1)
+            name = 'x%d'%(i+1)
             self.keystores[name] = load_keystore(self.db, name)
-        self.keystore = self.keystores['x1/']
+        self.keystore = self.keystores['x1']
         xtype = bip32.xpub_type(self.keystore.xpub)
         self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
@@ -3619,7 +3626,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             self.db.put(name, k.dump())
 
     def get_keystore(self):
-        return self.keystores.get('x1/')
+        return self.keystores.get('x1')
 
     def get_keystores(self):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
@@ -3702,7 +3709,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
-    db = WalletDB('', storage=storage, manual_upgrades=False)
+    db = WalletDB('', storage=storage, upgrade=True)
 
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase)
@@ -3741,7 +3748,7 @@ def restore_wallet_from_text(
             raise Exception("Remove the existing wallet first!")
     if encrypt_file is None:
         encrypt_file = True
-    db = WalletDB('', storage=storage, manual_upgrades=False)
+    db = WalletDB('', storage=storage, upgrade=True)
     text = text.strip()
     if keystore.is_address_list(text):
         wallet = Imported_Wallet(db, config=config)

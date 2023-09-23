@@ -9,7 +9,7 @@ import "../controls"
 WizardComponent {
     securePage: true
 
-    valid: seedtext.text != ''
+    valid: seedtext.text != '' && extendcb.checked ? customwordstext.text != '' : true
 
     function apply() {
         wizard_data['seed'] = seedtext.text

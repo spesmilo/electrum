@@ -6,7 +6,7 @@ from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 
 from electrum_grs.gui.qml.qewallet import QEWallet
-from electrum_grs.gui.qml.plugins import PluginQObject
+from electrum_grs.gui.common_qt.plugins import PluginQObject
 
 from .labels import LabelsPlugin
 

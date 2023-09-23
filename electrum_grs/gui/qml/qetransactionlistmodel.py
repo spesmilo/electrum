@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Any
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum_grs.logging import get_logger
@@ -19,9 +19,9 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp',
-                 'incoming','value','date','label','txpos_in_block','fee',
-                 'inputs','outputs','section','type','lightning','payment_hash','key','complete')
+    _ROLE_NAMES=('txid', 'fee_sat', 'height', 'confirmations', 'timestamp', 'monotonic_timestamp',
+                 'incoming', 'value', 'date', 'label', 'txpos_in_block', 'fee',
+                 'inputs', 'outputs', 'section', 'type', 'lightning', 'payment_hash', 'key', 'complete')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -34,11 +34,13 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.onchain_domain = onchain_domain
         self.include_lightning = include_lightning
 
+        self.tx_history = []
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
         self.requestRefresh.connect(lambda: self.initModel())
 
-        self.setDirty()
+        self._dirty = True
         self.initModel()
 
     def on_destroy(self):
@@ -159,19 +161,19 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         txts = datetime.fromtimestamp(timestamp)
         today = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
-        if (txts > today):
+        if txts > today:
             return 'today'
-        elif (txts > today - timedelta(days=1)):
+        elif txts > today - timedelta(days=1):
             return 'yesterday'
-        elif (txts > today - timedelta(days=7)):
+        elif txts > today - timedelta(days=7):
             return 'lastweek'
-        elif (txts > today - timedelta(days=31)):
+        elif txts > today - timedelta(days=31):
             return 'lastmonth'
         else:
             return 'older'
 
     def format_date_by_section(self, section, date):
-        #TODO: l10n
+        # TODO: l10n
         dfmt = {
             'today': '%H:%M:%S',
             'yesterday': '%H:%M:%S',
@@ -194,7 +196,6 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         )
         return tx_mined_info
 
-    # initial model data
     @pyqtSlot()
     @pyqtSlot(bool)
     def initModel(self, force: bool = False):
@@ -231,7 +232,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                 tx['section'] = self.get_section_by_timestamp(info.timestamp)
                 tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
                 index = self.index(i,0)
-                roles = [self._ROLE_RMAP[x] for x in ['section','height','confirmations','timestamp','date']]
+                roles = [self._ROLE_RMAP[x] for x in ['section', 'height', 'confirmations', 'timestamp', 'date']]
                 self.dataChanged.emit(index, index, roles)
                 return
 

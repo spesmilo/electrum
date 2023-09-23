@@ -117,6 +117,9 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
         Logger.__init__(self)
         self.used()
 
+    def device_model_name(self) -> Optional[str]:
+        return 'Safe-T'
+
     def __str__(self):
         return "%s/%s" % (self.label(), self.features.device_id)
 
