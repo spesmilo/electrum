@@ -173,24 +173,24 @@ class JsonDB(Logger):
         self.encoder = encoder
         self._modified = False
         # load data
-        data = self.load_data(s)
+        data, was_upgraded = self.load_data(s)
         # convert to StoredDict
         self.data = StoredDict(data, self, [])
         # write file in case there was a db upgrade
-        if self.storage and self.storage.file_exists():
+        if was_upgraded and self.storage and self.storage.file_exists():
             self.write()
 
     def load_data(self, s:str) -> dict:
         """ overloaded in wallet_db """
         if s == '':
-            return {}
+            return {}, False
         try:
             data = json.loads(s)
         except Exception:
             raise WalletFileException("Cannot read wallet file. (parsing failed)")
         if not isinstance(data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
-        return data
+        return data, False
 
     def set_modified(self, b):
         with self.lock:

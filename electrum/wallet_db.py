@@ -1184,7 +1184,7 @@ class WalletDB(JsonDB):
 
     def load_data(self, s):
         try:
-            data = JsonDB.load_data(self, s)
+            data, _ = JsonDB.load_data(self, s)
         except Exception:
             try:
                 d = ast.literal_eval(s)
@@ -1215,13 +1215,15 @@ class WalletDB(JsonDB):
             data["db_metadata"] = v
 
         dbu = WalletDBUpgrader(data)
+        was_upgraded = False
         if dbu.requires_split():
             raise WalletRequiresSplit(dbu.get_split_accounts())
-        if self._upgrade:
+        if dbu.requires_upgrade() and self._upgrade:
             dbu.upgrade()
+            was_upgraded = True
         if dbu.requires_upgrade():
             raise WalletRequiresUpgrade()
-        return dbu.data
+        return dbu.data, was_upgraded
 
 
     @locked
