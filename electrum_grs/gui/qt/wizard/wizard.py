@@ -8,14 +8,14 @@ from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout, QStackedWidget)
 
-from electrum.i18n import _
-from electrum.logging import get_logger
-from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel
+from electrum_grs.i18n import _
+from electrum_grs.logging import get_logger
+from electrum_grs.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
-    from electrum.gui.qt import QElectrumApplication
-    from electrum.wizard import WizardViewState
+    from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.gui.qt import QElectrumApplication
+    from electrum_grs.wizard import WizardViewState
 
 
 class QEAbstractWizard(QDialog, MessageBoxMixin):

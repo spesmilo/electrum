@@ -2,7 +2,7 @@ from struct import pack, unpack
 import hashlib
 import sys
 import traceback
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from electrum_grs import ecc
 from electrum_grs import bip32
@@ -15,13 +15,15 @@ from electrum_grs.keystore import Hardware_KeyStore
 from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_grs.wallet import Standard_Wallet
 from electrum_grs.util import bfh, versiontuple, UserFacingException
-from electrum_grs.base_wizard import ScriptTypeNotSupported
 from electrum_grs.logging import get_logger
 from electrum_grs.plugin import runs_in_hwd_thread, Device
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
 
+if TYPE_CHECKING:
+    from electrum_grs.plugin import DeviceInfo
+    from electrum_grs.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -712,21 +714,6 @@ class LedgerPlugin(HW_PluginBase):
             client = Ledger_Client(client, product_key=device.product_key, plugin=self)
         return client
 
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m/44'/17'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        client.checkDevice()
-        xpub = client.get_xpub(derivation, xtype)
-        return xpub
-
     @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True):
@@ -753,3 +740,27 @@ class LedgerPlugin(HW_PluginBase):
         sequence = wallet.get_address_index(address)
         txin_type = wallet.get_txin_type(address)
         keystore.show_address(sequence, txin_type)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'ledger_start' if device_info.initialized else 'ledger_not_initialized'
+        else:
+            return 'ledger_unlock'
+
+    # insert ledger pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'ledger_start': {
+                'next': 'ledger_xpub',
+            },
+            'ledger_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'ledger_not_initialized': {},
+            'ledger_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

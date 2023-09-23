@@ -1,11 +1,6 @@
 from PyQt5.QtCore import pyqtSignal, pyqtProperty, QObject
 
-<<<<<<<< HEAD:electrum_grs/gui/qml/plugins.py
-from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
-========
-from electrum.logging import get_logger
->>>>>>>> upstream/master:electrum/gui/common_qt/plugins.py
 
 
 class PluginQObject(QObject):

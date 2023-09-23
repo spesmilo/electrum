@@ -8,8 +8,8 @@ from electrum_grs import mnemonic
 from electrum_grs.wizard import NewWalletWizard, ServerConnectWizard
 
 if TYPE_CHECKING:
-    from electrum.gui.qml.qedaemon import QEDaemon
-    from electrum.plugin import Plugins
+    from electrum_grs.gui.qml.qedaemon import QEDaemon
+    from electrum_grs.plugin import Plugins
 
 
 class QEAbstractWizard(QObject):
