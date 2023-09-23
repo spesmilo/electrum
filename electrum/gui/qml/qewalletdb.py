@@ -43,7 +43,6 @@ class QEWalletDB(QObject):
         self._validPassword = True
 
         self._storage = None
-        self._db = None
 
         self._ready = False
 
@@ -143,7 +142,7 @@ class QEWalletDB(QObject):
         else:  # storage not encrypted; but it might still have a keystore pw
             # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
             try:
-                db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
+                db = WalletDB(self._storage.read(), storage=None, upgrade=True)
             except WalletRequiresSplit as e:
                 raise WalletFileException(_('This wallet requires to be split. This is currently not supported on mobile'))
             wallet = Wallet(db, config=self._config)
@@ -165,11 +164,11 @@ class QEWalletDB(QObject):
         """can raise WalletFileException"""
         # needs storage accessible
         try:
-            self._db = WalletDB(self._storage.read(), storage=self._storage, upgrade=True)
+            db = WalletDB(self._storage.read(), storage=None, upgrade=True)
         except WalletRequiresSplit as e:
             self._logger.warning('wallet requires split')
             raise WalletFileException(_('This wallet needs splitting. This is not supported on mobile'))
-        if self._db.get_action():
+        if db.get_action():
             self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
             raise WalletFileException(_('This wallet has an action pending. This is currently not supported on mobile'))
 

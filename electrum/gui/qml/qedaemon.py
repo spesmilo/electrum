@@ -203,7 +203,7 @@ class QEDaemon(AuthMixin, QObject):
 
             try:
                 local_password = password  # need this in local scope
-                wallet = self.daemon.load_wallet(self._path, local_password)
+                wallet = self.daemon.load_wallet(self._path, local_password, upgrade=True)
 
                 if wallet is None:
                     self._logger.info('could not open wallet')
