@@ -166,31 +166,59 @@ class StoredDict(dict):
 
 class JsonDB(Logger):
 
-    def __init__(self, s: str, storage=None, encoder=None):
+    def __init__(self, s: str, storage=None, encoder=None, upgrader=None):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = storage
         self.encoder = encoder
         self._modified = False
         # load data
-        data, was_upgraded = self.load_data(s)
+        data = self.load_data(s)
+        if upgrader:
+            data, was_upgraded = upgrader(data)
+        else:
+            was_upgraded = False
         # convert to StoredDict
         self.data = StoredDict(data, self, [])
+        # note: self._modified may have been affected by StoredDict
+        self._modified = was_upgraded
         # write file in case there was a db upgrade
-        if was_upgraded and self.storage and self.storage.file_exists():
+        if self.storage and self.storage.file_exists():
             self.write()
 
     def load_data(self, s:str) -> dict:
         """ overloaded in wallet_db """
         if s == '':
-            return {}, False
+            return {}
         try:
             data = json.loads(s)
         except Exception:
-            raise WalletFileException("Cannot read wallet file. (parsing failed)")
+            if r := self.maybe_load_ast_data(s):
+                data = r
+            else:
+                raise WalletFileException("Cannot read wallet file. (parsing failed)")
         if not isinstance(data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
-        return data, False
+        return data
+
+    def maybe_load_ast_data(self, s):
+        """ for old wallets """
+        try:
+            import ast
+            d = ast.literal_eval(s)
+            labels = d.get('labels', {})
+        except Exception as e:
+            return
+        data = {}
+        for key, value in d.items():
+            try:
+                json.dumps(key)
+                json.dumps(value)
+            except Exception:
+                self.logger.info(f'Failed to convert label to json format: {key}')
+                continue
+            data[key] = value
+        return data
 
     def set_modified(self, b):
         with self.lock:
