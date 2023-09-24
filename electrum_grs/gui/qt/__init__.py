@@ -29,18 +29,13 @@ import sys
 import threading
 from typing import Optional, TYPE_CHECKING, List, Sequence
 
-from electrum_grs import GuiImportError, WalletStorage
-from .wizard.server_connect import QEServerConnectWizard
-from .wizard.wallet import QENewWalletWizard
-from electrum_grs.wizard import WizardViewState
-from electrum_grs.keystore import load_keystore
-
 try:
     import PyQt5
     import PyQt5.QtGui
 except Exception as e:
+    from electrum_grs import GuiImportError
     raise GuiImportError(
-        "Error: Could not import PyQt5 on Linux systems, "
+        "Error: Could not import PyQt5. On Linux systems, "
         "you may try 'sudo apt-get install python3-pyqt5'") from e
 
 from PyQt5.QtGui import QGuiApplication
@@ -65,6 +60,9 @@ from electrum_grs.wallet_db import WalletDB, WalletRequiresSplit, WalletRequires
 from electrum_grs.logging import Logger
 from electrum_grs.gui import BaseElectrumGui
 from electrum_grs.simple_config import SimpleConfig
+from electrum_grs.storage import WalletStorage
+from electrum_grs.wizard import WizardViewState
+from electrum_grs.keystore import load_keystore
 
 from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
@@ -73,6 +71,8 @@ from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
 from .exception_window import Exception_Hook
+from .wizard.server_connect import QEServerConnectWizard
+from .wizard.wallet import QENewWalletWizard
 
 if TYPE_CHECKING:
     from electrum_grs.daemon import Daemon
