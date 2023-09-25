@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 import QtQuick.Controls.Material 2.0
@@ -10,6 +10,7 @@ TextHighlightPane {
 
     property variant model
     property bool allowShare: true
+    property bool allowClickAddress: true
 
     RowLayout {
         width: parent.width
@@ -26,6 +27,14 @@ TextHighlightPane {
                 : model.is_billing
                     ? constants.colorAddressBilling
                     : Material.foreground
+            TapHandler {
+                enabled: allowClickAddress && model.is_mine
+                onTapped: {
+                    app.stack.push(Qt.resolvedUrl('../AddressDetails.qml'), {
+                        address: model.address
+                    })
+                }
+            }
         }
         Label {
             text: Config.formatSats(model.value)
