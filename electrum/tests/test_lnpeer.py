@@ -1407,22 +1407,23 @@ class TestPeer(ElectrumTestCase):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         await self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
-    async def _run_trampoline_payment(self, is_legacy, direct, drop_dave=None, test_mpp_consolidation=False):
-        if drop_dave is None: drop_dave = []
+    async def _run_trampoline_payment(
+            self, *,
+            is_legacy=False,
+            direct=False,
+            test_mpp_consolidation=False,
+            include_routing_hints=True, # only relevant if is_legacy is True
+            attempts=2,
+    ):
 
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
-            result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=10)
+            result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=attempts)
             if result:
                 self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
                 raise PaymentDone()
             else:
                 raise NoPathFound()
-
-        def do_drop_dave(t):
-            # this will trigger UNKNOWN_NEXT_PEER
-            dave_node_id = graph.workers['dave'].node_keypair.pubkey
-            graph.workers[t].peers.pop(dave_node_id)
 
         async def f():
             await self._activate_trampoline(graph.workers['alice'])
@@ -1432,17 +1433,17 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer.htlc_switch())
                 for peer in peers:
                     await peer.initialized
-                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
-                for p in drop_dave:
-                    do_drop_dave(p)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=include_routing_hints)
                 await group.spawn(pay(lnaddr, pay_req))
 
         graph_definition = self.GRAPH_DEFINITIONS['square_graph']
         if not direct:
-            # deplete channel from alice to carol
+            # deplete channel from alice to carol and from bob to dave
             graph_definition['alice']['channels']['carol'] = depleted_channel
+            graph_definition['bob']['channels']['dave'] = depleted_channel
             # insert a channel from bob to carol
-            graph_definition['bob']['channels']['carol'] = high_fee_channel
+            graph_definition['bob']['channels']['carol'] = low_fee_channel
+            # now the only route possible is alice -> bob -> carol -> dave
 
         if test_mpp_consolidation:
             # deplete alice to carol so that all htlcs go through bob
@@ -1475,7 +1476,9 @@ class TestPeer(ElectrumTestCase):
     @needs_test_with_all_chacha20_implementations
     async def test_payment_trampoline_legacy(self):
         with self.assertRaises(PaymentDone):
-            await self._run_trampoline_payment(is_legacy=True, direct=False)
+            await self._run_trampoline_payment(is_legacy=True, direct=False, include_routing_hints=True)
+        with self.assertRaises(NoPathFound):
+            await self._run_trampoline_payment(is_legacy=True, direct=False, include_routing_hints=False)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_trampoline_e2e_direct(self):
@@ -1486,10 +1489,7 @@ class TestPeer(ElectrumTestCase):
     async def test_payment_trampoline_e2e_indirect(self):
         # must use two trampolines
         with self.assertRaises(PaymentDone):
-            await self._run_trampoline_payment(is_legacy=False, direct=False, drop_dave=['bob'])
-        # both trampolines drop dave
-        with self.assertRaises(NoPathFound):
-            await self._run_trampoline_payment(is_legacy=False, direct=False, drop_dave=['bob', 'carol'])
+            await self._run_trampoline_payment(is_legacy=False, direct=False)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multipart_trampoline_e2e(self):

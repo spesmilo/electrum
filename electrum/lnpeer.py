@@ -51,6 +51,7 @@ from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
 from .simple_config import FEE_LN_ETA_TARGET
+from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -1702,12 +1703,14 @@ class Peer(Logger):
                 next_trampoline_onion = None
                 invoice_features = payload["invoice_features"]["invoice_features"]
                 invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
-                # TODO use invoice_routing_info
+                r_tags = decode_routing_info(invoice_routing_info)
+                self.logger.info(f'r_tags {r_tags}')
                 # TODO legacy mpp payment, use total_msat from trampoline onion
             else:
                 self.logger.info('forward_trampoline: end-to-end')
                 invoice_features = LnFeatures.BASIC_MPP_OPT
                 next_trampoline_onion = trampoline_onion.next_packet
+                r_tags = []
         except Exception as e:
             self.logger.exception('')
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
@@ -1732,7 +1735,7 @@ class Peer(Logger):
                 payment_secret=payment_secret,
                 amount_to_pay=amt_to_forward,
                 min_cltv_expiry=cltv_from_onion,
-                r_tags=[],
+                r_tags=r_tags,
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
                 fwd_trampoline_fee=trampoline_fee,
