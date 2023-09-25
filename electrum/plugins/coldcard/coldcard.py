@@ -85,7 +85,7 @@ class CKCCClient(HardwareClientBase):
     def get_soft_device_id(self) -> Optional[str]:
         try:
             super().get_soft_device_id()
-        except Exception:
+        except CCProtoError:
             return None
 
     def __repr__(self):
