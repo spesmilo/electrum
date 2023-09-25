@@ -82,6 +82,12 @@ class CKCCClient(HardwareClientBase):
     def device_model_name(self) -> Optional[str]:
         return 'Coldcard'
 
+    def get_soft_device_id(self) -> Optional[str]:
+        try:
+            super().get_soft_device_id()
+        except Exception:
+            return None
+
     def __repr__(self):
         return '<CKCCClient: xfp=%s label=%r>' % (xfp2str(self.dev.master_fingerprint),
                                                         self.label())
