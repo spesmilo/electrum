@@ -12,6 +12,7 @@ from electrum.util import get_asyncio_loop
 from electrum.transaction import tx_from_any
 from electrum.mnemonic import Mnemonic, is_any_2fa_seed_type
 from electrum.old_mnemonic import wordlist as old_wordlist
+from electrum.bitcoin import is_address
 
 
 class QEBitcoin(QObject):
@@ -149,6 +150,10 @@ class QEBitcoin(QObject):
             return True
         except Exception:
             return False
+
+    @pyqtSlot(str, result=bool)
+    def isAddress(self, addr: str):
+        return is_address(addr)
 
     @pyqtSlot(str, result=bool)
     def isAddressList(self, csv: str):
