@@ -58,11 +58,12 @@ Pane {
                         height: row.height
 
                         onClicked: {
-                            if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name)
+                            if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name) {
                                 if (!Daemon.loading) // wallet load in progress
                                     Daemon.loadWallet(model.path)
-                            else
+                            } else {
                                 app.stack.pop()
+                            }
                         }
 
                         RowLayout {
