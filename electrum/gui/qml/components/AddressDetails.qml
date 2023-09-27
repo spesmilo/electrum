@@ -310,7 +310,7 @@ Pane {
         address: root.address
         onFrozenChanged: addressDetailsChanged()
         onLabelChanged: addressDetailsChanged()
-        onAuthRequired: {
+        onAuthRequired: (method, authMessage) => {
             app.handleAuthRequired(addressdetails, method, authMessage)
         }
     }

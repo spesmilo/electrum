@@ -405,11 +405,14 @@ ApplicationWindow
             swaphelper: SwapHelper {
                 id: _swaphelper
                 wallet: Daemon.currentWallet
-                onAuthRequired: {
+                onAuthRequired: (method, authMessage) => {
                     app.handleAuthRequired(_swaphelper, method, authMessage)
                 }
-                onError: {
-                    var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
+                onError: (message) => {
+                    var dialog = app.messageDialog.createObject(app, {
+                        title: qsTr('Error'),
+                        text: message
+                    })
                     dialog.open()
                 }
             }

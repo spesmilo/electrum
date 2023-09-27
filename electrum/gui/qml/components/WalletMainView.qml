@@ -264,16 +264,20 @@ Item {
     InvoiceParser {
         id: invoiceParser
         wallet: Daemon.currentWallet
-        onValidationError: {
-            var dialog = app.messageDialog.createObject(app, { text: message })
+        onValidationError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
             dialog.closed.connect(function() {
                 restartSendDialog()
             })
             dialog.open()
         }
-        onValidationWarning: {
+        onValidationWarning: (code, message) => {
             if (code == 'no_channels') {
-                var dialog = app.messageDialog.createObject(app, { text: message })
+                var dialog = app.messageDialog.createObject(app, {
+                    text: message
+                })
                 dialog.closed.connect(function() {
                     restartSendDialog()
                 })
@@ -284,18 +288,28 @@ Item {
         }
         onValidationSuccess: {
             closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, payImmediately: invoiceParser.isLnurlPay })
+            var dialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser,
+                payImmediately: invoiceParser.isLnurlPay
+            })
             dialog.open()
         }
-        onInvoiceCreateError: console.log(code + ' ' + message)
+        onInvoiceCreateError: (code, message) => {
+            console.log(code + ' ' + message)
+        }
 
         onLnurlRetrieved: {
             closeSendDialog()
-            var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            var dialog = lnurlPayDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            })
             dialog.open()
         }
-        onLnurlError: {
-            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                text: message }
+            )
             dialog.open()
         }
     }
@@ -477,7 +491,7 @@ Item {
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
-                onFinished: {
+                onFinished: (signed, saved, complete) => {
                     if (!complete) {
                         var msg
                         if (wallet.isWatchOnly) {

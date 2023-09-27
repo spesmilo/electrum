@@ -202,7 +202,7 @@ ElDialog {
         wallet: Daemon.currentWallet
         channelid: dialog.channelid
 
-        onAuthRequired: {
+        onAuthRequired: (method, authMessage) => {
             app.handleAuthRequired(channeldetails, method, authMessage)
         }
 
@@ -228,7 +228,7 @@ ElDialog {
             dialog.close()
         }
 
-        onChannelCloseFailed: {
+        onChannelCloseFailed: (message) => {
             errorText.text = message
         }
     }
