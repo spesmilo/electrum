@@ -238,7 +238,7 @@ class QEDaemon(AuthMixin, QObject):
                 self._loading = False
                 self.loadingChanged.emit()
 
-        threading.Thread(target=load_wallet_task, daemon=True).start()
+        threading.Thread(target=load_wallet_task, daemon=False).start()
 
     @pyqtSlot()
     @pyqtSlot(str)

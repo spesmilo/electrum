@@ -391,8 +391,7 @@ class JsonDB(Logger):
     @locked
     def _append_pending_changes(self):
         if threading.current_thread().daemon:
-            self.logger.warning('daemon thread cannot write db')
-            return
+            raise Exception('daemon thread cannot write db')
         if not self.pending_changes:
             self.logger.info('no pending changes')
             return
@@ -405,8 +404,7 @@ class JsonDB(Logger):
     @profiler
     def _write(self):
         if threading.current_thread().daemon:
-            self.logger.warning('daemon thread cannot write db')
-            return
+            raise Exception('daemon thread cannot write db')
         if not self.modified():
             return
         json_str = self.dump(human_readable=not self.storage.is_encrypted())
