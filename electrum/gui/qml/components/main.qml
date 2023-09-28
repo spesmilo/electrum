@@ -387,6 +387,14 @@ ApplicationWindow
         id: _channelOpenProgressDialog
     }
 
+    property alias signVerifyMessageDialog: _signVerifyMessageDialog
+    Component {
+        id: _signVerifyMessageDialog
+        SignVerifyMessageDialog {
+            onClosed: destroy()
+        }
+    }
+
     Component {
         id: swapDialog
         SwapDialog {

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import queue
 import threading
 import time
@@ -433,6 +434,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return self.wallet.m == 1
         return True
 
+    @pyqtProperty(bool, notify=dataChanged)
+    def canSignMessage(self):
+        return not isinstance(self.wallet, Multisig_Wallet) and not self.wallet.is_watching_only()
+
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
@@ -762,3 +767,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             'f_lightning': int(f_lightning),
             'total': sum([int(x) for x in list(balances)])
         }
+
+    @pyqtSlot(str, result=bool)
+    def isAddressMine(self, addr):
+        return self.wallet.is_mine(addr)
+
+    @pyqtSlot(str, str, result=str)
+    def signMessage(self, address, message):
+        sig = self.wallet.sign_message(address, message, self.password)
+        return base64.b64encode(sig).decode('ascii')
