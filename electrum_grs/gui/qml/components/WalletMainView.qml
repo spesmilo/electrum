@@ -126,6 +126,21 @@ Item {
             }
         }
 
+        MenuItem {
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/pen.png'
+            action: Action {
+                text: Daemon.currentWallet.canSignMessage
+                    ? qsTr('Sign/Verify Message')
+                    : qsTr('Verify Message')
+                onTriggered: {
+                    var dialog = app.signVerifyMessageDialog.createObject(app)
+                    dialog.open()
+                    menu.deselect()
+                }
+            }
+        }
+
         MenuSeparator { }
 
         MenuItem {
@@ -140,6 +155,10 @@ Item {
 
         function openPage(url) {
             stack.pushOnRoot(url)
+            deselect()
+        }
+
+        function deselect() {
             currentIndex = -1
         }
     }

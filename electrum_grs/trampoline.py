@@ -88,9 +88,29 @@ def encode_routing_info(r_tags):
     for route in r_tags:
         result.append(bitstring.pack('uint:8', len(route)))
         for step in route:
-            pubkey, channel, feebase, feerate, cltv = step
-            result.append(bitstring.BitArray(pubkey) + bitstring.BitArray(channel) + bitstring.pack('intbe:32', feebase) + bitstring.pack('intbe:32', feerate) + bitstring.pack('intbe:16', cltv))
+            pubkey, scid, feebase, feerate, cltv = step
+            result.append(
+                bitstring.BitArray(pubkey) \
+                + bitstring.BitArray(scid)\
+                + bitstring.pack('intbe:32', feebase)\
+                + bitstring.pack('intbe:32', feerate)\
+                + bitstring.pack('intbe:16', cltv))
     return result.tobytes()
+
+def decode_routing_info(s: bytes):
+    s = bitstring.BitArray(s)
+    r_tags = []
+    n = 8*(33 + 8 + 4 + 4 + 2)
+    while s:
+        route = []
+        length, s = s[0:8], s[8:]
+        length = length.unpack('uint:8')[0]
+        for i in range(length):
+            chunk, s = s[0:n], s[n:]
+            item = chunk.unpack('bytes:33, bytes:8, intbe:32, intbe:32, intbe:16')
+            route.append(item)
+        r_tags.append(route)
+    return r_tags
 
 
 def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
@@ -209,6 +229,7 @@ def create_trampoline_route(
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
         invoice_routing_info = encode_routing_info(r_tags)
+        assert invoice_routing_info == encode_routing_info(decode_routing_info(invoice_routing_info))
         # lnwire invoice_features for trampoline is u64
         invoice_features = invoice_features & 0xffffffffffffffff
         route[-1].invoice_routing_info = invoice_routing_info

@@ -51,6 +51,7 @@ from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
 from .simple_config import FEE_LN_ETA_TARGET
+from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -894,7 +895,8 @@ class Peer(Logger):
             "revocation_store": {},
             "channel_type": channel_type,
         }
-        return StoredDict(chan_dict, self.lnworker.db if self.lnworker else None, [])
+        # set db to None, because we do not want to write updates until channel is saved
+        return StoredDict(chan_dict, None, [])
 
     async def on_open_channel(self, payload):
         """Implements the channel acceptance flow.
@@ -1433,20 +1435,16 @@ class Peer(Logger):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         return True
 
-    def pay(self, *,
+    def create_onion_for_route(
+            self, *,
             route: 'LNPaymentRoute',
-            chan: Channel,
             amount_msat: int,
             total_msat: int,
             payment_hash: bytes,
             min_final_cltv_expiry: int,
             payment_secret: bytes,
-            trampoline_onion=None) -> UpdateAddHtlc:
-
-        assert amount_msat > 0, "amount_msat is not greater zero"
-        assert len(route) > 0
-        if not chan.can_send_update_add_htlc():
-            raise PaymentFailure("Channel cannot send update_add_htlc")
+            trampoline_onion=None,
+    ):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
@@ -1480,9 +1478,13 @@ class Peer(Logger):
         # create htlc
         if cltv > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise PaymentFailure(f"htlc expiry too far into future. (in {cltv-local_height} blocks)")
+        return onion, amount_msat, cltv, session_key
+
+    def send_htlc(self, chan, payment_hash, amount_msat, cltv, onion, session_key=None) -> UpdateAddHtlc:
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
-        chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
+        if session_key:
+            chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
         self.logger.info(f"starting payment. htlc: {htlc}")
         self.send_message(
             "update_add_htlc",
@@ -1493,6 +1495,33 @@ class Peer(Logger):
             payment_hash=htlc.payment_hash,
             onion_routing_packet=onion.to_bytes())
         self.maybe_send_commitment(chan)
+        return htlc
+
+    def pay(self, *,
+            route: 'LNPaymentRoute',
+            chan: Channel,
+            amount_msat: int,
+            total_msat: int,
+            payment_hash: bytes,
+            min_final_cltv_expiry: int,
+            payment_secret: bytes,
+            trampoline_onion=None,
+        ) -> UpdateAddHtlc:
+
+        assert amount_msat > 0, "amount_msat is not greater zero"
+        assert len(route) > 0
+        if not chan.can_send_update_add_htlc():
+            raise PaymentFailure("Channel cannot send update_add_htlc")
+        onion, amount_msat, cltv, session_key = self.create_onion_for_route(
+            route=route,
+            amount_msat=amount_msat,
+            total_msat=total_msat,
+            payment_hash=payment_hash,
+            min_final_cltv_expiry=min_final_cltv_expiry,
+            payment_secret=payment_secret,
+            trampoline_onion=trampoline_onion
+        )
+        htlc = self.send_htlc(chan, payment_hash, amount_msat, cltv, onion, session_key=session_key)
         return htlc
 
     def send_revoke_and_ack(self, chan: Channel):
@@ -1651,26 +1680,11 @@ class Peer(Logger):
         if next_peer is None:
             log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        next_htlc = UpdateAddHtlc(
-            amount_msat=next_amount_msat_htlc,
-            payment_hash=htlc.payment_hash,
-            cltv_expiry=next_cltv_expiry,
-            timestamp=int(time.time()))
-        next_htlc = next_chan.add_htlc(next_htlc)
         try:
-            next_peer.send_message(
-                "update_add_htlc",
-                channel_id=next_chan.channel_id,
-                id=next_htlc.htlc_id,
-                cltv_expiry=next_cltv_expiry,
-                amount_msat=next_amount_msat_htlc,
-                payment_hash=next_htlc.payment_hash,
-                onion_routing_packet=processed_onion.next_packet.to_bytes()
-            )
+            next_htlc = next_peer.send_htlc(next_chan, htlc.payment_hash, next_amount_msat_htlc, next_cltv_expiry, processed_onion.next_packet)
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        next_peer.maybe_send_commitment(next_chan)
         return next_chan_scid, next_htlc.htlc_id
 
     @log_exceptions
@@ -1702,12 +1716,14 @@ class Peer(Logger):
                 next_trampoline_onion = None
                 invoice_features = payload["invoice_features"]["invoice_features"]
                 invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
-                # TODO use invoice_routing_info
+                r_tags = decode_routing_info(invoice_routing_info)
+                self.logger.info(f'r_tags {r_tags}')
                 # TODO legacy mpp payment, use total_msat from trampoline onion
             else:
                 self.logger.info('forward_trampoline: end-to-end')
                 invoice_features = LnFeatures.BASIC_MPP_OPT
                 next_trampoline_onion = trampoline_onion.next_packet
+                r_tags = []
         except Exception as e:
             self.logger.exception('')
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
@@ -1732,7 +1748,7 @@ class Peer(Logger):
                 payment_secret=payment_secret,
                 amount_to_pay=amt_to_forward,
                 min_cltv_expiry=cltv_from_onion,
-                r_tags=[],
+                r_tags=r_tags,
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
                 fwd_trampoline_fee=trampoline_fee,

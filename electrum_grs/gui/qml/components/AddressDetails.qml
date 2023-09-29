@@ -279,11 +279,28 @@ Pane {
             }
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            text: addressdetails.isFrozen ? qsTr('Unfreeze address') : qsTr('Freeze address')
-            onClicked: addressdetails.freeze(!addressdetails.isFrozen)
-            icon.source: '../../icons/seal.png'
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: addressdetails.isFrozen ? qsTr('Unfreeze address') : qsTr('Freeze address')
+                onClicked: addressdetails.freeze(!addressdetails.isFrozen)
+                icon.source: '../../icons/seal.png'
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                visible: Daemon.currentWallet.canSignMessage
+                text: qsTr('Sign/Verify')
+                icon.source: '../../icons/pen.png'
+                onClicked: {
+                    var dialog = app.signVerifyMessageDialog.createObject(app, {
+                        address: root.address
+                    })
+                    dialog.open()
+                }
+            }
         }
     }
 

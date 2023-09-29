@@ -187,6 +187,8 @@ class Console(QtWidgets.QPlainTextEdit):
             return
 
         if command and (not self.history or self.history[-1] != command):
+            while len(self.history) >= 50:
+                self.history.remove(self.history[0])
             self.history.append(command)
         self.history_index = len(self.history)
 

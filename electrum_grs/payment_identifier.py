@@ -48,6 +48,7 @@ def is_uri(data: str) -> bool:
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
 RE_DOMAIN = r'\b([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
+RE_SCRIPT_FN = r'script\((.*)\)'
 
 
 class PaymentIdentifierState(IntEnum):
@@ -516,7 +517,8 @@ class PaymentIdentifier(Logger):
         except Exception as e:
             pass
         try:
-            script = self.parse_script(x)
+            m = re.match('^' + RE_SCRIPT_FN + '$', x)
+            script = self.parse_script(str(m.group(1)))
             return bytes.fromhex(script), False
         except Exception as e:
             pass

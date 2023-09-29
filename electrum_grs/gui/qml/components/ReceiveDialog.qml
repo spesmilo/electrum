@@ -298,16 +298,6 @@ ElDialog {
         }
     }
 
-    // make clicking the dialog background move the scope away from textedit fields
-    // so the keyboard goes away
-    MouseArea {
-        anchors.fill: parent
-        z: -1000
-        onClicked: parkFocus.focus = true
-        FocusScope { id: parkFocus }
-    }
-
-
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet

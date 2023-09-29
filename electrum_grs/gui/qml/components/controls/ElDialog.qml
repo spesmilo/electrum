@@ -1,6 +1,7 @@
-import QtQuick 2.6
+import QtQuick 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.3
+import QtQuick.Controls.Material 2.0
 
 Dialog {
     id: abstractdialog
@@ -94,4 +95,11 @@ Dialog {
         }
     }
 
+    background: Rectangle {
+        id: bg
+        color: Material.dialogColor
+        TapHandler {
+            onTapped: bg.forceActiveFocus()
+        }
+    }
 }

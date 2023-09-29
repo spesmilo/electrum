@@ -1,3 +1,4 @@
+import base64
 import os
 import threading
 from typing import TYPE_CHECKING
@@ -10,6 +11,8 @@ from electrum_grs.logging import get_logger
 from electrum_grs.util import WalletFileException, standardize_path
 from electrum_grs.plugin import run_hook
 from electrum_grs.lnchannel import ChannelState
+from electrum_grs.bitcoin import is_address
+from electrum_grs.ecc import verify_message_with_address
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -235,7 +238,7 @@ class QEDaemon(AuthMixin, QObject):
                 self._loading = False
                 self.loadingChanged.emit()
 
-        threading.Thread(target=load_wallet_task, daemon=True).start()
+        threading.Thread(target=load_wallet_task, daemon=False).start()
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -354,3 +357,17 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot()
     def startNetwork(self):
         self.daemon.start_network()
+
+    @pyqtSlot(str, str, str, result=bool)
+    def verifyMessage(self, address, message, signature):
+        address = address.strip()
+        message = message.strip().encode('utf-8')
+        if not is_address(address):
+            return False
+        try:
+            # This can throw on invalid base64
+            sig = base64.b64decode(str(signature.strip()))
+            verified = verify_message_with_address(address, sig, message)
+        except Exception as e:
+            verified = False
+        return verified
