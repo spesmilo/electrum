@@ -857,7 +857,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         req = self.wallet.get_request(key)
         addr = req.get_address() or ''
         URI = self.wallet.get_request_URI(req) or ''
-        lnaddr = req.lightning_invoice or ''
+        lnaddr = self.wallet.get_bolt11_invoice(req) or ''
         w = curses.newwin(self.maxy - 2, self.maxx - 2, 1, 1)
         pos = 4
         while True:
