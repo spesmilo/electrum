@@ -29,7 +29,7 @@ ElComboBox {
     }
 
     onCurrentValueChanged: {
-        if (activeFocus)
+        if (activeFocus && currentValue)
             Config.requestExpiry = currentValue
     }
 }
