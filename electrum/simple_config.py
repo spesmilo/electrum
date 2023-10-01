@@ -17,9 +17,12 @@ from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_
 from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
 from .lnutil import LN_MAX_FUNDING_SAT_LEGACY
-from .i18n import _
+from .i18n import _ as i18n_translate
 from .logging import get_logger, Logger
 
+# for i18n string collection
+def _(x):
+    return x
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
@@ -62,16 +65,12 @@ class ConfigVar(property):
         *,
         default: Union[Any, Callable[['SimpleConfig'], Any]],  # typically a literal, but can also be a callable
         type_=None,
-        short_desc: Callable[[], str] = None,
-        long_desc: Callable[[], str] = None,
+        short_desc: str = None,
+        long_desc: Sequence[str] = None,
     ):
         self._key = key
         self._default = default
         self._type = type_
-        # note: the descriptions are callables instead of str literals, to delay evaluating the _() translations
-        #       until after the language is set.
-        assert short_desc is None or callable(short_desc)
-        assert long_desc is None or callable(long_desc)
         self._short_desc = short_desc
         self._long_desc = long_desc
         property.__init__(self, self._get_config_value, self._set_config_value)
@@ -111,11 +110,12 @@ class ConfigVar(property):
 
     def get_short_desc(self) -> Optional[str]:
         desc = self._short_desc
-        return desc() if desc else None
+        return i18n_translate(desc) if desc else None
 
     def get_long_desc(self) -> Optional[str]:
         desc = self._long_desc
-        return desc() if desc else None
+        if desc:
+            return '\n'.join([i18n_translate(x) for x in desc])
 
     def __repr__(self):
         return f"<ConfigVar key={self._key!r}>"
@@ -938,10 +938,11 @@ class SimpleConfig(Logger):
 
     WALLET_BATCH_RBF = ConfigVar(
         'batch_rbf', default=False, type_=bool,
-        short_desc=lambda: _('Batch unconfirmed transactions'),
-        long_desc=lambda: (
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
-            _('This will save fees, but might have unwanted effects in terms of privacy')),
+        short_desc=_('Batch unconfirmed transactions'),
+        long_desc=[
+            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.'),
+            _('This will save fees, but might have unwanted effects in terms of privacy')
+        ],
     )
     WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
         'wallet_merge_duplicate_outputs', default=False, type_=bool,
@@ -951,35 +952,40 @@ class SimpleConfig(Logger):
     )
     WALLET_SPEND_CONFIRMED_ONLY = ConfigVar(
         'confirmed_only', default=False, type_=bool,
-        short_desc=lambda: _('Spend only confirmed coins'),
-        long_desc=lambda: _('Spend only confirmed inputs.'),
+        short_desc=_('Spend only confirmed coins'),
+        long_desc=[_('Spend only confirmed inputs.')],
     )
     WALLET_COIN_CHOOSER_POLICY = ConfigVar('coin_chooser', default='Privacy', type_=str)
     WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = ConfigVar(
         'coin_chooser_output_rounding', default=True, type_=bool,
-        short_desc=lambda: _('Enable output value rounding'),
-        long_desc=lambda: (
-            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
-            _('This might improve your privacy somewhat.') + '\n' +
-            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.')),
+        short_desc=_('Enable output value rounding'),
+        long_desc=[
+            _('Set the value of the change output so that it has similar precision to the other outputs.'), '\n',
+            _('This might improve your privacy somewhat.'), '\n',
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.')
+        ],
     )
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
     WALLET_BIP21_LIGHTNING = ConfigVar(
         'bip21_lightning', default=False, type_=bool,
-        short_desc=lambda: _('Add lightning requests to bitcoin URIs'),
-        long_desc=lambda: _('This may result in large QR codes'),
+        short_desc=_('Add lightning requests to bitcoin URIs'),
+        long_desc=[
+            _('This may result in large QR codes'),
+        ]
     )
     WALLET_BOLT11_FALLBACK = ConfigVar(
         'bolt11_fallback', default=True, type_=bool,
-        short_desc=lambda: _('Add on-chain fallback to lightning requests'),
+        short_desc=_('Add on-chain fallback to lightning requests'),
     )
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,
-        short_desc=lambda: _('Send change to Lightning'),
-        long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
+        short_desc=_('Send change to Lightning'),
+        long_desc=[
+            _('If possible, send the change of this transaction to your channels, with a submarine swap')
+        ],
     )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
@@ -987,53 +993,55 @@ class SimpleConfig(Logger):
     FX_EXCHANGE = ConfigVar('use_exchange', default='CoinGecko', type_=str)  # default exchange should ideally provide historical rates
     FX_HISTORY_RATES = ConfigVar(
         'history_rates', default=False, type_=bool,
-        short_desc=lambda: _('Download historical rates'),
+        short_desc=_('Download historical rates'),
     )
     FX_HISTORY_RATES_CAPITAL_GAINS = ConfigVar(
         'history_rates_capital_gains', default=False, type_=bool,
-        short_desc=lambda: _('Show Capital Gains'),
+        short_desc=_('Show Capital Gains'),
     )
     FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES = ConfigVar(
         'fiat_address', default=False, type_=bool,
-        short_desc=lambda: _('Show Fiat balances'),
+        short_desc=_('Show Fiat balances'),
     )
 
     LIGHTNING_LISTEN = ConfigVar('lightning_listen', default=None, type_=str)
     LIGHTNING_PEERS = ConfigVar('lightning_peers', default=None)
     LIGHTNING_USE_GOSSIP = ConfigVar(
         'use_gossip', default=False, type_=bool,
-        short_desc=lambda: _("Use trampoline routing"),
-        long_desc=lambda: _("""Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip).
-
-Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes."""),
+        short_desc=_("Use trampoline routing"),
+        long_desc=[
+            _("Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip)."),
+            _("Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes."),
+        ]
     )
     LIGHTNING_USE_RECOVERABLE_CHANNELS = ConfigVar(
         'use_recoverable_channels', default=True, type_=bool,
-        short_desc=lambda: _("Create recoverable channels"),
-        long_desc=lambda: _("""Add extra data to your channel funding transactions, so that a static backup can be recovered from your seed.
+        short_desc=_("Create recoverable channels"),
+        long_desc=[
+            _("Add extra data to your channel funding transactions, so that a static backup can be recovered from your seed."),
+            _("Note that static backups only allow you to request a force-close with the remote node. This assumes that the remote node is still online, did not lose its data, and accepts to force close the channel."),
+            _("If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."),
+        ])
 
-Note that static backups only allow you to request a force-close with the remote node. This assumes that the remote node is still online, did not lose its data, and accepts to force close the channel.
-
-If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."""),
-    )
     LIGHTNING_ALLOW_INSTANT_SWAPS = ConfigVar(
         'allow_instant_swaps', default=False, type_=bool,
-        short_desc=lambda: _("Allow instant swaps"),
-        long_desc=lambda: _("""If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed.
+        short_desc=_("Allow instant swaps"),
+        long_desc=[
+            _("If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed."),
+            _("Note you are at risk of losing the funds in the swap, if the funding transaction never confirms."),
+        ])
 
-Note you are at risk of losing the funds in the swap, if the funding transaction never confirms."""),
-    )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
     LIGHTNING_LEGACY_ADD_TRAMPOLINE = ConfigVar(
         'lightning_legacy_add_trampoline', default=False, type_=bool,
-        short_desc=lambda: _("Add extra trampoline to legacy payments"),
-        long_desc=lambda: _("""When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy.
+        short_desc=_("Add extra trampoline to legacy payments"),
+        long_desc=[
+            _("When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy."),
+            _("This will result in longer routes; it might increase your fees and decrease the success rate of your payments."),
+        ])
 
-This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
-    )
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
-
     LIGHTNING_NODE_ALIAS = ConfigVar('lightning_node_alias', default='', type_=str)
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)
     EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = ConfigVar('lightning_forward_trampoline_payments', default=False, type_=bool)
@@ -1063,7 +1071,7 @@ This will result in longer routes; it might increase your fees and decrease the 
 
     GUI_QT_COLOR_THEME = ConfigVar(
         'qt_gui_color_theme', default='default', type_=str,
-        short_desc=lambda: _('Color theme'),
+        short_desc=_('Color theme'),
     )
     GUI_QT_DARK_TRAY_ICON = ConfigVar('dark_icon', default=False, type_=bool)
     GUI_QT_WINDOW_IS_MAXIMIZED = ConfigVar('is_maximized', default=False, type_=bool)
@@ -1072,24 +1080,25 @@ This will result in longer routes; it might increase your fees and decrease the 
     GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR = ConfigVar('show_toolbar_addresses', default=False, type_=bool)
     GUI_QT_TX_DIALOG_FETCH_TXIN_DATA = ConfigVar(
         'tx_dialog_fetch_txin_data', default=False, type_=bool,
-        short_desc=lambda: _('Download missing data'),
-        long_desc=lambda: _(
-            'Download parent transactions from the network.\n'
-            'Allows filling in missing fee and input details.'),
-    )
+        short_desc=_('Download missing data'),
+        long_desc=[
+            _('Download parent transactions from the network.'),
+            _('Allows filling in missing fee and input details.'),
+        ])
+
     GUI_QT_RECEIVE_TABS_INDEX = ConfigVar('receive_tabs_index', default=0, type_=int)
     GUI_QT_RECEIVE_TAB_QR_VISIBLE = ConfigVar('receive_qr_visible', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_IO = ConfigVar(
         'show_tx_io', default=False, type_=bool,
-        short_desc=lambda: _('Show inputs and outputs'),
+        short_desc=_('Show inputs and outputs'),
     )
     GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS = ConfigVar(
         'show_tx_fee_details', default=False, type_=bool,
-        short_desc=lambda: _('Edit fees manually'),
+        short_desc=_('Edit fees manually'),
     )
     GUI_QT_TX_EDITOR_SHOW_LOCKTIME = ConfigVar(
         'show_tx_locktime', default=False, type_=bool,
-        short_desc=lambda: _('Edit Locktime'),
+        short_desc=_('Edit Locktime'),
     )
     GUI_QT_SHOW_TAB_ADDRESSES = ConfigVar('show_addresses_tab', default=False, type_=bool)
     GUI_QT_SHOW_TAB_CHANNELS = ConfigVar('show_channels_tab', default=False, type_=bool)
@@ -1105,57 +1114,66 @@ This will result in longer routes; it might increase your fees and decrease the 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)
     BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = ConfigVar(
         'num_zeros', default=0, type_=int,
-        short_desc=lambda: _('Zeros after decimal point'),
-        long_desc=lambda: _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"'),
-    )
+        short_desc=_('Zeros after decimal point'),
+        long_desc=[
+            _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"'),
+        ])
     BTC_AMOUNTS_PREC_POST_SAT = ConfigVar(
         'amt_precision_post_satoshi', default=0, type_=int,
-        short_desc=lambda: _("Show Lightning amounts with msat precision"),
+        short_desc=_("Show Lightning amounts with msat precision"),
     )
     BTC_AMOUNTS_ADD_THOUSANDS_SEP = ConfigVar(
         'amt_add_thousands_sep', default=False, type_=bool,
-        short_desc=lambda: _("Add thousand separators to bitcoin amounts"),
+        short_desc=_("Add thousand separators to bitcoin amounts"),
     )
 
     BLOCK_EXPLORER = ConfigVar(
         'block_explorer', default='Blockstream.info', type_=str,
-        short_desc=lambda: _('Online Block Explorer'),
-        long_desc=lambda: _('Choose which online block explorer to use for functions that open a web browser'),
-    )
+        short_desc=_('Online Block Explorer'),
+        long_desc=[
+            _('Choose which online block explorer to use for functions that open a web browser'),
+        ])
+
     BLOCK_EXPLORER_CUSTOM = ConfigVar('block_explorer_custom', default=None)
     VIDEO_DEVICE_PATH = ConfigVar(
         'video_device', default='default', type_=str,
-        short_desc=lambda: _('Video Device'),
-        long_desc=lambda: (_("For scanning QR codes.") + "\n" +
-                           _("Install the zbar package to enable this.")),
+        short_desc=_('Video Device'),
+        long_desc=[
+            _("For scanning QR codes."),
+            _("Install the zbar package to enable this."),
+        ]
     )
     OPENALIAS_ID = ConfigVar(
         'alias', default="", type_=str,
-        short_desc=lambda: 'OpenAlias',
-        long_desc=lambda: (
-            _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n' +
-            _('The following alias providers are available:') + '\n' +
-            '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n' +
-            'For more information, see https://openalias.org'),
-    )
+        short_desc='OpenAlias',
+        long_desc=[
+            _('OpenAlias record, used to receive coins and to sign payment requests.'),
+            _('The following alias providers are available:'),
+            '\n'.join(['https://cryptoname.co/', 'http://xmr.link']),
+            _('For more information, see https://openalias.org'),
+        ])
     HWD_SESSION_TIMEOUT = ConfigVar('session_timeout', default=300, type_=int)
     CLI_TIMEOUT = ConfigVar('timeout', default=60, type_=float)
     AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = ConfigVar(
         'check_updates', default=False, type_=bool,
-        short_desc=lambda: _("Automatically check for software updates"),
+        short_desc=_("Automatically check for software updates"),
     )
     WRITE_LOGS_TO_DISK = ConfigVar(
         'log_to_file', default=False, type_=bool,
-        short_desc=lambda: _("Write logs to file"),
-        long_desc=lambda: _('Debug logs can be persisted to disk. These are useful for troubleshooting.'),
-    )
+        short_desc=_("Write logs to file"),
+        long_desc=[
+            _('Debug logs can be persisted to disk. These are useful for troubleshooting.'),
+        ])
+
     LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=10, type_=int)
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
         'language', default="", type_=str,
-        short_desc=lambda: _("Language"),
-        long_desc=lambda: _("Select which language is used in the GUI (after restart)."),
-    )
+        short_desc=_("Language"),
+        long_desc=[
+            _("Select which language is used in the GUI (after restart)."),
+        ])
+
     BLOCKCHAIN_PREFERRED_BLOCK = ConfigVar('blockchain_preferred_block', default=None)
     SHOW_CRASH_REPORTER = ConfigVar('show_crash_reporter', default=True, type_=bool)
     DONT_SHOW_TESTNET_WARNING = ConfigVar('dont_show_testnet_warning', default=False, type_=bool)
@@ -1180,12 +1198,12 @@ This will result in longer routes; it might increase your fees and decrease the 
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar(
         'use_watchtower', default=False, type_=bool,
-        short_desc=lambda: _("Use a remote watchtower"),
-        long_desc=lambda: ' '.join([
+        short_desc=_("Use a remote watchtower"),
+        long_desc=[
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
             _("If you have private a watchtower, enter its URL here."),
             _("Check our online documentation if you want to configure Electrum as a watchtower."),
-        ]),
+        ],
     )
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
