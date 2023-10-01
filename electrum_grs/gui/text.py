@@ -60,7 +60,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
         self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
@@ -857,7 +857,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         req = self.wallet.get_request(key)
         addr = req.get_address() or ''
         URI = self.wallet.get_request_URI(req) or ''
-        lnaddr = req.lightning_invoice or ''
+        lnaddr = self.wallet.get_bolt11_invoice(req) or ''
         w = curses.newwin(self.maxy - 2, self.maxx - 2, 1, 1)
         pos = 4
         while True:
