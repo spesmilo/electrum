@@ -182,6 +182,7 @@ task:
 
 task:
   name: "build: Android (QML $APK_ARCH)"
+  timeout_in: 90m
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
