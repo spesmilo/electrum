@@ -793,6 +793,11 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
             self.warning = _('Cannot determine dynamic fees, not connected')
             return
 
+        if self._parent_fee is None:
+            self._logger.error(_("Can't CPFP: unknown fee for parent transaction."))
+            self.warning = _("Can't CPFP: unknown fee for parent transaction.")
+            return
+
         fee = self.get_child_fee_from_total_feerate(fee_per_kb=fee_per_kb)
 
         if fee is None:
