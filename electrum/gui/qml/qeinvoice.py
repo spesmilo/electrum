@@ -249,7 +249,8 @@ class QEInvoice(QObject, QtEventListener):
         }
 
     def name_for_node_id(self, node_id):
-        return self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
+        lnworker = self._wallet.wallet.lnworker
+        return (lnworker.get_node_alias(node_id) if lnworker else None) or node_id.hex()
 
     def set_effective_invoice(self, invoice: Invoice):
         self._effectiveInvoice = invoice
