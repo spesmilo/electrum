@@ -301,14 +301,12 @@ class PaymentIdentifier(Logger):
         try:
             if self.emaillike or self.domainlike:
                 # TODO: parallel lookup?
-                data = await self.resolve_openalias()
+                key = self.emaillike if self.emaillike else self.domainlike
+                data = await self.resolve_openalias(key)
                 if data:
                     self.openalias_data = data
                     self.logger.debug(f'OA: {data!r}')
-                    name = data.get('name')
                     address = data.get('address')
-                    key = self.emaillike if self.emaillike else self.domainlike
-                    self.contacts[key] = ('openalias', name)
                     if not data.get('validated'):
                         self.warning = _(
                             'WARNING: the alias "{}" could not be validated via an additional '
@@ -639,8 +637,7 @@ class PaymentIdentifier(Logger):
         amount = lnaddr.get_amount_sat()
         return pubkey, amount, description
 
-    async def resolve_openalias(self) -> Optional[dict]:
-        key = self.emaillike if self.emaillike else self.domainlike
+    async def resolve_openalias(self, key: str) -> Optional[dict]:
         # TODO: below check needed? we already matched RE_EMAIL/RE_DOMAIN
         # if not (('.' in key) and ('<' not in key) and (' ' not in key)):
         #     return None
