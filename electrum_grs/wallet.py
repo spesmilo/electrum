@@ -1776,13 +1776,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 base_tx = PartialTransaction.from_tx(base_tx)
                 base_tx.add_info_from_wallet(self)
                 base_tx_fee = base_tx.get_fee()
+                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
                 original_fee_estimator = fee_estimator
                 def fee_estimator(size: Union[int, float, Decimal]) -> int:
                     size = Decimal(size)
-                    lower_bound = base_tx_fee + round(size * relayfeerate)
-                    lower_bound = lower_bound if not is_local else 0
-                    return int(max(lower_bound, original_fee_estimator(size)))
+                    lower_bound_relayfee = int(base_tx_fee + round(size * relayfeerate)) if not is_local else 0
+                    lower_bound_feerate = int(base_feerate * size) + 1
+                    lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
+                    return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]

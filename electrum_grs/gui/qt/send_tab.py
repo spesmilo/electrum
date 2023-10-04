@@ -483,7 +483,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.prepare_for_send_tab_network_lookup()
             self.payto_e.payment_identifier.resolve(on_finished=self.resolve_done_signal.emit)
 
-    def on_resolve_done(self, pi):
+    def on_resolve_done(self, pi: 'PaymentIdentifier'):
         # TODO: resolve can happen while typing, we don't want message dialogs to pop up
         # currently we don't set error for emaillike recipients to avoid just that
         self.logger.debug('payment identifier resolve done')
@@ -492,6 +492,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(pi.error)
             self.do_clear()
             return
+        # if openalias add openalias to contacts
+        if pi.type == PaymentIdentifierType.OPENALIAS:
+            key = pi.emaillike if pi.emaillike else pi.domainlike
+            pi.contacts[key] = ('openalias', pi.openalias_data.get('name'))
+
         self.update_fields()
 
     def get_message(self):
