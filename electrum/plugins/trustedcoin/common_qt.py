@@ -1,9 +1,13 @@
 import threading
 import socket
 import base64
+import sys
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot  # TODO: common code, Qt5/Qt6 mismatch!
+if getattr(sys, '_GUI_QT_VERSION') == 5:  # FIXME: remove when both desktop and mobile are Qt6
+    from PyQt5.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
+else:
+    from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
 
 from electrum.i18n import _
 from electrum.bip32 import BIP32Node
