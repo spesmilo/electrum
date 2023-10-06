@@ -186,7 +186,7 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch master (note: careful with force-pushing! see #8162) \
     # no, this is master
-    && git checkout "698b48136c55b2495128207c5e98dccc128bb6c2^{commit}" \
+    && git checkout "ce4f2257249fdf4ff1f4cb8983fd7ac44174a274^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
