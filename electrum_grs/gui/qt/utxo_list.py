@@ -264,6 +264,9 @@ class UTXOList(MyTreeView):
         return is_address(text)
 
     def pay_to_clipboard_address(self, coins):
+        if not self.clipboard_contains_address():
+            self.main_window.show_error(_('Clipboard doesn\'t contain a valid address'))
+            return
         addr = self.main_window.app.clipboard().text()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
         #self.clear_coincontrol()

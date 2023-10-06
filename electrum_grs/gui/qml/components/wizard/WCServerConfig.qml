@@ -9,7 +9,7 @@ WizardComponent {
     last: true
 
     function apply() {
-        wizard_data['autoconnect'] = sc.auto_connect
+        wizard_data['autoconnect'] = false
         wizard_data['server'] = sc.address
     }
 
@@ -17,13 +17,10 @@ WizardComponent {
         anchors.fill: parent
         spacing: constants.paddingLarge
 
-        Label {
-            text: qsTr('Server settings')
-        }
-
         ServerConfig {
             id: sc
-            width: parent.width
+            showAutoselectServer: false
+            Layout.fillWidth: true
             Layout.fillHeight: true
         }
     }

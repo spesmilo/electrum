@@ -15,10 +15,6 @@ WizardComponent {
         width: parent.width
         spacing: constants.paddingLarge
 
-        Label {
-            text: qsTr('Proxy settings')
-        }
-
         ProxyConfig {
             id: pc
             Layout.fillWidth: true
