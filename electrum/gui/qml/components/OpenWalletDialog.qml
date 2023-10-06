@@ -13,6 +13,7 @@ ElDialog {
     property string name
     property string path
 
+    property bool _invalidPassword: false
     property bool _unlockClicked: false
 
     title: qsTr('Open Wallet')
@@ -38,17 +39,15 @@ ElDialog {
 
             InfoTextArea {
                 id: notice
-                text: Daemon.singlePasswordEnabled
+                text: Daemon.singlePasswordEnabled || !Daemon.currentWallet
                     ? qsTr('Please enter password')
                     : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
-                visible: wallet_db.needsPassword
                 iconStyle: InfoTextArea.IconStyle.Warn
                 Layout.fillWidth: true
             }
 
             Label {
                 text: qsTr('Password')
-                visible: wallet_db.needsPassword
                 Layout.fillWidth: true
                 color: Material.accentColor
             }
@@ -57,7 +56,6 @@ ElDialog {
                 id: password
                 Layout.fillWidth: true
                 Layout.leftMargin: constants.paddingXLarge
-                visible: wallet_db.needsPassword
 
                 onTextChanged: {
                     unlockButton.enabled = true
@@ -70,7 +68,7 @@ ElDialog {
 
             Label {
                 Layout.alignment: Qt.AlignHCenter
-                text: !wallet_db.validPassword && _unlockClicked ? qsTr("Invalid Password") : ''
+                text: _invalidPassword && _unlockClicked ? qsTr("Invalid Password") : ''
                 color: constants.colorError
                 font.pixelSize: constants.fontSizeLarge
             }
@@ -79,7 +77,6 @@ ElDialog {
         FlatButton {
             id: unlockButton
             Layout.fillWidth: true
-            visible: wallet_db.needsPassword
             icon.source: '../../icons/unlock.png'
             text: qsTr("Unlock")
             onClicked: {
@@ -92,32 +89,22 @@ ElDialog {
     function unlock() {
         unlockButton.enabled = false
         _unlockClicked = true
-        wallet_db.password = password.text
-        wallet_db.verify()
+        Daemon.loadWallet(openwalletdialog.path, password.text)
     }
 
-    WalletDB {
-        id: wallet_db
-        path: openwalletdialog.path
-        onReadyChanged: {
-            if (ready) {
-                Daemon.loadWallet(openwalletdialog.path, password.text)
-                openwalletdialog.close()
-            }
-        }
-        onInvalidPassword: {
+    Connections {
+        target: Daemon
+        function onWalletRequiresPassword() {
+            console.log('invalid password')
+            _invalidPassword = true
             password.tf.forceActiveFocus()
         }
-        onNeedsPasswordChanged: {
-            notice.visible = needsPassword
-        }
-        onWalletOpenProblem: {
+        function onWalletLoaded() {
             openwalletdialog.close()
-            Daemon.onWalletOpenProblem(error)
         }
     }
 
     Component.onCompleted: {
-        wallet_db.verify()
+        password.tf.forceActiveFocus()
     }
 }

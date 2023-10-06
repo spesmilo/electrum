@@ -496,12 +496,19 @@ ApplicationWindow
         }
     }
 
+    property var _opendialog: undefined
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword(name, path) {
             console.log('wallet requires password')
-            var dialog = openWalletDialog.createObject(app, { path: path, name: name })
-            dialog.open()
+            if (_opendialog == undefined) {
+                _opendialog = openWalletDialog.createObject(app, { path: path, name: name })
+                _opendialog.closed.connect(function() {
+                    _opendialog = undefined
+                })
+                _opendialog.open()
+            }
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')
