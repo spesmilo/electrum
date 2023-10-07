@@ -341,7 +341,6 @@ class Commands:
         else:
             cv = self.config.cv.from_key(key)
             cv.set(value)
-        return True
 
     @command('')
     async def make_seed(self, nbits=None, language=None, seed_type=None):

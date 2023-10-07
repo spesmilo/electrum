@@ -29,6 +29,8 @@ from .i18n import _
 from .bitcoin import construct_script
 from .crypto import ripemd
 from .invoices import Invoice
+from .network import TxBroadcastServerReturnedError
+
 
 if TYPE_CHECKING:
     from .network import Network
@@ -307,10 +309,12 @@ class SwapManager(Logger):
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
                 elif spent_height == TX_HEIGHT_LOCAL:
-                    if funding_height.conf > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS:
+                    if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
                         tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                        self.logger.info(f'broadcasting tx {txin.spent_txid}')
-                        await self.network.broadcast_transaction(tx)
+                        try:
+                            await self.network.broadcast_transaction(tx)
+                        except TxBroadcastServerReturnedError:
+                            self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
                     elif funding_height.height == TX_HEIGHT_LOCAL:
                         # the funding tx was double spent.
                         # this will remove both funding and child (spending tx) from adb
@@ -401,8 +405,14 @@ class SwapManager(Logger):
             swap = self.swaps[key]
             if swap.funding_txid is None:
                 password = self.wallet.get_unlocked_password()
-                tx = self.create_funding_tx(swap, None, password)
-                await self.broadcast_funding_tx(swap, tx)
+                for batch_rbf in [True, False]:
+                    self.wallet.config.WALLET_BATCH_RBF = batch_rbf
+                    tx = self.create_funding_tx(swap, None, password)
+                    try:
+                        await self.broadcast_funding_tx(swap, tx)
+                    except TxBroadcastServerReturnedError:
+                        continue
+                    break
 
     def create_normal_swap(self, *, lightning_amount_sat=None, payment_hash: bytes=None, their_pubkey=None):
         """ server method """
