@@ -309,7 +309,7 @@ class SwapManager(Logger):
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
                 elif spent_height == TX_HEIGHT_LOCAL:
-                    if swap.is_reverse and (funding_height.conf > 0 or self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
+                    if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
                         tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                         try:
                             await self.network.broadcast_transaction(tx)
