@@ -235,17 +235,26 @@ class Commands:
     @command('n')
     async def list_wallets(self):
         """List wallets open in daemon"""
-        return [{'path': path, 'synchronized': w.is_up_to_date()}
-                for path, w in self.daemon.get_wallets().items()]
+        return [
+            {
+                'path': path,
+                'synchronized': w.is_up_to_date(),
+                'unlocked': w.has_password() and (w.get_unlocked_password() is not None),
+            }
+            for path, w in self.daemon.get_wallets().items()
+        ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, password=None):
-        """Open wallet in daemon"""
+    async def load_wallet(self, wallet_path=None, unlock=False, password=None):
+        """
+        Load the wallet in memory
+        """
         wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
-        if wallet is not None:
-            run_hook('load_wallet', wallet, None)
-        response = wallet is not None
-        return response
+        if wallet is None:
+            raise Exception('could not load wallet')
+        if unlock:
+            wallet.unlock(password)
+        run_hook('load_wallet', wallet, None)
 
     @command('n')
     async def close_wallet(self, wallet_path=None):
@@ -625,12 +634,6 @@ class Commands:
         ret["dnspython.version"] = dns.__version__
 
         return ret
-
-    @command('w')
-    async def unlock(self, password=None, wallet: Abstract_Wallet = None):
-        """Unlock the wallet. The wallet password will be stored in memory"""
-        wallet.unlock(password)
-        return "wallet unlocked" if password else "wallet locked"
 
     @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
@@ -1410,7 +1413,7 @@ param_descriptions = {
 }
 
 command_options = {
-    'password':    ("-W", "Password"),
+    'password':    ("-W", "Password. Use '--password :' if you want a prompt."),
     'new_password':(None, "New Password"),
     'encrypt_file':(None, "Whether the file on disk should be encrypted with the provided password"),
     'receiving':   (None, "Show only receiving addresses"),
@@ -1461,6 +1464,7 @@ command_options = {
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
+    'unlock':      (None, "Unlock the wallet (store the password in memory).")
 }
 
 
