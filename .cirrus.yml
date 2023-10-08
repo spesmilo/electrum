@@ -20,7 +20,7 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.11
        - name: "unittests: Tox Python 3 debug mode"
          env:
-           ELECTRUM_PYTHON_VERSION: 3
+           ELECTRUM_PYTHON_VERSION: 3.11
            # enable additional checks:
            PYTHONASYNCIODEBUG: "1"
            PYTHONDEVMODE: "1"
