@@ -1069,24 +1069,22 @@ class Commands:
         """ return wallet synchronization status """
         return wallet.is_up_to_date()
 
-    @command('n')
-    async def getfeerate(self, fee_method=None, fee_level=None):
-        """Return current suggested fee rate (in sat/kvByte), according to config
-        settings or supplied parameters.
+    @command('')
+    async def getfeerate(self):
+        """Return current fee rate settings and current estimate (in sat/kvByte).
         """
-        if fee_method is None:
-            dyn, mempool = None, None
-        elif fee_method.lower() == 'static':
-            dyn, mempool = False, False
-        elif fee_method.lower() == 'eta':
-            dyn, mempool = True, False
-        elif fee_method.lower() == 'mempool':
-            dyn, mempool = True, True
-        else:
-            raise Exception('Invalid fee estimation method: {}'.format(fee_method))
-        if fee_level is not None:
-            fee_level = to_decimal(fee_level)
-        return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
+        method, value, feerate, tooltip = self.config.getfeerate()
+        return {
+            'method': method,
+            'value': value,
+            'sat/kvB': feerate,
+            'tooltip': tooltip,
+        }
+
+    @command('')
+    async def setfeerate(self, method, value):
+        """Set fee rate estimation method and value"""
+        self.config.setfeerate(method, value)
 
     @command('w')
     async def removelocaltx(self, txid, wallet: Abstract_Wallet = None):
@@ -1453,8 +1451,6 @@ command_options = {
     'show_fiat':   (None, "Show fiat value of transactions"),
     'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
-    'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
@@ -1487,8 +1483,6 @@ arg_types = {
     'amount': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
     'locktime': int,
     'addtransaction': eval_bool,
-    'fee_method': str,
-    'fee_level': json_loads,
     'encrypt_file': eval_bool,
     'rbf': eval_bool,
     'timeout': float,

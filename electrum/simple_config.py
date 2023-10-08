@@ -744,10 +744,53 @@ class SimpleConfig(Logger):
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
-            fee_rate = self.FEE_EST_STATIC_FEERATE_FALLBACK
+            fee_rate = self.FEE_EST_STATIC_FEERATE
         if fee_rate is not None:
             fee_rate = int(fee_rate)
         return fee_rate
+
+    def getfeerate(self) -> Tuple[str, int, int]:
+        dyn = self.is_dynfee()
+        mempool = self.use_mempool_fees()
+        if dyn:
+            if mempool:
+                method = 'mempool'
+                fee_level = self.get_depth_level()
+                value = self.depth_target(fee_level)
+                fee_rate = self.depth_to_fee(fee_level)
+                tooltip = self.depth_tooltip(value)
+            else:
+                method = 'ETA'
+                fee_level = self.get_fee_level()
+                value = self.eta_target(fee_level)
+                fee_rate = self.eta_to_fee(fee_level)
+                tooltip = self.eta_tooltip(value)
+        else:
+            method = 'static'
+            value = self.FEE_EST_STATIC_FEERATE
+            fee_rate = value
+            tooltip = 'static feerate'
+
+        return method, value, fee_rate, tooltip
+
+    def setfeerate(self, fee_method: str, value: int):
+        if fee_method == 'mempool':
+            if fee_level not in FEE_DEPTH_TARGETS:
+                raise Exception(f"Error: fee_level must be in {FEE_DEPTH_TARGETS}")
+            self.FEE_EST_USE_MEMPOOL = True
+            self.FEE_EST_DYNAMIC = True
+            self.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = FEE_DEPTH_TARGETS.index(value)
+        elif fee_method == 'ETA':
+            if value not in FEE_ETA_TARGETS:
+                raise Exception(f"Error: fee_level must be in {FEE_ETA_TARGETS}")
+            self.FEE_EST_USE_MEMPOOL = False
+            self.FEE_EST_DYNAMIC = True
+            self.FEE_EST_DYNAMIC_ETA_SLIDERPOS = FEE_ETA_TARGETS.index(value)
+        elif fee_method == 'static':
+            self.FEE_EST_DYNAMIC = False
+            self.FEE_EST_STATIC_FEERATE = value
+        else:
+            raise Exception(f"Invalid parameter: {fee_method}. Valid methods are: ETA, mempool, static.")
 
     def fee_per_byte(self):
         """Returns sat/vB fee to pay for a txn.
@@ -993,7 +1036,7 @@ This will result in longer routes; it might increase your fees and decrease the 
 
     FEE_EST_DYNAMIC = ConfigVar('dynamic_fees', default=True, type_=bool)
     FEE_EST_USE_MEMPOOL = ConfigVar('mempool_fees', default=False, type_=bool)
-    FEE_EST_STATIC_FEERATE_FALLBACK = ConfigVar('fee_per_kb', default=FEERATE_FALLBACK_STATIC_FEE, type_=int)
+    FEE_EST_STATIC_FEERATE = ConfigVar('fee_per_kb', default=FEERATE_FALLBACK_STATIC_FEE, type_=int)
     FEE_EST_DYNAMIC_ETA_SLIDERPOS = ConfigVar('fee_level', default=2, type_=int)
     FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = ConfigVar('depth_level', default=2, type_=int)
 
