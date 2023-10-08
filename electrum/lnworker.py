@@ -68,7 +68,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NoPathFound, InvalidGossipMsg)
 from .lnutil import ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, OnionRoutingFailure, OnionPacket
+from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -2274,6 +2274,7 @@ class LNWallet(LNWorker):
         self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+            chan.pop_onion_key(htlc_id)
             payment_key = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions.get(payment_key)
             if paysession:
@@ -2304,6 +2305,7 @@ class LNWallet(LNWorker):
         self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+            onion_key = chan.pop_onion_key(htlc_id)
             payment_okey = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions.get(payment_okey)
             if paysession:
@@ -2316,7 +2318,10 @@ class LNWallet(LNWorker):
             if error_bytes:
                 # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
                 try:
-                    failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+                    failure_message, sender_idx = decode_onion_error(
+                        error_bytes,
+                        [x.node_id for x in route],
+                        onion_key)
                 except Exception as e:
                     sender_idx = None
                     failure_message = OnionRoutingFailure(-1, str(e))

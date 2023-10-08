@@ -41,7 +41,7 @@ from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
-from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure
+from .lnonion import OnionFailureCode, OnionRoutingFailure
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                      get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
@@ -704,8 +704,8 @@ class Channel(AbstractChannel):
     def set_onion_key(self, key: int, value: bytes):
         self.onion_keys[key] = value
 
-    def get_onion_key(self, key: int) -> bytes:
-        return self.onion_keys.get(key)
+    def pop_onion_key(self, key: int) -> bytes:
+        return self.onion_keys.pop(key)
 
     def set_data_loss_protect_remote_pcp(self, key, value):
         self.data_loss_protect_remote_pcp[key] = value
@@ -1436,14 +1436,6 @@ class Channel(AbstractChannel):
     def get_payment_hash(self, htlc_id: int) -> bytes:
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         return htlc.payment_hash
-
-    def decode_onion_error(self, reason: bytes, route: Sequence['RouteEdge'],
-                           htlc_id: int) -> Tuple[OnionRoutingFailure, int]:
-        failure_msg, sender_idx = decode_onion_error(
-            reason,
-            [x.node_id for x in route],
-            self.onion_keys[htlc_id])
-        return failure_msg, sender_idx
 
     def receive_htlc_settle(self, preimage: bytes, htlc_id: int) -> None:
         """Settle/fulfill a pending offered HTLC.
