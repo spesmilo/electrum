@@ -653,6 +653,7 @@ class Channel(AbstractChannel):
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
+        self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
         """Get scid_alias to be used for *outgoing* HTLCs.

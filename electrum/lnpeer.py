@@ -1279,8 +1279,6 @@ class Peer(Logger):
         if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             self.send_channel_ready(chan)
         # checks done
-        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
-            self.mark_open(chan)
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
         if chan.get_state() == ChannelState.SHUTDOWN:
@@ -1291,22 +1289,20 @@ class Peer(Logger):
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
         second_per_commitment_point = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
-
         channel_ready_tlvs = {}
         if self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             # LND requires that we send an alias if the option has been negotiated in INIT.
             # otherwise, the channel will not be marked as active.
             # This does not apply if the channel was previously marked active without an alias.
             channel_ready_tlvs['short_channel_id'] = {'alias': chan.get_local_scid_alias(create_new_if_needed=True)}
-
         # note: if 'channel_ready' was not yet received, we might send it multiple times
         self.send_message(
             "channel_ready",
             channel_id=channel_id,
             second_per_commitment_point=second_per_commitment_point,
             channel_ready_tlvs=channel_ready_tlvs)
-        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
-            self.mark_open(chan)
+        chan.sent_channel_ready = True
+        self.maybe_mark_open(chan)
 
     def on_channel_ready(self, chan: Channel, payload):
         self.logger.info(f"on_channel_ready. channel: {chan.channel_id.hex()}")
@@ -1314,14 +1310,12 @@ class Peer(Logger):
         scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
         if scid_alias:
             chan.save_remote_scid_alias(scid_alias)
-
         if not chan.config[LOCAL].funding_locked_received:
             their_next_point = payload["second_per_commitment_point"]
             chan.config[REMOTE].next_per_commitment_point = their_next_point
             chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)
-        if chan.is_funded():
-            self.mark_open(chan)
+        self.maybe_mark_open(chan)
 
     def on_network_update(self, chan: Channel, funding_tx_depth: int):
         """
@@ -1375,6 +1369,13 @@ class Peer(Logger):
             bitcoin_key_1=bitcoin_keys[0],
             bitcoin_key_2=bitcoin_keys[1]
         )
+
+    def maybe_mark_open(self, chan: Channel):
+        if not chan.sent_channel_ready:
+            return
+        if not chan.config[LOCAL].funding_locked_received:
+            return
+        self.mark_open(chan)
 
     def mark_open(self, chan: Channel):
         assert chan.is_funded()
