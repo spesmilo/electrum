@@ -131,7 +131,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     PAYMENT_TIMEOUT = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
-    INITIAL_TRAMPOLINE_FEE_LEVEL = 0
     MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
     MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
@@ -178,6 +177,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.downstream_htlc_to_upstream_peer_map = {}
         self.hold_invoice_callbacks = {}
         self.payment_bundles = [] # lists of hashes. todo:persist
+        self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 

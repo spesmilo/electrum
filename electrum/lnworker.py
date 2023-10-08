@@ -233,8 +233,6 @@ LNGOSSIP_FEATURES = (
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
-    INITIAL_TRAMPOLINE_FEE_LEVEL = 1 # only used for trampoline payments. set to 0 in tests.
-
     def __init__(self, xprv, features: LnFeatures):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
@@ -1456,7 +1454,7 @@ class LNWallet(LNWorker):
         self._paysessions[payment_key] = paysession = PaySession(
             payment_hash=payment_hash,
             payment_secret=payment_secret,
-            initial_trampoline_fee_level=self.INITIAL_TRAMPOLINE_FEE_LEVEL,
+            initial_trampoline_fee_level=self.config.INITIAL_TRAMPOLINE_FEE_LEVEL,
             invoice_features=invoice_features,
             r_tags=r_tags,
             min_cltv_expiry=min_cltv_expiry,

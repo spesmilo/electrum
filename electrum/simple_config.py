@@ -979,6 +979,7 @@ Note you are at risk of losing the funds in the swap, if the funding transaction
 
 This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
     )
+    INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
 
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)
     EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = ConfigVar('lightning_forward_trampoline_payments', default=False, type_=bool)
