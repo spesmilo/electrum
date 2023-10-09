@@ -1137,8 +1137,8 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         w1.network.config.FEE_EST_DYNAMIC = False
         w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
+        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
 
         async def test():
             async def close():
@@ -1167,8 +1167,8 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         w1.network.config.FEE_EST_DYNAMIC = False
         w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
+        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
 
         async def test():
             async def close():
