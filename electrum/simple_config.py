@@ -775,7 +775,7 @@ class SimpleConfig(Logger):
 
     def setfeerate(self, fee_method: str, value: int):
         if fee_method == 'mempool':
-            if fee_level not in FEE_DEPTH_TARGETS:
+            if value not in FEE_DEPTH_TARGETS:
                 raise Exception(f"Error: fee_level must be in {FEE_DEPTH_TARGETS}")
             self.FEE_EST_USE_MEMPOOL = True
             self.FEE_EST_DYNAMIC = True
