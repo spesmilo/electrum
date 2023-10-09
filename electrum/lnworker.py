@@ -1232,7 +1232,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_sat=push_sat,
             password=password)
-        return chan
+        return chan, funding_tx
 
     @log_exceptions
     async def _open_channel_coroutine(

@@ -1141,7 +1141,7 @@ class Commands:
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
         peer = await wallet.lnworker.add_peer(connection_string)
-        chan = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
         return chan.funding_outpoint.to_str()
 
     @command('')
