@@ -674,10 +674,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         else:
             password = None
         try:
-            tx = self.wallet.mktx(
+            tx = self.wallet.create_transaction(
                 outputs=invoice.outputs,
                 password=password,
-                fee=None)
+                fee=None,
+            )
         except Exception as e:
             self.show_message(repr(e))
             return

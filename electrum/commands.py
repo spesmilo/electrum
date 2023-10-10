@@ -733,7 +733,7 @@ class Commands:
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            unsigned=unsigned,
+            sign=not unsigned,
             rbf=rbf,
             password=password,
             locktime=locktime)
@@ -764,7 +764,7 @@ class Commands:
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            unsigned=unsigned,
+            sign=not unsigned,
             rbf=rbf,
             password=password,
             locktime=locktime)

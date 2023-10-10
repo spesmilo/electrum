@@ -1850,24 +1850,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, *,
-             outputs: List[PartialTxOutput],
-             password=None, fee=None, change_addr=None,
-             domain=None, rbf=True, nonlocal_only=False,
-             tx_version=None, sign=True) -> PartialTransaction:
-        coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
-        tx = self.make_unsigned_transaction(
-            coins=coins,
-            outputs=outputs,
-            fee=fee,
-            change_addr=change_addr,
-            rbf=rbf)
-        if tx_version is not None:
-            tx.version = tx_version
-        if sign:
-            self.sign_transaction(tx, password)
-        return tx
-
     def is_frozen_address(self, addr: str) -> bool:
         return addr in self._frozen_addresses
 
@@ -2942,16 +2924,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         change_addr=None,
         domain_addr=None,
         domain_coins=None,
-        unsigned=False,
+        sign=True,
         rbf=True,
         password=None,
         locktime=None,
+        tx_version: Optional[int] = None,
         batch_rbf: Optional[bool] = None,
         send_change_to_lightning: Optional[bool] = None,
-    ):
+        nonlocal_only: bool = False,
+    ) -> PartialTransaction:
+        """Helper function for make_unsigned_transaction."""
         if fee is not None and feerate is not None:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
-        coins = self.get_spendable_coins(domain_addr)
+        coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         if feerate is not None:
@@ -2966,11 +2951,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr=change_addr,
             batch_rbf=batch_rbf,
             send_change_to_lightning=send_change_to_lightning,
+            rbf=rbf,
         )
         if locktime is not None:
             tx.locktime = locktime
-        tx.set_rbf(rbf)
-        if not unsigned:
+        if tx_version is not None:
+            tx.version = tx_version
+        if sign:
             self.sign_transaction(tx, password)
         return tx
 
