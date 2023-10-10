@@ -749,7 +749,7 @@ class SimpleConfig(Logger):
             fee_rate = int(fee_rate)
         return fee_rate
 
-    def getfeerate(self) -> Tuple[str, int, int]:
+    def getfeerate(self) -> Tuple[str, int, Optional[int], str]:
         dyn = self.is_dynfee()
         mempool = self.use_mempool_fees()
         if dyn:

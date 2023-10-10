@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
@@ -15,17 +15,20 @@ from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
 
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
 
 class FeeSlider(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._sliderSteps = 0
         self._sliderPos = 0
         self._method = -1
         self._target = ''
-        self._config = None
+        self._config = None  # type: Optional[SimpleConfig]
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -118,7 +121,7 @@ class FeeSlider(QObject):
             else:
                 self._config.FEE_EST_DYNAMIC_ETA_SLIDERPOS = value
         else:
-            self._config.FEE_EST_STATIC_FEERATE_FALLBACK = self._config.static_fee(value)
+            self._config.FEE_EST_STATIC_FEERATE = self._config.static_fee(value)
         self.update_target()
         self.update()
 

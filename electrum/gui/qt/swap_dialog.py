@@ -141,7 +141,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             else:
                 self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
         else:
-            self.config.cv.FEE_EST_STATIC_FEERATE_FALLBACK.set(fee_rate, save=False)
+            self.config.cv.FEE_EST_STATIC_FEERATE.set(fee_rate, save=False)
         if self.send_follows:
             self.on_recv_edited()
         else:
