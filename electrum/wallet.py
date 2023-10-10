@@ -3108,7 +3108,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def unlock(self, password):
         self.logger.info(f'unlocking wallet')
-        if password:
+        if self.has_password():
             self.check_password(password)
         self._password_in_memory = password
 
