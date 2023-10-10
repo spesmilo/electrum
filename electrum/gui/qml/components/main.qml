@@ -498,17 +498,21 @@ ApplicationWindow
 
     property var _opendialog: undefined
 
+    function showOpenWalletDialog(name, path) {
+        if (_opendialog == undefined) {
+            _opendialog = openWalletDialog.createObject(app, { name: name, path: path })
+            _opendialog.closed.connect(function() {
+                _opendialog = undefined
+            })
+            _opendialog.open()
+        }
+    }
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword(name, path) {
             console.log('wallet requires password')
-            if (_opendialog == undefined) {
-                _opendialog = openWalletDialog.createObject(app, { path: path, name: name })
-                _opendialog.closed.connect(function() {
-                    _opendialog = undefined
-                })
-                _opendialog.open()
-            }
+            showOpenWalletDialog(name, path)
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')

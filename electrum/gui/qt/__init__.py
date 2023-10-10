@@ -54,9 +54,9 @@ except ImportError as e:
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
-                           WalletFileException, BitcoinException, get_new_wallet_name)
+                           WalletFileException, BitcoinException, get_new_wallet_name, InvalidPassword)
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade
+from electrum.wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
 from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
@@ -343,6 +343,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not force_wizard:
             try:
                 wallet = self.daemon.load_wallet(path, None)
+            except InvalidPassword:
+                pass  # open with wizard below
+            except WalletRequiresSplit:
+                pass  # open with wizard below
+            except WalletRequiresUpgrade:
+                pass  # open with wizard below
             except Exception as e:
                 self.logger.exception('')
                 err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
@@ -426,20 +432,16 @@ class ElectrumGui(BaseElectrumGui, Logger):
         else:
             wallet_file = d['wallet_name']
 
-        storage = WalletStorage(wallet_file)
-        if storage.is_encrypted_with_user_pw() or storage.is_encrypted_with_hw_device():
-            storage.decrypt(d['password'])
-
         try:
-            db = WalletDB(storage.read(), storage=storage, upgrade=True)
+            wallet = self.daemon.load_wallet(wallet_file, d['password'], upgrade=True)
+            return wallet
         except WalletRequiresSplit as e:
-            try:
-                wizard.run_split(storage, e._split_data)
-            except UserCancelled:
-                return
-
-        if action := db.get_action():
+            wizard.run_split(wallet_file, e._split_data)
+            return
+        except WalletUnfinished as e:
             # wallet creation is not complete, 2fa online phase
+            db = e._wallet_db
+            action = db.get_action()
             assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
             k1 = load_keystore(db, 'x1')
             if 'password' in d and d['password']:
