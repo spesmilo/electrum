@@ -2839,7 +2839,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         ## save changes
         if self.storage and self.storage.file_exists():
             self.db._write()
-        self.unlock(None)
+        # if wallet was previously unlocked, update password in memory
+        if self._password_in_memory is not None:
+            self._password_in_memory = new_pw
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
