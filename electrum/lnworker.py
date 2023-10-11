@@ -1388,7 +1388,6 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-
         self.logger.info(
             f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
             f"using_trampoline={self.uses_trampoline()}. "
@@ -2019,7 +2018,7 @@ class LNWallet(LNWorker):
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
-        routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
+        routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
         payment_secret = self.get_payment_secret(payment_hash)
@@ -2035,9 +2034,7 @@ class LNWallet(LNWorker):
                 ('x', expiry),
                 ('9', invoice_features),
                 ('f', fallback_address),
-            ]
-            + routing_hints
-            + trampoline_hints,
+            ] + routing_hints,
             date=timestamp,
             payment_secret=payment_secret)
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
@@ -2390,12 +2387,7 @@ class LNWallet(LNWorker):
                 fee_base_msat,
                 fee_proportional_millionths,
                 cltv_expiry_delta)]))
-        trampoline_hints = set()  # "set", to avoid duplicate t-hints
-        for r in routing_hints:
-            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
-            if len(r[1])== 1 and self.is_trampoline_peer(node_id):
-                trampoline_hints.add(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
-        return routing_hints, list(trampoline_hints)
+        return routing_hints
 
     def delete_payment_info(self, payment_hash_hex: str):
         # This method is called when an invoice or request is deleted by the user.

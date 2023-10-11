@@ -463,7 +463,7 @@ class TestPeer(ElectrumTestCase):
             w2.save_preimage(payment_hash, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints, trampoline_hints = w2.calc_routing_hints_for_invoice(amount_msat)
+            routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
             trampoline_hints = []
@@ -473,13 +473,14 @@ class TestPeer(ElectrumTestCase):
         else:
             payment_secret = None
         lnaddr1 = LnAddr(
-                    paymenthash=payment_hash,
-                    amount=amount_btc,
-                    tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                          ('d', 'coffee'),
-                          ('9', invoice_features),
-                         ] + routing_hints + trampoline_hints,
-                    payment_secret=payment_secret,
+            paymenthash=payment_hash,
+            amount=amount_btc,
+            tags=[
+                ('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                ('d', 'coffee'),
+                ('9', invoice_features),
+            ] + routing_hints,
+            payment_secret=payment_secret,
         )
         invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
         lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
