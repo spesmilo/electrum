@@ -446,7 +446,7 @@ def json_decode(x):
 
 def json_normalize(x):
     # note: The return value of commands, when going through the JSON-RPC interface,
-    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
+    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum_grs.util.Satoshis.
     # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
     # see #5868
     return json_decode(json_encode(x))

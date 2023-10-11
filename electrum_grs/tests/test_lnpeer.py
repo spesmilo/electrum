@@ -727,7 +727,7 @@ class TestPeerDirect(TestPeer):
         if test_trampoline:
             await self._activate_trampoline(w1)
             # declare bob as trampoline node
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
                 'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
             }
 
@@ -1546,7 +1546,7 @@ class TestPeerForwarding(TestPeer):
                 self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
             with self.subTest(msg="try to make Bob forward in trampoline mode"):
                 # declare Bob as trampoline forwarding node
-                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
                     graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
                 }
                 await self._activate_trampoline(graph.workers['alice'])
@@ -1691,7 +1691,7 @@ class TestPeerForwarding(TestPeer):
 
     async def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
@@ -1706,7 +1706,7 @@ class TestPeerForwarding(TestPeer):
 
     async def test_payment_multipart_trampoline_legacy(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
@@ -1813,7 +1813,7 @@ class TestPeerForwarding(TestPeer):
             graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
 
         # declare routing nodes as trampoline nodes
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }

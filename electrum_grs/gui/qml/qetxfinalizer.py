@@ -16,7 +16,7 @@ from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
+    from electrum_grs.simple_config import SimpleConfig
 
 
 class FeeSlider(QObject):
