@@ -13,7 +13,6 @@ Item {
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : qsTr('no wallet loaded')
 
-    property var _sendDialog
     property string _intentUri
 
     property string _request_amount
@@ -34,21 +33,33 @@ Item {
     }
 
     function openSendDialog() {
-        _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
-        _sendDialog.open()
-    }
-
-    function closeSendDialog() {
-        if (_sendDialog) {
-            _sendDialog.doClose()
-            _sendDialog = null
-        }
+        var scanner = app.scanDialog.createObject(mainView, {
+            hint: qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel backup'),
+        })
+        scanner.onFound.connect(function() {
+            var data = scanner.scanData
+            data = data.trim()
+            if (bitcoin.isRawTx(data)) {
+                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+            } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                })
+                dialog.open()
+            } else {
+                invoiceParser.recipient = data
+            }
+            //scanner.destroy()  // TODO
+        })
+        scanner.open()
     }
 
     function restartSendDialog() {
-        if (_sendDialog) {
-            _sendDialog.restart()
-        }
+        //openSendDialog()  // note: ~infinite-loop on non-android due to directly pasting from clipboard
     }
 
     function showExport(data, helptext) {
@@ -287,7 +298,6 @@ Item {
             }
         }
         onValidationSuccess: {
-            closeSendDialog()
             var dialog = invoiceDialog.createObject(app, {
                 invoice: invoiceParser,
                 payImmediately: invoiceParser.isLnurlPay
@@ -299,7 +309,6 @@ Item {
         }
 
         onLnurlRetrieved: {
-            closeSendDialog()
             var dialog = lnurlPayDialog.createObject(app, {
                 invoiceParser: invoiceParser
             })
@@ -312,6 +321,10 @@ Item {
             )
             dialog.open()
         }
+    }
+
+    Bitcoin {
+        id: bitcoin
     }
 
     Connections {
@@ -416,34 +429,6 @@ Item {
                     _invoiceDialog.close()
                 }
             }
-        }
-    }
-
-    Component {
-        id: sendDialog
-        SendDialog {
-            width: parent.width
-            height: parent.height
-
-            onTxFound: {
-                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
-                close()
-            }
-            onChannelBackupFound: {
-                var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Import Channel backup?'),
-                    yesno: true
-                })
-                dialog.accepted.connect(function() {
-                    Daemon.currentWallet.importChannelBackup(data)
-                    close()
-                })
-                dialog.rejected.connect(function() {
-                    close()
-                })
-                dialog.open()
-            }
-            onClosed: destroy()
         }
     }
 

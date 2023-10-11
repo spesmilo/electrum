@@ -380,8 +380,8 @@ ApplicationWindow
     property alias scanDialog: _scanDialog
     Component {
         id: _scanDialog
-        ScanDialog {
-            onClosed: destroy()
+        QRScanner {
+            //onClosed: destroy()
         }
     }
 
