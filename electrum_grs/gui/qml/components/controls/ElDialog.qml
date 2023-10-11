@@ -11,6 +11,8 @@ Dialog {
     property bool resizeWithKeyboard: true
 
     property bool _result: false
+    // workaround: remember opened state, to inhibit closed -> closed event
+    property bool _wasOpened: false
 
     // called to finally close dialog after checks by onClosing handler in main.qml
     function doClose() {
@@ -46,7 +48,10 @@ Dialog {
     onOpenedChanged: {
         if (opened) {
             app.activeDialogs.push(abstractdialog)
+            _wasOpened = true
         } else {
+            if (!_wasOpened)
+                return
             if (app.activeDialogs.indexOf(abstractdialog) < 0) {
                 console.log('dialog should exist in activeDialogs!')
                 app.activeDialogs.pop()

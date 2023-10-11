@@ -1724,13 +1724,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee=None,
             change_addr: str = None,
             is_sweep=False,
-            rbf=True) -> PartialTransaction:
+            rbf=True,
+            batch_rbf: Optional[bool] = None,
+            send_change_to_lightning: Optional[bool] = None,
+    ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
         if not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
+        if batch_rbf is None:
+            batch_rbf = self.config.WALLET_BATCH_RBF
+        if send_change_to_lightning is None:
+            send_change_to_lightning = self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
 
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
@@ -1767,7 +1774,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if self.config.WALLET_BATCH_RBF else None
+            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if batch_rbf else None
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
@@ -1801,7 +1808,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())
-            if self.lnworker and self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            if self.lnworker and send_change_to_lightning:
                 change = tx.get_change_outputs()
                 # do not use multiple change addresses
                 if len(change) == 1:
@@ -1841,24 +1848,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
-        return tx
-
-    def mktx(self, *,
-             outputs: List[PartialTxOutput],
-             password=None, fee=None, change_addr=None,
-             domain=None, rbf=True, nonlocal_only=False,
-             tx_version=None, sign=True) -> PartialTransaction:
-        coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
-        tx = self.make_unsigned_transaction(
-            coins=coins,
-            outputs=outputs,
-            fee=fee,
-            change_addr=change_addr,
-            rbf=rbf)
-        if tx_version is not None:
-            tx.version = tx_version
-        if sign:
-            self.sign_transaction(tx, password)
         return tx
 
     def is_frozen_address(self, addr: str) -> bool:
@@ -2832,7 +2821,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         ## save changes
         if self.storage and self.storage.file_exists():
             self.db._write()
-        self.unlock(None)
+        # if wallet was previously unlocked, update password in memory
+        if self._password_in_memory is not None:
+            self._password_in_memory = new_pw
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -2924,11 +2915,28 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
 
-    def create_transaction(self, outputs, *, fee=None, feerate=None, change_addr=None, domain_addr=None, domain_coins=None,
-                           unsigned=False, rbf=True, password=None, locktime=None):
+    def create_transaction(
+        self,
+        outputs,
+        *,
+        fee=None,
+        feerate=None,
+        change_addr=None,
+        domain_addr=None,
+        domain_coins=None,
+        sign=True,
+        rbf=True,
+        password=None,
+        locktime=None,
+        tx_version: Optional[int] = None,
+        batch_rbf: Optional[bool] = None,
+        send_change_to_lightning: Optional[bool] = None,
+        nonlocal_only: bool = False,
+    ) -> PartialTransaction:
+        """Helper function for make_unsigned_transaction."""
         if fee is not None and feerate is not None:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
-        coins = self.get_spendable_coins(domain_addr)
+        coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         if feerate is not None:
@@ -2940,11 +2948,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coins=coins,
             outputs=outputs,
             fee=fee_estimator,
-            change_addr=change_addr)
+            change_addr=change_addr,
+            batch_rbf=batch_rbf,
+            send_change_to_lightning=send_change_to_lightning,
+            rbf=rbf,
+        )
         if locktime is not None:
             tx.locktime = locktime
-        tx.set_rbf(rbf)
-        if not unsigned:
+        if tx_version is not None:
+            tx.version = tx_version
+        if sign:
             self.sign_transaction(tx, password)
         return tx
 
@@ -3084,7 +3097,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def unlock(self, password):
         self.logger.info(f'unlocking wallet')
-        if password:
+        if self.has_password():
             self.check_password(password)
         self._password_in_memory = password
 

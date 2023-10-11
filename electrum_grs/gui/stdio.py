@@ -211,9 +211,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx(outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
-                                  password=password,
-                                  fee=fee)
+            tx = self.wallet.create_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
+                password=password,
+                fee=fee,
+            )
         except Exception as e:
             print(repr(e))
             return

@@ -51,7 +51,7 @@ if not os.path.exists(wallet_path):
     create_new_wallet(path=wallet_path, config=config)
 
 # open wallet
-wallet = daemon.load_wallet(wallet_path, password=None, manual_upgrades=False)
+wallet = daemon.load_wallet(wallet_path, password=None, upgrade=True)
 wallet.start_network(network)
 
 

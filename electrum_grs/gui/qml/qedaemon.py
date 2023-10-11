@@ -8,16 +8,16 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
-from electrum_grs.util import WalletFileException, standardize_path
+from electrum_grs.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
 from electrum_grs.plugin import run_hook
 from electrum_grs.lnchannel import ChannelState
 from electrum_grs.bitcoin import is_address
 from electrum_grs.ecc import verify_message_with_address
+from electrum_grs.storage import StorageReadWriteError
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
-from .qewalletdb import QEWalletDB
 from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 if TYPE_CHECKING:
@@ -152,10 +152,6 @@ class QEDaemon(AuthMixin, QObject):
 
         self._backendWalletLoaded.connect(self._on_backend_wallet_loaded)
 
-        self._walletdb = QEWalletDB()
-        self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
-        self._walletdb.walletOpenProblem.connect(self.onWalletOpenProblem)
-
     @pyqtSlot()
     def passwordValidityCheck(self):
         if not self._walletdb._validPassword:
@@ -192,25 +188,27 @@ class QEDaemon(AuthMixin, QObject):
 
         wallet_already_open = self.daemon.get_wallet(self._path) is not None
 
-        if not wallet_already_open:
-            # pre-checks, let walletdb trigger any necessary user interactions
-            self._walletdb.path = self._path
-            self._walletdb.password = password
-            self._walletdb.verify()
-            if not self._walletdb.ready:
-                return
-
         def load_wallet_task():
             self._loading = True
             self.loadingChanged.emit()
 
             try:
                 local_password = password  # need this in local scope
-                wallet = self.daemon.load_wallet(self._path, local_password, upgrade=True)
+                wallet = None
+                try:
+                    wallet = self.daemon.load_wallet(self._path, local_password, upgrade=True)
+                except InvalidPassword:
+                    self.walletRequiresPassword.emit(self._name, self._path)
+                except FileNotFoundError:
+                    self.walletOpenError.emit(_('File not found'))
+                except StorageReadWriteError:
+                    self.walletOpenError.emit(_('Could not read/write file'))
+                except WalletFileException as e:
+                    self.walletOpenError.emit(_('Could not open wallet: {}').format(str(e)))
+                    if e.should_report_crash:
+                        send_exception_to_crash_reporter(e)
 
                 if wallet is None:
-                    self._logger.info('could not open wallet')
-                    self.walletOpenError.emit('could not open wallet')
                     return
 
                 if wallet_already_open:
@@ -231,9 +229,6 @@ class QEDaemon(AuthMixin, QObject):
                 run_hook('load_wallet', wallet)
 
                 self._backendWalletLoaded.emit(local_password)
-            except WalletFileException as e:
-                self._logger.error(f"load_wallet_task errored opening wallet: {e!r}")
-                self.walletOpenError.emit(str(e))
             finally:
                 self._loading = False
                 self.loadingChanged.emit()

@@ -134,7 +134,7 @@ class TxEditor(WindowModalDialog):
             else:
                 self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
         else:
-            self.config.cv.FEE_EST_STATIC_FEERATE_FALLBACK.set(fee_rate, save=False)
+            self.config.cv.FEE_EST_STATIC_FEERATE.set(fee_rate, save=False)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error

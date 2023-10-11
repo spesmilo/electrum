@@ -428,12 +428,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 raise InvalidSwapParameters("swap_manager.max_amount_forward_swap() is None")
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
-        self._wallet.wallet.config.WALLET_SEND_CHANGE_TO_LIGHTNING = False
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         try:
             tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
-                outputs=outputs)
+                outputs=outputs,
+                send_change_to_lightning=False,
+            )
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             raise InvalidSwapParameters(str(e)) from e
         return tx

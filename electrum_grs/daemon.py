@@ -24,6 +24,7 @@
 # SOFTWARE.
 import asyncio
 import ast
+import errno
 import os
 import time
 import traceback
@@ -41,13 +42,13 @@ from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
 from . import util
 from .network import Network
-from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
+from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
 from .invoices import PR_PAID, PR_EXPIRED
 from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
 from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
-from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade
+from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -488,8 +489,6 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
-        if wallet is None:
-            return
         wallet.start_network(self.network)
         self.add_wallet(wallet)
         return wallet
@@ -506,20 +505,15 @@ class Daemon(Logger):
         path = standardize_path(path)
         storage = WalletStorage(path)
         if not storage.file_exists():
-            return
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
         if storage.is_encrypted():
             if not password:
-                return
+                raise InvalidPassword('No password given')
             storage.decrypt(password)
         # read data, pass it to db
-        try:
-            db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
-        except WalletRequiresSplit:
-            return
-        except WalletRequiresUpgrade:
-            return
+        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
         if db.get_action():
-            return
+            raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
         return wallet
 
@@ -659,7 +653,6 @@ class Daemon(Logger):
                     pass
                 except Exception:
                     self.logger.exception(f'failed to load wallet at {path!r}:')
-                    pass
             if wallet is None:
                 failed.append(path)
                 continue

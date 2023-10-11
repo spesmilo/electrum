@@ -68,7 +68,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NoPathFound, InvalidGossipMsg)
 from .lnutil import ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, OnionRoutingFailure, OnionPacket
+from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -201,8 +201,6 @@ LNGOSSIP_FEATURES = (
 
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
-
-    INITIAL_TRAMPOLINE_FEE_LEVEL = 1 # only used for trampoline payments. set to 0 in tests.
 
     def __init__(self, xprv, features: LnFeatures):
         Logger.__init__(self)
@@ -1203,7 +1201,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_sat=push_sat,
             password=password)
-        return chan
+        return chan, funding_tx
 
     @log_exceptions
     async def _open_channel_coroutine(
@@ -1359,7 +1357,6 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-
         self.logger.info(
             f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
             f"using_trampoline={self.uses_trampoline()}. "
@@ -1425,7 +1422,7 @@ class LNWallet(LNWorker):
         self._paysessions[payment_key] = paysession = PaySession(
             payment_hash=payment_hash,
             payment_secret=payment_secret,
-            initial_trampoline_fee_level=self.INITIAL_TRAMPOLINE_FEE_LEVEL,
+            initial_trampoline_fee_level=self.config.INITIAL_TRAMPOLINE_FEE_LEVEL,
             invoice_features=invoice_features,
             r_tags=r_tags,
             min_cltv_expiry=min_cltv_expiry,
@@ -1990,7 +1987,7 @@ class LNWallet(LNWorker):
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
-        routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
+        routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
         payment_secret = self.get_payment_secret(payment_hash)
@@ -2006,9 +2003,7 @@ class LNWallet(LNWorker):
                 ('x', expiry),
                 ('9', invoice_features),
                 ('f', fallback_address),
-            ]
-            + routing_hints
-            + trampoline_hints,
+            ] + routing_hints,
             date=timestamp,
             payment_secret=payment_secret)
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
@@ -2245,6 +2240,7 @@ class LNWallet(LNWorker):
         self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+            chan.pop_onion_key(htlc_id)
             payment_key = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions.get(payment_key)
             if paysession:
@@ -2275,6 +2271,7 @@ class LNWallet(LNWorker):
         self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+            onion_key = chan.pop_onion_key(htlc_id)
             payment_okey = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions.get(payment_okey)
             if paysession:
@@ -2287,7 +2284,10 @@ class LNWallet(LNWorker):
             if error_bytes:
                 # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
                 try:
-                    failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+                    failure_message, sender_idx = decode_onion_error(
+                        error_bytes,
+                        [x.node_id for x in route],
+                        onion_key)
                 except Exception as e:
                     sender_idx = None
                     failure_message = OnionRoutingFailure(-1, str(e))
@@ -2356,12 +2356,7 @@ class LNWallet(LNWorker):
                 fee_base_msat,
                 fee_proportional_millionths,
                 cltv_expiry_delta)]))
-        trampoline_hints = set()  # "set", to avoid duplicate t-hints
-        for r in routing_hints:
-            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
-            if len(r[1])== 1 and self.is_trampoline_peer(node_id):
-                trampoline_hints.add(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
-        return routing_hints, list(trampoline_hints)
+        return routing_hints
 
     def delete_payment_info(self, payment_hash_hex: str):
         # This method is called when an invoice or request is deleted by the user.

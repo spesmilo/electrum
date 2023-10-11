@@ -52,12 +52,19 @@ from .version import ELECTRUM_VERSION
 
 class WalletRequiresUpgrade(WalletFileException):
     pass
+
+
 class WalletRequiresSplit(WalletFileException):
     def __init__(self, split_data):
         self._split_data = split_data
 
-# seed_version is now used for the version of the wallet file
 
+class WalletUnfinished(WalletFileException):
+    def __init__(self, wallet_db: 'WalletDB'):
+        self._wallet_db = wallet_db
+
+
+# seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
 FINAL_SEED_VERSION = 55     # electrum >= 2.7 will set this to prevent
@@ -91,6 +98,7 @@ class DBMetadata(StoredObject):
 #       separate tracking issues
 class WalletFileExceptionVersion51(WalletFileException): pass
 
+
 # register dicts that require value conversions not handled by constructor
 json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
 json_db.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
@@ -106,9 +114,7 @@ for key in ['locked_in', 'fails', 'settles']:
     json_db.register_parent_key(key, lambda x: HTLCOwner(int(x)))
 
 
-
 class WalletDBUpgrader(Logger):
-
     def __init__(self, data):
         Logger.__init__(self)
         self.data = data
@@ -164,7 +170,7 @@ class WalletDBUpgrader(Logger):
                 new_data['suffix'] = k
                 result.append(new_data)
         else:
-            raise WalletFileException("This wallet has multiple accounts and must be split")
+            raise WalletFileException(f'Unsupported wallet type for split: {wallet_type}')
         return result
 
     def requires_upgrade(self):

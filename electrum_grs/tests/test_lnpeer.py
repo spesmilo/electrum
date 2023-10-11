@@ -131,7 +131,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     PAYMENT_TIMEOUT = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
-    INITIAL_TRAMPOLINE_FEE_LEVEL = 0
     MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
     MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
@@ -178,6 +177,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.downstream_htlc_to_upstream_peer_map = {}
         self.hold_invoice_callbacks = {}
         self.payment_bundles = [] # lists of hashes. todo:persist
+        self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
@@ -463,7 +463,7 @@ class TestPeer(ElectrumTestCase):
             w2.save_preimage(payment_hash, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints, trampoline_hints = w2.calc_routing_hints_for_invoice(amount_msat)
+            routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
             trampoline_hints = []
@@ -473,13 +473,14 @@ class TestPeer(ElectrumTestCase):
         else:
             payment_secret = None
         lnaddr1 = LnAddr(
-                    paymenthash=payment_hash,
-                    amount=amount_btc,
-                    tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                          ('d', 'coffee'),
-                          ('9', invoice_features),
-                         ] + routing_hints + trampoline_hints,
-                    payment_secret=payment_secret,
+            paymenthash=payment_hash,
+            amount=amount_btc,
+            tags=[
+                ('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                ('d', 'coffee'),
+                ('9', invoice_features),
+            ] + routing_hints,
+            payment_secret=payment_secret,
         )
         invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
         lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
@@ -1137,8 +1138,8 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         w1.network.config.FEE_EST_DYNAMIC = False
         w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
+        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
 
         async def test():
             async def close():
@@ -1167,8 +1168,8 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         w1.network.config.FEE_EST_DYNAMIC = False
         w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
+        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
 
         async def test():
             async def close():

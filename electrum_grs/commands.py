@@ -235,17 +235,26 @@ class Commands:
     @command('n')
     async def list_wallets(self):
         """List wallets open in daemon"""
-        return [{'path': path, 'synchronized': w.is_up_to_date()}
-                for path, w in self.daemon.get_wallets().items()]
+        return [
+            {
+                'path': path,
+                'synchronized': w.is_up_to_date(),
+                'unlocked': w.has_password() and (w.get_unlocked_password() is not None),
+            }
+            for path, w in self.daemon.get_wallets().items()
+        ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, password=None):
-        """Open wallet in daemon"""
+    async def load_wallet(self, wallet_path=None, unlock=False, password=None):
+        """
+        Load the wallet in memory
+        """
         wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
-        if wallet is not None:
-            run_hook('load_wallet', wallet, None)
-        response = wallet is not None
-        return response
+        if wallet is None:
+            raise Exception('could not load wallet')
+        if unlock:
+            wallet.unlock(password)
+        run_hook('load_wallet', wallet, None)
 
     @command('n')
     async def close_wallet(self, wallet_path=None):
@@ -627,12 +636,6 @@ class Commands:
         return ret
 
     @command('w')
-    async def unlock(self, password=None, wallet: Abstract_Wallet = None):
-        """Unlock the wallet. The wallet password will be stored in memory"""
-        wallet.unlock(password)
-        return "wallet unlocked" if password else "wallet locked"
-
-    @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
         """Get master public key. Return your wallet\'s master public key"""
         return wallet.get_master_public_key()
@@ -730,7 +733,7 @@ class Commands:
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            unsigned=unsigned,
+            sign=not unsigned,
             rbf=rbf,
             password=password,
             locktime=locktime)
@@ -761,7 +764,7 @@ class Commands:
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            unsigned=unsigned,
+            sign=not unsigned,
             rbf=rbf,
             password=password,
             locktime=locktime)
@@ -1066,24 +1069,22 @@ class Commands:
         """ return wallet synchronization status """
         return wallet.is_up_to_date()
 
-    @command('n')
-    async def getfeerate(self, fee_method=None, fee_level=None):
-        """Return current suggested fee rate (in gro/kvByte), according to config
-        settings or supplied parameters.
+    @command('')
+    async def getfeerate(self):
+        """Return current fee rate settings and current estimate (in gro/kvByte).
         """
-        if fee_method is None:
-            dyn, mempool = None, None
-        elif fee_method.lower() == 'static':
-            dyn, mempool = False, False
-        elif fee_method.lower() == 'eta':
-            dyn, mempool = True, False
-        elif fee_method.lower() == 'mempool':
-            dyn, mempool = True, True
-        else:
-            raise Exception('Invalid fee estimation method: {}'.format(fee_method))
-        if fee_level is not None:
-            fee_level = to_decimal(fee_level)
-        return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
+        method, value, feerate, tooltip = self.config.getfeerate()
+        return {
+            'method': method,
+            'value': value,
+            'sat/kvB': feerate,
+            'tooltip': tooltip,
+        }
+
+    @command('')
+    async def setfeerate(self, method, value):
+        """Set fee rate estimation method and value"""
+        self.config.setfeerate(method, value)
 
     @command('w')
     async def removelocaltx(self, txid, wallet: Abstract_Wallet = None):
@@ -1140,7 +1141,7 @@ class Commands:
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
         peer = await wallet.lnworker.add_peer(connection_string)
-        chan = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
         return chan.funding_outpoint.to_str()
 
     @command('')
@@ -1410,7 +1411,7 @@ param_descriptions = {
 }
 
 command_options = {
-    'password':    ("-W", "Password"),
+    'password':    ("-W", "Password. Use '--password :' if you want a prompt."),
     'new_password':(None, "New Password"),
     'encrypt_file':(None, "Whether the file on disk should be encrypted with the provided password"),
     'receiving':   (None, "Show only receiving addresses"),
@@ -1450,8 +1451,6 @@ command_options = {
     'show_fiat':   (None, "Show fiat value of transactions"),
     'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
-    'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
@@ -1461,6 +1460,7 @@ command_options = {
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
+    'unlock':      (None, "Unlock the wallet (store the password in memory).")
 }
 
 
@@ -1483,8 +1483,6 @@ arg_types = {
     'amount': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
     'locktime': int,
     'addtransaction': eval_bool,
-    'fee_method': str,
-    'fee_level': json_loads,
     'encrypt_file': eval_bool,
     'rbf': eval_bool,
     'timeout': float,

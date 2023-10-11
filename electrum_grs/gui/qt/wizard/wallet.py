@@ -162,20 +162,17 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         self._password = data['password']
         self.path = path
 
-    def run_split(self, storage, split_data) -> None:
-        root_path = storage.path
+    def run_split(self, wallet_path, split_data) -> None:
         msg = _(
             "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
-            "Do you want to split your wallet into multiple files?").format(root_path)
+            "Do you want to split your wallet into multiple files?").format(wallet_path)
         if self.question(msg):
-            file_list = WalletDB.split_accounts(root_path, split_data)
+            file_list = WalletDB.split_accounts(wallet_path, split_data)
             msg = _('Your accounts have been moved to') + ':\n' + '\n'.join(file_list) + '\n\n' + _(
-                'Do you want to delete the old file') + ':\n' + root_path
+                'Do you want to delete the old file') + ':\n' + wallet_path
             if self.question(msg):
-                os.remove(root_path)
+                os.remove(wallet_path)
                 self.show_warning(_('The file was removed'))
-        # raise now, to avoid having the old storage opened
-        raise UserCancelled()
 
     def is_finalized(self, wizard_data: dict) -> bool:
         # check decryption of existing wallet and keep wizard open if incorrect.

@@ -406,8 +406,7 @@ class SwapManager(Logger):
             if swap.funding_txid is None:
                 password = self.wallet.get_unlocked_password()
                 for batch_rbf in [True, False]:
-                    self.wallet.config.WALLET_BATCH_RBF = batch_rbf
-                    tx = self.create_funding_tx(swap, None, password)
+                    tx = self.create_funding_tx(swap, None, password, batch_rbf=batch_rbf)
                     try:
                         await self.broadcast_funding_tx(swap, tx)
                     except TxBroadcastServerReturnedError:
@@ -716,13 +715,18 @@ class SwapManager(Logger):
             await self.broadcast_funding_tx(swap, tx)
         return swap.funding_txid
 
-    def create_funding_tx(self, swap, tx, password):
+    def create_funding_tx(self, swap, tx, password, *, batch_rbf: Optional[bool] = None):
         # create funding tx
         # note: rbf must not decrease payment
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
         if tx is None:
             funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
-            tx = self.wallet.create_transaction(outputs=[funding_output], rbf=True, password=password)
+            tx = self.wallet.create_transaction(
+                outputs=[funding_output],
+                rbf=True,
+                password=password,
+                batch_rbf=batch_rbf,
+            )
         else:
             tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
             tx.set_rbf(True)

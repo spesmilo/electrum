@@ -674,10 +674,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         else:
             password = None
         try:
-            tx = self.wallet.mktx(
+            tx = self.wallet.create_transaction(
                 outputs=invoice.outputs,
                 password=password,
-                fee=None)
+                fee=None,
+            )
         except Exception as e:
             self.show_message(repr(e))
             return
@@ -749,7 +750,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if out:
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.FEE_EST_STATIC_FEERATE_FALLBACK = fee
+                self.config.FEE_EST_STATIC_FEERATE = fee
 
     def password_dialog(self):
         out = self.run_dialog('Password', [
