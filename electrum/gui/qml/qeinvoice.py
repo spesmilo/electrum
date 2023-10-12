@@ -91,6 +91,11 @@ class QEInvoice(QObject, QtEventListener):
             self.determine_can_pay()
             self.statusChanged.emit()
 
+    @event_listener
+    def on_event_channel(self, wallet, channel):
+        if self._wallet and wallet == self._wallet.wallet:
+            self.determine_can_pay()
+
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
     def wallet(self):
