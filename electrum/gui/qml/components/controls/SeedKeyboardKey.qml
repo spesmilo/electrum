@@ -26,10 +26,7 @@ Pane {
         autoRepeat: true
         autoRepeatDelay: 750
 
-        text: key
-
         padding: 0
-        font.pixelSize: Math.max(root.height * 1/3, constants.fontSizeSmall)
 
         onClicked: {
             emitKeyEvent()
@@ -38,6 +35,13 @@ Pane {
         // send keyevent again, otherwise it is ignored
         onDoubleClicked: {
             emitKeyEvent()
+        }
+
+        Label {
+            anchors.centerIn: parent
+            text: key
+            font.pixelSize: Math.max(root.height * 0.67, constants.fontSizeSmall)
+            verticalAlignment: Text.AlignVCenter
         }
     }
 }

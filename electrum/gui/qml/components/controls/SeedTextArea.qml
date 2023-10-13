@@ -125,7 +125,7 @@ Pane {
         SeedKeyboard {
             id: kbd
             Layout.fillWidth: true
-            Layout.preferredHeight: kbd.width / 2
+            Layout.preferredHeight: kbd.width / 1.75
             visible: !root.readOnly
             onKeyEvent: {
                 if (keycode == Qt.Key_Backspace) {
