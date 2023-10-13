@@ -298,14 +298,13 @@ class WCWalletName(WizardComponent, Logger):
         self.layout().addStretch(1)
 
         temp_storage = None  # type: Optional[WalletStorage]
-        wallet_folder = os.path.dirname(path)
+        datadir_wallet_folder = self.wizard.config.get_datadir_wallet_path()
 
         def relative_path(path):
             new_path = path
             try:
-                datadir_wallet_path = self.wizard.config.get_datadir_wallet_path()
-                commonpath = os.path.commonpath([path, datadir_wallet_path])
-                if commonpath == datadir_wallet_path:
+                commonpath = os.path.commonpath([path, datadir_wallet_folder])
+                if commonpath == datadir_wallet_folder:
                     # below datadir_wallet_path, make relative
                     new_path = os.path.relpath(path, commonpath)
             except ValueError:
@@ -313,7 +312,7 @@ class WCWalletName(WizardComponent, Logger):
             return new_path
 
         def on_choose():
-            _path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
+            _path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", datadir_wallet_folder)
             if _path:
                 self.name_e.setText(relative_path(_path))
 
@@ -326,7 +325,7 @@ class WCWalletName(WizardComponent, Logger):
             self.wallet_is_open = False
             self.wallet_needs_hw_unlock = False
             if filename:
-                _path = os.path.join(wallet_folder, filename)
+                _path = os.path.join(datadir_wallet_folder, filename)
                 wallet_from_memory = self.wizard._daemon.get_wallet(_path)
                 try:
                     if wallet_from_memory:
@@ -378,15 +377,14 @@ class WCWalletName(WizardComponent, Logger):
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
-            lambda: self.name_e.setText(get_new_wallet_name(wallet_folder)))  # FIXME get_new_wallet_name might raise
+            lambda: self.name_e.setText(get_new_wallet_name(datadir_wallet_folder)))  # FIXME get_new_wallet_name might raise
         self.name_e.textChanged.connect(on_filename)
         self.name_e.setText(relative_path(path))
 
     def apply(self):
         if self.wallet_exists:
             # use full path
-            path = self.wizard._path
-            wallet_folder = os.path.dirname(path)
+            wallet_folder = self.wizard.config.get_datadir_wallet_path()
             self.wizard_data['wallet_name'] = os.path.join(wallet_folder, self.name_e.text())
         else:
             self.wizard_data['wallet_name'] = self.name_e.text()
