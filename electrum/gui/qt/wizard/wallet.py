@@ -300,10 +300,22 @@ class WCWalletName(WizardComponent, Logger):
         temp_storage = None  # type: Optional[WalletStorage]
         wallet_folder = os.path.dirname(path)
 
+        def relative_path(path):
+            new_path = path
+            try:
+                datadir_wallet_path = self.wizard.config.get_datadir_wallet_path()
+                commonpath = os.path.commonpath([path, datadir_wallet_path])
+                if commonpath == datadir_wallet_path:
+                    # below datadir_wallet_path, make relative
+                    new_path = os.path.relpath(path, commonpath)
+            except ValueError:
+                pass
+            return new_path
+
         def on_choose():
             _path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if _path:
-                self.name_e.setText(_path)
+                self.name_e.setText(relative_path(_path))
 
         def on_filename(filename):
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
@@ -368,7 +380,7 @@ class WCWalletName(WizardComponent, Logger):
         button_create_new.clicked.connect(
             lambda: self.name_e.setText(get_new_wallet_name(wallet_folder)))  # FIXME get_new_wallet_name might raise
         self.name_e.textChanged.connect(on_filename)
-        self.name_e.setText(os.path.basename(path))
+        self.name_e.setText(relative_path(path))
 
     def apply(self):
         if self.wallet_exists:
