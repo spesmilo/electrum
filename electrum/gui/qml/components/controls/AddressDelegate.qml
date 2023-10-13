@@ -27,9 +27,9 @@ ItemDelegate {
             Label {
                 id: indexLabel
                 font.bold: true
-                text: model.iaddr < 10
-                    ? '#' + ('0'+model.iaddr).slice(-2)
-                    : '#' + model.iaddr
+                text: model.addridx < 10
+                    ? '#' + ('0'+model.addridx).slice(-2)
+                    : '#' + model.addridx
                 Layout.fillWidth: true
             }
             Label {
