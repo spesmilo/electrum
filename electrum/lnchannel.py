@@ -69,6 +69,8 @@ if TYPE_CHECKING:
     from .json_db import StoredDict
     from .lnrouter import RouteEdge
 
+# channel flags
+CF_ANNOUNCE_CHANNEL = 0x01
 
 # lightning channel states
 # Note: these states are persisted by name (for a given channel) in the wallet file,
@@ -393,6 +395,10 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
+    def is_public(self) -> bool:
+        pass
+
+    @abstractmethod
     def is_funding_tx_mined(self, funding_height: TxMinedInfo) -> bool:
         pass
 
@@ -507,11 +513,13 @@ class ChannelBackup(AbstractChannel):
             initial_msat=None,
             reserve_sat=None,
             funding_locked_received=False,
-            was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
-            upfront_shutdown_script='')
+            upfront_shutdown_script='',
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
+        )
         self.config[REMOTE] = RemoteConfig(
             # payment_basepoint needed to deobfuscate ctn in our_ctx
             payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
@@ -530,7 +538,10 @@ class ChannelBackup(AbstractChannel):
             htlc_minimum_msat=None,
             next_per_commitment_point=None,
             current_per_commitment_point=None,
-            upfront_shutdown_script='')
+            upfront_shutdown_script='',
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
+        )
 
     def can_be_deleted(self):
         return self.is_imported or self.is_redeemed()
@@ -566,6 +577,9 @@ class ChannelBackup(AbstractChannel):
 
     def is_initiator(self):
         return self.cb.is_initiator
+
+    def is_public(self):
+        return False
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1
@@ -647,13 +661,13 @@ class Channel(AbstractChannel):
         self.peer_state = PeerState.DISCONNECTED
         self._sweep_info = {}
         self._outgoing_channel_update = None  # type: Optional[bytes]
-        self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
+        self.sent_announcement_signatures = False
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
         """Get scid_alias to be used for *outgoing* HTLCs.
@@ -687,6 +701,9 @@ class Channel(AbstractChannel):
 
     def get_capacity(self):
         return self.constraints.capacity
+
+    def is_public(self):
+        return bool(self.constraints.flags & CF_ANNOUNCE_CHANNEL)
 
     def is_initiator(self):
         return self.constraints.is_initiator
@@ -785,19 +802,14 @@ class Channel(AbstractChannel):
         return chan_upd
 
     def construct_channel_announcement_without_sigs(self) -> bytes:
-        if self._chan_ann_without_sigs is not None:
-            return self._chan_ann_without_sigs
-        if not self.lnworker:
-            raise Exception('lnworker not set for channel!')
-
-        bitcoin_keys = [self.config[REMOTE].multisig_key.pubkey,
-                        self.config[LOCAL].multisig_key.pubkey]
+        bitcoin_keys = [
+            self.config[REMOTE].multisig_key.pubkey,
+            self.config[LOCAL].multisig_key.pubkey]
         node_ids = [self.node_id, self.get_local_pubkey()]
         sorted_node_ids = list(sorted(node_ids))
         if sorted_node_ids != node_ids:
             node_ids = sorted_node_ids
             bitcoin_keys.reverse()
-
         chan_ann = encode_msg(
             "channel_announcement",
             len=0,
@@ -809,9 +821,11 @@ class Channel(AbstractChannel):
             bitcoin_key_1=bitcoin_keys[0],
             bitcoin_key_2=bitcoin_keys[1],
         )
-
-        self._chan_ann_without_sigs = chan_ann
         return chan_ann
+
+    def get_channel_announcement_hash(self):
+        chan_ann = self.construct_channel_announcement_without_sigs()
+        return sha256d(chan_ann[256+2:])
 
     def is_static_remotekey_enabled(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))

@@ -31,7 +31,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -107,7 +107,6 @@ class Peer(Logger):
         self.funding_created_sent = set() # for channels in PREOPENING
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
-        self.announcement_signatures = defaultdict(asyncio.Queue)
         self.channel_reestablish_msg = defaultdict(self.asyncio_loop.create_future)
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
@@ -406,10 +405,17 @@ class Peer(Logger):
                 self.orphan_channel_updates.popitem(last=False)
 
     def on_announcement_signatures(self, chan: Channel, payload):
-        if chan.config[LOCAL].was_announced:
-            h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
-        else:
-            self.announcement_signatures[chan.channel_id].put_nowait(payload)
+        h = chan.get_channel_announcement_hash()
+        node_signature = payload["node_signature"]
+        bitcoin_signature = payload["bitcoin_signature"]
+        if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, bitcoin_signature, h):
+            raise Exception("bitcoin_sig invalid in announcement_signatures")
+        if not ecc.verify_signature(self.pubkey, node_signature, h):
+            raise Exception("node_sig invalid in announcement_signatures")
+        chan.config[REMOTE].announcement_node_sig = node_signature
+        chan.config[REMOTE].announcement_bitcoin_sig = bitcoin_signature
+        self.lnworker.save_channel(chan)
+        self.maybe_send_announcement_signatures(chan, is_reply=True)
 
     def handle_disconnect(func):
         @functools.wraps(func)
@@ -434,6 +440,7 @@ class Peer(Logger):
             await group.spawn(self.htlc_switch())
             await group.spawn(self.query_gossip())
             await group.spawn(self.process_gossip())
+            await group.spawn(self.send_own_gossip())
 
     async def process_gossip(self):
         while True:
@@ -457,6 +464,20 @@ class Peer(Logger):
                     break
             if self.network.lngossip:
                 await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
+
+    async def send_own_gossip(self):
+        if self.lnworker == self.lnworker.network.lngossip:
+            return
+        await asyncio.sleep(10)
+        while True:
+            public_channels = [chan for chan in self.lnworker.channels.values() if chan.is_public()]
+            if public_channels:
+                alias = self.lnworker.config.LIGHTNING_NODE_ALIAS
+                self.send_node_announcement(alias)
+                for chan in public_channels:
+                    if chan.is_open() and chan.peer_state == PeerState.GOOD:
+                        self.send_channel_announcement(chan)
+            await asyncio.sleep(600)
 
     async def query_gossip(self):
         try:
@@ -654,10 +675,11 @@ class Peer(Logger):
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
             funding_locked_received=False,
-            was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
         )
         local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=self.features)
         return local_config
@@ -687,6 +709,7 @@ class Peer(Logger):
             funding_tx: 'PartialTransaction',
             funding_sat: int,
             push_msat: int,
+            public: bool,
             temp_channel_id: bytes
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
@@ -704,6 +727,10 @@ class Peer(Logger):
         if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
+        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            raise Exception('Cannot create public channels')
+
+        channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
         feerate = self.lnworker.current_feerate_per_kw()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
@@ -753,7 +780,7 @@ class Peer(Logger):
             first_per_commitment_point=per_commitment_point_first,
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
-            channel_flags=0x00,  # not willing to announce channel
+            channel_flags=channel_flags,
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=local_config.htlc_minimum_msat,
             open_channel_tlvs=open_channel_tlvs,
@@ -797,6 +824,8 @@ class Peer(Logger):
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script,
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
         )
         ChannelConfig.cross_validate_params(
             local_config=local_config,
@@ -838,6 +867,7 @@ class Peer(Logger):
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         outpoint = Outpoint(funding_txid, funding_index)
         constraints = ChannelConstraints(
+            flags=channel_flags,
             capacity=funding_sat,
             is_initiator=True,
             funding_txn_minimum_depth=funding_txn_minimum_depth
@@ -956,6 +986,8 @@ class Peer(Logger):
             next_per_commitment_point=payload['first_per_commitment_point'],
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script,
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
         )
         ChannelConfig.cross_validate_params(
             local_config=local_config,
@@ -967,9 +999,7 @@ class Peer(Logger):
             peer_features=self.features,
         )
 
-        # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
-        #       Notably, if the remote sets 'announce_channel' to True, we will ignore that too,
-        #       but we will not play along with actually announcing the channel (so we keep it private).
+        channel_flags = ord(payload['channel_flags'])
 
         # -> accept channel
         # for the first commitment transaction
@@ -1018,9 +1048,10 @@ class Peer(Logger):
         funding_txid = funding_created['funding_txid'][::-1].hex()
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
         constraints = ChannelConstraints(
+            flags=channel_flags,
             capacity=funding_sat,
             is_initiator=False,
-            funding_txn_minimum_depth=min_depth
+            funding_txn_minimum_depth=min_depth,
         )
         outpoint = Outpoint(funding_txid, funding_idx)
         chan_dict = self.create_channel_storage(
@@ -1277,6 +1308,8 @@ class Peer(Logger):
             chan_just_became_ready = (their_next_local_ctn == next_local_ctn == 1)
             if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
                 self.send_channel_ready(chan)
+
+        self.maybe_send_announcement_signatures(chan)
         # checks done
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
@@ -1319,58 +1352,52 @@ class Peer(Logger):
             self.lnworker.save_channel(chan)
         self.maybe_mark_open(chan)
 
-    def on_network_update(self, chan: Channel, funding_tx_depth: int):
-        """
-        Only called when the channel is OPEN.
+    def send_node_announcement(self, alias:str):
+        timestamp = int(time.time())
+        node_id = privkey_to_pubkey(self.privkey)
+        features = self.features.for_node_announcement()
+        b = int.bit_length(features)
+        flen = b // 8 + int(bool(b % 8))
+        rgb_color = bytes.fromhex('000000')
+        alias = bytes(alias, 'utf8')
+        alias += bytes(32 - len(alias))
+        addresses = b''
+        raw_msg = encode_msg(
+            "node_announcement",
+            flen=flen,
+            features=features,
+            timestamp=timestamp,
+            rgb_color=rgb_color,
+            node_id=node_id,
+            alias=alias,
+            addrlen=len(addresses),
+            addresses=addresses)
+        h = sha256d(raw_msg[64+2:])
+        signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
+        message_type, payload = decode_msg(raw_msg)
+        payload['signature'] = signature
+        raw_msg = encode_msg(message_type, **payload)
+        self.transport.send_bytes(raw_msg)
 
-        Runs on the Network thread.
-        """
-        if not chan.config[LOCAL].was_announced and funding_tx_depth >= 6:
-            # don't announce our channels
-            # FIXME should this be a field in chan.local_state maybe?
-            return
-            chan.config[LOCAL].was_announced = True
-            self.lnworker.save_channel(chan)
-            coro = self.handle_announcements(chan)
-            asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
-
-    @log_exceptions
-    async def handle_announcements(self, chan: Channel):
-        h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
-        announcement_signatures_msg = await self.announcement_signatures[chan.channel_id].get()
-        remote_node_sig = announcement_signatures_msg["node_signature"]
-        remote_bitcoin_sig = announcement_signatures_msg["bitcoin_signature"]
-        if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, remote_bitcoin_sig, h):
-            raise Exception("bitcoin_sig invalid in announcement_signatures")
-        if not ecc.verify_signature(self.pubkey, remote_node_sig, h):
-            raise Exception("node_sig invalid in announcement_signatures")
-
-        node_sigs = [remote_node_sig, local_node_sig]
-        bitcoin_sigs = [remote_bitcoin_sig, local_bitcoin_sig]
+    def send_channel_announcement(self, chan: Channel):
+        node_ids = [chan.node_id, chan.get_local_pubkey()]
+        node_sigs = [chan.config[REMOTE].announcement_node_sig, chan.config[LOCAL].announcement_node_sig]
+        bitcoin_sigs = [chan.config[REMOTE].announcement_bitcoin_sig, chan.config[LOCAL].announcement_bitcoin_sig]
         bitcoin_keys = [chan.config[REMOTE].multisig_key.pubkey, chan.config[LOCAL].multisig_key.pubkey]
-
-        if self.node_ids[0] > self.node_ids[1]:
+        sorted_node_ids = list(sorted(node_ids))
+        if sorted_node_ids != node_ids:
             node_sigs.reverse()
             bitcoin_sigs.reverse()
-            node_ids = list(reversed(self.node_ids))
+            node_ids.reverse()
             bitcoin_keys.reverse()
-        else:
-            node_ids = self.node_ids
-
-        self.send_message("channel_announcement",
-            node_signatures_1=node_sigs[0],
-            node_signatures_2=node_sigs[1],
-            bitcoin_signature_1=bitcoin_sigs[0],
-            bitcoin_signature_2=bitcoin_sigs[1],
-            len=0,
-            #features not set (defaults to zeros)
-            chain_hash=constants.net.rev_genesis_bytes(),
-            short_channel_id=chan.short_channel_id,
-            node_id_1=node_ids[0],
-            node_id_2=node_ids[1],
-            bitcoin_key_1=bitcoin_keys[0],
-            bitcoin_key_2=bitcoin_keys[1]
-        )
+        raw_msg = chan.construct_channel_announcement_without_sigs()
+        message_type, payload = decode_msg(raw_msg)
+        payload['node_signature_1'] = node_sigs[0]
+        payload['node_signature_2'] = node_sigs[1]
+        payload['bitcoin_signature_1'] = bitcoin_sigs[0]
+        payload['bitcoin_signature_2'] = bitcoin_sigs[1]
+        raw_msg = encode_msg(message_type, **payload)
+        self.transport.send_bytes(raw_msg)
 
     def maybe_mark_open(self, chan: Channel):
         if not chan.sent_channel_ready:
@@ -1404,19 +1431,27 @@ class Peer(Logger):
             chan_upd = chan.get_outgoing_gossip_channel_update()
             self.transport.send_bytes(chan_upd)
 
-    def send_announcement_signatures(self, chan: Channel):
-        chan_ann = chan.construct_channel_announcement_without_sigs()
-        preimage = chan_ann[256+2:]
-        msg_hash = sha256d(preimage)
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(msg_hash, sig_string_from_r_and_s)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(msg_hash, sig_string_from_r_and_s)
-        self.send_message("announcement_signatures",
+    def maybe_send_announcement_signatures(self, chan: Channel, is_reply=False):
+        if not chan.is_public():
+            return
+        if chan.sent_announcement_signatures:
+            return
+        if not is_reply and chan.config[REMOTE].announcement_node_sig:
+            return
+        h = chan.get_channel_announcement_hash()
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
+        self.send_message(
+            "announcement_signatures",
             channel_id=chan.channel_id,
             short_channel_id=chan.short_channel_id,
             node_signature=node_signature,
             bitcoin_signature=bitcoin_signature
         )
-        return msg_hash, node_signature, bitcoin_signature
+        chan.config[LOCAL].announcement_node_sig = node_signature
+        chan.config[LOCAL].announcement_bitcoin_sig = bitcoin_signature
+        self.lnworker.save_channel(chan)
+        chan.sent_announcement_signatures = True
 
     def on_update_fail_htlc(self, chan: Channel, payload):
         htlc_id = payload["id"]
@@ -1982,7 +2017,7 @@ class Peer(Logger):
         feerate = payload["feerate_per_kw"]
         chan.update_fee(feerate, False)
 
-    async def maybe_update_fee(self, chan: Channel):
+    def maybe_update_fee(self, chan: Channel):
         """
         called when our fee estimates change
         """

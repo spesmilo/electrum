@@ -90,6 +90,8 @@ class ChannelConfig(StoredObject):
     reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
     upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes)
+    announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes)
+    announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -193,7 +195,6 @@ class ChannelConfig(StoredObject):
 class LocalConfig(ChannelConfig):
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
-    was_announced = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
     current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
     per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -242,6 +243,7 @@ class FeeUpdate(StoredObject):
 @stored_as('constraints')
 @attr.s
 class ChannelConstraints(StoredObject):
+    flags = attr.ib(type=int, converter=int)
     capacity = attr.ib(type=int)  # in sat
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)

@@ -1204,10 +1204,9 @@ class LNWallet(LNWorker):
 
         elif chan.get_state() == ChannelState.OPEN:
             peer = self._peers.get(chan.node_id)
-            if peer:
-                await peer.maybe_update_fee(chan)
-                conf = self.lnwatcher.adb.get_tx_height(chan.funding_outpoint.txid).conf
-                peer.on_network_update(chan, conf)
+            if peer and peer.is_initialized() and chan.peer_state == PeerState.GOOD:
+                peer.maybe_update_fee(chan)
+                peer.maybe_send_announcement_signatures(chan)
 
         elif chan.get_state() == ChannelState.FORCE_CLOSING:
             force_close_tx = chan.force_close_tx()
@@ -1218,7 +1217,11 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     @log_exceptions
-    async def open_channel_with_peer(self, peer, funding_sat, push_sat, password):
+    async def open_channel_with_peer(
+            self, peer, funding_sat, *,
+            push_sat: int = 0,
+            public: bool = False,
+            password=None):
         coins = self.wallet.get_spendable_coins(None)
         node_id = peer.pubkey
         funding_tx = self.mktx_for_open_channel(
@@ -1231,6 +1234,7 @@ class LNWallet(LNWorker):
             funding_tx=funding_tx,
             funding_sat=funding_sat,
             push_sat=push_sat,
+            public=public,
             password=password)
         return chan, funding_tx
 
@@ -1241,12 +1245,14 @@ class LNWallet(LNWorker):
             funding_tx: PartialTransaction,
             funding_sat: int,
             push_sat: int,
+            public: bool,
             password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
 
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
+            public=public,
             temp_channel_id=os.urandom(32))
         chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
@@ -1329,8 +1335,15 @@ class LNWallet(LNWorker):
                 pass
         return funding_sat, min_funding_sat
 
-    def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
-                     funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
+    def open_channel(
+            self, *,
+            connect_str: str,
+            funding_tx: PartialTransaction,
+            funding_sat: int,
+            push_amt_sat: int,
+            public: bool = False,
+            password: str = None) -> Tuple[Channel, PartialTransaction]:
+
         if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over maximum."))
 
@@ -1340,8 +1353,12 @@ class LNWallet(LNWorker):
         except concurrent.futures.TimeoutError:
             raise Exception(_("add peer timed out"))
         coro = self._open_channel_coroutine(
-            peer=peer, funding_tx=funding_tx, funding_sat=funding_sat,
-            push_sat=push_amt_sat, password=password)
+            peer=peer,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
+            push_sat=push_amt_sat,
+            public=public,
+            password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
             chan, funding_tx = fut.result()
