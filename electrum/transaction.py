@@ -613,6 +613,15 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
     if amount < dust_limit:
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
+def merge_tx_outputs(outputs):
+    output_dict = {}
+    for output in outputs:
+        if output.scriptpubkey in output_dict:
+            output_dict[output.scriptpubkey].value += output.value
+        else:
+            output_dict[output.scriptpubkey] = copy.copy(output)
+
+    return list(output_dict.values())
 
 def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""

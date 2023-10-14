@@ -1793,13 +1793,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
-                output_dict = {}
-                for output in txo:
-                    if output.address in output_dict:
-                        output_dict[output.address].value += output.value
-                    else:
-                        output_dict[output.address] = copy.copy(output)
-                txo = list(output_dict.values())
+                txo = transaction.merge_tx_outputs(txo)
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
                 rbf_merge_txid = base_tx.txid()
             else:
