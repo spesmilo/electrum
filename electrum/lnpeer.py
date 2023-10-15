@@ -1273,11 +1273,10 @@ class Peer(Logger):
             resend_revoke_and_ack()
 
         chan.peer_state = PeerState.GOOD
-        chan_just_became_ready = False
-        if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
-            chan_just_became_ready = True
-        if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
-            self.send_channel_ready(chan)
+        if chan.is_funded():
+            chan_just_became_ready = (their_next_local_ctn == next_local_ctn == 1)
+            if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
+                self.send_channel_ready(chan)
         # checks done
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
@@ -1285,6 +1284,9 @@ class Peer(Logger):
             await self.send_shutdown(chan)
 
     def send_channel_ready(self, chan: Channel):
+        assert chan.is_funded()
+        if chan.sent_channel_ready:
+            return
         channel_id = chan.channel_id
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
         second_per_commitment_point = secret_to_pubkey(int.from_bytes(
