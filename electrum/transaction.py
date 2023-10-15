@@ -2051,6 +2051,7 @@ class PartialTransaction(Transaction):
 
     def add_outputs(self, outputs: List[PartialTxOutput]) -> None:
         self._outputs.extend(outputs)
+        self._outputs = merge_tx_outputs(self._outputs)
         self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
 
