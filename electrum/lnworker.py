@@ -1714,9 +1714,13 @@ class LNWallet(LNWorker):
                 return None
 
     def _check_invoice(self, invoice: str, *, amount_msat: int = None) -> LnAddr:
+        """Parses and validates a bolt11 invoice str into a LnAddr.
+        Includes pre-payment checks external to the parser.
+        """
         addr = lndecode(invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
+        # check amount
         if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices
             existing_amt_msat = addr.get_amount_msat()
             if existing_amt_msat and amount_msat < existing_amt_msat:
@@ -1724,10 +1728,12 @@ class LNWallet(LNWorker):
             addr.amount = Decimal(amount_msat) / COIN / 1000
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
+        # check cltv
         if addr.get_min_final_cltv_expiry() > lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
+        # check features
         addr.validate_and_compare_features(self.features)
         return addr
 
