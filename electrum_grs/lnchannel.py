@@ -825,7 +825,7 @@ class Channel(AbstractChannel):
 
     def get_channel_announcement_hash(self):
         chan_ann = self.construct_channel_announcement_without_sigs()
-        return sha256d(chan_ann[256+2:])
+        return sha256(chan_ann[256+2:])
 
     def is_static_remotekey_enabled(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
