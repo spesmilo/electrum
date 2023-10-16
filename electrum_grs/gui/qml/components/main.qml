@@ -201,14 +201,6 @@ ApplicationWindow
                             }
                         }
 
-                        Image {
-                            Layout.preferredWidth: constants.iconSizeSmall
-                            Layout.preferredHeight: constants.iconSizeSmall
-                            visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
-                            source: '../../icons/eye1.png'
-                            scale: 1.5
-                        }
-
                         LightningNetworkStatusIndicator {}
                         OnchainNetworkStatusIndicator {}
                     }

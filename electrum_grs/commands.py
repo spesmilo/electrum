@@ -1137,11 +1137,15 @@ class Commands:
         } for p in lnworker.peers.values()]
 
     @command('wpnl')
-    async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
+    async def open_channel(self, connection_string, amount, push_amount=0, public=False, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
         peer = await wallet.lnworker.add_peer(connection_string)
-        chan, funding_tx = await wallet.lnworker.open_channel_with_peer(peer, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker.open_channel_with_peer(
+            peer, funding_sat,
+            push_sat=push_sat,
+            public=public,
+            password=password)
         return chan.funding_outpoint.to_str()
 
     @command('')
@@ -1460,7 +1464,8 @@ command_options = {
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
-    'unlock':      (None, "Unlock the wallet (store the password in memory).")
+    'unlock':      (None, "Unlock the wallet (store the password in memory)."),
+    'public':      (None, 'Channel will be announced'),
 }
 
 

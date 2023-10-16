@@ -523,9 +523,11 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         elif tag == '9':
             features = tagdata.uint
             addr.tags.append(('9', features))
-            from .lnutil import validate_features
-            validate_features(features)
-
+            # note: The features are not validated here in the parser,
+            #       instead, validation is done just before we try paying the invoice (in lnworker._check_invoice).
+            #       Context: invoice parsing happens when opening a wallet. If there was a backwards-incompatible
+            #       change to a feature, and we raised, some existing wallets could not be opened. Such a change
+            #       can happen to features not-yet-merged-to-BOLTs (e.g. trampoline feature bit was moved and reused).
         else:
             addr.unknown_tags.append((tag, tagdata))
 

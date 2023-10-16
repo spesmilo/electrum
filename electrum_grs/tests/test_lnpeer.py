@@ -24,7 +24,7 @@ from electrum_grs.ecc import ECPrivkey
 from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
-from electrum_grs.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener
+from electrum_grs.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -452,6 +452,8 @@ class TestPeer(ElectrumTestCase):
             include_routing_hints=False,
             payment_preimage: bytes = None,
             payment_hash: bytes = None,
+            invoice_features: LnFeatures = None,
+            min_final_cltv_expiry_delta: int = None,
     ) -> Tuple[LnAddr, str]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
@@ -467,16 +469,19 @@ class TestPeer(ElectrumTestCase):
         else:
             routing_hints = []
             trampoline_hints = []
-        invoice_features = w2.features.for_invoice()
+        if invoice_features is None:
+            invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
             payment_secret = w2.get_payment_secret(payment_hash)
         else:
             payment_secret = None
+        if min_final_cltv_expiry_delta is None:
+            min_final_cltv_expiry_delta = lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE
         lnaddr1 = LnAddr(
             paymenthash=payment_hash,
             amount=amount_btc,
             tags=[
-                ('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                ('c', min_final_cltv_expiry_delta),
                 ('d', 'coffee'),
                 ('9', invoice_features),
             ] + routing_hints,
@@ -775,6 +780,38 @@ class TestPeerDirect(TestPeer):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentFailure):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True, test_failure=True)
+
+    async def test_check_invoice_before_payment(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def try_paying_some_invoices():
+            # feature bits: unknown even fbit
+            invoice_features = w2.features.for_invoice() | (1 << 990)  # add undefined even fbit
+            lnaddr, pay_req = self.prepare_invoice(w2, invoice_features=invoice_features)
+            with self.assertRaises(lnutil.UnknownEvenFeatureBits):
+                result, log = await w1.pay_invoice(pay_req)
+            # feature bits: not all transitive dependencies are set
+            invoice_features = LnFeatures((1 << 8) + (1 << 17))
+            lnaddr, pay_req = self.prepare_invoice(w2, invoice_features=invoice_features)
+            with self.assertRaises(lnutil.IncompatibleOrInsaneFeatures):
+                result, log = await w1.pay_invoice(pay_req)
+            # too large CLTV
+            lnaddr, pay_req = self.prepare_invoice(w2, min_final_cltv_expiry_delta=10**6)
+            with self.assertRaises(InvoiceError):
+                result, log = await w1.pay_invoice(pay_req)
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(try_paying_some_invoices())
+
+        with self.assertRaises(SuccessfulTest):
+            await f()
 
     async def test_payment_race(self):
         """Alice and Bob pay each other simultaneously.

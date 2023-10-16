@@ -343,6 +343,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not force_wizard:
             try:
                 wallet = self.daemon.load_wallet(path, None)
+            except FileNotFoundError:
+                pass  # open with wizard below
             except InvalidPassword:
                 pass  # open with wizard below
             except WalletRequiresSplit:
