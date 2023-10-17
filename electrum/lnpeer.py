@@ -2363,6 +2363,7 @@ class Peer(Logger):
                 unfulfilled = chan.unfulfilled_htlcs
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
                     if forwarding_info:
+                        forwarding_info = tuple(forwarding_info) # storage converts to list
                         self.lnworker.downstream_htlc_to_upstream_peer_map[forwarding_info] = self.pubkey
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
@@ -2411,6 +2412,7 @@ class Peer(Logger):
                 for htlc_id in done:
                     local_ctn, remote_ctn, onion_packet_hex, forwarding_info = unfulfilled.pop(htlc_id)
                     if forwarding_info:
+                        forwarding_info = tuple(forwarding_info) # storage converts to list
                         self.lnworker.downstream_htlc_to_upstream_peer_map.pop(forwarding_info, None)
                 self.maybe_send_commitment(chan)
 
