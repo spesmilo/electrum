@@ -1771,7 +1771,7 @@ class Peer(Logger):
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
-        trampoline_cltv_delta = cltv_expiry - cltv_from_onion
+        trampoline_cltv_delta = cltv_expiry - cltv_from_onion  # cltv budget
         total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
         trampoline_fee = total_msat - amt_to_forward
         self.logger.info(f'trampoline cltv and fee: {trampoline_cltv_delta, trampoline_fee}')
@@ -1782,7 +1782,10 @@ class Peer(Logger):
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 amount_to_pay=amt_to_forward,
-                min_cltv_expiry=cltv_from_onion,
+                # FIXME this API (min_cltv_expiry) is bad. This is setting the cltv-delta for the last edge
+                #       on the path to the *next trampoline* node. We should just let lnrouter set this.
+                #       Instead, we should rewrite pay_to_node to operate on a fee-budget and cltv-budget.
+                min_cltv_expiry=lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
