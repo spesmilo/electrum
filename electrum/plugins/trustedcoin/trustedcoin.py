@@ -285,7 +285,7 @@ class Wallet_2fa(Multisig_Wallet):
                 self._billing_addresses_set.add(addr)
 
     def can_sign_without_server(self):
-        return not self.keystores['x2/'].is_watching_only()
+        return not self.keystores['x2'].is_watching_only()
 
     def get_user_id(self):
         return get_user_id(self.db)
