@@ -251,7 +251,8 @@ def get_mychannel_info(short_channel_id: ShortChannelID,
     chan = my_channels.get(short_channel_id)
     if not chan:
         return
-    ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
+    raw_msg, _ = chan.construct_channel_announcement_without_sigs()
+    ci = ChannelInfo.from_raw_msg(raw_msg)
     return ci._replace(capacity_sat=chan.constraints.capacity)
 
 def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,

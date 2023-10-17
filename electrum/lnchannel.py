@@ -806,9 +806,9 @@ class Channel(AbstractChannel):
             self.config[REMOTE].multisig_key.pubkey,
             self.config[LOCAL].multisig_key.pubkey]
         node_ids = [self.node_id, self.get_local_pubkey()]
-        sorted_node_ids = list(sorted(node_ids))
-        if sorted_node_ids != node_ids:
-            node_ids = sorted_node_ids
+        is_reverse = node_ids[0] > node_ids[1]
+        if is_reverse:
+            node_ids.reverse()
             bitcoin_keys.reverse()
         chan_ann = encode_msg(
             "channel_announcement",
@@ -821,10 +821,10 @@ class Channel(AbstractChannel):
             bitcoin_key_1=bitcoin_keys[0],
             bitcoin_key_2=bitcoin_keys[1],
         )
-        return chan_ann
+        return chan_ann, is_reverse
 
     def get_channel_announcement_hash(self):
-        chan_ann = self.construct_channel_announcement_without_sigs()
+        chan_ann, _ = self.construct_channel_announcement_without_sigs()
         return sha256d(chan_ann[256+2:])
 
     def is_static_remotekey_enabled(self) -> bool:

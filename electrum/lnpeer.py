@@ -476,7 +476,7 @@ class Peer(Logger):
                 self.send_node_announcement(alias)
                 for chan in public_channels:
                     if chan.is_open() and chan.peer_state == PeerState.GOOD:
-                        self.send_channel_announcement(chan)
+                        self.maybe_send_channel_announcement(chan)
             await asyncio.sleep(600)
 
     async def query_gossip(self):
@@ -1379,18 +1379,15 @@ class Peer(Logger):
         raw_msg = encode_msg(message_type, **payload)
         self.transport.send_bytes(raw_msg)
 
-    def send_channel_announcement(self, chan: Channel):
-        node_ids = [chan.node_id, chan.get_local_pubkey()]
+    def maybe_send_channel_announcement(self, chan: Channel):
         node_sigs = [chan.config[REMOTE].announcement_node_sig, chan.config[LOCAL].announcement_node_sig]
         bitcoin_sigs = [chan.config[REMOTE].announcement_bitcoin_sig, chan.config[LOCAL].announcement_bitcoin_sig]
-        bitcoin_keys = [chan.config[REMOTE].multisig_key.pubkey, chan.config[LOCAL].multisig_key.pubkey]
-        sorted_node_ids = list(sorted(node_ids))
-        if sorted_node_ids != node_ids:
+        if not bitcoin_sigs[0] or not bitcoin_sigs[1]:
+            return
+        raw_msg, is_reverse = chan.construct_channel_announcement_without_sigs()
+        if is_reverse:
             node_sigs.reverse()
             bitcoin_sigs.reverse()
-            node_ids.reverse()
-            bitcoin_keys.reverse()
-        raw_msg = chan.construct_channel_announcement_without_sigs()
         message_type, payload = decode_msg(raw_msg)
         payload['node_signature_1'] = node_sigs[0]
         payload['node_signature_2'] = node_sigs[1]
