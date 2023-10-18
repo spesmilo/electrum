@@ -1780,7 +1780,16 @@ class Peer(Logger):
         trampoline_cltv_delta = cltv_expiry - cltv_from_onion  # cltv budget
         total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
         trampoline_fee = total_msat - amt_to_forward
-        self.logger.info(f'trampoline cltv and fee: {trampoline_cltv_delta, trampoline_fee}')
+        self.logger.info(f'trampoline forwarding. fee_budget={trampoline_fee}')
+        self.logger.info(f'trampoline forwarding. cltv_budget={trampoline_cltv_delta}. (inc={cltv_expiry}. out={cltv_from_onion})')
+        # To convert abs vs rel cltvs, we need to guess blockheight used by original sender as "current blockheight".
+        # Blocks might have been mined since.
+        # - if we skew towards the past, we decrease our own cltv_budget accordingly (which is ok)
+        # - if we skew towards the future, we decrease the cltv_budget for the subsequent nodes in the path,
+        #   which can result in them failing the payment.
+        # So we skew towards the past and guess that there has been 1 new block mined since the payment began:
+        local_height_of_onion_creator = self.network.get_local_height() - 1
+        cltv_budget_for_rest_of_route = cltv_from_onion - local_height_of_onion_creator
 
         try:
             await self.lnworker.pay_to_node(
@@ -1788,10 +1797,10 @@ class Peer(Logger):
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 amount_to_pay=amt_to_forward,
-                # FIXME this API (min_cltv_expiry) is bad. This is setting the cltv-delta for the last edge
-                #       on the path to the *next trampoline* node. We should just let lnrouter set this.
-                #       Instead, we should rewrite pay_to_node to operate on a fee-budget and cltv-budget.
-                min_cltv_expiry=lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
+                # FIXME this API (min_cltv_expiry) is confusing. The value will be added to local_height
+                #       to form the abs cltv used on the last edge on the path to the *next trampoline* node.
+                #       We should rewrite pay_to_node to operate on a cltv-budget (and fee-budget).
+                min_cltv_expiry=cltv_budget_for_rest_of_route,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
