@@ -75,7 +75,7 @@ class MockNetwork:
         return noop_lock()
 
     def get_local_height(self):
-        return 0
+        return self.blockchain().height()
 
     def blockchain(self):
         return self._blockchain
@@ -91,7 +91,9 @@ class MockNetwork:
 class MockBlockchain:
 
     def height(self):
-        return 0
+        # Let's return a non-zero, realistic height.
+        # 0 might hide relative vs abs locktime confusion bugs.
+        return 600_000
 
     def is_tip_stale(self):
         return False
