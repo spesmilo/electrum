@@ -1478,7 +1478,7 @@ class Peer(Logger):
             payment_hash: bytes,
             min_final_cltv_expiry: int,
             payment_secret: bytes,
-            trampoline_onion=None,
+            trampoline_onion: Optional[OnionPacket] = None,
     ):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
@@ -1506,6 +1506,12 @@ class Peer(Logger):
                 "hops_data": trampoline_onion.hops_data,
                 "hmac": trampoline_onion.hmac
             }
+            if t_hops_data := trampoline_onion._debug_hops_data:  # None if trampoline-forwarding
+                t_route = trampoline_onion._debug_route
+                assert t_route is not None
+                self.logger.info(f"lnpeer.pay len(t_route)={len(t_route)}")
+                for i in range(len(t_route)):
+                    self.logger.info(f"  {i}: t_node={t_route[i].end_node.hex()} hop_data={t_hops_data[i]!r}")
         # create onion packet
         payment_path_pubkeys = [x.node_id for x in route]
         onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
@@ -1540,7 +1546,7 @@ class Peer(Logger):
             payment_hash: bytes,
             min_final_cltv_expiry: int,
             payment_secret: bytes,
-            trampoline_onion=None,
+            trampoline_onion: Optional[OnionPacket] = None,
         ) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"

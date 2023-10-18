@@ -1560,7 +1560,7 @@ class LNWallet(LNWorker):
             paysession: PaySession,
             sent_htlc_info: SentHtlcInfo,
             min_cltv_expiry: int,
-            trampoline_onion: bytes = None,
+            trampoline_onion: Optional[OnionPacket] = None,
     ) -> None:
         """Sends a single HTLC."""
         shi = sent_htlc_info

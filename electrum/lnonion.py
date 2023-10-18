@@ -117,6 +117,9 @@ class OnionPacket:
         self.hmac = hmac
         if not ecc.ECPubkey.is_pubkey_bytes(public_key):
             raise InvalidOnionPubkey()
+        # for debugging our own onions:
+        self._debug_hops_data = None  # type: Optional[Sequence[OnionHopsDataSingle]]
+        self._debug_route = None      # type: Optional[LNPaymentRoute]
 
     def to_bytes(self) -> bytes:
         ret = bytes([self.version])

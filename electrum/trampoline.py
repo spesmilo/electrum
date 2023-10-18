@@ -9,6 +9,10 @@ from .lnonion import calc_hops_data_for_payment, new_onion_packet
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use
 from .lnutil import NoPathFound, LNPeerAddr
 from . import constants
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 # trampoline nodes are supposed to advertise their fee and cltv in node_update message
 TRAMPOLINE_FEES = [
@@ -307,6 +311,8 @@ def create_trampoline_onion(
             }
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
+    trampoline_onion._debug_hops_data = hops_data
+    trampoline_onion._debug_route = route
     return trampoline_onion, amount_msat, cltv
 
 
