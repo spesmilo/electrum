@@ -121,7 +121,7 @@ class ExchangeBase(Logger):
             self.logger.info(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
             self.logger.info(f"received fx history for {ccy}")
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
         except Exception as e:
