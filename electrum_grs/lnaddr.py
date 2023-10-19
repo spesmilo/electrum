@@ -336,7 +336,7 @@ class LnAddr(object):
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )
 
-    def get_min_final_cltv_expiry(self) -> int:
+    def get_min_final_cltv_delta(self) -> int:
         cltv = self.get_tag('c')
         if cltv is None:
             return 18
@@ -375,7 +375,7 @@ class LnAddr(object):
             'description': self.get_description(),
             'exp': self.get_expiry(),
             'time': self.date,
-            'min_final_cltv_expiry': self.get_min_final_cltv_expiry(),
+            'min_final_cltv_delta': self.get_min_final_cltv_delta(),
             'features': self.get_features().get_names(),
             'tags': self.tags,
             'unknown_tags': self.unknown_tags,

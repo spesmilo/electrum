@@ -482,26 +482,31 @@ class TestLNUtil(ElectrumTestCase):
         htlc_cltv_timeout = {}
         htlc_payment_preimage = {}
         htlc = {}
+        htlc_pubkeys = {
+            "revocation_pubkey": local_revocation_pubkey,
+            "remote_htlcpubkey": remote_htlcpubkey,
+            "local_htlcpubkey": local_htlcpubkey,
+        }
 
         htlc_cltv_timeout[2] = 502
         htlc_payment_preimage[2] = b"\x02" * 32
-        htlc[2] = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc_payment_preimage[2]))
+        htlc[2] = make_offered_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[2]))
 
         htlc_cltv_timeout[3] = 503
         htlc_payment_preimage[3] = b"\x03" * 32
-        htlc[3] = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc_payment_preimage[3]))
+        htlc[3] = make_offered_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[3]))
 
         htlc_cltv_timeout[0] = 500
         htlc_payment_preimage[0] = b"\x00" * 32
-        htlc[0] = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc_payment_preimage[0]), htlc_cltv_timeout[0])
+        htlc[0] = make_received_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[0]), cltv_abs=htlc_cltv_timeout[0])
 
         htlc_cltv_timeout[1] = 501
         htlc_payment_preimage[1] = b"\x01" * 32
-        htlc[1] = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc_payment_preimage[1]), htlc_cltv_timeout[1])
+        htlc[1] = make_received_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[1]), cltv_abs=htlc_cltv_timeout[1])
 
         htlc_cltv_timeout[4] = 504
         htlc_payment_preimage[4] = b"\x04" * 32
-        htlc[4] = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc_payment_preimage[4]), htlc_cltv_timeout[4])
+        htlc[4] = make_received_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[4]), cltv_abs=htlc_cltv_timeout[4])
 
         remote_signature = "304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606"
         output_commit_tx = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8007e80300000000000022002052bfef0479d7b293c27e0f1eb294bea154c63a3294ef092c19af51409bce0e2ad007000000000000220020403d394747cae42e98ff01734ad5c08f82ba123d3d9a620abda88989651e2ab5d007000000000000220020748eba944fedc8827f6b06bc44678f93c0f9e6078b35c6331ed31e75f8ce0c2db80b000000000000220020c20b5d1f8584fd90443e7b7b720136174fa4b9333c261d04dbbd012635c0f419a00f0000000000002200208c48d15160397c9731df9bc3b236656efb6665fbfe92b4a6878e88a499f741c4c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de843110e0a06a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f060147304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b7060601475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
@@ -512,7 +517,7 @@ class TestLNUtil(ElectrumTestCase):
                           (1, 2000 * 1000),
                           (3, 3000 * 1000),
                           (4, 4000 * 1000)]:
-            htlc_obj[num] = UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_expiry=0, htlc_id=None, timestamp=0)
+            htlc_obj[num] = UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_abs=0, htlc_id=None, timestamp=0)
         htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
         our_commit_tx = make_commitment(
@@ -567,7 +572,7 @@ class TestLNUtil(ElectrumTestCase):
                 local_feerate_per_kw,
                 our_commit_tx))
 
-    def htlc_tx(self, htlc, htlc_output_index, amount_msat, htlc_payment_preimage, remote_htlc_sig, success, cltv_timeout, local_feerate_per_kw, our_commit_tx):
+    def htlc_tx(self, htlc, htlc_output_index, amount_msat, htlc_payment_preimage, remote_htlc_sig, success, cltv_abs, local_feerate_per_kw, our_commit_tx):
         _script, our_htlc_tx_output = make_htlc_tx_output(
             amount_msat=amount_msat,
             local_feerate=local_feerate_per_kw,
@@ -581,7 +586,7 @@ class TestLNUtil(ElectrumTestCase):
             amount_msat=amount_msat,
             witness_script=htlc.hex())
         our_htlc_tx = make_htlc_tx(
-            cltv_expiry=cltv_timeout,
+            cltv_abs=cltv_abs,
             inputs=our_htlc_tx_inputs,
             output=our_htlc_tx_output)
 

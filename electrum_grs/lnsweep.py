@@ -33,7 +33,7 @@ _logger = get_logger(__name__)
 class SweepInfo(NamedTuple):
     name: str
     csv_delay: int
-    cltv_expiry: int
+    cltv_abs: int
     gen_tx: Callable[[], Optional[Transaction]]
 
 
@@ -177,7 +177,7 @@ def create_sweeptx_for_their_revoked_htlc(
     return SweepInfo(
         name='redeem_htlc2',
         csv_delay=0,
-        cltv_expiry=0,
+        cltv_abs=0,
         gen_tx=gen_tx)
 
 
@@ -240,7 +240,7 @@ def create_sweeptxs_for_our_ctx(
         txs[prevout] = SweepInfo(
             name='our_ctx_to_local',
             csv_delay=to_self_delay,
-            cltv_expiry=0,
+            cltv_abs=0,
             gen_tx=sweep_tx)
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
@@ -277,12 +277,12 @@ def create_sweeptxs_for_our_ctx(
         txs[htlc_tx.inputs()[0].prevout.to_str()] = SweepInfo(
             name='first-stage-htlc',
             csv_delay=0,
-            cltv_expiry=htlc_tx.locktime,
+            cltv_abs=htlc_tx.locktime,
             gen_tx=lambda: htlc_tx)
         txs[htlc_tx.txid() + ':0'] = SweepInfo(
             name='second-stage-htlc',
             csv_delay=to_self_delay,
-            cltv_expiry=0,
+            cltv_abs=0,
             gen_tx=sweep_tx)
 
     # offered HTLCs, in our ctx --> "timeout"
@@ -381,7 +381,7 @@ def create_sweeptxs_for_their_ctx(
             txs[tx.inputs()[0].prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
                 csv_delay=0,
-                cltv_expiry=0,
+                cltv_abs=0,
                 gen_tx=gen_tx)
     # prep
     our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
@@ -400,9 +400,9 @@ def create_sweeptxs_for_their_ctx(
             remote_htlc_pubkey=our_htlc_privkey.get_public_key_bytes(compressed=True),
             local_htlc_pubkey=their_htlc_pubkey,
             payment_hash=htlc.payment_hash,
-            cltv_expiry=htlc.cltv_expiry)
+            cltv_abs=htlc.cltv_abs)
 
-        cltv_expiry = htlc.cltv_expiry if is_received_htlc and not is_revocation else 0
+        cltv_abs = htlc.cltv_abs if is_received_htlc and not is_revocation else 0
         prevout = ctx.txid() + ':%d'%ctx_output_idx
         sweep_tx = lambda: create_sweeptx_their_ctx_htlc(
             ctx=ctx,
@@ -412,12 +412,12 @@ def create_sweeptxs_for_their_ctx(
             output_idx=ctx_output_idx,
             privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
             is_revocation=is_revocation,
-            cltv_expiry=cltv_expiry,
+            cltv_abs=cltv_abs,
             config=chan.lnworker.config)
         txs[prevout] = SweepInfo(
             name=f'their_ctx_htlc_{ctx_output_idx}',
             csv_delay=0,
-            cltv_expiry=cltv_expiry,
+            cltv_abs=cltv_abs,
             gen_tx=sweep_tx)
     # received HTLCs, in their ctx --> "timeout"
     # offered HTLCs, in their ctx --> "success"
@@ -480,8 +480,8 @@ def create_sweeptx_their_ctx_htlc(
         ctx: Transaction, witness_script: bytes, sweep_address: str,
         preimage: Optional[bytes], output_idx: int,
         privkey: bytes, is_revocation: bool,
-        cltv_expiry: int, config: SimpleConfig) -> Optional[PartialTransaction]:
-    assert type(cltv_expiry) is int
+        cltv_abs: int, config: SimpleConfig) -> Optional[PartialTransaction]:
+    assert type(cltv_abs) is int
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
@@ -495,7 +495,7 @@ def create_sweeptx_their_ctx_htlc(
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_expiry)
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_abs)
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
         witness = construct_witness([sig, preimage, witness_script])

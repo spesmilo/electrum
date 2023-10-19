@@ -103,7 +103,7 @@ class ChannelInfo(NamedTuple):
 
 class Policy(NamedTuple):
     key: bytes
-    cltv_expiry_delta: int
+    cltv_delta: int
     htlc_minimum_msat: int
     htlc_maximum_msat: Optional[int]
     fee_base_msat: int
@@ -116,7 +116,7 @@ class Policy(NamedTuple):
     def from_msg(payload: dict) -> 'Policy':
         return Policy(
             key                         = payload['short_channel_id'] + payload['start_node'],
-            cltv_expiry_delta           = payload['cltv_expiry_delta'],
+            cltv_delta                  = payload['cltv_expiry_delta'],
             htlc_minimum_msat           = payload['htlc_minimum_msat'],
             htlc_maximum_msat           = payload.get('htlc_maximum_msat', None),
             fee_base_msat               = payload['fee_base_msat'],
@@ -136,7 +136,7 @@ class Policy(NamedTuple):
     def from_route_edge(route_edge: 'RouteEdge') -> 'Policy':
         return Policy(
             key=route_edge.short_channel_id + route_edge.start_node,
-            cltv_expiry_delta=route_edge.cltv_expiry_delta,
+            cltv_delta=route_edge.cltv_delta,
             htlc_minimum_msat=0,
             htlc_maximum_msat=None,
             fee_base_msat=route_edge.fee_base_msat,
@@ -251,7 +251,8 @@ def get_mychannel_info(short_channel_id: ShortChannelID,
     chan = my_channels.get(short_channel_id)
     if not chan:
         return
-    ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
+    raw_msg, _ = chan.construct_channel_announcement_without_sigs()
+    ci = ChannelInfo.from_raw_msg(raw_msg)
     return ci._replace(capacity_sat=chan.constraints.capacity)
 
 def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,
@@ -440,10 +441,10 @@ class ChannelDB(SqlDB):
 
     def policy_changed(self, old_policy: Policy, new_policy: Policy, verbose: bool) -> bool:
         changed = False
-        if old_policy.cltv_expiry_delta != new_policy.cltv_expiry_delta:
+        if old_policy.cltv_delta != new_policy.cltv_delta:
             changed |= True
             if verbose:
-                self.logger.info(f'cltv_expiry_delta: {old_policy.cltv_expiry_delta} -> {new_policy.cltv_expiry_delta}')
+                self.logger.info(f'cltv_expiry_delta: {old_policy.cltv_delta} -> {new_policy.cltv_delta}')
         if old_policy.htlc_minimum_msat != new_policy.htlc_minimum_msat:
             changed |= True
             if verbose:

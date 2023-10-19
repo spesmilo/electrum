@@ -6,9 +6,13 @@ from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, 
 
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
-from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use
+from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use, LNPaymentTRoute
 from .lnutil import NoPathFound, LNPeerAddr
 from . import constants
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 # trampoline nodes are supposed to advertise their fee and cltv in node_update message
 TRAMPOLINE_FEES = [
@@ -175,7 +179,7 @@ def _extend_trampoline_route(
             end_node=end_node,
             fee_base_msat=policy['fee_base_msat'] if pay_fees else 0,
             fee_proportional_millionths=policy['fee_proportional_millionths'] if pay_fees else 0,
-            cltv_expiry_delta=policy['cltv_expiry_delta'] if pay_fees else 0,
+            cltv_delta=policy['cltv_expiry_delta'] if pay_fees else 0,
             node_features=trampoline_features))
 
 
@@ -200,7 +204,7 @@ def _choose_second_trampoline(
 def create_trampoline_route(
         *,
         amount_msat: int,
-        min_cltv_expiry: int,
+        min_final_cltv_delta: int,
         invoice_pubkey: bytes,
         invoice_features: int,
         my_pubkey: bytes,
@@ -209,7 +213,7 @@ def create_trampoline_route(
         trampoline_fee_level: int,
         use_two_trampolines: bool,
         failed_routes: Iterable[Sequence[str]],
-) -> LNPaymentRoute:
+) -> LNPaymentTRoute:
     # we decide whether to convert to a legacy payment
     is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
 
@@ -254,25 +258,25 @@ def create_trampoline_route(
     # check that we can pay amount and fees
     for edge in route[::-1]:
         amount_msat += edge.fee_for_edge(amount_msat)
-    if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
+    if not is_route_sane_to_use(route, amount_msat, min_final_cltv_delta):
         raise NoPathFound("We cannot afford to pay the fees.")
     return route
 
 
 def create_trampoline_onion(
     *,
-    route,
-    amount_msat,
-    final_cltv,
+    route: LNPaymentTRoute,
+    amount_msat: int,
+    final_cltv_abs: int,
     total_msat: int,
     payment_hash: bytes,
     payment_secret: bytes,
 ):
     # all edges are trampoline
-    hops_data, amount_msat, cltv = calc_hops_data_for_payment(
+    hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
         route,
         amount_msat,
-        final_cltv,
+        final_cltv_abs=final_cltv_abs,
         total_msat=total_msat,
         payment_secret=payment_secret)
     # detect trampoline hops.
@@ -303,14 +307,16 @@ def create_trampoline_onion(
             }
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
-    return trampoline_onion, amount_msat, cltv
+    trampoline_onion._debug_hops_data = hops_data
+    trampoline_onion._debug_route = route
+    return trampoline_onion, amount_msat, cltv_abs
 
 
 def create_trampoline_route_and_onion(
         *,
         amount_msat,
         total_msat,
-        min_cltv_expiry,
+        min_final_cltv_delta: int,
         invoice_pubkey,
         invoice_features,
         my_pubkey: bytes,
@@ -325,7 +331,7 @@ def create_trampoline_route_and_onion(
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
-        min_cltv_expiry=min_cltv_expiry,
+        min_final_cltv_delta=min_final_cltv_delta,
         my_pubkey=my_pubkey,
         invoice_pubkey=invoice_pubkey,
         invoice_features=invoice_features,
@@ -335,16 +341,16 @@ def create_trampoline_route_and_onion(
         use_two_trampolines=use_two_trampolines,
         failed_routes=failed_routes)
     # compute onion and fees
-    final_cltv = local_height + min_cltv_expiry
-    trampoline_onion, amount_with_fees, bucket_cltv = create_trampoline_onion(
+    final_cltv_abs = local_height + min_final_cltv_delta
+    trampoline_onion, amount_with_fees, bucket_cltv_abs = create_trampoline_onion(
         route=trampoline_route,
         amount_msat=amount_msat,
-        final_cltv=final_cltv,
+        final_cltv_abs=final_cltv_abs,
         total_msat=total_msat,
         payment_hash=payment_hash,
         payment_secret=payment_secret)
-    bucket_cltv_delta = bucket_cltv - local_height
-    bucket_cltv_delta += trampoline_route[0].cltv_expiry_delta
+    bucket_cltv_delta = bucket_cltv_abs - local_height
+    bucket_cltv_delta += trampoline_route[0].cltv_delta
     # trampoline fee for this very trampoline
     trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
     amount_with_fees += trampoline_fee

@@ -631,7 +631,7 @@ class Channel(AbstractChannel):
     #       TODO enforce this ^
 
     # our forwarding parameters for forwarding HTLCs through this channel
-    forwarding_cltv_expiry_delta = 144
+    forwarding_cltv_delta = 144
     forwarding_fee_base_msat = 1000
     forwarding_fee_proportional_millionths = 1
 
@@ -784,7 +784,7 @@ class Channel(AbstractChannel):
             short_channel_id=scid,
             channel_flags=channel_flags,
             message_flags=b'\x01',
-            cltv_expiry_delta=self.forwarding_cltv_expiry_delta,
+            cltv_expiry_delta=self.forwarding_cltv_delta,
             htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat,
             htlc_maximum_msat=htlc_maximum_msat,
             fee_base_msat=self.forwarding_fee_base_msat,
@@ -806,9 +806,9 @@ class Channel(AbstractChannel):
             self.config[REMOTE].multisig_key.pubkey,
             self.config[LOCAL].multisig_key.pubkey]
         node_ids = [self.node_id, self.get_local_pubkey()]
-        sorted_node_ids = list(sorted(node_ids))
-        if sorted_node_ids != node_ids:
-            node_ids = sorted_node_ids
+        is_reverse = node_ids[0] > node_ids[1]
+        if is_reverse:
+            node_ids.reverse()
             bitcoin_keys.reverse()
         chan_ann = encode_msg(
             "channel_announcement",
@@ -821,10 +821,10 @@ class Channel(AbstractChannel):
             bitcoin_key_1=bitcoin_keys[0],
             bitcoin_key_2=bitcoin_keys[1],
         )
-        return chan_ann
+        return chan_ann, is_reverse
 
     def get_channel_announcement_hash(self):
-        chan_ann = self.construct_channel_announcement_without_sigs()
+        chan_ann, _ = self.construct_channel_announcement_without_sigs()
         return sha256(chan_ann[256+2:])
 
     def is_static_remotekey_enabled(self) -> bool:
@@ -1549,7 +1549,7 @@ class Channel(AbstractChannel):
                     remote_htlc_pubkey=other_htlc_pubkey,
                     local_htlc_pubkey=this_htlc_pubkey,
                     payment_hash=htlc.payment_hash,
-                    cltv_expiry=htlc.cltv_expiry), htlc))
+                    cltv_abs=htlc.cltv_abs), htlc))
         # note: maybe flip initiator here for fee purposes, we want LOCAL and REMOTE
         #       in the resulting dict to correspond to the to_local and to_remote *outputs* of the ctx
         onchain_fees = calc_fees_for_commitment_tx(
@@ -1656,24 +1656,24 @@ class Channel(AbstractChannel):
         # If there is a received HTLC for which we already released the preimage
         # but the remote did not revoke yet, and the CLTV of this HTLC is dangerously close
         # to the present, then unilaterally close channel
-        recv_htlc_deadline = lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS
+        recv_htlc_deadline_delta = lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS
         for sub, dir, ctn in ((LOCAL, RECEIVED, self.get_latest_ctn(LOCAL)),
                               (REMOTE, SENT, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, SENT, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
                 if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
                     continue
-                if htlc.cltv_expiry - recv_htlc_deadline > local_height:
+                if htlc.cltv_abs - recv_htlc_deadline_delta > local_height:
                     continue
                 htlcs_we_could_reclaim[(RECEIVED, htlc_id)] = htlc
         # If there is an offered HTLC which has already expired (+ some grace period after), we
         # will unilaterally close the channel and time out the HTLC
-        offered_htlc_deadline = lnutil.NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS
+        offered_htlc_deadline_delta = lnutil.NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS
         for sub, dir, ctn in ((LOCAL, SENT, self.get_latest_ctn(LOCAL)),
                               (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, RECEIVED, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
-                if htlc.cltv_expiry + offered_htlc_deadline > local_height:
+                if htlc.cltv_abs + offered_htlc_deadline_delta > local_height:
                     continue
                 htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
 

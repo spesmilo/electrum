@@ -85,7 +85,7 @@ class ExchangeBase(Logger):
             self._quotes = await self.get_rates(ccy)
             assert all(isinstance(rate, (Decimal, type(None))) for rate in self._quotes.values()), \
                 f"fx rate must be Decimal, got {self._quotes}"
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
         except Exception as e:
@@ -121,7 +121,7 @@ class ExchangeBase(Logger):
             self.logger.info(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
             self.logger.info(f"received fx history for {ccy}")
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
         except Exception as e:
