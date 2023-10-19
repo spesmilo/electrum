@@ -239,7 +239,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             initial_trampoline_fee_level=0,
             invoice_features=decoded_invoice.get_features(),
             r_tags=decoded_invoice.get_routing_info('r'),
-            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
+            min_final_cltv_delta=decoded_invoice.get_min_final_cltv_delta(),
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
@@ -455,7 +455,7 @@ class TestPeer(ElectrumTestCase):
             payment_preimage: bytes = None,
             payment_hash: bytes = None,
             invoice_features: LnFeatures = None,
-            min_final_cltv_expiry_delta: int = None,
+            min_final_cltv_delta: int = None,
     ) -> Tuple[LnAddr, str]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
@@ -477,13 +477,13 @@ class TestPeer(ElectrumTestCase):
             payment_secret = w2.get_payment_secret(payment_hash)
         else:
             payment_secret = None
-        if min_final_cltv_expiry_delta is None:
-            min_final_cltv_expiry_delta = lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE
+        if min_final_cltv_delta is None:
+            min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
         lnaddr1 = LnAddr(
             paymenthash=payment_hash,
             amount=amount_btc,
             tags=[
-                ('c', min_final_cltv_expiry_delta),
+                ('c', min_final_cltv_delta),
                 ('d', 'coffee'),
                 ('9', invoice_features),
             ] + routing_hints,
@@ -574,13 +574,13 @@ class TestPeerDirect(TestPeer):
 
     @staticmethod
     def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:
-        htlc = UpdateAddHtlc(amount_msat=10000, payment_hash=os.urandom(32), cltv_expiry=999, timestamp=1)
+        htlc = UpdateAddHtlc(amount_msat=10000, payment_hash=os.urandom(32), cltv_abs=999, timestamp=1)
         htlc = chan.add_htlc(htlc)
         peer.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,
             id=htlc.htlc_id,
-            cltv_expiry=htlc.cltv_expiry,
+            cltv_expiry=htlc.cltv_abs,
             amount_msat=htlc.amount_msat,
             payment_hash=htlc.payment_hash,
             onion_routing_packet=1366 * b"0",
@@ -798,7 +798,7 @@ class TestPeerDirect(TestPeer):
             with self.assertRaises(lnutil.IncompatibleOrInsaneFeatures):
                 result, log = await w1.pay_invoice(pay_req)
             # too large CLTV
-            lnaddr, pay_req = self.prepare_invoice(w2, min_final_cltv_expiry_delta=10**6)
+            lnaddr, pay_req = self.prepare_invoice(w2, min_final_cltv_delta=10**6)
             with self.assertRaises(InvoiceError):
                 result, log = await w1.pay_invoice(pay_req)
             raise SuccessfulTest()
@@ -848,7 +848,7 @@ class TestPeerDirect(TestPeer):
             await w1.pay_to_route(
                 sent_htlc_info=shi1,
                 paysession=paysession1,
-                min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr2.get_min_final_cltv_delta(),
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
@@ -868,7 +868,7 @@ class TestPeerDirect(TestPeer):
             await w2.pay_to_route(
                 sent_htlc_info=shi2,
                 paysession=paysession2,
-                min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr1.get_min_final_cltv_delta(),
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
@@ -941,7 +941,7 @@ class TestPeerDirect(TestPeer):
                 amount_msat=1000,
                 total_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr1.paymenthash,
-                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr1.get_min_final_cltv_delta(),
                 payment_secret=lnaddr1.payment_secret,
             )
             p1.pay(
@@ -950,7 +950,7 @@ class TestPeerDirect(TestPeer):
                 amount_msat=lnaddr1.get_amount_msat() - 1000,
                 total_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr2.paymenthash,
-                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr1.get_min_final_cltv_delta(),
                 payment_secret=lnaddr1.payment_secret,
             )
 
@@ -1017,7 +1017,7 @@ class TestPeerDirect(TestPeer):
                 amount_msat=1000,
                 total_msat=2000,
                 payment_hash=lnaddr1.paymenthash,
-                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr1.get_min_final_cltv_delta(),
                 payment_secret=lnaddr1.payment_secret,
             )
             p1.pay(
@@ -1026,7 +1026,7 @@ class TestPeerDirect(TestPeer):
                 amount_msat=1000,
                 total_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr1.paymenthash,
-                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr1.get_min_final_cltv_delta(),
                 payment_secret=lnaddr1.payment_secret,
             )
 
@@ -1121,7 +1121,7 @@ class TestPeerDirect(TestPeer):
                    amount_msat=lnaddr.get_amount_msat(),
                    total_msat=lnaddr.get_amount_msat(),
                    payment_hash=lnaddr.paymenthash,
-                   min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                   min_final_cltv_delta=lnaddr.get_min_final_cltv_delta(),
                    payment_secret=lnaddr.payment_secret)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
@@ -1264,7 +1264,7 @@ class TestPeerDirect(TestPeer):
             pay = w1.pay_to_route(
                 sent_htlc_info=shi,
                 paysession=paysession,
-                min_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                min_final_cltv_delta=lnaddr.get_min_final_cltv_delta(),
             )
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):

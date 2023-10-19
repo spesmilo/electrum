@@ -510,8 +510,8 @@ class LNWalletWatcher(LNWatcher):
         prev_txid, prev_index = prevout.split(':')
         can_broadcast = True
         local_height = self.network.get_local_height()
-        if sweep_info.cltv_expiry:
-            wanted_height = sweep_info.cltv_expiry
+        if sweep_info.cltv_abs:
+            wanted_height = sweep_info.cltv_abs
             if wanted_height - local_height > 0:
                 can_broadcast = False
                 # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")

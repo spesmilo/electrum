@@ -35,7 +35,7 @@ from math import inf
 from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
-                     NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE)
+                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 from .channel_db import ChannelDB, Policy, NodeInfo
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ class PathEdge:
 class RouteEdge(PathEdge):
     fee_base_msat = attr.ib(type=int, kw_only=True)
     fee_proportional_millionths = attr.ib(type=int, kw_only=True)
-    cltv_expiry_delta = attr.ib(type=int, kw_only=True)
+    cltv_delta = attr.ib(type=int, kw_only=True)
     node_features = attr.ib(type=int, kw_only=True, repr=lambda val: str(int(val)))  # note: for end node!
 
     def fee_for_edge(self, amount_msat: int) -> int:
@@ -102,13 +102,13 @@ class RouteEdge(PathEdge):
             short_channel_id=ShortChannelID.normalize(short_channel_id),
             fee_base_msat=channel_policy.fee_base_msat,
             fee_proportional_millionths=channel_policy.fee_proportional_millionths,
-            cltv_expiry_delta=channel_policy.cltv_expiry_delta,
+            cltv_delta=channel_policy.cltv_delta,
             node_features=node_info.features if node_info else 0)
 
     def is_sane_to_use(self, amount_msat: int) -> bool:
         # TODO revise ad-hoc heuristics
         # cltv cannot be more than 2 weeks
-        if self.cltv_expiry_delta > 14 * 144:
+        if self.cltv_delta > 14 * 144:
             return False
         total_fee = self.fee_for_edge(amount_msat)
         if not is_fee_sane(total_fee, payment_amount_msat=amount_msat):
@@ -135,23 +135,24 @@ class TrampolineEdge(RouteEdge):
 
 LNPaymentPath = Sequence[PathEdge]
 LNPaymentRoute = Sequence[RouteEdge]
+LNPaymentTRoute = Sequence[TrampolineEdge]
 
 
-def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_final_cltv_expiry: int) -> bool:
+def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_final_cltv_delta: int) -> bool:
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
     """
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         return False
     amt = invoice_amount_msat
-    cltv = min_final_cltv_expiry
+    cltv_delta = min_final_cltv_delta
     for route_edge in reversed(route[1:]):
         if not route_edge.is_sane_to_use(amt): return False
         amt += route_edge.fee_for_edge(amt)
-        cltv += route_edge.cltv_expiry_delta
+        cltv_delta += route_edge.cltv_delta
     total_fee = amt - invoice_amount_msat
     # TODO revise ad-hoc heuristics
-    if cltv > NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
+    if cltv_delta > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
         return False
     # FIXME in case of MPP, the fee checks are done independently for each part,
     #       which is ok for the proportional checks but not for the absolute ones.
@@ -527,7 +528,7 @@ class LNPathFinder(Logger):
         if ignore_costs:
             return DEFAULT_PENALTY_BASE_MSAT, 0
         fee_msat = route_edge.fee_for_edge(payment_amt_msat)
-        cltv_cost = route_edge.cltv_expiry_delta * payment_amt_msat * 15 / 1_000_000_000
+        cltv_cost = route_edge.cltv_delta * payment_amt_msat * 15 / 1_000_000_000
         # the liquidty penalty takes care we favor edges that should be able to forward
         # the payment and penalize edges that cannot
         liquidity_penalty = self.liquidity_hints.penalty(start_node, end_node, short_channel_id, payment_amt_msat)

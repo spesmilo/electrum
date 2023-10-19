@@ -142,19 +142,19 @@ class TestBolt11(ElectrumTestCase):
     def test_min_final_cltv_expiry_decoding(self):
         lnaddr = lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qsp5qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsdqqcqzys9qypqsqp2h6a5xeytuc3fad2ed4gxvhd593lwjdna3dxsyeem0qkzjx6guk44jend0xq4zzvp6f3fy07wnmxezazzsxgmvqee8shxjuqu2eu0qpnvc95x",
                           net=constants.BitcoinSimnet)
-        self.assertEqual(144, lnaddr.get_min_final_cltv_expiry())
+        self.assertEqual(144, lnaddr.get_min_final_cltv_delta())
 
         lnaddr = lndecode("lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2s8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8pjhk65zjaq2esezk7ll2kcpljewkg",
                           net=constants.BitcoinTestnet)
-        self.assertEqual(30, lnaddr.get_min_final_cltv_expiry())
+        self.assertEqual(30, lnaddr.get_min_final_cltv_delta())
 
     def test_min_final_cltv_expiry_roundtrip(self):
         for cltv in (1, 15, 16, 31, 32, 33, 150, 511, 512, 513, 1023, 1024, 1025):
             lnaddr = LnAddr(
                 paymenthash=RHASH, payment_secret=b"\x01"*32, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', cltv), ('9', 33282)])
-            self.assertEqual(cltv, lnaddr.get_min_final_cltv_expiry())
+            self.assertEqual(cltv, lnaddr.get_min_final_cltv_delta())
             invoice = lnencode(lnaddr, PRIVKEY)
-            self.assertEqual(cltv, lndecode(invoice).get_min_final_cltv_expiry())
+            self.assertEqual(cltv, lndecode(invoice).get_min_final_cltv_delta())
 
     def test_features(self):
         lnaddr = lndecode("lnbc25m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdq5vdhkven9v5sxyetpdees9qypqsztrz5v3jfnxskfv7g8chmyzyrfhf2vupcavuq5rce96kyt6g0zh337h206awccwp335zarqrud4wccgdn39vur44d8um4hmgv06aj0sgpdrv73z")

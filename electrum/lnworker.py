@@ -61,7 +61,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
-                     MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
+                     MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
                      HtlcLog, derive_payment_secret_from_payment_preimage,
@@ -662,7 +662,7 @@ class PaySession(Logger):
             initial_trampoline_fee_level: int,
             invoice_features: int,
             r_tags,
-            min_cltv_expiry: int,
+            min_final_cltv_delta: int,  # delta for last edge (typically from invoice)
             amount_to_pay: int,  # total payment amount final receiver will get
             invoice_pubkey: bytes,
             uses_trampoline: bool,  # whether sender uses trampoline or gossip
@@ -677,7 +677,7 @@ class PaySession(Logger):
 
         self.invoice_features = LnFeatures(invoice_features)
         self.r_tags = r_tags
-        self.min_cltv_expiry = min_cltv_expiry
+        self.min_final_cltv_delta = min_final_cltv_delta
         self.amount_to_pay = amount_to_pay
         self.invoice_pubkey = invoice_pubkey
 
@@ -1387,7 +1387,7 @@ class LNWallet(LNWorker):
     ) -> Tuple[bool, List[HtlcLog]]:
 
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
-        min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
+        min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
         payment_secret = lnaddr.payment_secret
@@ -1417,7 +1417,7 @@ class LNWallet(LNWorker):
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 amount_to_pay=amount_to_pay,
-                min_cltv_expiry=min_cltv_expiry,
+                min_final_cltv_delta=min_final_cltv_delta,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 attempts=attempts,
@@ -1447,7 +1447,7 @@ class LNWallet(LNWorker):
             payment_hash: bytes,
             payment_secret: bytes,
             amount_to_pay: int,  # in msat
-            min_cltv_expiry: int,
+            min_final_cltv_delta: int,
             r_tags,
             invoice_features: int,
             attempts: int = None,
@@ -1473,7 +1473,7 @@ class LNWallet(LNWorker):
             initial_trampoline_fee_level=self.config.INITIAL_TRAMPOLINE_FEE_LEVEL,
             invoice_features=invoice_features,
             r_tags=r_tags,
-            min_cltv_expiry=min_cltv_expiry,
+            min_final_cltv_delta=min_final_cltv_delta,
             amount_to_pay=amount_to_pay,
             invoice_pubkey=node_pubkey,
             uses_trampoline=self.uses_trampoline(),
@@ -1502,7 +1502,7 @@ class LNWallet(LNWorker):
                         await self.pay_to_route(
                             paysession=paysession,
                             sent_htlc_info=sent_htlc_info,
-                            min_cltv_expiry=cltv_delta,
+                            min_final_cltv_delta=cltv_delta,
                             trampoline_onion=trampoline_onion,
                         )
                     # invoice_status is triggered in self.set_invoice_status when it actually changes.
@@ -1559,7 +1559,7 @@ class LNWallet(LNWorker):
             self, *,
             paysession: PaySession,
             sent_htlc_info: SentHtlcInfo,
-            min_cltv_expiry: int,
+            min_final_cltv_delta: int,
             trampoline_onion: Optional[OnionPacket] = None,
     ) -> None:
         """Sends a single HTLC."""
@@ -1578,7 +1578,7 @@ class LNWallet(LNWorker):
             amount_msat=shi.amount_msat,
             total_msat=shi.bucket_msat,
             payment_hash=paysession.payment_hash,
-            min_final_cltv_expiry=min_cltv_expiry,
+            min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=shi.payment_secret_bucket,
             trampoline_onion=trampoline_onion)
 
@@ -1735,10 +1735,10 @@ class LNWallet(LNWorker):
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
         # check cltv
-        if addr.get_min_final_cltv_expiry() > lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
+        if addr.get_min_final_cltv_delta() > lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
-                f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
+                f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
         # check features
         addr.validate_and_compare_features(self.features)
         return addr
@@ -1858,13 +1858,13 @@ class LNWallet(LNWorker):
                             trampoline_onion = None
                             per_trampoline_secret = paysession.payment_secret
                             per_trampoline_amount_with_fees = amount_msat
-                            per_trampoline_cltv_delta = paysession.min_cltv_expiry
+                            per_trampoline_cltv_delta = paysession.min_final_cltv_delta
                             per_trampoline_fees = 0
                         else:
                             trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
                                 amount_msat=per_trampoline_amount,
                                 total_msat=paysession.amount_to_pay,
-                                min_cltv_expiry=paysession.min_cltv_expiry,
+                                min_final_cltv_delta=paysession.min_final_cltv_delta,
                                 my_pubkey=self.node_keypair.pubkey,
                                 invoice_pubkey=paysession.invoice_pubkey,
                                 invoice_features=paysession.invoice_features,
@@ -1896,7 +1896,7 @@ class LNWallet(LNWorker):
                                     short_channel_id=chan.short_channel_id,
                                     fee_base_msat=0,
                                     fee_proportional_millionths=0,
-                                    cltv_expiry_delta=0,
+                                    cltv_delta=0,
                                     node_features=trampoline_features)
                             ]
                             self.logger.info(f'adding route {part_amount_msat} {delta_fee} {margin}')
@@ -1925,7 +1925,7 @@ class LNWallet(LNWorker):
                                     self.create_route_for_payment,
                                     amount_msat=part_amount_msat,
                                     invoice_pubkey=paysession.invoice_pubkey,
-                                    min_cltv_expiry=paysession.min_cltv_expiry,
+                                    min_final_cltv_delta=paysession.min_final_cltv_delta,
                                     r_tags=paysession.r_tags,
                                     invoice_features=paysession.invoice_features,
                                     my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
@@ -1942,7 +1942,7 @@ class LNWallet(LNWorker):
                                 trampoline_fee_level=None,
                                 trampoline_route=None,
                             )
-                            routes.append((shi, paysession.min_cltv_expiry, fwd_trampoline_onion))
+                            routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
             except NoPathFound:
                 continue
             for route in routes:
@@ -1955,7 +1955,7 @@ class LNWallet(LNWorker):
             self, *,
             amount_msat: int,
             invoice_pubkey: bytes,
-            min_cltv_expiry: int,
+            min_final_cltv_delta: int,
             r_tags,
             invoice_features: int,
             my_sending_channels: List[Channel],
@@ -1978,7 +1978,7 @@ class LNWallet(LNWorker):
                 self.logger.info(f'create_route: skipping alias {ShortChannelID(private_path[0][1])}')
                 continue
             for end_node, edge_rest in zip(private_path_nodes, private_path_rest):
-                short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
+                short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_delta = edge_rest
                 short_channel_id = ShortChannelID(short_channel_id)
                 # if we have a routing policy for this edge in the db, that takes precedence,
                 # as it is likely from a previous failure
@@ -1989,7 +1989,7 @@ class LNWallet(LNWorker):
                 if channel_policy:
                     fee_base_msat = channel_policy.fee_base_msat
                     fee_proportional_millionths = channel_policy.fee_proportional_millionths
-                    cltv_expiry_delta = channel_policy.cltv_expiry_delta
+                    cltv_delta = channel_policy.cltv_delta
                 node_info = self.channel_db.get_node_info_for_node_id(node_id=end_node)
                 route_edge = RouteEdge(
                         start_node=start_node,
@@ -1997,7 +1997,7 @@ class LNWallet(LNWorker):
                         short_channel_id=short_channel_id,
                         fee_base_msat=fee_base_msat,
                         fee_proportional_millionths=fee_proportional_millionths,
-                        cltv_expiry_delta=cltv_expiry_delta,
+                        cltv_delta=cltv_delta,
                         node_features=node_info.features if node_info else 0)
                 private_route_edges[route_edge.short_channel_id] = route_edge
                 start_node = end_node
@@ -2015,7 +2015,7 @@ class LNWallet(LNWorker):
         if not route:
             raise NoPathFound()
         # test sanity
-        if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
+        if not is_route_sane_to_use(route, amount_msat, min_final_cltv_delta):
             self.logger.info(f"rejecting insane route {route}")
             raise NoPathFound()
         assert len(route) > 0
@@ -2059,7 +2059,7 @@ class LNWallet(LNWorker):
             amount=amount_btc,
             tags=[
                 ('d', message),
-                ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                ('c', MIN_FINAL_CLTV_DELTA_FOR_INVOICE),
                 ('x', expiry),
                 ('9', invoice_features),
                 ('f', fallback_address),
@@ -2400,14 +2400,14 @@ class LNWallet(LNWorker):
             # (they will get the channel update from the onion error)
             # at least, that's the theory. https://github.com/lightningnetwork/lnd/issues/2066
             fee_base_msat = fee_proportional_millionths = 0
-            cltv_expiry_delta = 1  # lnd won't even try with zero
+            cltv_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
                 policy = get_mychannel_policy(channel_info.short_channel_id, chan.node_id, scid_to_my_channels)
                 if policy:
                     fee_base_msat = policy.fee_base_msat
                     fee_proportional_millionths = policy.fee_proportional_millionths
-                    cltv_expiry_delta = policy.cltv_expiry_delta
+                    cltv_delta = policy.cltv_delta
                     missing_info = False
             if missing_info:
                 self.logger.info(
@@ -2418,7 +2418,7 @@ class LNWallet(LNWorker):
                 alias_or_scid,
                 fee_base_msat,
                 fee_proportional_millionths,
-                cltv_expiry_delta)]))
+                cltv_delta)]))
         return routing_hints
 
     def delete_payment_info(self, payment_hash_hex: str):

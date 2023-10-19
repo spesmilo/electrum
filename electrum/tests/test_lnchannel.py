@@ -33,7 +33,7 @@ from electrum import lnpeer
 from electrum import lnchannel
 from electrum import lnutil
 from electrum import bip32 as bip32_utils
-from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
+from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState
 from electrum.json_db import StoredDict
@@ -240,7 +240,7 @@ class TestChannel(ElectrumTestCase):
         self.htlc_dict = {
             'payment_hash' : paymentHash,
             'amount_msat' :  one_bitcoin_in_msat,
-            'cltv_expiry' :  5,
+            'cltv_abs' :  5,
             'timestamp'   :  0,
         }
 
@@ -648,15 +648,15 @@ class TestAvailableToSpend(ElectrumTestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        htlc_dict = {
-            'payment_hash' : paymentHash,
-            'amount_msat' :  one_bitcoin_in_msat * 41 // 10,
-            'cltv_expiry' :  5,
-            'timestamp'   :  0,
-        }
+        htlc = UpdateAddHtlc(
+            payment_hash=paymentHash,
+            amount_msat=one_bitcoin_in_msat * 41 // 10,
+            cltv_abs=5,
+            timestamp=0,
+        )
 
-        alice_idx = alice_channel.add_htlc(htlc_dict).htlc_id
-        bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
+        alice_idx = alice_channel.add_htlc(htlc).htlc_id
+        bob_idx = bob_channel.receive_htlc(htlc).htlc_id
         self.assertEqual(89984088000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
@@ -672,20 +672,20 @@ class TestAvailableToSpend(ElectrumTestCase):
         # available.
         # We try adding an HTLC of value 1 BTC, which should fail because the
         # balance is unavailable.
-        htlc_dict = {
-            'payment_hash' : paymentHash,
-            'amount_msat' :  one_bitcoin_in_msat,
-            'cltv_expiry' :  5,
-            'timestamp'   :  0,
-        }
+        htlc = UpdateAddHtlc(
+            payment_hash=paymentHash,
+            amount_msat=one_bitcoin_in_msat,
+            cltv_abs=5,
+            timestamp=0,
+        )
         with self.assertRaises(lnutil.PaymentFailure):
-            alice_channel.add_htlc(htlc_dict)
+            alice_channel.add_htlc(htlc)
         # Now do a state transition, which will ACK the FailHTLC, making Alice
         # able to add the new HTLC.
         force_state_transition(alice_channel, bob_channel)
         self.assertEqual(499986152000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
-        alice_channel.add_htlc(htlc_dict)
+        alice_channel.add_htlc(htlc)
 
 
 class TestChanReserve(ElectrumTestCase):
@@ -722,7 +722,7 @@ class TestChanReserve(ElectrumTestCase):
         htlc_dict = {
             'payment_hash' : paymentHash,
             'amount_msat' :  int(.5 * one_bitcoin_in_msat),
-            'cltv_expiry' :  5,
+            'cltv_abs' :  5,
             'timestamp'   :  0,
         }
         self.alice_channel.add_htlc(htlc_dict)
@@ -761,7 +761,7 @@ class TestChanReserve(ElectrumTestCase):
         htlc_dict = {
             'payment_hash' : paymentHash,
             'amount_msat' :  int(3.5 * one_bitcoin_in_msat),
-            'cltv_expiry' :  5,
+            'cltv_abs' :  5,
         }
         self.alice_channel.add_htlc(htlc_dict)
         self.bob_channel.receive_htlc(htlc_dict)
@@ -785,7 +785,7 @@ class TestChanReserve(ElectrumTestCase):
         htlc_dict = {
             'payment_hash' : paymentHash,
             'amount_msat' :  int(2 * one_bitcoin_in_msat),
-            'cltv_expiry' :  5,
+            'cltv_abs' :  5,
             'timestamp'   :  0,
         }
         alice_idx = self.alice_channel.add_htlc(htlc_dict).htlc_id
@@ -830,7 +830,7 @@ class TestDust(ElectrumTestCase):
         htlc = {
             'payment_hash' : paymentHash,
             'amount_msat' :  1000 * htlcAmt,
-            'cltv_expiry' :  5, # also in create_test_channels
+            'cltv_abs' :  5, # also in create_test_channels
             'timestamp'   :  0,
         }
 
