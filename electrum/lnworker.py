@@ -2281,23 +2281,24 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def _on_maybe_forwarded_htlc_resolved(self, chan: Channel, htlc_id: int) -> None:
+    def is_forwarded_htlc_notify(self, chan: Channel, htlc_id: int) -> None:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
         If we find this was a forwarded HTLC, the upstream peer is notified.
         """
         fw_info = chan.short_channel_id.hex(), htlc_id
         upstream_peer_pubkey = self.downstream_htlc_to_upstream_peer_map.get(fw_info)
         if not upstream_peer_pubkey:
-            return
+            return False
         upstream_peer = self.peers.get(upstream_peer_pubkey)
-        if not upstream_peer:
-            return
-        upstream_peer.downstream_htlc_resolved_event.set()
-        upstream_peer.downstream_htlc_resolved_event.clear()
+        if upstream_peer:
+            upstream_peer.downstream_htlc_resolved_event.set()
+            upstream_peer.downstream_htlc_resolved_event.clear()
+        return True
 
     def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
         util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
-        self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
+        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
+            return
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             chan.pop_onion_key(htlc_id)
@@ -2328,7 +2329,8 @@ class LNWallet(LNWorker):
             failure_message: Optional['OnionRoutingFailure']):
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
-        self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
+        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
+            return
         q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             onion_key = chan.pop_onion_key(htlc_id)

@@ -28,7 +28,7 @@ from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
-                      process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailure,
+                      process_onion_packet, OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
@@ -2405,7 +2405,9 @@ class Peer(Logger):
                                 onion_packet_bytes=onion_packet_bytes,
                                 onion_packet=onion_packet)
                         except OnionRoutingFailure as e:
-                            error_bytes = construct_onion_error(e, onion_packet, our_onion_private_key=self.privkey)
+                            error_bytes = construct_onion_error(e, onion_packet.public_key, our_onion_private_key=self.privkey)
+                        if error_bytes:
+                            error_bytes = obfuscate_onion_error(error_bytes, onion_packet.public_key, our_onion_private_key=self.privkey)
                     if fw_info:
                         unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, fw_info
                         self.lnworker.downstream_htlc_to_upstream_peer_map[fw_info] = self.pubkey

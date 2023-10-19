@@ -396,7 +396,7 @@ class OnionRoutingFailure(Exception):
 
 def construct_onion_error(
         reason: OnionRoutingFailure,
-        onion_packet: OnionPacket,
+        their_public_key: bytes,
         our_onion_private_key: bytes,
 ) -> bytes:
     # create payload
@@ -409,11 +409,14 @@ def construct_onion_error(
     error_packet += pad_len.to_bytes(2, byteorder="big")
     error_packet += bytes(pad_len)
     # add hmac
-    shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
+    shared_secret = get_ecdh(our_onion_private_key, their_public_key)
     um_key = get_bolt04_onion_key(b'um', shared_secret)
     hmac_ = hmac_oneshot(um_key, msg=error_packet, digest=hashlib.sha256)
     error_packet = hmac_ + error_packet
-    # obfuscate
+    return error_packet
+
+def obfuscate_onion_error(error_packet, their_public_key, our_onion_private_key):
+    shared_secret = get_ecdh(our_onion_private_key, their_public_key)
     ammag_key = get_bolt04_onion_key(b'ammag', shared_secret)
     stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
     error_packet = xor_bytes(error_packet, stream_bytes)
