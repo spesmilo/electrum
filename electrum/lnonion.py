@@ -429,11 +429,11 @@ def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[byte
         ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
         um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
         stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
-        error_packet = xor_bytes(error_packet, stream_bytes)
-        hmac_computed = hmac_oneshot(um_key, msg=error_packet[32:], digest=hashlib.sha256)
-        hmac_found = error_packet[:32]
+        error_packet_decoded = xor_bytes(error_packet, stream_bytes)
+        hmac_computed = hmac_oneshot(um_key, msg=error_packet_decoded[32:], digest=hashlib.sha256)
+        hmac_found = error_packet_decoded[:32]
         if hmac_computed == hmac_found:
-            return error_packet, i
+            return error_packet_decoded, i
     raise FailedToDecodeOnionError()
 
 
