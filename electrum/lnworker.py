@@ -2281,9 +2281,10 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def is_forwarded_htlc_notify(self, chan: Channel, htlc_id: int) -> None:
+    def is_forwarded_htlc_notify(self, chan: Channel, htlc_id: int) -> bool:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
         If we find this was a forwarded HTLC, the upstream peer is notified.
+        Returns whether this was a forwarded HTLC.
         """
         fw_info = chan.short_channel_id.hex(), htlc_id
         upstream_peer_pubkey = self.downstream_htlc_to_upstream_peer_map.get(fw_info)
