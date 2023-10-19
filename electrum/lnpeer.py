@@ -1838,7 +1838,7 @@ class Peer(Logger):
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
             onion_packet_bytes: bytes,
-            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[Callable]]:
+    ) -> Tuple[Optional[bytes], Optional[Callable]]:
         """As a final recipient of an HTLC, decide if we should fulfill it.
         Return (preimage, forwarding_callback) with at most a single element not None
         """
@@ -1872,19 +1872,18 @@ class Peer(Logger):
             log_fail_reason(f"'outgoing_cltv_value' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
-        if not is_trampoline:
-            if cltv_from_onion != htlc.cltv_expiry:
-                log_fail_reason(f"cltv_from_onion != htlc.cltv_expiry")
-                raise OnionRoutingFailure(
-                    code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
-                    data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
+        if cltv_from_onion > htlc.cltv_expiry:
+            log_fail_reason(f"cltv_from_onion != htlc.cltv_expiry")
+            raise OnionRoutingFailure(
+                code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
+                data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
         try:
             total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except Exception:
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        if not is_trampoline and amt_to_forward != htlc.amount_msat:
+        if amt_to_forward > htlc.amount_msat:
             log_fail_reason(f"amt_to_forward != htlc.amount_msat")
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
@@ -1936,7 +1935,7 @@ class Peer(Logger):
                     htlc=htlc,
                     processed_onion=trampoline_onion,
                     onion_packet_bytes=onion_packet_bytes,
-                    is_trampoline=True)
+                )
                 if preimage:
                     return preimage, None
                 else:
