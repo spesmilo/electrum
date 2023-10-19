@@ -285,7 +285,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     #on_event_proxy_set = LNWallet.on_event_proxy_set
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
-    _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
+    is_forwarded_htlc_notify = LNWallet.is_forwarded_htlc_notify
     _force_close_channel = LNWallet._force_close_channel
     suggest_splits = LNWallet.suggest_splits
     register_hold_invoice = LNWallet.register_hold_invoice
