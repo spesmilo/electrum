@@ -419,6 +419,7 @@ class Graph(NamedTuple):
 
 
 class PaymentDone(Exception): pass
+class PaymentTimeout(Exception): pass
 class SuccessfulTest(Exception): pass
 
 
@@ -1668,7 +1669,7 @@ class TestPeerForwarding(TestPeer):
         with self.assertRaises(PaymentDone):
             await f()
 
-    async def _run_mpp(self, graph, fail_kwargs, success_kwargs):
+    async def _run_mpp(self, graph, kwargs):
         """Tests a multipart payment scenario for failing and successful cases."""
         self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')].balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')].balance(LOCAL))
@@ -1701,32 +1702,33 @@ class TestPeerForwarding(TestPeer):
             if result:
                 self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
                 raise PaymentDone()
+            elif len(log) == 1 and log[0].failure_msg.code == OnionFailureCode.MPP_TIMEOUT:
+                raise PaymentTimeout()
             else:
                 raise NoPathFound()
 
-        async def f(kwargs):
-            async with OldTaskGroup() as group:
-                for peer in peers:
-                    await group.spawn(peer._message_loop())
-                    await group.spawn(peer.htlc_switch())
-                for peer in peers:
-                    await peer.initialized
-                await group.spawn(pay(**kwargs))
+        async with OldTaskGroup() as group:
+            for peer in peers:
+                await group.spawn(peer._message_loop())
+                await group.spawn(peer.htlc_switch())
+            for peer in peers:
+                await peer.initialized
+            await group.spawn(pay(**kwargs))
 
-        if fail_kwargs:
-            with self.assertRaises(NoPathFound):
-                await f(fail_kwargs)
-        if success_kwargs:
-            with self.assertRaises(PaymentDone):
-                await f(success_kwargs)
 
     async def test_payment_multipart_with_timeout(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
-        await self._run_mpp(graph, {'bob_forwarding': False}, {'bob_forwarding': True})
+        with self.assertRaises(PaymentTimeout):
+            await self._run_mpp(graph, {'bob_forwarding': False})
+        with self.assertRaises(PaymentDone):
+            await self._run_mpp(graph, {'bob_forwarding': True})
 
     async def test_payment_multipart(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
-        await self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
+        with self.assertRaises(NoPathFound):
+            await self._run_mpp(graph, {'mpp_invoice': False})
+        with self.assertRaises(PaymentDone):
+            await self._run_mpp(graph, {'mpp_invoice': True})
 
     async def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
@@ -1738,10 +1740,10 @@ class TestPeerForwarding(TestPeer):
         # * a payment with one trial: fails, because
         #   we need at least one trial because the initial fees are too low
         # * a payment with several trials: should succeed
-        await self._run_mpp(
-            graph,
-            fail_kwargs={'alice_uses_trampoline': True, 'attempts': 1},
-            success_kwargs={'alice_uses_trampoline': True, 'attempts': 30})
+        with self.assertRaises(NoPathFound):
+            await self._run_mpp(graph, {'alice_uses_trampoline': True, 'attempts': 1})
+        with self.assertRaises(PaymentDone):
+            await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 30})
 
     async def test_payment_multipart_trampoline_legacy(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
@@ -1750,10 +1752,8 @@ class TestPeerForwarding(TestPeer):
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
         # trampoline-to-legacy: this is restricted, as there are no forwarders capable of doing this
-        await self._run_mpp(
-            graph,
-            fail_kwargs={'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True},
-            success_kwargs={})
+        with self.assertRaises(NoPathFound):
+            await self._run_mpp(graph, {'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True})
 
     async def test_fail_pending_htlcs_on_shutdown(self):
         """Alice tries to pay Dave via MPP. Dave receives some HTLCs but not all.
