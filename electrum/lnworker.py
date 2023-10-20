@@ -1527,10 +1527,10 @@ class LNWallet(LNWorker):
                 # if we get a channel update, we might retry the same route and amount
                 route = htlc_log.route
                 sender_idx = htlc_log.sender_idx
+                failure_msg = htlc_log.failure_msg
                 if sender_idx is None:
                     raise PaymentFailure(failure_msg.code_name())
                 erring_node_id = route[sender_idx].node_id
-                failure_msg = htlc_log.failure_msg
                 code, data = failure_msg.code, failure_msg.data
                 self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
                                  f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
