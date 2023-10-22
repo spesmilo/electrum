@@ -171,12 +171,12 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self._paysessions = dict()
         self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
-        self.final_onion_forwardings = set()
-        self.final_onion_forwarding_failures = {}
+        self.active_forwardings = {}
+        self.forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
         self.stopping_soon = False
-        self.downstream_htlc_to_upstream_peer_map = {}
+        self.downstream_to_upstream_htlc = {}
         self.hold_invoice_callbacks = {}
         self.payment_bundles = [] # lists of hashes. todo:persist
         self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
@@ -298,10 +298,12 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     set_mpp_resolution = LNWallet.set_mpp_resolution
     is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
     get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
-    maybe_cleanup_mpp_status = LNWallet.maybe_cleanup_mpp_status
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
     _get_payment_key = LNWallet._get_payment_key
+    save_forwarding_failure = LNWallet.save_forwarding_failure
+    get_forwarding_failure = LNWallet.get_forwarding_failure
+    maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
 
 
 class MockTransport:
@@ -1821,6 +1823,8 @@ class TestPeerForwarding(TestPeer):
             test_failure=False,
             attempts=2):
 
+        bob_w = graph.workers['bob']
+        carol_w = graph.workers['carol']
         dave_w = graph.workers['dave']
 
         async def pay(lnaddr, pay_req):
@@ -1828,6 +1832,8 @@ class TestPeerForwarding(TestPeer):
             result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=attempts)
             if result:
                 self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
+                self.assertFalse(bool(bob_w.active_forwardings))
+                self.assertFalse(bool(carol_w.active_forwardings))
                 raise PaymentDone()
             else:
                 raise NoPathFound()

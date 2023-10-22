@@ -657,7 +657,6 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self.fail_htlc_reasons = state["fail_htlc_reasons"]
         self.unfulfilled_htlcs = state["unfulfilled_htlcs"]
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
@@ -1222,25 +1221,7 @@ class Channel(AbstractChannel):
                     error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
                 except KeyError:
                     error_bytes, failure_message = None, None
-                # if we are forwarding, save error message to disk
-                if self.lnworker.get_payment_info(htlc.payment_hash) is None:
-                    self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
                 self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
-
-    def save_fail_htlc_reason(
-            self,
-            htlc_id: int,
-            error_bytes: Optional[bytes],
-            failure_message: Optional['OnionRoutingFailure']):
-        error_hex = error_bytes.hex() if error_bytes else None
-        failure_hex = failure_message.to_bytes().hex() if failure_message else None
-        self.fail_htlc_reasons[htlc_id] = (error_hex, failure_hex)
-
-    def pop_fail_htlc_reason(self, htlc_id):
-        error_hex, failure_hex = self.fail_htlc_reasons.pop(htlc_id, (None, None))
-        error_bytes = bytes.fromhex(error_hex) if error_hex else None
-        failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
-        return error_bytes, failure_message
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
         witness = txin.witness_elements()

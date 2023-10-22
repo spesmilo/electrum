@@ -56,6 +56,7 @@ from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
+from .lnutil import serialize_htlc_key, deserialize_htlc_key
 from .bitcoin import redeem_script_to_address, DummyAddress
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
@@ -840,10 +841,11 @@ class LNWallet(LNWorker):
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
-        self.final_onion_forwardings = set()
-        self.final_onion_forwarding_failures = {} # todo: should be persisted
-        # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
-        self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
+        # payment forwarding
+        self.active_forwardings = self.db.get_dict('active_forwardings')                    # list of payment_keys
+        self.forwarding_failures = self.db.get_dict('forwarding_failures')                  # payment_key -> (error_bytes, error_message)
+        self.downstream_to_upstream_htlc = {}                                               # Dict: htlc_key -> htlc_key (not persisted)
+
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
@@ -1275,9 +1277,10 @@ class LNWallet(LNWorker):
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         # We have been paid and can broadcast
-        # if broadcasting raise an exception, we should try to rebroadcast
+        # todo: if broadcasting raise an exception, we should try to rebroadcast
         await self.network.broadcast_transaction(funding_tx)
-        return next_chan, funding_tx
+        htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
+        return htlc_key
 
     @log_exceptions
     async def open_channel_with_peer(
@@ -2267,7 +2270,6 @@ class LNWallet(LNWorker):
                     if pkey in self.received_mpp_htlcs:
                         self.set_mpp_resolution(payment_key=pkey, resolution=mpp_resolution)
 
-        self.maybe_cleanup_mpp_status(payment_key, short_channel_id, htlc)
         return mpp_resolution
 
     def update_mpp_with_received_htlc(
@@ -2312,19 +2314,30 @@ class LNWallet(LNWorker):
             return int(time.time())
         return min([_htlc.timestamp for scid, _htlc in mpp_status.htlc_set])
 
-    def maybe_cleanup_mpp_status(
-        self,
-        payment_key: bytes,
-        short_channel_id: ShortChannelID,
-        htlc: UpdateAddHtlc,
+    def maybe_cleanup_forwarding(
+            self,
+            payment_key_hex: str,
+            short_channel_id: ShortChannelID,
+            htlc: UpdateAddHtlc,
     ) -> None:
-        mpp_status = self.received_mpp_htlcs[payment_key]
-        if mpp_status.resolution == RecvMPPResolution.WAITING:
-            return
-        key = (short_channel_id, htlc)
-        mpp_status.htlc_set.remove(key)  # side-effecting htlc_set
-        if not mpp_status.htlc_set and payment_key in self.received_mpp_htlcs:
+
+        is_htlc_key = ':' in payment_key_hex
+        if not is_htlc_key:
+            payment_key = bytes.fromhex(payment_key_hex)
+            mpp_status = self.received_mpp_htlcs[payment_key]
+            if mpp_status.resolution == RecvMPPResolution.WAITING:
+                # reconstructing the MPP after restart
+                self.logger.info(f'cannot cleanup mpp, still waiting')
+                return
+            htlc_key = (short_channel_id, htlc)
+            mpp_status.htlc_set.remove(htlc_key)  # side-effecting htlc_set
+            if mpp_status.htlc_set:
+                return
+            self.logger.info('cleaning up mpp')
             self.received_mpp_htlcs.pop(payment_key)
+
+        self.active_forwardings.pop(payment_key_hex, None)
+        self.forwarding_failures.pop(payment_key_hex, None)
 
     def get_payment_status(self, payment_hash: bytes) -> int:
         info = self.get_payment_info(payment_hash)
@@ -2370,16 +2383,23 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def is_forwarded_htlc_notify(self, chan: Channel, htlc_id: int) -> bool:
+    def is_forwarded_htlc_notify(
+            self, chan: Channel, htlc_id: int, *,
+            error_bytes: Optional[bytes] = None,
+            failure_message: Optional['OnionRoutingFailure'] = None
+    ) -> bool:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
         If we find this was a forwarded HTLC, the upstream peer is notified.
         Returns whether this was a forwarded HTLC.
         """
-        fw_info = chan.get_scid_or_local_alias().hex(), htlc_id
-        upstream_peer_pubkey = self.downstream_htlc_to_upstream_peer_map.get(fw_info)
-        if not upstream_peer_pubkey:
+        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
+        upstream_key = self.downstream_to_upstream_htlc.pop(htlc_key, None)
+        if not upstream_key:
             return False
-        upstream_peer = self.peers.get(upstream_peer_pubkey)
+        self.save_forwarding_failure(upstream_key, error_bytes=error_bytes, failure_message=failure_message)
+        upstream_chan_scid, _ = deserialize_htlc_key(upstream_key)
+        upstream_chan = self.get_channel_by_short_id(upstream_chan_scid)
+        upstream_peer = self.peers.get(upstream_chan.node_id) if upstream_chan else None
         if upstream_peer:
             upstream_peer.downstream_htlc_resolved_event.set()
             upstream_peer.downstream_htlc_resolved_event.clear()
@@ -2416,7 +2436,7 @@ class LNWallet(LNWorker):
             failure_message: Optional['OnionRoutingFailure']):
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
-        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
+        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id, error_bytes=error_bytes, failure_message=failure_message):
             return
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             onion_key = chan.pop_onion_key(htlc_id)
@@ -3026,7 +3046,17 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
-    def fail_final_onion_forwarding(self, payment_key):
-        """ use this to fail htlcs received for hold invoices"""
-        e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        self.final_onion_forwarding_failures[payment_key] = e
+    def save_forwarding_failure(
+            self, payment_key:str, *,
+            error_bytes: Optional[bytes] = None,
+            failure_message: Optional['OnionRoutingFailure'] = None):
+        error_hex = error_bytes.hex() if error_bytes else None
+        failure_hex = failure_message.to_bytes().hex() if failure_message else None
+        self.forwarding_failures[payment_key] = (error_hex, failure_hex)
+
+    def get_forwarding_failure(self, payment_key: str):
+        error_hex, failure_hex = self.forwarding_failures.get(payment_key, (None, None))
+        error_bytes = bytes.fromhex(error_hex) if error_hex else None
+        failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
+        return error_bytes, failure_message
+
