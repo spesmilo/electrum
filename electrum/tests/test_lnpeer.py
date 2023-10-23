@@ -1715,20 +1715,20 @@ class TestPeerForwarding(TestPeer):
                 await peer.initialized
             await group.spawn(pay(**kwargs))
 
+    async def test_payment_multipart(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
+        with self.assertRaises(PaymentDone):
+            await self._run_mpp(graph, {})
 
     async def test_payment_multipart_with_timeout(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         with self.assertRaises(PaymentTimeout):
             await self._run_mpp(graph, {'bob_forwarding': False})
-        with self.assertRaises(PaymentDone):
-            await self._run_mpp(graph, {'bob_forwarding': True})
 
-    async def test_payment_multipart(self):
+    async def test_payment_multipart_wrong_invoice(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         with self.assertRaises(NoPathFound):
             await self._run_mpp(graph, {'mpp_invoice': False})
-        with self.assertRaises(PaymentDone):
-            await self._run_mpp(graph, {'mpp_invoice': True})
 
     async def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
