@@ -939,6 +939,12 @@ class SimpleConfig(Logger):
             _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
             _('This will save fees, but might have unwanted effects in terms of privacy')),
     )
+    WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
+        'wallet_merge_duplicate_outputs', default=False, type_=bool,
+        short_desc=lambda: _('Merge duplicate outputs'),
+        long_desc=lambda: _('Merge transaction outputs that pay to the same address into '
+                            'a single output that pays the sum of the original amounts.'),
+    )
     WALLET_SPEND_CONFIRMED_ONLY = ConfigVar(
         'confirmed_only', default=False, type_=bool,
         short_desc=lambda: _('Spend only confirmed coins'),
