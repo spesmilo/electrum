@@ -15,7 +15,7 @@ WizardComponent {
 
     property int cosigner: 0
     property int participants: 0
-    property string multisigMasterPubkey: wizard_data['multisig_master_pubkey']
+    property string multisigMasterPubkey
 
     function apply() {
         applyMasterKey(masterkey_ta.text)
@@ -34,6 +34,11 @@ WizardComponent {
         valid = false
         validationtext.text = ''
         key = key.trim()
+
+        if (!key) {
+            validationtext.text = ''
+            return false
+        }
 
         if (!bitcoin.verifyMasterKey(key, wizard_data['wallet_type'])) {
             validationtext.text = qsTr('Error: invalid master key')
@@ -179,7 +184,9 @@ WizardComponent {
 
     Bitcoin {
         id: bitcoin
-        onValidationMessageChanged: validationtext.text = validationMessage
+        onValidationMessageChanged: {
+            validationtext.text = validationMessage
+        }
     }
 
     Component.onCompleted: {
@@ -187,6 +194,10 @@ WizardComponent {
             if ('multisig_current_cosigner' in wizard_data)
                 cosigner = wizard_data['multisig_current_cosigner']
             participants = wizard_data['multisig_participants']
+
+            if ('multisig_master_pubkey' in wizard_data) {
+                multisigMasterPubkey = wizard_data['multisig_master_pubkey']
+            }
         }
         Qt.callLater(masterkey_ta.forceActiveFocus)
     }
