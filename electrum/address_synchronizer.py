@@ -415,10 +415,10 @@ class AddressSynchronizer(Logger, EventListener):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx_hash: str, tx: Transaction, tx_height: int) -> None:
-        # TODO ^ don't pass tx_hash, just calculate it.
-        assert tx_hash == tx.txid(), f"inconsistent txids! given: {tx_hash}, calc: {tx.txid()}"
-        self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
+    def receive_tx_callback(self, tx: Transaction, tx_height: int) -> None:
+        txid = tx.txid()
+        assert txid is not None
+        self.add_unverified_or_unconfirmed_tx(txid, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
