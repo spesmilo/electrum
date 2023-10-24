@@ -1765,12 +1765,8 @@ class Peer(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
         payload = trampoline_onion.hop_data.payload
         payment_data = payload.get('payment_data')
-        if payment_data:  # legacy case
-            payment_secret = payment_data['payment_secret']
-        else:
-            payment_secret = os.urandom(32)
-
         try:
+            payment_secret = payment_data['payment_secret'] if payment_data else os.urandom(32)
             outgoing_node_id = payload["outgoing_node_id"]["outgoing_node_id"]
             amt_to_forward = payload["amt_to_forward"]["amt_to_forward"]
             out_cltv_abs = payload["outgoing_cltv_value"]["outgoing_cltv_value"]

@@ -1496,8 +1496,10 @@ class LNWallet(LNWorker):
                 # if we get a channel update, we might retry the same route and amount
                 route = htlc_log.route
                 sender_idx = htlc_log.sender_idx
-                erring_node_id = route[sender_idx].node_id
                 failure_msg = htlc_log.failure_msg
+                if sender_idx is None:
+                    raise PaymentFailure(failure_msg.code_name())
+                erring_node_id = route[sender_idx].node_id
                 code, data = failure_msg.code, failure_msg.data
                 self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
                                  f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
@@ -1585,9 +1587,6 @@ class LNWallet(LNWorker):
             OnionFailureCode.EXPIRY_TOO_SOON: 0,
             OnionFailureCode.CHANNEL_DISABLED: 2,
         }
-
-        if sender_idx is None:
-            raise PaymentFailure(failure_msg.code_name())
         try:
             failing_channel = route[sender_idx + 1].short_channel_id
         except IndexError:
@@ -2322,7 +2321,7 @@ class LNWallet(LNWorker):
                         onion_key)
                 except Exception as e:
                     sender_idx = None
-                    failure_message = OnionRoutingFailure(-1, str(e))
+                    failure_message = OnionRoutingFailure(OnionFailureCode.INVALID_ONION_PAYLOAD, str(e).encode())
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
                 assert failure_message is not None
