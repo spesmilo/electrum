@@ -34,7 +34,6 @@ FEERATE_DEFAULT_RELAY = 1000
 FEERATE_MAX_RELAY = 50000
 FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
                          50000, 70000, 100000, 150000, 200000, 300000]
-FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 # The min feerate_per_kw that can be used in lightning so that
 # the resulting onchain tx pays the min relay fee.
@@ -728,7 +727,7 @@ class SimpleConfig(Logger):
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
         if constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_HARDCODED
+            return self.FEE_EST_STATIC_FEERATE
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
