@@ -1372,6 +1372,8 @@ class LNWallet(LNWorker):
                 return chan
             if chan.get_remote_scid_alias() == short_channel_id:
                 return chan
+            if chan.get_local_scid_alias() == short_channel_id:
+                return chan
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
