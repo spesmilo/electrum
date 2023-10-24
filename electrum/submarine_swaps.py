@@ -269,7 +269,8 @@ class SwapManager(Logger):
             payment_key = swap.payment_hash + payment_secret
             self.lnworker.fail_final_onion_forwarding(payment_key)
         self.lnwatcher.remove_callback(swap.lockup_address)
-        self.swaps.pop(swap.payment_hash.hex())
+        if swap.funding_txid is None:
+            self.swaps.pop(swap.payment_hash.hex())
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
