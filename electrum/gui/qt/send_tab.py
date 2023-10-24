@@ -63,11 +63,15 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        msg = (_("Recipient of the funds.") + "\n\n"
-               + _("You may enter a Bitcoin address, a label from your list of contacts "
-                   "(a list of completions will be proposed), "
-                   "or an alias (email-like address that forwards to a Bitcoin address)") + ". "
-               + _("Lightning invoices are also supported.") + "\n\n"
+        msg = (_("Recipient of the funds.")
+               + "\n\n"
+               + _("This field can contain:") + "\n"
+               + _("- a Bitcoin address or BIP21 URI") + "\n"
+               + _("- a Lightning invoice") + "\n"
+               + _("- a label from your list of contacts") + "\n"
+               + _("- an openalias") + "\n"
+               + _("- an arbitrary on-chain script, e.g.:") + " script(OP_RETURN deadbeef)" + "\n"
+               + "\n"
                + _("You can also pay to many outputs in a single transaction, "
                    "specifying one output per line.") + "\n" + _("Format: address, amount") + "\n"
                + _("To set the amount to 'max', use the '!' special character.") + "\n"
