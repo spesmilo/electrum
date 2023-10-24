@@ -59,6 +59,7 @@ from .json_db import stored_in
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
     from .network import Network
+    from .simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -613,6 +614,16 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
     if amount < dust_limit:
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
+def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['PartialTxOutput']:
+    """Merges outputs that are paying to the same address by replacing them with a single larger output."""
+    output_dict = {}
+    for output in outputs:
+        assert isinstance(output.value, int), "tx outputs with spend-max-like str cannot be merged"
+        if output.scriptpubkey in output_dict:
+            output_dict[output.scriptpubkey].value += output.value
+        else:
+            output_dict[output.scriptpubkey] = copy.copy(output)
+    return list(output_dict.values())
 
 def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""
@@ -2008,7 +2019,7 @@ class PartialTransaction(Transaction):
             txout.combine_with_other_txout(other_txout)
         self.invalidate_ser_cache()
 
-    def join_with_other_psbt(self, other_tx: 'PartialTransaction') -> None:
+    def join_with_other_psbt(self, other_tx: 'PartialTransaction', *, config: 'SimpleConfig') -> None:
         """Adds inputs and outputs from other_tx into this one."""
         if not isinstance(other_tx, PartialTransaction):
             raise Exception('Can only join partial transactions.')
@@ -2025,7 +2036,7 @@ class PartialTransaction(Transaction):
         self._unknown.update(other_tx._unknown)
         # copy and add inputs and outputs
         self.add_inputs(list(other_tx.inputs()))
-        self.add_outputs(list(other_tx.outputs()))
+        self.add_outputs(list(other_tx.outputs()), merge_duplicates=config.WALLET_MERGE_DUPLICATE_OUTPUTS)
         self.remove_signatures()
         self.invalidate_ser_cache()
 
@@ -2040,8 +2051,10 @@ class PartialTransaction(Transaction):
         self.BIP69_sort(outputs=False)
         self.invalidate_ser_cache()
 
-    def add_outputs(self, outputs: List[PartialTxOutput]) -> None:
+    def add_outputs(self, outputs: List[PartialTxOutput], *, merge_duplicates: bool = False) -> None:
         self._outputs.extend(outputs)
+        if merge_duplicates:
+            self._outputs = merge_duplicate_tx_outputs(self._outputs)
         self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
 

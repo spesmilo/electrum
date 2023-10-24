@@ -1742,7 +1742,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
 
-        # check outputs
+        # check outputs for "max" amount
         i_max = []
         i_max_sum = 0
         for i, o in enumerate(outputs):
@@ -1792,19 +1792,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
                     return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
-                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
+                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
                 rbf_merge_txid = base_tx.txid()
             else:
                 txi = []
-                txo = []
+                txo = list(outputs)
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
+            if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
+                txo = transaction.merge_duplicate_tx_outputs(txo)
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,
-                outputs=list(outputs) + txo,
+                outputs=txo,
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())

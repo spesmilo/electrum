@@ -416,6 +416,8 @@ class AddressSynchronizer(Logger, EventListener):
             return children
 
     def receive_tx_callback(self, tx_hash: str, tx: Transaction, tx_height: int) -> None:
+        # TODO ^ don't pass tx_hash, just calculate it.
+        assert tx_hash == tx.txid(), f"inconsistent txids! given: {tx_hash}, calc: {tx.txid()}"
         self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 

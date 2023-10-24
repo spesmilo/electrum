@@ -731,7 +731,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         if not tx:
             return
         try:
-            self.tx.join_with_other_psbt(tx)
+            self.tx.join_with_other_psbt(tx, config=self.config)
         except Exception as e:
             self.show_error(_("Error joining partial transactions") + ":\n" + repr(e))
             return
