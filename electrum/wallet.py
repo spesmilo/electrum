@@ -2656,24 +2656,25 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fallback_address=req.get_address() if self.config.WALLET_BOLT11_FALLBACK else None)
         return invoice
 
-    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
+    def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
+        amount_msat = None if not amount_sat else amount_sat * 1000  # amount_sat in [None, 0] implies undefined.
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(Request._get_cur_time())
         payment_hash = None  # type: Optional[bytes]
         if self.has_lightning():
-            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_sat * 1000, write_to_disk=False)
-        outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
+            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat, write_to_disk=False)
+        outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
         req = Request(
             outputs=outputs,
             message=message,
             time=timestamp,
-            amount_msat=amount_sat*1000,
+            amount_msat=amount_msat,
             exp=exp_delay,
             height=height,
             bip70=None,
