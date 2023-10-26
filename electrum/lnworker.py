@@ -1841,7 +1841,7 @@ class LNWallet(LNWorker):
         )
         for sc in split_configurations:
             is_multichan_mpp = len(sc.config.items()) > 1
-            is_mpp = sum(len(x) for x in list(sc.config.values())) > 1
+            is_mpp = sc.config.number_parts() > 1
             if is_mpp and not paysession.invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
             if not is_mpp and self.config.TEST_FORCE_MPP:
