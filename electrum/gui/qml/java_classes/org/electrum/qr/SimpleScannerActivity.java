@@ -25,7 +25,7 @@ import me.dm7.barcodescanner.zxing.ZXingScannerView;
 import com.google.zxing.Result;
 import com.google.zxing.BarcodeFormat;
 
-import org.electrum.testnet.electrum.R;  // TODO
+import org.electrum.electrum.res.R; // package set in build.gradle
 
 public class SimpleScannerActivity extends Activity implements ZXingScannerView.ResultHandler {
     private static final int MY_PERMISSIONS_CAMERA = 1002;

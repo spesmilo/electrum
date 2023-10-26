@@ -13,6 +13,7 @@ Item {
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : qsTr('no wallet loaded')
 
+    property var _sendDialog
     property string _intentUri
 
     property string _request_amount
@@ -33,6 +34,14 @@ Item {
     }
 
     function openSendDialog() {
+        // Qt based send dialog if not on android
+        if (!AppController.isAndroid()) {
+            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+            _sendDialog.open()
+            return
+        }
+
+        // Android based send dialog if on android
         var scanner = app.scanDialog.createObject(mainView, {
             hint: qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel backup'),
         })
@@ -58,8 +67,24 @@ Item {
         scanner.open()
     }
 
+    function closeSendDialog() {
+        if (!AppController.isAndroid()) {
+            if (_sendDialog) {
+                _sendDialog.doClose()
+                _sendDialog = null
+            }
+        }
+    }
+
     function restartSendDialog() {
-        //openSendDialog()  // note: ~infinite-loop on non-android due to directly pasting from clipboard
+        if (!AppController.isAndroid()) {
+            if (_sendDialog) {
+                _sendDialog.restart()
+            }
+            return
+        } else {
+            openSendDialog()
+        }
     }
 
     function showExport(data, helptext) {
@@ -95,6 +120,11 @@ Item {
             }
         })
         dialog.open()
+    }
+
+    function createRequest(lightning_only, reuse_address) {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
     }
 
     property QtObject menu: Menu {
@@ -298,6 +328,7 @@ Item {
             }
         }
         onValidationSuccess: {
+            closeSendDialog()
             var dialog = invoiceDialog.createObject(app, {
                 invoice: invoiceParser,
                 payImmediately: invoiceParser.isLnurlPay
@@ -309,6 +340,7 @@ Item {
         }
 
         onLnurlRetrieved: {
+            closeSendDialog()
             var dialog = lnurlPayDialog.createObject(app, {
                 invoiceParser: invoiceParser
             })
@@ -432,9 +464,32 @@ Item {
         }
     }
 
-    function createRequest(lightning_only, reuse_address) {
-        var qamt = Config.unitsToSats(_request_amount)
-        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
+    Component {
+        id: qtSendDialog
+        SendDialog {
+            width: parent.width
+            height: parent.height
+
+            onTxFound: {
+                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+                close()
+            }
+            onChannelBackupFound: {
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                    close()
+                })
+                dialog.rejected.connect(function() {
+                    close()
+                })
+                dialog.open()
+            }
+            onClosed: destroy()
+        }
     }
 
     Component {

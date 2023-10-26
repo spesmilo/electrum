@@ -198,7 +198,7 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch accumulator/qt6-wip (note: careful with force-pushing! see #8162) \
     #
-    && git checkout "f2741f0b7b6a4ac52fc6cb0dc9ac706e2287be02^{commit}" \
+    && git checkout "eb4a3522373e0b4e2749b8a8bc965ff51355ea35^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars

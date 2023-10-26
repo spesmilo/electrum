@@ -377,11 +377,17 @@ ApplicationWindow
         }
     }
 
-    property alias scanDialog: _scanDialog
+    property Component scanDialog  // set in Component.onCompleted
     Component {
         id: _scanDialog
         QRScanner {
             //onClosed: destroy()
+        }
+    }
+    Component {
+        id: _qtScanDialog
+        ScanDialog {
+            onClosed: destroy()
         }
     }
 
@@ -433,6 +439,12 @@ ApplicationWindow
 
     Component.onCompleted: {
         coverTimer.start()
+
+        if (AppController.isAndroid()) {
+            app.scanDialog = _scanDialog
+        } else {
+            app.scanDialog = _qtScanDialog
+        }
 
         if (!Config.autoConnectDefined) {
             var dialog = serverConnectWizard.createObject(app)
