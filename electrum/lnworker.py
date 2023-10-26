@@ -1367,9 +1367,16 @@ class LNWallet(LNWorker):
         return chan, funding_tx
 
     def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
+        # First check against *real* SCIDs.
+        # This e.g. protects against maliciously chosen SCID aliases, and accidental collisions.
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 return chan
+        # Now we also consider aliases.
+        # TODO we should split this as this search currently ignores the "direction"
+        #      of the aliases. We should only look at either the remote OR the local alias,
+        #      depending on context.
+        for chan in self.channels.values():
             if chan.get_remote_scid_alias() == short_channel_id:
                 return chan
             if chan.get_local_scid_alias() == short_channel_id:
