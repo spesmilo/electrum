@@ -233,7 +233,7 @@ LNGOSSIP_FEATURES = (
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, xprv, features: LnFeatures):
+    def __init__(self, node_keypair, features: LnFeatures):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -243,9 +243,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             init_retry_delay_urgent=4,
         )
         self.lock = threading.RLock()
-        self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
-        self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
-        self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
+        self.node_keypair = node_keypair
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = OldTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
@@ -563,7 +561,8 @@ class LNGossip(LNWorker):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
-        super().__init__(xprv, LNGOSSIP_FEATURES)
+        node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
+        super().__init__(node_keypair, LNGOSSIP_FEATURES)
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -800,8 +799,11 @@ class LNWallet(LNWorker):
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
         self.db = wallet.db
+        self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
+        self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
+        self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
         Logger.__init__(self)
-        LNWorker.__init__(self, xprv, LNWALLET_FEATURES)
+        LNWorker.__init__(self, self.node_keypair, LNWALLET_FEATURES)
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
