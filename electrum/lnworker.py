@@ -2023,7 +2023,7 @@ class LNWallet(LNWorker):
         if not route:
             raise NoPathFound()
         # test sanity
-        if not is_route_sane_to_use(route, amount_msat, min_final_cltv_delta):
+        if not is_route_sane_to_use(route, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=min_final_cltv_delta):
             self.logger.info(f"rejecting insane route {route}")
             raise NoPathFound()
         assert len(route) > 0
