@@ -1637,3 +1637,19 @@ class OnionFailureCodeMetaFlag(IntFlag):
     UPDATE   = 0x1000
 
 
+class PaymentFeeBudget(NamedTuple):
+    fee_msat: int
+
+    # The cltv budget covers the cost of route to get to the destination, but excluding the
+    # cltv-delta the destination wants for itself. (e.g. "min_final_cltv_delta" is excluded)
+    cltv: int  # this is cltv-delta-like, no absolute heights here!
+
+    #num_htlc: int
+
+    @classmethod
+    def default(cls, *, invoice_amount_msat: int) -> 'PaymentFeeBudget':
+        from .lnrouter import get_default_fee_budget_msat
+        return PaymentFeeBudget(
+            fee_msat=get_default_fee_budget_msat(invoice_amount_msat=invoice_amount_msat),
+            cltv=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
+        )

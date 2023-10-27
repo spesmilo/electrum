@@ -4,9 +4,9 @@ import random
 
 from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set
 
-from .lnutil import LnFeatures
+from .lnutil import LnFeatures, PaymentFeeBudget
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
-from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use, LNPaymentTRoute
+from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
 from .lnutil import NoPathFound, LNPeerAddr
 from . import constants
 from .logging import get_logger
@@ -222,6 +222,7 @@ def create_trampoline_route(
         trampoline_fee_level: int,
         use_two_trampolines: bool,
         failed_routes: Iterable[Sequence[str]],
+        budget: PaymentFeeBudget,
 ) -> LNPaymentTRoute:
     # we decide whether to convert to a legacy payment
     is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
@@ -268,12 +269,13 @@ def create_trampoline_route(
     # Also needed for fees for last TF!
     _extend_trampoline_route(route, end_node=invoice_pubkey, trampoline_fee_level=trampoline_fee_level)
     # check that we can pay amount and fees
-    if not is_route_sane_to_use(
+    if not is_route_within_budget(
         route=route,
+        budget=budget,
         amount_msat_for_dest=amount_msat,
         cltv_delta_for_dest=min_final_cltv_delta,
     ):
-        raise NoPathFound("We cannot afford to pay the fees.")
+        raise NoPathFound("route exceeds budget")
     return route
 
 
@@ -342,6 +344,7 @@ def create_trampoline_route_and_onion(
         trampoline_fee_level: int,
         use_two_trampolines: bool,
         failed_routes: Iterable[Sequence[str]],
+        budget: PaymentFeeBudget,
 ) -> Tuple[LNPaymentTRoute, OnionPacket, int, int]:
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
@@ -355,6 +358,7 @@ def create_trampoline_route_and_onion(
         trampoline_fee_level=trampoline_fee_level,
         use_two_trampolines=use_two_trampolines,
         failed_routes=failed_routes,
+        budget=budget,
     )
     # compute onion and fees
     final_cltv_abs = local_height + min_final_cltv_delta

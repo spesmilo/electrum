@@ -27,7 +27,7 @@ from electrum.bitcoin import COIN, sha256
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
+from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB
@@ -250,7 +250,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         return [r async for r in self.create_routes_for_payment(
             amount_msat=amount_msat,
             paysession=paysession,
-            full_path=full_path)]
+            full_path=full_path,
+            budget=PaymentFeeBudget.default(invoice_amount_msat=amount_msat),
+        )]
 
     get_payments = LNWallet.get_payments
     get_payment_secret = LNWallet.get_payment_secret
@@ -265,7 +267,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
-    create_route_for_payment = LNWallet.create_route_for_payment
+    create_route_for_single_htlc = LNWallet.create_route_for_single_htlc
     create_routes_for_payment = LNWallet.create_routes_for_payment
     _check_invoice = LNWallet._check_invoice
     pay_to_route = LNWallet.pay_to_route
