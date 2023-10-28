@@ -662,7 +662,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def _start_network_lightning(self):
         assert self.lnworker
-        assert self.lnworker.network is None, 'lnworker network already initialized'
+        #assert self.lnworker.network is None, 'lnworker network already initialized'
         self.lnworker.start_network(self.network)
         # only start gossiping when we already have channels
         if self.db.get('channels'):
