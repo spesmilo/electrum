@@ -143,7 +143,7 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
             #   endpoints connected to T1 and T2, and sender only has send-capacity with T1, while
             #   recipient only has recv-capacity with T2.
             singlehop_r_tags = [x for x in r_tags if len(x) == 1]
-            invoice_trampolines = [x[0][0] for x in singlehop_r_tags if is_hardcoded_trampoline(x[0][0])]
+            invoice_trampolines = [x[0][0] for x in singlehop_r_tags]
             invoice_trampolines = set(invoice_trampolines)
             if invoice_trampolines:
                 return False, invoice_trampolines

@@ -2068,6 +2068,8 @@ class LNWallet(LNWorker):
         routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
+        if not self.uses_trampoline():
+            invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         payment_secret = self.get_payment_secret(payment_hash)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:

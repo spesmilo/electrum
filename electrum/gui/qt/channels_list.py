@@ -193,9 +193,12 @@ class ChannelsList(MyTreeView):
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
-    def freeze_channel_for_sending(self, chan, b):
+    def set_frozen(self, chan, *, for_sending, value):
         if not self.lnworker.uses_trampoline() or self.lnworker.is_trampoline_peer(chan.node_id):
-            chan.set_frozen_for_sending(b)
+            if for_sending:
+                chan.set_frozen_for_sending(value)
+            else:
+                chan.set_frozen_for_receiving(value)
         else:
             msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
             self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
@@ -258,13 +261,13 @@ class ChannelsList(MyTreeView):
         if not chan.is_backup() and not chan.is_closed():
             fm = menu.addMenu(_("Freeze"))
             if not chan.is_frozen_for_sending():
-                fm.addAction(_("Freeze for sending"), lambda: self.freeze_channel_for_sending(chan, True))
+                fm.addAction(_("Freeze for sending"), lambda: self.set_frozen(chan, for_sending=True, value=True))
             else:
-                fm.addAction(_("Unfreeze for sending"), lambda: self.freeze_channel_for_sending(chan, False))
+                fm.addAction(_("Unfreeze for sending"), lambda: self.set_frozen(chan, for_sending=True, value=False))
             if not chan.is_frozen_for_receiving():
-                fm.addAction(_("Freeze for receiving"), lambda: chan.set_frozen_for_receiving(True))
+                fm.addAction(_("Freeze for receiving"), lambda: self.set_frozen(chan, for_sending=False, value=True))
             else:
-                fm.addAction(_("Unfreeze for receiving"), lambda: chan.set_frozen_for_receiving(False))
+                fm.addAction(_("Unfreeze for receiving"), lambda: self.set_frozen(chan, for_sending=False, value=False))
         if close_opts := chan.get_close_options():
             cm = menu.addMenu(_("Close"))
             if ChanCloseOption.COOP_CLOSE in close_opts:
