@@ -80,11 +80,27 @@ ElDialog {
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
                     leftPadding: constants.paddingMedium
 
-                    Label {
+                    RowLayout {
                         width: parent.width
-                        text: invoice.address
-                        font.family: FixedFont
-                        wrapMode: Text.Wrap
+                        Label {
+                            text: invoice.address
+                            font.pixelSize: constants.fontSizeLarge
+                            font.family: FixedFont
+                            Layout.fillWidth: true
+                            wrapMode: Text.Wrap
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            icon.color: 'transparent'
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(app, {
+                                    title: qsTr('Address'),
+                                    text: invoice.address
+                                }
+                                )
+                                dialog.open()
+                            }
+                        }
                     }
                 }
 
