@@ -608,7 +608,7 @@ class WCHaveSeed(WizardComponent, Logger):
         if self.wizard_data['wallet_type'] == 'standard':
             return mnemonic.is_seed(x)
         elif self.wizard_data['wallet_type'] == '2fa':
-            return mnemonic.seed_type(x) in ['2fa', '2fa_segwit']
+            return mnemonic.is_any_2fa_seed_type(x)
         else:
             return mnemonic.seed_type(x) in ['standard', 'segwit']
 
@@ -625,21 +625,12 @@ class WCHaveSeed(WizardComponent, Logger):
             self.valid = seed_valid
             return
 
-        if seed_type in ['bip39', 'slip39'] or self.slayout.is_ext:
-            # defer validation to when derivation path and/or passphrase/ext is known
-            self.valid = True
-        else:
-            self.apply()
-            if self.wizard.has_duplicate_masterkeys(self.wizard_data):
-                self.logger.debug('Duplicate master keys!')
-                # TODO: user feedback
-                seed_valid = False
-            elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
-                self.logger.debug('Heterogenous master keys!')
-                # TODO: user feedback
-                seed_valid = False
+        self.apply()
+        if not self.wizard.check_multisig_constraints(self.wizard_data)[0]:
+            # TODO: user feedback
+            seed_valid = False
 
-            self.valid = seed_valid
+        self.valid = seed_valid
 
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
