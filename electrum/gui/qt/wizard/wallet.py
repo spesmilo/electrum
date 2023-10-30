@@ -831,20 +831,26 @@ class WCHaveMasterKey(WizardComponent):
         #     self.add_cosigner_dialog(index=i, run_next=self.on_restore_from_key, is_valid=keystore.is_bip32_key)
         if self.wizard_data['wallet_type'] == 'standard':
             self.label.setText(self.message_create)
-            v = lambda x: bool(keystore.from_master_key(x))
-            self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=v,
-                                      allow_multi=False, config=self.wizard.config)
-            self.layout().addLayout(self.slayout)
+            is_valid = lambda x: bool(keystore.from_master_key(x))
         elif self.wizard_data['wallet_type'] == 'multisig':
             if 'multisig_current_cosigner' in self.wizard_data:
                 self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
                 self.label.setText(self.message_cosign)
             else:
                 self.label.setText(self.message_create)
-            v = lambda x: keystore.is_bip32_key(x)
-            self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=v,
-                                      allow_multi=False, config=self.wizard.config)
-            self.layout().addLayout(self.slayout)
+            def is_valid(x) -> bool:
+                if not keystore.is_bip32_key(x):
+                    return False
+                self.apply()
+                if not self.wizard.check_multisig_constraints(self.wizard_data)[0]:
+                    # TODO: user feedback
+                    return False
+                return True
+        else:
+            raise Exception(f"unexpected wallet type: {self.wizard_data['wallet_type']}")
+        self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=is_valid,
+                                  allow_multi=False, config=self.wizard.config)
+        self.layout().addLayout(self.slayout)
 
     def apply(self):
         text = self.slayout.get_text()
