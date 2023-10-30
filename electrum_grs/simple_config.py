@@ -34,7 +34,6 @@ FEERATE_DEFAULT_RELAY = 1000
 FEERATE_MAX_RELAY = 50000
 FEERATE_STATIC_VALUES = [1000, 2000, 3000, 5000, 8000, 10000,
                          30000, 50000, 70000, 80000, 90000, 100000]
-FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 # The min feerate_per_kw that can be used in lightning so that
 # the resulting onchain tx pays the min relay fee.
@@ -728,7 +727,7 @@ class SimpleConfig(Logger):
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
         if constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_HARDCODED
+            return self.FEE_EST_STATIC_FEERATE
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
@@ -938,6 +937,12 @@ class SimpleConfig(Logger):
         long_desc=lambda: (
             _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
             _('This will save fees, but might have unwanted effects in terms of privacy')),
+    )
+    WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
+        'wallet_merge_duplicate_outputs', default=False, type_=bool,
+        short_desc=lambda: _('Merge duplicate outputs'),
+        long_desc=lambda: _('Merge transaction outputs that pay to the same address into '
+                            'a single output that pays the sum of the original amounts.'),
     )
     WALLET_SPEND_CONFIRMED_ONLY = ConfigVar(
         'confirmed_only', default=False, type_=bool,

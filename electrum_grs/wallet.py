@@ -1742,7 +1742,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
 
-        # check outputs
+        # check outputs for "max" amount
         i_max = []
         i_max_sum = 0
         for i, o in enumerate(outputs):
@@ -1792,19 +1792,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
                     return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
-                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
+                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
                 rbf_merge_txid = base_tx.txid()
             else:
                 txi = []
-                txo = []
+                txo = list(outputs)
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
+            if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
+                txo = transaction.merge_duplicate_tx_outputs(txo)
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,
-                outputs=list(outputs) + txo,
+                outputs=txo,
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())
@@ -2654,24 +2656,25 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fallback_address=req.get_address() if self.config.WALLET_BOLT11_FALLBACK else None)
         return invoice
 
-    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
+    def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
+        amount_msat = None if not amount_sat else amount_sat * 1000  # amount_sat in [None, 0] implies undefined.
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(Request._get_cur_time())
         payment_hash = None  # type: Optional[bytes]
         if self.has_lightning():
-            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_sat * 1000, write_to_disk=False)
-        outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
+            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat, write_to_disk=False)
+        outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
         req = Request(
             outputs=outputs,
             message=message,
             time=timestamp,
-            amount_msat=amount_sat*1000,
+            amount_msat=amount_msat,
             exp=exp_delay,
             height=height,
             bip70=None,

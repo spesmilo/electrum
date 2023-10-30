@@ -43,7 +43,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
                      ChannelType, LNProtocolWarning, validate_features, IncompatibleOrInsaneFeatures)
-from .lnutil import FeeUpdate, channel_id_from_funding_tx
+from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
@@ -1795,11 +1795,13 @@ class Peer(Logger):
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
-        trampoline_cltv_delta = inc_cltv_abs - out_cltv_abs  # cltv budget
         total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
-        trampoline_fee = total_msat - amt_to_forward
-        self.logger.info(f'trampoline forwarding. fee_budget={trampoline_fee}')
-        self.logger.info(f'trampoline forwarding. cltv_budget={trampoline_cltv_delta}. (inc={inc_cltv_abs}. out={out_cltv_abs})')
+        budget = PaymentFeeBudget(
+            fee_msat=total_msat - amt_to_forward,
+            cltv=inc_cltv_abs - out_cltv_abs,
+        )
+        self.logger.info(f'trampoline forwarding. budget={budget}')
+        self.logger.info(f'trampoline forwarding. {inc_cltv_abs=}, {out_cltv_abs=}')
         # To convert abs vs rel cltvs, we need to guess blockheight used by original sender as "current blockheight".
         # Blocks might have been mined since.
         # - if we skew towards the past, we decrease our own cltv_budget accordingly (which is ok)
@@ -1809,22 +1811,24 @@ class Peer(Logger):
         local_height_of_onion_creator = self.network.get_local_height() - 1
         cltv_budget_for_rest_of_route = out_cltv_abs - local_height_of_onion_creator
 
+        if budget.fee_msat < 1000:
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+        if budget.cltv < 576:
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+
         try:
             await self.lnworker.pay_to_node(
                 node_pubkey=outgoing_node_id,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 amount_to_pay=amt_to_forward,
-                # FIXME this API (min_final_cltv_delta) is confusing. The value will be added to local_height
-                #       to form the abs cltv used on the last edge on the path to the *next trampoline* node.
-                #       We should rewrite pay_to_node to operate on a cltv-budget (and fee-budget).
                 min_final_cltv_delta=cltv_budget_for_rest_of_route,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
-                fwd_trampoline_fee=trampoline_fee,
-                fwd_trampoline_cltv_delta=trampoline_cltv_delta,
-                attempts=1)
+                budget=budget,
+                attempts=1,
+            )
         except OnionRoutingFailure as e:
             raise
         except PaymentFailure as e:

@@ -41,7 +41,6 @@ MSG_CAPITAL_GAINS = _(
 )
 
 MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP = _(
-"""Trampoline routing is enabled, but this channel is with a non-trampoline node.
-This channel may still be used for receiving, but it is frozen for sending.
+"""This channel is with a non-trampoline node; it cannot be used if trampoline is enabled.
 If you want to keep using this channel, you need to disable trampoline routing in your preferences."""
 )

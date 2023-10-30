@@ -1536,6 +1536,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         r_tags = lnaddr.get_routing_info('r')
         r_tags = '\n'.join(repr([(x[0].hex(), format_short_id(x[1]), x[2], x[3]) for x in r]) for r in r_tags)
         routing_e = QTextEdit(str(r_tags))
+        routing_e.setReadOnly(True)
         grid.addWidget(QLabel(_("Routing Hints") + ':'), 9, 0)
         grid.addWidget(routing_e, 9, 1)
         vbox.addLayout(grid)

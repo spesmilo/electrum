@@ -241,10 +241,6 @@ def calc_hops_data_for_payment(
     # payloads, backwards from last hop (but excluding the first edge):
     for edge_index in range(len(route) - 1, 0, -1):
         route_edge = route[edge_index]
-        is_trampoline = route_edge.is_trampoline()
-        if is_trampoline:
-            amt += route_edge.fee_for_edge(amt)
-            cltv_abs += route_edge.cltv_delta
         hop_payload = {
             "amt_to_forward": {"amt_to_forward": amt},
             "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
@@ -252,9 +248,8 @@ def calc_hops_data_for_payment(
         }
         hops_data.append(
             OnionHopsDataSingle(payload=hop_payload))
-        if not is_trampoline:
-            amt += route_edge.fee_for_edge(amt)
-            cltv_abs += route_edge.cltv_delta
+        amt += route_edge.fee_for_edge(amt)
+        cltv_abs += route_edge.cltv_delta
     hops_data.reverse()
     return hops_data, amt, cltv_abs
 

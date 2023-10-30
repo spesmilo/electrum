@@ -35,7 +35,7 @@ from math import inf
 from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
-                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, PaymentFeeBudget)
 from .channel_db import ChannelDB, Policy, NodeInfo
 
 if TYPE_CHECKING:
@@ -73,10 +73,10 @@ class PathEdge:
 
 @attr.s
 class RouteEdge(PathEdge):
-    fee_base_msat = attr.ib(type=int, kw_only=True)
-    fee_proportional_millionths = attr.ib(type=int, kw_only=True)
-    cltv_delta = attr.ib(type=int, kw_only=True)
-    node_features = attr.ib(type=int, kw_only=True, repr=lambda val: str(int(val)))  # note: for end node!
+    fee_base_msat = attr.ib(type=int, kw_only=True)                # for start_node
+    fee_proportional_millionths = attr.ib(type=int, kw_only=True)  # for start_node
+    cltv_delta = attr.ib(type=int, kw_only=True)                   # for start_node
+    node_features = attr.ib(type=int, kw_only=True, repr=lambda val: str(int(val)))  # note: for end_node!
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
@@ -87,7 +87,7 @@ class RouteEdge(PathEdge):
     def from_channel_policy(
             cls,
             *,
-            channel_policy: 'Policy',
+            channel_policy: 'Policy',  # for start_node
             short_channel_id: bytes,
             start_node: bytes,
             end_node: bytes,
@@ -111,7 +111,7 @@ class RouteEdge(PathEdge):
         if self.cltv_delta > 14 * 144:
             return False
         total_fee = self.fee_for_edge(amount_msat)
-        if not is_fee_sane(total_fee, payment_amount_msat=amount_msat):
+        if total_fee > get_default_fee_budget_msat(invoice_amount_msat=amount_msat):
             return False
         return True
 
@@ -138,38 +138,41 @@ LNPaymentRoute = Sequence[RouteEdge]
 LNPaymentTRoute = Sequence[TrampolineEdge]
 
 
-def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_final_cltv_delta: int) -> bool:
+def is_route_within_budget(
+    route: LNPaymentRoute,
+    *,
+    budget: PaymentFeeBudget,
+    amount_msat_for_dest: int,  # that final receiver gets
+    cltv_delta_for_dest: int,   # that final receiver gets
+) -> bool:
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
     """
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         return False
-    amt = invoice_amount_msat
-    cltv_delta = min_final_cltv_delta
+    amt = amount_msat_for_dest
+    cltv_cost_of_route = 0  # excluding cltv_delta_for_dest
     for route_edge in reversed(route[1:]):
         if not route_edge.is_sane_to_use(amt): return False
         amt += route_edge.fee_for_edge(amt)
-        cltv_delta += route_edge.cltv_delta
-    total_fee = amt - invoice_amount_msat
-    # TODO revise ad-hoc heuristics
-    if cltv_delta > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+        cltv_cost_of_route += route_edge.cltv_delta
+    fee_cost = amt - amount_msat_for_dest
+    # check against budget
+    if cltv_cost_of_route > budget.cltv:
         return False
-    # FIXME in case of MPP, the fee checks are done independently for each part,
-    #       which is ok for the proportional checks but not for the absolute ones.
-    #       This is not that big of a deal though as we don't split into *too many* parts.
-    if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
+    if fee_cost > budget.fee_msat:
+        return False
+    # sanity check
+    total_cltv_delta = cltv_cost_of_route + cltv_delta_for_dest
+    if total_cltv_delta > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
         return False
     return True
 
 
-def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
-    # fees <= 5 sat are fine
-    if fee_msat <= 5_000:
-        return True
+def get_default_fee_budget_msat(*, invoice_amount_msat: int) -> int:
     # fees <= 1 % of payment are fine
-    if 100 * fee_msat <= payment_amount_msat:
-        return True
-    return False
+    # fees <= 5 sat are fine
+    return max(5_000, invoice_amount_msat // 100)
 
 
 class LiquidityHint:

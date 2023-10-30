@@ -411,6 +411,7 @@ class TxEditor(WindowModalDialog):
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
         add_cv_action(self.config.cv.WALLET_BATCH_RBF, self.toggle_batch_rbf)
+        add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
         self.pref_button = QToolButton()
@@ -449,6 +450,11 @@ class TxEditor(WindowModalDialog):
     def toggle_batch_rbf(self):
         b = not self.config.WALLET_BATCH_RBF
         self.config.WALLET_BATCH_RBF = b
+        self.trigger_update()
+
+    def toggle_merge_duplicate_outputs(self):
+        b = not self.config.WALLET_MERGE_DUPLICATE_OUTPUTS
+        self.config.WALLET_MERGE_DUPLICATE_OUTPUTS = b
         self.trigger_update()
 
     def toggle_send_change_to_lightning(self):
