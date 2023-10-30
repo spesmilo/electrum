@@ -840,7 +840,6 @@ class WCHaveMasterKey(WizardComponent):
                 self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
                 self.label.setText(self.message_cosign)
             else:
-                self.wizard_data['multisig_current_cosigner'] = 0
                 self.label.setText(self.message_create)
             v = lambda x: keystore.is_bip32_key(x)
             self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=v,
