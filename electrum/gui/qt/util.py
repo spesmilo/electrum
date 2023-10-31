@@ -434,7 +434,7 @@ class ChoicesLayout(object):
         vbox.addWidget(gb2)
         vbox2 = QVBoxLayout()
         gb2.setLayout(vbox2)
-        self.group = group = QButtonGroup()
+        self.group = group = QButtonGroup(gb2)
         if isinstance(choices, list):
             iterator = enumerate(choices)
         else:
