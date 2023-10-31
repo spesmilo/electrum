@@ -32,6 +32,7 @@ ApplicationWindow
     Constants { id: appconstants }
 
     property alias stack: mainStackView
+    property alias keyboardFreeZone: _keyboardFreeZone
 
     property variant activeDialogs: []
 
@@ -210,15 +211,13 @@ ApplicationWindow
             }
 
             // hack to force relayout of toolbar
-            // since qt6 watchOnlyIndicator.visible doesn't trigger relayout(?)
+            // since qt6 LightningNetworkStatusIndicator.visible doesn't trigger relayout(?)
             Item {
                 Layout.preferredHeight: 1
                 Layout.topMargin: -1
-                Layout.preferredWidth: watchOnlyIndicator.visible
+                Layout.preferredWidth: lnnsi.visible
                     ? 1
-                    : lnnsi.visible
-                        ? 2
-                        : 3
+                    : 2
             }
         }
     }
@@ -226,7 +225,7 @@ ApplicationWindow
     StackView {
         id: mainStackView
         width: parent.width
-        height: keyboardFreeZone.height - header.height
+        height: _keyboardFreeZone.height - header.height
         initialItem: Component {
             WalletMainView {}
         }
@@ -270,7 +269,7 @@ ApplicationWindow
     }
 
     Item {
-        id: keyboardFreeZone
+        id: _keyboardFreeZone
         // Item as first child in Overlay that adjusts its size to the available
         // screen space minus the virtual keyboard (e.g. to center dialogs in)
         // see also ElDialog.resizeWithKeyboard property
@@ -278,39 +277,42 @@ ApplicationWindow
         width: parent.width
         height: parent.height
 
-        states: State {
-            name: "visible"
-            when: Qt.inputMethod.visible
-            PropertyChanges {
-                target: keyboardFreeZone
-                height: keyboardFreeZone.parent.height - Qt.inputMethod.keyboardRectangle.height / Screen.devicePixelRatio
+        states: [
+            State {
+                name: 'visible'
+                when: Qt.inputMethod.keyboardRectangle.y
+                PropertyChanges {
+                    target: _keyboardFreeZone
+                    height: _keyboardFreeZone.parent.height - (Screen.desktopAvailableHeight - (Qt.inputMethod.keyboardRectangle.y/Screen.devicePixelRatio))
+                }
             }
-        }
+        ]
+
         transitions: [
             Transition {
                 from: ''
                 to: 'visible'
-                ParallelAnimation {
-                    NumberAnimation {
-                        properties: "height"
-                        duration: 250
-                        easing.type: Easing.OutQuad
-                    }
+                NumberAnimation {
+                    properties: 'height'
+                    duration: 100
+                    easing.type: Easing.OutQuad
                 }
             },
             Transition {
                 from: 'visible'
                 to: ''
-                ParallelAnimation {
+                SequentialAnimation {
+                    PauseAnimation {
+                        duration: 200
+                    }
                     NumberAnimation {
-                        properties: "height"
+                        properties: 'height'
                         duration: 50
                         easing.type: Easing.OutQuad
                     }
                 }
             }
         ]
-
     }
 
     property alias newWalletWizard: _newWalletWizard

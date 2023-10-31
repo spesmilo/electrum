@@ -35,7 +35,7 @@ Dialog {
         reject()
     }
 
-    parent: resizeWithKeyboard ? Overlay.overlay.children[0] : Overlay.overlay
+    parent: resizeWithKeyboard ? app.keyboardFreeZone : Overlay.overlay
     modal: true
     Overlay.modal: Rectangle {
         color: "#aa000000"
