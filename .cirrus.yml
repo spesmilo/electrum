@@ -119,7 +119,7 @@ task:
       app_image_setup:
         - apt-get -y install libfuse2
         - rm run_electrum
-        - VERSION="$(git describe --tags --always | cut -c 1-9)"
+        - VERSION=$(git describe --tags --dirty --always) 
         - curl -o run_electrum https://api.cirrus-ci.com/v1/artifact/build/$CIRRUS_BUILD_ID/build:%20AppImage/binaries/dist/electrum-$VERSION-x86_64.AppImage
         - chmod u+x run_electrum
       depends_on:
