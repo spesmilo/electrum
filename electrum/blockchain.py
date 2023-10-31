@@ -86,6 +86,9 @@ def hash_raw_header(header: str) -> str:
     return hash_encode(sha256d(bfh(header)))
 
 
+pow_hash_header = hash_header
+
+
 # key: blockhash hex at forkpoint
 # the chain at some key is the best chain that includes the given hash
 blockchains = {}  # type: Dict[str, Blockchain]
@@ -305,9 +308,10 @@ class Blockchain(Logger):
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
             raise InvalidHeader("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise InvalidHeader(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+        _pow_hash = pow_hash_header(header)
+        pow_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
+        if pow_hash_as_num > target:
+            raise InvalidHeader(f"insufficient proof of work: {pow_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
