@@ -446,7 +446,7 @@ if [[ $1 == "unixsockets" ]]; then
     ./run_electrum --regtest daemon -d --rpcsock=unix # Start daemon with unix domain socket
     ./run_electrum --regtest stop # Errors if it can't connect
     # Test custom socket path
-    f=$(mktemp --dry-run)
+    f=$(mktemp -u /tmp/electrum_test.XXXX)
     ./run_electrum --regtest daemon -d --rpcsock=unix --rpcsockpath=$f
     [ -S $f ] # filename exists and is socket
     ./run_electrum --regtest stop
