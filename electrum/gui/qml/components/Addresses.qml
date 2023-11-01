@@ -72,16 +72,15 @@ Pane {
                             }
                         }
                     }
-                    RowLayout {
-                        Layout.columnSpan: 3
+                    TextField {
+                        id: searchEdit
                         Layout.fillWidth: true
-                        TextField {
-                            id: searchEdit
-                            Layout.fillWidth: true
-                            placeholderText: qsTr('text search')
-                            onTextChanged: listview.filterModel.filterText = text
-                        }
+                        Layout.columnSpan: 3
+                        placeholderText: qsTr('search')
+                        onTextChanged: listview.filterModel.filterText = text
                         Image {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
                             source: Qt.resolvedUrl('../../icons/zoom.png')
                             sourceSize.width: constants.iconSizeMedium
                             sourceSize.height: constants.iconSizeMedium
@@ -193,6 +192,7 @@ Pane {
                                         width: parent.width
                                         property bool selected: loader.DelegateModel.inSelected
                                         highlighted: selected
+                                        indent: listview.filterModel.showAddressesCoins == 2 ? 0 : constants.paddingLarge * 2
                                         onClicked: {
                                             if (!listview.selectMode) {
                                                 var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {
@@ -244,17 +244,17 @@ Pane {
                     selectedGroup.remove(0, selectedGroup.count)
                 }
             }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Pay from...')
-                icon.source: '../../icons/tab_send.png'
-                visible: listview.selectMode
-                enabled: false // TODO
-                onClicked: {
-                    //
-                }
-            }
+            // FlatButton {
+            //     Layout.fillWidth: true
+            //     Layout.preferredWidth: 1
+            //     text: qsTr('Pay from...')
+            //     icon.source: '../../icons/tab_send.png'
+            //     visible: listview.selectMode
+            //     enabled: false // TODO
+            //     onClicked: {
+            //         //
+            //     }
+            // }
         }
 
     }

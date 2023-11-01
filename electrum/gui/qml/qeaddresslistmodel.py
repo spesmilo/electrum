@@ -46,7 +46,10 @@ class QEAddressCoinFilterProxyModel(QSortFilterProxyModel):
         if self._filter_text:
             label = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['label'])
             address = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['address'])
-            for item in [label, address]:
+            outpoint = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['outpoint'])
+            amount_i = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['amount'])
+            amount = parent_model.wallet.config.format_amount(amount_i.satsInt) if amount_i else None
+            for item in [label, address, outpoint, amount]:
                 if self._filter_text in str(item):
                     return True
             return False
