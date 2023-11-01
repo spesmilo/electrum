@@ -184,8 +184,7 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git remote add accumulator https://github.com/accumulator/buildozer \
     && git fetch --all \
-    # commit: from branch master (note: careful with force-pushing! see #8162) \
-    # no, this is master
+    # commit: from branch electrum-qt6 (note: careful with force-pushing! see #8162) \
     && git checkout "ce4f2257249fdf4ff1f4cb8983fd7ac44174a274^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
