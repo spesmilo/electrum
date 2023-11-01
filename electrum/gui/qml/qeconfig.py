@@ -212,6 +212,28 @@ class QEConfig(AuthMixin, QObject):
             self.config.GUI_QML_USER_KNOWS_PRESS_AND_HOLD = userKnowsPressAndHold
             self.userKnowsPressAndHoldChanged.emit()
 
+    addresslistShowTypeChanged = pyqtSignal()
+    @pyqtProperty(int, notify=addresslistShowTypeChanged)
+    def addresslistShowType(self):
+        return self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE
+
+    @addresslistShowType.setter
+    def addresslistShowType(self, addresslistShowType):
+        if addresslistShowType != self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE:
+            self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE = addresslistShowType
+            self.addresslistShowTypeChanged.emit()
+
+    addresslistShowUsedChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=addresslistShowUsedChanged)
+    def addresslistShowUsed(self):
+        return self.config.GUI_QML_ADDRESS_LIST_SHOW_USED
+
+    @addresslistShowUsed.setter
+    def addresslistShowUsed(self, addresslistShowUsed):
+        if addresslistShowUsed != self.config.GUI_QML_ADDRESS_LIST_SHOW_USED:
+            self.config.GUI_QML_ADDRESS_LIST_SHOW_USED = addresslistShowUsed
+            self.addresslistShowUsedChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):

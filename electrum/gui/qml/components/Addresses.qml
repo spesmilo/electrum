@@ -34,8 +34,16 @@ Pane {
                         id: showUsed
                         text: qsTr('Show Used')
                         enabled: listview.filterModel.showAddressesCoins != 2
-                        onCheckedChanged: listview.filterModel.showUsed = checked
-                        Component.onCompleted: checked = listview.filterModel.showUsed
+                        onCheckedChanged: {
+                            listview.filterModel.showUsed = checked
+                            if (activeFocus) {
+                                Config.addresslistShowUsed = checked
+                            }
+                        }
+                        Component.onCompleted: {
+                            checked = Config.addresslistShowUsed
+                            listview.filterModel.showUsed = checked
+                        }
                     }
 
                     RowLayout {
@@ -56,7 +64,7 @@ Pane {
                                     showCoinsAddressesModel.append({'text': qsTr('Addresses'), 'value': 1})
                                     showCoinsAddressesModel.append({'text': qsTr('Coins'), 'value': 2})
                                     showCoinsAddressesModel.append({'text': qsTr('Both'), 'value': 3})
-                                    showCoinsAddresses.currentIndex = 0
+                                    listview.filterModel.showAddressesCoins = Config.addresslistShowType
                                     for (let i=0; i < showCoinsAddressesModel.count; i++) {
                                         if (showCoinsAddressesModel.get(i).value == listview.filterModel.showAddressesCoins) {
                                             showCoinsAddresses.currentIndex = i
@@ -68,6 +76,7 @@ Pane {
                             onCurrentValueChanged: {
                                 if (activeFocus && currentValue) {
                                     listview.filterModel.showAddressesCoins = currentValue
+                                    Config.addresslistShowType = currentValue
                                 }
                             }
                         }
