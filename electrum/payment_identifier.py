@@ -257,6 +257,11 @@ class PaymentIdentifier(Logger):
                 if bolt11:
                     try:
                         self.bolt11 = Invoice.from_bech32(bolt11)
+                        # carry BIP21 onchain address in Invoice.outputs in case bolt11 doesn't contain a fallback
+                        # address but the BIP21 URI has one.
+                        if bip21_address := self.bip21.get('address'):
+                            amount = self.bip21.get('amount', 0)
+                            self.bolt11.outputs = [PartialTxOutput.from_address_and_value(bip21_address, amount)]
                     except InvoiceError as e:
                         self.logger.debug(self._get_error_from_invoiceerror(e))
                 self.set_state(PaymentIdentifierState.AVAILABLE)
