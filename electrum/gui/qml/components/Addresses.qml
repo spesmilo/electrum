@@ -245,7 +245,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: listview.freeze ? qsTr('Freeze') : qsTr('Unfreeze')
-                icon.source: '../../icons/seal.png'
+                icon.source: '../../icons/freeze.png'
                 visible: listview.selectMode
                 onClicked: {
                     var items = listview.getSelectedItems()

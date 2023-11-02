@@ -286,7 +286,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: addressdetails.isFrozen ? qsTr('Unfreeze address') : qsTr('Freeze address')
                 onClicked: addressdetails.freeze(!addressdetails.isFrozen)
-                icon.source: '../../icons/seal.png'
+                icon.source: '../../icons/freeze.png'
             }
             FlatButton {
                 Layout.fillWidth: true
