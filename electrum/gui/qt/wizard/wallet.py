@@ -700,9 +700,7 @@ class WCScriptAndDerivation(WizardComponent, Logger):
                 script_type = account["script_type"]
                 if script_type == "p2pkh":
                     script_type = "standard"
-                button_index = self.c_values.index(script_type)
-                button = self.clayout.group.buttons()[button_index]
-                button.setChecked(True)
+                self.choice_w.select(script_type)
                 self.derivation_path_edit.setText(account["derivation_path"])
 
             button.clicked.connect(lambda: Bip39RecoveryDialog(self, get_account_xpub, on_account_select))
