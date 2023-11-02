@@ -1,6 +1,7 @@
-from PyQt5.QtCore import pyqtSignal, pyqtProperty, QSortFilterProxyModel, QModelIndex
+from PyQt5.QtCore import pyqtSignal, pyqtProperty, QSortFilterProxyModel, QModelIndex, pyqtSlot
 
 from electrum.logging import get_logger
+
 
 class QEFilterProxyModel(QSortFilterProxyModel):
     _logger = get_logger(__name__)
@@ -18,8 +19,10 @@ class QEFilterProxyModel(QSortFilterProxyModel):
     def isCustomFilter(self):
         return self._filter_value is not None
 
+    @pyqtSlot(str)
     def setFilterValue(self, filter_value):
         self._filter_value = filter_value
+        self.invalidate()
 
     def filterAcceptsRow(self, s_row, s_parent):
         if not self.isCustomFilter:

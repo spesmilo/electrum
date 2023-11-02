@@ -111,7 +111,7 @@ Item {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
             icon.source: '../../icons/tab_addresses.png'
             action: Action {
-                text: qsTr('Addresses');
+                text: qsTr('Addresses/Coins');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
                 enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'Addresses'
             }
