@@ -416,8 +416,10 @@ class SimpleConfig(Logger):
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
             os_chmod(path, stat.S_IREAD | stat.S_IWRITE)
-        except FileNotFoundError:
-            # datadir probably deleted while running...
+        except OSError:
+            # datadir probably deleted while running... e.g. portable exe running on ejected USB drive
+            # (in which case it is typically either FileNotFoundError or PermissionError,
+            #  but let's just catch the more generic OSError and test explicitly)
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
