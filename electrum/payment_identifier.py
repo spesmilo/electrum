@@ -173,6 +173,8 @@ class PaymentIdentifier(Logger):
             return True
         if self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNADDR]:
             return bool(self.bolt11) and bool(self.bolt11.get_address())
+        if self._type == PaymentIdentifierType.BIP21:
+            return bool(self.bip21.get('address', None)) or (bool(self.bolt11) and bool(self.bolt11.get_address()))
 
     def is_multiline(self):
         return bool(self.multiline_outputs)

@@ -698,6 +698,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 num_sats_can_send = int(lnworker.num_sats_can_send())
                 msg += '\n' + _('Your channels can send {}.').format(self.format_amount(num_sats_can_send) + ' ' + self.base_unit())
             if not choices:
+                if not can_pay_onchain:
+                    msg += '\n' + _('Also, you have insufficient funds to pay on-chain.')
                 self.window.show_error(msg)
                 return
             r = self.window.query_choice(msg, choices)
