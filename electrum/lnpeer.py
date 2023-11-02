@@ -1814,7 +1814,8 @@ class Peer(Logger):
             payment_hash: bytes,
             inc_cltv_abs: int,
             outer_onion: ProcessedOnionPacket,
-            trampoline_onion: ProcessedOnionPacket):
+            trampoline_onion: ProcessedOnionPacket,
+            fw_payment_key: str):
 
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         forwarding_trampoline_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
@@ -1923,6 +1924,7 @@ class Peer(Logger):
                 fwd_trampoline_onion=next_trampoline_onion,
                 budget=budget,
                 attempts=1,
+                fw_payment_key=fw_payment_key,
             )
         except OnionRoutingFailure as e:
             raise
@@ -2086,7 +2088,8 @@ class Peer(Logger):
                     payment_hash=payment_hash,
                     inc_cltv_abs=htlc.cltv_abs, # TODO: use max or enforce same value across mpp parts
                     outer_onion=processed_onion,
-                    trampoline_onion=trampoline_onion)
+                    trampoline_onion=trampoline_onion,
+                    fw_payment_key=payment_key)
                 return payment_key, None, callback
 
         # TODO don't accept payments twice for same invoice
@@ -2640,11 +2643,13 @@ class Peer(Logger):
                         try:
                             next_htlc = await forwarding_coro
                             if next_htlc:
+                                self.lnworker.active_forwardings[payment_key].append(next_htlc)
                                 self.lnworker.downstream_to_upstream_htlc[next_htlc] = htlc_key
                         except OnionRoutingFailure as e:
+                            assert len(self.lnworker.active_forwardings[payment_key]) == 0
                             self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
                     # add to list
-                    self.lnworker.active_forwardings[payment_key] = True
+                    self.lnworker.active_forwardings[payment_key] = []
                     fut = asyncio.ensure_future(wrapped_callback())
                 # return payment_key so this branch will not be executed again
                 return None, payment_key, None

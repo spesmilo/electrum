@@ -842,8 +842,8 @@ class LNWallet(LNWorker):
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         # payment forwarding
-        self.active_forwardings = self.db.get_dict('active_forwardings')                    # list of payment_keys
-        self.forwarding_failures = self.db.get_dict('forwarding_failures')                  # payment_key -> (error_bytes, error_message)
+        self.active_forwardings = self.db.get_dict('active_forwardings')                    # Dict: payment_key -> list of htlc_keys
+        self.forwarding_failures = self.db.get_dict('forwarding_failures')                  # Dict: payment_key -> (error_bytes, error_message)
         self.downstream_to_upstream_htlc = {}                                               # Dict: htlc_key -> htlc_key (not persisted)
 
         # payment_hash -> callback:
@@ -1541,6 +1541,7 @@ class LNWallet(LNWorker):
             fwd_trampoline_onion: OnionPacket = None,
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
+            fw_payment_key = None,# for forwarding
     ) -> None:
 
         assert budget
@@ -1588,6 +1589,7 @@ class LNWallet(LNWorker):
                             sent_htlc_info=sent_htlc_info,
                             min_final_cltv_delta=cltv_delta,
                             trampoline_onion=trampoline_onion,
+                            fw_payment_key=fw_payment_key,
                         )
                     # invoice_status is triggered in self.set_invoice_status when it actually changes.
                     # It is also triggered here to update progress for a lightning payment in the GUI
@@ -1647,6 +1649,7 @@ class LNWallet(LNWorker):
             sent_htlc_info: SentHtlcInfo,
             min_final_cltv_delta: int,
             trampoline_onion: Optional[OnionPacket] = None,
+            fw_payment_key: str = None,
     ) -> None:
         """Sends a single HTLC."""
         shi = sent_htlc_info
@@ -1671,6 +1674,10 @@ class LNWallet(LNWorker):
         key = (paysession.payment_hash, short_channel_id, htlc.htlc_id)
         self.sent_htlcs_info[key] = shi
         paysession.add_new_htlc(shi)
+        if fw_payment_key:
+            htlc_key = serialize_htlc_key(short_channel_id, htlc.htlc_id)
+            self.logger.info(f'adding active forwarding {fw_payment_key}')
+            self.active_forwardings[fw_payment_key].append(htlc_key)
         if self.network.path_finder:
             # add inflight htlcs to liquidity hints
             self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=True)
@@ -2383,32 +2390,35 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def is_forwarded_htlc_notify(
-            self, chan: Channel, htlc_id: int, *,
-            error_bytes: Optional[bytes] = None,
-            failure_message: Optional['OnionRoutingFailure'] = None
-    ) -> bool:
+    def is_forwarded_htlc(self, htlc_key) -> Optional[str]:
+        """Returns whether this was a forwarded HTLC."""
+        for payment_key, htlcs in self.active_forwardings.items():
+            if htlc_key in htlcs:
+                return payment_key
+
+    def notify_upstream_peer(self, htlc_key):
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
         If we find this was a forwarded HTLC, the upstream peer is notified.
-        Returns whether this was a forwarded HTLC.
         """
-        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
         upstream_key = self.downstream_to_upstream_htlc.pop(htlc_key, None)
         if not upstream_key:
-            return False
-        self.save_forwarding_failure(upstream_key, error_bytes=error_bytes, failure_message=failure_message)
+            return
         upstream_chan_scid, _ = deserialize_htlc_key(upstream_key)
         upstream_chan = self.get_channel_by_short_id(upstream_chan_scid)
         upstream_peer = self.peers.get(upstream_chan.node_id) if upstream_chan else None
         if upstream_peer:
             upstream_peer.downstream_htlc_resolved_event.set()
             upstream_peer.downstream_htlc_resolved_event.clear()
-        return True
 
     def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
+
         util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
-        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
-            return
+        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
+        fw_key = self.is_forwarded_htlc(htlc_key)
+        if fw_key:
+            fw_htlcs = self.active_forwardings[fw_key]
+            fw_htlcs.remove(htlc_key)
+
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             chan.pop_onion_key(htlc_id)
             payment_key = payment_hash + shi.payment_secret_orig
@@ -2422,10 +2432,22 @@ class LNWallet(LNWorker):
             q.put_nowait(htlc_log)
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
+                paysession_active = False
+            else:
+                paysession_active = True
         else:
-            key = payment_hash.hex()
-            self.set_invoice_status(key, PR_PAID)
-            util.trigger_callback('payment_succeeded', self.wallet, key)
+            if fw_key:
+                paysession_active = False
+            else:
+                key = payment_hash.hex()
+                self.set_invoice_status(key, PR_PAID)
+                util.trigger_callback('payment_succeeded', self.wallet, key)
+
+        if fw_key:
+            fw_htlcs = self.active_forwardings[fw_key]
+            if len(fw_htlcs) == 0 and not paysession_active:
+                self.notify_upstream_peer(htlc_key)
+
 
     def htlc_failed(
             self,
@@ -2436,8 +2458,12 @@ class LNWallet(LNWorker):
             failure_message: Optional['OnionRoutingFailure']):
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
-        if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id, error_bytes=error_bytes, failure_message=failure_message):
-            return
+        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
+        fw_key = self.is_forwarded_htlc(htlc_key)
+        if fw_key:
+            fw_htlcs = self.active_forwardings[fw_key]
+            fw_htlcs.remove(htlc_key)
+
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             onion_key = chan.pop_onion_key(htlc_id)
             payment_okey = payment_hash + shi.payment_secret_orig
@@ -2461,7 +2487,6 @@ class LNWallet(LNWorker):
                 assert failure_message is not None
                 sender_idx = None
             self.logger.info(f"htlc_failed {failure_message}")
-
             amount_receiver_msat = paysession.on_htlc_fail_get_fail_amt_to_propagate(shi)
             if amount_receiver_msat is None:
                 return
@@ -2478,11 +2503,26 @@ class LNWallet(LNWorker):
             q.put_nowait(htlc_log)
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_okey)
+                paysession_active = False
+            else:
+                paysession_active = True
         else:
-            self.logger.info(f"received unknown htlc_failed, probably from previous session")
-            key = payment_hash.hex()
-            self.set_invoice_status(key, PR_UNPAID)
-            util.trigger_callback('payment_failed', self.wallet, key, '')
+            if fw_key:
+                paysession_active = False
+            else:
+                self.logger.info(f"received unknown htlc_failed, probably from previous session")
+                key = payment_hash.hex()
+                self.set_invoice_status(key, PR_UNPAID)
+                util.trigger_callback('payment_failed', self.wallet, key, '')
+
+        if fw_key:
+            fw_htlcs = self.active_forwardings[fw_key]
+            can_forward_failure = (len(fw_htlcs) == 0) and not paysession_active
+            if can_forward_failure:
+                self.save_forwarding_failure(fw_key, error_bytes=error_bytes, failure_message=failure_message)
+                self.notify_upstream_peer(htlc_key)
+            else:
+                self.logger.info(f"waiting for other htlcs to fail")
 
     def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], channels=None):
         """calculate routing hints (BOLT-11 'r' field)"""
