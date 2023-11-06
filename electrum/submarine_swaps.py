@@ -19,7 +19,7 @@ from .util import log_exceptions, BelowDustLimit, OldTaskGroup
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
-from .lnutil import hex_to_bytes
+from .lnutil import hex_to_bytes, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
@@ -45,7 +45,7 @@ CLAIM_FEE_SIZE = 136
 LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
 
 MIN_LOCKTIME_DELTA = 60
-LOCKTIME_DELTA_REFUND = 70
+LOCKTIME_DELTA_REFUND = 144 * 2
 
 WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_HASH160,
@@ -233,7 +233,12 @@ class SwapManager(Logger):
         self.invoices_to_pay[key] = 1000000000000 # lock
         try:
             invoice = self.wallet.get_invoice(key)
-            success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=10)
+            swap = self.swaps[key]
+            success, log = await self.lnworker.pay_invoice(
+                invoice.lightning_invoice,
+                attempts=10,
+                max_cltv_expiry=swap.locktime - 10, # the htlc must expire before a refund is possible
+            )
         except Exception as e:
             self.logger.info(f'exception paying {key}, will not retry')
             self.invoices_to_pay.pop(key, None)
@@ -279,7 +284,7 @@ class SwapManager(Logger):
         if not self.lnwatcher.adb.is_up_to_date():
             return
         current_height = self.network.get_local_height()
-        delta = current_height - swap.locktime
+        remaining_time = swap.locktime - current_height
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
         for txin in txos.values():
@@ -292,7 +297,7 @@ class SwapManager(Logger):
             txin = None
             # if it is a normal swap, we might have double spent the funding tx
             # in that case we need to fail the HTLCs
-            if delta >= 0:
+            if remaining_time <= 0:
                 self._fail_swap(swap, 'expired')
 
         if txin:
@@ -341,7 +346,7 @@ class SwapManager(Logger):
                         if spent_height > 0:
                             self._fail_swap(swap, 'refund tx confirmed')
                             return
-                if delta < 0:
+                if remaining_time > 0:
                     # too early for refund
                     return
             else:
@@ -351,10 +356,10 @@ class SwapManager(Logger):
                     if funding_height.conf <= 0:
                         return
                     key = swap.payment_hash.hex()
-                    if -delta <= MIN_LOCKTIME_DELTA:
+                    if remaining_time <= MIN_LOCKTIME_DELTA:
                         if key in self.invoices_to_pay:
                             # fixme: should consider cltv of ln payment
-                            self.logger.info(f'locktime too close {key} {delta}')
+                            self.logger.info(f'locktime too close {key} {remaining_time}')
                             self.invoices_to_pay.pop(key, None)
                         return
                     if key not in self.invoices_to_pay:
@@ -671,7 +676,7 @@ class SwapManager(Logger):
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
                             f"{onchain_amount} > {expected_onchain_amount_sat}")
         # verify that they are not locking up funds for more than a day
-        if locktime - self.network.get_local_height() >= 144:
+        if locktime - self.network.get_local_height() >= NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
             raise Exception("fswap check failed: locktime too far in future")
 
         swap, invoice, _ = self.add_normal_swap(

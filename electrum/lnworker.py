@@ -1395,6 +1395,7 @@ class LNWallet(LNWorker):
             attempts: int = None, # used only in unit tests
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
+            max_cltv_expiry: int = None,
     ) -> Tuple[bool, List[HtlcLog]]:
 
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
@@ -1421,7 +1422,13 @@ class LNWallet(LNWorker):
             f"using_trampoline={self.uses_trampoline()}. "
             f"invoice_features={invoice_features.get_names()}")
         self.set_invoice_status(key, PR_INFLIGHT)
-        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay)
+        if max_cltv_expiry:
+            total_cltv_budget = max_cltv_expiry - self.network.get_local_height()
+            cltv_budget = total_cltv_budget - min_final_cltv_delta
+            self.logger.info(f'max_cltv_expiry {max_cltv_expiry} {total_cltv_budget} {cltv_budget}')
+        else:
+            cltv_budget = None
+        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, cltv_budget=cltv_budget)
         success = False
         try:
             await self.pay_to_node(

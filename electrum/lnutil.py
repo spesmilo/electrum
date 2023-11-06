@@ -1647,9 +1647,9 @@ class PaymentFeeBudget(NamedTuple):
     #num_htlc: int
 
     @classmethod
-    def default(cls, *, invoice_amount_msat: int) -> 'PaymentFeeBudget':
+    def default(cls, *, invoice_amount_msat: int, cltv_budget:int = None) -> 'PaymentFeeBudget':
         from .lnrouter import get_default_fee_budget_msat
         return PaymentFeeBudget(
             fee_msat=get_default_fee_budget_msat(invoice_amount_msat=invoice_amount_msat),
-            cltv=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
+            cltv=cltv_budget or NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
         )
