@@ -55,32 +55,32 @@ ElDialog {
             BtcField {
                 id: amountBtc
                 fiatfield: amountFiat
-                Layout.preferredWidth: parent.width /3
+                Layout.fillWidth: true
             }
 
             Label {
+                Layout.columnSpan: 2
+                Layout.rightMargin: constants.paddingXLarge
                 text: Config.baseUnit
                 color: Material.accentColor
             }
-
-            Item { width: 1; height: 1; Layout.fillWidth: true }
 
             Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
 
             FiatField {
                 id: amountFiat
+                Layout.fillWidth: true
                 btcfield: amountBtc
                 visible: Daemon.fx.enabled
-                Layout.preferredWidth: parent.width /3
             }
 
             Label {
+                Layout.columnSpan: 2
+                Layout.rightMargin: constants.paddingXLarge
                 visible: Daemon.fx.enabled
                 text: Daemon.fx.fiatCurrency
                 color: Material.accentColor
             }
-
-            Item { visible: Daemon.fx.enabled; width: 1; height: 1; Layout.fillWidth: true }
 
             Label {
                 text: qsTr('Expires after')
@@ -89,7 +89,7 @@ ElDialog {
 
             RequestExpiryComboBox {
                 id: expires
-                Layout.columnSpan: 2
+                Layout.columnSpan: 3
             }
         }
 
