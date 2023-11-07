@@ -49,8 +49,9 @@ class QEAddressCoinFilterProxyModel(QSortFilterProxyModel):
             outpoint = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['outpoint'])
             amount_i = parent_model.data(parent_model.index(s_row, 0, s_parent), parent_model._ROLE_RMAP['amount'])
             amount = parent_model.wallet.config.format_amount(amount_i.satsInt) if amount_i else None
+            filter_text = self._filter_text.casefold()
             for item in [label, address, outpoint, amount]:
-                if self._filter_text in str(item):
+                if item is not None and filter_text in str(item).casefold():
                     return True
             return False
         return True
