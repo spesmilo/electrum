@@ -100,11 +100,4 @@ Dialog {
         }
     }
 
-    background: Rectangle {
-        id: bg
-        color: Material.dialogColor
-        TapHandler {
-            onTapped: bg.forceActiveFocus()
-        }
-    }
 }
