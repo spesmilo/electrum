@@ -160,15 +160,19 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=channelChanged)
     def canClose(self):
-        return self.canCoopClose or self.canForceClose
+        return self.canCoopClose or self.canLocalForceClose or self.canRequestForceClose
 
     @pyqtProperty(bool, notify=channelChanged)
     def canCoopClose(self):
         return ChanCloseOption.COOP_CLOSE in self._channel.get_close_options()
 
     @pyqtProperty(bool, notify=channelChanged)
-    def canForceClose(self):
-        return any([o in [ChanCloseOption.LOCAL_FCLOSE, ChanCloseOption.REQUEST_REMOTE_FCLOSE] for o in self._channel.get_close_options()])
+    def canLocalForceClose(self):
+        return ChanCloseOption.LOCAL_FCLOSE in self._channel.get_close_options()
+
+    @pyqtProperty(bool, notify=channelChanged)
+    def canRequestForceClose(self):
+        return ChanCloseOption.REQUEST_REMOTE_FCLOSE in self._channel.get_close_options()
 
     @pyqtProperty(bool, notify=channelChanged)
     def canDelete(self):
@@ -234,6 +238,18 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     def do_close_channel(self, closetype):
         channel_id = self._channel.channel_id
 
+        def handle_result(success: bool, msg: str = ''):
+            try:
+                if success:
+                    self.channelCloseSuccess.emit()
+                else:
+                    self.channelCloseFailed.emit(msg)
+
+                self._is_closing = False
+                self.isClosingChanged.emit()
+            except RuntimeError:  # QEChannelDetails might be deleted at this point if the user closed the dialog.
+                pass
+
         def do_close():
             try:
                 self._is_closing = True
@@ -245,13 +261,10 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
                 else:
                     self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.close_channel(channel_id))
                 self._logger.debug('Channel close successful')
-                self.channelCloseSuccess.emit()
+                handle_result(True)
             except Exception as e:
                 self._logger.exception("Could not close channel: " + repr(e))
-                self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
-            finally:
-                self._is_closing = False
-                self.isClosingChanged.emit()
+                handle_result(False, _('Could not close channel: ') + repr(e))
 
         threading.Thread(target=do_close, daemon=True).start()
 
