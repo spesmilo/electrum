@@ -95,17 +95,27 @@ adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
 
 
 ### The Qml GUI can be run directly on Linux Desktop. How?
-Install requirements (debian-based distros):
+Install requirements:
 ```
-sudo apt-get install python3-pyqt5 python3-pyqt5.qtquick python3-pyqt5.qtmultimedia
-sudo apt-get install python3-pil
-sudo apt-get install qml-module-qtquick-controls2 qml-module-qtquick-layouts \
-    qml-module-qtquick-window2 qml-module-qtmultimedia \
-    libqt5multimedia5-plugins qml-module-qt-labs-folderlistmodel
-sudo apt-get install qtvirtualkeyboard-plugin
+python3 -m pip install "pyqt6==6.5.2" "Pillow>=8.4"
 ```
 
 Run electrum with the `-g` switch: `electrum -g qml`
+
+Notes:
+
+- pyqt ~6.4 would work best, as the gui has not yet been adapted to styling changes in 6.5
+- However, pyqt6 as distributed on PyPI does not include a required module (PyQt6.QtQml) until 6.5
+- Installing these deps from your OS package manager should also work,
+  except many don't distribute pyqt6 yet.
+  For pyqt5 on debian-based distros, this used to look like this:
+  ```
+  sudo apt-get install python3-pyqt5 python3-pyqt5.qtquick python3-pyqt5.qtmultimedia
+  sudo apt-get install python3-pil
+  sudo apt-get install qml-module-qtquick-controls2 qml-module-qtquick-layouts \
+      qml-module-qtquick-window2 qml-module-qtmultimedia \
+      libqt5multimedia5-plugins qml-module-qt-labs-folderlistmodel
+  ```
 
 
 ### debug vs release build
