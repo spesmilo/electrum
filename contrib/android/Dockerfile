@@ -188,7 +188,7 @@ RUN cd /opt \
     # commit: from branch electrum-qt6 (note: careful with force-pushing! see #8162) \
     && git checkout "ce4f2257249fdf4ff1f4cb8983fd7ac44174a274^{commit}" \
     # SETUPTOOLS_USE_DISTUTILS=stdlib needed to build buildozer for GRS
-    && SETUPTOOLS_USE_DISTUTILS=stdlib python3 -m pip install --no-build-isolation --no-dependencies -e .
+    && SETUPTOOLS_USE_DISTUTILS=stdlib /opt/venv/bin/python3  -m pip install --no-build-isolation --no-dependencies -e . \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
