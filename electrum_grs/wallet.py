@@ -3617,6 +3617,9 @@ class Multisig_Wallet(Deterministic_Wallet):
                 raise Exception(f"unexpected keystore type={type(ks)} in multisig")
             if bip32.xpub_type(self.keystore.xpub) != bip32.xpub_type(ks.xpub):
                 raise Exception(f"multisig wallet needs to have homogeneous xpub types")
+        bip32_nodes = set({ks.get_bip32_node_for_xpub() for ks in self.get_keystores()})
+        if len(bip32_nodes) != len(self.get_keystores()):
+            raise Exception(f"duplicate xpubs in multisig")
 
     def get_public_keys(self, address):
         return [pk.hex() for pk in self.get_public_keys_with_deriv_info(address)]

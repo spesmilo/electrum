@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from electrum_grs.wizard import NewWalletWizard
 
 
+
 class Plugin(TrustedCoinPlugin):
 
     def __init__(self, *args):

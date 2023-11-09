@@ -1,6 +1,6 @@
 from typing import Optional
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger

@@ -42,6 +42,7 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
+sys._GUI_QT_VERSION = 5  # used by gui/common_qt
 
 try:
     # Preload QtMultimedia at app start, if available.

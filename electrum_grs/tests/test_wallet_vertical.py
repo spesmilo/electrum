@@ -3714,6 +3714,98 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         self.assertEqual('4376fa5f1f6cb37b1f3956175d3bd4ef6882169294802b250a3c672f3ff431c1', tx.wtxid())
 
 
+class TestWalletCreationChecks(ElectrumTestCase):
+    TESTNET = True
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_duplicate_masterkeys_in_multisig(self, mock_save_db):
+        # ks1 (seed) and ks2 have same xpub
+        with self.assertRaises(Exception) as ctx1:
+            w1 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk'),  # collides with seed
+                    keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
+                ],
+                '2of3', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('duplicate xpubs in multisig', ctx1.exception.args[0])
+        # ks2 and ks3 have same xpub
+        with self.assertRaises(Exception) as ctx2:
+            w2 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                    keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                ],
+                '2of3', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('duplicate xpubs in multisig', ctx2.exception.args[0])
+        # all xpubs different. should not raise.
+        w3 = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
+            ],
+            '2of3', gap_limit=2,
+            config=self.config
+        )
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_heterogeneous_xpub_types_in_multisig(self, mock_save_db):
+        # tpub + vpub
+        with self.assertRaises(Exception) as ctx1:
+            w1 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_xpub('tpubD6NzVbkrYhZ4XYdbWCGSusTDQRAX4UnuqcikJAkqMYxBkvnGfUBvXBE84eyQS6e4To3Pz1xwLrEuxGgQayn4dqVXwNM7dWh4U4DgHai2scz'),
+                    keystore.from_xpub('vpub5VmsevU91fpRaJkfa8b6c9MK53gKY8rSzZjrZdp6dkHZjnFhM1HN74ezHY96JCgFnbQJhRbeUyr5S1vzdcTB6qUKrrG7GBuwPYDTzBjLQmv'),
+                ],
+                '2of2', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('multisig wallet needs to have homogeneous xpub types', ctx1.exception.args[0])
+        # tpub + "segwit" seed
+        with self.assertRaises(Exception) as ctx2:
+            w1 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_xpub('tpubD6NzVbkrYhZ4XYdbWCGSusTDQRAX4UnuqcikJAkqMYxBkvnGfUBvXBE84eyQS6e4To3Pz1xwLrEuxGgQayn4dqVXwNM7dWh4U4DgHai2scz'),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                ],
+                '2of2', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('multisig wallet needs to have homogeneous xpub types', ctx2.exception.args[0])
+        # "standard" seed + "segwit" seed
+        with self.assertRaises(Exception) as ctx3:
+            w1 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                ],
+                '2of2', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('multisig wallet needs to have homogeneous xpub types', ctx3.exception.args[0])
+        # "old" seed + "standard" seed
+        with self.assertRaises(Exception) as ctx4:
+            w1 = WalletIntegrityHelper.create_multisig_wallet(
+                [
+                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
+                    keystore.from_seed('powerful random nobody notice nothing important anyway look away hidden message over', '', True),
+                ],
+                '2of2', gap_limit=2,
+                config=self.config
+            )
+        self.assertIn('unexpected keystore type', ctx4.exception.args[0])
+
+
 class TestWalletHistory_SimpleRandomOrder(ElectrumTestCase):
     TESTNET = True
     transactions = {

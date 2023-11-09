@@ -1,7 +1,7 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 Dialog {
     id: abstractdialog
@@ -35,7 +35,7 @@ Dialog {
         reject()
     }
 
-    parent: resizeWithKeyboard ? Overlay.overlay.children[0] : Overlay.overlay
+    parent: resizeWithKeyboard ? app.keyboardFreeZone : Overlay.overlay
     modal: true
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -100,11 +100,4 @@ Dialog {
         }
     }
 
-    background: Rectangle {
-        id: bg
-        color: Material.dialogColor
-        TapHandler {
-            onTapped: bg.forceActiveFocus()
-        }
-    }
 }

@@ -1,6 +1,6 @@
 from functools import wraps, partial
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 
 from electrum_grs.logging import get_logger
 

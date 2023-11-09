@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -121,7 +121,7 @@ Item {
             visible: delegate.ListView.section == delegate.ListView.nextSection
             Layout.preferredWidth: parent.width * 2/3
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: Material.background
         }
 

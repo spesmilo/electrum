@@ -21,7 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
 
 import dns
 import threading
@@ -33,6 +33,10 @@ from .util import read_json_file, write_json_file, to_string
 from .logging import Logger, get_logger
 from .util import trigger_callback
 
+if TYPE_CHECKING:
+    from .wallet_db import WalletDB
+    from .simple_config import SimpleConfig
+
 
 _logger = get_logger(__name__)
 
@@ -43,7 +47,7 @@ class AliasNotFoundException(Exception):
 
 class Contacts(dict, Logger):
 
-    def __init__(self, db):
+    def __init__(self, db: 'WalletDB'):
         Logger.__init__(self)
         self.db = db
         d = self.db.get('contacts', {})
@@ -121,7 +125,7 @@ class Contacts(dict, Logger):
                 }
         return None
 
-    def fetch_openalias(self, config):
+    def fetch_openalias(self, config: 'SimpleConfig'):
         self.alias_info = None
         alias = config.OPENALIAS_ID
         if alias:

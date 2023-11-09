@@ -304,7 +304,7 @@ class Invoice(BaseInvoice):
 
     def can_be_paid_onchain(self) -> bool:
         if self.is_lightning():
-            return bool(self._lnaddr.get_fallback_address())
+            return bool(self._lnaddr.get_fallback_address()) or (bool(self.outputs))
         else:
             return True
 

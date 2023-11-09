@@ -1,6 +1,7 @@
-import QtQuick 2.12
-import QtQuick.Controls 2.0
-import QtMultimedia 5.6
+import QtQuick
+import QtQuick.Controls
+import QtMultimedia
+import QtQml
 
 import org.electrum 1.0
 
@@ -12,73 +13,125 @@ Item {
     property string scanData
     property string hint
 
-    property bool _pointsVisible
-
     signal found
 
     function restart() {
-        still.source = ''
-        _pointsVisible = false
-        active = true
+        console.log('qrscan.restart')
+        scanData = ''
+        qr.reset()
+        start()
     }
 
-    VideoOutput {
-        id: vo
+    function start() {
+        console.log('qrscan.start')
+        loader.item.startTimer.start()
+    }
+
+    function stop() {
+        console.log('qrscan.stop')
+        scanner.active = false
+    }
+
+    Item {
+        id: points
+        z: 100
         anchors.fill: parent
-        source: camera
-        fillMode: VideoOutput.PreserveAspectCrop
+    }
 
-        Rectangle {
-            width: parent.width
-            height: (parent.height - parent.width) / 2
-            visible: camera.cameraStatus == Camera.ActiveStatus
-            anchors.top: parent.top
-            color: Qt.rgba(0,0,0,0.5)
-        }
-        Rectangle {
-            width: parent.width
-            height: (parent.height - parent.width) / 2
-            visible: camera.cameraStatus == Camera.ActiveStatus
-            anchors.bottom: parent.bottom
-            color: Qt.rgba(0,0,0,0.5)
-        }
-        InfoTextArea {
-            visible: scanner.hint
-            background.opacity: 0.5
-            iconStyle: InfoTextArea.IconStyle.None
-            anchors {
-                top: parent.top
-                topMargin: constants.paddingXLarge
-                left: parent.left
-                leftMargin: constants.paddingXXLarge
-                right: parent.right
-                rightMargin: constants.paddingXXLarge
+    Loader {
+        id: loader
+        anchors.fill: parent
+        sourceComponent: scancomp
+        onStatusChanged: {
+            if (loader.status == Loader.Ready) {
+                console.log('camera loaded')
+            } else if (loader.status == Loader.Error) {
+                console.log('camera load error')
             }
-            text: scanner.hint
         }
     }
 
-    Image {
-        id: still
-        anchors.fill: vo
-    }
+    Component {
+        id: scancomp
 
-    SequentialAnimation {
-        id: foundAnimation
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: true}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: false}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: true}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: false}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: true}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: false}
-        PauseAnimation { duration: 80 }
-        PropertyAction { target: scanner; property: '_pointsVisible'; value: true}
-        onFinished: found()
+        Item {
+            property alias vo: _vo
+            property alias ic: _ic
+            property alias startTimer: _startTimer
+
+            VideoOutput {
+                id: _vo
+                anchors.fill: parent
+
+                fillMode: VideoOutput.PreserveAspectCrop
+
+                Rectangle {
+                    width: parent.width
+                    height: (parent.height - parent.width) / 2
+                    anchors.top: parent.top
+                    color: Qt.rgba(0,0,0,0.5)
+                }
+                Rectangle {
+                    width: parent.width
+                    height: (parent.height - parent.width) / 2
+                    anchors.bottom: parent.bottom
+                    color: Qt.rgba(0,0,0,0.5)
+                }
+                InfoTextArea {
+                    visible: scanner.hint
+                    background.opacity: 0.5
+                    iconStyle: InfoTextArea.IconStyle.None
+                    anchors {
+                        top: parent.top
+                        topMargin: constants.paddingXLarge
+                        left: parent.left
+                        leftMargin: constants.paddingXXLarge
+                        right: parent.right
+                        rightMargin: constants.paddingXXLarge
+                    }
+                    text: scanner.hint
+                }
+
+                Component.onCompleted: {
+                    startTimer.start()
+                }
+            }
+
+            ImageCapture {
+                id: _ic
+
+            }
+
+            MediaDevices {
+                id: mediaDevices
+            }
+
+            Camera {
+                id: camera
+                cameraDevice: mediaDevices.defaultVideoInput
+                active: scanner.active
+                focusMode: Camera.FocusModeAutoNear
+                customFocusPoint: Qt.point(0.5, 0.5)
+
+                onErrorOccurred: {
+                    console.log('camera error: ' + errorString)
+                }
+            }
+
+            CaptureSession {
+                videoOutput: _vo
+                imageCapture: _ic
+                camera: camera
+            }
+
+            Timer {
+                id: _startTimer
+                interval: 500
+                repeat: false
+                onTriggered: scanner.active = true
+            }
+
+        }
     }
 
     Component {
@@ -98,85 +151,16 @@ Item {
     Connections {
         target: qr
         function onDataChanged() {
-            console.log(qr.data)
+            console.log('QR DATA: ' + qr.data)
             scanner.active = false
             scanner.scanData = qr.data
-            still.source = scanner.url
-
-            var sx = still.width/still.sourceSize.width
-            var sy = still.height/still.sourceSize.height
-            r.createObject(scanner, {cx: qr.points[0].x * sx, cy: qr.points[0].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: qr.points[1].x * sx, cy: qr.points[1].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: qr.points[2].x * sx, cy: qr.points[2].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: qr.points[3].x * sx, cy: qr.points[3].y * sy, color: 'yellow'})
-
-            foundAnimation.start()
-        }
-    }
-
-    Camera {
-        id: camera
-        deviceId: QtMultimedia.defaultCamera.deviceId
-        viewfinder.resolution: "640x480"
-
-        focus {
-            focusMode: Camera.FocusContinuous
-            focusPointMode: Camera.FocusPointCustom
-            customFocusPoint: Qt.point(0.5, 0.5)
-        }
-
-        function dumpstats() {
-            console.log(camera.viewfinder.resolution)
-            console.log(camera.viewfinder.minimumFrameRate)
-            console.log(camera.viewfinder.maximumFrameRate)
-            var resolutions = camera.supportedViewfinderResolutions()
-            resolutions.forEach(function(item, i) {
-                console.log('' + item.width + 'x' + item.height)
-            })
-            // TODO
-            // pick a suitable resolution from the available resolutions
-            // problem: some cameras have no supportedViewfinderResolutions
-            // but still error out when an invalid resolution is set.
-            // 640x480 seems to be universally available, but this needs to
-            // be checked across a range of phone models.
-        }
-    }
-
-    Timer {
-        id: scanTimer
-        interval: 200
-        repeat: true
-        running: scanner.active
-        onTriggered: {
-            if (qr.busy)
-                return
-            vo.grabToImage(function(result) {
-                if (result.image !== undefined) {
-                    scanner.url = result.url
-                    qr.scanImage(result.image)
-                } else {
-                    console.log('image grab returned null')
-                }
-            })
+            scanner.found()
         }
     }
 
     QRParser {
         id: qr
+        videoSink: loader.item.vo.videoSink
     }
 
-    Component.onCompleted: {
-        console.log('enumerating cameras')
-        QtMultimedia.availableCameras.forEach(function(item) {
-            console.log('cam found, id=' + item.deviceId + ' name=' + item.displayName)
-            console.log('pos=' + item.position + ' orientation=' + item.orientation)
-            if (QtMultimedia.defaultCamera.deviceId == item.deviceId) {
-                vo.orientation = item.orientation
-            }
-
-            camera.dumpstats()
-        })
-
-        active = true
-    }
 }

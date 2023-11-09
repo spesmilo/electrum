@@ -441,11 +441,11 @@ class NewWalletWizard(AbstractWizard):
         cosigner_data = self.current_cosigner(wizard_data)
         if self.needs_derivation_path(wizard_data):
             if 'derivation_path' not in cosigner_data:
-                self.logger.debug('defer multisig check: missing derivation_path')
+                self._logger.debug('defer multisig check: missing derivation_path')
                 return True, ''
         if self.wants_ext(wizard_data):
             if 'seed_extra_words' not in cosigner_data:
-                self.logger.debug('defer multisig check: missing extra words')
+                self._logger.debug('defer multisig check: missing extra words')
                 return True, ''
         if self.is_current_cosigner_hardware(wizard_data):
             if 'master_key' not in cosigner_data:

@@ -2,7 +2,7 @@ import copy
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
 from electrum_grs.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum_grs.i18n import set_language, languages
@@ -211,6 +211,28 @@ class QEConfig(AuthMixin, QObject):
         if userKnowsPressAndHold != self.config.GUI_QML_USER_KNOWS_PRESS_AND_HOLD:
             self.config.GUI_QML_USER_KNOWS_PRESS_AND_HOLD = userKnowsPressAndHold
             self.userKnowsPressAndHoldChanged.emit()
+
+    addresslistShowTypeChanged = pyqtSignal()
+    @pyqtProperty(int, notify=addresslistShowTypeChanged)
+    def addresslistShowType(self):
+        return self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE
+
+    @addresslistShowType.setter
+    def addresslistShowType(self, addresslistShowType):
+        if addresslistShowType != self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE:
+            self.config.GUI_QML_ADDRESS_LIST_SHOW_TYPE = addresslistShowType
+            self.addresslistShowTypeChanged.emit()
+
+    addresslistShowUsedChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=addresslistShowUsedChanged)
+    def addresslistShowUsed(self):
+        return self.config.GUI_QML_ADDRESS_LIST_SHOW_USED
+
+    @addresslistShowUsed.setter
+    def addresslistShowUsed(self, addresslistShowUsed):
+        if addresslistShowUsed != self.config.GUI_QML_ADDRESS_LIST_SHOW_USED:
+            self.config.GUI_QML_ADDRESS_LIST_SHOW_USED = addresslistShowUsed
+            self.addresslistShowUsedChanged.emit()
 
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)

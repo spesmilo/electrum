@@ -90,16 +90,16 @@ fi
 if [[ "$2" == "all" ]] ; then
     # build all apks
     # FIXME failures are not propagated out: we should fail the script if any arch build fails
-    export APP_ANDROID_ARCH=armeabi-v7a
+    export APP_ANDROID_ARCHS=armeabi-v7a
     make $TARGET
-    export APP_ANDROID_ARCH=arm64-v8a
+    export APP_ANDROID_ARCHS=arm64-v8a
     make $TARGET
-    #export APP_ANDROID_ARCH=x86
+    #export APP_ANDROID_ARCHS=x86
     #make $TARGET
-    export APP_ANDROID_ARCH=x86_64
+    export APP_ANDROID_ARCHS=x86_64
     make $TARGET
 else
-    export APP_ANDROID_ARCH=$2
+    export APP_ANDROID_ARCHS=$2
     make $TARGET
 fi
 

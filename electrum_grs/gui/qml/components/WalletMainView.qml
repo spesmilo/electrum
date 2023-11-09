@@ -1,8 +1,8 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.3
-import QtQuick.Layouts 1.0
-import QtQuick.Controls.Material 2.0
-import QtQml 2.6
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
+import QtQml
 
 import org.electrum 1.0
 
@@ -34,20 +34,56 @@ Item {
     }
 
     function openSendDialog() {
-        _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
-        _sendDialog.open()
+        // Qt based send dialog if not on android
+        if (!AppController.isAndroid()) {
+            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+            _sendDialog.open()
+            return
+        }
+
+        // Android based send dialog if on android
+        var scanner = app.scanDialog.createObject(mainView, {
+            hint: qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel backup'),
+        })
+        scanner.onFound.connect(function() {
+            var data = scanner.scanData
+            data = data.trim()
+            if (bitcoin.isRawTx(data)) {
+                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+            } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                })
+                dialog.open()
+            } else {
+                invoiceParser.recipient = data
+            }
+            //scanner.destroy()  // TODO
+        })
+        scanner.open()
     }
 
     function closeSendDialog() {
-        if (_sendDialog) {
-            _sendDialog.close()
-            _sendDialog = null
+        if (!AppController.isAndroid()) {
+            if (_sendDialog) {
+                _sendDialog.doClose()
+                _sendDialog = null
+            }
         }
     }
 
     function restartSendDialog() {
-        if (_sendDialog) {
-            _sendDialog.restart()
+        if (!AppController.isAndroid()) {
+            if (_sendDialog) {
+                _sendDialog.restart()
+            }
+            return
+        } else {
+            openSendDialog()
         }
     }
 
@@ -86,6 +122,11 @@ Item {
         dialog.open()
     }
 
+    function createRequest(lightning_only, reuse_address) {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
+    }
+
     property QtObject menu: Menu {
         id: menu
 
@@ -111,7 +152,7 @@ Item {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
             icon.source: '../../icons/tab_addresses.png'
             action: Action {
-                text: qsTr('Addresses');
+                text: qsTr('Addresses/Coins');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
                 enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'Addresses'
             }
@@ -264,16 +305,20 @@ Item {
     InvoiceParser {
         id: invoiceParser
         wallet: Daemon.currentWallet
-        onValidationError: {
-            var dialog = app.messageDialog.createObject(app, { text: message })
+        onValidationError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
             dialog.closed.connect(function() {
                 restartSendDialog()
             })
             dialog.open()
         }
-        onValidationWarning: {
+        onValidationWarning: (code, message) => {
             if (code == 'no_channels') {
-                var dialog = app.messageDialog.createObject(app, { text: message })
+                var dialog = app.messageDialog.createObject(app, {
+                    text: message
+                })
                 dialog.closed.connect(function() {
                     restartSendDialog()
                 })
@@ -284,20 +329,34 @@ Item {
         }
         onValidationSuccess: {
             closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, payImmediately: invoiceParser.isLnurlPay })
+            var dialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser,
+                payImmediately: invoiceParser.isLnurlPay
+            })
             dialog.open()
         }
-        onInvoiceCreateError: console.log(code + ' ' + message)
+        onInvoiceCreateError: (code, message) => {
+            console.log(code + ' ' + message)
+        }
 
         onLnurlRetrieved: {
             closeSendDialog()
-            var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            var dialog = lnurlPayDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            })
             dialog.open()
         }
-        onLnurlError: {
-            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                text: message }
+            )
             dialog.open()
         }
+    }
+
+    Bitcoin {
+        id: bitcoin
     }
 
     Connections {
@@ -406,7 +465,7 @@ Item {
     }
 
     Component {
-        id: sendDialog
+        id: qtSendDialog
         SendDialog {
             width: parent.width
             height: parent.height
@@ -431,11 +490,6 @@ Item {
             }
             onClosed: destroy()
         }
-    }
-
-    function createRequest(lightning_only, reuse_address) {
-        var qamt = Config.unitsToSats(_request_amount)
-        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
     }
 
     Component {
@@ -477,7 +531,7 @@ Item {
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
-                onFinished: {
+                onFinished: (signed, saved, complete) => {
                     if (!complete) {
                         var msg
                         if (wallet.isWatchOnly) {

@@ -103,6 +103,7 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
 json_db.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
 json_db.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
+json_db.register_dict('contacts', tuple, None)
 # register dicts that require key conversion
 for key in [
         'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',

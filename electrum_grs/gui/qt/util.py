@@ -434,7 +434,7 @@ class ChoicesLayout(object):
         vbox.addWidget(gb2)
         vbox2 = QVBoxLayout()
         gb2.setLayout(vbox2)
-        self.group = group = QButtonGroup()
+        self.group = group = QButtonGroup(gb2)
         if isinstance(choices, list):
             iterator = enumerate(choices)
         else:
@@ -471,6 +471,8 @@ class ChoiceWidget(QWidget):
 
         self.selected_index = -1
         self.selected_item = None
+        self.selected_key = None
+
         self.choices = choices
 
         if message and len(message) > 50:
@@ -498,7 +500,14 @@ class ChoiceWidget(QWidget):
     def on_selected(self, button):
         self.selected_index = self.group.id(button)
         self.selected_item = self.choices[self.selected_index]
+        self.selected_key = self.choices[self.selected_index][0]
         self.itemSelected.emit(self.selected_index)
+
+    def select(self, key):
+        iterator = enumerate(self.choices)
+        for i, c in iterator:
+            if key == c[0]:
+                self.group.button(i).click()
 
 
 def address_field(addresses):

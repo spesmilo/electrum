@@ -1,8 +1,8 @@
-import QtQuick 2.6
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 Item {
-    readonly property int paddingTiny: 4 //deprecated
     readonly property int paddingXXSmall: 4
     readonly property int paddingXSmall: 6
     readonly property int paddingSmall: 8

@@ -48,7 +48,6 @@ docker build \
     --file "$CONTRIB_ANDROID/Dockerfile" \
     "$PROJECT_ROOT"
 
-
 # maybe do fresh clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."

@@ -6,7 +6,7 @@ import time
 from typing import TYPE_CHECKING, Callable
 from functools import partial
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum_grs.i18n import _
 from electrum_grs.invoices import InvoiceError, PR_PAID, PR_BROADCASTING, PR_BROADCAST
@@ -19,7 +19,7 @@ from electrum_grs.wallet import Multisig_Wallet
 from electrum_grs.crypto import pw_decode_with_version_and_mac
 
 from .auth import AuthMixin, auth_protect
-from .qeaddresslistmodel import QEAddressListModel
+from .qeaddresslistmodel import QEAddressCoinListModel
 from .qechannellistmodel import QEChannelListModel
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
@@ -91,7 +91,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._synchronizing_progress = ''
 
         self._historyModel = None
-        self._addressModel = None
+        self._addressCoinModel = None
         self._requestModel = None
         self._invoiceModel = None
         self._channelModel = None
@@ -184,7 +184,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
-            self.addressModel.setDirty()
+            self.addressCoinModel.setDirty()
             self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
             self.balanceChanged.emit()
 
@@ -198,7 +198,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_removed_transaction(self, wallet, tx):
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
-            self.addressModel.setDirty()
+            self.addressCoinModel.setDirty()
             self.historyModel.initModel(True)  # setDirty()?
             self.balanceChanged.emit()
 
@@ -295,12 +295,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._historyModel = QETransactionListModel(self.wallet)
         return self._historyModel
 
-    addressModelChanged = pyqtSignal()
-    @pyqtProperty(QEAddressListModel, notify=addressModelChanged)
-    def addressModel(self):
-        if self._addressModel is None:
-            self._addressModel = QEAddressListModel(self.wallet)
-        return self._addressModel
+    addressCoinModelChanged = pyqtSignal()
+    @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
+    def addressCoinModel(self):
+        if self._addressCoinModel is None:
+            self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+        return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
@@ -658,7 +658,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         assert key is not None
         self._logger.debug(f'created request with key {key} addr {addr}')
-        self.addressModel.setDirty()
+        self.addressCoinModel.setDirty()
         self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 

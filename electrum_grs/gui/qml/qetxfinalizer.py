@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 from functools import partial
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.logging import get_logger
 from electrum_grs.i18n import _

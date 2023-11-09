@@ -1,6 +1,6 @@
 import asyncio
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs import mnemonic
 from electrum_grs import keystore

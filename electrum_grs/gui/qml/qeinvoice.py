@@ -1,7 +1,8 @@
+from enum import IntEnum
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
@@ -18,13 +19,15 @@ from .util import status_update_timer_interval, QtEventListener, event_listener
 
 
 class QEInvoice(QObject, QtEventListener):
-    class Type:
+    @pyqtEnum
+    class Type(IntEnum):
         Invalid = -1
         OnchainInvoice = 0
         LightningInvoice = 1
         LNURLPayRequest = 2
 
-    class Status:
+    @pyqtEnum
+    class Status(IntEnum):
         Unpaid = PR_UNPAID
         Expired = PR_EXPIRED
         Unknown = PR_UNKNOWN
@@ -33,9 +36,6 @@ class QEInvoice(QObject, QtEventListener):
         Failed = PR_FAILED
         Routing = PR_ROUTING
         Unconfirmed = PR_UNCONFIRMED
-
-    Q_ENUMS(Type)
-    Q_ENUMS(Status)
 
     _logger = get_logger(__name__)
 
@@ -545,13 +545,15 @@ class QEInvoiceParser(QEInvoice):
                     self._validateRecipient_bip21_onchain(self._pi.bip21)
 
     def _validateRecipient_bip21_onchain(self, bip21: Dict[str, Any]) -> None:
-        if 'amount' not in bip21:
-            amount = 0
-        else:
-            amount = bip21['amount']
+        if 'address' not in bip21:
+            self._logger.debug('Neither LN invoice nor address in bip21 uri')
+            self.validationError.emit('unknown', _('Unknown invoice'))
+            return
+
+        amount = bip21.get('amount', 0)
         outputs = [PartialTxOutput.from_address_and_value(bip21['address'], amount)]
         self._logger.debug(outputs)
-        message = bip21['message'] if 'message' in bip21 else ''
+        message = bip21.get('message', '')
         invoice = self.create_onchain_invoice(outputs, message, None, bip21)
         self._logger.debug(repr(invoice))
         self.setValidOnchainInvoice(invoice)
