@@ -1,7 +1,8 @@
+from enum import IntEnum
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -18,13 +19,15 @@ from .util import status_update_timer_interval, QtEventListener, event_listener
 
 
 class QEInvoice(QObject, QtEventListener):
-    class Type:
+    @pyqtEnum
+    class Type(IntEnum):
         Invalid = -1
         OnchainInvoice = 0
         LightningInvoice = 1
         LNURLPayRequest = 2
 
-    class Status:
+    @pyqtEnum
+    class Status(IntEnum):
         Unpaid = PR_UNPAID
         Expired = PR_EXPIRED
         Unknown = PR_UNKNOWN
@@ -33,9 +36,6 @@ class QEInvoice(QObject, QtEventListener):
         Failed = PR_FAILED
         Routing = PR_ROUTING
         Unconfirmed = PR_UNCONFIRMED
-
-    Q_ENUMS(Type)
-    Q_ENUMS(Status)
 
     _logger = get_logger(__name__)
 

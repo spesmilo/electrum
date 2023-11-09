@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
 
 from electrum.logging import get_logger
 from electrum import constants

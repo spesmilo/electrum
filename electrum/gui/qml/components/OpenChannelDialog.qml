@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -212,16 +212,19 @@ ElDialog {
     ChannelOpener {
         id: channelopener
         wallet: Daemon.currentWallet
-        onAuthRequired: {
+        onAuthRequired: (method, authMessage) => {
             app.handleAuthRequired(channelopener, method, authMessage)
         }
-        onValidationError: {
+        onValidationError: (code, message) => {
             if (code == 'invalid_nodeid') {
-                var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': message })
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Error'),
+                    text: message
+                })
                 dialog.open()
             }
         }
-        onConflictingBackup: {
+        onConflictingBackup: (message) => {
             var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
             dialog.open()
             dialog.accepted.connect(function() {
@@ -237,17 +240,17 @@ ElDialog {
             })
             dialog.open()
         }
-        onChannelOpening: {
+        onChannelOpening: (peer) => {
             console.log('Channel is opening')
             app.channelOpenProgressDialog.reset()
             app.channelOpenProgressDialog.peer = peer
             app.channelOpenProgressDialog.open()
         }
-        onChannelOpenError: {
+        onChannelOpenError: (message) => {
             app.channelOpenProgressDialog.state = 'failed'
             app.channelOpenProgressDialog.error = message
         }
-        onChannelOpenSuccess: {
+        onChannelOpenSuccess: (cid, has_onchain_backup, min_depth, tx_complete) => {
             var message = qsTr('Channel established.') + ' '
                     + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
             if (!tx_complete) {

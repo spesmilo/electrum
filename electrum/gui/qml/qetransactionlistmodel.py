@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Any
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
@@ -22,7 +22,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     _ROLE_NAMES=('txid', 'fee_sat', 'height', 'confirmations', 'timestamp', 'monotonic_timestamp',
                  'incoming', 'value', 'date', 'label', 'txpos_in_block', 'fee',
                  'inputs', 'outputs', 'section', 'type', 'lightning', 'payment_hash', 'key', 'complete')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -95,7 +95,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     def data(self, index, role):
         tx = self.tx_history[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
 
         try:
             value = tx[self._ROLE_NAMES[role_index]]

@@ -1,8 +1,9 @@
 import asyncio
 import concurrent
+from enum import IntEnum
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex, Q_ENUMS
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, pyqtEnum
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum import Network, keystore
 from electrum.bip32 import BIP32Node
@@ -15,21 +16,20 @@ from .util import TaskThread
 class QEBip39RecoveryListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
-    class State:
+    @pyqtEnum
+    class State(IntEnum):
         Idle = -1
         Scanning = 0
         Success = 1
         Failed = 2
         Cancelled = 3
 
-    Q_ENUMS(State)
-
     recoveryFailed = pyqtSignal()
     stateChanged = pyqtSignal()
 
     # define listmodel rolemap
     _ROLE_NAMES=('description', 'derivation_path', 'script_type')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
     def __init__(self, config, parent=None):
@@ -47,7 +47,7 @@ class QEBip39RecoveryListModel(QAbstractListModel):
 
     def data(self, index, role):
         account = self._accounts[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
         value = account[self._ROLE_NAMES[role_index]]
         if isinstance(value, (bool, list, int, str)) or value is None:
             return value

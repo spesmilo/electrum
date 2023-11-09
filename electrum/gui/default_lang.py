@@ -24,7 +24,7 @@ def get_default_language(*, gui_name: Optional[str] = None) -> str:
         name = QLocale.system().name()
         return name if name in languages else "en_UK"
     elif gui_name == "qml":
-        from PyQt5.QtCore import QLocale
+        from PyQt6.QtCore import QLocale
         # On Android QLocale does not return the system locale
         try:
             name = str(jLocale.getDefault().toString())

@@ -1,9 +1,10 @@
 import asyncio
 import concurrent
 import threading
+from enum import IntEnum
 from typing import Union
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
 
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
@@ -23,15 +24,14 @@ class InvalidSwapParameters(Exception): pass
 class QESwapHelper(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
-    class State:
+    @pyqtEnum
+    class State(IntEnum):
         Initialized = 0
         ServiceReady = 1
         Started = 2
         Failed = 3
         Success = 4
         Cancelled = 5
-
-    Q_ENUMS(State)
 
     confirm = pyqtSignal([str], arguments=['message'])
     error = pyqtSignal([str], arguments=['message'])

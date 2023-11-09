@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
-from PyQt5.QtCore import pyqtSlot, QSortFilterProxyModel, pyqtSignal, pyqtProperty
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtSlot, QSortFilterProxyModel, pyqtSignal, pyqtProperty
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
@@ -108,7 +108,7 @@ class QEAddressCoinListModel(QAbstractListModel):
     # define listmodel rolemap
     _ROLE_NAMES=('type', 'addridx', 'address', 'label', 'balance', 'numtx', 'held', 'height', 'amount', 'outpoint',
                  'short_outpoint', 'short_id', 'txid')
-    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -129,7 +129,7 @@ class QEAddressCoinListModel(QAbstractListModel):
 
     def data(self, index, role):
         address = self._items[index.row()]
-        role_index = role - Qt.UserRole
+        role_index = role - Qt.ItemDataRole.UserRole
         try:
             value = address[self._ROLE_NAMES[role_index]]
         except KeyError:

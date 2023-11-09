@@ -1,12 +1,13 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.14
-import QtQuick.Layouts 1.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
 import "controls"
 
+// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: dialog
 
@@ -18,6 +19,11 @@ ElDialog {
     header: null
     padding: 0
     topPadding: 0
+
+    onAboutToHide: {
+        console.log('about to hide')
+        qrscan.stop()
+    }
 
     function restart() {
         qrscan.restart()
@@ -32,6 +38,13 @@ ElDialog {
         } else {
             invoiceParser.recipient = data
         }
+    }
+
+    // override
+    function doClose() {
+        console.log('SendDialog doClose override') // doesn't trigger when going back??
+        qrscan.stop()
+        Qt.callLater(doReject)
     }
 
     ColumnLayout {
@@ -55,7 +68,10 @@ ElDialog {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
-                onClicked: dialog.dispatch(AppController.clipboardToText())
+                onClicked: {
+                    qrscan.stop()
+                    dialog.dispatch(AppController.clipboardToText())
+                }
             }
         }
 
