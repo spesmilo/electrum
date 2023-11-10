@@ -58,7 +58,9 @@ Pane {
                         text: txdetails.isUnrelated
                             ? qsTr('Transaction is unrelated to this wallet')
                             : txdetails.canRemove
-                                ? qsTr('This transaction is local to your wallet. It has not been published yet.')
+                                ? txdetails.lockDelay
+                                    ? qsTr('This transaction is local to your wallet and locked for the next %1 blocks.').arg(txdetails.lockDelay)
+                                    : qsTr('This transaction is local to your wallet. It has not been published yet.')
                                 : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
                                     ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
                                     : qsTr('You can bump its fee to speed up its confirmation'))
@@ -343,6 +345,7 @@ Pane {
                 icon.source: '../../icons/microphone.png'
                 text: qsTr('Broadcast')
                 visible: txdetails.canBroadcast
+                enabled: !txdetails.lockDelay
                 onClicked: txdetails.broadcast()
             }
 
@@ -356,9 +359,13 @@ Pane {
                     var msg = ''
                     if (txdetails.isComplete) {
                         if (!txdetails.isMined && !txdetails.mempoolDepth) // local
-                            // TODO: iff offline wallet?
-                            // TODO: or also if just temporarily offline?
-                            msg = qsTr('This transaction is complete. Please share it with an online device')
+                            if (txdetails.lockDelay) {
+                                msg = qsTr('This transaction is fully signed, but can only be broadcast after %1 blocks.').arg(txdetails.lockDelay)
+                            } else {
+                                // TODO: iff offline wallet?
+                                // TODO: or also if just temporarily offline?
+                                msg = qsTr('This transaction is fully signed, but has not been broadcast yet.')
+                            }
                     } else if (txdetails.wallet.isWatchOnly) {
                         msg = qsTr('This transaction should be signed. Present this QR code to the signing device')
                     } else if (txdetails.wallet.isMultisig && txdetails.wallet.walletType != '2fa') {

@@ -7,6 +7,7 @@ from electrum.logging import get_logger
 from electrum.util import format_time, TxMinedInfo
 from electrum.transaction import tx_from_any, Transaction
 from electrum.network import Network
+from electrum.address_synchronizer import TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -54,6 +55,7 @@ class QETxDetails(QObject, QtEventListener):
         self._is_complete = False
         self._is_mined = False
         self._is_final = False
+        self._lock_delay = 0
 
         self._mempool_depth = ''
 
@@ -234,6 +236,10 @@ class QETxDetails(QObject, QtEventListener):
     def isFinal(self):
         return self._is_final
 
+    @pyqtProperty(int, notify=detailsChanged)
+    def lockDelay(self):
+        return self._lock_delay
+
     def update(self, from_txid: bool = False):
         assert self._wallet
 
@@ -278,11 +284,15 @@ class QETxDetails(QObject, QtEventListener):
             fee_per_kb = txinfo.fee / size * 1000
             self._feerate_str = self._wallet.wallet.config.format_fee_rate(fee_per_kb)
 
+        self._lock_delay = 0
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
-        elif txinfo.tx_mined_status.height == 0:
-            self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
+        else:
+            if txinfo.tx_mined_status.height in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
+                self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
+            elif txinfo.tx_mined_status.height == TX_HEIGHT_FUTURE:
+                self._lock_delay = txinfo.tx_mined_status.wanted_height - self._wallet.wallet.adb.get_local_height()
 
         if self._wallet.wallet.lnworker:
             # Calling lnworker.get_onchain_history and wallet.get_full_history here
