@@ -49,6 +49,7 @@ Dialog {
         if (opened) {
             app.activeDialogs.push(abstractdialog)
             _wasOpened = true
+            _result = false
         } else {
             if (!_wasOpened)
                 return
