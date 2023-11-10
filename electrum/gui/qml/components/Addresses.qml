@@ -176,6 +176,10 @@ Pane {
                                                 // update listmodel when details change
                                                 listview.backingModel.updateAddress(model.address)
                                             })
+                                            page.addressDeleted.connect(function() {
+                                                // update listmodel when address removed
+                                                listview.backingModel.deleteAddress(model.address)
+                                            })
                                         } else {
                                             loader.toggle()
                                         }
