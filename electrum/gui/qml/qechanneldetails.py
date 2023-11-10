@@ -19,7 +19,7 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     @pyqtEnum
-    class State(IntEnum): # subset, only ones we currently need in UI
+    class State(IntEnum):  # subset, only ones we currently need in UI
         Closed = ChannelState.CLOSED
         Redeemed = ChannelState.REDEEMED
 
@@ -112,6 +112,14 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
         if self._channel.is_backup():
             return ''
         return 'Local' if self._channel.constraints.is_initiator else 'Remote'
+
+    @pyqtProperty('QVariantMap', notify=channelChanged)
+    def fundingOutpoint(self):
+        outpoint = self._channel.funding_outpoint
+        return {
+            'txid': outpoint.txid,
+            'index': outpoint.output_index
+        }
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def capacity(self):
