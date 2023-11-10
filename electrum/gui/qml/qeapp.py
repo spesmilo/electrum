@@ -7,7 +7,7 @@ import html
 import threading
 from typing import TYPE_CHECKING, Set
 
-from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
+from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
 from PyQt6.QtGui import QGuiApplication, QFontDatabase, QScreen
 from PyQt6.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
@@ -411,8 +411,9 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('QRIP', self.qr_ip_h)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
-            'apk_version': version.APK_VERSION,
-            'protocol_version': version.PROTOCOL_VERSION
+            'protocol_version': version.PROTOCOL_VERSION,
+            'qt_version': QT_VERSION_STR,
+            'pyqt_version': PYQT_VERSION_STR
         })
 
         self.plugins.load_plugin('trustedcoin')
