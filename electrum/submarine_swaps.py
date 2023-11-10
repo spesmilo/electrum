@@ -279,7 +279,7 @@ class SwapManager(Logger):
         if not self.lnwatcher.adb.is_up_to_date():
             return
         current_height = self.network.get_local_height()
-        delta = current_height - swap.locktime
+        remaining_time = swap.locktime - current_height
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
         for txin in txos.values():
@@ -292,7 +292,7 @@ class SwapManager(Logger):
             txin = None
             # if it is a normal swap, we might have double spent the funding tx
             # in that case we need to fail the HTLCs
-            if delta >= 0:
+            if remaining_time <= 0:
                 self._fail_swap(swap, 'expired')
 
         if txin:
@@ -341,7 +341,7 @@ class SwapManager(Logger):
                         if spent_height > 0:
                             self._fail_swap(swap, 'refund tx confirmed')
                             return
-                if delta < 0:
+                if remaining_time > 0:
                     # too early for refund
                     return
             else:
@@ -351,10 +351,10 @@ class SwapManager(Logger):
                     if funding_height.conf <= 0:
                         return
                     key = swap.payment_hash.hex()
-                    if -delta <= MIN_LOCKTIME_DELTA:
+                    if remaining_time <= MIN_LOCKTIME_DELTA:
                         if key in self.invoices_to_pay:
                             # fixme: should consider cltv of ln payment
-                            self.logger.info(f'locktime too close {key} {delta}')
+                            self.logger.info(f'locktime too close {key} {remaining_time}')
                             self.invoices_to_pay.pop(key, None)
                         return
                     if key not in self.invoices_to_pay:
