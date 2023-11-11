@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
+from .util import check_password_strength
+
+
 class QEWalletListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
@@ -366,3 +369,9 @@ class QEDaemon(AuthMixin, QObject):
         except Exception as e:
             verified = False
         return verified
+
+    @pyqtSlot(str, result=int)
+    def passwordStrength(self, password):
+        if len(password) == 0:
+            return 0
+        return check_password_strength(password)[0]

@@ -62,7 +62,26 @@ ElDialog {
                 visible: confirmPassword
                 showReveal: false
                 echoMode: pw_1.echoMode
-                enabled: pw_1.text.length >= 6
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.rightMargin: constants.paddingXLarge
+                Layout.topMargin: constants.paddingLarge
+                Layout.bottomMargin: constants.paddingLarge
+
+                visible: confirmPassword
+
+                Label {
+                    text: qsTr('Strength')
+                    color: Material.accentColor
+                    font.pixelSize: constants.fontSizeSmall
+                }
+
+                PasswordStrengthIndicator {
+                    Layout.fillWidth: true
+                    password: pw_1.text
+                }
             }
         }
 
@@ -77,4 +96,5 @@ ElDialog {
             }
         }
     }
+
 }
