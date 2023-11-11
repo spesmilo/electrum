@@ -105,7 +105,6 @@ class SwapServer(Logger, EventListener):
         their_pubkey = bytes.fromhex(request['refundPublicKey'])
         assert len(their_pubkey) == 33
         swap = self.sm.create_reverse_swap(
-            payment_hash=None,
             lightning_amount_sat=lightning_amount_sat,
             their_pubkey=their_pubkey
         )
@@ -121,6 +120,8 @@ class SwapServer(Logger, EventListener):
         return web.json_response(response)
 
     async def create_swap(self, r):
+        # reverse for client, forward for server
+        # requesting a normal swap (old protocol) will raise an exception
         self.sm.init_pairs()
         request = await r.json()
         req_type = request['type']
@@ -144,28 +145,6 @@ class SwapServer(Logger, EventListener):
                 'redeemScript': swap.redeem_script.hex(),
                 'timeoutBlockHeight': swap.locktime,
                 "onchainAmount": swap.onchain_amount,
-            }
-        elif req_type == 'submarine':
-            # old protocol
-            their_invoice=request['invoice']
-            their_pubkey=bytes.fromhex(request['refundPublicKey'])
-            assert len(their_pubkey) == 33
-            lnaddr = lndecode(their_invoice)
-            payment_hash = lnaddr.paymenthash
-            lightning_amount_sat = int(lnaddr.get_amount_sat()) # should return int
-            swap = self.sm.create_reverse_swap(
-                lightning_amount_sat=lightning_amount_sat,
-                payment_hash=payment_hash,
-                their_pubkey=their_pubkey
-            )
-            self.sm.add_invoice(their_invoice, pay_now=False)
-            response = {
-                "id": payment_hash.hex(),
-                "acceptZeroConf": False,
-                "expectedAmount": swap.onchain_amount,
-                "timeoutBlockHeight": swap.locktime,
-                "address": swap.lockup_address,
-                "redeemScript": swap.redeem_script.hex()
             }
         else:
             raise Exception('unsupported request type:' + req_type)

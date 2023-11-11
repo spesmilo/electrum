@@ -20,8 +20,6 @@ ElDialog {
 
     property string _closing_method
 
-    closePolicy: Popup.NoAutoClose
-
     padding: 0
 
     ColumnLayout {
@@ -120,14 +118,14 @@ ElDialog {
                         id: closetypeRemoteForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'remote_force'
-                        enabled: !channeldetails.isClosing && channeldetails.canForceClose
+                        enabled: !channeldetails.isClosing && channeldetails.canRequestForceClose
                         text: qsTr('Request Force-close')
                     }
                     ElRadioButton {
                         id: closetypeLocalForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'local_force'
-                        enabled: !channeldetails.isClosing && channeldetails.canForceClose && !channeldetails.isBackup
+                        enabled: !channeldetails.isClosing && channeldetails.canLocalForceClose && !channeldetails.isBackup
                         text: qsTr('Local Force-close')
                     }
                 }
@@ -213,8 +211,10 @@ ElDialog {
             // init default choice
             if (channeldetails.canCoopClose)
                 closetypeCoop.checked = true
-            else
+            else if (channeldetails.canRequestForceClose)
                 closetypeRemoteForce.checked = true
+            else
+                closetypeLocalForce.checked = true
         }
 
         onChannelCloseSuccess: {

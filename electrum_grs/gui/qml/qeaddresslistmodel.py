@@ -216,12 +216,30 @@ class QEAddressCoinListModel(QAbstractListModel):
 
         self._dirty = False
 
+        if self._filterModel is not None:
+            self._filterModel.invalidate()
+
     @pyqtSlot(str)
     def updateAddress(self, address):
         for i, a in enumerate(self._items):
             if a['address'] == address:
                 self.do_update(i, a)
                 return
+
+    @pyqtSlot(str)
+    def deleteAddress(self, address):
+        first = -1
+        last = -1
+        for i, a in enumerate(self._items):
+            if a['address'] == address:
+                if first < 0:
+                    first = i
+                last = i
+        if not first >= 0:
+            return
+        self.beginRemoveRows(QModelIndex(), first, last)
+        self._items = self._items[0:first] + self._items[last+1:]
+        self.endRemoveRows()
 
     def updateCoin(self, outpoint):
         for i, a in enumerate(self._items):
