@@ -1484,6 +1484,12 @@ class LNPeerAddr:
     def __str__(self):
         return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
 
+    @classmethod
+    def from_str(cls, s):
+        node_id, rest = extract_nodeid(s)
+        host, port = split_host_port(rest)
+        return LNPeerAddr(host, int(port), node_id)
+
     def __repr__(self):
         return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'
 

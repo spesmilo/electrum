@@ -2831,7 +2831,9 @@ class LNWallet(LNWorker):
             if self.stopping_soon:
                 return
             if self.config.ZEROCONF_TRUSTED_NODE:
-                await self.add_peer(self.config.ZEROCONF_TRUSTED_NODE)
+                peer = LNPeerAddr.from_str(self.config.ZEROCONF_TRUSTED_NODE)
+                if self._can_retry_addr(peer, urgent=True):
+                    await self._add_peer(peer.host, peer.port, peer.pubkey)
             for chan in self.channels.values():
                 if chan.is_closed():
                     continue
