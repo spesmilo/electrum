@@ -233,7 +233,7 @@ LNGOSSIP_FEATURES = (
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, node_keypair, features: LnFeatures):
+    def __init__(self, node_keypair, features: LnFeatures, *, config: 'SimpleConfig'):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -249,6 +249,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         self.features = features
         self.network = None  # type: Optional[Network]
+        self.config = config
         self.stopping_soon = False  # whether we are being shut down
         self._labels_cache = {} # txid -> str
         self.register_callbacks()
@@ -555,13 +556,12 @@ class LNGossip(LNWorker):
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, config: 'SimpleConfig'):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
-        super().__init__(node_keypair, LNGOSSIP_FEATURES)
+        LNWorker.__init__(self, node_keypair, LNGOSSIP_FEATURES, config=config)
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -806,7 +806,7 @@ class LNWallet(LNWorker):
         features = LNWALLET_FEATURES
         if self.config.ACCEPT_ZEROCONF_CHANNELS:
             features |= LnFeatures.OPTION_ZEROCONF_OPT
-        LNWorker.__init__(self, self.node_keypair, features)
+        LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = None
         self.lnrater: LNRater = None
         self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
