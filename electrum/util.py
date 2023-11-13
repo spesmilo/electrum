@@ -1820,7 +1820,8 @@ def event_listener(func):
 
 
 _NetAddrType = TypeVar("_NetAddrType")
-
+# requirements for _NetAddrType:
+# - reasonable __hash__() implementation (e.g. based on host/port of remote endpoint)
 
 class NetworkRetryManager(Generic[_NetAddrType]):
     """Truncated Exponential Backoff for network connections."""
