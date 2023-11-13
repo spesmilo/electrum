@@ -1206,6 +1206,13 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SCID_ALIAS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SCID_ALIAS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
+    OPTION_ZEROCONF_REQ = 1 << 50
+    OPTION_ZEROCONF_OPT = 1 << 51
+
+    _ln_feature_direct_dependencies[OPTION_ZEROCONF_OPT] = {OPTION_SCID_ALIAS_OPT}
+    _ln_feature_contexts[OPTION_ZEROCONF_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_ZEROCONF_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:
         features = self  # copy
@@ -1476,6 +1483,12 @@ class LNPeerAddr:
 
     def __str__(self):
         return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
+
+    @classmethod
+    def from_str(cls, s):
+        node_id, rest = extract_nodeid(s)
+        host, port = split_host_port(rest)
+        return LNPeerAddr(host, int(port), node_id)
 
     def __repr__(self):
         return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'

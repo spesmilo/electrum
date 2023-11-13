@@ -639,7 +639,8 @@ class Channel(AbstractChannel):
     def __repr__(self):
         return "Channel(%s)"%self.get_id_for_log()
 
-    def __init__(self, state: 'StoredDict', *, name=None, lnworker=None, initial_feerate=None):
+    def __init__(self, state: 'StoredDict', *, name=None, lnworker=None, initial_feerate=None, opening_fee=None):
+        self.opening_fee = opening_fee
         self.name = name
         self.channel_id = bfh(state["channel_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
@@ -694,6 +695,9 @@ class Channel(AbstractChannel):
         """
         alias = self.storage.get('alias')
         return bytes.fromhex(alias) if alias else None
+
+    def get_scid_or_local_alias(self):
+        return self.short_channel_id or self.get_local_scid_alias()
 
     def has_onchain_backup(self):
         return self.storage.get('has_onchain_backup', False)
@@ -830,6 +834,10 @@ class Channel(AbstractChannel):
     def is_static_remotekey_enabled(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_STATIC_REMOTEKEY)
+
+    def is_zeroconf(self) -> bool:
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        return bool(channel_type & ChannelType.OPTION_ZEROCONF)
 
     @property
     def sweep_address(self) -> str:
@@ -1696,7 +1704,7 @@ class Channel(AbstractChannel):
         if conf < self.funding_txn_minimum_depth():
             #self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return False
-        assert conf > 0
+        assert conf > 0 or self.is_zeroconf()
         # check funding_tx amount and script
         funding_tx = self.lnworker.lnwatcher.adb.get_transaction(funding_txid)
         if not funding_tx:
