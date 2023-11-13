@@ -38,15 +38,20 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                Item {
+                TextHighlightPane {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: qr.height
-                    Layout.topMargin: constants.paddingSmall
-                    Layout.bottomMargin: constants.paddingSmall
-                    QRImage {
-                        id: qr
-                        qrdata: dialog.text_qr
-                        anchors.centerIn: parent
+                    Layout.leftMargin: constants.paddingMedium
+                    Layout.rightMargin: constants.paddingMedium
+                    padding: constants.paddingMedium
+                    ColumnLayout {
+                        width: parent.width
+                        QRImage {
+                            id: qr
+                            qrdata: dialog.text_qr
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingMedium
+                            Layout.bottomMargin: constants.paddingMedium
+                        }
                     }
                 }
 

@@ -52,112 +52,124 @@ ElDialog {
                     State {
                         name: 'bolt11'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                        PropertyChanges { target: bolt11label; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: bolt11label; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: bolt11Button; checked: true }
                     },
                     State {
                         name: 'bip21uri'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                        PropertyChanges { target: bip21label; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: bip21label; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: bip21Button; checked: true }
                     },
                     State {
                         name: 'address'
                         PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                        PropertyChanges { target: addresslabel; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: addresslabel; color: Material.accentColor; font.underline: true }
+                        // PropertyChanges { target: addressButton; checked: true }
                     }
                 ]
 
-                Rectangle {
-                    id: qrbg
+                TextHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: constants.paddingSmall
-                    Layout.bottomMargin: constants.paddingSmall
+                    Layout.fillWidth: true
 
-                    Layout.preferredWidth: dialog.width * 7/8
-                    Layout.preferredHeight: dialog.width * 7/8
+                    ColumnLayout {
+                        width: parent.width
+                        Rectangle {
+                            id: qrbg
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingSmall
+                            Layout.bottomMargin: constants.paddingSmall
 
-                    color: 'white'
+                            Layout.preferredWidth: dialog.width * 7/8
+                            Layout.preferredHeight: dialog.width * 7/8
 
-                    Loader {
-                        id: qrloader
-                        anchors.centerIn: parent
-                        Component {
-                            id: qri_bolt11
-                            QRImage {
-                                qrdata: _bolt11
-                                render: _render_qr
-                                enableToggleText: true
-                            }
-                        }
-                        Component {
-                            id: qri_bip21uri
-                            QRImage {
-                                qrdata: _bip21uri
-                                render: _render_qr
-                                enableToggleText: true
-                            }
-                        }
-                        Component {
-                            id: qri_address
-                            QRImage {
-                                qrdata: _address
-                                render: _render_qr
-                                enableToggleText: true
-                            }
-                        }
-                    }
-                }
+                            color: 'white'
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: constants.paddingLarge
-                    Label {
-                        id: bolt11label
-                        text: qsTr('Lightning')
-                        color: _bolt11 ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _bolt11
-                            onClicked: {
-                                rootLayout.state = 'bolt11'
-                                Config.preferredRequestType = 'bolt11'
+                            Loader {
+                                id: qrloader
+                                anchors.centerIn: parent
+                                Component {
+                                    id: qri_bolt11
+                                    QRImage {
+                                        qrdata: _bolt11
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
+                                Component {
+                                    id: qri_bip21uri
+                                    QRImage {
+                                        qrdata: _bip21uri
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
+                                Component {
+                                    id: qri_address
+                                    QRImage {
+                                        qrdata: _address
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
                             }
                         }
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: constants.paddingXXSmall
-                        Layout.preferredHeight: constants.paddingXXSmall
-                        radius: constants.paddingXXSmall / 2
-                        color: Material.accentColor
-                    }
-                    Label {
-                        id: bip21label
-                        text: qsTr('URI')
-                        color: _bip21uri ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _bip21uri
-                            onClicked: {
-                                rootLayout.state = 'bip21uri'
-                                Config.preferredRequestType = 'bip21uri'
+
+                        ButtonContainer {
+                            Layout.fillWidth: true
+                            showSeparator: false
+                            Component {
+                                id: _ind
+                                Rectangle {
+                                    color: Material.dialogColor
+                                    opacity: parent.checked ? 1 : 0
+                                    radius: 5
+                                    width: parent.width
+                                    height: parent.height
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 200 }
+                                    }
+                                }
                             }
-                        }
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: constants.paddingXXSmall
-                        Layout.preferredHeight: constants.paddingXXSmall
-                        radius: constants.paddingXXSmall / 2
-                        color: Material.accentColor
-                    }
-                    Label {
-                        id: addresslabel
-                        text: qsTr('Address')
-                        color: _address ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _address
-                            onClicked: {
-                                rootLayout.state = 'address'
-                                Config.preferredRequestType = 'address'
+                            TabButton {
+                                id: bolt11Button
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('Lightning')
+                                enabled: _bolt11
+                                checked: rootLayout.state == 'bolt11'
+                                indicator: _ind.createObject()
+                                onClicked: {
+                                    rootLayout.state = 'bolt11'
+                                    Config.preferredRequestType = 'bolt11'
+                                }
+                            }
+                            TabButton {
+                                id: bip21Button
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('URI')
+                                enabled: _bip21uri
+                                checked: rootLayout.state == 'bip21uri'
+                                indicator: _ind.createObject()
+                                onClicked: {
+                                    rootLayout.state = 'bip21uri'
+                                    Config.preferredRequestType = 'bip21uri'
+                                }
+                            }
+                            TabButton {
+                                id: addressButton
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('Address')
+                                checked: rootLayout.state == 'address'
+                                indicator: _ind.createObject()
+                                onClicked: {
+                                    rootLayout.state = 'address'
+                                    Config.preferredRequestType = 'address'
+                                }
                             }
                         }
                     }

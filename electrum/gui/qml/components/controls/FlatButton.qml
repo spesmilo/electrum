@@ -11,6 +11,8 @@ TabButton {
     property bool textUnderIcon: true
 
     font.pixelSize: constants.fontSizeSmall
+    icon.width: constants.iconSizeMedium
+    icon.height: constants.iconSizeMedium
     display: textUnderIcon ? IconLabel.TextUnderIcon : IconLabel.TextBesideIcon
 
     contentItem: IconLabel {
