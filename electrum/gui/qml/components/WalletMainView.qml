@@ -94,7 +94,9 @@ Item {
             text_help: helptext,
             text_warn: data[2]
                 ? ''
-                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
+                : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
+                   qsTr('This might cause issues if signing offline.'),
+                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' ')
         })
         dialog.open()
     }

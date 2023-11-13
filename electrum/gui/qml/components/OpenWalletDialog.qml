@@ -60,6 +60,7 @@ ElDialog {
                 onTextChanged: {
                     unlockButton.enabled = true
                     _unlockClicked = false
+                    _invalidPassword = false
                 }
                 onAccepted: {
                     unlock()
