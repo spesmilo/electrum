@@ -1459,6 +1459,8 @@ class Peer(Logger):
 
     def maybe_send_commitment(self, chan: Channel) -> bool:
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
+        if chan.is_closed():
+            return False
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
             return False
@@ -1582,6 +1584,8 @@ class Peer(Logger):
         return htlc
 
     def send_revoke_and_ack(self, chan: Channel):
+        if chan.is_closed():
+            return
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
