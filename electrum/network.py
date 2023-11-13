@@ -369,7 +369,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.channel_db.load_data()
-            self.lngossip = lnworker.LNGossip()
+            self.lngossip = lnworker.LNGossip(self.config)
             self.lngossip.start_network(self)
 
     async def stop_gossip(self, *, full_shutdown: bool = False):

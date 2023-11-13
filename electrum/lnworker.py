@@ -249,7 +249,6 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         self.features = features
         self.network = None  # type: Optional[Network]
-        self.config = None  # type: Optional[SimpleConfig]
         self.stopping_soon = False  # whether we are being shut down
         self._labels_cache = {} # txid -> str
         self.register_callbacks()
@@ -373,7 +372,6 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         assert network
         assert self.network is None, "already started"
         self.network = network
-        self.config = network.config
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
@@ -557,7 +555,8 @@ class LNGossip(LNWorker):
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
