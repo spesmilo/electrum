@@ -52,20 +52,14 @@ ElDialog {
                     State {
                         name: 'bolt11'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                        // PropertyChanges { target: bolt11label; color: Material.accentColor; font.underline: true }
-                        // PropertyChanges { target: bolt11Button; checked: true }
                     },
                     State {
                         name: 'bip21uri'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                        // PropertyChanges { target: bip21label; color: Material.accentColor; font.underline: true }
-                        // PropertyChanges { target: bip21Button; checked: true }
                     },
                     State {
                         name: 'address'
                         PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                        // PropertyChanges { target: addresslabel; color: Material.accentColor; font.underline: true }
-                        // PropertyChanges { target: addressButton; checked: true }
                     }
                 ]
 
