@@ -442,11 +442,11 @@ class TxMonMixin(QtEventListener):
             self.txidChanged.emit()
 
     # override
-    def get_tx(self):
+    def get_tx(self) -> None:
         pass
 
     # override
-    def tx_verified(self):
+    def tx_verified(self) -> None:
         pass
 
 
