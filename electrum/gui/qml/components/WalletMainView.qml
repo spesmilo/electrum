@@ -309,6 +309,7 @@ Item {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
+                enabled: !invoiceParser.busy
                 onClicked: openSendDialog()
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
@@ -329,6 +330,7 @@ Item {
         wallet: Daemon.currentWallet
         onValidationError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
                 text: message
             })
             dialog.closed.connect(function() {
