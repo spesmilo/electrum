@@ -101,6 +101,18 @@ ElDialog {
                             plaintext.text = AppController.clipboardToText()
                         }
                     }
+                    ToolButton {
+                        icon.source: '../../icons/share.png'
+                        icon.color: enabled ? 'transparent' : Material.iconDisabledColor
+                        enabled: plaintext.text
+                        onClicked: {
+                            var dialog = app.genericShareDialog.createObject(app, {
+                                title: qsTr('Message'),
+                                text_qr: plaintext.text
+                            })
+                            dialog.open()
+                        }
+                    }
                 }
             }
 

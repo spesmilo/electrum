@@ -45,20 +45,26 @@ ElDialog {
             Layout.rightMargin: constants.paddingLarge
 
             Label {
-                text: Daemon.currentWallet.isWatchOnly
-                        ? qsTr('Import additional addresses')
-                        : qsTr('Import additional keys')
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: (Daemon.currentWallet.isWatchOnly
+                        ? qsTr('Enter, paste or scan additional addresses')
+                        : qsTr('Enter, paste or scan additional private keys')) +
+                      '. ' + qsTr('You can add multiple, each on a separate line.')
             }
 
             RowLayout {
-                TextArea {
+                ElTextArea {
                     id: import_ta
                     Layout.fillWidth: true
-                    Layout.minimumHeight: 80
-                    focus: true
+                    Layout.fillHeight: true
+                    font.family: FixedFont
                     wrapMode: TextEdit.WrapAnywhere
                     onTextChanged: valid = verify(text)
-                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    background: PaneInsetBackground {
+                        baseColor: constants.darkerDialogBackground
+                    }
                 }
                 ColumnLayout {
                     Layout.alignment: Qt.AlignTop
