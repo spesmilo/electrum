@@ -2389,14 +2389,11 @@ class LNWallet(LNWorker):
         util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
         if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
             return
-        q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             chan.pop_onion_key(htlc_id)
             payment_key = payment_hash + shi.payment_secret_orig
-            paysession = self._paysessions.get(payment_key)
-            if paysession:
-                q = paysession.sent_htlcs_q
-        if q:
+            paysession = self._paysessions[payment_key]
+            q = paysession.sent_htlcs_q
             htlc_log = HtlcLog(
                 success=True,
                 route=shi.route,
@@ -2421,17 +2418,13 @@ class LNWallet(LNWorker):
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
         if self.is_forwarded_htlc_notify(chan=chan, htlc_id=htlc_id):
             return
-        q = None
         if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
             onion_key = chan.pop_onion_key(htlc_id)
             payment_okey = payment_hash + shi.payment_secret_orig
-            paysession = self._paysessions.get(payment_okey)
-            if paysession:
-                q = paysession.sent_htlcs_q
-        if q:
+            paysession = self._paysessions[payment_okey]
+            q = paysession.sent_htlcs_q
             # detect if it is part of a bucket
             # if yes, wait until the bucket completely failed
-            shi = self.sent_htlcs_info[(payment_hash, chan.short_channel_id, htlc_id)]
             route = shi.route
             if error_bytes:
                 # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
