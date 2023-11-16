@@ -1,7 +1,7 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -16,6 +16,9 @@ Flickable {
     property alias wrapMode: edit.wrapMode
     property alias background: rootpane.background
     property alias font: edit.font
+    property alias inputMethodHints: edit.inputMethodHints
+    property alias placeholderText: edit.placeholderText
+    property alias color: edit.color
 
     contentWidth: rootpane.width
     contentHeight: rootpane.height

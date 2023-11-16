@@ -122,10 +122,10 @@ WizardComponent {
         }
 
         RowLayout {
-            TextArea {
+            ElTextArea {
                 id: masterkey_ta
                 Layout.fillWidth: true
-                Layout.minimumHeight: 80
+                Layout.minimumHeight: 160
                 font.family: FixedFont
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: {
@@ -133,8 +133,12 @@ WizardComponent {
                         verifyMasterKey(text)
                 }
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                background: PaneInsetBackground {
+                    baseColor: constants.darkerDialogBackground
+                }
             }
             ColumnLayout {
+                Layout.alignment: Qt.AlignTop
                 ToolButton {
                     icon.source: '../../../icons/paste.png'
                     icon.height: constants.iconSizeMedium

@@ -39,6 +39,8 @@ ApplicationWindow
     property var _exceptionDialog
 
     property QtObject appMenu: Menu {
+        id: menu
+
         parent: Overlay.overlay
         dim: true
         modal: true
@@ -46,7 +48,8 @@ ApplicationWindow
             color: "#44000000"
         }
 
-        id: menu
+        property int implicitChildrenWidth: 64
+        width: implicitChildrenWidth + 60 + constants.paddingLarge
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
@@ -82,6 +85,25 @@ ApplicationWindow
             stack.pushOnRoot(url)
             currentIndex = -1
         }
+
+        // determine widest element and store in implicitChildrenWidth
+        function updateImplicitWidth() {
+            for (let i = 0; i < menu.count; i++) {
+                var item = menu.itemAt(i)
+                var txt = item.text
+                var txtwidth = fontMetrics.advanceWidth(txt)
+                if (txtwidth > menu.implicitChildrenWidth) {
+                    menu.implicitChildrenWidth = txtwidth
+                }
+            }
+        }
+
+        FontMetrics {
+            id: fontMetrics
+            font: menu.font
+        }
+
+        Component.onCompleted: updateImplicitWidth()
     }
 
     function openAppMenu() {

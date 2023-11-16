@@ -61,6 +61,8 @@ tlvtype,open_channel_tlvs,upfront_shutdown_script,0
 tlvdata,open_channel_tlvs,upfront_shutdown_script,shutdown_scriptpubkey,byte,...
 tlvtype,open_channel_tlvs,channel_type,1
 tlvdata,open_channel_tlvs,channel_type,type,byte,...
+tlvtype,open_channel_tlvs,channel_opening_fee,10000
+tlvdata,open_channel_tlvs,channel_opening_fee,channel_opening_fee,u64,
 msgtype,accept_channel,33
 msgdata,accept_channel,temporary_channel_id,byte,32
 msgdata,accept_channel,dust_limit_satoshis,u64,

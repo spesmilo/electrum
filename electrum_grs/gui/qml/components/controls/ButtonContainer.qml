@@ -6,6 +6,8 @@ import QtQuick.Controls.Material
 Container {
     id: root
 
+    property bool showSeparator: true
+
     property Item _layout
 
     function fillContentItem() {
@@ -48,7 +50,7 @@ Container {
             required property int pheight
             required property int master_idx
             Layout.fillWidth: false
-            Layout.preferredWidth: 2
+            Layout.preferredWidth: showSeparator ? 2 : 0
             Layout.preferredHeight: pheight
             Layout.alignment: Qt.AlignVCenter
             color: constants.darkerBackground

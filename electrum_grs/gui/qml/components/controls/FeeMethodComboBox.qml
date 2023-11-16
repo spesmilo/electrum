@@ -3,7 +3,7 @@ import QtQuick.Controls
 
 import org.electrum 1.0
 
-ComboBox {
+ElComboBox {
     id: control
 
     required property QtObject feeslider

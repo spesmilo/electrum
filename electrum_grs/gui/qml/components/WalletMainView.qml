@@ -94,7 +94,9 @@ Item {
             text_help: helptext,
             text_warn: data[2]
                 ? ''
-                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
+                : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
+                   qsTr('This might cause issues if signing offline.'),
+                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' ')
         })
         dialog.open()
     }
@@ -137,7 +139,8 @@ Item {
             color: "#44000000"
         }
 
-        width: parent.width / 2
+        property int implicitChildrenWidth: 64
+        width: implicitChildrenWidth + 60 + constants.paddingLarge
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
@@ -202,6 +205,25 @@ Item {
         function deselect() {
             currentIndex = -1
         }
+
+        // determine widest element and store in implicitChildrenWidth
+        function updateImplicitWidth() {
+            for (let i = 0; i < menu.count; i++) {
+                var item = menu.itemAt(i)
+                var txt = item.text
+                var txtwidth = fontMetrics.advanceWidth(txt)
+                if (txtwidth > menu.implicitChildrenWidth) {
+                    menu.implicitChildrenWidth = txtwidth
+                }
+            }
+        }
+
+        FontMetrics {
+            id: fontMetrics
+            font: menu.font
+        }
+
+        Component.onCompleted: updateImplicitWidth()
     }
 
     ColumnLayout {

@@ -46,28 +46,34 @@ pr_color = {
     PR_UNCONFIRMED: (.9, .6, .3, 1),
 }
 
-pr_tooltips = {
-    PR_UNPAID:_('Unpaid'),
-    PR_PAID:_('Paid'),
-    PR_UNKNOWN:_('Unknown'),
-    PR_EXPIRED:_('Expired'),
-    PR_INFLIGHT:_('In progress'),
-    PR_BROADCASTING:_('Broadcasting'),
-    PR_BROADCAST:_('Broadcast successfully'),
-    PR_FAILED:_('Failed'),
-    PR_ROUTING: _('Computing route...'),
-    PR_UNCONFIRMED: _('Unconfirmed'),
-}
+
+def pr_tooltips():
+    return {
+        PR_UNPAID: _('Unpaid'),
+        PR_PAID: _('Paid'),
+        PR_UNKNOWN: _('Unknown'),
+        PR_EXPIRED: _('Expired'),
+        PR_INFLIGHT: _('In progress'),
+        PR_BROADCASTING: _('Broadcasting'),
+        PR_BROADCAST: _('Broadcast successfully'),
+        PR_FAILED: _('Failed'),
+        PR_ROUTING: _('Computing route...'),
+        PR_UNCONFIRMED: _('Unconfirmed'),
+    }
+
+
+def pr_expiration_values():
+    return {
+        0: _('Never'),
+        10*60: _('10 minutes'),
+        60*60: _('1 hour'),
+        24*60*60: _('1 day'),
+        7*24*60*60: _('1 week'),
+    }
+
 
 PR_DEFAULT_EXPIRATION_WHEN_CREATING = 24*60*60  # 1 day
-pr_expiration_values = {
-    0: _('Never'),
-    10*60: _('10 minutes'),
-    60*60: _('1 hour'),
-    24*60*60: _('1 day'),
-    7*24*60*60: _('1 week'),
-}
-assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
+assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values()
 
 
 def _decode_outputs(outputs) -> Optional[List[PartialTxOutput]]:
@@ -86,7 +92,6 @@ def _decode_outputs(outputs) -> Optional[List[PartialTxOutput]]:
 # Our higher level invoices code however uses 0 for "never".
 # Hence set some high expiration here
 LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
-
 
 
 @attr.s
@@ -118,7 +123,6 @@ class BaseInvoice(StoredObject):
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
-
     def is_lightning(self) -> bool:
         raise NotImplementedError()
 
@@ -131,7 +135,7 @@ class BaseInvoice(StoredObject):
         raise NotImplementedError()
 
     def get_status_str(self, status):
-        status_str = pr_tooltips[status]
+        status_str = pr_tooltips()[status]
         if status == PR_UNPAID:
             if self.exp > 0 and self.exp != LN_EXPIRY_NEVER:
                 expiration = self.get_expiration_date()

@@ -447,7 +447,7 @@ class NetworkChoiceLayout(object):
             self.tor_cb.hide()
             return
         self.tor_proxy = found_proxy
-        self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
+        self.tor_cb.setText(_("Use Tor proxy at port {}").format(str(found_proxy[1])))
         if (self.proxy_cb.isChecked()
                 and self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
                 and self.proxy_host.text() == "127.0.0.1"
@@ -607,7 +607,6 @@ class ServerWidget(QWidget, QtEventListener):
             self.server_e.setText(server)
             self.set_server()
         self.nodes_list_widget.setServer.connect(do_set_server)
-
 
         self.layout().addWidget(self.nodes_list_widget)
         self.nodes_list_widget.update(network=self.network,

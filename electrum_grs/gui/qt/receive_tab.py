@@ -12,8 +12,7 @@ from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineE
 from electrum_grs.bitcoin import is_address
 from electrum_grs.i18n import _
 from electrum_grs.util import InvoiceError
-from electrum_grs.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
-from electrum_grs.invoices import PR_EXPIRED, pr_expiration_values
+from electrum_grs.invoices import pr_expiration_values
 from electrum_grs.logging import Logger
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
@@ -177,7 +176,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def update_expiry_text(self):
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        text = pr_expiration_values[expiry]
+        text = pr_expiration_values()[expiry]
         self.expiry_button.setText(text)
 
     def expiry_dialog(self):
@@ -192,7 +191,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiry'), default_choice=expiry)
+        v = self.window.query_choice(msg, pr_expiration_values(), title=_('Expiry'), default_choice=expiry)
         if v is None:
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v

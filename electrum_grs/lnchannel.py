@@ -168,6 +168,8 @@ class RemoteCtnTooFarInFuture(Exception): pass
 def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
 
+def now():
+    return int(time.time())
 
 class HTLCWithStatus(NamedTuple):
     channel_id: bytes
@@ -350,8 +352,7 @@ class AbstractChannel(Logger, ABC):
                             self.set_state(ChannelState.REDEEMED)
                             break
             else:
-                now = int(time.time())
-                if self.lnworker and (now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT):
+                if self.lnworker and (now() - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT):
                     self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
@@ -638,7 +639,8 @@ class Channel(AbstractChannel):
     def __repr__(self):
         return "Channel(%s)"%self.get_id_for_log()
 
-    def __init__(self, state: 'StoredDict', *, name=None, lnworker=None, initial_feerate=None):
+    def __init__(self, state: 'StoredDict', *, name=None, lnworker=None, initial_feerate=None, opening_fee=None):
+        self.opening_fee = opening_fee
         self.name = name
         self.channel_id = bfh(state["channel_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
@@ -668,6 +670,7 @@ class Channel(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
         self.sent_announcement_signatures = False
+        self.htlc_settle_time = {}
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
         """Get scid_alias to be used for *outgoing* HTLCs.
@@ -692,6 +695,9 @@ class Channel(AbstractChannel):
         """
         alias = self.storage.get('alias')
         return bytes.fromhex(alias) if alias else None
+
+    def get_scid_or_local_alias(self):
+        return self.short_channel_id or self.get_local_scid_alias()
 
     def has_onchain_backup(self):
         return self.storage.get('has_onchain_backup', False)
@@ -753,8 +759,7 @@ class Channel(AbstractChannel):
     def add_or_update_peer_addr(self, peer: LNPeerAddr) -> None:
         if 'peer_network_addresses' not in self.storage:
             self.storage['peer_network_addresses'] = {}
-        now = int(time.time())
-        self.storage['peer_network_addresses'][peer.net_addr_str()] = now
+        self.storage['peer_network_addresses'][peer.net_addr_str()] = now()
 
     def get_peer_addresses(self) -> Iterator[LNPeerAddr]:
         # sort by timestamp: most recent first
@@ -776,7 +781,6 @@ class Channel(AbstractChannel):
             scid = self.short_channel_id
         sorted_node_ids = list(sorted([self.node_id, self.get_local_pubkey()]))
         channel_flags = b'\x00' if sorted_node_ids[0] == self.get_local_pubkey() else b'\x01'
-        now = int(time.time())
         htlc_maximum_msat = min(self.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * self.constraints.capacity)
 
         chan_upd = encode_msg(
@@ -790,7 +794,7 @@ class Channel(AbstractChannel):
             fee_base_msat=self.forwarding_fee_base_msat,
             fee_proportional_millionths=self.forwarding_fee_proportional_millionths,
             chain_hash=constants.net.rev_genesis_bytes(),
-            timestamp=now,
+            timestamp=now(),
         )
         sighash = sha256(chan_upd[2 + 64:])
         sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
@@ -830,6 +834,10 @@ class Channel(AbstractChannel):
     def is_static_remotekey_enabled(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_STATIC_REMOTEKEY)
+
+    def is_zeroconf(self) -> bool:
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        return bool(channel_type & ChannelType.OPTION_ZEROCONF)
 
     @property
     def sweep_address(self) -> str:
@@ -1449,6 +1457,7 @@ class Channel(AbstractChannel):
             raise Exception("incorrect preimage for HTLC")
         assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
+        self.htlc_settle_time[htlc_id] = now()
 
     def get_payment_hash(self, htlc_id: int) -> bytes:
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
@@ -1667,6 +1676,9 @@ class Channel(AbstractChannel):
                     continue
                 if htlc.cltv_abs - recv_htlc_deadline_delta > local_height:
                     continue
+                # Do not force-close if we just sent fullfill_htlc and have not received revack yet
+                if htlc_id in self.htlc_settle_time and now() - self.htlc_settle_time[htlc_id] < 30:
+                    continue
                 htlcs_we_could_reclaim[(RECEIVED, htlc_id)] = htlc
         # If there is an offered HTLC which has already expired (+ some grace period after), we
         # will unilaterally close the channel and time out the HTLC
@@ -1692,7 +1704,7 @@ class Channel(AbstractChannel):
         if conf < self.funding_txn_minimum_depth():
             #self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return False
-        assert conf > 0
+        assert conf > 0 or self.is_zeroconf()
         # check funding_tx amount and script
         funding_tx = self.lnworker.lnwatcher.adb.get_transaction(funding_txid)
         if not funding_tx:
