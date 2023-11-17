@@ -974,10 +974,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain: Optional[Iterable[str]] = None,
             *,
             nonlocal_only: bool = False,
-            confirmed_only: bool = False,
+            confirmed_only: bool = None,
     ) -> Sequence[PartialTxInput]:
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
+        if confirmed_only is None:
+            confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
         utxos = self.get_utxos(
             domain=domain,
             excluded_addresses=frozen_addresses,
