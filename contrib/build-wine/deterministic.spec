@@ -13,17 +13,7 @@ home = 'C:\\electrum\\'
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('safetlib')
-hiddenimports += collect_submodules('btchip')          # device plugin: ledger
-hiddenimports += collect_submodules('ledger_bitcoin')  # device plugin: ledger
-hiddenimports += collect_submodules('keepkeylib')
-hiddenimports += collect_submodules('websocket')
-hiddenimports += collect_submodules('ckcc')
-hiddenimports += collect_submodules('bitbox02')
-hiddenimports += ['electrum.plugins.jade.jade']
-hiddenimports += ['electrum.plugins.jade.jadepy.jade']
-hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
+hiddenimports += collect_submodules('electrum.plugins')
 
 
 binaries = []
@@ -39,10 +29,10 @@ datas = [
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
     (home+'electrum/wordlist/slip39.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
-    (home+'electrum/plugins', 'electrum/plugins'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
 ]
-datas += collect_data_files('trezorlib')
+datas += collect_data_files('electrum.plugins')
+datas += collect_data_files('trezorlib')  # TODO is this needed? and same question for other hww libs
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
@@ -60,16 +50,6 @@ a = Analysis([home+'run_electrum',
               home+'electrum/bitcoin.py',
               home+'electrum/dnssec.py',
               home+'electrum/commands.py',
-              home+'electrum/plugins/trustedcoin/qt.py',
-              home+'electrum/plugins/cosigner_pool/qt.py',
-              home+'electrum/plugins/trezor/qt.py',
-              home+'electrum/plugins/safe_t/client.py',
-              home+'electrum/plugins/safe_t/qt.py',
-              home+'electrum/plugins/keepkey/qt.py',
-              home+'electrum/plugins/ledger/qt.py',
-              home+'electrum/plugins/coldcard/qt.py',
-              home+'electrum/plugins/jade/qt.py',
-              #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
              datas=datas,
