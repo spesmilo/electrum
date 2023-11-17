@@ -48,10 +48,7 @@ datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
 
-# Add libusb so Trezor and Safe-T mini will work
-binaries = [(electrum + "electrum/libusb-1.0.dylib", ".")]
-binaries += [(electrum + "electrum/libsecp256k1.2.dylib", ".")]
-binaries += [(electrum + "electrum/libzbar.0.dylib", ".")]
+binaries = [(electrum + "electrum/*.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
