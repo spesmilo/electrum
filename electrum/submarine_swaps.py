@@ -103,7 +103,7 @@ def now():
 @stored_in('submarine_swaps')
 @attr.s
 class SwapData(StoredObject):
-    is_reverse = attr.ib(type=bool)
+    is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)
     locktime = attr.ib(type=int)
     onchain_amount = attr.ib(type=int)  # in sats
     lightning_amount = attr.ib(type=int)  # in sats
