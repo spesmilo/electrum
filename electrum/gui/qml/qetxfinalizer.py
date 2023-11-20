@@ -8,7 +8,7 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction
 from electrum.util import NotEnoughFunds, profiler
-from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP
+from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy
 from electrum.plugin import run_hook
 
 from .qewallet import QEWallet
@@ -460,13 +460,8 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._oldfee_rate = 0
         self._orig_tx = None
         self._rbf = True
-        self._bump_method = 'preserve_payment'
-        self._can_change_bump_method = True
-
-    canChangeBumpMethodChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=canChangeBumpMethodChanged)
-    def canChangeBumpMethod(self):
-        return self._can_change_bump_method
+        self._bump_method = BumpFeeStrategy.PRESERVE_PAYMENT.name
+        self._bump_methods_available = []
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -496,21 +491,26 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         return self._bump_method
 
     @bumpMethod.setter
-    def bumpMethod(self, bumpmethod):
-        assert self._can_change_bump_method
+    def bumpMethod(self, bumpmethod: str) -> None:
         if self._bump_method != bumpmethod:
             self._bump_method = bumpmethod
             self.bumpMethodChanged.emit()
             self.update()
+
+    bumpMethodsAvailableChanged = pyqtSignal()
+    @pyqtProperty('QVariantList', notify=bumpMethodsAvailableChanged)
+    def bumpMethodsAvailable(self):
+        return self._bump_methods_available
 
     def get_tx(self):
         assert self._txid
         self._orig_tx = self._wallet.wallet.db.get_transaction(self._txid)
         assert self._orig_tx
 
-        if self._wallet.wallet.get_swap_by_funding_tx(self._orig_tx):
-            self._can_change_bump_method = False
-            self.canChangeBumpMethodChanged.emit()
+        strategies, def_strat_idx = self._wallet.wallet.get_bumpfee_strategies_for_tx(tx=self._orig_tx, txid=self._txid)
+        self._bump_methods_available = [{'value': strat.name, 'text': strat.text()} for strat in strategies]
+        self.bumpMethodsAvailableChanged.emit()
+        self.bumpMethod = strategies[def_strat_idx].name
 
         if not isinstance(self._orig_tx, PartialTransaction):
             self._orig_tx = PartialTransaction.from_tx(self._orig_tx)
@@ -547,7 +547,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
                 tx=self._orig_tx,
                 txid=self._txid,
                 new_fee_rate=new_fee_rate,
-                decrease_payment=self._bump_method=='decrease_payment'
+                strategy=BumpFeeStrategy[self._bump_method],
             )
         except CannotBumpFee as e:
             self._valid = False

@@ -15,7 +15,7 @@ from .util import (ColorScheme, WindowModalDialog, Buttons,
 
 from electrum.i18n import _
 from electrum.transaction import PartialTransaction
-from electrum.wallet import CannotRBFTx
+from electrum.wallet import CannotRBFTx, BumpFeeStrategy
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -54,19 +54,13 @@ class _BaseRBFDialog(TxEditor):
         self.feerate_e.setAmount(new_fee_rate)
         self.update()
         self.fee_slider.deactivate()
-        # are we paying max?
-        invoices = self.wallet.get_relevant_invoices_for_tx(txid)
-        if len(invoices) == 1 and len(invoices[0].outputs) == 1:
-            if invoices[0].outputs[0].value == '!':
-                self.set_decrease_payment()
-        # do not decrease payment if it is a swap
-        if self.wallet.get_swap_by_funding_tx(self.old_tx):
-            self.method_combo.setEnabled(False)
 
     def create_grid(self):
         self.method_label = QLabel(_('Method') + ':')
         self.method_combo = QComboBox()
-        self.method_combo.addItems([_('Preserve payment'), _('Decrease payment')])
+        self._strategies, def_strat_idx = self.wallet.get_bumpfee_strategies_for_tx(tx=self.old_tx, txid=self.old_txid)
+        self.method_combo.addItems([strat.text() for strat in self._strategies])
+        self.method_combo.setCurrentIndex(def_strat_idx)
         self.method_combo.currentIndexChanged.connect(self.trigger_update)
         self.method_combo.setFocusPolicy(Qt.NoFocus)
         old_size_label = TxSizeLabel()
@@ -92,12 +86,6 @@ class _BaseRBFDialog(TxEditor):
         grid.addWidget(self.locktime_label, 5, 0)
         grid.addWidget(self.locktime_e, 5, 1, 1, 2)
         return grid
-
-    def is_decrease_payment(self):
-        return self.method_combo.currentIndex() == 1
-
-    def set_decrease_payment(self):
-        self.method_combo.setCurrentIndex(1)
 
     def run(self) -> None:
         if not self.exec_():
@@ -133,10 +121,12 @@ class _BaseRBFDialog(TxEditor):
         if not self.tx:
             return
         delta = self.tx.get_fee() - self.old_tx.get_fee()
-        if not self.is_decrease_payment():
+        if self._strategies[self.method_combo.currentIndex()] == BumpFeeStrategy.PRESERVE_PAYMENT:
             msg = _("You will pay {} more.").format(self.main_window.format_amount_and_units(delta))
-        else:
+        elif self._strategies[self.method_combo.currentIndex()] == BumpFeeStrategy.DECREASE_PAYMENT:
             msg = _("The recipient will receive {} less.").format(self.main_window.format_amount_and_units(delta))
+        else:
+            raise Exception(f"unknown strategy: {self=}")
         messages.insert(0, msg)
         return messages
 
@@ -164,7 +154,8 @@ class BumpFeeDialog(_BaseRBFDialog):
             txid=self.old_txid,
             new_fee_rate=fee_rate,
             coins=self.main_window.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
-            decrease_payment=self.is_decrease_payment())
+            strategy=self._strategies[self.method_combo.currentIndex()],
+        )
 
 
 class DSCancelDialog(_BaseRBFDialog):

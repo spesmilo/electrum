@@ -247,6 +247,23 @@ class InternalAddressCorruption(Exception):
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
 
+class BumpFeeStrategy(enum.Enum):
+    PRESERVE_PAYMENT = enum.auto()
+    DECREASE_PAYMENT = enum.auto()
+
+    @classmethod
+    def all(cls) -> Sequence['BumpFeeStrategy']:
+        return list(BumpFeeStrategy.__members__.values())
+
+    def text(self) -> str:
+        if self == self.PRESERVE_PAYMENT:
+            return _('Preserve payment')
+        elif self == self.DECREASE_PAYMENT:
+            return _('Decrease payment')
+        else:
+            raise Exception(f"unknown strategy: {self=}")
+
+
 class ReceiveRequestHelp(NamedTuple):
     # help texts (warnings/errors):
     address_help: str
@@ -1955,6 +1972,28 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
+    def get_bumpfee_strategies_for_tx(
+        self,
+        *,
+        tx: Transaction,
+        txid: str = None,
+    ) -> Tuple[Sequence[BumpFeeStrategy], int]:
+        """Returns tuple(list of available strategies, idx of recommended option among those)."""
+        txid = txid or tx.txid()
+        assert txid
+        assert tx.txid() in (None, txid)
+        all_strats = BumpFeeStrategy.all()
+        # are we paying max?
+        invoices = self.get_relevant_invoices_for_tx(txid)
+        if len(invoices) == 1 and len(invoices[0].outputs) == 1:
+            if invoices[0].outputs[0].value == '!':
+                return all_strats, all_strats.index(BumpFeeStrategy.DECREASE_PAYMENT)
+        # do not decrease payment if it is a swap
+        if self.get_swap_by_funding_tx(tx):
+            return [BumpFeeStrategy.PRESERVE_PAYMENT], 0
+        # default
+        return all_strats, all_strats.index(BumpFeeStrategy.PRESERVE_PAYMENT)
+
     def bump_fee(
             self,
             *,
@@ -1962,7 +2001,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             txid: str = None,
             new_fee_rate: Union[int, float, Decimal],
             coins: Sequence[PartialTxInput] = None,
-            decrease_payment=False,
+            strategy: BumpFeeStrategy = BumpFeeStrategy.PRESERVE_PAYMENT,
     ) -> PartialTransaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
@@ -1991,7 +2030,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if new_fee_rate <= old_fee_rate:
             raise CannotBumpFee(_("The new fee rate needs to be higher than the old fee rate."))
 
-        if not decrease_payment:
+        if strategy == BumpFeeStrategy.PRESERVE_PAYMENT:
             # FIXME: we should try decreasing change first,
             # but it requires updating a bunch of unit tests
             try:
@@ -2004,9 +2043,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             except CannotBumpFee as e:
                 tx_new = self._bump_fee_through_decreasing_change(
                     tx=tx, new_fee_rate=new_fee_rate)
-        else:
+        elif strategy == BumpFeeStrategy.DECREASE_PAYMENT:
             tx_new = self._bump_fee_through_decreasing_payment(
                 tx=tx, new_fee_rate=new_fee_rate)
+        else:
+            raise Exception(f"unknown strategy: {strategy=}")
 
         target_min_fee = new_fee_rate * tx_new.estimated_size()
         actual_fee = tx_new.get_fee()
