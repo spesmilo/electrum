@@ -1236,7 +1236,7 @@ class LNWallet(LNWorker):
         return self._scid_alias_of_node(self.node_keypair.pubkey)
 
     @log_exceptions
-    async def open_channel_just_in_time(  # FIXME xxxxx kwargs
+    async def open_channel_just_in_time(
         self,
         *,
         next_peer: Peer,
