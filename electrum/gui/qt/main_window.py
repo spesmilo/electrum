@@ -1270,7 +1270,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # can sign directly
             task = partial(tx.sign, external_keypairs)
         else:
-            task = partial(self.wallet.sign_transaction, tx, password)
+            # ignore_warnings=True, because UI checks and asks user confirmation itself
+            task = partial(self.wallet.sign_transaction, tx, password, ignore_warnings=True)
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
