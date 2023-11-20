@@ -525,7 +525,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self.update()
 
     def update(self):
-        if not self._txid:
+        if not self._txid or not self._orig_tx:
             # not initialized yet
             return
 
@@ -632,7 +632,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         self.update()
 
     def update(self):
-        if not self._txid:
+        if not self._txid or not self._orig_tx:
             # not initialized yet
             return
 
