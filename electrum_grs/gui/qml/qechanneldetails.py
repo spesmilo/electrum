@@ -121,6 +121,17 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
             'index': outpoint.output_index
         }
 
+    @pyqtProperty(str, notify=channelChanged)
+    def closingTxid(self):
+        if not self._channel.is_closed():
+            return ''
+        item = self._channel.get_closing_height()
+        if item:
+            closing_txid, closing_height, timestamp = item
+            return closing_txid
+        else:
+            return ''
+
     @pyqtProperty(QEAmount, notify=channelChanged)
     def capacity(self):
         self._capacity.copyFrom(QEAmount(amount_sat=self._channel.get_capacity()))

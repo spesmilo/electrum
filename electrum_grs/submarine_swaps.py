@@ -30,6 +30,7 @@ from .bitcoin import construct_script
 from .crypto import ripemd
 from .invoices import Invoice
 from .network import TxBroadcastServerReturnedError
+from .lnonion import OnionRoutingFailure, OnionFailureCode
 
 
 if TYPE_CHECKING:
@@ -103,7 +104,7 @@ def now():
 @stored_in('submarine_swaps')
 @attr.s
 class SwapData(StoredObject):
-    is_reverse = attr.ib(type=bool)
+    is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)
     locktime = attr.ib(type=int)
     onchain_amount = attr.ib(type=int)  # in sats
     lightning_amount = attr.ib(type=int)  # in sats
@@ -234,7 +235,8 @@ class SwapManager(Logger):
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
             payment_key = swap.payment_hash + payment_secret
-            self.lnworker.fail_final_onion_forwarding(payment_key)
+            e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+            self.lnworker.save_forwarding_failure(payment_key.hex(), failure_message=e)
         self.lnwatcher.remove_callback(swap.lockup_address)
         if swap.funding_txid is None:
             self.swaps.pop(swap.payment_hash.hex())

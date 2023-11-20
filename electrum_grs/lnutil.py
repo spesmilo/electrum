@@ -66,6 +66,15 @@ hex_to_bytes = lambda v: v if isinstance(v, bytes) else bytes.fromhex(v) if v is
 json_to_keypair = lambda v: v if isinstance(v, OnlyPubkeyKeypair) else Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
 
 
+def serialize_htlc_key(scid: bytes, htlc_id: int) -> str:
+    return scid.hex() + ':%d'%htlc_id
+
+
+def deserialize_htlc_key(htlc_key: str) -> Tuple[bytes, int]:
+    scid, htlc_id = htlc_key.split(':')
+    return bytes.fromhex(scid), int(htlc_id)
+
+
 @attr.s
 class OnlyPubkeyKeypair(StoredObject):
     pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
