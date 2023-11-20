@@ -213,6 +213,30 @@ Pane {
                     }
 
                     Label {
+                        text: qsTr('Local SCID alias')
+                        color: Material.accentColor
+                        visible: channeldetails.localScidAlias
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.localScidAlias
+                        visible: channeldetails.localScidAlias
+                    }
+
+                    Label {
+                        text: qsTr('Remote SCID alias')
+                        color: Material.accentColor
+                        visible: channeldetails.remoteScidAlias
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.remoteScidAlias
+                        visible: channeldetails.remoteScidAlias
+                    }
+
+                    Label {
                         visible: !channeldetails.isBackup
                         text: qsTr('Initiator')
                         color: Material.accentColor
