@@ -469,10 +469,10 @@ class Commands:
         return tx.serialize()
 
     @command('wp')
-    async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None):
+    async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None, iknowwhatimdoing: bool=False):
         """Sign a transaction. The wallet keys will be used to sign the transaction."""
         tx = tx_from_any(tx)
-        wallet.sign_transaction(tx, password)
+        wallet.sign_transaction(tx, password, ignore_warnings=iknowwhatimdoing)
         return tx.serialize()
 
     @command('')

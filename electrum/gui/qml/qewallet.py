@@ -512,7 +512,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     def do_sign(self, tx, broadcast):
         try:
-            tx = self.wallet.sign_transaction(tx, self.password)
+            # ignore_warnings=True, because UI checks and asks user confirmation itself
+            tx = self.wallet.sign_transaction(tx, self.password, ignore_warnings=True)
         except BaseException as e:
             self._logger.error(f'{e!r}')
             self.signFailed.emit(str(e))

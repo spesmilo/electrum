@@ -12,12 +12,10 @@ from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
-                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy)
-from electrum.util import (
-    bfh, NotEnoughFunds, UnrelatedTransactionException,
-    UserFacingException)
-from electrum.transaction import (TxOutput, Transaction, PartialTransaction, PartialTxOutput,
-                                  PartialTxInput, tx_from_any, TxOutpoint)
+                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
+                             TransactionPotentiallyDangerousException, TransactionDangerousException)
+from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException
+from electrum.transaction import Transaction, PartialTxOutput, tx_from_any
 from electrum.mnemonic import seed_type
 from electrum.network import Network
 
@@ -2963,12 +2961,22 @@ class TestWalletSending(ElectrumTestCase):
                                              partial_tx)
                         # load tx into cosignerB's offline wallet
                         tx = tx_from_any(partial_tx)
-                        wallet1b_offline.sign_transaction(tx, password=None)
+                        wallet1b_offline.sign_transaction(tx, password=None, ignore_warnings=True)
 
                         self.assertEqual('02000000014e375f685f3205e0c7841036525b10f01654632c5ae91e7e04513b815e46a5e100000000d9004730440220414287f36a02b004d2e9a3892e1862edaf49c35d50b65ae10b601879b8c793ef0220073234c56d5a8ae9f4fcfeaecaa757e2724bf830d45aabfab8ffe37329ebf4590147304402203ba7cc21e407ce31c1eecd11c367df716a5d47f06e0bf7109f08063ede25a364022039f6bef0dd401aa2c3103b8cbab57cc4fed3905ccb0a726dc6594bf5930ae0b401475221026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd2103a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb98152aefdffffff02400d0300000000001600144770c0bc4c42ed1cad089749cc887856ec0f9d99588004000000000017a914493900cdec652a41c633436b53d574647e329b18871c112500',
                                          str(tx))
                         self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.txid())
                         self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.wtxid())
+
+                        # again, but raise on warnings (here: signing non-segwit inputs is risky)
+                        tx = tx_from_any(partial_tx)
+                        try:
+                            wallet1b_offline.sign_transaction(tx, password=None)
+                            self.assertFalse(uses_qr_code2)
+                        except TransactionDangerousException:
+                            raise
+                        except TransactionPotentiallyDangerousException:
+                            self.assertTrue(uses_qr_code2)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_we_dont_sign_tx_including_dummy_address(self, mock_save_db):
@@ -3095,7 +3103,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
                 self.assertEqual(tx.txid(), tx_copy.txid())
 
                 # sign tx
-                tx = wallet_offline.sign_transaction(tx_copy, password=None)
+                tx = wallet_offline.sign_transaction(tx_copy, password=None, ignore_warnings=True)
                 self.assertTrue(tx.is_complete())
                 self.assertFalse(tx.is_segwit())
                 self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', tx.txid())
