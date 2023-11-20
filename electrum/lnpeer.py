@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable
 from datetime import datetime
 import functools
 
@@ -1693,7 +1693,8 @@ class Peer(Logger):
             self, *,
             incoming_chan: Channel,
             htlc: UpdateAddHtlc,
-            processed_onion: ProcessedOnionPacket) -> Tuple[bytes, int]:
+            processed_onion: ProcessedOnionPacket,
+    ) -> str:
 
         # Forward HTLC
         # FIXME: there are critical safety checks MISSING here
@@ -1744,11 +1745,11 @@ class Peer(Logger):
                     break
             else:
                 return await self.lnworker.open_channel_just_in_time(
-                    next_peer,
-                    next_amount_msat_htlc,
-                    next_cltv_abs,
-                    htlc.payment_hash,
-                    processed_onion.next_packet)
+                    next_peer=next_peer,
+                    next_amount_msat_htlc=next_amount_msat_htlc,
+                    next_cltv_abs=next_cltv_abs,
+                    payment_hash=htlc.payment_hash,
+                    next_onion=processed_onion.next_packet)
 
         local_height = chain.height()
         if next_chan is None:
@@ -1815,7 +1816,8 @@ class Peer(Logger):
             inc_cltv_abs: int,
             outer_onion: ProcessedOnionPacket,
             trampoline_onion: ProcessedOnionPacket,
-            fw_payment_key: str):
+            fw_payment_key: str,
+    ) -> None:
 
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         forwarding_trampoline_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
@@ -1905,11 +1907,11 @@ class Peer(Logger):
                     trampoline_onion=next_trampoline_onion,
                 )
                 await self.lnworker.open_channel_just_in_time(
-                    next_peer,
-                    amt_to_forward,
-                    cltv_abs,
-                    payment_hash,
-                    next_onion)
+                    next_peer=next_peer,
+                    next_amount_msat_htlc=amt_to_forward,
+                    next_cltv_abs=cltv_abs,
+                    payment_hash=payment_hash,
+                    next_onion=next_onion)
                 return
 
         try:
@@ -1957,8 +1959,8 @@ class Peer(Logger):
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
             onion_packet_bytes: bytes,
-            already_forwarded = False,
-    ) -> Tuple[Optional[bytes], Optional[Callable]]:
+            already_forwarded: bool = False,
+    ) -> Tuple[Optional[str], Optional[bytes], Optional[Callable[[], Awaitable[Optional[str]]]]]:
         """
         Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
         Return (payment_key, preimage, callback) with at most a single element of the last two not None
@@ -2637,6 +2639,7 @@ class Peer(Logger):
                 # HTLC we are supposed to forward, but haven't forwarded yet
                 if not self.lnworker.enable_htlc_forwarding:
                     return None, None, None
+                assert payment_key
                 if payment_key not in self.lnworker.active_forwardings:
                     async def wrapped_callback():
                         forwarding_coro = forwarding_callback()
@@ -2649,6 +2652,7 @@ class Peer(Logger):
                             assert len(self.lnworker.active_forwardings[payment_key]) == 0
                             self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
                     # add to list
+                    assert len(self.lnworker.active_forwardings.get(payment_key, [])) == 0
                     self.lnworker.active_forwardings[payment_key] = []
                     fut = asyncio.ensure_future(wrapped_callback())
                 # return payment_key so this branch will not be executed again

@@ -691,7 +691,7 @@ class PaySession(Logger):
 
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         self._nhtlcs_inflight = 0
-        self.is_active = True
+        self.is_active = True  # is still trying to send new htlcs?
 
     def diagnostic_name(self):
         pkey = sha256(self.payment_key)
@@ -779,6 +779,7 @@ class PaySession(Logger):
         return self.amount_to_pay - self._amount_inflight
 
     def can_be_deleted(self) -> bool:
+        """Returns True iff finished sending htlcs AND all pending htlcs have resolved."""
         if self.is_active:
             return False
         # note: no one is consuming from sent_htlcs_q anymore
@@ -842,9 +843,9 @@ class LNWallet(LNWorker):
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         # payment forwarding
-        self.active_forwardings = self.db.get_dict('active_forwardings')                    # Dict: payment_key -> list of htlc_keys
-        self.forwarding_failures = self.db.get_dict('forwarding_failures')                  # Dict: payment_key -> (error_bytes, error_message)
-        self.downstream_to_upstream_htlc = {}                                               # Dict: htlc_key -> htlc_key (not persisted)
+        self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
+        self.forwarding_failures = self.db.get_dict('forwarding_failures')  # type: Dict[str, Tuple[str, str]]  # Dict: payment_key -> (error_bytes, error_message)
+        self.downstream_to_upstream_htlc = {}                               # type: Dict[str, str]              # Dict: htlc_key -> htlc_key (not persisted)
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
@@ -1222,20 +1223,28 @@ class LNWallet(LNWorker):
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
-    def get_peer_by_scid_alias(self, scid_alias):
+    def get_peer_by_scid_alias(self, scid_alias: bytes) -> Optional[Peer]:
         for nodeid, peer in self.peers.items():
             if scid_alias == self._scid_alias_of_node(nodeid):
                 return peer
 
-    def _scid_alias_of_node(self, nodeid):
+    def _scid_alias_of_node(self, nodeid: bytes) -> bytes:
         # scid alias for just-in-time channels
         return sha256(b'Electrum' + nodeid)[0:8]
 
-    def get_scid_alias(self):
+    def get_scid_alias(self) -> bytes:
         return self._scid_alias_of_node(self.node_keypair.pubkey)
 
     @log_exceptions
-    async def open_channel_just_in_time(self, next_peer, next_amount_msat_htlc, next_cltv_abs, payment_hash, next_onion):
+    async def open_channel_just_in_time(  # FIXME xxxxx kwargs
+        self,
+        *,
+        next_peer: Peer,
+        next_amount_msat_htlc: int,
+        next_cltv_abs: int,
+        payment_hash: bytes,
+        next_onion: OnionPacket,
+    ) -> str:
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
         try:
@@ -2396,7 +2405,7 @@ class LNWallet(LNWorker):
             if htlc_key in htlcs:
                 return payment_key
 
-    def notify_upstream_peer(self, htlc_key):
+    def notify_upstream_peer(self, htlc_key: str) -> None:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
         If we find this was a forwarded HTLC, the upstream peer is notified.
         """
@@ -2510,7 +2519,7 @@ class LNWallet(LNWorker):
             if fw_key:
                 paysession_active = False
             else:
-                self.logger.info(f"received unknown htlc_failed, probably from previous session")
+                self.logger.info(f"received unknown htlc_failed, probably from previous session (phash={payment_hash.hex()})")
                 key = payment_hash.hex()
                 self.set_invoice_status(key, PR_UNPAID)
                 util.trigger_callback('payment_failed', self.wallet, key, '')
@@ -2522,7 +2531,7 @@ class LNWallet(LNWorker):
                 self.save_forwarding_failure(fw_key, error_bytes=error_bytes, failure_message=failure_message)
                 self.notify_upstream_peer(htlc_key)
             else:
-                self.logger.info(f"waiting for other htlcs to fail")
+                self.logger.info(f"waiting for other htlcs to fail (phash={payment_hash.hex()})")
 
     def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], channels=None):
         """calculate routing hints (BOLT-11 'r' field)"""
@@ -3094,7 +3103,7 @@ class LNWallet(LNWorker):
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
         self.forwarding_failures[payment_key] = (error_hex, failure_hex)
 
-    def get_forwarding_failure(self, payment_key: str):
+    def get_forwarding_failure(self, payment_key: str) -> Tuple[Optional[bytes], Optional['OnionRoutingFailure']]:
         error_hex, failure_hex = self.forwarding_failures.get(payment_key, (None, None))
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
