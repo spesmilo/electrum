@@ -323,6 +323,50 @@ Pane {
                         }
                     }
 
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        visible: channeldetails.closingTxid
+                        text: qsTr('Closing transaction')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: channeldetails.closingTxid
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: channeldetails.closingTxid
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+
+                                TapHandler {
+                                    onTapped: {
+                                        app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {
+                                            txid: channeldetails.closingTxid
+                                        })
+                                    }
+                                }
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Channel close transaction'),
+                                        text: channeldetails.closingTxid
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
                 }
             }
         }
