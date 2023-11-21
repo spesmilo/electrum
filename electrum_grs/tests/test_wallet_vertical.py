@@ -12,7 +12,7 @@ from electrum_grs import SimpleConfig
 from electrum_grs import util
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum_grs.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
-                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee)
+                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy)
 from electrum_grs.util import (
     bfh, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
@@ -1229,7 +1229,7 @@ class TestWalletSending(ElectrumTestCase):
         tx = wallet.bump_fee(
             tx=tx_from_any(orig_rbf_tx.serialize()),
             new_fee_rate=60,
-            decrease_payment=True,
+            strategy=BumpFeeStrategy.DECREASE_PAYMENT,
         )
         tx.locktime = 1936085
         tx.version = 2
@@ -1271,7 +1271,7 @@ class TestWalletSending(ElectrumTestCase):
         tx = wallet.bump_fee(
             tx=tx_from_any(orig_rbf_tx.serialize()),
             new_fee_rate=60,
-            decrease_payment=True,
+            strategy=BumpFeeStrategy.DECREASE_PAYMENT,
         )
         tx.locktime = 1936095
         tx.version = 2
@@ -1313,19 +1313,19 @@ class TestWalletSending(ElectrumTestCase):
             tx = wallet.bump_fee(
                 tx=tx_from_any(orig_rbf_tx.serialize()),
                 new_fee_rate=99999,
-                decrease_payment=True,
+                strategy=BumpFeeStrategy.DECREASE_PAYMENT,
             )
         with self.assertRaises(CannotBumpFee):
             tx = wallet.bump_fee(
                 tx=tx_from_any(orig_rbf_tx.serialize()),
                 new_fee_rate=99999,
-                decrease_payment=False,
+                strategy=BumpFeeStrategy.PRESERVE_PAYMENT,
             )
 
         tx = wallet.bump_fee(
             tx=tx_from_any(orig_rbf_tx.serialize()),
             new_fee_rate=60,
-            decrease_payment=True,
+            strategy=BumpFeeStrategy.DECREASE_PAYMENT,
         )
         tx.locktime = 1936085
         tx.version = 2
@@ -1647,7 +1647,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual((0, 0, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=tx_from_any(tx.serialize()), new_fee_rate=70.0, decrease_payment=True)
+        tx = wallet.bump_fee(tx=tx_from_any(tx.serialize()), new_fee_rate=70.0, strategy=BumpFeeStrategy.DECREASE_PAYMENT)
         tx.locktime = 1325500
         tx.version = 1
         if simulate_moving_txs:

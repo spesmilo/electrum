@@ -52,7 +52,7 @@ from .transaction import (Transaction, multisig_script, TxOutput, PartialTransac
 from . import transaction
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
@@ -819,7 +819,7 @@ class Commands:
             tx=tx,
             txid=tx.txid(),
             coins=coins,
-            decrease_payment=decrease_payment,
+            strategy=BumpFeeStrategy.DECREASE_PAYMENT if decrease_payment else BumpFeeStrategy.PRESERVE_PAYMENT,
             new_fee_rate=new_fee_rate)
         if not unsigned:
             wallet.sign_transaction(new_tx, password)

@@ -62,15 +62,11 @@ ElDialog {
 
                     ElComboBox {
                         id: bumpMethodComboBox
-                        enabled: rbffeebumper.canChangeBumpMethod
 
                         textRole: 'text'
                         valueRole: 'value'
 
-                        model: [
-                            { text: qsTr('Preserve payment'), value: 'preserve_payment' },
-                            { text: qsTr('Decrease payment'), value: 'decrease_payment' }
-                        ]
+                        model: rbffeebumper.bumpMethodsAvailable
                         onCurrentValueChanged: {
                             if (activeFocus)
                                 rbffeebumper.bumpMethod = currentValue
