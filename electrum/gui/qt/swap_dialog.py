@@ -330,8 +330,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         except Exception as e:
             self.window.show_error(str(e))
             return
-        tx = sm.create_funding_tx(swap, dummy_tx, password)
-        coro2 = sm.wait_for_htlcs_and_broadcast(swap, invoice, tx)
+        tx = sm.create_funding_tx(swap, dummy_tx, password=password)
+        coro2 = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
         self.window.run_coroutine_dialog(
             coro2, _('Awaiting swap payment...'),
             on_result=self.window.on_swap_result,

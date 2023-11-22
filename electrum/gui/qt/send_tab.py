@@ -734,7 +734,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if hasattr(tx, 'swap_payment_hash'):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
-            coro = sm.wait_for_htlcs_and_broadcast(swap, tx.swap_invoice, tx)
+            coro = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=tx.swap_invoice, tx=tx)
             self.window.run_coroutine_dialog(
                 coro, _('Awaiting swap payment...'),
                 on_result=self.window.on_swap_result,

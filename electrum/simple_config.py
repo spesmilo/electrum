@@ -813,6 +813,7 @@ class SimpleConfig(Logger):
     @classmethod
     def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
                                  size: Union[int, float, Decimal]) -> int:
+        # note: 'size' is in vbytes
         size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000

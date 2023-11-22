@@ -2,7 +2,7 @@ import asyncio
 import concurrent
 import threading
 from enum import IntEnum
-from typing import Union
+from typing import Union, Optional
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
 
@@ -39,7 +39,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._sliderPos = 0
         self._rangeMin = 0
         self._rangeMax = 0
@@ -377,8 +377,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 self.state = QESwapHelper.State.Started
                 self._swap, invoice = fut.result()
 
-                tx = self._wallet.wallet.lnworker.swap_manager.create_funding_tx(self._swap, dummy_tx, self._wallet.password)
-                coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(self._swap, invoice, tx)
+                tx = self._wallet.wallet.lnworker.swap_manager.create_funding_tx(self._swap, dummy_tx, password=self._wallet.password)
+                coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(swap=self._swap, invoice=invoice, tx=tx)
                 self._fut_htlc_wait = fut = asyncio.run_coroutine_threadsafe(coro2, loop)
 
                 self.canCancel = True

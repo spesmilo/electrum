@@ -330,7 +330,7 @@ def sha256d(x: Union[bytes, str]) -> bytes:
 def hash_160(x: bytes) -> bytes:
     return ripemd(sha256(x))
 
-def ripemd(x):
+def ripemd(x: bytes) -> bytes:
     try:
         md = hashlib.new('ripemd160')
         md.update(x)

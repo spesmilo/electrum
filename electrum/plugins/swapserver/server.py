@@ -106,7 +106,7 @@ class SwapServer(Logger, EventListener):
         assert len(their_pubkey) == 33
         swap = self.sm.create_reverse_swap(
             lightning_amount_sat=lightning_amount_sat,
-            their_pubkey=their_pubkey
+            their_pubkey=their_pubkey,
         )
         response = {
             "id": swap.payment_hash.hex(),
