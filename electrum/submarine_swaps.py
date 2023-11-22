@@ -418,6 +418,7 @@ class SwapManager(Logger):
             their_pubkey=None,
             invoice=None,
             prepay=None,
+            channels=None,
     ):
         """ if invoice is None, create a hold invoice """
         if prepay:
@@ -433,7 +434,7 @@ class SwapManager(Logger):
                 message='Submarine swap',
                 expiry=300,
                 fallback_address=None,
-                channels=None,
+                channels=channels,
             )
             # add payment info to lnworker
             self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
@@ -446,7 +447,7 @@ class SwapManager(Logger):
                 message='Submarine swap mining fees',
                 expiry=300,
                 fallback_address=None,
-                channels=None,
+                channels=channels,
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
             self.prepayments[prepay_hash] = payment_hash
@@ -565,7 +566,7 @@ class SwapManager(Logger):
         assert self.lnwatcher
         swap, invoice = await self.request_normal_swap(lightning_amount_sat, expected_onchain_amount_sat, channels=channels)
         tx = self.create_funding_tx(swap, tx, password)
-        return await self.wait_for_htlcs_and_broadcast(swap, invoice, tx, channels=channels)
+        return await self.wait_for_htlcs_and_broadcast(swap, invoice, tx)
 
     async def request_normal_swap(self, lightning_amount_sat, expected_onchain_amount_sat, channels=None):
         amount_msat = lightning_amount_sat * 1000
@@ -612,10 +613,12 @@ class SwapManager(Logger):
             our_privkey=refund_privkey,
             their_pubkey=claim_pubkey,
             invoice=invoice,
-            prepay=False)
+            prepay=False,
+            channels=channels,
+        )
         return swap, invoice
 
-    async def wait_for_htlcs_and_broadcast(self, swap, invoice, tx, channels=None):
+    async def wait_for_htlcs_and_broadcast(self, swap, invoice, tx):
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
         async def callback(payment_hash):
