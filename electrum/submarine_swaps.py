@@ -49,6 +49,10 @@ LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
 
 MIN_LOCKTIME_DELTA = 60
 LOCKTIME_DELTA_REFUND = 70
+MAX_LOCKTIME_DELTA = 100
+assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
+assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
 
 
 # The script of the reverse swaps has one extra check in it to verify
@@ -574,6 +578,7 @@ class SwapManager(Logger):
         - User creates on-chain output locked to RHASH.
         - Server pays LN invoice. User reveals preimage.
         - Server spends the on-chain output using preimage.
+        cltv safety requirement: (onchain_locktime > LN_locktime),   otherwise server is vulnerable
 
         New flow:
          - User requests swap
@@ -583,6 +588,7 @@ class SwapManager(Logger):
          - User creates on-chain output locked to RHASH
          - Server spends the on-chain output using preimage (revealing the preimage)
          - User fulfills HTLC using preimage
+        cltv safety requirement: (onchain_locktime < LN_locktime),   otherwise client is vulnerable
         """
         assert self.network
         assert self.lnwatcher
@@ -635,8 +641,8 @@ class SwapManager(Logger):
         if onchain_amount > expected_onchain_amount_sat:
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
                             f"{onchain_amount} > {expected_onchain_amount_sat}")
-        # verify that they are not locking up funds for more than a day
-        if locktime - self.network.get_local_height() >= 144:
+        # verify that they are not locking up funds for too long
+        if locktime - self.network.get_local_height() > MAX_LOCKTIME_DELTA:
             raise Exception("fswap check failed: locktime too far in future")
 
         swap, invoice, _ = self.add_normal_swap(
