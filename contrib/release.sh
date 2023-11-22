@@ -145,24 +145,22 @@ else
 fi
 
 # android
-apk1="Electrum-$VERSION.0-armeabi-v7a-release.apk"
-apk1_unsigned="Electrum-$VERSION.0-armeabi-v7a-release-unsigned.apk"
-apk2="Electrum-$VERSION.0-arm64-v8a-release.apk"
-apk2_unsigned="Electrum-$VERSION.0-arm64-v8a-release-unsigned.apk"
-apk3="Electrum-$VERSION.0-x86_64-release.apk"
-apk3_unsigned="Electrum-$VERSION.0-x86_64-release-unsigned.apk"
-if test -f "dist/$apk1"; then
-    info "file exists: $apk1"
-else
-    if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh qml all release $password
+for arch in armeabi-v7a arm64-v8a x86_64
+do
+    apk="Electrum-$VERSION.0-$arch-release.apk"
+    apk_unsigned="Electrum-$VERSION.0-$arch-release-unsigned.apk"
+    if test -f "dist/$apk"; then
+        info "file exists: $apk"
     else
-        ./contrib/android/build.sh qml all release-unsigned
-        mv "dist/$apk1_unsigned" "dist/$apk1"
-        mv "dist/$apk2_unsigned" "dist/$apk2"
-        mv "dist/$apk3_unsigned" "dist/$apk3"
+        info "file does not exists: $apk"
+        if [ ! -z "$RELEASEMANAGER" ] ; then
+            ./contrib/android/build.sh qml $arch release $password
+        else
+            ./contrib/android/build.sh qml $arch release-unsigned
+            mv "dist/$apk_unsigned" "dist/$apk"
+        fi
     fi
-fi
+done
 
 # the macos binary is built on a separate machine.
 # the file that needs to be copied over is the codesigned release binary (regardless of builder role)
