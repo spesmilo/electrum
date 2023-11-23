@@ -4,16 +4,20 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 
 import sys, os
 
+PYPKG="electrum"
+MAIN_SCRIPT="run_electrum"
+PROJECT_ROOT = "C:/electrum"
+ICONS_FILE=f"{PROJECT_ROOT}/{PYPKG}/gui/icons/electrum.ico"
+
 cmdline_name = os.environ.get("ELECTRUM_CMDLINE_NAME")
 if not cmdline_name:
     raise Exception('no name')
 
-home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
-hiddenimports += collect_submodules('electrum.plugins')
+hiddenimports += collect_submodules(f"{PYPKG}.plugins")
 
 
 binaries = []
@@ -21,18 +25,18 @@ binaries = []
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
-binaries += [(home+'electrum/*.dll', '.')]
+binaries += [(f"{PROJECT_ROOT}/{PYPKG}/*.dll", '.')]
 
 datas = [
-    (home+'electrum/*.json', 'electrum'),
-    (home+'electrum/lnwire/*.csv', 'electrum/lnwire'),
-    (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'electrum/wordlist/slip39.txt', 'electrum/wordlist'),
-    (home+'electrum/locale', 'electrum/locale'),
-    (home+'electrum/plugins', 'electrum/plugins'),
-    (home+'electrum/gui/icons', 'electrum/gui/icons'),
+    (f"{PROJECT_ROOT}/{PYPKG}/*.json", PYPKG),
+    (f"{PROJECT_ROOT}/{PYPKG}/lnwire/*.csv", f"{PYPKG}/lnwire"),
+    (f"{PROJECT_ROOT}/{PYPKG}/wordlist/english.txt", f"{PYPKG}/wordlist"),
+    (f"{PROJECT_ROOT}/{PYPKG}/wordlist/slip39.txt", f"{PYPKG}/wordlist"),
+    (f"{PROJECT_ROOT}/{PYPKG}/locale", f"{PYPKG}/locale"),
+    (f"{PROJECT_ROOT}/{PYPKG}/plugins", f"{PYPKG}/plugins"),
+    (f"{PROJECT_ROOT}/{PYPKG}/gui/icons", f"{PYPKG}/gui/icons"),
 ]
-datas += collect_data_files('electrum.plugins')
+datas += collect_data_files(f"{PYPKG}.plugins")
 datas += collect_data_files('trezorlib')  # TODO is this needed? and same question for other hww libs
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
@@ -41,20 +45,19 @@ datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'run_electrum',
-              home+'electrum/gui/qt/main_window.py',
-              home+'electrum/gui/qt/qrreader/qtmultimedia/camera_dialog.py',
-              home+'electrum/gui/text.py',
-              home+'electrum/util.py',
-              home+'electrum/wallet.py',
-              home+'electrum/simple_config.py',
-              home+'electrum/bitcoin.py',
-              home+'electrum/dnssec.py',
-              home+'electrum/commands.py',
+a = Analysis([f"{PROJECT_ROOT}/{MAIN_SCRIPT}",
+              f"{PROJECT_ROOT}/{PYPKG}/gui/qt/main_window.py",
+              f"{PROJECT_ROOT}/{PYPKG}/gui/qt/qrreader/qtmultimedia/camera_dialog.py",
+              f"{PROJECT_ROOT}/{PYPKG}/gui/text.py",
+              f"{PROJECT_ROOT}/{PYPKG}/util.py",
+              f"{PROJECT_ROOT}/{PYPKG}/wallet.py",
+              f"{PROJECT_ROOT}/{PYPKG}/simple_config.py",
+              f"{PROJECT_ROOT}/{PYPKG}/bitcoin.py",
+              f"{PROJECT_ROOT}/{PYPKG}/dnssec.py",
+              f"{PROJECT_ROOT}/{PYPKG}/commands.py",
               ],
              binaries=binaries,
              datas=datas,
-             #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,
              hookspath=[])
 
@@ -105,11 +108,11 @@ exe_standalone = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + ".exe"),
+    name=os.path.join("build", "pyi.win32", PYPKG, f"{cmdline_name}.exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=ICONS_FILE,
     console=False)
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
@@ -118,11 +121,11 @@ exe_portable = EXE(
     a.scripts,
     a.binaries,
     a.datas + [('is_portable', 'README.md', 'DATA')],
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + "-portable.exe"),
+    name=os.path.join("build", "pyi.win32", PYPKG, f"{cmdline_name}-portable.exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=ICONS_FILE,
     console=False)
 
 #####
@@ -132,22 +135,22 @@ exe_inside_setup_noconsole = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name),
+    name=os.path.join("build", "pyi.win32", PYPKG, f"{cmdline_name}.exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=ICONS_FILE,
     console=False)
 
 exe_inside_setup_console = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name+"-debug"),
+    name=os.path.join("build", "pyi.win32", PYPKG, f"{cmdline_name}-debug.exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=ICONS_FILE,
     console=True)
 
 coll = COLLECT(
@@ -159,6 +162,6 @@ coll = COLLECT(
     strip=None,
     upx=True,
     debug=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=ICONS_FILE,
     console=False,
-    name=os.path.join('dist', 'electrum'))
+    name=os.path.join('dist', PYPKG))
