@@ -179,7 +179,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             'yesterday': '%H:%M:%S',
             'lastweek': '%a, %H:%M:%S',
             'lastmonth': '%a %d, %H:%M:%S',
-            'older': '%G-%m-%d %H:%M:%S'
+            'older': '%Y-%m-%d %H:%M:%S'
         }
         if section not in dfmt:
             section = 'older'
