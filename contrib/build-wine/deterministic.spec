@@ -21,11 +21,11 @@ hiddenimports += collect_submodules(f"{PYPKG}.plugins")
 
 
 binaries = []
-
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
-
+# add libsecp256k1, libusb, etc:
 binaries += [(f"{PROJECT_ROOT}/{PYPKG}/*.dll", '.')]
+
 
 datas = [
     (f"{PROJECT_ROOT}/{PYPKG}/*.json", PYPKG),

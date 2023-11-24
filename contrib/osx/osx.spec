@@ -23,6 +23,13 @@ hiddenimports += collect_submodules('pkg_resources')  # workaround for https://g
 hiddenimports += collect_submodules(f"{PYPKG}.plugins")
 
 
+binaries = []
+# Workaround for "Retro Look":
+binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
+# add libsecp256k1, libusb, etc:
+binaries += [(f"{PROJECT_ROOT}/{PYPKG}/*.dylib", ".")]
+
+
 datas = [
     (f"{PROJECT_ROOT}/{PYPKG}/*.json", PYPKG),
     (f"{PROJECT_ROOT}/{PYPKG}/lnwire/*.csv", f"{PYPKG}/lnwire"),
@@ -40,11 +47,6 @@ datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
 
-binaries = [(f"{PROJECT_ROOT}/{PYPKG}/*.dylib", ".")]
-
-# Workaround for "Retro Look":
-binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
-
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([f"{PROJECT_ROOT}/{MAIN_SCRIPT}",
               f"{PROJECT_ROOT}/{PYPKG}/gui/qt/main_window.py",
@@ -61,6 +63,7 @@ a = Analysis([f"{PROJECT_ROOT}/{MAIN_SCRIPT}",
              datas=datas,
              hiddenimports=hiddenimports,
              hookspath=[])
+
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
