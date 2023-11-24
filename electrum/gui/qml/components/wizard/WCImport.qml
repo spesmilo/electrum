@@ -79,7 +79,7 @@ WizardComponent {
                         dialog.onFound.connect(function() {
                             if (verify(dialog.scanData)) {
                                 if (import_ta.text != '')
-                                    import_ta.text = import_ta.text + ',\n'
+                                    import_ta.text = import_ta.text + '\n'
                                 import_ta.text = import_ta.text + dialog.scanData
                             }
                             dialog.close()
