@@ -84,6 +84,42 @@ class TestWalletStorage(WalletTestCase):
         for key, value in some_dict.items():
             self.assertEqual(d[key], value)
 
+    async def test_storage_imported_add_privkeys_persistence_test(self):
+        text = ' '.join([
+            'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
+            'p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
+        ])
+        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        wallet = d['wallet']  # type: Imported_Wallet
+        addr0 = wallet.get_receiving_addresses()[0]
+        self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', addr0)
+        self.assertEqual('p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
+                         wallet.export_private_key(addr0, password=None))
+        self.assertEqual(2, len(wallet.get_receiving_addresses()))
+
+        wallet.save_db()
+
+        # open the wallet anew again, and add a privkey. This should add the new data as a json_patch
+        wallet = None
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+
+        wallet.import_private_keys(['p2wpkh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'], password=None)
+        wallet.save_db()
+
+        # open the wallet anew again, and verify if the privkey was stored
+        wallet = None
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+        self.assertEqual(3, len(wallet.get_receiving_addresses()))
+        self.assertEqual(3, len(wallet.keystore.keypairs))
+        self.assertTrue('03bf450797034dc95693096e575e3b3db14e5f074679b349b727f90fc7804ce7ab' in wallet.keystore.keypairs)
+        self.assertTrue('030dac677b9484e23db6f9255eddf433f4f12c02f9b35e0100f2f103ffbccf540f' in wallet.keystore.keypairs)
+        self.assertTrue('02f11d5f222a728fd08226cb5a1e85a74d58fc257bd3764bf1234346f91defed72' in wallet.keystore.keypairs)
+
+
 class FakeExchange(ExchangeBase):
     def __init__(self, rate):
         super().__init__(lambda self: None, lambda self: None)
