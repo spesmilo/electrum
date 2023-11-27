@@ -1071,6 +1071,7 @@ def hardware_keystore(d) -> Hardware_KeyStore:
 
 def load_keystore(db: 'WalletDB', name: str) -> KeyStore:
     # deepcopy object to avoid keeping a pointer to db.data
+    # note: this is needed as type(wallet.db.get("keystore")) != StoredDict
     d = copy.deepcopy(db.get(name, {}))
     t = d.get('type')
     if not t:
