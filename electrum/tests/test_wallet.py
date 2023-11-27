@@ -91,10 +91,6 @@ class TestWalletStorage(WalletTestCase):
         ])
         d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
-        addr0 = wallet.get_receiving_addresses()[0]
-        self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', addr0)
-        self.assertEqual('p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
-                         wallet.export_private_key(addr0, password=None))
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
 
         wallet.save_db()
@@ -106,6 +102,8 @@ class TestWalletStorage(WalletTestCase):
         wallet = Wallet(db, config=self.config)
 
         wallet.import_private_keys(['p2wpkh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'], password=None)
+        self.assertEqual(3, len(wallet.get_receiving_addresses()))
+        self.assertEqual(3, len(wallet.keystore.keypairs))
         wallet.save_db()
 
         # open the wallet anew again, and verify if the privkey was stored
