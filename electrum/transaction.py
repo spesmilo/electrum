@@ -2019,7 +2019,7 @@ class PartialTransaction(Transaction):
             txout.combine_with_other_txout(other_txout)
         self.invalidate_ser_cache()
 
-    def join_with_other_psbt(self, other_tx: 'PartialTransaction', *, config: 'SimpleConfig') -> None:
+    def join_with_other_psbt(self, other_tx: 'PartialTransaction', *, config: 'SimpleConfig', remove_duplicates: bool = True) -> None:
         """Adds inputs and outputs from other_tx into this one."""
         if not isinstance(other_tx, PartialTransaction):
             raise Exception('Can only join partial transactions.')
@@ -2036,7 +2036,13 @@ class PartialTransaction(Transaction):
         self._unknown.update(other_tx._unknown)
         # copy and add inputs and outputs
         self.add_inputs(list(other_tx.inputs()))
-        self.add_outputs(list(other_tx.outputs()), merge_duplicates=config.WALLET_MERGE_DUPLICATE_OUTPUTS)
+        # Add outputs
+        if remove_duplicates:
+            existing_outputs = set((out.address, out.value) for out in self.outputs())
+            new_outputs = [out for out in other_tx.outputs() if (out.address, out.value) not in existing_outputs]
+            self.add_outputs(new_outputs)
+        else:
+            self.add_outputs(list(other_tx.outputs()), merge_duplicates=config.WALLET_MERGE_DUPLICATE_OUTPUTS)
         self.remove_signatures()
         self.invalidate_ser_cache()
 
