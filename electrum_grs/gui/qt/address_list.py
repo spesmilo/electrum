@@ -40,6 +40,7 @@ from electrum_grs.simple_config import SimpleConfig
 
 from .util import MONOSPACE_FONT, ColorScheme, webopen
 from .my_treeview import MyTreeView, MySortModel
+from ..messages import MSG_FREEZE_ADDRESS
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -284,6 +285,7 @@ class AddressList(MyTreeView):
         multi_select = len(selected) > 1
         addrs = [self.item_from_index(item).text() for item in selected]
         menu = QMenu()
+        menu.setToolTipsVisible(True)
         if not multi_select:
             idx = self.indexAt(position)
             if not idx.isValid():
@@ -311,14 +313,17 @@ class AddressList(MyTreeView):
                 menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
 
             if not self.wallet.is_frozen_address(addr):
-                menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
+                act = menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
             else:
-                menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+                act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+            act.setToolTip(MSG_FREEZE_ADDRESS)
 
         else:
             # multiple items selected
-            menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
-            menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+            act = menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+            act.setToolTip(MSG_FREEZE_ADDRESS)
+            act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+            act.setToolTip(MSG_FREEZE_ADDRESS)
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:

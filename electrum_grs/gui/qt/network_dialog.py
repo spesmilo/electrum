@@ -33,7 +33,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
                              QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
                              QTabWidget, QWidget, QLabel)
-from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QIntValidator
 
 from electrum_grs.i18n import _
 from electrum_grs import constants, blockchain, util
@@ -52,6 +52,7 @@ _logger = get_logger(__name__)
 
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
+
 
 class NetworkDialog(QDialog, QtEventListener):
     def __init__(self, *, network: Network, config: 'SimpleConfig'):
@@ -243,6 +244,9 @@ class NetworkChoiceLayout(object):
         self.proxy_host.setFixedWidth(fixed_width_hostname)
         self.proxy_port = QLineEdit()
         self.proxy_port.setFixedWidth(fixed_width_port)
+        self.proxy_port_validator = QIntValidator(1, 65535)
+        self.proxy_port.setValidator(self.proxy_port_validator)
+
         self.proxy_user = QLineEdit()
         self.proxy_user.setPlaceholderText(_("Proxy user"))
         self.proxy_password = PasswordLineEdit()
@@ -427,6 +431,10 @@ class NetworkChoiceLayout(object):
     def set_proxy(self):
         net_params = self.network.get_parameters()
         if self.proxy_cb.isChecked():
+            if not self.proxy_port.hasAcceptableInput():
+                return
+            if ':' in self.proxy_host.text():  # avoid deserialization pitfall
+                return
             proxy = {'mode':str(self.proxy_mode.currentText()).lower(),
                      'host':str(self.proxy_host.text()),
                      'port':str(self.proxy_port.text()),

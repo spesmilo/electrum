@@ -40,6 +40,7 @@ from electrum_grs.util import profiler
 from .util import ColorScheme, MONOSPACE_FONT, EnterButton
 from .my_treeview import MyTreeView
 from .new_channel_dialog import NewChannelDialog
+from ..messages import MSG_FREEZE_ADDRESS, MSG_FREEZE_COIN
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -317,28 +318,36 @@ class UTXOList(MyTreeView):
             utxo = coins[0]
             addr = utxo.address
             menu_freeze = menu.addMenu(_("Freeze"))
+            menu_freeze.setToolTipsVisible(True)
             if not self.wallet.is_frozen_coin(utxo):
-                menu_freeze.addAction(_("Freeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], True))
+                act = menu_freeze.addAction(_("Freeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], True))
             else:
-                menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], False))
+                act = menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], False))
+            act.setToolTip(MSG_FREEZE_COIN)
             if not self.wallet.is_frozen_address(addr):
-                menu_freeze.addAction(_("Freeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
+                act = menu_freeze.addAction(_("Freeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
             else:
-                menu_freeze.addAction(_("Unfreeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+                act = menu_freeze.addAction(_("Unfreeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+            act.setToolTip(MSG_FREEZE_ADDRESS)
         elif len(coins) > 1:  # multiple items selected
             menu.addSeparator()
             addrs = [utxo.address for utxo in coins]
             is_coin_frozen = [self.wallet.is_frozen_coin(utxo) for utxo in coins]
             is_addr_frozen = [self.wallet.is_frozen_address(utxo.address) for utxo in coins]
             menu_freeze = menu.addMenu(_("Freeze"))
+            menu_freeze.setToolTipsVisible(True)
             if not all(is_coin_frozen):
-                menu_freeze.addAction(_("Freeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, True))
+                act = menu_freeze.addAction(_("Freeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, True))
+                act.setToolTip(MSG_FREEZE_COIN)
             if any(is_coin_frozen):
-                menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, False))
+                act = menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, False))
+                act.setToolTip(MSG_FREEZE_COIN)
             if not all(is_addr_frozen):
-                menu_freeze.addAction(_("Freeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+                act = menu_freeze.addAction(_("Freeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+                act.setToolTip(MSG_FREEZE_ADDRESS)
             if any(is_addr_frozen):
-                menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+                act = menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+                act.setToolTip(MSG_FREEZE_ADDRESS)
 
         menu.exec_(self.viewport().mapToGlobal(position))
 

@@ -264,12 +264,18 @@ class Console(QtWidgets.QPlainTextEdit):
                 exec(command, self.namespace, self.namespace)
         except SystemExit:
             self.close()
-        except BaseException:
-            traceback_lines = traceback.format_exc().split('\n')
-            # Remove traceback mentioning this file, and a linebreak
-            for i in (3,2,1,-1):
-                traceback_lines.pop(i)
-            self.appendPlainText('\n'.join(traceback_lines))
+        except BaseException as e:
+            te = traceback.TracebackException.from_exception(e)
+            # rm part of traceback mentioning this file.
+            # (note: we rm stack items before converting to str, instead of removing lines from the str,
+            #        as this is more reliable. The latter would differ whether the traceback has source text lines,
+            #        which is not always the case.)
+            te.stack = traceback.StackSummary.from_list(te.stack[1:])
+            tb_str = "".join(te.format())
+            # rm last linebreak:
+            if tb_str.endswith("\n"):
+                tb_str = tb_str[:-1]
+            self.appendPlainText(tb_str)
         sys.stdout = tmp_stdout
 
     def keyPressEvent(self, event):

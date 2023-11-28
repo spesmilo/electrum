@@ -2864,9 +2864,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._update_password_for_keystore(old_pw, new_pw)
         encrypt_keystore = self.can_have_keystore_encryption()
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
-        ## save changes
+        # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
-            self.db._write()
+            self.db.write_and_force_consolidation()
         # if wallet was previously unlocked, update password in memory
         if self._password_in_memory is not None:
             self._password_in_memory = new_pw
