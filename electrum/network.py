@@ -40,7 +40,7 @@ import functools
 from enum import IntEnum
 
 import aiorpcx
-from aiorpcx import ignore_after
+from aiorpcx import ignore_after, NetAddress
 from aiohttp import ClientResponse
 
 from . import util
@@ -168,35 +168,52 @@ proxy_modes = ['socks4', 'socks5']
 def serialize_proxy(p):
     if not isinstance(p, dict):
         return None
-    return ':'.join([p.get('mode'), p.get('host'), p.get('port'),
-                     p.get('user', ''), p.get('password', '')])
+    return ':'.join([p.get('mode'), p.get('host'), p.get('port')])
 
 
-def deserialize_proxy(s: Optional[str]) -> Optional[dict]:
+def deserialize_proxy(s: Optional[str], user: str = None, password: str = None) -> Optional[dict]:
     if not isinstance(s, str):
         return None
     if s.lower() == 'none':
         return None
-    proxy = {"mode":"socks5", "host":"localhost"}
-    # FIXME raw IPv6 address fails here
+    proxy = {"mode": "socks5", "host": "localhost"}
+
     args = s.split(':')
-    n = 0
-    if proxy_modes.count(args[n]) == 1:
-        proxy["mode"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["host"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["port"] = args[n]
-        n += 1
-    else:
-        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
-    if len(args) > n:
-        proxy["user"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["password"] = args[n]
+    if args[0] in proxy_modes:
+        proxy['mode'] = args[0]
+        args = args[1:]
+
+    def is_valid_port(ps: str):
+        try:
+            assert 0 < int(ps) < 65535
+        except (ValueError, AssertionError):
+            return False
+        return True
+
+    def is_valid_host(ph: str):
+        try:
+            NetAddress(ph, '1')
+        except ValueError:
+            return False
+        return True
+
+    # detect migrate from old settings
+    if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
+        proxy['host'] = args[0]
+        proxy['port'] = args[1]
+        proxy['user'] = args[2]
+        proxy['password'] = args[3]
+        return proxy
+
+    proxy['host'] = ':'.join(args[:-1])
+    proxy['port'] = args[-1]
+
+    if not is_valid_host(proxy['host']) or not is_valid_port(proxy['port']):
+        return None
+
+    proxy['user'] = user
+    proxy['password'] = password
+
     return proxy
 
 
@@ -496,7 +513,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _init_parameters_from_config(self) -> None:
         self.auto_connect = self.config.NETWORK_AUTO_CONNECT
         self._set_default_server()
-        self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY))
+        self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY, self.config.NETWORK_PROXY_USER,
+                                          self.config.NETWORK_PROXY_PASSWORD))
         self._maybe_set_oneserver()
 
     def get_donation_address(self):
@@ -625,6 +643,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
+        proxy_user = proxy['user'] if proxy else None
+        proxy_pass = proxy['password'] if proxy else None
         server = net_params.server
         # sanitize parameters
         try:
@@ -636,10 +656,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
         self.config.NETWORK_ONESERVER = net_params.oneserver
         self.config.NETWORK_PROXY = proxy_str
+        self.config.NETWORK_PROXY_USER = proxy_user
+        self.config.NETWORK_PROXY_PASSWORD = proxy_pass
         self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
         if self.config.NETWORK_SERVER != str(server) \
                 or self.config.NETWORK_PROXY != proxy_str \
+                or self.config.NETWORK_PROXY_USER != proxy_user \
+                or self.config.NETWORK_PROXY_PASSWORD != proxy_pass \
                 or self.config.NETWORK_ONESERVER != net_params.oneserver:
             return
 

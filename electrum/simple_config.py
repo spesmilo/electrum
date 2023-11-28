@@ -926,6 +926,8 @@ class SimpleConfig(Logger):
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
     NETWORK_PROXY = ConfigVar('proxy', default=None)
+    NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None)
+    NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None)
     NETWORK_SERVER = ConfigVar('server', default=None, type_=str)
     NETWORK_NOONION = ConfigVar('noonion', default=False, type_=bool)
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
