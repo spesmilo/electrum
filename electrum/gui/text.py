@@ -470,6 +470,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             out = self.run_popup('', ['Transaction ID:', self.txid[self.pos]])
 
     def edit_str(self, target, c, is_num=False):
+        if target is None:
+            target = ''
         # detect backspace
         cc = curses.unctrl(c).decode()
         if c in [8, 127, 263] and target:
@@ -721,10 +723,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':srv},
-            {'label':'proxy', 'type':'str', 'value':self.config.NETWORK_PROXY},
-            ], buttons = 1)
+            {'label': 'server', 'type': 'str', 'value': srv},
+            {'label': 'proxy', 'type': 'str', 'value': self.config.NETWORK_PROXY},
+            {'label': 'proxy user', 'type': 'str', 'value': self.config.NETWORK_PROXY_USER},
+            {'label': 'proxy pass', 'type': 'str', 'value': self.config.NETWORK_PROXY_PASSWORD},
+            ], buttons=1)
         if out:
+            self.show_message(repr(proxy_config))
             if out.get('server'):
                 server_str = out.get('server')
                 auto_connect = server_str == 'auto-connect'
@@ -734,11 +739,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                     except Exception:
                         self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
-            if out.get('server') or out.get('proxy'):
-                proxy = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
+            if out.get('server') or out.get('proxy') or out.get('proxy user') or out.get('proxy pass'):
+                new_proxy_config = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
+                if new_proxy_config:
+                    new_proxy_config['user'] = out.get('proxy user') if 'proxy user' in out else proxy_config['user']
+                    new_proxy_config['pass'] = out.get('proxy pass') if 'proxy pass' in out else proxy_config['pass']
                 net_params = NetworkParameters(
                     server=server_addr,
-                    proxy=proxy,
+                    proxy=new_proxy_config,
                     auto_connect=auto_connect)
                 self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
