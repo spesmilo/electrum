@@ -205,7 +205,7 @@ Pane {
                     color: Material.accentColor
                 }
                 Label {
-                    text: 'mode' in Network.proxy ? qsTr('enabled') : qsTr('none')
+                    text: 'mode' in Network.proxy ? qsTr('enabled') : qsTr('disabled')
                 }
 
                 Label {
