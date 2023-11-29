@@ -63,15 +63,15 @@ class PluginsDialog(WindowModalDialog):
         run_hook('init_qt', self.window.gui_object)
 
     def show_list(self):
-        descriptions = self.plugins.descriptions.values()
-        for i, descr in enumerate(descriptions):
-            full_name = descr['__name__']
-            prefix, _separator, name = full_name.rpartition('.')
+        descriptions = sorted(self.plugins.descriptions.items())
+        i = 0
+        for name, descr in descriptions:
+            i += 1
             p = self.plugins.get(name)
             if descr.get('registers_keystore'):
                 continue
             try:
-                cb = QCheckBox(descr['fullname'])
+                cb = QCheckBox(descr['display_name'])
                 plugin_is_loaded = p is not None
                 cb_enabled = (not plugin_is_loaded and self.plugins.is_available(name, self.wallet)
                               or plugin_is_loaded and p.can_user_disable())

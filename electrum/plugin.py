@@ -27,12 +27,18 @@ import pkgutil
 import importlib.util
 import time
 import threading
+import traceback
 import sys
+import json
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping, Set)
 import concurrent
+import zipimport
 from concurrent import futures
 from functools import wraps, partial
+from enum import IntEnum
+from packaging.version import parse as parse_version
+from electrum.version import ELECTRUM_VERSION
 
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
@@ -53,6 +59,7 @@ hook_names = set()
 hooks = {}
 
 
+
 class Plugins(DaemonThread):
 
     LOGGING_SHORTCUT = 'p'
@@ -66,16 +73,21 @@ class Plugins(DaemonThread):
         self.hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
         self.internal_plugin_metadata = {}
+        self.external_plugin_metadata = {}
         self.gui_name = gui_name
         self.device_manager = DeviceMgr(config)
+        self.user_pkgpath = os.path.join(self.config.electrum_path_root(), 'plugins')
+        if not os.path.exists(self.user_pkgpath):
+            os.mkdir(self.user_pkgpath)
         self.find_internal_plugins()
+        self.find_external_plugins()
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
     @property
     def descriptions(self):
-        return dict(list(self.internal_plugin_metadata.items()))
+        return dict(list(self.internal_plugin_metadata.items()) + list(self.external_plugin_metadata.items()))
 
     def find_internal_plugins(self) -> Mapping[str, dict]:
         """Populates self.internal_plugin_metadata
@@ -122,14 +134,87 @@ class Plugins(DaemonThread):
 
     def load_plugins(self):
         self.load_internal_plugins()
+        self.load_external_plugins()
 
     def load_internal_plugins(self):
         for name, d in self.internal_plugin_metadata.items():
-            if self.config.get('enable_plugin_' + name) is True:
+            if not d.get('requires_wallet_type') and self.config.get('enable_plugin_' + name):
                 try:
-                    self.load_plugin(name)
+                    self.load_internal_plugin(name)
                 except BaseException as e:
                     self.logger.exception(f"cannot initialize plugin {name}: {e}")
+
+    def load_external_plugin(self, name):
+        if name in self.plugins:
+            return self.plugins[name]
+        # If we do not have the metadata, it was not detected by `load_external_plugins`
+        # on startup, or added by manual user installation after that point.
+        metadata = self.external_plugin_metadata.get(name, None)
+        if metadata is None:
+            self.logger.exception("attempted to load unknown external plugin %s" % name)
+            return
+
+        from .crypto import sha256
+        external_plugin_dir = self.get_external_plugin_dir()
+        plugin_file_path = os.path.join(external_plugin_dir, name + '.zip')
+        if not os.path.exists(plugin_file_path):
+            return
+        with open(plugin_file_path, 'rb') as f:
+            s = f.read()
+        if sha256(s).hex() != metadata['hash']:
+            self.logger.exception("wrong hash for plugin '%s'" % plugin_file_path)
+            return
+
+        try:
+            zipfile = zipimport.zipimporter(plugin_file_path)
+        except zipimport.ZipImportError:
+            self.logger.exception("unable to load zip plugin '%s'" % plugin_file_path)
+            return
+        try:
+            module = zipfile.load_module(name)
+        except zipimport.ZipImportError as e:
+            self.logger.exception(f"unable to load zip plugin '{plugin_file_path}' package '{name}'")
+            return
+        sys.modules['electrum_external_plugins.'+ name] = module
+        full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
+        spec = importlib.util.find_spec(full_name)
+        if spec is None:
+            raise RuntimeError("%s implementation for %s plugin not found"
+                               % (self.gui_name, name))
+        module = importlib.util.module_from_spec(spec)
+        self._register_module(spec, module)
+        if sys.version_info >= (3, 10):
+            spec.loader.exec_module(module)
+        else:
+            module = spec.loader.load_module(full_name)
+        plugin = module.Plugin(self, self.config, name)
+        self.add_jobs(plugin.thread_jobs())
+        self.plugins[name] = plugin
+        self.logger.info(f"loaded external plugin {name}")
+        return plugin
+
+    @staticmethod
+    def _register_module(spec, module):
+        # sys.modules needs to be modified for relative imports to work
+        # see https://stackoverflow.com/a/50395128
+        sys.modules[spec.name] = module
+
+    def get_external_plugin_dir(self):
+        return self.user_pkgpath
+
+    def find_external_plugins(self):
+        """ read json file """
+        from .constants import read_json
+        self.external_plugin_metadata = read_json('plugins.json', {})
+
+    def load_external_plugins(self):
+        for name, d in self.external_plugin_metadata.items():
+            if not d.get('requires_wallet_type') and self.config.get('use_' + name):
+                try:
+                    self.load_external_plugin(name)
+                except BaseException as e:
+                    traceback.print_exc(file=sys.stdout) # shouldn't this be... suppressed unless -v?
+                    self.logger.exception(f"cannot initialize plugin {name} {e!r}")
 
     def get(self, name):
         return self.plugins.get(name)
@@ -141,9 +226,17 @@ class Plugins(DaemonThread):
         """Imports the code of the given plugin.
         note: can be called from any thread.
         """
+        if name in self.internal_plugin_metadata:
+            return self.load_internal_plugin(name)
+        elif name in self.external_plugin_metadata:
+            return self.load_external_plugin(name)
+        else:
+            raise Exception()
+
+    def load_internal_plugin(self, name) -> 'BasePlugin':
         if name in self.plugins:
             return self.plugins[name]
-        full_name = f'electrum.plugins.{name}.{self.gui_name}'
+        full_name = f'electrum.plugins.{name}' + f'.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError("%s implementation for %s plugin not found"
