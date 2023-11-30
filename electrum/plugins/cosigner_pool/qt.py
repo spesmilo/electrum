@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 ca_path = certifi.where()
 ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 server = ServerProxy('https://cosigner.electrum.org/', allow_none=True, context=ssl_context)
+# FIXME this is not using the network proxy.
 
 
 class Listener(util.DaemonThread):
