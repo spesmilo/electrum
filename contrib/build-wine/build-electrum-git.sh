@@ -50,6 +50,9 @@ pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location .
+# pyinstaller needs to be able to "import electrum", for which we need libsecp256k1:
+# (or could try "pip install -e" instead)
+cp electrum/libsecp256k1-*.dll "$WINEPREFIX/drive_c/python3/Lib/site-packages/electrum/"
 popd
 
 
