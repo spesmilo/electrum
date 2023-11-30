@@ -1,7 +1,7 @@
 aiohttp==3.8.3 \
     --hash=sha256:3828fb41b7203176b82fe5d699e0d845435f2374750a44b480ea6b930f6be269
-aiohttp-socks==0.7.1 \
-    --hash=sha256:2215cac4891ef3fa14b7d600ed343ed0f0a670c23b10e4142aa862b3db20341a
+aiohttp-socks==0.8.4 \
+    --hash=sha256:6b611d4ce838e9cf2c2fed5e0dba447cc84824a6cba95dc5747606201da46cb4
 aiorpcX==0.22.1 \
     --hash=sha256:6026f7bed3432e206589c94dcf599be8cd85b5736b118c7275845c1bd922a553
 aiosignal==1.3.1 \
@@ -36,8 +36,8 @@ protobuf==3.20.3 \
     --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2
 pyparsing==3.0.9 \
     --hash=sha256:2b020ecf7d21b687f219b71ecad3631f644a47f01403fa1d1036b0c6416d70fb
-python-socks==2.0.3 \
-    --hash=sha256:e3a9ca8e554733862ce4d8ce1d10efb480fd3a3acdafd03393943ec00c98ba8a
+python-socks==2.4.3 \
+    --hash=sha256:135430ae36d582dc834c983696c5f66177aa5b587407f540985d616ef2e0c701
 QDarkStyle==3.1 \
     --hash=sha256:600584d625343e0ddd128de08393d3c35637786a49827f174d29aa7caa8279c1
 qrcode==7.3.1 \
