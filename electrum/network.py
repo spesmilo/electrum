@@ -185,10 +185,9 @@ def deserialize_proxy(s: Optional[str], user: str = None, password: str = None) 
 
     def is_valid_port(ps: str):
         try:
-            assert 0 < int(ps) < 65535
-        except (ValueError, AssertionError):
+            return 0 < int(ps) < 65535
+        except ValueError:
             return False
-        return True
 
     def is_valid_host(ph: str):
         try:
