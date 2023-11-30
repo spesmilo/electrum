@@ -433,8 +433,6 @@ class NetworkChoiceLayout(object):
         if self.proxy_cb.isChecked():
             if not self.proxy_port.hasAcceptableInput():
                 return
-            if ':' in self.proxy_host.text():  # avoid deserialization pitfall
-                return
             proxy = {'mode':str(self.proxy_mode.currentText()).lower(),
                      'host':str(self.proxy_host.text()),
                      'port':str(self.proxy_port.text()),
