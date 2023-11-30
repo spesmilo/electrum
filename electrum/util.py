@@ -1498,9 +1498,7 @@ def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
 
 def is_tor_socks_port(host: str, port: int) -> bool:
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(1.0)
-            s.connect((host, port))
+        with socket.create_connection((host, port), timeout=10) as s:
             # mimic "tor-resolve 0.0.0.0".
             # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
             # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in

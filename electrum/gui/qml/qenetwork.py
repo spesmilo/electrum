@@ -86,6 +86,10 @@ class QENetwork(QObject, QtEventListener):
         self.proxySet.emit()
         self.proxyTorChanged.emit()
 
+    @event_listener
+    def on_event_tor_probed(self, *args):
+        self.proxyTorChanged.emit()
+
     def _update_status(self):
         server = str(self.network.get_parameters().server)
         if self._server != server:
