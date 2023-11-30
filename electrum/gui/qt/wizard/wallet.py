@@ -363,6 +363,8 @@ class WCWalletName(WizardComponent, Logger):
                           + _("Press 'Finish' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
+            if filename and os.path.isabs(relative_path(_path)):
+                msg += '\n\n' + _('Note: this wallet file is outside the default wallets folder.')
             msg_label.setText(msg)
             widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
