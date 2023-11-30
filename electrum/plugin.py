@@ -82,6 +82,11 @@ class Plugins(DaemonThread):
             cls._all_found_plugins = dict()
             iter_modules = list(pkgutil.iter_modules([cls.pkgpath]))
             for loader, name, ispkg in iter_modules:
+                # FIXME pyinstaller binaries are packaging each built-in plugin twice:
+                #       once as data and once as code. To honor the "no duplicates" rule below,
+                #       we exclude the ones packaged as *code*, here:
+                if loader.__class__.__qualname__ == "FrozenImporter":
+                    continue
                 full_name = f'electrum.plugins.{name}'
                 spec = importlib.util.find_spec(full_name)
                 if spec is None:  # pkgutil found it but importlib can't ?!
