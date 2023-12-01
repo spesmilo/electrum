@@ -413,9 +413,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
         wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
         result = wizard.exec()
         # TODO: use dialog.open() instead to avoid new event loop spawn?
-        self.logger.info(f'{result}')
+        self.logger.info(f'wizard dialog exec result={result}')
         if result == QENewWalletWizard.Rejected:
-            self.logger.info('ok bye bye')
+            self.logger.info('wizard dialog cancelled by user')
             return
 
         d = wizard.get_wizard_data()
@@ -461,7 +461,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                                        start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
             result = wizard.exec()
             if result == QENewWalletWizard.Rejected:
-                self.logger.info('ok bye bye')
+                self.logger.info('wizard dialog cancelled by user')
                 return
             db.put('x3', wizard.get_wizard_data()['x3'])
             db.write()

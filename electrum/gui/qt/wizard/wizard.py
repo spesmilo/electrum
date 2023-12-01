@@ -142,7 +142,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         page.wizard_data = copy.deepcopy(wdata)
         page.params = params
         page.updated.connect(self.on_page_updated)
-        self._logger.debug(f'{page!r}')
+        self._logger.debug(f'load_next_component: {page=!r}')
 
         # add to stack and update wizard
         self.main_widget.setCurrentIndex(self.main_widget.addWidget(page))
