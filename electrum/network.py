@@ -407,6 +407,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @staticmethod
     def get_instance() -> Optional["Network"]:
+        """Return the global singleton network instance.
+        Note that this can return None! If we are run with the --offline flag, there is no network.
+        """
         return _INSTANCE
 
     def with_recent_servers_lock(func):
