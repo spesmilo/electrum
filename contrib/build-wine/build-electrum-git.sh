@@ -52,7 +52,7 @@ info "Pip installing Electrum-GRS. This might take a long time if the project fo
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location .
 # pyinstaller needs to be able to "import electrum", for which we need libsecp256k1:
 # (or could try "pip install -e" instead)
-cp electrum/libsecp256k1-*.dll "$WINEPREFIX/drive_c/python3/Lib/site-packages/electrum/"
+cp electrum_grs/libsecp256k1-*.dll "$WINEPREFIX/drive_c/python3/Lib/site-packages/electrum-grs/"
 popd
 
 

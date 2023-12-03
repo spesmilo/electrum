@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 try:
     import PyQt6
 except Exception as e:
-    from electrum import GuiImportError
+    from electrum_grs import GuiImportError
     raise GuiImportError(
         "Error: Could not import PyQt6. On Linux systems, "
         "you may try 'sudo apt-get install python3-pyqt6'") from e
@@ -15,7 +15,7 @@ except Exception as e:
 try:
     import PyQt6.QtQml
 except Exception as e:
-    from electrum import GuiImportError
+    from electrum_grs import GuiImportError
     raise GuiImportError(
         "Error: Could not import PyQt6.QtQml. On Linux systems, "
         "you may try 'sudo apt-get install python3-pyqt6.qtquick'") from e

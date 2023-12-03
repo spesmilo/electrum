@@ -4,7 +4,7 @@ import base64
 import sys
 from typing import TYPE_CHECKING
 
-from electrum.gui.common_qt import get_qt_major_version
+from electrum_grs.gui.common_qt import get_qt_major_version
 
 if (qt_ver := get_qt_major_version()) == 5:
     from PyQt5.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
