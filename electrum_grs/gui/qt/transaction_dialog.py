@@ -50,8 +50,7 @@ from electrum_grs.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, DummyAd
 from electrum_grs.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs import simple_config
-from electrum_grs.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput, TxOutpoint
-from electrum_grs.transaction import TxinDataFetchProgress
+from electrum_grs.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum_grs.logging import get_logger
 from electrum_grs.util import ShortID, get_asyncio_loop
 from electrum_grs.network import Network
@@ -77,14 +76,15 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-
 class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
+
 class TxFiatLabel(QLabel):
     def setAmount(self, fiat_fee):
         self.setText(('≈  %s' % fiat_fee) if fiat_fee else '')
+
 
 class QTextBrowserWithDefaultSize(QTextBrowser):
     def __init__(self, width: int = 0, height: int = 0):
@@ -96,8 +96,8 @@ class QTextBrowserWithDefaultSize(QTextBrowser):
     def sizeHint(self):
         return QSize(self._width, self._height)
 
-class TxInOutWidget(QWidget):
 
+class TxInOutWidget(QWidget):
     def __init__(self, main_window: 'ElectrumWindow', wallet: 'Abstract_Wallet'):
         QWidget.__init__(self)
 
@@ -113,9 +113,24 @@ class TxInOutWidget(QWidget):
         self.inputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
         self.inputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
 
+        self.sighash_label = QLabel()
+        self.sighash_label.setStyleSheet('font-weight: bold')
+        self.sighash_confirm = False
+        self.sighash_reject = False
+        self.sighash_message = ''
+        self.inputs_warning_icon = QLabel()
+        pixmap = QPixmap(icon_path("warning"))
+        pixmap_size = round(2 * char_width_in_lineedit())
+        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.inputs_warning_icon.setPixmap(pixmap)
+        self.inputs_warning_icon.setVisible(False)
+
         self.inheader_hbox = QHBoxLayout()
         self.inheader_hbox.setContentsMargins(0, 0, 0, 0)
         self.inheader_hbox.addWidget(self.inputs_header)
+        self.inheader_hbox.addStretch(2)
+        self.inheader_hbox.addWidget(self.sighash_label)
+        self.inheader_hbox.addWidget(self.inputs_warning_icon)
 
         self.txo_color_recv = TxOutputColoring(
             legend=_("Wallet Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receiving address"))
@@ -245,6 +260,13 @@ class TxInOutWidget(QWidget):
                 tcf_shortid=tcf_shortid,
                 short_id=str(txin.short_id), addr=addr, value=txin_value,
             )
+
+        if isinstance(self.tx, PartialTransaction):
+            self.sighash_confirm, self.sighash_reject, self.sighash_message = self.wallet.check_sighash(self.tx)
+            if self.sighash_message:
+                self.sighash_label.setText(_('Danger! This transaction is non-standard!'))
+                self.inputs_warning_icon.setVisible(True)
+                self.inputs_warning_icon.setToolTip(self.sighash_message)
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
@@ -645,6 +667,14 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.update()
             self.main_window.pop_top_level_window(self)
 
+        if self.io_widget.sighash_confirm:
+            if not self.question('\n'.join([
+                _('Danger! This transaction is non-standard!'),
+                self.io_widget.sighash_message,
+                '',
+                _('Are you sure you want to sign this transaction?')
+            ])):
+                return
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
         self.main_window.sign_tx(self.tx, callback=sign_done, external_keypairs=self.external_keypairs)
@@ -771,7 +801,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
-        self.sign_button.setEnabled(can_sign)
+        self.sign_button.setEnabled(can_sign and not self.io_widget.sighash_reject)
+        self.sign_button.setToolTip(self.io_widget.sighash_message)
         if tx_details.txid:
             self.tx_hash_e.setText(tx_details.txid)
         else:

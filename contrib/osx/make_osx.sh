@@ -223,6 +223,9 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
+# pyinstaller needs to be able to "import electrum", for which we need libsecp256k1:
+# (or could try "pip install -e" instead)
+cp "$PROJECT_ROOT/electrum"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum/"
 
 # strip debug symbols of some compiled libs
 # - hidapi (hid.cpython-39-darwin.so) in particular is not reproducible without this

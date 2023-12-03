@@ -80,7 +80,13 @@ class Plugins(DaemonThread):
         """
         if cls._all_found_plugins is None:
             cls._all_found_plugins = dict()
-            for loader, name, ispkg in pkgutil.iter_modules([cls.pkgpath]):
+            iter_modules = list(pkgutil.iter_modules([cls.pkgpath]))
+            for loader, name, ispkg in iter_modules:
+                # FIXME pyinstaller binaries are packaging each built-in plugin twice:
+                #       once as data and once as code. To honor the "no duplicates" rule below,
+                #       we exclude the ones packaged as *code*, here:
+                if loader.__class__.__qualname__ == "FrozenImporter":
+                    continue
                 full_name = f'electrum_grs.plugins.{name}'
                 spec = importlib.util.find_spec(full_name)
                 if spec is None:  # pkgutil found it but importlib can't ?!
@@ -94,7 +100,9 @@ class Plugins(DaemonThread):
                 except Exception as e:
                     raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
                 d = module.__dict__
-                assert name not in cls._all_found_plugins
+                if name in cls._all_found_plugins:
+                    _logger.info(f"Found the following plugin modules: {iter_modules=}")
+                    raise Exception(f"duplicate plugins? for {name=}")
                 cls._all_found_plugins[name] = d
         return cls._all_found_plugins
 

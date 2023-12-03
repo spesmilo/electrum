@@ -71,7 +71,7 @@ from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
-                          PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
+                          PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
@@ -233,18 +233,27 @@ class CannotBumpFee(CannotRBFTx):
     def __str__(self):
         return _('Cannot bump fee') + ':\n\n' + Exception.__str__(self)
 
+
 class CannotDoubleSpendTx(CannotRBFTx):
     def __str__(self):
         return _('Cannot cancel transaction') + ':\n\n' + Exception.__str__(self)
+
 
 class CannotCPFP(Exception):
     def __str__(self):
         return _('Cannot create child transaction') + ':\n\n' + Exception.__str__(self)
 
+
 class InternalAddressCorruption(Exception):
     def __str__(self):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
+
+
+class TransactionPotentiallyDangerousException(Exception): pass
+
+
+class TransactionDangerousException(TransactionPotentiallyDangerousException): pass
 
 
 class BumpFeeStrategy(enum.Enum):
@@ -2454,7 +2463,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         txout.is_change = self.is_change(address)
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
 
-    def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
+    def sign_transaction(self, tx: Transaction, password, *, ignore_warnings: bool = False) -> Optional[PartialTransaction]:
         """ returns tx if successful else None """
         if self.is_watching_only():
             return
@@ -2467,6 +2476,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if swap:
             self.lnworker.swap_manager.sign_tx(tx, swap)
             return tx
+
+        # check if signing is dangerous
+        should_confirm, should_reject, message = self.check_sighash(tx)
+        if should_reject:
+            raise TransactionDangerousException('Not signing transaction:\n' + message)
+        if not ignore_warnings:
+            if should_confirm:
+                message = '\n'.join([_('Danger! This transaction is non-standard!'), message])
+            fee = self.get_wallet_delta(tx).fee
+            risk_of_burning_coins = (fee is not None
+                                     and self.get_warning_for_risk_of_burning_coins_as_fees(tx))
+            if risk_of_burning_coins:
+                should_confirm = True
+                message = '\n'.join([message, risk_of_burning_coins])
+
+            if should_confirm:
+                raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + message)
+
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
         tmp_tx = copy.deepcopy(tx)
@@ -3040,6 +3067,36 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 + _("If you received this transaction from an untrusted device, "
                     "do not accept to sign it more than once,\n"
                     "otherwise you could end up paying a different fee."))
+
+    def check_sighash(self, tx: 'PartialTransaction') -> (bool, bool, str):
+        """Checks the Sighash for my inputs and return hints in the form
+        (confirm, reject, message), where confirm indicates the user should explicitly confirm,
+        reject indicates the transaction should be rejected (unless overruled in e.g. a config property),
+        and message containing a user-facing message describing the context"""
+        hintmap = dict([
+            (0, (False, False, None)),
+            (Sighash.NONE, (True, True, _('Input {} is marked SIGHASH_NONE.'))),
+            (Sighash.SINGLE, (True, False, _('Input {} is marked SIGHASH_SINGLE.'))),
+            (Sighash.ALL, (False, False, None)),
+            (Sighash.ANYONECANPAY, (True, False, _('Input {} is marked SIGHASH_ANYONECANPAY.')))
+        ])
+        confirm = False
+        reject = False
+        messages = []
+        for txin_idx, txin in enumerate(tx.inputs()):
+            if txin.sighash and txin.sighash != Sighash.ALL:  # non-standard
+                addr = self.adb.get_txin_address(txin)
+                if self.adb.is_mine(addr):
+                    sh_out = txin.sighash & (Sighash.ANYONECANPAY ^ 0xff)
+                    sh_in = txin.sighash & Sighash.ANYONECANPAY
+                    confirm |= hintmap[sh_out][0] | hintmap[sh_in][0]
+                    reject |= hintmap[sh_out][1] | hintmap[sh_in][1]
+                    for sh in [sh_out, sh_in]:
+                        msg = hintmap[sh][2]
+                        if msg:
+                            messages.append('%s: %s' % (_('Fatal') if hintmap[sh][1] else _('Warning'),
+                                                        msg.format(txin_idx)))
+        return confirm, reject, '\n'.join(messages)
 
     def get_tx_fee_warning(
             self, *,

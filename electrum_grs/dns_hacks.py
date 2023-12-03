@@ -20,30 +20,20 @@ _logger = get_logger(__name__)
 _dns_threads_executor = None  # type: Optional[concurrent.futures.Executor]
 
 
-def configure_dns_depending_on_proxy(is_proxy: bool) -> None:
+def configure_dns_resolver() -> None:
     # Store this somewhere so we can un-monkey-patch:
     if not hasattr(socket, "_getaddrinfo"):
         socket._getaddrinfo = socket.getaddrinfo
-    if is_proxy:
-        # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-        def getaddrinfo(host, port, *args, **kwargs):
-            if _is_force_system_dns_for_host(host):
-                return socket._getaddrinfo(host, port, *args, **kwargs)
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (host, port))]
-        socket.getaddrinfo = getaddrinfo
-    else:
-        if sys.platform == 'win32':
-            # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
-            # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
-            # See https://github.com/spesmilo/electrum/issues/4421
-            try:
-                _prepare_windows_dns_hack()
-            except Exception as e:
-                _logger.exception('failed to apply windows dns hack.')
-            else:
-                socket.getaddrinfo = _fast_getaddrinfo
+    if sys.platform == 'win32':
+        # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
+        # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
+        # See https://github.com/spesmilo/electrum/issues/4421
+        try:
+            _prepare_windows_dns_hack()
+        except Exception as e:
+            _logger.exception('failed to apply windows dns hack.')
         else:
-            socket.getaddrinfo = socket._getaddrinfo
+            socket.getaddrinfo = _fast_getaddrinfo
 
 
 def _prepare_windows_dns_hack():

@@ -50,6 +50,16 @@ Pane {
                     }
 
                     InfoTextArea {
+                        id: warn
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: txdetails.warning
+                        text: txdetails.warning
+                        iconStyle: InfoTextArea.IconStyle.Warn
+                    }
+
+                    InfoTextArea {
                         id: bumpfeeinfo
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
@@ -336,7 +346,20 @@ Pane {
                 icon.source: '../../icons/key.png'
                 text: qsTr('Sign')
                 visible: txdetails.canSign
-                onClicked: txdetails.sign()
+                onClicked: {
+                    if (txdetails.shouldConfirm) {
+                        var dialog = app.messageDialog.createObject(app, {
+                            text: qsTr('Confirm signing non-standard transaction?'),
+                            yesno: true
+                        })
+                        dialog.accepted.connect(function() {
+                            txdetails.sign()
+                        })
+                        dialog.open()
+                    } else {
+                        txdetails.sign()
+                    }
+                }
             }
 
             FlatButton {

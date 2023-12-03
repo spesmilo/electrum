@@ -469,10 +469,10 @@ class Commands:
         return tx.serialize()
 
     @command('wp')
-    async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None):
+    async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None, iknowwhatimdoing: bool=False):
         """Sign a transaction. The wallet keys will be used to sign the transaction."""
         tx = tx_from_any(tx)
-        wallet.sign_transaction(tx, password)
+        wallet.sign_transaction(tx, password, ignore_warnings=iknowwhatimdoing)
         return tx.serialize()
 
     @command('')
@@ -1563,11 +1563,20 @@ def add_network_options(parser):
     parser.add_argument("-f", "--serverfingerprint", dest=SimpleConfig.NETWORK_SERVERFINGERPRINT.key(), default=None,
                         help="only allow connecting to servers with a matching SSL certificate SHA256 fingerprint. " +
                              "To calculate this yourself: '$ openssl x509 -noout -fingerprint -sha256 -inform pem -in mycertfile.crt'. Enter as 64 hex chars.")
-    parser.add_argument("-1", "--oneserver", action="store_true", dest=SimpleConfig.NETWORK_ONESERVER.key(), default=None, help="connect to one server only")
-    parser.add_argument("-s", "--server", dest=SimpleConfig.NETWORK_SERVER.key(), default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
-    parser.add_argument("-p", "--proxy", dest=SimpleConfig.NETWORK_PROXY.key(), default=None, help="set proxy [type:]host[:port] (or 'none' to disable proxy), where type is socks4,socks5 or http")
-    parser.add_argument("--noonion", action="store_true", dest=SimpleConfig.NETWORK_NOONION.key(), default=None, help="do not try to connect to onion servers")
-    parser.add_argument("--skipmerklecheck", action="store_true", dest=SimpleConfig.NETWORK_SKIPMERKLECHECK.key(), default=None, help="Tolerate invalid merkle proofs from server")
+    parser.add_argument("-1", "--oneserver", action="store_true", dest=SimpleConfig.NETWORK_ONESERVER.key(), default=None,
+                        help="connect to one server only")
+    parser.add_argument("-s", "--server", dest=SimpleConfig.NETWORK_SERVER.key(), default=None,
+                        help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    parser.add_argument("-p", "--proxy", dest=SimpleConfig.NETWORK_PROXY.key(), default=None,
+                        help="set proxy [type:]host:port (or 'none' to disable proxy), where type is socks4 or socks5")
+    parser.add_argument("--proxyuser", dest=SimpleConfig.NETWORK_PROXY_USER.key(), default=None,
+                        help="set proxy username")
+    parser.add_argument("--proxypassword", dest=SimpleConfig.NETWORK_PROXY_PASSWORD.key(), default=None,
+                        help="set proxy password")
+    parser.add_argument("--noonion", action="store_true", dest=SimpleConfig.NETWORK_NOONION.key(), default=None,
+                        help="do not try to connect to onion servers")
+    parser.add_argument("--skipmerklecheck", action="store_true", dest=SimpleConfig.NETWORK_SKIPMERKLECHECK.key(), default=None,
+                        help="Tolerate invalid merkle proofs from server")
 
 def add_global_options(parser):
     group = parser.add_argument_group('global options')

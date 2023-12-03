@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import itertools
 
 from . import bitcoin
@@ -10,13 +10,15 @@ from .constants import BIP39_WALLET_FORMATS
 from .bip32 import BIP32_PRIME, BIP32Node
 from .bip32 import convert_bip32_strpath_to_intpath as bip32_str_to_ints
 from .bip32 import convert_bip32_intpath_to_strpath as bip32_ints_to_str
-from .util import OldTaskGroup
+from .util import OldTaskGroup, NetworkOfflineException
 
 if TYPE_CHECKING:
     from .network import Network
 
 
-async def account_discovery(network: 'Network', get_account_xpub):
+async def account_discovery(network: Optional['Network'], get_account_xpub):
+    if network is None:
+        raise NetworkOfflineException()
     async with OldTaskGroup() as group:
         account_scan_tasks = []
         for wallet_format in BIP39_WALLET_FORMATS:
