@@ -110,7 +110,7 @@ Section
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
 
   ;Files to pack into the installer
-  File /r "dist\electrum-grs\*.*"
+  File /r "dist\electrum_grs\*.*"
   File "..\..\electrum_grs\gui\icons\electrum-grs.ico"
 
   ;Store installation folder
