@@ -267,7 +267,7 @@ class QENetwork(QObject, QtEventListener):
     proxyTorChanged = pyqtSignal()
     @pyqtProperty(bool, notify=proxyTorChanged)
     def isProxyTor(self):
-        return self.network.tor_proxy
+        return bool(self.network.is_proxy_tor)
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):

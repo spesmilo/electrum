@@ -324,7 +324,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
         self.proxy = None
-        self.tor_proxy = False
+        self.is_proxy_tor = None
         self._init_parameters_from_config()
 
         self.taskgroup = None
@@ -633,7 +633,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.logger.info(f'setting proxy {proxy}')
         self.proxy = proxy
-        self.tor_proxy = False
+        self.is_proxy_tor = False
 
         def tor_probe_task(p):
             assert p is not None
@@ -649,7 +649,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('proxy_set', self.proxy)
 
     def _tor_probe_done(self, is_tor: bool):
-        self.tor_proxy = is_tor
+        self.is_proxy_tor = is_tor
         util.trigger_callback('tor_probed', is_tor)
 
     @log_exceptions

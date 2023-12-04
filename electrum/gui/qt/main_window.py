@@ -965,7 +965,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         balance_text = ""
 
         if self.tor_button:
-            self.tor_button.setVisible(self.network and self.network.tor_proxy)
+            self.tor_button.setVisible(self.network and bool(self.network.is_proxy_tor))
 
         if self.network is None:
             network_text = _("Offline")
