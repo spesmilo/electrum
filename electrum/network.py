@@ -323,6 +323,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
+        self.proxy = None
+        self.is_proxy_tor = None
         self._init_parameters_from_config()
 
         self.taskgroup = None
@@ -513,6 +515,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                                  oneserver=self.oneserver)
 
     def _init_parameters_from_config(self) -> None:
+        dns_hacks.configure_dns_resolver()
         self.auto_connect = self.config.NETWORK_AUTO_CONNECT
         self._set_default_server()
         self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY, self.config.NETWORK_PROXY_USER,
@@ -628,18 +631,29 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
     def _set_proxy(self, proxy: Optional[dict]):
-        self.proxy = proxy
-        dns_hacks.configure_dns_resolver()
+        if self.proxy == proxy:
+            return
+
         self.logger.info(f'setting proxy {proxy}')
+        self.proxy = proxy
+        self.is_proxy_tor = False
 
-        self.tor_proxy = False
-        if bool(proxy) and proxy['mode'] == 'socks5':
-            # test for Tor
-            self.tor_proxy = util.is_tor_socks_port(proxy['host'], int(proxy['port']))
-            if self.tor_proxy:
-                self.logger.info(f'Proxy is TOR')
+        def tor_probe_task(p):
+            assert p is not None
+            tor_proxy = util.is_tor_socks_port(p['host'], int(p['port']))
+            if self.proxy == p:  # is this the proxy we probed?
+                self.logger.info(f'Proxy is {"" if tor_proxy else "not "}TOR')
+                self._tor_probe_done(tor_proxy)
 
-        util.trigger_callback('proxy_set', self.proxy, self.tor_proxy)
+        if proxy['mode'] == 'socks5':
+            t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
+            t.start()
+
+        util.trigger_callback('proxy_set', self.proxy)
+
+    def _tor_probe_done(self, is_tor: bool):
+        self.is_proxy_tor = is_tor
+        util.trigger_callback('tor_probed', is_tor)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
