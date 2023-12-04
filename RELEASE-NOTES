@@ -1,3 +1,56 @@
+# Release 4.5.0 (unreleased)
+ * General:
+   - remove SSL options from config (012ce1c)
+   - make number of logfiles to keep configurable (5e8b14f)
+   - incremental writes wallet file (#8493)
+ * Lightning:
+   - Fix sweep when restoring from backup after force-close (#8536)
+     - Channel Backup version bump, users should consider re-exporting channel backups
+     - fix sweeping chan after local force-close using cb (#8516)
+   - fix BOLT-04 "MUST set `short_channel_id` to the `short_channel_id` used by the incoming onion" (ca93af2)
+   - add support for hold invoices (1acf426)
+   - add support for bundled payments (c4eb7d8)
+   - various MPP improvements (#7987, ..)
+   - support large channels (40f2087)
+   - new swap flow for normal swaps (fd10ae3)
+   - don't create invoice with duplicate route hints (a3997f8)
+   - don't set channel OPEN before channel_ready has been both sent and received (#8641)
+   - if trampoline is enabled, do not add non-trampoline nodes to invoices (120faa4)
+ * QML GUI:
+   - port to Qt6
+   - fix regression for lnurl-pay (#8585)
+   - fix invoice amount bounds check (#8582)
+   - fix places where text was rendered off-screen for certain translations (#8611)
+   - fix lnworker undefined when node alias requested (#8635)
+   - fix BIP39 cosigner script type must be same as primary (8cd95f1)
+   - better handle android back-gesture (#8464)
+   - new: show private key in address details (016b5eb)
+   - new: label sync plugin toggle (b6863b4)
+   - fix: properly suggest paying BOLT11 invoice onchain if insufficient balance (0a80460)
+   - allow cancel submarine swap while awaiting HTLCs (6cd42fa)
+   - new: message sign & verify (e5e1e46)
+   - new: allow never expiring payment requests (#8631)
+   - new: add coins/UTXOs to addresses list, add filters (cf91d2e)
+   - new: delete addresses from imported wallet (#8675)
+   - various UI fixes (b846eab, #8634, 9ed5f7b, 941f425, b20a4b9, af61b9d, 0fb47c8, 2995bc8, ..)
+ * Desktop:
+   - port wizard to new implementation
+   - fix fiat balance sorting in address list window (#8469, #8478)
+   - remove thousands separator when copying numbers to clipboard (#8479)
+   - new: option to use extra trampoline for legacy payments (b2053c6)
+   - new: send change to lightning option for on-chain payments (649ce97)
+   - allow cancel submarine swap while awaiting HTLCs (9df8bb6)
+   - various UI fixes (#8587, #6526, ..)
+ * Hardware wallets:
+   - Trezor: allow multiple change outputs (#3920)
+   - Trezor: support external pre-signed inputs (#8324)
+   - Bitbox02: update to 6.2.0 (#8459)
+ * Plugins:
+   - new: swapserver plugin (#8489)
+   - trustedcoin: stricter client-side checks for 2fa fee (87cba8b)
+
+
+
 # Release 4.4.6 (August 18, 2023) (security update)
  * Lightning:
    - security fix: multiple lightning-related security issues have
