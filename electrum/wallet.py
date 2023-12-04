@@ -391,7 +391,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     """
 
     max_change_outputs = 3
-    gap_limit_for_change = 10
 
     txin_type: str
     wallet_type: str
@@ -3814,6 +3813,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         self._ephemeral_addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]
         Abstract_Wallet.__init__(self, db, config=config)
         self.gap_limit = db.get('gap_limit', 20)
+        self.gap_limit_for_change = db.get('gap_limit_for_change', 10)
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
         self.synchronize()
@@ -4232,7 +4232,8 @@ def create_new_wallet(
     password: Optional[str] = None,
     encrypt_file: bool = True,
     seed_type: Optional[str] = None,
-    gap_limit: Optional[int] = None
+    gap_limit: Optional[int] = None,
+    gap_limit_for_change: Optional[int] = None,
 ) -> dict:
     """Create a new wallet"""
     storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
@@ -4248,6 +4249,8 @@ def create_new_wallet(
         db.put('lightning_xprv', k.get_lightning_xprv(None))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
+    if gap_limit_for_change is not None:
+        db.put('gap_limit_for_change', gap_limit_for_change)
     wallet = Wallet(db, config=config)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
@@ -4265,6 +4268,7 @@ def restore_wallet_from_text(
     password: Optional[str] = None,
     encrypt_file: Optional[bool] = None,
     gap_limit: Optional[int] = None,
+    gap_limit_for_change: Optional[int] = None,
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
@@ -4308,6 +4312,8 @@ def restore_wallet_from_text(
         db.put('wallet_type', 'standard')
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
+        if gap_limit_for_change is not None:
+            db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = Wallet(db, config=config)
     if db.storage:
         assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
