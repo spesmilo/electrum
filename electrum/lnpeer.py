@@ -2252,7 +2252,7 @@ class Peer(Logger):
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
                 await self.send_warning(
                     chan.channel_id,
-                    "remote didn't use upfront shutdown script it commited to in channel opening",
+                    "remote didn't use upfront shutdown script it committed to in channel opening",
                     close_connection=True)
         else:
             # BOLT-02 restrict the scriptpubkey to some templates:
@@ -2298,7 +2298,7 @@ class Peer(Logger):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(ChannelState.SHUTDOWN)
-        # can fullfill or fail htlcs. cannot add htlcs, because state != OPEN
+        # can fulfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
     def get_shutdown_fee_range(self, chan, closing_tx, is_local):

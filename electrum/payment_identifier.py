@@ -64,7 +64,7 @@ class PaymentIdentifierState(IntEnum):
                          # and supply a refund address (bip70)
     MERCHANT_ACK    = 6  # PI notified merchant. nothing to be done.
     ERROR           = 50 # generic error
-    NOT_FOUND       = 51 # PI contains a recognized destination format, but resolve step was unsuccesful
+    NOT_FOUND       = 51 # PI contains a recognized destination format, but resolve step was unsuccessful
     MERCHANT_ERROR  = 52 # PI failed notifying the merchant after broadcasting onchain TX
     INVALID_AMOUNT  = 53 # Specified amount not accepted
 
