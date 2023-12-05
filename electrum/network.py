@@ -1159,7 +1159,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             r"dust":
                 (_("Transaction could not be broadcast due to dust outputs.\n"
                    "Some of the outputs are too small in value, probably lower than 1000 satoshis.\n"
-                   "Check the units, make sure you haven't confused e.g. mBTC and BTC.")),
+                   "Check the units, make sure you haven't confused e.g. mGLC and GLC.")),
             r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
         }
         for substring in policy_error_messages:
