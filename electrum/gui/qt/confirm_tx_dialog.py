@@ -395,7 +395,8 @@ class TxEditor(WindowModalDialog):
         add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS, self.toggle_fee_details)
         add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, self.toggle_locktime)
         self.pref_menu.addSeparator()
-        add_cv_action(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, self.toggle_send_change_to_lightning)
+        # remove an option to send a change to lightning
+        # add_cv_action(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, self.toggle_send_change_to_lightning)
         add_pref_action(
             self.wallet.use_change,
             self.toggle_use_change,

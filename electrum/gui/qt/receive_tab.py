@@ -145,8 +145,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.update_view_button()
         self.toolbar.insertWidget(2, self.toggle_view_button)
         # menu
-        menu.addConfig(self.config.cv.WALLET_BOLT11_FALLBACK, callback=self.on_toggle_bolt11_fallback)
-        menu.addConfig(self.config.cv.WALLET_BIP21_LIGHTNING, callback=self.update_current_request)
+        # disabled lightning options in receive tab
+        #menu.addConfig(self.config.cv.WALLET_BOLT11_FALLBACK, callback=self.on_toggle_bolt11_fallback)
+        #menu.addConfig(self.config.cv.WALLET_BIP21_LIGHTNING, callback=self.update_current_request)
         self.qr_menu_action = menu.addToggle(_("Show detached QR code window"), self.window.toggle_qr_window)
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
