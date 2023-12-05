@@ -179,7 +179,7 @@ class InvoiceList(MyTreeView):
         copy_menu = self.add_copy_menu(menu, idx)
         address = invoice.get_address()
         if address:
-            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Bitcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Goldcoin Address'))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             if bool(invoice.get_amount_sat()):
