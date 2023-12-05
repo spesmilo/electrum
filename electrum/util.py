@@ -90,7 +90,7 @@ base_units = {'GLC':8, 'mGLC':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
 base_units_list = ['GLC', 'mGLC', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mGLC
+DECIMAL_POINT_DEFAULT = 8  # GLC
 
 
 class UnknownBaseUnit(Exception): pass
