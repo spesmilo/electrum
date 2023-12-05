@@ -244,7 +244,7 @@ ElDialog {
                 text: 'Copy'
                 onClicked: {
                     if (request.isLightning && rootLayout.state == 'bolt11')
-                        AppController.textToClipboard(_bolt11)
+                        AppController.textToClipboard(_bolt11.toLowerCase())
                     else if (rootLayout.state == 'bip21uri')
                         AppController.textToClipboard(_bip21uri)
                     else
@@ -261,7 +261,7 @@ ElDialog {
                 onClicked: {
                     enabled = false
                     if (request.isLightning && rootLayout.state == 'bolt11')
-                        AppController.doShare(_bolt11, qsTr('Payment Request'))
+                        AppController.doShare(_bolt11.toLowerCase(), qsTr('Payment Request'))
                     else if (rootLayout.state == 'bip21uri')
                         AppController.doShare(_bip21uri, qsTr('Payment Request'))
                     else

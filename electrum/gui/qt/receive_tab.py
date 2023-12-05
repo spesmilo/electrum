@@ -223,14 +223,14 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def on_tab_changed(self):
         text, data, help_text, title = self.get_tab_data()
-        self.window.do_copy(data, title=title)
+        self.window.do_copy(text, title=title)
         self.update_receive_qr_window()
 
     def do_copy(self, e):
         if e.button() != Qt.LeftButton:
             return
         text, data, help_text, title = self.get_tab_data()
-        self.window.do_copy(data, title=title)
+        self.window.do_copy(text, title=title)
 
     def toggle_receive_qr(self):
         b = not self.config.GUI_QT_RECEIVE_TAB_QR_VISIBLE
