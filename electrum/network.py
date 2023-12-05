@@ -636,7 +636,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.logger.info(f'setting proxy {proxy}')
         self.proxy = proxy
-        self.is_proxy_tor = False
+        self.is_proxy_tor = None
 
         def tor_probe_task(p):
             assert p is not None
