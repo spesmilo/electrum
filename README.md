@@ -1,4 +1,4 @@
-# Electrum - Lightweight Bitcoin client
+# Electrum - Lightweight Goldcoin client
 
 ```
 Licence: MIT Licence
