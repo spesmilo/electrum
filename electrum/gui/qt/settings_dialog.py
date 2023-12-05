@@ -171,6 +171,11 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.app.refresh_tabs_signal.emit()
         msat_cb.stateChanged.connect(on_msat_checked)
 
+        #disable the lightning options in gui (expatjedi)
+        trampoline_cb.setEnabled(False)
+        legacy_add_trampoline_cb.setEnabled(False)
+        remote_wt_cb.setEnabled(False)
+
         # units
         units = base_units_list
         msg = (_('Base unit of your wallet.')
@@ -365,7 +370,8 @@ class SettingsDialog(QDialog, QtEventListener):
             (gui_widgets, _('Appearance')),
             (units_widgets, _('Units')),
             (fiat_widgets, _('Fiat')),
-            (lightning_widgets, _('Lightning')),
+            # removed lightning tab
+          # (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
         ]
         for widgets, name in tabs_info:
