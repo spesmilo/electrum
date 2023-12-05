@@ -35,12 +35,20 @@ from .logging import get_logger, Logger
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
+try:
+    import scrypt
+    getPoWHash = lambda x: scrypt.hash(x, x, N=1024, r=1, p=1, buflen=32)
+except ImportError:
+    util.print_msg("Warning: package scrypt not available; synchronization could be very slow")
+    from .scrypt import scrypt_1024_1_1_80 as getPoWHash
+
+
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
 
 # see https://github.com/bitcoin/bitcoin/blob/feedb9c84e72e4fff489810a2bbeec09bcda5763/src/chainparams.cpp#L76
-MAX_TARGET = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1d00ffff
+MAX_TARGET = 0x00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1e0ffff0
 
 
 class MissingHeader(Exception):
@@ -85,8 +93,8 @@ def hash_header(header: dict) -> str:
 def hash_raw_header(header: str) -> str:
     return hash_encode(sha256d(bfh(header)))
 
-
-pow_hash_header = hash_header
+def pow_hash_header(header):
+    return hash_encode(getPoWHash(bfh(serialize_header(header))))
 
 
 # key: blockhash hex at forkpoint
@@ -250,7 +258,6 @@ class Blockchain(Logger):
         return self.get_hash(self.get_max_forkpoint()).lstrip('0')[0:10]
 
     def check_header(self, header: dict) -> bool:
-        return True
         header_hash = hash_header(header)
         height = header.get('block_height')
         return self.check_hash(height, header_hash)
@@ -300,19 +307,17 @@ class Blockchain(Logger):
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
+        _powhash = pow_hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise InvalidHeader("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise InvalidHeader("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
-        bits = cls.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise InvalidHeader("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        _pow_hash = pow_hash_header(header)
-        pow_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
-        if pow_hash_as_num > target:
-            raise InvalidHeader(f"insufficient proof of work: {pow_hash_as_num} vs target {target}")
+        target = cls.bits_to_target(header.get('bits'))
+        block_hash_as_num = int.from_bytes(bfh(_powhash), byteorder='big')
+        if block_hash_as_num > target:
+            raise InvalidHeader(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
