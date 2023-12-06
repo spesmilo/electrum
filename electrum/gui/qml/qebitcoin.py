@@ -7,10 +7,9 @@ from electrum import keystore
 from electrum.i18n import _
 from electrum.bip32 import is_bip32_derivation, xpub_type
 from electrum.logging import get_logger
-from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum.util import get_asyncio_loop
 from electrum.transaction import tx_from_any
-from electrum.mnemonic import Mnemonic, is_any_2fa_seed_type
+from electrum.mnemonic import Mnemonic
 from electrum.old_mnemonic import wordlist as old_wordlist
 from electrum.bitcoin import is_address
 
@@ -50,7 +49,7 @@ class QEBitcoin(QObject):
 
     @pyqtSlot()
     @pyqtSlot(str)
-    @pyqtSlot(str,str)
+    @pyqtSlot(str, str)
     def generateSeed(self, seed_type='segwit', language='en'):
         self._logger.debug('generating seed of type ' + str(seed_type))
 
@@ -60,50 +59,6 @@ class QEBitcoin(QObject):
             self.generatedSeedChanged.emit()
 
         asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), get_asyncio_loop())
-
-    @pyqtSlot(str,str,str, result=bool)
-    def verifySeed(self, seed, seed_variant, wallet_type='standard'):
-        seed_type = ''
-        seed_valid = False
-        self.validationMessage = ''
-
-        if seed_variant == 'electrum':
-            seed_type = mnemonic.seed_type(seed)
-            if seed_type != '':
-                seed_valid = True
-        elif seed_variant == 'bip39':
-            is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
-            status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
-            self.validationMessage = 'BIP39 (%s)' % status
-
-            if is_checksum:
-                seed_type = 'bip39'
-                seed_valid = True
-        elif seed_variant == 'slip39':  # TODO: incomplete impl, this code only validates a single share.
-            try:
-                share = decode_mnemonic(seed)
-                seed_type = 'slip39'
-                self.validationMessage = 'SLIP39: share #%d in %dof%d scheme' % (share.group_index, share.group_threshold, share.group_count)
-            except Slip39Error as e:
-                self.validationMessage = 'SLIP39: %s' % str(e)
-            seed_valid = False # for now
-        else:
-            raise Exception(f'unknown seed variant {seed_variant}')
-
-        # check if seed matches wallet type
-        if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
-            seed_valid = False
-        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39']:
-            seed_valid = False
-        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
-            seed_valid = False
-
-        self._seed_type = seed_type
-        self.seedTypeChanged.emit()
-
-        self._logger.debug('seed verified: ' + str(seed_valid))
-
-        return seed_valid
 
     @pyqtSlot(str, str, result=bool)
     def verifyMasterKey(self, key, wallet_type='standard'):
