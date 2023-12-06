@@ -103,7 +103,7 @@ Item {
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    source: '../../../icons/bitcoin.png'
+                    source: '../../../icons/goldcoin.png'
                 }
                 Label {
                     text: qsTr('On-chain') + ':'
