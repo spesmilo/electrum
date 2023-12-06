@@ -269,7 +269,7 @@ class SeedLayout(QVBoxLayout):
             is_checksum, is_wordlist = bip39_is_checksum_valid(s)
             label = ''
             if bool(s):
-                label = ('' if is_checksum else _('BIP39 Checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
+                label = ('' if is_checksum else _('BIP39 checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
         elif self.seed_type == 'slip39':
             self.slip39_mnemonics[self.slip39_mnemonic_index] = s
             try:

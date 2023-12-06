@@ -32,6 +32,7 @@
    - new: allow never expiring payment requests (#8631)
    - new: add coins/UTXOs to addresses list, add filters (cf91d2e)
    - new: delete addresses from imported wallet (#8675)
+   - new: add support for lightning address and openalias (03dd38b)
    - various UI fixes (b846eab, #8634, 9ed5f7b, 941f425, b20a4b9, af61b9d, 0fb47c8, 2995bc8, ..)
  * Desktop:
    - port wizard to new implementation
