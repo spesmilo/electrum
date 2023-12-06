@@ -209,7 +209,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         if i == 0:
             icon, text = read_QIcon("link.png"), _('Goldcoin URI')
         elif i == 1:
-            icon, text = read_QIcon("bitcoin.png"), _('Address')
+            icon, text = read_QIcon("goldcoin.png"), _('Address')
         elif i == 2:
             icon, text = read_QIcon("lightning.png"), _('Lightning')
         self.toggle_view_button.setText(text)
