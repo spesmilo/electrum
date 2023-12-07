@@ -1114,7 +1114,7 @@ This will result in longer routes; it might increase your fees and decrease the 
     )
     BTC_AMOUNTS_ADD_THOUSANDS_SEP = ConfigVar(
         'amt_add_thousands_sep', default=False, type_=bool,
-        short_desc=lambda: _("Add thousandths separators to goldcoin amounts"),
+        short_desc=lambda: _("Add thousands separators to goldcoin amounts"),
     )
 
     BLOCK_EXPLORER = ConfigVar(
