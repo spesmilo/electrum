@@ -89,7 +89,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Add thousands separators to bitcoin amounts')
+                            text: qsTr('Add thousand separators to goldcoin amounts')
                             wrapMode: Text.Wrap
                         }
                     }
