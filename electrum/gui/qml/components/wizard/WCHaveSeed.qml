@@ -189,7 +189,7 @@ WizardComponent {
 
             InfoTextArea {
                 id: infotext
-                visible: !cosigner
+                visible: !cosigner && !is2fa
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 Layout.bottomMargin: constants.paddingLarge
