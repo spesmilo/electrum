@@ -1,36 +1,24 @@
-import asyncio
-import enum
 import os.path
 import time
 import sys
 import platform
 import queue
-import traceback
 import os
 import webbrowser
-from decimal import Decimal
 from functools import partial, lru_cache, wraps
-from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple, Type)
+from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple)
 
-from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent,
-                         QContextMenuEvent)
-from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
-                          QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
-                          QEvent, QRect, QPoint, QObject)
-from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
-                             QAbstractItemView, QVBoxLayout, QLineEdit,
+from PyQt5 import QtCore
+from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QImage,
+                         QPalette, QIcon, QFontMetrics, QPainter, QContextMenuEvent)
+from PyQt5.QtCore import (Qt, pyqtSignal, QCoreApplication, QThread, QSize, QRect, QPoint, QObject)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
-                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
+                             QFileDialog, QWidget, QToolButton, QPlainTextEdit, QApplication, QToolTip,
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem)
 
-from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrum.i18n import _
+from electrum.util import FileImportFailed, FileExportFailed, resource_path
 from electrum.util import EventListener, event_listener, get_logger
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import Logger
@@ -508,6 +496,59 @@ class ChoiceWidget(QWidget):
         for i, c in iterator:
             if key == c[0]:
                 self.group.button(i).click()
+
+
+class ResizableStackedWidget(QWidget):
+    """Simple alternative to QStackedWidget, as QStackedWidget always resizes to the largest
+       widget in the stack, leaving ugly scrollbars where they're not needed."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setLayout(QVBoxLayout())
+        self.widgets = []
+        self.current_index = -1
+
+    def sizeHint(self):
+        if not self.count() or not self.currentWidget():
+            return super().sizeHint()
+        return self.currentWidget().sizeHint()
+
+    def addWidget(self, widget):
+        self.widgets.append(widget)
+        self.layout().addWidget(widget)
+        if len(self.widgets) == 1:  # first widget?
+            self.current_index = 0
+        self.showCurrentWidget()
+        return len(self.widgets) - 1
+
+    def removeWidget(self, widget):
+        i = self.widgets.index(widget)
+        self.widgets.remove(widget)
+        self.layout().removeWidget(widget)
+        if self.current_index >= i:
+            self.current_index -= 1
+            if self.current_index == self.count() - 1:
+                self.showCurrentWidget()
+
+    def setCurrentIndex(self, index):
+        assert isinstance(index, int)
+        self.current_index = index
+        self.showCurrentWidget()
+
+    def currentWidget(self):
+        return self.widgets[self.current_index]
+
+    def showCurrentWidget(self):
+        if not self.widgets:
+            return
+
+        for i, k in enumerate(self.widgets):
+            if i == self.current_index:
+                k.show()
+            else:
+                k.hide()
+
+    def count(self):
+        return len(self.widgets)
 
 
 def address_field(addresses):
