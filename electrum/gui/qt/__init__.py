@@ -458,7 +458,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 'xpub2': db.get('x2')['xpub'],
             }
             wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
-                                       start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
+                                       start_viewstate=WizardViewState('trustedcoin_tos', data, {}))
             result = wizard.exec()
             if result == QENewWalletWizard.Rejected:
                 self.logger.info('wizard dialog cancelled by user')
