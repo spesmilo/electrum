@@ -646,7 +646,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 self._labels[key] = value
 
-    def set_label(self, name: str, text: str = None) -> bool:
+    def set_label(self, name: str, text: str = None, *, write_to_disk=True) -> bool:
         if not name:
             return False
         changed = False
@@ -663,12 +663,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     changed = True
         if changed:
             run_hook('set_label', self, name, text)
+        if write_to_disk:
+            self.save_db()
         return changed
 
     def import_labels(self, path):
         data = read_json_file(path)
+        changed = False
         for key, value in data.items():
-            self.set_label(key, value)
+            changed |= self.set_label(key, value, write_to_disk=False)
+        if changed:
+            self.save_db()
 
     def export_labels(self, path):
         write_json_file(path, self.get_all_labels())
@@ -3332,8 +3337,8 @@ class Imported_Wallet(Simple_Wallet):
             self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.adb._remove_transaction(tx_hash)
-        self.set_label(address, None)
-        if req:= self.get_request_by_addr(address):
+        self.set_label(address, None, write_to_disk=False)
+        if req := self.get_request_by_addr(address):
             self.delete_request(req.get_id())
         self.set_frozen_state_of_addresses([address], False, write_to_disk=False)
         pubkey = self.get_public_key(address)
