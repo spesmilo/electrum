@@ -7,6 +7,7 @@ import "../controls"
 
 WizardComponent {
     valid: true
+    title: qsTr('Proxy')
 
     function apply() {
         wizard_data['want_proxy'] = wantproxygroup.checkedButton.wantproxy

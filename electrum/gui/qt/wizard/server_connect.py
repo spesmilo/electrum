@@ -1,9 +1,13 @@
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QCheckBox, QLabel, QHBoxLayout
+
 from electrum.i18n import _
 from electrum.wizard import ServerConnectWizard
 from electrum.gui.qt.network_dialog import ProxyWidget, ServerWidget
-from electrum.gui.qt.util import ChoiceWidget
+from electrum.gui.qt.util import ChoiceWidget, icon_path
 from .wizard import QEAbstractWizard, WizardComponent
 
 if TYPE_CHECKING:
@@ -18,16 +22,53 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: 'Daemon', parent=None):
         ServerConnectWizard.__init__(self, daemon)
         QEAbstractWizard.__init__(self, config, app)
-
-        self.setWindowTitle(_('Network and server configuration'))
+        self.window_title = _('Network and server configuration')
 
         # attach gui classes
         self.navmap_merge({
-            'autoconnect': { 'gui': WCAutoConnect },
-            'proxy_ask': { 'gui': WCProxyAsk },
-            'proxy_config': { 'gui': WCProxyConfig },
-            'server_config': { 'gui': WCServerConfig },
+            'welcome': {'gui': WCWelcome, 'params': {'icon': ''}},
+            'proxy_ask': {'gui': WCProxyAsk},
+            'autoconnect': {'gui': WCAutoConnect},
+            'proxy_config': {'gui': WCProxyConfig},
+            'server_config': {'gui': WCServerConfig},
         })
+
+
+class WCWelcome(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title='')
+        self.wizard_title = _('Electrum Bitcoin Wallet')
+        self.use_defaults_w = QCheckBox(_('Use default network settings'))
+        self.use_defaults_w.setChecked(True)
+        self.use_defaults_w.stateChanged.connect(self.on_updated)
+        self.img_label = QLabel()
+        pixmap = QPixmap(icon_path('electrum_darkblue_1.png'))
+        self.img_label.setPixmap(pixmap)
+        self.img_label2 = QLabel()
+        pixmap = QPixmap(icon_path('electrum_text.png'))
+        self.img_label2.setPixmap(pixmap)
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(self.img_label)
+        hbox.addWidget(self.img_label2)
+        hbox.addStretch(1)
+        self.layout().addLayout(hbox)
+        self.welcome_label = QLabel('Welcome')
+        font = self.welcome_label.font()
+        font.setPointSize(font.pointSize() + 3)
+        self.welcome_label.setFont(font)
+        self.layout().addStretch(1)
+        self.layout().addWidget(self.welcome_label, False, Qt.AlignHCenter)
+        self.layout().addStretch(1)
+        self.layout().addWidget(self.use_defaults_w, False, Qt.AlignHCenter)
+        self.layout().addStretch(1)
+        self._valid = True
+
+    def apply(self):
+        self.wizard_data['use_defaults'] = self.use_defaults_w.isChecked()
+        if self.use_defaults_w.isChecked():
+            self.wizard_data['autoconnect'] = True
+            self.wizard_data['want_proxy'] = False
 
 
 class WCAutoConnect(WizardComponent):

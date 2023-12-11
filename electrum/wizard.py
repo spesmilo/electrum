@@ -264,7 +264,9 @@ class NewWalletWizard(AbstractWizard):
         if initial_data is None:
             initial_data = {}
         self.reset()
-        self._current = WizardViewState('wallet_name', initial_data, {})
+        start_view = 'wallet_name'
+        params = self.navmap[start_view].get('params', {})
+        self._current = WizardViewState(start_view, initial_data, params)
         return self._current
 
     def is_single_password(self) -> bool:
@@ -652,13 +654,17 @@ class ServerConnectWizard(AbstractWizard):
     def __init__(self, daemon: 'Daemon'):
         AbstractWizard.__init__(self)
         self.navmap = {
+            'welcome': {
+                'next': 'proxy_ask',
+                'last': lambda d: d['use_defaults']
+            },
+            'proxy_ask': {
+                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
+            },
             'autoconnect': {
                 'next': 'server_config',
                 'accept': self.do_configure_autoconnect,
                 'last': lambda d: d['autoconnect']
-            },
-            'proxy_ask': {
-                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
             },
             'proxy_config': {
                 'next': 'autoconnect',
@@ -704,5 +710,7 @@ class ServerConnectWizard(AbstractWizard):
         if initial_data is None:
             initial_data = {}
         self.reset()
-        self._current = WizardViewState('proxy_ask', initial_data, {})
+        start_view = 'welcome'
+        params = self.navmap[start_view].get('params', {})
+        self._current = WizardViewState(start_view, initial_data, params)
         return self._current

@@ -39,6 +39,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.setMinimumSize(600, 400)
 
         self.title = QLabel()
+        self.window_title = ''
 
         self.main_widget = ResizableStackedWidget(self)
 
@@ -125,7 +126,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
             viewstate = self._current = self.start_viewstate
         else:
             viewstate = self.start_wizard()
-        self.load_next_component(viewstate.view, viewstate.wizard_data)
+        self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
 
     def load_next_component(self, view, wdata=None, params=None):
         if wdata is None:
@@ -167,6 +168,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
     def update(self):
         page = self.main_widget.currentWidget()
+        self.setWindowTitle(page.wizard_title if page.wizard_title else self.window_title)
         self.title.setText(f'<b>{page.title}</b>' if page.title else '')
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.back_button.setEnabled(not page.busy)
@@ -178,8 +180,11 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.error_msg.setText(str(page.error))
         self.error.setVisible(not page.busy and bool(page.error))
         icon = page.params.get('icon', icon_path('electrum.png'))
-        if icon != self.icon_filename:
+        if icon and icon != self.icon_filename:
             self.set_icon(icon)
+            self.logo.setVisible(True)
+        else:
+            self.logo.setVisible(False)
 
     def on_back_button_clicked(self):
         if self.can_go_back():
@@ -238,6 +243,7 @@ class WizardComponent(QWidget):
         self.setLayout(layout if layout else QVBoxLayout(self))
         self.wizard_data = {}
         self.title = title if title is not None else 'No title'
+        self.wizard_title = None
         self.busy_msg = ''
         self.wizard = wizard
         self._error = ''

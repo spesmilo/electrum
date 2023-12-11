@@ -6,6 +6,7 @@ import "../controls"
 
 WizardComponent {
     valid: true
+    title: qsTr('Proxy')
 
     function apply() {
         wizard_data['proxy'] = pc.toProxyDict()

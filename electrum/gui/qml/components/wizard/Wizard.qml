@@ -15,7 +15,8 @@ ElDialog {
 
     padding: 0
 
-    title: wizardTitle + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
+    title: (pages.currentItem.wizard_title ? pages.currentItem.wizard_title : wizardTitle) +
+        (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
     iconSource: '../../../icons/electrum.png'
 
     // android back button triggers close() on Popups. Disabling close here,

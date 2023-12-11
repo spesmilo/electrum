@@ -6,6 +6,7 @@ import "../controls"
 
 WizardComponent {
     valid: true
+    title: qsTr('Server')
 
     function apply() {
         wizard_data['autoconnect'] = serverconnectgroup.checkedButton.connecttype === 'auto'
