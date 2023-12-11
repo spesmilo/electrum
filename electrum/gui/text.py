@@ -100,7 +100,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.requests = []
 
         self.register_callbacks()
-        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Coins"), _("Channels"), _("Contacts"), _("Banner")]
+        #self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Coins"), _("Channels"), _("Contacts"), _("Banner")]
+        self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Coins"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
         self.need_update = False
 
@@ -530,9 +531,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 self.run_tab(2, self.print_receive_tab,   self.run_receive_tab)
                 self.run_tab(3, self.print_addresses,     self.run_addresses_tab)
                 self.run_tab(4, self.print_utxos,         self.run_utxos_tab)
-                self.run_tab(5, self.print_channels,      self.run_channels_tab)
-                self.run_tab(6, self.print_contacts,      self.run_contacts_tab)
-                self.run_tab(7, self.print_banner,        self.run_banner_tab)
+                #self.run_tab(5, self.print_channels,      self.run_channels_tab)
+                self.run_tab(5, self.print_contacts,      self.run_contacts_tab)
+                self.run_tab(6, self.print_banner,        self.run_banner_tab)
         except curses.error as e:
             raise Exception("Error with curses. Is your screen too small?") from e
         finally:
