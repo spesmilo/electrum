@@ -117,7 +117,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         for _host, d in sorted(all_servers.items()):
             if _host in connected_hosts:
                 continue
-            if _host.endswith('.onion') and not self.network.tor_proxy:
+            if _host.endswith('.onion') and not self.network.is_proxy_tor:
                 continue
             port = d.get(protocol)
             if port:
