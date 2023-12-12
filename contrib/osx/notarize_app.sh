@@ -24,10 +24,12 @@ ditto -c -k --rsrc --keepParent "$APP_BUNDLE" "${APP_BUNDLE}.zip"
 # Submit for notarization
 echo "Submitting $APP_BUNDLE for notarization..."
 RESULT=$(xcrun notarytool submit \
-    --team-id $APPLE_TEAM_ID \
-    --apple-id $APPLE_ID_USER \
-    --password $APPLE_ID_PASSWORD \
+    --team-id "$APPLE_TEAM_ID" \
+    --apple-id "$APPLE_ID_USER" \
+    --password "$APPLE_ID_PASSWORD" \
+    --output-format plist \
     --wait \
+    --timeout 10m \
     "${APP_BUNDLE}.zip"
 )
 
@@ -37,8 +39,16 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# success
-echo $RESULT
+STATUS=$(echo "$RESULT" | xpath -e \
+  "//key[normalize-space(text()) = 'status']/following-sibling::string[1]/text()" 2> /dev/null)
+
+if [ "$STATUS" = "Accepted" ]; then
+    echo "Notarization of $APP_BUNDLE succeeded!"
+else
+    echo "Notarization of $APP_BUNDLE failed:"
+    echo "$RESULT"
+    exit 1
+fi
 
 # Staple the notary ticket
 xcrun stapler staple "$APP_BUNDLE"

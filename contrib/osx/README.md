@@ -88,13 +88,18 @@ Let brew install the Xcode CLI tools.
 
 This creates both a folder named Electrum.app and the .dmg file.
 
-If you want the binaries codesigned for MacOS and notarised by Apple's central server,
+##### 2.1. For release binaries, here be dragons
+
+If you want the binaries codesigned for macOS and notarised by Apple's central server,
 provide these env vars to the `make_osx.sh` script:
 
     CODESIGN_CERT="Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)" \
+    APPLE_TEAM_ID="L6P37P7P56" \
     APPLE_ID_USER="me@email.com" \
     APPLE_ID_PASSWORD="1234" \
     ./contrib/osx/make_osx.sh
+
+(note: `APPLE_ID_PASSWORD` is an app-specific password, *not* the account password)
 
 
 ## Verifying reproducibility and comparing against official binary
