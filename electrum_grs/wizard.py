@@ -478,12 +478,13 @@ class NewWalletWizard(AbstractWizard):
                 seed_valid = True
         elif seed_variant == 'bip39':
             is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
-            status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
-            validation_message = 'BIP39 (%s)' % status
-
-            if is_checksum:
-                seed_type = 'bip39'
-                seed_valid = True
+            validation_message = ('' if is_checksum else _('BIP39 checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
+            if not bool(seed):
+                validation_message = ''
+            seed_type = 'bip39'
+            # bip39 always valid, even if checksum failed, see #8720
+            # however, reject empty string
+            seed_valid = bool(seed)
         elif seed_variant == 'slip39':
             # seed shares should be already validated by wizard page, we have a combined encrypted seed
             if seed and isinstance(seed, EncryptedSeed):
@@ -591,8 +592,6 @@ class NewWalletWizard(AbstractWizard):
         db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
 
         db.put('wallet_type', data['wallet_type'])
-        if 'seed_type' in data:
-            db.put('seed_type', data['seed_type'])
 
         if data['wallet_type'] == 'standard':
             db.put('keystore', k.dump())

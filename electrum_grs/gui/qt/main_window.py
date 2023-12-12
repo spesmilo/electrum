@@ -496,6 +496,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_cert_mismatch(self, *args):
         self.show_cert_mismatch_error()
 
+    @qt_event_listener
+    def on_event_tor_probed(self, is_tor):
+        self.tor_button.setVisible(is_tor)
+
+    @qt_event_listener
+    def on_event_proxy_set(self, *args):
+        self.tor_button.setVisible(False)
+
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
@@ -669,7 +677,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.recently_visited_menu.setEnabled(bool(len(recent)))
 
     def get_wallet_folder(self):
-        return os.path.dirname(os.path.abspath(self.wallet.storage.path))
+        return os.path.abspath(self.config.get_datadir_wallet_path())
 
     def new_wallet(self):
         try:
@@ -776,6 +784,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
+            self.show_send_tab()
             host = self.network.get_parameters().server.host
             self.handle_payment_identifier('groestlcoin:%s?message=donation for %s' % (d, host))
         else:
@@ -955,6 +964,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         network_text = ""
         balance_text = ""
+
+        if self.tor_button:
+            self.tor_button.setVisible(self.network and bool(self.network.is_proxy_tor))
 
         if self.network is None:
             network_text = _("Offline")
@@ -1634,9 +1646,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         sb.addPermanentWidget(self.lightning_button)
         self.update_lightning_icon()
         self.status_button = None
+        self.tor_button = None
         if self.network:
-            self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog, sb_height)
+            self.tor_button = StatusBarButton(
+                read_QIcon("tor_logo.png"),
+                _("Tor"),
+                self.gui_object.show_network_dialog,
+                sb_height,
+            )
+            sb.addPermanentWidget(self.tor_button)
+            self.tor_button.setVisible(False)
+            # add status btn last, to place it at rightmost pos
+            self.status_button = StatusBarButton(
+                read_QIcon("status_disconnected.png"),
+                _("Network"),
+                self.gui_object.show_network_dialog,
+                sb_height,
+            )
             sb.addPermanentWidget(self.status_button)
+        # add plugins
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
 
@@ -2496,72 +2524,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.gui_object.close_window(self)
 
     def plugins_dialog(self):
-        self.pluginsdialog = d = WindowModalDialog(self, _('Electrum Plugins'))
-
-        plugins = self.gui_object.plugins
-
-        vbox = QVBoxLayout(d)
-
-        # plugins
-        scroll = QScrollArea()
-        scroll.setEnabled(True)
-        scroll.setWidgetResizable(True)
-        scroll.setMinimumSize(400,250)
-        vbox.addWidget(scroll)
-
-        w = QWidget()
-        scroll.setWidget(w)
-        w.setMinimumHeight(plugins.count() * 35)
-
-        grid = QGridLayout()
-        grid.setColumnStretch(0,1)
-        w.setLayout(grid)
-
-        settings_widgets = {}
-
-        def enable_settings_widget(p: Optional['BasePlugin'], name: str, i: int):
-            widget = settings_widgets.get(name)  # type: Optional[QWidget]
-            if widget and not p:
-                # plugin got disabled, rm widget
-                grid.removeWidget(widget)
-                widget.setParent(None)
-                settings_widgets.pop(name)
-            elif widget is None and p and p.requires_settings() and p.is_enabled():
-                # plugin got enabled, add widget
-                widget = settings_widgets[name] = p.settings_widget(d)
-                grid.addWidget(widget, i, 1)
-
-        def do_toggle(cb, name, i):
-            p = plugins.toggle(name)
-            cb.setChecked(bool(p))
-            enable_settings_widget(p, name, i)
-            # note: all enabled plugins will receive this hook:
-            run_hook('init_qt', self.gui_object)
-
-        for i, descr in enumerate(plugins.descriptions.values()):
-            full_name = descr['__name__']
-            prefix, _separator, name = full_name.rpartition('.')
-            p = plugins.get(name)
-            if descr.get('registers_keystore'):
-                continue
-            try:
-                cb = QCheckBox(descr['fullname'])
-                plugin_is_loaded = p is not None
-                cb_enabled = (not plugin_is_loaded and plugins.is_available(name, self.wallet)
-                              or plugin_is_loaded and p.can_user_disable())
-                cb.setEnabled(cb_enabled)
-                cb.setChecked(plugin_is_loaded and p.is_enabled())
-                grid.addWidget(cb, i, 0)
-                enable_settings_widget(p, name, i)
-                cb.clicked.connect(partial(do_toggle, cb, name, i))
-                msg = descr['description']
-                if descr.get('requires'):
-                    msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
-                grid.addWidget(HelpButton(msg), i, 2)
-            except Exception:
-                self.logger.exception(f"cannot display plugin {name}")
-        grid.setRowStretch(len(plugins.descriptions.values()), 1)
-        vbox.addLayout(Buttons(CloseButton(d)))
+        from .plugins_dialog import PluginsDialog
+        d = PluginsDialog(self)
         d.exec_()
 
     def cpfp_dialog(self, parent_tx: Transaction) -> None:

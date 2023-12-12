@@ -146,7 +146,7 @@ class NodesListWidget(QTreeWidget):
     def update(self, *, network: Network, servers: dict):
         self.clear()
 
-        use_tor = network.tor_proxy
+        use_tor = bool(network.is_proxy_tor)
 
         # connected servers
         connected_servers_item = QTreeWidgetItem([_("Connected nodes"), ''])

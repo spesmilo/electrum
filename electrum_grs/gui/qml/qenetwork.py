@@ -86,6 +86,10 @@ class QENetwork(QObject, QtEventListener):
         self.proxySet.emit()
         self.proxyTorChanged.emit()
 
+    @event_listener
+    def on_event_tor_probed(self, *args):
+        self.proxyTorChanged.emit()
+
     def _update_status(self):
         server = str(self.network.get_parameters().server)
         if self._server != server:
@@ -263,7 +267,7 @@ class QENetwork(QObject, QtEventListener):
     proxyTorChanged = pyqtSignal()
     @pyqtProperty(bool, notify=proxyTorChanged)
     def isProxyTor(self):
-        return self.network.tor_proxy
+        return bool(self.network.is_proxy_tor)
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):

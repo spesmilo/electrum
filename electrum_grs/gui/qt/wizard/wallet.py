@@ -16,6 +16,7 @@ from electrum_grs.keystore import bip44_derivation, bip39_to_seed, purpose48_der
 from electrum_grs.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum_grs.storage import StorageReadWriteError
 from electrum_grs.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
+from electrum_grs.util import is_subpath
 from electrum_grs.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum_grs.logging import get_logger, Logger
@@ -298,12 +299,23 @@ class WCWalletName(WizardComponent, Logger):
         self.layout().addStretch(1)
 
         temp_storage = None  # type: Optional[WalletStorage]
-        wallet_folder = os.path.dirname(path)
+        datadir_wallet_folder = self.wizard.config.get_datadir_wallet_path()
+
+        def relative_path(path):
+            new_path = path
+            try:
+                if is_subpath(path, datadir_wallet_folder):
+                    # below datadir_wallet_path, make relative
+                    commonpath = os.path.commonpath([path, datadir_wallet_folder])
+                    new_path = os.path.relpath(path, commonpath)
+            except ValueError:
+                pass
+            return new_path
 
         def on_choose():
-            _path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
+            _path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", datadir_wallet_folder)
             if _path:
-                self.name_e.setText(_path)
+                self.name_e.setText(relative_path(_path))
 
         def on_filename(filename):
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
@@ -314,7 +326,7 @@ class WCWalletName(WizardComponent, Logger):
             self.wallet_is_open = False
             self.wallet_needs_hw_unlock = False
             if filename:
-                _path = os.path.join(wallet_folder, filename)
+                _path = os.path.join(datadir_wallet_folder, filename)
                 wallet_from_memory = self.wizard._daemon.get_wallet(_path)
                 try:
                     if wallet_from_memory:
@@ -352,6 +364,8 @@ class WCWalletName(WizardComponent, Logger):
                           + _("Press 'Finish' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
+            if filename and os.path.isabs(relative_path(_path)):
+                msg += '\n\n' + _('Note: this wallet file is outside the default wallets folder.')
             msg_label.setText(msg)
             widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
@@ -366,15 +380,14 @@ class WCWalletName(WizardComponent, Logger):
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
-            lambda: self.name_e.setText(get_new_wallet_name(wallet_folder)))  # FIXME get_new_wallet_name might raise
+            lambda: self.name_e.setText(get_new_wallet_name(datadir_wallet_folder)))  # FIXME get_new_wallet_name might raise
         self.name_e.textChanged.connect(on_filename)
-        self.name_e.setText(os.path.basename(path))
+        self.name_e.setText(relative_path(path))
 
     def apply(self):
         if self.wallet_exists:
             # use full path
-            path = self.wizard._path
-            wallet_folder = os.path.dirname(path)
+            wallet_folder = self.wizard.config.get_datadir_wallet_path()
             self.wizard_data['wallet_name'] = os.path.join(wallet_folder, self.name_e.text())
         else:
             self.wizard_data['wallet_name'] = self.name_e.text()

@@ -8,6 +8,7 @@ from electrum_grs.gui import messages
 from electrum_grs.logging import get_logger
 from electrum_grs.lnutil import LOCAL, REMOTE
 from electrum_grs.lnchannel import ChanCloseOption, ChannelState
+from electrum_grs.util import format_short_id
 
 from .auth import AuthMixin, auth_protect
 from .qewallet import QEWallet
@@ -98,6 +99,16 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=channelChanged)
     def shortCid(self):
         return self._channel.short_id_for_GUI()
+
+    @pyqtProperty(str, notify=channelChanged)
+    def localScidAlias(self):
+        lsa = self._channel.get_local_scid_alias()
+        return format_short_id(lsa) if lsa else ''
+
+    @pyqtProperty(str, notify=channelChanged)
+    def remoteScidAlias(self):
+        rsa = self._channel.get_remote_scid_alias()
+        return format_short_id(rsa) if rsa else ''
 
     @pyqtProperty(str, notify=channelChanged)
     def state(self):

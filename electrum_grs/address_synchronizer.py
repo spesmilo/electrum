@@ -110,8 +110,14 @@ class AddressSynchronizer(Logger, EventListener):
         self.remove_local_transactions_we_dont_have()
 
     def is_mine(self, address: Optional[str]) -> bool:
-        """Returns whether an address is in our set
-        Note: This class has a larget set of addresses than the wallet
+        """Returns whether an address is in our set.
+
+        Differences between adb.is_mine and wallet.is_mine:
+        - adb.is_mine: addrs that we are watching (e.g. via Synchronizer)
+            - lnwatcher adds its own lightning-related addresses that are not part of the wallet
+        - wallet.is_mine: addrs that are part of the wallet balance or the wallet might sign for
+            - an offline wallet might learn from a PSBT about addrs beyond its gap limit
+        Neither set is guaranteed to be a subset of the other.
         """
         if not address: return False
         return self.db.is_addr_in_history(address)

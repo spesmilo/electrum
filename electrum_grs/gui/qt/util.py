@@ -1,36 +1,25 @@
-import asyncio
-import enum
 import os.path
 import time
 import sys
 import platform
 import queue
-import traceback
 import os
 import webbrowser
-from decimal import Decimal
 from functools import partial, lru_cache, wraps
-from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple, Type)
+from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple)
 
-from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent,
-                         QContextMenuEvent)
-from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
-                          QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
-                          QEvent, QRect, QPoint, QObject)
-from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
-                             QAbstractItemView, QVBoxLayout, QLineEdit,
+from PyQt5 import QtCore
+from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QImage,
+                         QPalette, QIcon, QFontMetrics, QPainter, QContextMenuEvent)
+from PyQt5.QtCore import (Qt, pyqtSignal, QCoreApplication, QThread, QSize, QRect, QPoint, QObject)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
-                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
+                             QFileDialog, QWidget, QToolButton, QPlainTextEdit, QApplication, QToolTip,
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QLayoutItem, QLayout, QMenu,
+                             QFrame)
 
-from electrum_grs.i18n import _, languages
-from electrum_grs.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrum_grs.i18n import _
+from electrum_grs.util import FileImportFailed, FileExportFailed, resource_path
 from electrum_grs.util import EventListener, event_listener, get_logger
 from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
 from electrum_grs.logging import Logger
@@ -57,16 +46,16 @@ _logger = get_logger(__name__)
 dialogs = []
 
 pr_icons = {
-    PR_UNKNOWN:"warning.png",
-    PR_UNPAID:"unpaid.png",
-    PR_PAID:"confirmed.png",
-    PR_EXPIRED:"expired.png",
-    PR_INFLIGHT:"unconfirmed.png",
-    PR_FAILED:"warning.png",
-    PR_ROUTING:"unconfirmed.png",
-    PR_UNCONFIRMED:"unconfirmed.png",
-    PR_BROADCASTING:"unconfirmed.png",
-    PR_BROADCAST:"unconfirmed.png",
+    PR_UNKNOWN: "warning.png",
+    PR_UNPAID: "unpaid.png",
+    PR_PAID: "confirmed.png",
+    PR_EXPIRED: "expired.png",
+    PR_INFLIGHT: "unconfirmed.png",
+    PR_FAILED: "warning.png",
+    PR_ROUTING: "unconfirmed.png",
+    PR_UNCONFIRMED: "unconfirmed.png",
+    PR_BROADCASTING: "unconfirmed.png",
+    PR_BROADCAST: "unconfirmed.png",
 }
 
 
@@ -202,16 +191,19 @@ class Buttons(QHBoxLayout):
                 continue
             self.addWidget(b)
 
+
 class CloseButton(QPushButton):
     def __init__(self, dialog):
         QPushButton.__init__(self, _("Close"))
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
+
 class CopyButton(QPushButton):
     def __init__(self, text_getter, app):
         QPushButton.__init__(self, _("Copy"))
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
+
 
 class CopyCloseButton(QPushButton):
     def __init__(self, text_getter, app, dialog):
@@ -220,16 +212,19 @@ class CopyCloseButton(QPushButton):
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
+
 class OkButton(QPushButton):
     def __init__(self, dialog, label=None):
         QPushButton.__init__(self, label or _("OK"))
         self.clicked.connect(dialog.accept)
         self.setDefault(True)
 
+
 class CancelButton(QPushButton):
     def __init__(self, dialog, label=None):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
+
 
 class MessageBoxMixin(object):
     def top_level_window_recurse(self, window=None, test_func=None):
@@ -397,6 +392,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return txt.text()
 
+
 def text_dialog(
         *,
         parent,
@@ -423,6 +419,7 @@ def text_dialog(
     l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
         return txt.toPlainText()
+
 
 class ChoicesLayout(object):
     def __init__(self, msg, choices, on_clicked=None, checked_index=0):
@@ -510,6 +507,67 @@ class ChoiceWidget(QWidget):
                 self.group.button(i).click()
 
 
+class ResizableStackedWidget(QWidget):
+    """Simple alternative to QStackedWidget, as QStackedWidget always resizes to the largest
+       widget in the stack, leaving ugly scrollbars where they're not needed."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setLayout(QVBoxLayout())
+        self.widgets = []
+        self.current_index = -1
+
+    def sizeHint(self):
+        if not self.count() or not self.currentWidget():
+            return super().sizeHint()
+        return self.currentWidget().sizeHint()
+
+    def addWidget(self, widget):
+        self.widgets.append(widget)
+        self.layout().addWidget(widget)
+        if len(self.widgets) == 1:  # first widget?
+            self.current_index = 0
+        self.showCurrentWidget()
+        return len(self.widgets) - 1
+
+    def removeWidget(self, widget):
+        i = self.widgets.index(widget)
+        self.widgets.remove(widget)
+        self.layout().removeWidget(widget)
+        if self.current_index >= i:
+            self.current_index -= 1
+            if self.current_index == self.count() - 1:
+                self.showCurrentWidget()
+
+    def setCurrentIndex(self, index):
+        assert isinstance(index, int)
+        self.current_index = index
+        self.showCurrentWidget()
+
+    def currentWidget(self):
+        return self.widgets[self.current_index]
+
+    def showCurrentWidget(self):
+        if not self.widgets:
+            return
+
+        for i, k in enumerate(self.widgets):
+            if i == self.current_index:
+                k.show()
+            else:
+                k.hide()
+
+    def count(self):
+        return len(self.widgets)
+
+
+class VLine(QFrame):
+    """Vertical line separator"""
+    def __init__(self):
+        super(VLine, self).__init__()
+        self.setFrameShape(self.VLine | self.Sunken)
+        self.setLineWidth(1)
+
+
 def address_field(addresses):
     hbox = QHBoxLayout()
     address_e = QLineEdit()
@@ -517,6 +575,7 @@ def address_field(addresses):
         address_e.setText(addresses[0])
     else:
         addresses = []
+
     def func():
         try:
             i = addresses.index(str(address_e.text())) + 1
@@ -535,7 +594,6 @@ def address_field(addresses):
 
 
 def filename_field(parent, config, defaultname, select_msg):
-
     vbox = QVBoxLayout()
     vbox.addWidget(QLabel(_("Format")))
     gb = QGroupBox("format", parent)
@@ -584,9 +642,6 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 
-
-
-
 def get_iconname_qrcode() -> str:
     return "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
 
@@ -605,7 +660,6 @@ def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> Non
 
 
 class GenericInputHandler:
-
     def input_qr_from_camera(
             self,
             *,
@@ -625,7 +679,7 @@ class GenericInputHandler:
             if not data:
                 data = ''
             if allow_multi:
-                new_text = self.text() + data + '\n'
+                new_text = self.text() + data + '\n'  # TODO: unused?
             else:
                 new_text = data
                 try:
@@ -670,7 +724,7 @@ class GenericInputHandler:
             return
         data = scanned_qr[0].data
         if allow_multi:
-            new_text = self.text() + data + '\n'
+            new_text = self.text() + data + '\n'  # TODO: unused?
         else:
             new_text = data
             try:
@@ -910,11 +964,11 @@ class OverlayControlMixin(GenericInputHandler):
         btn.setMenu(menu)
 
 
-
 class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
         OverlayControlMixin.__init__(self, middle=True)
+
 
 class ShowQRLineEdit(ButtonsLineEdit):
     """ read-only line with qr and copy buttons """
@@ -924,6 +978,7 @@ class ShowQRLineEdit(ButtonsLineEdit):
         self.setFont(QFont(MONOSPACE_FONT))
         self.add_qr_show_button(config=config, title=title)
         self.addCopyButton()
+
 
 class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
     def __init__(self, text=None):
@@ -1175,6 +1230,7 @@ def icon_path(icon_basename: str):
 def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
+
 class IconLabel(QWidget):
     HorizontalSpacing = 2
     def __init__(self, *, text='', final_stretch=True):
@@ -1367,6 +1423,7 @@ class QtEventListener(EventListener):
 # decorator for members of the QtEventListener class
 def qt_event_listener(func):
     func = event_listener(func)
+
     @wraps(func)
     def decorator(self, *args):
         self.qt_callback_signal.emit( (func,) + args)

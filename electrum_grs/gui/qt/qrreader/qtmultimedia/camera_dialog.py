@@ -147,7 +147,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.image_effect = ImageGraphicsEffect(self, self.crop_blur_effect)
 
 
-        # Note these should stay as queued connections becasue we use the idiom
+        # Note these should stay as queued connections because we use the idiom
         # self.reject() and self.accept() in this class to kill the scan --
         # and we do it from within callback functions. If you don't use
         # queued connections here, bad things can happen.

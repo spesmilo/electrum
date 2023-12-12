@@ -345,7 +345,7 @@ class Plugin(TrustedCoinPlugin):
                 'gui': WCKeepDisable,
                 'params': {'icon': icon_path('trustedcoin-wizard.png')},
             },
-            'trustedcoin_tos_email': {
+            'trustedcoin_tos': {
                 'gui': WCTerms,
                 'params': {'icon': icon_path('trustedcoin-wizard.png')},
             },
@@ -367,12 +367,12 @@ class Plugin(TrustedCoinPlugin):
                 'next': 'trustedcoin_confirm_seed',
             },
             'trustedcoin_confirm_seed': {
-                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos_email'
+                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos'
             },
             'trustedcoin_confirm_ext': {
                 'gui': WCConfirmExt,
                 'params': {'icon': icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_tos_email',
+                'next': 'trustedcoin_tos',
             },
             'trustedcoin_have_seed': {
                 'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable'
@@ -390,7 +390,7 @@ class Plugin(TrustedCoinPlugin):
             'trustedcoin_continue_online': {
                 'gui': WCContinueOnline,
                 'params': {'icon': icon_path('trustedcoin-wizard.png')},
-                'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_go_online'] else 'wallet_password',
+                'next': lambda d: 'trustedcoin_tos' if d['trustedcoin_go_online'] else 'wallet_password',
                 'accept': self.on_continue_online,
                 'last': lambda d: not d['trustedcoin_go_online'] and wizard.is_single_password()
             },
@@ -460,11 +460,6 @@ class WCTerms(WizardComponent):
         self.tos_e.setReadOnly(True)
         self.layout().addWidget(self.tos_e)
 
-        self.layout().addWidget(QLabel(_("Please enter your e-mail address")))
-        self.email_e = QLineEdit()
-        self.email_e.textChanged.connect(self.validate)
-        self.layout().addWidget(self.email_e)
-
         self.fetch_terms_and_conditions()
 
     def fetch_terms_and_conditions(self):
@@ -479,20 +474,16 @@ class WCTerms(WizardComponent):
     def on_terms_retrieved(self, tos: str) -> None:
         self._has_tos = True
         self.tos_e.setText(tos)
-        self.email_e.setFocus(True)
         self.validate()
 
     def on_terms_error(self, error: str) -> None:
         self.error = error
 
     def validate(self):
-        if self._has_tos and self.email_e.text() != '':
-            self.valid = True
-        else:
-            self.valid = False
+        self.valid = self._has_tos
 
     def apply(self):
-        self.wizard_data['2fa_email'] = self.email_e.text()
+        pass
 
 
 class WCShowConfirmOTP(WizardComponent):
@@ -565,7 +556,7 @@ class WCShowConfirmOTP(WizardComponent):
         self.wizard.trustedcoin_qhelper.otpError.connect(self.on_otp_error)
         self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
 
-        self.wizard.trustedcoin_qhelper.createKeystore(self.wizard_data['2fa_email'])
+        self.wizard.trustedcoin_qhelper.createKeystore()
 
     def update(self):
         is_new = bool(self.wizard.trustedcoin_qhelper.remoteKeyState != 'wallet_known')

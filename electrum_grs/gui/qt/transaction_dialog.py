@@ -62,7 +62,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
-                   get_iconname_qrcode)
+                   get_iconname_qrcode, VLine)
 from .rate_limiter import rate_limited
 from .my_treeview import create_toolbar_with_menu
 
@@ -961,11 +961,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox_stats.addLayout(vbox_left, 50)
 
         # vertical line separator
-        line_separator = QFrame()
-        line_separator.setFrameShape(QFrame.VLine)
-        line_separator.setFrameShadow(QFrame.Sunken)
-        line_separator.setLineWidth(1)
-        hbox_stats.addWidget(line_separator)
+        hbox_stats.addWidget(VLine())
 
         # right column
         vbox_right = QVBoxLayout()

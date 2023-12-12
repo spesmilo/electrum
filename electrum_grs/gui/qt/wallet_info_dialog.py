@@ -36,9 +36,7 @@ class WalletInfoDialog(WindowModalDialog):
         seed_available = _('False')
         if wallet.has_seed():
             seed_available = _('True')
-            ks = wallet.keystore
-            assert isinstance(ks, keystore.Deterministic_KeyStore)
-            seed_available += f" ({ks.get_seed_type()})"
+            seed_available += f" ({wallet.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(wallet.storage.path)
@@ -74,7 +72,7 @@ class WalletInfoDialog(WindowModalDialog):
                 label = IconLabel(text='Enabled, non-recoverable channels')
                 label.setIcon(read_QIcon('cloud_no'))
                 grid.addWidget(label, cur_row, 1)
-                if wallet.db.get('seed_type') == 'segwit':
+                if wallet.get_seed_type() == 'segwit':
                     msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
                             "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")

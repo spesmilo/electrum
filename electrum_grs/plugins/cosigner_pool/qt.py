@@ -22,9 +22,9 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import asyncio
 import time
-from xmlrpc.client import ServerProxy
+from xmlrpc.client import ServerProxy, Transport
 from typing import TYPE_CHECKING, Union, List, Tuple, Dict
 import ssl
 
@@ -33,14 +33,14 @@ from PyQt5.QtWidgets import QPushButton
 import certifi
 
 from electrum_grs import util, keystore, ecc, crypto
-from electrum_grs import transaction
 from electrum_grs.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
 from electrum_grs.bip32 import BIP32Node
 from electrum_grs.plugin import BasePlugin, hook
 from electrum_grs.i18n import _
 from electrum_grs.wallet import Multisig_Wallet, Abstract_Wallet
-from electrum_grs.util import bfh
+from electrum_grs.util import bfh, make_aiohttp_session
 from electrum_grs.logging import Logger
+from electrum_grs.network import Network
 
 from electrum_grs.gui.qt.transaction_dialog import show_transaction, TxDialog
 from electrum_grs.gui.qt.util import WaitingDialog
@@ -52,8 +52,26 @@ if TYPE_CHECKING:
 
 ca_path = certifi.where()
 ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-server = ServerProxy('https://cosigner.electrum.org/', allow_none=True, context=ssl_context)
-# FIXME this is not using the network proxy.
+
+
+class XMLRPCProxyTransport(Transport):
+    def request(self, host, handler, request_body, verbose=False):
+        network = Network.get_instance()
+        if network is None:
+            return
+
+        async def do_request(_host, _request_body):
+            async with make_aiohttp_session(network.proxy) as session:
+                async with session.post(f'https://{_host}', data=_request_body) as response:
+                    response.raise_for_status()
+                    p, u = self.getparser()
+                    data = await response.read()
+                    p.feed(data)
+                    p.close()
+                    return u.close()
+
+        fut = asyncio.run_coroutine_threadsafe(do_request(host, request_body), network.asyncio_loop)
+        return fut.result()
 
 
 class Listener(util.DaemonThread):
@@ -69,7 +87,7 @@ class Listener(util.DaemonThread):
         self.keyhashes = keyhashes
 
     def clear(self, keyhash):
-        server.delete(keyhash)
+        self.cw.cosigner_service.delete(keyhash)
         self.received.remove(keyhash)
 
     def run(self):
@@ -81,7 +99,7 @@ class Listener(util.DaemonThread):
                 if keyhash in self.received:
                     continue
                 try:
-                    message = server.get(keyhash)
+                    message = self.cw.cosigner_service.get(keyhash)
                 except Exception as e:
                     self.logger.info(f"cannot contact cosigner pool. exc: {e!r}")
                     time.sleep(30)
@@ -89,10 +107,9 @@ class Listener(util.DaemonThread):
                 if message:
                     self.received.add(keyhash)
                     self.logger.info(f"received message for {keyhash}")
-                    self.cw.obj.cosigner_receive_signal.emit(
-                        keyhash, message)
-            # poll every 30 seconds
-            time.sleep(30)
+                    self.cw.obj.cosigner_receive_signal.emit(keyhash, message)
+
+            time.sleep(30)  # poll every 30 seconds
 
 
 class QReceiveSignalObject(QObject):
@@ -106,6 +123,9 @@ class Plugin(BasePlugin):
         self._init_qt_received = False
         self.cosigner_wallets = {}  # type: Dict[Abstract_Wallet, CosignerWallet]
 
+        transport = XMLRPCProxyTransport()
+        self.cosigner_service = ServerProxy('https://cosigner.electrum.org/', transport, allow_none=True, context=ssl_context)
+
     @hook
     def init_qt(self, gui: 'ElectrumGui'):
         if self._init_qt_received:  # only need/want the first signal
@@ -118,7 +138,7 @@ class Plugin(BasePlugin):
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if type(wallet) != Multisig_Wallet:
             return
-        self.cosigner_wallets[wallet] = CosignerWallet(wallet, window)
+        self.cosigner_wallets[wallet] = CosignerWallet(wallet, self.cosigner_service, window)
 
     @hook
     def on_close_window(self, window):
@@ -144,10 +164,11 @@ class Plugin(BasePlugin):
 class CosignerWallet(Logger):
     # one for each open window
 
-    def __init__(self, wallet: 'Multisig_Wallet', window: 'ElectrumWindow'):
+    def __init__(self, wallet: 'Multisig_Wallet', cosigner_service: 'ServerProxy', window: 'ElectrumWindow'):
         assert isinstance(wallet, Multisig_Wallet)
         self.wallet = wallet
         self.window = window
+        self.cosigner_service = cosigner_service
         Logger.__init__(self)
         self.obj = QReceiveSignalObject()
         self.obj.cosigner_receive_signal.connect(self.on_receive)
@@ -226,7 +247,7 @@ class CosignerWallet(Logger):
         # note: we send all messages sequentially on the same thread
         def send_messages_task():
             for _hash, message in buffer:
-                server.put(_hash, message)
+                self.cosigner_service.put(_hash, message)
         msg = _('Sending transaction to cosigning pool...')
         WaitingDialog(self.window, msg, send_messages_task, on_success, on_failure)
 

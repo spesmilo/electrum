@@ -60,6 +60,7 @@ class QETxDetails(QObject, QtEventListener):
         self._should_confirm = False
 
         self._mempool_depth = ''
+        self._in_mempool = False
 
         self._date = ''
         self._timestamp = 0
@@ -177,6 +178,10 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=detailsChanged)
     def mempoolDepth(self):
         return self._mempool_depth
+
+    @pyqtProperty(bool, notify=detailsChanged)
+    def inMempool(self):
+        return self._in_mempool
 
     @pyqtProperty(str, notify=detailsChanged)
     def date(self):
@@ -298,12 +303,14 @@ class QETxDetails(QObject, QtEventListener):
         should_reject = False
 
         self._lock_delay = 0
+        self._in_mempool = False
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
             if txinfo.tx_mined_status.height in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
                 self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
+                self._in_mempool = True
             elif txinfo.tx_mined_status.height == TX_HEIGHT_FUTURE:
                 self._lock_delay = txinfo.tx_mined_status.wanted_height - self._wallet.wallet.adb.get_local_height()
             if isinstance(self._tx, PartialTransaction):

@@ -256,7 +256,7 @@ class CKCCSettingsDialog(WindowModalDialog):
             # append the firmware header a second time
             result = dev.send_recv(CCProtocolPacker.upload(size, size+FW_HEADER_SIZE, hdr))
 
-            # make it reboot into bootlaoder which might install it
+            # make it reboot into bootloader which might install it
             dev.send_recv(CCProtocolPacker.reboot())
 
         self.thread.add(doit)

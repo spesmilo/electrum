@@ -101,6 +101,10 @@ source $VENV_DIR/bin/activate
 #       see additional "strip" pass on built files later in the file.
 export CFLAGS="-g0"
 
+# Do not build universal binaries. The default on macos 11+ and xcode 12+ is "-arch arm64 -arch x86_64"
+# but with that e.g. "hid.cpython-310-darwin.so" is not reproducible as built by clang.
+export ARCHFLAGS="-arch x86_64"
+
 info "Installing build dependencies"
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,

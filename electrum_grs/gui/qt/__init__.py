@@ -458,7 +458,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 'xpub2': db.get('x2')['xpub'],
             }
             wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
-                                       start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
+                                       start_viewstate=WizardViewState('trustedcoin_tos', data, {}))
             result = wizard.exec()
             if result == QENewWalletWizard.Rejected:
                 self.logger.info('wizard dialog cancelled by user')
@@ -487,7 +487,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             # first-start network-setup
             if not self.config.cv.NETWORK_AUTO_CONNECT.is_set():
                 dialog = QEServerConnectWizard(self.config, self.app, self.plugins, self.daemon)
-                dialog.exec()
+                result = dialog.exec()
+                if result == QEServerConnectWizard.Rejected:
+                    self.logger.info('network wizard dialog cancelled by user')
+                    raise UserCancelled()
+
             # start network
             self.daemon.start_network()
 

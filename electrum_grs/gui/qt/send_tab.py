@@ -788,7 +788,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.logger.debug(f'merchant notify error: {pi.get_error()}')
         else:
             self.logger.debug(f'merchant notify result: {pi.merchant_ack_status}: {pi.merchant_ack_message}')
-        # TODO: show user? if we broadcasted the tx succesfully, do we care?
+        # TODO: show user? if we broadcasted the tx successfully, do we care?
         # BitPay complains with a NAK if tx is RbF
 
     def toggle_paytomany(self):

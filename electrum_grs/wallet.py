@@ -2984,6 +2984,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_seed(self) -> bool:
         pass
 
+    def get_seed_type(self) -> Optional[str]:
+        return None
+
     @abstractmethod
     def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
@@ -3086,7 +3089,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for txin_idx, txin in enumerate(tx.inputs()):
             if txin.sighash and txin.sighash != Sighash.ALL:  # non-standard
                 addr = self.adb.get_txin_address(txin)
-                if self.adb.is_mine(addr):
+                if self.is_mine(addr):
                     sh_out = txin.sighash & (Sighash.ANYONECANPAY ^ 0xff)
                     sh_in = txin.sighash & Sighash.ANYONECANPAY
                     confirm |= hintmap[sh_out][0] | hintmap[sh_in][0]
@@ -3511,6 +3514,12 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def get_seed(self, password):
         return self.keystore.get_seed(password)
+
+    def get_seed_type(self) -> Optional[str]:
+        if not self.has_seed():
+            return None
+        assert isinstance(self.keystore, keystore.Deterministic_KeyStore), type(self.keystore)
+        return self.keystore.get_seed_type()
 
     def change_gap_limit(self, value):
         '''This method is not called in the code, it is kept for console use'''
