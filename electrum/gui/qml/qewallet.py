@@ -103,6 +103,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._totalbalance = QEAmount()
         self._lightningcanreceive = QEAmount()
         self._lightningcansend = QEAmount()
+        self._lightningbalancefrozen = QEAmount()
 
         self._seed = ''
 
@@ -460,6 +461,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self.isLightning:
             self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
         return self._lightningbalance
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningBalanceFrozen(self):
+        if self.isLightning:
+            self._lightningbalancefrozen.satsInt = int(self.wallet.lnworker.get_balance(frozen=True))
+        return self._lightningbalancefrozen
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def totalBalance(self):
