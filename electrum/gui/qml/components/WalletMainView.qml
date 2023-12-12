@@ -160,15 +160,15 @@ Item {
                 enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'Addresses'
             }
         }
-        MenuItem {
-            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
-            icon.source: '../../icons/lightning.png'
-            action: Action {
-                text: qsTr('Channels');
-                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning && app.stack.currentItem.objectName != 'Channels'
-                onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
-            }
-        }
+        #MenuItem {
+        #    icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+        #    icon.source: '../../icons/lightning.png'
+        #    action: Action {
+        #        text: qsTr('Channels');
+        #        enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning && app.stack.currentItem.objectName != 'Channels'
+        #        onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
+        #    }
+        #}
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
