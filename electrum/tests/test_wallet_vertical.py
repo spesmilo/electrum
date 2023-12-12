@@ -13,7 +13,8 @@ from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
-                             TransactionPotentiallyDangerousException, TransactionDangerousException)
+                             TransactionPotentiallyDangerousException, TransactionDangerousException,
+                             TxSighashRiskLevel)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
 from electrum.mnemonic import seed_type
@@ -3018,6 +3019,7 @@ class TestWalletSending(ElectrumTestCase):
 
         tx.inputs()[0].sighash = Sighash.NONE
         tx.inputs()[1].sighash = Sighash.ALL
+        self.assertEqual(TxSighashRiskLevel.INSANE_SIGHASH, wallet1.check_sighash(tx).risk_level)
         with self.assertRaises(TransactionDangerousException):
             wallet1.sign_transaction(tx, password=None)
         with self.assertRaises(TransactionDangerousException):
@@ -3025,16 +3027,19 @@ class TestWalletSending(ElectrumTestCase):
 
         tx.inputs()[0].sighash = Sighash.ALL
         tx.inputs()[1].sighash = Sighash.SINGLE
+        self.assertEqual(TxSighashRiskLevel.WEIRD_SIGHASH, wallet1.check_sighash(tx).risk_level)
         with self.assertRaises(TransactionPotentiallyDangerousException):
             wallet1.sign_transaction(tx, password=None)
 
         tx.inputs()[0].sighash = Sighash.ALL | Sighash.ANYONECANPAY
         tx.inputs()[1].sighash = Sighash.ALL
+        self.assertEqual(TxSighashRiskLevel.WEIRD_SIGHASH, wallet1.check_sighash(tx).risk_level)
         with self.assertRaises(TransactionPotentiallyDangerousException):
             wallet1.sign_transaction(tx, password=None)
 
         tx.inputs()[0].sighash = Sighash.ALL
         tx.inputs()[1].sighash = Sighash.ALL
+        self.assertEqual(TxSighashRiskLevel.SAFE, wallet1.check_sighash(tx).risk_level)
         self.assertFalse(tx.is_complete())
         wallet1.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())

@@ -362,7 +362,7 @@ Pane {
                 onClicked: {
                     if (txdetails.shouldConfirm) {
                         var dialog = app.messageDialog.createObject(app, {
-                            text: qsTr('Confirm signing non-standard transaction?'),
+                            text: qsTr('Confirm signing transaction despite warnings?'),
                             yesno: true
                         })
                         dialog.accepted.connect(function() {

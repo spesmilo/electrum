@@ -8,6 +8,7 @@ from electrum.util import format_time, TxMinedInfo
 from electrum.transaction import tx_from_any, Transaction, PartialTxInput, Sighash, PartialTransaction
 from electrum.network import Network
 from electrum.address_synchronizer import TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
+from electrum.wallet import TxSighashDanger
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -32,7 +33,6 @@ class QETxDetails(QObject, QtEventListener):
         self._txid = ''
         self._rawtx = ''
         self._label = ''
-        self._warning = ''
 
         self._tx = None  # type: Optional[Transaction]
 
@@ -57,7 +57,7 @@ class QETxDetails(QObject, QtEventListener):
         self._is_mined = False
         self._is_final = False
         self._lock_delay = 0
-        self._should_confirm = False
+        self._sighash_danger = TxSighashDanger()
 
         self._mempool_depth = ''
         self._in_mempool = False
@@ -145,7 +145,7 @@ class QETxDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=detailsChanged)
     def warning(self):
-        return self._warning
+        return self._sighash_danger.get_long_message()
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
@@ -253,7 +253,7 @@ class QETxDetails(QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=detailsChanged)
     def shouldConfirm(self):
-        return self._should_confirm
+        return self._sighash_danger.needs_confirm()
 
     def update(self, from_txid: bool = False):
         assert self._wallet
@@ -299,8 +299,7 @@ class QETxDetails(QObject, QtEventListener):
             fee_per_kb = txinfo.fee / size * 1000
             self._feerate_str = self._wallet.wallet.config.format_fee_rate(fee_per_kb)
 
-        self._should_confirm = False
-        should_reject = False
+        self._sighash_danger = TxSighashDanger()
 
         self._lock_delay = 0
         self._in_mempool = False
@@ -314,9 +313,7 @@ class QETxDetails(QObject, QtEventListener):
             elif txinfo.tx_mined_status.height == TX_HEIGHT_FUTURE:
                 self._lock_delay = txinfo.tx_mined_status.wanted_height - self._wallet.wallet.adb.get_local_height()
             if isinstance(self._tx, PartialTransaction):
-                self._should_confirm, should_reject, message = self._wallet.wallet.check_sighash(self._tx)
-                if message:
-                    self._warning = '\n'.join([_('Danger! This transaction is non-standard!'), message])
+                self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
         if self._wallet.wallet.lnworker:
             # Calling lnworker.get_onchain_history and wallet.get_full_history here
@@ -344,13 +341,11 @@ class QETxDetails(QObject, QtEventListener):
         self._can_cpfp = txinfo.can_cpfp and not txinfo.can_remove
         self._can_save_as_local = txinfo.can_save_as_local and not txinfo.can_remove
         self._can_remove = txinfo.can_remove
-        self._can_sign = not self._is_complete and self._wallet.wallet.can_sign(self._tx) and not should_reject
-
-        if isinstance(self._tx, PartialTransaction):
-            risk_of_burning_coins = (self._can_sign and txinfo.fee is not None
-                                     and self._wallet.wallet.get_warning_for_risk_of_burning_coins_as_fees(self._tx))
-            if risk_of_burning_coins:
-                self._warning = '\n'.join([self._warning, risk_of_burning_coins])
+        self._can_sign = (
+            not self._is_complete
+            and self._wallet.wallet.can_sign(self._tx)
+            and not self._sighash_danger.needs_reject()
+        )
 
         self.detailsChanged.emit()
 
