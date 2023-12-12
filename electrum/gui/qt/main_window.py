@@ -784,6 +784,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
+            self.show_send_tab()
             host = self.network.get_parameters().server.host
             self.handle_payment_identifier('bitcoin:%s?message=donation for %s' % (d, host))
         else:
