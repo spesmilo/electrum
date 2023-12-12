@@ -15,7 +15,8 @@ from PyQt5.QtCore import (Qt, pyqtSignal, QCoreApplication, QThread, QSize, QRec
 from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QPlainTextEdit, QApplication, QToolTip,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QLayoutItem, QLayout, QMenu)
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QLayoutItem, QLayout, QMenu,
+                             QFrame)
 
 from electrum.i18n import _
 from electrum.util import FileImportFailed, FileExportFailed, resource_path
@@ -557,6 +558,14 @@ class ResizableStackedWidget(QWidget):
 
     def count(self):
         return len(self.widgets)
+
+
+class VLine(QFrame):
+    """Vertical line separator"""
+    def __init__(self):
+        super(VLine, self).__init__()
+        self.setFrameShape(self.VLine | self.Sunken)
+        self.setLineWidth(1)
 
 
 def address_field(addresses):
