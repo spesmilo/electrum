@@ -16,6 +16,7 @@ from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivat
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
+from electrum.util import is_subpath
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -303,9 +304,9 @@ class WCWalletName(WizardComponent, Logger):
         def relative_path(path):
             new_path = path
             try:
-                commonpath = os.path.commonpath([path, datadir_wallet_folder])
-                if commonpath == datadir_wallet_folder:
+                if is_subpath(path, datadir_wallet_folder):
                     # below datadir_wallet_path, make relative
+                    commonpath = os.path.commonpath([path, datadir_wallet_folder])
                     new_path = os.path.relpath(path, commonpath)
             except ValueError:
                 pass
