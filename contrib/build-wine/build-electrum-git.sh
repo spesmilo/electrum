@@ -39,11 +39,9 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :
 info "Installing dependencies specific to binaries..."
 # TODO tighten "--no-binary :all:" (but we don't have a C compiler...)
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    --no-binary :all: --only-binary cffi,cryptography,PyQt5,PyQt5-Qt5,PyQt5-sip \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 info "Installing hardware wallet requirements..."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    --no-binary :all: --only-binary cffi,cryptography,hidapi \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
