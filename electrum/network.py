@@ -645,7 +645,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 self.logger.info(f'Proxy is {"" if tor_proxy else "not "}TOR')
                 self._tor_probe_done(tor_proxy)
 
-        if proxy['mode'] == 'socks5':
+        if proxy and proxy['mode'] == 'socks5':
             t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
             t.start()
 
