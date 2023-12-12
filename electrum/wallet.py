@@ -3089,7 +3089,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for txin_idx, txin in enumerate(tx.inputs()):
             if txin.sighash and txin.sighash != Sighash.ALL:  # non-standard
                 addr = self.adb.get_txin_address(txin)
-                if self.adb.is_mine(addr):
+                if self.is_mine(addr):
                     sh_out = txin.sighash & (Sighash.ANYONECANPAY ^ 0xff)
                     sh_in = txin.sighash & Sighash.ANYONECANPAY
                     confirm |= hintmap[sh_out][0] | hintmap[sh_in][0]
