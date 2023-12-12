@@ -113,11 +113,8 @@ class Plugin(LabelsPlugin):
         threading.Thread(target=pull_thread, args=[wallet]).start()
 
     def on_pulled(self, wallet):
-        self.logger.info('on pulled')
         _wallet = QEWallet.getInstanceFor(wallet)
         self.logger.debug('wallet ' + ('found' if _wallet else 'not found'))
-        if _wallet:
-            _wallet.labelsUpdated.emit()
 
     @hook
     def init_qml(self, app):
