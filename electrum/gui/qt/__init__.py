@@ -487,7 +487,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             # first-start network-setup
             if not self.config.cv.NETWORK_AUTO_CONNECT.is_set():
                 dialog = QEServerConnectWizard(self.config, self.app, self.plugins, self.daemon)
-                dialog.exec()
+                result = dialog.exec()
+                if result == QEServerConnectWizard.Rejected:
+                    self.logger.info('network wizard dialog cancelled by user')
+                    raise UserCancelled()
+
             # start network
             self.daemon.start_network()
 
