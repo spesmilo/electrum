@@ -64,33 +64,46 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel || txdetails.canRemove || txdetails.isUnrelated
+                        visible: txdetails.isUnrelated || !txdetails.isMined
                         text: txdetails.isUnrelated
-                            ? qsTr('Transaction is unrelated to this wallet')
-                            : txdetails.canRemove
-                                ? txdetails.lockDelay
+                            ? qsTr('Transaction is unrelated to this wallet.')
+                            : txdetails.inMempool
+                                ? qsTr('This transaction is still unconfirmed.') + '\n' +
+                                    (txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
+                                        ? txdetails.canCancel
+                                            ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction.')
+                                            : qsTr('You can bump its fee to speed up its confirmation.')
+                                        : '')
+                                : txdetails.lockDelay
                                     ? qsTr('This transaction is local to your wallet and locked for the next %1 blocks.').arg(txdetails.lockDelay)
-                                    : qsTr('This transaction is local to your wallet. It has not been published yet.')
-                                : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                                    ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
-                                    : qsTr('You can bump its fee to speed up its confirmation'))
+                                    : txdetails.isComplete
+                                        ? qsTr('This transaction is local to your wallet. It has not been published yet.')
+                                        : txdetails.canSign
+                                            ? qsTr('This transaction is not fully signed and can be signed by this wallet.')
+                                            : qsTr('This transaction is not fully signed.') + '\n' +
+                                              (txdetails.wallet.isWatchOnly
+                                                  ? qsTr('Present this transaction to the signing wallet.')
+                                                  : qsTr('Present this transaction to the next cosigner.'))
                         iconStyle: txdetails.isUnrelated
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
                     }
 
                     Label {
+                        Layout.preferredWidth: 1
+                        Layout.fillWidth: true
                         visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
                         text: txdetails.amount.satsInt > 0
                                 ? qsTr('Amount received onchain')
                                 : qsTr('Amount sent onchain')
                         color: Material.accentColor
+                        wrapMode: Text.Wrap
                     }
 
                     FormattedAmount {
-                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
+                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
                         amount: txdetails.amount
                         timestamp: txdetails.timestamp
                     }
