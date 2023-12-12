@@ -592,8 +592,6 @@ class NewWalletWizard(AbstractWizard):
         db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
 
         db.put('wallet_type', data['wallet_type'])
-        if 'seed_type' in data:
-            db.put('seed_type', data['seed_type'])
 
         if data['wallet_type'] == 'standard':
             db.put('keystore', k.dump())

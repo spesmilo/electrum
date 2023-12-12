@@ -366,7 +366,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def seedType(self):
-        return self.wallet.db.get('seed_type')
+        return self.wallet.get_seed_type()
 
     @pyqtProperty(bool, notify=dataChanged)
     def isWatchOnly(self):
