@@ -80,7 +80,9 @@ fi
 
 
 VERSION=$("$CONTRIB"/print_electrum_version.py)
+APK_VERSION=$("$CONTRIB"/print_electrum_version.py APK_VERSION)
 info "VERSION: $VERSION"
+info "APK_VERSION: $APK_VERSION"
 REV=$(git describe --tags)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
@@ -147,8 +149,8 @@ fi
 # android
 for arch in armeabi-v7a arm64-v8a x86_64
 do
-    apk="Electrum-$VERSION.0-$arch-release.apk"
-    apk_unsigned="Electrum-$VERSION.0-$arch-release-unsigned.apk"
+    apk="Electrum-$APK_VERSION-$arch-release.apk"
+    apk_unsigned="Electrum-$APK_VERSION-$arch-release-unsigned.apk"
     if test -f "dist/$apk"; then
         info "file exists: $apk"
     else
