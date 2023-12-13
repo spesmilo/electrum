@@ -4,15 +4,15 @@
    - make number of logfiles to keep configurable (5e8b14f)
    - incremental writes wallet file (#8493)
  * Lightning:
-   - Fix sweep when restoring from backup after force-close (#8536)
-     - Channel Backup version bump, users should consider re-exporting channel backups
-     - fix sweeping chan after local force-close using cb (#8516)
    - fix BOLT-04 "MUST set `short_channel_id` to the `short_channel_id` used by the incoming onion" (ca93af2)
    - add support for hold invoices (1acf426)
    - add support for bundled payments (c4eb7d8)
    - various MPP improvements (#7987, ..)
    - support large channels (40f2087)
-   - new swap flow for normal swaps (fd10ae3)
+   - new flow for normal submarine swaps (fd10ae3)
+     - the client now uses hold invoices, just like the server
+     - the client waits until HTLCs are received before going on-chain
+     - the user may cancel the swaps during that waiting time
    - don't create invoice with duplicate route hints (a3997f8)
    - don't set channel OPEN before channel_ready has been both sent and received (#8641)
    - if trampoline is enabled, do not add non-trampoline nodes to invoices (120faa4)
@@ -27,7 +27,6 @@
    - new: show private key in address details (016b5eb)
    - new: label sync plugin toggle (b6863b4)
    - fix: properly suggest paying BOLT11 invoice onchain if insufficient balance (0a80460)
-   - allow cancel submarine swap while awaiting HTLCs (6cd42fa)
    - new: message sign & verify (e5e1e46)
    - new: allow never expiring payment requests (#8631)
    - new: add coins/UTXOs to addresses list, add filters (cf91d2e)
@@ -40,7 +39,6 @@
    - remove thousands separator when copying numbers to clipboard (#8479)
    - new: option to use extra trampoline for legacy payments (b2053c6)
    - new: send change to lightning option for on-chain payments (649ce97)
-   - allow cancel submarine swap while awaiting HTLCs (9df8bb6)
    - various UI fixes (#8587, #6526, ..)
  * Hardware wallets:
    - Trezor: allow multiple change outputs (#3920)
