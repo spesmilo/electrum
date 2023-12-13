@@ -281,10 +281,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         # If the option hasn't been set yet
         if not config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS.is_set():
+            '''
             choice = self.question(title="Electrum - " + _("Enable update check"),
                                    msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
                                        _("Would you like to be notified when there is a newer version of Electrum available?"))
             config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = bool(choice)
+            '''
+            AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = False
 
         self._update_check_thread = None
         if config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS:
@@ -572,8 +575,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Bitcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+                _("This means you will not be able to spend Goldcoins with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request Goldcoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
@@ -769,12 +772,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Check for updates"), self.show_update_check)
-        help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
+        # help_menu.addAction(_("&Check for updates"), self.show_update_check)
+        help_menu.addAction(_("&Official website"), lambda: webopen("https://goldcoinproject.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
-        if not constants.net.TESTNET:
-            help_menu.addAction(_("&Goldcoin Paper"), self.show_bitcoin_paper)
+        # if not constants.net.TESTNET:
+        #     help_menu.addAction(_("&Goldcoin Paper"), self.show_bitcoin_paper)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
