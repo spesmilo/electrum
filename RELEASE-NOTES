@@ -1,8 +1,11 @@
-# Release 4.5.0 (unreleased)
+# Release 4.5.0 (in beta/rc)
  * General:
    - remove SSL options from config (012ce1c)
    - make number of logfiles to keep configurable (5e8b14f)
-   - incremental writes wallet file (#8493)
+   - refactored SimpleConfig and added ConfigVars (#8454)
+   - incremental writes of wallet file (#8493)
+   - add warnings and prompt users when signing txs with non-default sighashes (#8687)
+   - refactored bip21/bolt11/lnurl/etc-handling into PaymentIdentifiers (#8462)
  * Lightning:
    - fix BOLT-04 "MUST set `short_channel_id` to the `short_channel_id` used by the incoming onion" (ca93af2)
    - add support for hold invoices (1acf426)
@@ -16,7 +19,7 @@
    - don't create invoice with duplicate route hints (a3997f8)
    - don't set channel OPEN before channel_ready has been both sent and received (#8641)
    - if trampoline is enabled, do not add non-trampoline nodes to invoices (120faa4)
- * QML GUI:
+ * QML GUI (Android):
    - port to Qt6
    - fix regression for lnurl-pay (#8585)
    - fix invoice amount bounds check (#8582)
@@ -33,12 +36,13 @@
    - new: delete addresses from imported wallet (#8675)
    - new: add support for lightning address and openalias (03dd38b)
    - various UI fixes (b846eab, #8634, 9ed5f7b, 941f425, b20a4b9, af61b9d, 0fb47c8, 2995bc8, ..)
- * Desktop:
+ * Qt Desktop GUI:
    - port wizard to new implementation
    - fix fiat balance sorting in address list window (#8469, #8478)
    - remove thousands separator when copying numbers to clipboard (#8479)
    - new: option to use extra trampoline for legacy payments (b2053c6)
    - new: send change to lightning option for on-chain payments (649ce97)
+   - new: notes tab for saving text in the (encrypted) wallet file (d691aa07)
    - various UI fixes (#8587, #6526, ..)
  * Hardware wallets:
    - Trezor: allow multiple change outputs (#3920)
@@ -46,8 +50,6 @@
    - Bitbox02: update to 6.2.0 (#8459)
  * Plugins:
    - new: swapserver plugin (#8489)
-   - trustedcoin: stricter client-side checks for 2fa fee (87cba8b)
-
 
 
 # Release 4.4.6 (August 18, 2023) (security update)
