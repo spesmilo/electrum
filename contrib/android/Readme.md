@@ -155,11 +155,11 @@ Or use Android Studio: "Device File Explorer", which can download/upload data di
 cd dist/
 unzip Electrum-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
-tar -xzvf apk1/assets/private.mp3 --directory apk1/assets/private_mp3/
+tar -xzvf apk1/assets/private.tar --directory apk1/assets/private_mp3/
 
 unzip Electrum-*.apk2 -d apk2
 mkdir apk2/assets/private_mp3/
-tar -xzvf apk2/assets/private.mp3 --directory apk2/assets/private_mp3/
+tar -xzvf apk2/assets/private.tar --directory apk2/assets/private_mp3/
 
 sudo chown --recursive "$(id -u -n)" apk1/ apk2/
 chmod -R +Xr  apk1/ apk2/
