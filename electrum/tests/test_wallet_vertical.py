@@ -15,7 +15,7 @@ from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_W
                              restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException, TransactionDangerousException)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException
-from electrum.transaction import Transaction, PartialTxOutput, tx_from_any
+from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
 from electrum.mnemonic import seed_type
 from electrum.network import Network
 
@@ -2998,6 +2998,46 @@ class TestWalletSending(ElectrumTestCase):
         tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
         with self.assertRaises(bitcoin.DummyAddressUsedInTxException):
             wallet1.sign_transaction(tx, password=None)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_sighash_warnings(self, mock_save_db):
+        wallet1 = self.create_standard_wallet_from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver')
+
+        # bootstrap wallet1
+        funding_tx = Transaction('01000000014576dacce264c24d81887642b726f5d64aa7825b21b350c7b75a57f337da6845010000006b483045022100a3f8b6155c71a98ad9986edd6161b20d24fad99b6463c23b463856c0ee54826d02200f606017fd987696ebbe5200daedde922eee264325a184d5bbda965ba5160821012102e5c473c051dae31043c335266d0ef89c1daab2f34d885cc7706b267f3269c609ffffffff0240420f00000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c42a2ddb90e000000001976a914c384950342cb6f8df55175b48586838b03130fad88ac00000000')
+        self.assertEqual('add2535aedcbb5ba79cc2260868bb9e57f328738ca192937f2c92e0e94c19203', funding_tx.txid())
+        wallet1.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        funding_tx = Transaction('0200000000010141f2de02db45f99c3618e4bfb51cd3e5ec64db096886cfd8253bdbaf0bba58c72c01000000fdffffff0220e00900000000001600144d46b4729c7bf894fa5c510d6e72bec1d02b1aa640420f0000000000160014284520c815980d426264766d8d930013dd20aa6002473044022078a86cd15acb981a5aa4948176cb66583a4a4f4b728962f1497fbdd5f323ae3e02205301e5e3b34232bc139ca311a795377a3416b109b7bb8c70f3f6bb3fcc40e589012103cf9ad82ebea31e5c1bf08219c38302cc0ce5eba2ff5eecd90b9d3a951eebfb1cca2c1800')
+        self.assertEqual('9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539', funding_tx.txid())
+        wallet1.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        outputs = [PartialTxOutput.from_address_and_value('tb1qgacvp0zvgtk3etggjayuezrc2mkql8veshv4xw', '!')]
+        coins = wallet1.get_spendable_coins(domain=None)
+        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+        self.assertEqual(2, len(tx.inputs()))
+
+        tx.inputs()[0].sighash = Sighash.NONE
+        tx.inputs()[1].sighash = Sighash.ALL
+        with self.assertRaises(TransactionDangerousException):
+            wallet1.sign_transaction(tx, password=None)
+        with self.assertRaises(TransactionDangerousException):
+            wallet1.sign_transaction(tx, password=None, ignore_warnings=True)
+
+        tx.inputs()[0].sighash = Sighash.ALL
+        tx.inputs()[1].sighash = Sighash.SINGLE
+        with self.assertRaises(TransactionPotentiallyDangerousException):
+            wallet1.sign_transaction(tx, password=None)
+
+        tx.inputs()[0].sighash = Sighash.ALL | Sighash.ANYONECANPAY
+        tx.inputs()[1].sighash = Sighash.ALL
+        with self.assertRaises(TransactionPotentiallyDangerousException):
+            wallet1.sign_transaction(tx, password=None)
+
+        tx.inputs()[0].sighash = Sighash.ALL
+        tx.inputs()[1].sighash = Sighash.ALL
+        self.assertFalse(tx.is_complete())
+        wallet1.sign_transaction(tx, password=None)
+        self.assertTrue(tx.is_complete())
 
 
 class TestWalletOfflineSigning(ElectrumTestCase):
