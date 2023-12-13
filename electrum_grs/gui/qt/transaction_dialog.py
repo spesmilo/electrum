@@ -54,6 +54,7 @@ from electrum_grs.transaction import SerializationError, Transaction, PartialTra
 from electrum_grs.logging import get_logger
 from electrum_grs.util import ShortID, get_asyncio_loop
 from electrum_grs.network import Network
+from electrum_grs.wallet import TxSighashRiskLevel, TxSighashDanger
 
 from . import util
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
@@ -115,9 +116,7 @@ class TxInOutWidget(QWidget):
 
         self.sighash_label = QLabel()
         self.sighash_label.setStyleSheet('font-weight: bold')
-        self.sighash_confirm = False
-        self.sighash_reject = False
-        self.sighash_message = ''
+        self.sighash_danger = TxSighashDanger()
         self.inputs_warning_icon = QLabel()
         pixmap = QPixmap(icon_path("warning"))
         pixmap_size = round(2 * char_width_in_lineedit())
@@ -262,11 +261,11 @@ class TxInOutWidget(QWidget):
             )
 
         if isinstance(self.tx, PartialTransaction):
-            self.sighash_confirm, self.sighash_reject, self.sighash_message = self.wallet.check_sighash(self.tx)
-            if self.sighash_message:
-                self.sighash_label.setText(_('Danger! This transaction is non-standard!'))
+            self.sighash_danger = self.wallet.check_sighash(self.tx)
+            if self.sighash_danger.risk_level >= TxSighashRiskLevel.WEIRD_SIGHASH:
+                self.sighash_label.setText(self.sighash_danger.short_message)
                 self.inputs_warning_icon.setVisible(True)
-                self.inputs_warning_icon.setToolTip(self.sighash_message)
+                self.inputs_warning_icon.setToolTip(self.sighash_danger.get_long_message())
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
@@ -667,13 +666,15 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.update()
             self.main_window.pop_top_level_window(self)
 
-        if self.io_widget.sighash_confirm:
-            if not self.question('\n'.join([
-                _('Danger! This transaction is non-standard!'),
-                self.io_widget.sighash_message,
-                '',
-                _('Are you sure you want to sign this transaction?')
-            ])):
+        if self.io_widget.sighash_danger.needs_confirm():
+            if not self.question(
+                msg='\n'.join([
+                    self.io_widget.sighash_danger.get_long_message(),
+                    '',
+                    _('Are you sure you want to sign this transaction?')
+                ]),
+                title=self.io_widget.sighash_danger.short_message,
+            ):
                 return
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
@@ -801,8 +802,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
-        self.sign_button.setEnabled(can_sign and not self.io_widget.sighash_reject)
-        self.sign_button.setToolTip(self.io_widget.sighash_message)
+        self.sign_button.setEnabled(can_sign and not self.io_widget.sighash_danger.needs_reject())
+        if sh_danger_msg := self.io_widget.sighash_danger.get_long_message():
+            self.sign_button.setToolTip(sh_danger_msg)
         if tx_details.txid:
             self.tx_hash_e.setText(tx_details.txid)
         else:
@@ -892,10 +894,9 @@ class TxDialog(QDialog, MessageBoxMixin):
                         color=ColorScheme.RED.as_color().name(),
                     )
         if isinstance(self.tx, PartialTransaction):
-            risk_of_burning_coins = (can_sign and fee is not None
-                                     and self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx))
-            self.fee_warning_icon.setToolTip(str(risk_of_burning_coins))
-            self.fee_warning_icon.setVisible(bool(risk_of_burning_coins))
+            sh_warning = self.io_widget.sighash_danger.get_long_message()
+            self.fee_warning_icon.setToolTip(str(sh_warning))
+            self.fee_warning_icon.setVisible(can_sign and bool(sh_warning))
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
         if ln_amount is None or ln_amount == 0:

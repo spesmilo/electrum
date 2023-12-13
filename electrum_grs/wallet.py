@@ -256,6 +256,60 @@ class TransactionPotentiallyDangerousException(Exception): pass
 class TransactionDangerousException(TransactionPotentiallyDangerousException): pass
 
 
+class TxSighashRiskLevel(enum.IntEnum):
+    # higher value -> more risk
+    SAFE = 0
+    FEE_WARNING_SKIPCONFIRM = 1  # show warning icon (ignored for CLI)
+    FEE_WARNING_NEEDCONFIRM = 2  # prompt user for confirmation
+    WEIRD_SIGHASH = 3            # prompt user for confirmation
+    INSANE_SIGHASH = 4           # reject
+
+
+class TxSighashDanger:
+
+    def __init__(
+        self,
+        *,
+        risk_level: TxSighashRiskLevel = TxSighashRiskLevel.SAFE,
+        short_message: str = None,
+        messages: List[str] = None,
+    ):
+        self.risk_level = risk_level
+        self.short_message = short_message
+        self._messages = messages or []
+
+    def needs_confirm(self) -> bool:
+        """If True, the user should be prompted for explicit confirmation before signing."""
+        return self.risk_level >= TxSighashRiskLevel.FEE_WARNING_NEEDCONFIRM
+
+    def needs_reject(self) -> bool:
+        """If True, the transaction should be rejected, i.e. abort signing."""
+        return self.risk_level >= TxSighashRiskLevel.INSANE_SIGHASH
+
+    def get_long_message(self) -> str:
+        """Returns a description of the potential dangers of signing the tx that can be shown to the user.
+        Empty string if there are none.
+        """
+        if self.short_message:
+            header = [self.short_message]
+        else:
+            header = []
+        return "\n".join(header + self._messages)
+
+    def combine(*args: 'TxSighashDanger') -> 'TxSighashDanger':
+        max_danger = max(args, key=lambda sighash_danger: sighash_danger.risk_level)  # type: TxSighashDanger
+        messages = [msg for sighash_danger in args for msg in sighash_danger._messages]
+        return TxSighashDanger(
+            risk_level=max_danger.risk_level,
+            short_message=max_danger.short_message,
+            messages=messages,
+        )
+
+    def __repr__(self):
+        return (f"<{self.__class__.__name__} risk_level={self.risk_level} "
+                f"short_message={self.short_message!r} _messages={self._messages!r}>")
+
+
 class BumpFeeStrategy(enum.Enum):
     PRESERVE_PAYMENT = enum.auto()
     DECREASE_PAYMENT = enum.auto()
@@ -2478,21 +2532,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return tx
 
         # check if signing is dangerous
-        should_confirm, should_reject, message = self.check_sighash(tx)
-        if should_reject:
-            raise TransactionDangerousException('Not signing transaction:\n' + message)
-        if not ignore_warnings:
-            if should_confirm:
-                message = '\n'.join([_('Danger! This transaction is non-standard!'), message])
-            fee = self.get_wallet_delta(tx).fee
-            risk_of_burning_coins = (fee is not None
-                                     and self.get_warning_for_risk_of_burning_coins_as_fees(tx))
-            if risk_of_burning_coins:
-                should_confirm = True
-                message = '\n'.join([message, risk_of_burning_coins])
-
-            if should_confirm:
-                raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + message)
+        sh_danger = self.check_sighash(tx)
+        if sh_danger.needs_reject():
+            raise TransactionDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
+        if sh_danger.needs_confirm() and not ignore_warnings:
+            raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
 
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
@@ -3037,8 +3081,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.sign_transaction(tx, password)
         return tx
 
-    def get_warning_for_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> Optional[str]:
-        """Returns a warning message if there is risk of burning coins as fees if we sign.
+    def _check_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> TxSighashDanger:
+        """Helper method to check if there is risk of burning coins as fees if we sign.
         Note that if not all inputs are ismine, e.g. coinjoin, the risk is not just about fees.
 
         Note:
@@ -3047,59 +3091,77 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             - BIP-taproot sighash commits to *all* input amounts
         """
         assert isinstance(tx, PartialTransaction)
+        rl = TxSighashRiskLevel
+        short_message = _("Warning") + ": " + _("The fee could not be verified!")
+        # check that all inputs use SIGHASH_ALL
+        if not all(txin.sighash in (None, Sighash.ALL) for txin in tx.inputs()):
+            messages = [(_("Warning") + ": "
+                         + _("Some inputs use non-default sighash flags, which might affect the fee."))]
+            return TxSighashDanger(risk_level=rl.FEE_WARNING_NEEDCONFIRM, short_message=short_message, messages=messages)
         # if we have all full previous txs, we *know* all the input amounts -> fine
         if all([txin.utxo for txin in tx.inputs()]):
-            return None
+            return TxSighashDanger(risk_level=rl.SAFE)
         # a single segwit input -> fine
         if len(tx.inputs()) == 1 and tx.inputs()[0].is_segwit() and tx.inputs()[0].witness_utxo:
-            return None
+            return TxSighashDanger(risk_level=rl.SAFE)
         # coinjoin or similar
         if any([not self.is_mine(txin.address) for txin in tx.inputs()]):
-            return (_("Warning") + ": "
-                    + _("The input amounts could not be verified as the previous transactions are missing.\n"
-                        "The amount of money being spent CANNOT be verified."))
+            messages = [(_("Warning") + ": "
+                         + _("The input amounts could not be verified as the previous transactions are missing.\n"
+                             "The amount of money being spent CANNOT be verified."))]
+            return TxSighashDanger(risk_level=rl.FEE_WARNING_NEEDCONFIRM, short_message=short_message, messages=messages)
         # some inputs are legacy
         if any([not txin.is_segwit() for txin in tx.inputs()]):
-            return (_("Warning") + ": "
-                    + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
-                        "if this transaction was maliciously modified before you sign,\n"
-                        "you might end up paying a higher mining fee than displayed."))
+            messages = [(_("Warning") + ": "
+                         + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
+                             "if this transaction was maliciously modified before you sign,\n"
+                             "you might end up paying a higher mining fee than displayed."))]
+            return TxSighashDanger(risk_level=rl.FEE_WARNING_NEEDCONFIRM, short_message=short_message, messages=messages)
         # all inputs are segwit
         # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-August/014843.html
-        return (_("Warning") + ": "
-                + _("If you received this transaction from an untrusted device, "
-                    "do not accept to sign it more than once,\n"
-                    "otherwise you could end up paying a different fee."))
+        messages = [(_("Warning") + ": "
+                     + _("If you received this transaction from an untrusted device, "
+                         "do not accept to sign it more than once,\n"
+                         "otherwise you could end up paying a different fee."))]
+        return TxSighashDanger(risk_level=rl.FEE_WARNING_SKIPCONFIRM, short_message=short_message, messages=messages)
 
-    def check_sighash(self, tx: 'PartialTransaction') -> (bool, bool, str):
-        """Checks the Sighash for my inputs and return hints in the form
-        (confirm, reject, message), where confirm indicates the user should explicitly confirm,
-        reject indicates the transaction should be rejected (unless overruled in e.g. a config property),
-        and message containing a user-facing message describing the context"""
-        hintmap = dict([
-            (0, (False, False, None)),
-            (Sighash.NONE, (True, True, _('Input {} is marked SIGHASH_NONE.'))),
-            (Sighash.SINGLE, (True, False, _('Input {} is marked SIGHASH_SINGLE.'))),
-            (Sighash.ALL, (False, False, None)),
-            (Sighash.ANYONECANPAY, (True, False, _('Input {} is marked SIGHASH_ANYONECANPAY.')))
-        ])
-        confirm = False
-        reject = False
-        messages = []
+    def check_sighash(self, tx: 'PartialTransaction') -> TxSighashDanger:
+        """Checks the Sighash for my inputs and considers if the tx is safe to sign."""
+        assert isinstance(tx, PartialTransaction)
+        rl = TxSighashRiskLevel
+        hintmap = {
+            0:                    (rl.SAFE,           None),
+            Sighash.NONE:         (rl.INSANE_SIGHASH, _('Input {} is marked SIGHASH_NONE.')),
+            Sighash.SINGLE:       (rl.WEIRD_SIGHASH,  _('Input {} is marked SIGHASH_SINGLE.')),
+            Sighash.ALL:          (rl.SAFE,           None),
+            Sighash.ANYONECANPAY: (rl.WEIRD_SIGHASH,  _('Input {} is marked SIGHASH_ANYONECANPAY.')),
+        }
+        sighash_danger = TxSighashDanger()
         for txin_idx, txin in enumerate(tx.inputs()):
-            if txin.sighash and txin.sighash != Sighash.ALL:  # non-standard
-                addr = self.adb.get_txin_address(txin)
-                if self.is_mine(addr):
-                    sh_out = txin.sighash & (Sighash.ANYONECANPAY ^ 0xff)
-                    sh_in = txin.sighash & Sighash.ANYONECANPAY
-                    confirm |= hintmap[sh_out][0] | hintmap[sh_in][0]
-                    reject |= hintmap[sh_out][1] | hintmap[sh_in][1]
-                    for sh in [sh_out, sh_in]:
-                        msg = hintmap[sh][2]
-                        if msg:
-                            messages.append('%s: %s' % (_('Fatal') if hintmap[sh][1] else _('Warning'),
-                                                        msg.format(txin_idx)))
-        return confirm, reject, '\n'.join(messages)
+            if txin.sighash in (None, Sighash.ALL):
+                continue  # None will get converted to Sighash.ALL, so these values are safe
+            # found interesting sighash flag
+            addr = self.adb.get_txin_address(txin)
+            if self.is_mine(addr):
+                sh_base = txin.sighash & (Sighash.ANYONECANPAY ^ 0xff)
+                sh_acp = txin.sighash & Sighash.ANYONECANPAY
+                for sh in [sh_base, sh_acp]:
+                    if msg := hintmap[sh][1]:
+                        risk_level = hintmap[sh][0]
+                        header = _('Fatal') if TxSighashDanger(risk_level=risk_level).needs_reject() else _('Warning')
+                        shd = TxSighashDanger(
+                            risk_level=risk_level,
+                            short_message=_('Danger! This transaction uses non-default sighash flags!'),
+                            messages=[f"{header}: {msg.format(txin_idx)}"],
+                        )
+                        sighash_danger = sighash_danger.combine(shd)
+        if sighash_danger.needs_reject():  # no point for further tests
+            return sighash_danger
+        # if we show any fee to the user, check now how reliable that is:
+        if self.get_wallet_delta(tx).fee is not None:
+            shd = self._check_risk_of_burning_coins_as_fees(tx)
+            sighash_danger = sighash_danger.combine(shd)
+        return sighash_danger
 
     def get_tx_fee_warning(
             self, *,
