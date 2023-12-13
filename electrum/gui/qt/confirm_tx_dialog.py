@@ -684,9 +684,9 @@ class ConfirmTxDialog(TxEditor):
         grid.addWidget(HelpLabel(_("Amount to be sent") + ": ", msg), 0, 0)
         grid.addWidget(self.amount_label, 0, 1)
 
-        msg = _('Goldcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
+        msg = _('Goldcoin transactions are free.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
-              + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
+              + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases the speed of transaction.')
 
         grid.addWidget(HelpLabel(_("Mining Fee") + ": ", msg), 1, 0)
         grid.addLayout(self.fee_hbox, 1, 1, 1, 3)
