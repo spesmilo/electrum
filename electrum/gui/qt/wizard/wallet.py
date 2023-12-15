@@ -36,11 +36,13 @@ if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.gui.qt import QElectrumApplication
 
-WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
-                 _('A few examples') + ':\n' +
-                 'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
-                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
-                 'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
+WIF_HELP_TEXT = (_('Goldcoin private keys generate 2 different wallet addresses starting with E or D.') + '\n\n' +
+                 _('An example') + ':\n' +
+                 'p2pkh:QjR74k2422ta...   \t-> Dvt9rXB4X...\n' +
+                 'p2pkh:Qh77H5hWbw...   \t-> E7Di7hP58...\n')
+                 # disable segwit examples
+                 # 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
+                 # 'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
 
 MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
