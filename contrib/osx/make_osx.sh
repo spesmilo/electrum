@@ -244,6 +244,9 @@ VERSION=$(python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_V
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"
 
+info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
+find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
+
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
 
 if [ ! -z "$CODESIGN_CERT" ]; then
