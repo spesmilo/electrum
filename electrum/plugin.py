@@ -131,6 +131,9 @@ class Plugins(DaemonThread):
         return len(self.plugins)
 
     def load_plugin(self, name) -> 'BasePlugin':
+        """Imports the code of the given plugin.
+        note: can be called from any thread.
+        """
         if name in self.plugins:
             return self.plugins[name]
         full_name = f'electrum.plugins.{name}.{self.gui_name}'
@@ -140,13 +143,13 @@ class Plugins(DaemonThread):
                                % (self.gui_name, name))
         try:
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)  # note: imports the plugin code in a *different* thread
+            spec.loader.exec_module(module)
             plugin = module.Plugin(self, self.config, name)
         except Exception as e:
             raise Exception(f"Error loading {name} plugin: {repr(e)}") from e
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
-        self.logger.info(f"loaded {name}")
+        self.logger.info(f"loaded plugin {name!r}. (from thread: {threading.current_thread().name!r})")
         return plugin
 
     def close_plugin(self, plugin):
