@@ -66,9 +66,11 @@ class WCWelcome(WizardComponent):
 
     def apply(self):
         self.wizard_data['use_defaults'] = self.use_defaults_w.isChecked()
+        self.wizard_data['want_proxy'] = False
         if self.use_defaults_w.isChecked():
             self.wizard_data['autoconnect'] = True
-            self.wizard_data['want_proxy'] = False
+        else:
+            self.wizard_data['autoconnect'] = None
 
 
 class WCAutoConnect(WizardComponent):

@@ -12,9 +12,11 @@ WizardComponent {
 
     function apply() {
         wizard_data['use_defaults'] = use_defaults.checked
+        wizard_data['want_proxy'] = false
         if (use_defaults.checked) {
             wizard_data['autoconnect'] = true
-            wizard_data['want_proxy'] = false
+        } else {
+            wizard_data['autoconnect'] = undefined
         }
     }
 

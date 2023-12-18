@@ -656,6 +656,7 @@ class ServerConnectWizard(AbstractWizard):
         self.navmap = {
             'welcome': {
                 'next': 'proxy_ask',
+                'accept': self.do_configure_autoconnect,
                 'last': lambda d: d['use_defaults']
             },
             'proxy_ask': {
@@ -704,7 +705,8 @@ class ServerConnectWizard(AbstractWizard):
     def do_configure_autoconnect(self, wizard_data: dict):
         self._logger.debug(f'configuring autoconnect: {wizard_data!r}')
         if self._daemon.config.cv.NETWORK_AUTO_CONNECT.is_modifiable():
-            self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data['autoconnect']
+            if autoconnect := wizard_data.get('autoconnect') is not None:
+                self._daemon.config.NETWORK_AUTO_CONNECT = autoconnect
 
     def start(self, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:
