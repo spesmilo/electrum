@@ -2,22 +2,16 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// import org.electrum 1.0
-
 import "../controls"
 
 WizardComponent {
     valid: true
-    title: qsTr('Electrum Bitcoin Wallet')
+    wizard_title: qsTr('Electrum Bitcoin Wallet')
 
     function apply() {
-        wizard_data['use_defaults'] = use_defaults.checked
-        wizard_data['want_proxy'] = false
-        if (use_defaults.checked) {
-            wizard_data['autoconnect'] = true
-        } else {
-            wizard_data['autoconnect'] = undefined
-        }
+        wizard_data['use_defaults'] = !config_advanced.checked
+        wizard_data['want_proxy'] = config_advanced.checked && config_proxy.checked
+        wizard_data['autoconnect'] = !config_server.checked || !config_advanced.checked
     }
 
     ColumnLayout {
@@ -29,22 +23,37 @@ WizardComponent {
             source: Qt.resolvedUrl('../../../icons/electrum_presplash.png')
             // reduce spacing a bit
             Layout.topMargin: -50
-            Layout.bottomMargin: -160
-        }
-
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Welcome')
-            font.pixelSize: constants.fontSizeXLarge
-            Layout.bottomMargin: constants.paddingXXLarge
+            Layout.bottomMargin: -120
         }
 
         CheckBox {
-            id: use_defaults
+            id: config_advanced
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Use default network settings')
-            checked: true
+            text: qsTr('Advanced network settings')
+            checked: false
             onCheckedChanged: checkIsLast()
+        }
+
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+
+            opacity: config_advanced.checked ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation { duration: 300 }
+            }
+
+            CheckBox {
+                id: config_proxy
+                text: qsTr('Configure Proxy')
+                checked: false
+                onCheckedChanged: checkIsLast()
+            }
+            CheckBox {
+                id: config_server
+                text: qsTr('Select Server')
+                checked: false
+                onCheckedChanged: checkIsLast()
+            }
         }
     }
 }

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
-                             QHBoxLayout, QLayout, QStackedWidget)
+                             QHBoxLayout, QLayout)
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -40,6 +40,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
         self.title = QLabel()
         self.window_title = ''
+        self.finish_label = _('Finish')
 
         self.main_widget = ResizableStackedWidget(self)
 
@@ -64,9 +65,6 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
         error_layout = QVBoxLayout()
         error_layout.addStretch(1)
-        # error_l = QLabel(_("Error!"))
-        # error_l.setAlignment(Qt.AlignCenter)
-        # error_layout.addWidget(error_l)
         self.error_msg = WWLabel()
         self.error_msg.setAlignment(Qt.AlignCenter)
         error_layout.addWidget(self.error_msg)
@@ -172,7 +170,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.title.setText(f'<b>{page.title}</b>' if page.title else '')
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.back_button.setEnabled(not page.busy)
-        self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else _('Finish'))
+        self.next_button.setText(_('Next') if not self.is_last(page.wizard_data) else self.finish_label)
         self.next_button.setEnabled(not page.busy and page.valid)
         self.main_widget.setVisible(not page.busy and not bool(page.error))
         self.please_wait.setVisible(page.busy)
