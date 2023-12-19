@@ -34,7 +34,11 @@ Wizard {
             walletwizard.walletCreated()
         }
         function onCreateError(error) {
-            var dialog = app.messageDialog.createObject(app, { text: error })
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
             dialog.open()
         }
     }
