@@ -6,6 +6,7 @@
    - incremental writes of wallet file (#8493)
    - add warnings and prompt users when signing txs with non-default sighashes (#8687)
    - refactored bip21/bolt11/lnurl/etc-handling into PaymentIdentifiers (#8462)
+   - add option to merge duplicate outputs (#8474)
  * Lightning:
    - fix BOLT-04 "MUST set `short_channel_id` to the `short_channel_id` used by the incoming onion" (ca93af2)
    - add support for hold invoices (1acf426)
