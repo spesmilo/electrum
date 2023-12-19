@@ -155,7 +155,6 @@ Pane {
                 }
                 icon.source: '../../icons/lightning.png'
             }
-
         }
 
     }
@@ -164,21 +163,6 @@ Pane {
         id: openChannelDialog
         OpenChannelDialog {
             onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: importChannelBackupDialog
-        ImportChannelBackupDialog {
-            onClosed: destroy()
-        }
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(root, { title: qsTr('Error'), text: message })
-            dialog.open()
         }
     }
 
