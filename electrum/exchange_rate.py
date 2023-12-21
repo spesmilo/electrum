@@ -357,6 +357,22 @@ class CoinGecko(ExchangeBase):
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), str(h[1]))
                      for h in history['prices']])
 
+class Bit2C(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('bit2c.co.il', '/Exchanges/BtcNis/Ticker.json')
+        return {'ILS': to_decimal(json['ll'])}
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        history = await self.get_json('bit2c.co.il',
+                                      '/Exchanges/BtcNis/KLines?resolution=1D&from=1357034400&to=%s' % int(time.time()))
+        
+        return dict([(datetime.utcfromtimestamp(h[0]).strftime('%Y-%m-%d'), str(h[6]))
+                     for h in history])
+
 
 class CointraderMonitor(ExchangeBase):
 
