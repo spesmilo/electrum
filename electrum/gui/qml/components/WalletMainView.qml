@@ -585,13 +585,6 @@ Item {
     }
 
     Component {
-        id: lightningPaymentProgressDialog
-        LightningPaymentProgressDialog {
-            onClosed: destroy()
-        }
-    }
-
-    Component {
         id: lnurlPayDialog
         LnurlPayRequestDialog {
             width: parent.width * 0.9
