@@ -337,14 +337,17 @@ class QEInvoice(QObject, QtEventListener):
         self.canPay = False
         self.canSave = False
 
+        if self.invoiceType == QEInvoice.Type.Invalid:
+            return
+
         if not self.amountOverride.isEmpty:
             amount = self.amountOverride
         else:
             amount = self.amount
 
-        self.canSave = True
+        self.canSave = not bool(self._wallet.wallet.get_invoice(self._effectiveInvoice.get_id()))
 
-        if amount.isEmpty and self.status == PR_UNPAID: # unspecified amount
+        if amount.isEmpty and self.status == PR_UNPAID:  # unspecified amount
             return
 
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
