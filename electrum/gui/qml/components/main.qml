@@ -441,6 +441,7 @@ ApplicationWindow
                 onError: (message) => {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Error'),
+                        iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                         text: message
                     })
                     dialog.open()
@@ -560,7 +561,11 @@ ApplicationWindow
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')
-            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': error })
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
             dialog.open()
         }
         function onAuthRequired(method, authMessage) {
@@ -664,7 +669,10 @@ ApplicationWindow
             qtobject.authProceed()
             return
         }
-        var dialog = app.messageDialog.createObject(app, {title: authMessage, yesno: true})
+        var dialog = app.messageDialog.createObject(app, {
+            title: authMessage,
+            yesno: true
+        })
         dialog.accepted.connect(function() {
             qtobject.authProceed()
         })
