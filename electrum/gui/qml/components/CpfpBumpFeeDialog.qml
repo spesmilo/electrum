@@ -176,23 +176,55 @@ ElDialog {
                     iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
-                Label {
-                    visible: cpfpfeebumper.valid
-                    text: qsTr('Outputs')
+                ToggleLabel {
+                    id: inputs_label
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: cpfpfeebumper.valid
+                    labelText: qsTr('Inputs (%1)').arg(cpfpfeebumper.inputs.length)
                     color: Material.accentColor
                 }
 
                 Repeater {
-                    model: cpfpfeebumper.valid ? cpfpfeebumper.outputs : []
-                    delegate:  TxOutput {
+                    model: inputs_label.collapsed || !inputs_label.visible
+                        ? undefined
+                        : cpfpfeebumper.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: cpfpfeebumper.valid
+                    labelText: qsTr('Outputs (%1)').arg(cpfpfeebumper.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: outputs_label.collapsed || !outputs_label.visible
+                        ? undefined
+                        : cpfpfeebumper.outputs
+                    delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
                         allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
                         model: modelData
                     }
                 }
+
             }
         }
 
