@@ -141,9 +141,12 @@ ElDialog {
                     }
                 }
 
-                Label {
+                InfoTextArea {
                     Layout.columnSpan: 2
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: parent.width * 3/4
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: constants.paddingLarge
+                    iconStyle: InfoTextArea.IconStyle.Warn
                     visible: txcanceller.warning != ''
                     text: txcanceller.warning
                 }

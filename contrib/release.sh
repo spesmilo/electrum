@@ -144,6 +144,9 @@ else
 fi
 
 # android
+apk1="ElectrumGRS-$APK_VERSION-armeabi-v7a-release.apk"
+apk2="ElectrumGRS-$APK_VERSION-arm64-v8a-release.apk"
+apk3="ElectrumGRS-$APK_VERSION-x86_64-release.apk"
 for arch in armeabi-v7a arm64-v8a x86_64
 do
     apk="ElectrumGRS-$APK_VERSION-$arch-release.apk"
@@ -163,7 +166,7 @@ done
 
 # the macos binary is built on a separate machine.
 # the file that needs to be copied over is the codesigned release binary (regardless of builder role)
-dmg=electrum-grs-$VERSION.dmg
+dmg="electrum-grs-$VERSION.dmg"
 if ! test -f "dist/$dmg"; then
     if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
         fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."

@@ -455,6 +455,9 @@ Pane {
                 var success = Daemon.setPassword(dialog.password)
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
+                    iconSource: success
+                        ? Qt.resolvedUrl('../../icons/info.png')
+                        : Qt.resolvedUrl('../../icons/warning.png'),
                     text: success ? qsTr('Password changed') : qsTr('Password change failed')
                 })
                 done_dialog.open()
@@ -464,7 +467,7 @@ Pane {
         function onWalletDeleteError(code, message) {
             if (code == 'unpaid_requests') {
                 var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Error'),
+                    title: qsTr('Warning'),
                     text: message,
                     yesno: true
                 })
@@ -474,7 +477,7 @@ Pane {
                 dialog.open()
             } else if (code == 'balance') {
                 var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Error'),
+                    title: qsTr('Warning'),
                     text: message,
                     yesno: true
                 })
@@ -485,6 +488,7 @@ Pane {
             } else {
                 var dialog = app.messageDialog.createObject(app, {
                     title: qsTr('Error'),
+                    iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                     text: message
                 })
                 dialog.open()
@@ -504,6 +508,9 @@ Pane {
                 var success = Daemon.currentWallet.setPassword(dialog.password)
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
+                    iconSource: success
+                        ? Qt.resolvedUrl('../../icons/info.png')
+                        : Qt.resolvedUrl('../../icons/warning.png'),
                     text: success ? qsTr('Password changed') : qsTr('Password change failed')
                 })
                 done_dialog.open()

@@ -331,6 +331,7 @@ Item {
         onValidationError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
             dialog.closed.connect(function() {
@@ -373,8 +374,9 @@ Item {
         onLnurlError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
-                text: message }
-            )
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
             dialog.open()
         }
     }
@@ -413,7 +415,11 @@ Item {
         }
         function onRequestCreateError(error) {
             console.log(error)
-            var dialog = app.messageDialog.createObject(app, {text: error})
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
             dialog.open()
         }
         function onOtpRequested() {
@@ -423,18 +429,26 @@ Item {
         }
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
             dialog.open()
         }
         function onPaymentFailed(invoice_id, message) {
             var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
             dialog.open()
         }
         function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
             dialog.open()
         }
     }
@@ -581,13 +595,6 @@ Item {
             // the child finalizer when currentWallet disappears, but we need
             // it long enough for the finalizer to finish..
             // onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: lightningPaymentProgressDialog
-        LightningPaymentProgressDialog {
-            onClosed: destroy()
         }
     }
 

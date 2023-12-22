@@ -219,13 +219,17 @@ ElDialog {
             if (code == 'invalid_nodeid') {
                 var dialog = app.messageDialog.createObject(app, {
                     title: qsTr('Error'),
+                    iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                     text: message
                 })
                 dialog.open()
             }
         }
         onConflictingBackup: (message) => {
-            var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
+            var dialog = app.messageDialog.createObject(app, {
+                text: message,
+                yesno: true
+            })
             dialog.open()
             dialog.accepted.connect(function() {
                 channelopener.openChannel(true)
@@ -233,7 +237,7 @@ ElDialog {
         }
         onFinalizerChanged: {
             var dialog = confirmOpenChannelDialog.createObject(app, {
-                'satoshis': channelopener.amount
+                satoshis: channelopener.amount
             })
             dialog.accepted.connect(function() {
                 dialog.finalizer.signAndSend()

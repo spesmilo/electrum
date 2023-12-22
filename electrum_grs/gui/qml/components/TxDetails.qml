@@ -474,7 +474,11 @@ Pane {
         function onSaveTxError(txid, code, message) {
             if (txid != txdetails.txid)
                 return
-            var dialog = app.messageDialog.createObject(app, { text: message })
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
             dialog.open()
         }
         function onBroadcastSucceeded() {

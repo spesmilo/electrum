@@ -138,13 +138,29 @@ class Test_OldMnemonic(ElectrumTestCase):
         self.assertEqual(old_mnemonic.mn_decode(result), seed)
 
 
-class Test_BIP39Checksum(ElectrumTestCase):
+class Test_BIP39(ElectrumTestCase):
 
-    def test(self):
+    def test_checksum(self):
         mnemonic = u'gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog'
         is_checksum_valid, is_wordlist_valid = keystore.bip39_is_checksum_valid(mnemonic)
         self.assertTrue(is_wordlist_valid)
         self.assertTrue(is_checksum_valid)
+
+    def test_cjk_normalization(self):
+        # test case from https://github.com/Electron-Cash/Electron-Cash/issues/2740
+        cjk_toku_kanchi_hex = "e381a8e3818ae3818fe38080e3818be38293e381a1e38080e3819de38186e38193e38299e38080e381bee38293e3818be38299e38080e3818de3818be3818fe38080e381bbe38184e3818fe38080e3818fe38186e381b5e3818fe38080e381a6e381b5e3819fe38299e38080e38191e3828fe38197e38184e38080e3819fe381a1e381afe38299e381aae38080e381b2e381a4e38288e38186e38080e381bbe38182e38293"
+        cjk_toku_kanchi = bfh(cjk_toku_kanchi_hex).decode("utf-8")
+        assert cjk_toku_kanchi == "とおく　かんち　そうご　まんが　きかく　ほいく　くうふく　てふだ　けわしい　たちばな　ひつよう　ほあん"
+
+        bip32_seed = keystore.bip39_to_seed(cjk_toku_kanchi, passphrase="")
+        self.assertEqual(
+            bytes.fromhex("2c53f34b1bcd338681783e671386ccaa12f5f1b08a2eee679a43f8acf956130d9246ddc98aaf50e9bdceb9b2cb4096a94fe0beec816b2a233eda29a376d17912"),
+            bip32_seed)
+
+        bip32_seed = keystore.bip39_to_seed(cjk_toku_kanchi, passphrase=cjk_toku_kanchi)
+        self.assertEqual(
+            bytes.fromhex("885df1b4e9906fb0ef187f4414cced1092c85cbf0b30676865f80f294d745a3a7ddfd37d8a512e644684bdfa8ced2da970f0d742423c72d3300f622c3a42f609"),
+            bip32_seed)
 
 
 class Test_seeds(ElectrumTestCase):

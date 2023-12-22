@@ -441,6 +441,7 @@ ApplicationWindow
                 onError: (message) => {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Error'),
+                        iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                         text: message
                     })
                     dialog.open()
@@ -475,6 +476,7 @@ ApplicationWindow
             // without completed serverConnectWizard we can't start
             dialog.rejected.connect(function() {
                 app.visible = false
+                AppController.wantClose = true
                 Qt.callLater(Qt.quit)
             })
             dialog.accepted.connect(function() {
@@ -559,7 +561,11 @@ ApplicationWindow
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')
-            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': error })
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
             dialog.open()
         }
         function onAuthRequired(method, authMessage) {
@@ -663,7 +669,10 @@ ApplicationWindow
             qtobject.authProceed()
             return
         }
-        var dialog = app.messageDialog.createObject(app, {title: authMessage, yesno: true})
+        var dialog = app.messageDialog.createObject(app, {
+            title: authMessage,
+            yesno: true
+        })
         dialog.accepted.connect(function() {
             qtobject.authProceed()
         })

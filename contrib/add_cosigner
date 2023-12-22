@@ -24,6 +24,10 @@ import importlib
 import subprocess
 
 
+if len(sys.argv) < 2:
+    print(f"usage: {os.path.basename(__file__)} <cosigner>", file=sys.stderr)
+    sys.exit(1)
+
 # cd to project root
 os.chdir(os.path.dirname(os.path.dirname(__file__)))
 

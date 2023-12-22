@@ -142,6 +142,8 @@ ElDialog
         function onSendingBugreportFailure(text) {
             _sending = false
             var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: text,
                 richText: true
             })
