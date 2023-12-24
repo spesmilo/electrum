@@ -19,7 +19,7 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.10.11
+PYTHON_VERSION=3.10.13
 PY_VER_MAJOR="3.10"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
@@ -41,7 +41,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "3c3bc3048303721c904a03eb8326b631e921f11cc3be2988456a42f115daf04c"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "5c88848668640d3e152b35b4536ef1c23b2ca4bd2c957ef1ecbb053f571dd3f6"
 
 
 
