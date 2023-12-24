@@ -147,8 +147,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
         # attach view names
         self.navmap_merge({
-            'autoconnect': {'gui': 'WCAutoConnect'},
-            'proxy_ask': {'gui': 'WCProxyAsk'},
+            'welcome': {'gui': 'WCWelcome'},
             'proxy_config': {'gui': 'WCProxyConfig'},
             'server_config': {'gui': 'WCServerConfig'},
         })

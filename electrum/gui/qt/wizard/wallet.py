@@ -55,8 +55,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: Daemon, path, *, start_viewstate=None):
         NewWalletWizard.__init__(self, daemon, plugins)
         QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
-
-        self.setWindowTitle(_('Create/Restore wallet'))
+        self.window_title = _('Create/Restore wallet')
 
         self._path = path
         self._password = None
