@@ -17,7 +17,8 @@ from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal)
+                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal,
+                   timestamp_to_datetime)
 from .util import NetworkRetryManager
 from .network import Network
 from .simple_config import SimpleConfig
@@ -217,7 +218,7 @@ class CoinCap(ExchangeBase):
         # (and history starts on 2017-03-23)
         history = await self.get_json('api.coincap.io',
                                       '/v2/assets/groestlcoin/history?interval=d1&limit=2000')
-        return dict([(datetime.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'), str(h['priceUsd']))
+        return dict([(timestamp_to_datetime(h['time']/1000, utc=True).strftime('%Y-%m-%d'), str(h['priceUsd']))
                      for h in history['data']])
 
 class CoinEx(ExchangeBase):
@@ -243,7 +244,7 @@ class CoinGecko(ExchangeBase):
         history = await self.get_json('api.coingecko.com',
                                       '/api/v3/coins/groestlcoin/market_chart?vs_currency=%s&days=max' % ccy)
 
-        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), str(h[1]))
+        return dict([(timestamp_to_datetime(h[0]/1000, utc=True).strftime('%Y-%m-%d'), str(h[1]))
                      for h in history['prices']])
 
 class CryptoCompare(ExchangeBase):

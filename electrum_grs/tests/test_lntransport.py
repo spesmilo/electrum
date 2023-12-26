@@ -95,6 +95,5 @@ class TestLNTransport(ElectrumTestCase):
                     await group.spawn(server_shaked.wait())
             finally:
                 server.close()
-                await server.wait_closed()
 
         await f()

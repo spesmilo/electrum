@@ -6,8 +6,8 @@ assert PythonRecipe.python_depends == []
 
 
 class CertifiRecipePinned(PythonRecipe):
-    version = "2020.12.5"
-    sha512sum = "3425d98f19025e70d885458629071c8531271d93d1461fadea6afbaafc763881a42b3c05be391a938d84a0d1ab729c3ac5df4f3328e8ef63a7b56ead1445bddd"
+    version = "2023.11.17"
+    sha512sum = "e359b4062d42e19ce6d16b25c17696f09ff5c35e7c92626b4eb15130cfa55941817db456d1c27d1188e0a6ff5f52db37607c0b15c1e438da3ea6d514c0d3443e"
     url = "https://pypi.python.org/packages/source/c/certifi/certifi-{version}.tar.gz"
     depends = ["setuptools"]
 

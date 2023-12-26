@@ -26,7 +26,7 @@ import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
                     Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
-from datetime import datetime
+from datetime import datetime, timezone
 import decimal
 from decimal import Decimal
 import traceback
@@ -808,10 +808,13 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp: Union[int, float, None]) -> Optional[datetime]:
+def timestamp_to_datetime(timestamp: Union[int, float, None], *, utc: bool = False) -> Optional[datetime]:
     if timestamp is None:
         return None
-    return datetime.fromtimestamp(timestamp)
+    tz = None
+    if utc:
+        tz = timezone.utc
+    return datetime.fromtimestamp(timestamp, tz=tz)
 
 
 def format_time(timestamp: Union[int, float, None]) -> str:

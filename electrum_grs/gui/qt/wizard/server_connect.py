@@ -1,9 +1,13 @@
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QCheckBox, QLabel, QHBoxLayout, QVBoxLayout, QWidget
+
 from electrum_grs.i18n import _
 from electrum_grs.wizard import ServerConnectWizard
 from electrum_grs.gui.qt.network_dialog import ProxyWidget, ServerWidget
-from electrum_grs.gui.qt.util import ChoiceWidget
+from electrum_grs.gui.qt.util import icon_path
 from .wizard import QEAbstractWizard, WizardComponent
 
 if TYPE_CHECKING:
@@ -18,59 +22,72 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
     def __init__(self, config: 'SimpleConfig', app: 'QElectrumApplication', plugins: 'Plugins', daemon: 'Daemon', parent=None):
         ServerConnectWizard.__init__(self, daemon)
         QEAbstractWizard.__init__(self, config, app)
-
-        self.setWindowTitle(_('Network and server configuration'))
+        self.window_title = _('Network and server configuration')
+        self.finish_label = _('Next')
 
         # attach gui classes
         self.navmap_merge({
-            'autoconnect': { 'gui': WCAutoConnect },
-            'proxy_ask': { 'gui': WCProxyAsk },
-            'proxy_config': { 'gui': WCProxyConfig },
-            'server_config': { 'gui': WCServerConfig },
+            'welcome': {'gui': WCWelcome, 'params': {'icon': ''}},
+            'proxy_config': {'gui': WCProxyConfig},
+            'server_config': {'gui': WCServerConfig},
         })
 
 
-class WCAutoConnect(WizardComponent):
+class WCWelcome(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_("How do you want to connect to a server? "))
-        message = _("Electrum communicates with remote servers to get "
-                  "information about your transactions and addresses. The "
-                  "servers all fulfill the same purpose only differing in "
-                  "hardware. In most cases you simply want to let Electrum "
-                  "pick one at random.  However if you prefer feel free to "
-                  "select a server manually.")
-        choices = [('autoconnect', _("Auto connect")),
-                   ('select', _("Select server manually"))]
-        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='autoconnect')
-        self.choice_w.itemSelected.connect(self.on_updated)
-        self.layout().addWidget(self.choice_w)
-        self.layout().addStretch(1)
+        WizardComponent.__init__(self, parent, wizard, title='')
+        self.wizard_title = _('Electrum Bitcoin Wallet')
+        self.use_advanced_w = QCheckBox(_('Advanced network settings'))
+        self.use_advanced_w.setChecked(False)
+        self.use_advanced_w.stateChanged.connect(self.on_advanced_changed)
+
+        self.img_label = QLabel()
+        pixmap = QPixmap(icon_path('electrum_darkblue_1.png'))
+        self.img_label.setPixmap(pixmap)
+        self.img_label2 = QLabel()
+        pixmap = QPixmap(icon_path('electrum_text.png'))
+        self.img_label2.setPixmap(pixmap)
+        hbox_img = QHBoxLayout()
+        hbox_img.addStretch(1)
+        hbox_img.addWidget(self.img_label)
+        hbox_img.addWidget(self.img_label2)
+        hbox_img.addStretch(1)
+
+        self.config_proxy_w = QCheckBox(_('Configure Proxy'))
+        self.config_proxy_w.setChecked(False)
+        self.config_proxy_w.setVisible(False)
+        self.config_proxy_w.stateChanged.connect(self.on_updated)
+        self.config_server_w = QCheckBox(_('Select Server'))
+        self.config_server_w.setChecked(False)
+        self.config_server_w.setVisible(False)
+        self.config_server_w.stateChanged.connect(self.on_updated)
+        options_w = QWidget()
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.config_proxy_w)
+        vbox.addWidget(self.config_server_w)
+        vbox.addStretch(1)
+        options_w.setLayout(vbox)
+
+        self.layout().addLayout(hbox_img)
+        self.layout().addSpacing(50)
+        self.layout().addWidget(self.use_advanced_w, False, Qt.AlignHCenter)
+        self.layout().addWidget(options_w, False, Qt.AlignHCenter)
         self._valid = True
 
-    def apply(self):
-        self.wizard_data['autoconnect'] = (self.choice_w.selected_item[0] == 'autoconnect')
-
-
-class WCProxyAsk(WizardComponent):
-    def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
-        message = _("Do you use a local proxy service such as TOR to reach the internet?")
-        choices = [
-            ('no', _("No")),
-            ('yes', _("Yes")),
-        ]
-        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='no')
-        self.layout().addWidget(self.choice_w)
-        self.layout().addStretch(1)
-        self._valid = True
+    def on_advanced_changed(self):
+        self.config_proxy_w.setVisible(self.use_advanced_w.isChecked())
+        self.config_server_w.setVisible(self.use_advanced_w.isChecked())
+        self.on_updated()
 
     def apply(self):
-        self.wizard_data['want_proxy'] = (self.choice_w.selected_item[0] == 'yes')
+        self.wizard_data['use_defaults'] = not self.use_advanced_w.isChecked()
+        self.wizard_data['want_proxy'] = self.use_advanced_w.isChecked() and self.config_proxy_w.isChecked()
+        self.wizard_data['autoconnect'] = not self.use_advanced_w.isChecked() or not self.config_server_w.isChecked()
 
 
 class WCProxyConfig(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_("Proxy"))
+        WizardComponent.__init__(self, parent, wizard, title=_('Proxy'))
         self.pw = ProxyWidget(self)
         self.pw.proxy_cb.setChecked(True)
         self.pw.proxy_host.setText('localhost')
@@ -85,11 +102,11 @@ class WCProxyConfig(WizardComponent):
 
 class WCServerConfig(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_("Server"))
+        WizardComponent.__init__(self, parent, wizard, title=_('Server'))
         self.sw = ServerWidget(wizard._daemon.network, self)
         self.layout().addWidget(self.sw)
         self._valid = True
 
     def apply(self):
-        self.wizard_data['autoconnect'] = self.sw.autoconnect_cb.isChecked()
+        self.wizard_data['autoconnect'] = self.sw.server_e.text().strip() == ''
         self.wizard_data['server'] = self.sw.server_e.text()

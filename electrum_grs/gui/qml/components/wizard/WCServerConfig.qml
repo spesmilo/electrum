@@ -7,9 +7,10 @@ import "../controls"
 WizardComponent {
     valid: true
     last: true
+    title: qsTr('Server')
 
     function apply() {
-        wizard_data['autoconnect'] = sc.address == ""
+        wizard_data['autoconnect'] = sc.address.trim() == ""
         wizard_data['server'] = sc.address
     }
 
