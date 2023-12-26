@@ -638,7 +638,7 @@ def user_dir():
     elif 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".electrumglc")
+        return os.path.join(os.environ["HOME"], ".electrum-glc")
     elif "APPDATA" in os.environ:
         return os.path.join(os.environ["APPDATA"], "ElectrumGLC")
     elif "LOCALAPPDATA" in os.environ:
