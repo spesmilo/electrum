@@ -36,7 +36,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 class WCWelcome(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title='')
-        self.wizard_title = _('Electrum Bitcoin Wallet')
+        self.wizard_title = _('Electrum Groestlcoin Wallet')
         self.use_advanced_w = QCheckBox(_('Advanced network settings'))
         self.use_advanced_w.setChecked(False)
         self.use_advanced_w.stateChanged.connect(self.on_advanced_changed)
