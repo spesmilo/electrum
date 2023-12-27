@@ -327,6 +327,8 @@ class QEAppController(BaseCrashReporter, QObject):
     def secureWindow(self, secure):
         if not self.isAndroid():
             return
+        if self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS:
+            return
         if self._secureWindow != secure:
             jpythonActivity.setSecureWindow(secure)
             self._secureWindow = secure
