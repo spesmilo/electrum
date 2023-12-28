@@ -117,7 +117,7 @@ Pane {
                         }
 
                         RowLayout {
-                            visible: Daemon.currentWallet.isLightning
+                            visible: Daemon.currentWallet.isLightning && !Daemon.currentWallet.lightningBalanceFrozen.isEmpty
                             Rectangle {
                                 Layout.leftMargin: constants.paddingLarge
                                 Layout.preferredWidth: constants.iconSizeXSmall
@@ -129,7 +129,7 @@ Pane {
                             }
                         }
                         FormattedAmount {
-                            visible: Daemon.currentWallet.isLightning
+                            visible: Daemon.currentWallet.isLightning && !Daemon.currentWallet.lightningBalanceFrozen.isEmpty
                             amount: Daemon.currentWallet.lightningBalanceFrozen
                         }
 
