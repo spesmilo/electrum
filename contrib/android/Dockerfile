@@ -123,6 +123,7 @@ RUN apt -y update -qq \
         git \
         zip \
         unzip \
+        rsync \
         build-essential \
         ccache \
         autoconf \
@@ -195,8 +196,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20231216 (note: careful with force-pushing! see #8162) \
-    && git checkout "01c6068791f44074e189e1a5d945cf50b02f4dcc^{commit}" \
+    # commit: from branch accumulator/qt6-wip (note: careful with force-pushing! see #8162) \
+    && git checkout "f534fe9bcd692c4df97e644d34c5bd8acede01eb^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars
