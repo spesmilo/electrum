@@ -755,7 +755,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
             return
 
         self._parent_tx_size = self._parent_tx.estimated_size()
-        self._parent_fee = self._wallet.wallet.adb.get_tx_fee(self._txid)
+        self._parent_fee = self._wallet.wallet.get_tx_info(self._parent_tx).fee
 
         if self._parent_fee is None:
             self._logger.error(_("Can't CPFP: unknown fee for parent transaction."))
