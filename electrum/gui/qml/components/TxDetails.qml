@@ -68,11 +68,11 @@ Pane {
                         text: txdetails.isUnrelated
                             ? qsTr('Transaction is unrelated to this wallet.')
                             : txdetails.inMempool
-                                ? qsTr('This transaction is still unconfirmed.') + '\n' +
+                                ? qsTr('This transaction is still unconfirmed.') +
                                     (txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
                                         ? txdetails.canCancel
-                                            ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction.')
-                                            : qsTr('You can bump its fee to speed up its confirmation.')
+                                            ? '\n' + qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction.')
+                                            : '\n' + qsTr('You can bump its fee to speed up its confirmation.')
                                         : '')
                                 : txdetails.lockDelay
                                     ? qsTr('This transaction is local to your wallet and locked for the next %1 blocks.').arg(txdetails.lockDelay)
