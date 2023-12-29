@@ -151,23 +151,55 @@ ElDialog {
                     text: txcanceller.warning
                 }
 
-                Label {
-                    visible: txcanceller.valid
-                    text: qsTr('Outputs')
+                ToggleLabel {
+                    id: inputs_label
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: txcanceller.valid
+                    labelText: qsTr('Inputs (%1)').arg(txcanceller.inputs.length)
                     color: Material.accentColor
                 }
 
                 Repeater {
-                    model: txcanceller.valid ? txcanceller.outputs : []
-                    delegate:  TxOutput {
+                    model: inputs_label.collapsed || !inputs_label.visible
+                        ? undefined
+                        : txcanceller.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: txcanceller.valid
+                    labelText: qsTr('Outputs (%1)').arg(txcanceller.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: outputs_label.collapsed || !outputs_label.visible
+                        ? undefined
+                        : txcanceller.outputs
+                    delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
                         allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
                         model: modelData
                     }
                 }
+
             }
         }
 

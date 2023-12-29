@@ -302,19 +302,46 @@ Pane {
                         }
                     }
 
-                    Label {
+                    ToggleLabel {
+                        id: inputs_label
                         Layout.columnSpan: 2
-                        Layout.topMargin: constants.paddingSmall
-                        text: qsTr('Outputs')
+                        Layout.topMargin: constants.paddingMedium
+
+                        labelText: qsTr('Inputs (%1)').arg(txdetails.inputs.length)
                         color: Material.accentColor
                     }
 
                     Repeater {
-                        model: txdetails.outputs
+                        model: inputs_label.collapsed
+                            ? undefined
+                            : txdetails.inputs
+                        delegate: TxInput {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+
+                            idx: index
+                            model: modelData
+                        }
+                    }
+
+                    ToggleLabel {
+                        id: outputs_label
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingMedium
+
+                        labelText: qsTr('Outputs (%1)').arg(txdetails.outputs.length)
+                        color: Material.accentColor
+                    }
+
+                    Repeater {
+                        model: outputs_label.collapsed
+                            ? undefined
+                            : txdetails.outputs
                         delegate: TxOutput {
                             Layout.columnSpan: 2
                             Layout.fillWidth: true
 
+                            idx: index
                             model: modelData
                         }
                     }
