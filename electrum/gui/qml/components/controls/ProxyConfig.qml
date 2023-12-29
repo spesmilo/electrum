@@ -74,6 +74,7 @@ Item {
             TextField {
                 id: address
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Label {
@@ -84,6 +85,7 @@ Item {
             TextField {
                 id: port
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhDigitsOnly
             }
 
             Label {
@@ -94,6 +96,7 @@ Item {
             TextField {
                 id: username_tf
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Label {

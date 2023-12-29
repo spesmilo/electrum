@@ -85,8 +85,12 @@ Pane {
                         id: searchEdit
                         Layout.fillWidth: true
                         Layout.columnSpan: 3
+
                         placeholderText: qsTr('search')
+                        inputMethodHints: Qt.ImhNoPredictiveText
+
                         onTextChanged: listview.filterModel.filterText = text
+
                         Image {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter

@@ -18,6 +18,7 @@ WizardComponent {
             id: wallet_name
             focus: true
             text: Daemon.suggestWalletName()
+            inputMethodHints: Qt.ImhNoPredictiveText
         }
     }
 

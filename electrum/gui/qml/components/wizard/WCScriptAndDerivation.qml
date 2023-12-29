@@ -171,6 +171,8 @@ WizardComponent {
                 id: derivationpathtext
                 Layout.fillWidth: true
                 Layout.leftMargin: constants.paddingMedium
+                inputMethodHints: Qt.ImhNoPredictiveText
+
                 onTextChanged: validate()
             }
 

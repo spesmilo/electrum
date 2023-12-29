@@ -231,6 +231,8 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
+                inputMethodHints: Qt.ImhNoPredictiveText
+
                 onTextChanged: startValidationTimer()
             }
         }

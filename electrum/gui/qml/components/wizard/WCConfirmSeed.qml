@@ -51,6 +51,8 @@ WizardComponent {
                 id: customwordstext
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
+                inputMethodHints: Qt.ImhNoPredictiveText
+
                 onTextChanged: checkValid()
             }
         }

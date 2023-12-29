@@ -41,6 +41,7 @@ Item {
                 id: address_tf
                 enabled: !auto_server_cb.checked
                 width: parent.width
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
         }
 
