@@ -81,6 +81,7 @@ WizardComponent {
                 visible: extendcb.checked
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Component.onCompleted : {

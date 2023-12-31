@@ -133,6 +133,7 @@ ElDialog {
                         : constants.colorError
                 }
             }
+
             RowLayout {
                 Layout.fillWidth: true
                 ElTextArea {
@@ -142,6 +143,8 @@ ElDialog {
                     Layout.minimumHeight: fontMetrics.lineSpacing * 4 + topPadding + bottomPadding
                     font.family: FixedFont
                     wrapMode: TextInput.Wrap
+                    inputMethodHints: Qt.ImhNoPredictiveText
+
                     background: PaneInsetBackground {
                         baseColor: _verified == SignVerifyMessageDialog.Check.Unknown
                             ? constants.darkerDialogBackground

@@ -1105,6 +1105,7 @@ This will result in longer routes; it might increase your fees and decrease the 
     GUI_QML_USER_KNOWS_PRESS_AND_HOLD = ConfigVar('user_knows_press_and_hold', default=False, type_=bool)
     GUI_QML_ADDRESS_LIST_SHOW_TYPE = ConfigVar('address_list_show_type', default=1, type_=int)
     GUI_QML_ADDRESS_LIST_SHOW_USED = ConfigVar('address_list_show_used', default=False, type_=bool)
+    GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = ConfigVar('android_always_allow_screenshots', default=False, type_=bool)
 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)
     BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = ConfigVar(

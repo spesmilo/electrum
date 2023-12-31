@@ -183,22 +183,53 @@ ElDialog {
                     iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
-                Label {
-                    text: qsTr('Outputs')
+                ToggleLabel {
+                    id: inputs_label
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    labelText: qsTr('Inputs (%1)').arg(finalizer.inputs.length)
                     color: Material.accentColor
                 }
 
                 Repeater {
-                    model: finalizer.outputs
+                    model: inputs_label.collapsed
+                        ? undefined
+                        : finalizer.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    labelText: qsTr('Outputs (%1)').arg(finalizer.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: outputs_label.collapsed
+                        ? undefined
+                        : finalizer.outputs
                     delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
                         allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
                         model: modelData
                     }
                 }
+
             }
         }
 

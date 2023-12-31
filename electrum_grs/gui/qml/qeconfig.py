@@ -169,6 +169,16 @@ class QEConfig(AuthMixin, QObject):
         self.config.GUI_ENABLE_DEBUG_LOGS = enable
         self.enableDebugLogsChanged.emit()
 
+    alwaysAllowScreenshotsChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=alwaysAllowScreenshotsChanged)
+    def alwaysAllowScreenshots(self):
+        return self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS
+
+    @alwaysAllowScreenshots.setter
+    def alwaysAllowScreenshots(self, enable):
+        self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = enable
+        self.alwaysAllowScreenshotsChanged.emit()
+
     useRecoverableChannelsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useRecoverableChannelsChanged)
     def useRecoverableChannels(self):

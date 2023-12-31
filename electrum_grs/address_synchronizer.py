@@ -757,6 +757,7 @@ class AddressSynchronizer(Logger, EventListener):
               incorrectly early-exit and return None, e.g. for not-all-ismine-input txs,
               where we could calculate the fee if we deserialized (but to see if we have all
               the parent txs available, we would have to deserialize first).
+              More expensive but more complete alternative: wallet.get_tx_info(tx).fee
         """
         # check if stored fee is available
         fee = self.db.get_tx_fee(txid, trust_server=False)

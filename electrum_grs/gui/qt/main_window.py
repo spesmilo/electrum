@@ -2546,7 +2546,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
-        parent_fee = self.wallet.adb.get_tx_fee(parent_txid)
+        parent_fee = self.wallet.get_tx_info(parent_tx).fee
         if parent_fee is None:
             self.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return

@@ -6,7 +6,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.logging import get_logger
 from electrum_grs.i18n import _
-from electrum_grs.transaction import PartialTxOutput, PartialTransaction, Transaction
+from electrum_grs.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
 from electrum_grs.util import NotEnoughFunds, profiler
 from electrum_grs.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy
 from electrum_grs.plugin import run_hook
@@ -137,6 +137,7 @@ class TxFeeSlider(FeeSlider):
         self._feeRate = ''
         self._rbf = False
         self._tx = None
+        self._inputs = []
         self._outputs = []
         self._valid = False
         self._warning = ''
@@ -175,6 +176,17 @@ class TxFeeSlider(FeeSlider):
             self.update()
             self.rbfChanged.emit()
 
+    inputsChanged = pyqtSignal()
+    @pyqtProperty('QVariantList', notify=inputsChanged)
+    def inputs(self):
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, inputs):
+        if self._inputs != inputs:
+            self._inputs = inputs
+            self.inputsChanged.emit()
+
     outputsChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=outputsChanged)
     def outputs(self):
@@ -210,14 +222,38 @@ class TxFeeSlider(FeeSlider):
         self.fee = QEAmount(amount_sat=int(fee))
         self.feeRate = f'{feerate:.1f}'
 
+        self.update_inputs_from_tx(tx)
         self.update_outputs_from_tx(tx)
+
+    def update_inputs_from_tx(self, tx):
+        inputs = []
+        for inp in tx.inputs():
+            # addr
+            # addr = self.wallet.adb.get_txin_address(txin)
+            addr = inp.address
+            address_str = '<address unknown>' if addr is None else addr
+
+            txin_value = inp.value_sats() if inp.value_sats() else 0
+            #self.wallet.adb.get_txin_value(txin)
+
+            inputs.append({
+                'address': address_str,
+                'short_id': str(inp.short_id),
+                'value': QEAmount(amount_sat=txin_value),
+                'is_coinbase': inp.is_coinbase_input(),
+                'is_mine': self._wallet.wallet.is_mine(addr),
+                'is_change': self._wallet.wallet.is_change(addr),
+                'prevout_txid': inp.prevout.txid.hex()
+            })
+        self.inputs = inputs
 
     def update_outputs_from_tx(self, tx):
         outputs = []
-        for o in tx.outputs():
+        for idx, o in enumerate(tx.outputs()):
             outputs.append({
                 'address': o.get_ui_address_str(),
                 'value': o.value,
+                'short_id': str(TxOutpoint(bytes.fromhex(tx.txid()), idx).short_name()),
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
                 'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str())
@@ -755,7 +791,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
             return
 
         self._parent_tx_size = self._parent_tx.estimated_size()
-        self._parent_fee = self._wallet.wallet.adb.get_tx_fee(self._txid)
+        self._parent_fee = self._wallet.wallet.get_tx_info(self._parent_tx).fee
 
         if self._parent_fee is None:
             self._logger.error(_("Can't CPFP: unknown fee for parent transaction."))
@@ -829,6 +865,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
             self.warning = str(e)
             return
 
+        self.update_inputs_from_tx(self._new_tx)
         self.update_outputs_from_tx(self._new_tx)
 
         self._valid = True
