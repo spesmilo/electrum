@@ -71,9 +71,9 @@ Pane {
                                 ? txdetails.lockDelay
                                     ? qsTr('This transaction is local to your wallet and locked for the next %1 blocks.').arg(txdetails.lockDelay)
                                     : qsTr('This transaction is local to your wallet. It has not been published yet.')
-                                : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                                    ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
-                                    : qsTr('You can bump its fee to speed up its confirmation'))
+                                    : qsTr('This transaction is still unconfirmed.') + (txdetails.canCancel
+                                    ? '\n' + qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
+                                    : '\n' + qsTr('You can bump its fee to speed up its confirmation'))
                         iconStyle: txdetails.isUnrelated
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
