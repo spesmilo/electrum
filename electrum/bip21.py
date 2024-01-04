@@ -43,6 +43,9 @@ def parse_bip21_URI(uri: str) -> dict:
     for k, v in pq.items():
         if len(v) != 1:
             raise InvalidBitcoinURI(f'Duplicate Key: {repr(k)}')
+        if k.startswith('req-'):
+            # we have no support for any req-* query parameters
+            raise InvalidBitcoinURI(f'Unsupported Key: {repr(k)}')
 
     out = {k: v[0] for k, v in pq.items()}
     if address:
