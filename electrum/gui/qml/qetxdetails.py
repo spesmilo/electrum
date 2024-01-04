@@ -441,9 +441,10 @@ class QETxDetails(QObject, QtEventListener):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def removeLocalTx(self, confirm = False):
-        assert self._can_remove
+    def removeLocalTx(self, confirm=False):
+        assert self._can_remove, 'cannot remove'
         txid = self._txid
+        assert txid, 'txid unset'
 
         if not confirm:
             num_child_txs = len(self._wallet.wallet.adb.get_depending_transactions(txid))
