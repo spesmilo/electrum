@@ -47,8 +47,9 @@ GridLayout {
             if (historic && timestamp)
                 fiatLabel.text = '(' + Daemon.fx.fiatValueHistoric(amount, timestamp) + ' ' + Daemon.fx.fiatCurrency + ')'
             else
-                fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
-
+                fiatLabel.text = Daemon.fx.isRecent(timestamp)
+                    ? '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+                    : ''
     }
 
     onAmountChanged: setFiatValue()
