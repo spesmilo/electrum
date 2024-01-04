@@ -17,7 +17,8 @@ from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal)
+                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal,
+                   timestamp_to_datetime)
 from .util import NetworkRetryManager
 from .network import Network
 from .simple_config import SimpleConfig
@@ -354,7 +355,7 @@ class CoinGecko(ExchangeBase):
         history = await self.get_json('api.coingecko.com',
                                       '/api/v3/coins/goldcoin/market_chart?vs_currency=%s&days=max' % ccy)
 
-        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), str(h[1]))
+        return dict([(timestamp_to_datetime(h[0]/1000, utc=True).strftime('%Y-%m-%d'), str(h[1]))
                      for h in history['prices']])
 
 
