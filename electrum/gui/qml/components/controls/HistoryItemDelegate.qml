@@ -105,7 +105,7 @@ Item {
                     function updateText() {
                         if (!Daemon.fx.enabled) {
                             text = ''
-                        } else if (Daemon.fx.historicRates) {
+                        } else if (Daemon.fx.historicRates && model.timestamp) {
                             text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
                         } else {
                             if (Daemon.fx.isRecent(model.timestamp)) {
