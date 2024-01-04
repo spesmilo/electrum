@@ -108,7 +108,11 @@ Item {
                         } else if (Daemon.fx.historicRates) {
                             text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
                         } else {
-                            text = Daemon.fx.fiatValue(model.value, false) + ' ' + Daemon.fx.fiatCurrency
+                            if (Daemon.fx.isRecent(model.timestamp)) {
+                                text = Daemon.fx.fiatValue(model.value, false) + ' ' + Daemon.fx.fiatCurrency
+                            } else {
+                                text = ''
+                            }
                         }
                     }
                     Component.onCompleted: updateText()
