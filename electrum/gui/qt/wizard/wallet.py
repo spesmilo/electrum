@@ -628,10 +628,11 @@ class WCHaveSeed(WalletWizardComponent, Logger):
     def is_seed(self, x):
         t = mnemonic.seed_type(x)
         if self.wizard_data['wallet_type'] == 'standard':
-            return mnemonic.is_seed(x)
+            return mnemonic.is_seed(x) and not mnemonic.is_any_2fa_seed_type(t)
         elif self.wizard_data['wallet_type'] == '2fa':
             return mnemonic.is_any_2fa_seed_type(t)
         else:
+            # multisig?  by default, only accept modern non-2fa electrum seeds
             return t in ['standard', 'segwit']
 
     def validate(self):

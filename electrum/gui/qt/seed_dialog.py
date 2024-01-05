@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QScrollArea, QWidget, QPushButton)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic, seed_type
+from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
 from electrum import old_mnemonic
 from electrum import slip39
 
@@ -295,10 +295,14 @@ class SeedLayout(QVBoxLayout):
             t = seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
             if t and not b:  # electrum seed, but does not conform to dialog rules
+                # FIXME we should just accept any electrum seed and "redirect" the wizard automatically.
+                #       i.e. if user selected wallet_type=="standard" but entered a 2fa seed, accept and redirect
+                #            if user selected wallet_type=="2fa" but entered a std electrum seed, accept and redirect
+                wiztype_fullname = _('Wallet with two-factor authentication') if is_any_2fa_seed_type(t) else _("Standard wallet")
                 msg = ' '.join([
                     '<b>' + _('Warning') + ':</b>  ',
                     _("Looks like you have entered a valid seed of type '{}' but this dialog does not support such seeds.").format(t),
-                    _("If unsure, try restoring as '{}'.").format(_("Standard wallet")),
+                    _("If unsure, try restoring as '{}'.").format(wiztype_fullname),
                 ])
                 self.seed_warning.setText(msg)
             else:
