@@ -451,12 +451,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 xprv = k1.get_master_private_key(d['password'])
             else:
                 xprv = db.get('x1')['xprv']
-            data = {
+            _wiz_data_updates = {
                 'wallet_name': os.path.basename(wallet_file),
                 'xprv1': xprv,
                 'xpub1': db.get('x1')['xpub'],
                 'xpub2': db.get('x2')['xpub'],
             }
+            data = {**d, **_wiz_data_updates}
             wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
                                        start_viewstate=WizardViewState('trustedcoin_tos', data, {}))
             result = wizard.exec()
