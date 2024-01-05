@@ -189,6 +189,7 @@ class Test_seeds(ElectrumTestCase):
         ('9dk', 'segwit'),
         ('abandon bike', 'segwit'),  # <- has valid English words
         ('6vs', '2fa_segwit'),
+        ('agree install', '2fa_segwit'),  # <- has valid English words
     }
 
     def test_new_seed(self):

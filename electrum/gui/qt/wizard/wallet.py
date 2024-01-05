@@ -617,12 +617,13 @@ class WCHaveSeed(WizardComponent, Logger):
         self.layout().addStretch(1)
 
     def is_seed(self, x):
+        t = mnemonic.seed_type(x)
         if self.wizard_data['wallet_type'] == 'standard':
             return mnemonic.is_seed(x)
         elif self.wizard_data['wallet_type'] == '2fa':
-            return mnemonic.is_any_2fa_seed_type(x)
+            return mnemonic.is_any_2fa_seed_type(t)
         else:
-            return mnemonic.seed_type(x) in ['standard', 'segwit']
+            return t in ['standard', 'segwit']
 
     def validate(self):
         # precond: only call when SeedLayout deems seed a valid seed
