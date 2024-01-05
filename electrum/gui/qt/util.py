@@ -1,3 +1,4 @@
+from abc import ABC, ABCMeta
 import os.path
 import time
 import sys
@@ -1428,6 +1429,12 @@ def qt_event_listener(func):
     def decorator(self, *args):
         self.qt_callback_signal.emit( (func,) + args)
     return decorator
+
+
+class _ABCQObjectMeta(type(QObject), ABCMeta): pass
+class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass
+class AbstractQObject(QObject, ABC, metaclass=_ABCQObjectMeta): pass
+class AbstractQWidget(QWidget, ABC, metaclass=_ABCQWidgetMeta): pass
 
 
 if __name__ == "__main__":

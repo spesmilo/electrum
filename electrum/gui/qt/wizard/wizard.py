@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout,
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget
+from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget, AbstractQWidget
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -233,7 +233,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         return True
 
 
-class WizardComponent(QWidget):
+class WizardComponent(AbstractQWidget):
     updated = pyqtSignal(object)
 
     def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str = None, layout: QLayout = None):
