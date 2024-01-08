@@ -6,6 +6,7 @@ from electrum.daemon import Daemon
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
 from electrum import util
+from electrum.crypto import CiphertextFormatError
 
 from . import ElectrumTestCase, as_testnet
 
@@ -236,3 +237,106 @@ class TestCommandsWithDaemon(DaemonTestCase):
         # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
         self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
                          await cmds.getseed(wallet=wallet))
+
+
+class TestCommandsWithDaemonIncorrectPassword(DaemonTestCase):
+    """Test how the commands react when given an incorrect pw, no pw, redundant pw, correct pw;
+    how this interacts with unlocking, etc."""
+    TESTNET = True
+
+    async def test_sto_encrypted_wallet(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password="123456", encrypt_file=True)
+
+        # try without password:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.load_wallet(wallet_path=wpath, password=None)
+        self.assertIsNone(self.daemon.get_wallet(wpath))
+        # try with incorrect pw:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.load_wallet(wallet_path=wpath, password="badpass")
+        self.assertIsNone(self.daemon.get_wallet(wpath))
+        # try with correct pw:
+        await cmds.load_wallet(wallet_path=wpath, password="123456")
+        self.assertIsInstance(self.daemon.get_wallet(wpath), Abstract_Wallet)
+
+        # try without password:
+        with self.assertRaises(Exception) as ctx:
+            await cmds.getseed(wallet=wpath)
+        self.assertTrue("Password required" in ctx.exception.args[0])
+        # try with incorrect pw:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.getseed(wallet=wpath, password="wrongpass")
+        # try with correct pw:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath, password="123456"))
+
+    async def test_ks_encrypted_wallet(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password="123456", encrypt_file=False)
+
+        async def run_command():
+            # try without password:
+            with self.assertRaises(Exception) as ctx:
+                await cmds.getseed(wallet=wpath)
+            self.assertTrue("Password required" in ctx.exception.args[0])
+            # try with incorrect pw:
+            with self.assertRaises(util.InvalidPassword):
+                await cmds.getseed(wallet=wpath, password="wrongpass")
+            # try with correct pw:
+            self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                             await cmds.getseed(wallet=wpath, password="123456"))
+
+        # try with incorrect pw:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.load_wallet(wallet_path=wpath, password="badpass")
+        self.assertIsNone(self.daemon.get_wallet(wpath))
+
+        # try without password (ok):
+        await cmds.load_wallet(wallet_path=wpath, password=None)
+        self.assertIsInstance(self.daemon.get_wallet(wpath), Abstract_Wallet)
+        await run_command()
+        # undo load_wallet:
+        await cmds.close_wallet(wallet_path=wpath)
+        self.assertIsNone(self.daemon.get_wallet(wpath))
+
+        # try with correct pw (ok):
+        await cmds.load_wallet(wallet_path=wpath, password="123456")
+        self.assertIsInstance(self.daemon.get_wallet(wpath), Abstract_Wallet)
+        await run_command()
+
+    async def test_unpassworded_wallet(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password=None)
+
+        # try with incorrect pw:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.load_wallet(wallet_path=wpath, password="badpass")
+        self.assertIsNone(self.daemon.get_wallet(wpath))
+        # try without password (correct):
+        await cmds.load_wallet(wallet_path=wpath, password=None)
+        self.assertIsInstance(self.daemon.get_wallet(wpath), Abstract_Wallet)
+
+        # try with incorrect pw:
+        with self.assertRaises(CiphertextFormatError):  # FIXME ideally should raise InvalidPassword instead
+            await cmds.getseed(wallet=wpath, password="wrongpass")
+        # try without password (correct):
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath))
+
+    async def test_load_wallet_unlock(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password="123456", encrypt_file=True)
+
+        await cmds.load_wallet(wallet_path=wpath, password="123456", unlock=True)
+        self.assertIsInstance(self.daemon.get_wallet(wpath), Abstract_Wallet)
+
+        # try without password (ok because of unlock):
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath))
+        # try with incorrect pw:
+        with self.assertRaises(util.InvalidPassword):
+            await cmds.getseed(wallet=wpath, password="wrongpass")
+        # try with correct pw:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath, password="123456"))
