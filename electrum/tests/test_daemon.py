@@ -1,21 +1,21 @@
 import os
 from typing import Optional, Iterable
 
+from electrum.commands import Commands
 from electrum.daemon import Daemon
 from electrum.simple_config import SimpleConfig
-from electrum.wallet import restore_wallet_from_text
+from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
 from electrum import util
 
 from . import ElectrumTestCase, as_testnet
 
 
-class TestUnifiedPassword(ElectrumTestCase):
+class DaemonTestCase(ElectrumTestCase):
     config: 'SimpleConfig'
 
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.config.WALLET_USE_SINGLE_PASSWORD = True
         self.config.NETWORK_OFFLINE = True
 
         self.wallet_dir = os.path.dirname(self.config.get_wallet_path())
@@ -47,6 +47,13 @@ class TestUnifiedPassword(ElectrumTestCase):
         # Unless the daemon knows about it, daemon._load_wallet might create a conflicting wallet object
         # for the same fs path, and there would be two wallet objects contending for the same file.
         return path
+
+
+class TestUnifiedPassword(DaemonTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.config.WALLET_USE_SINGLE_PASSWORD = True
 
     def _run_post_unif_sanity_checks(self, paths: Iterable[str], *, password: str):
         for path in paths:
@@ -178,3 +185,54 @@ class TestUnifiedPassword(ElectrumTestCase):
         is_unified = self.daemon.update_password_for_directory(old_password="123456", new_password="123456")
         self.assertTrue(is_unified)
         self._run_post_unif_sanity_checks(paths, password="123456")
+
+
+class TestCommandsWithDaemon(DaemonTestCase):
+    TESTNET = True
+
+    async def test_wp_command_with_inmemory_wallet_has_password(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+                                          gap_limit=2,
+                                          path=None,
+                                          password="123456",
+                                          config=self.config)['wallet']
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wallet, password="123456"))
+
+    async def test_wp_command_with_inmemory_wallet_no_password(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+                                          gap_limit=2,
+                                          path=None,
+                                          config=self.config)['wallet']
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wallet))
+
+    async def test_wp_command_with_diskfile_wallet_has_password(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password="123456", encrypt_file=True)
+        await cmds.load_wallet(wallet_path=wpath, password="123456")
+        wallet = self.daemon.get_wallet(wpath)
+        self.assertIsInstance(wallet, Abstract_Wallet)
+
+        # when using the CLI/RPC to run commands, the "wallet" param is a path:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath, password="123456"))
+        # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wallet, password="123456"))
+
+    async def test_wp_command_with_diskfile_wallet_no_password(self):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password=None)
+        await cmds.load_wallet(wallet_path=wpath, password=None)
+        wallet = self.daemon.get_wallet(wpath)
+        self.assertIsInstance(wallet, Abstract_Wallet)
+
+        # when using the CLI/RPC to run commands, the "wallet" param is a path:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wpath))
+        # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
+        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
+                         await cmds.getseed(wallet=wallet))
