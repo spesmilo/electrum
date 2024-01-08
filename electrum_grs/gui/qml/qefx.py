@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
@@ -164,3 +164,15 @@ class QEFX(QObject, QtEventListener):
             return str(v.to_integral_value())
         else:
             return self.config.format_amount(v)
+
+    @pyqtSlot(str, result=bool)
+    def isRecent(self, timestamp):
+        # return True if unknown, e.g. timestamp not known yet, tx in mempool
+        try:
+            td = Decimal(timestamp)
+            if td == 0:
+                return True
+        except Exception:
+            return True
+        dt = datetime.fromtimestamp(int(td))
+        return dt + timedelta(days=1) > datetime.today()

@@ -163,7 +163,11 @@ class AbstractWizard:
         self._logger.debug(logstr)
 
     def sanitize_stack_item(self, _stack_item) -> dict:
-        sensitive_keys = ['seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password']
+        sensitive_keys = [
+            'seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password',
+            # trustedcoin:
+            'xprv1', 'xpub1', 'xpub2',
+        ]
 
         def sanitize(_dict):
             result = {}

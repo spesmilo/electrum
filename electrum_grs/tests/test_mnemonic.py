@@ -179,13 +179,17 @@ class Test_seeds(ElectrumTestCase):
         ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
         ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
         ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
-        ('x8', 'standard'),
         ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
         ('science dawn member doll dutch real ca brick knife deny drive list', ''),
         (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
         ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
         ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
+        # short seed cheat sheet:
+        ('x8', 'standard'),
         ('9dk', 'segwit'),
+        ('abandon bike', 'segwit'),  # <- has valid English words
+        ('6vs', '2fa_segwit'),
+        ('agree install', '2fa_segwit'),  # <- has valid English words
     }
 
     def test_new_seed(self):
