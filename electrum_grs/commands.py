@@ -140,9 +140,9 @@ def command(s):
                 if cmd.requires_wallet and kwargs.get('wallet') is None:
                     kwargs['wallet'] = daemon.config.get_wallet_path()
                 if 'wallet' in cmd.options:
-                    wallet_path = kwargs.get('wallet', None)
-                    if isinstance(wallet_path, str):
-                        wallet = daemon.get_wallet(wallet_path)
+                    wallet = kwargs.get('wallet', None)
+                    if isinstance(wallet, str):
+                        wallet = daemon.get_wallet(wallet)
                         if wallet is None:
                             raise Exception('wallet not loaded')
                         kwargs['wallet'] = wallet
