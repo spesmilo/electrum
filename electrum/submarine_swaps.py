@@ -210,6 +210,9 @@ class SwapManager(Logger):
         coro = self.pay_pending_invoices()
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(coro), self.network.asyncio_loop)
 
+    async def stop(self):
+        await self.taskgroup.cancel_remaining()
+
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
         self.invoices_to_pay[key] = 1000000000000 # lock
