@@ -260,7 +260,7 @@ class QETxDetails(QObject, QtEventListener):
 
         if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
-            assert self._tx is not None
+            assert self._tx is not None, f'unknown txid "{self._txid}"'
 
         #self._logger.debug(repr(self._tx.to_json()))
 
