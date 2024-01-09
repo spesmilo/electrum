@@ -219,6 +219,9 @@ class SwapManager(Logger):
         finally:
             self.logger.info("taskgroup stopped.")
 
+    async def stop(self):
+        await self.taskgroup.cancel_remaining()
+
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
         self.invoices_to_pay[key] = 1000000000000 # lock

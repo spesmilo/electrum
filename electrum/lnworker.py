@@ -967,6 +967,8 @@ class LNWallet(LNWorker):
         if self.lnwatcher:
             await self.lnwatcher.stop()
             self.lnwatcher = None
+        if self.swap_manager:  # may not be present in tests
+            await self.swap_manager.stop()
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):
         assert self.stopping_soon is True
