@@ -309,7 +309,6 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
-    @ignore_exceptions  # don't kill outer taskgroup
     async def main_loop(self):
         self.logger.info("starting taskgroup.")
         try:
