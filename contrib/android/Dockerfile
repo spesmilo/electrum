@@ -127,6 +127,7 @@ RUN apt -y update -qq \
         build-essential \
         ccache \
         autoconf \
+        autopoint \
         libtool \
         pkg-config \
         zlib1g-dev \
