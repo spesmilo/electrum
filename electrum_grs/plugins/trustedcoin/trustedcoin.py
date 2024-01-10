@@ -393,8 +393,6 @@ class Wallet_2fa(Multisig_Wallet):
         self._billing_addresses[addr_type] = billing_addresses_of_this_type
         self.db.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
         self.db.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
-        # FIXME this often runs in a daemon thread, where storage.write will fail
-        self.db.write()
 
     def is_billing_address(self, addr: str) -> bool:
         return addr in self._billing_addresses_set

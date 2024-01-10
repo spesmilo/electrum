@@ -207,8 +207,20 @@ class SwapManager(Logger):
             self.add_lnwatcher_callback(swap)
 
         self.taskgroup = OldTaskGroup()
-        coro = self.pay_pending_invoices()
-        asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(coro), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+
+    async def main_loop(self):
+        self.logger.info("starting taskgroup.")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(self.pay_pending_invoices())
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
+
+    async def stop(self):
+        await self.taskgroup.cancel_remaining()
 
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
