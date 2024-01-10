@@ -105,6 +105,9 @@ def _scan_qrcode_using_zbar(
     else:
         success = True
         error = ""
+    if data is None:
+        # probably user cancelled
+        success = False
     callback(success, error, data)
 
 
