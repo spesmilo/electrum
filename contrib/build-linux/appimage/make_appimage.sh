@@ -87,6 +87,15 @@ fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not copy libsecp to its destination"
 
 
+if [ -f "$DLL_TARGET_DIR/libzbar.so.0" ]; then
+    info "libzbar already built, skipping"
+else
+    # note: could instead just use the libzbar0 pkg from debian/apt, but that is too old and missing fixes for CVE-2023-40889
+    "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
+fi
+cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
+
+
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
 #       This pkg is needed on some distros for Qt to launch. (see #8011)
 info "building libxcb-util1."
@@ -174,10 +183,6 @@ info "installing electrum and its dependencies."
 
 # was only needed during build time, not runtime
 "$python" -m pip uninstall -y Cython
-
-
-info "copying zbar"
-cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
 
 
 info "desktop integration."
