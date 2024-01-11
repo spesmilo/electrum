@@ -1,4 +1,4 @@
-# Release 4.5.0 (in beta/rc)
+# Release 4.5.0 (January 12, 2024)
  * General:
    - remove SSL options from config (012ce1c)
    - make number of logfiles to keep configurable (5e8b14f)
@@ -7,6 +7,7 @@
    - add warnings and prompt users when signing txs with non-default sighashes (#8687)
    - refactored bip21/bolt11/lnurl/etc-handling into PaymentIdentifiers (#8462)
    - add option to merge duplicate outputs (#8474)
+   - fix: consider bip21 URIs as invalid if they contain unknown req-* param (#8781)
  * Lightning:
    - fix BOLT-04 "MUST set `short_channel_id` to the `short_channel_id` used by the incoming onion" (ca93af2)
    - add support for hold invoices (1acf426)
@@ -21,14 +22,16 @@
    - don't set channel OPEN before channel_ready has been both sent and received (#8641)
    - if trampoline is enabled, do not add non-trampoline nodes to invoices (120faa4)
  * QML GUI (Android):
-   - port to Qt6
+   - port to Qt6 (#8545)
    - fix regression for lnurl-pay (#8585)
    - fix invoice amount bounds check (#8582)
    - fix places where text was rendered off-screen for certain translations (#8611)
    - fix lnworker undefined when node alias requested (#8635)
    - fix BIP39 cosigner script type must be same as primary (8cd95f1)
+   - fix: never use current fiat exchange rate for old historical amounts (#8788)
    - better handle android back-gesture (#8464)
    - new: show private key in address details (016b5eb)
+   - new: show tx inputs in TxDetails and other dialogs (#8772)
    - new: label sync plugin toggle (b6863b4)
    - fix: properly suggest paying BOLT11 invoice onchain if insufficient balance (0a80460)
    - new: message sign & verify (e5e1e46)
@@ -36,6 +39,8 @@
    - new: add coins/UTXOs to addresses list, add filters (cf91d2e)
    - new: delete addresses from imported wallet (#8675)
    - new: add support for lightning address and openalias (03dd38b)
+   - new: add setting to allow screenshots everywhere (0dae1733)
+   - simplify welcome page for first-start network settings (#8737)
    - various UI fixes (b846eab, #8634, 9ed5f7b, 941f425, b20a4b9, af61b9d, 0fb47c8, 2995bc8, ..)
  * Qt Desktop GUI:
    - port wizard to new implementation
@@ -44,6 +49,7 @@
    - new: option to use extra trampoline for legacy payments (b2053c6)
    - new: send change to lightning option for on-chain payments (649ce97)
    - new: notes tab for saving text in the (encrypted) wallet file (d691aa07)
+   - simplify welcome page for first-start network settings (#8737)
    - various UI fixes (#8587, #6526, ..)
  * Hardware wallets:
    - Trezor: allow multiple change outputs (#3920)
@@ -51,6 +57,8 @@
    - Bitbox02: update to 6.2.0 (#8459)
  * Plugins:
    - new: swapserver plugin (#8489)
+ * Builds/binaries:
+   - update bundled zbar, for security fixes (#8805)
 
 
 # Release 4.4.6 (August 18, 2023) (security update)
