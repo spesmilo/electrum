@@ -672,7 +672,7 @@ class GenericInputHandler:
     ) -> None:
         if setText is None:
             setText = self.setText
-        def cb(success: bool, error: str, data):
+        def cb(success: bool, error: str, data: Optional[str]):
             if not success:
                 if error:
                     show_error(error)

@@ -81,6 +81,11 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             roles = [self._ROLE_RMAP['date']]
             self.dataChanged.emit(index, index, roles)
 
+    @qt_event_listener
+    def on_event_labels_received(self, wallet, labels):
+        if wallet == self.wallet:
+            self.initModel(True)  # TODO: be less dramatic
+
     def rowCount(self, index):
         return len(self.tx_history)
 
