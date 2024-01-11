@@ -180,15 +180,6 @@ class ExchangeBase(Logger):
             return Decimal('NaN')
         return Decimal(rate)
 
-
-class Bittrex(ExchangeBase):
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.bittrex.com', '/v3/markets/GRS-BTC/ticker')
-        if ccy != "BTC":
-            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
-            return {ccy: to_decimal(json1['lastTradeRate'])*to_decimal(json2['bitcoin'][ccy.lower()])}
-        return {ccy: to_decimal(json1['lastTradeRate'])}
-
 class BTXPro(ExchangeBase):
     async def get_rates(self, ccy):
         json1 = await self.get_json('api.btxpro.com', '/v1.1/public/getticker?market=btc-grs')
