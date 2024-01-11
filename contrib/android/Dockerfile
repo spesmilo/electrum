@@ -108,8 +108,8 @@ RUN curl --location --progress-bar \
 
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
-RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends --allow-downgrades \
+RUN apt -y update -q \
+    && apt -y install -q --no-install-recommends --allow-downgrades \
         python3 \
         python3-dev \
         python3-pip \
@@ -127,6 +127,7 @@ RUN apt -y update -qq \
         build-essential \
         ccache \
         autoconf \
+        autopoint \
         libtool \
         pkg-config \
         zlib1g-dev \
