@@ -12,7 +12,7 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
+VERSION=4.5.0
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
