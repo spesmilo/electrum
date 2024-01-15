@@ -1113,6 +1113,7 @@ class Peer(Logger):
     async def request_force_close(self, channel_id: bytes):
         """Try to trigger the remote peer to force-close."""
         await self.initialized
+        self.logger.info(f"trying to get remote peer to force-close chan {channel_id.hex()}")
         # First, we intentionally send a "channel_reestablish" msg with an old state.
         # Many nodes (but not all) automatically force-close when seeing this.
         latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
@@ -1270,6 +1271,12 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
+        if chan.should_request_force_close:
+            if chan.get_state() != ChannelState.WE_ARE_TOXIC:
+                chan.set_state(ChannelState.REQUESTED_FCLOSE)
+            await self.request_force_close(chan_id)
+            chan.should_request_force_close = False
+            return
         if chan.get_state() == ChannelState.WE_ARE_TOXIC:
             # Depending on timing, the remote might not know we are behind.
             # We should let them know, so that they force-close.
@@ -1282,11 +1289,6 @@ class Peer(Logger):
             # Depending on timing, the remote might not know they are behind.
             # We should let them know:
             self._send_channel_reestablish(chan)
-            return
-        if chan.should_request_force_close:
-            chan.set_state(ChannelState.REQUESTED_FCLOSE)
-            await self.request_force_close(chan_id)
-            chan.should_request_force_close = False
             return
         # if we get here, we will try to do a proper reestablish
         if not (ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING):
