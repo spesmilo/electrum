@@ -630,10 +630,6 @@ class TrustedCoinPlugin(BasePlugin):
 
     # combined create_keystore and create_remote_key pre
     def create_keys(self, wizard_data):
-        # wizard = self._app.daemon.newWalletWizard
-        # wizard = self._wizard
-        # wizard_data = wizard._current.wizard_data
-
         if 'seed' not in wizard_data:
             # online continuation
             xprv1, xpub1, xprv2, xpub2 = (wizard_data['xprv1'], wizard_data['xpub1'], None, wizard_data['xpub2'])
