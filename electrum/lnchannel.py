@@ -140,6 +140,7 @@ state_transitions = [
     (cs.OPEN,     cs.WE_ARE_TOXIC),
     (cs.SHUTDOWN, cs.WE_ARE_TOXIC),
     (cs.REQUESTED_FCLOSE, cs.WE_ARE_TOXIC),
+    (cs.WE_ARE_TOXIC, cs.WE_ARE_TOXIC),
     #
     (cs.FORCE_CLOSING, cs.FORCE_CLOSING),  # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
