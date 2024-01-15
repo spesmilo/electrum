@@ -2912,10 +2912,11 @@ class LNWallet(LNWorker):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
         from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
         if constants.net is constants.BitcoinRegtest:
-            return self.network.config.FEE_EST_STATIC_FEERATE // 4
-        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-        if feerate_per_kvbyte is None:
-            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
+            feerate_per_kvbyte = self.network.config.FEE_EST_STATIC_FEERATE
+        else:
+            feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            if feerate_per_kvbyte is None:
+                feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
     def create_channel_backup(self, channel_id: bytes):
