@@ -1262,8 +1262,10 @@ def char_width_in_lineedit() -> int:
     return max(9, char_width)
 
 
-def font_height() -> int:
-    return QFontMetrics(QLabel().font()).height()
+def font_height(widget: QWidget = None) -> int:
+    if widget is None:
+        widget = QLabel()
+    return QFontMetrics(widget.font()).height()
 
 
 def webopen(url: str):
