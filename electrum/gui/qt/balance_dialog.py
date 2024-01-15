@@ -122,7 +122,7 @@ class BalanceToolButton(QToolButton, PieChartObject):
         self._update_size()
 
     def _update_size(self):
-        size = max(18, font_height(self))
+        size = round(font_height(self) * 1.1)
         self.R = QRect(6, 3, size, size)
 
 
