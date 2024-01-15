@@ -1148,6 +1148,10 @@ class Peer(Logger):
                              f"but close option is not allowed. {chan.get_state()=!r}")
 
     def on_channel_reestablish(self, chan: Channel, msg):
+        # Note: it is critical for this message handler to block processing of further messages,
+        #       until this msg is processed. If we are behind (lost state), and send chan_reest to the remote,
+        #       when the remote realizes we are behind, they might send an "error" message - but the spec mandates
+        #       they send chan_reest first. If we processed the error first, we might force-close and lose money!
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
