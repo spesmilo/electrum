@@ -1890,13 +1890,20 @@ class LNWallet(LNWorker):
                 if (amount_msat / final_total_msat > self.MPP_SPLIT_PART_FRACTION
                         and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT):
                     exclude_single_part_payments = True
-        split_configurations = suggest_splits(
-            amount_msat,
-            channels_with_funds,
-            exclude_single_part_payments=exclude_single_part_payments,
-            exclude_multinode_payments=exclude_multinode_payments,
-            exclude_single_channel_splits=exclude_single_channel_splits
-        )
+
+        def get_splits():
+            return suggest_splits(
+                amount_msat,
+                channels_with_funds,
+                exclude_single_part_payments=exclude_single_part_payments,
+                exclude_multinode_payments=exclude_multinode_payments,
+                exclude_single_channel_splits=exclude_single_channel_splits
+            )
+
+        split_configurations = get_splits()
+        if not split_configurations and exclude_single_part_payments:
+            exclude_single_part_payments = False
+            split_configurations = get_splits()
         self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
         return split_configurations
 
