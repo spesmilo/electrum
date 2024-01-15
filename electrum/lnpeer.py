@@ -1146,7 +1146,7 @@ class Peer(Logger):
             self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
                              f"but close option is not allowed. {chan.get_state()=!r}")
 
-    def on_channel_reestablish(self, chan, msg):
+    def on_channel_reestablish(self, chan: Channel, msg):
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
@@ -1230,40 +1230,23 @@ class Peer(Logger):
             self.lnworker.save_channel(chan)
             chan.peer_state = PeerState.BAD
             # raise after we send channel_reestablish, so the remote can realize they are ahead
-            fut.set_exception(RemoteMisbehaving("remote ahead of us"))
+            # FIXME what if we have multiple chans with peer? timing...
+            fut.set_exception(GracefulDisconnect("remote ahead of us"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             self.schedule_force_closing(chan.channel_id)
-            fut.set_exception(RemoteMisbehaving("we are ahead of remote"))
+            # FIXME what if we have multiple chans with peer? timing...
+            fut.set_exception(GracefulDisconnect("we are ahead of remote"))
         else:
             # all good
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
 
-    async def reestablish_channel(self, chan: Channel):
-        await self.initialized
+    def _send_channel_reestablish(self, chan: Channel):
+        assert self.is_initialized()
         chan_id = chan.channel_id
-        if chan.should_request_force_close:
-            chan.set_state(ChannelState.REQUESTED_FCLOSE)
-            await self.request_force_close(chan_id)
-            chan.should_request_force_close = False
-            return
-        assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
-        if chan.peer_state != PeerState.DISCONNECTED:
-            self.logger.info(
-                f'reestablish_channel was called but channel {chan.get_id_for_log()} '
-                f'already in peer_state {chan.peer_state!r}')
-            return
-        chan.peer_state = PeerState.REESTABLISHING
-        util.trigger_callback('channel', self.lnworker.wallet, chan)
         # ctns
-        oldest_unrevoked_local_ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
-        latest_local_ctn = chan.get_latest_ctn(LOCAL)
         next_local_ctn = chan.get_next_ctn(LOCAL)
         oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
-        latest_remote_ctn = chan.get_latest_ctn(REMOTE)
-        next_remote_ctn = chan.get_next_ctn(REMOTE)
-        # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
-        chan.hm.discard_unsigned_remote_updates()
         # send message
         assert chan.is_static_remotekey_enabled()
         latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
@@ -1284,6 +1267,45 @@ class Peer(Logger):
             f'(next_local_ctn={next_local_ctn}, '
             f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
 
+    async def reestablish_channel(self, chan: Channel):
+        await self.initialized
+        chan_id = chan.channel_id
+        if chan.get_state() == ChannelState.WE_ARE_TOXIC:
+            # Depending on timing, the remote might not know we are behind.
+            # We should let them know, so that they force-close.
+            # We do "request force-close" with ctn=0, instead of leaking our actual ctns,
+            # to decrease the remote's confidence of actual data loss on our part.
+            await self.request_force_close(chan_id)
+            return
+        if chan.get_state() == ChannelState.FORCE_CLOSING:
+            # We likely got here because we found out that we are ahead (i.e. remote lost state).
+            # Depending on timing, the remote might not know they are behind.
+            # We should let them know:
+            self._send_channel_reestablish(chan)
+            return
+        if chan.should_request_force_close:
+            chan.set_state(ChannelState.REQUESTED_FCLOSE)
+            await self.request_force_close(chan_id)
+            chan.should_request_force_close = False
+            return
+        # if we get here, we will try to do a proper reestablish
+        if not (ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING):
+            raise Exception(f"unexpected {chan.get_state()=} for reestablish")
+        if chan.peer_state != PeerState.DISCONNECTED:
+            self.logger.info(
+                f'reestablish_channel was called but channel {chan.get_id_for_log()} '
+                f'already in peer_state {chan.peer_state!r}')
+            return
+        chan.peer_state = PeerState.REESTABLISHING
+        util.trigger_callback('channel', self.lnworker.wallet, chan)
+        # ctns
+        oldest_unrevoked_local_ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
+        next_local_ctn = chan.get_next_ctn(LOCAL)
+        oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
+        # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
+        chan.hm.discard_unsigned_remote_updates()
+        # send message
+        self._send_channel_reestablish(chan)
         # wait until we receive their channel_reestablish
         fut = self.channel_reestablish_msg[chan_id]
         await fut
