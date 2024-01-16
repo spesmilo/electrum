@@ -159,12 +159,14 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
     def update(self):
         if self.chan.is_closed() or self.chan.is_backup():
             return
+        assert isinstance(self.chan, Channel), type(self.chan)
         self.can_send_label.setText(self.format_msat(self.chan.available_to_spend(LOCAL)))
         self.can_receive_label.setText(self.format_msat(self.chan.available_to_spend(REMOTE)))
         self.sent_label.setText(self.format_msat(self.chan.total_msat(Direction.SENT)))
         self.received_label.setText(self.format_msat(self.chan.total_msat(Direction.RECEIVED)))
         self.local_balance_label.setText(self.format_msat(self.chan.balance(LOCAL)))
         self.remote_balance_label.setText(self.format_msat(self.chan.balance(REMOTE)))
+        self.current_feerate.setText(self.window.format_fee_rate(4 * self.chan.get_latest_feerate(LOCAL)))
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
@@ -205,7 +207,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
                 form.addRow(QLabel(_('Closing Transaction') + ':'), LinkedLabel(closing_label_text, self.show_tx))
         return form
 
-    def get_hbox_stats(self, chan):
+    def get_hbox_stats(self, chan: Channel):
         hbox_stats = QHBoxLayout()
         form_layout_left = QtWidgets.QFormLayout(None)
         form_layout_right = QtWidgets.QFormLayout(None)
@@ -239,6 +241,18 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         self.sent_label = SelectableLabel()
         form_layout_left.addRow(_('Total sent') + ':', self.sent_label)
         form_layout_right.addRow(_('Total received') + ':', self.received_label)
+        # to-self-delay
+        csv_local_header = SelectableLabel(_("Remote force-close CSV delay") + ":")
+        csv_local_header.setToolTip(_("Force-close CSV delay imposed on them"))
+        csv_remote_header = SelectableLabel(_("Local force-close CSV delay") + ":")
+        csv_remote_header.setToolTip(_("Force-close CSV delay imposed on us"))
+        csv_local_label  = SelectableLabel(_("{} blocks").format(chan.config[LOCAL].to_self_delay))
+        csv_remote_label = SelectableLabel(_("{} blocks").format(chan.config[REMOTE].to_self_delay))
+        form_layout_left.addRow(csv_local_header, csv_local_label)
+        form_layout_right.addRow(csv_remote_header, csv_remote_label)
+        # onchain feerate
+        self.current_feerate = SelectableLabel()
+        form_layout_left.addRow(_('Current feerate') + ':', self.current_feerate)
         # channel stats left column
         hbox_stats.addLayout(form_layout_left, 50)
         # vertical line separator
