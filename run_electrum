@@ -367,6 +367,8 @@ def main():
     #       not been imported yet. (see #4621)
     # Note: it is ok to call set_language() again later, but note that any call only applies
     #       to not-yet-evaluated strings.
+    # Note: the CLI is intentionally always non-localized.
+    # Note: Some unit tests might rely on the default non-localized strings.
     if cmdname == 'gui':
         gui_name = config.GUI_NAME
         lang = config.LOCALIZATION_LANGUAGE
