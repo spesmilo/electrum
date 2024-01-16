@@ -4075,4 +4075,4 @@ class TestImportedWallet(ElectrumTestCase):
 
         with self.assertRaises(UserFacingException) as ctx:
             w.delete_address("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy")
-        self.assertTrue("cannot delete last remaining address" in ctx.exception.args[0])
+        self.assertTrue("Cannot delete last remaining address" in ctx.exception.args[0])
