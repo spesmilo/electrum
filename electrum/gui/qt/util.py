@@ -517,12 +517,12 @@ class ResizableStackedWidget(QWidget):
         self.widgets = []
         self.current_index = -1
 
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
         if not self.count() or not self.currentWidget():
             return super().sizeHint()
         return self.currentWidget().sizeHint()
 
-    def addWidget(self, widget):
+    def addWidget(self, widget: QWidget) -> int:
         self.widgets.append(widget)
         self.layout().addWidget(widget)
         if len(self.widgets) == 1:  # first widget?
@@ -530,7 +530,7 @@ class ResizableStackedWidget(QWidget):
         self.showCurrentWidget()
         return len(self.widgets) - 1
 
-    def removeWidget(self, widget):
+    def removeWidget(self, widget: QWidget):
         i = self.widgets.index(widget)
         self.widgets.remove(widget)
         self.layout().removeWidget(widget)
@@ -539,12 +539,15 @@ class ResizableStackedWidget(QWidget):
             if self.current_index == self.count() - 1:
                 self.showCurrentWidget()
 
-    def setCurrentIndex(self, index):
+    def setCurrentIndex(self, index: int):
         assert isinstance(index, int)
+        assert 0 <= index < len(self.widgets), f'invalid widget index {index}'
         self.current_index = index
         self.showCurrentWidget()
 
-    def currentWidget(self):
+    def currentWidget(self) -> Optional[QWidget]:
+        if self.current_index < 0:
+            return None
         return self.widgets[self.current_index]
 
     def showCurrentWidget(self):
@@ -557,7 +560,7 @@ class ResizableStackedWidget(QWidget):
             else:
                 k.hide()
 
-    def count(self):
+    def count(self) -> int:
         return len(self.widgets)
 
 
