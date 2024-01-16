@@ -1,6 +1,7 @@
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
+from electrum.util import UserFacingException
 
 from .auth import auth_protect, AuthMixin
 from .qetransactionlistmodel import QETransactionListModel
@@ -12,6 +13,7 @@ class QEAddressDetails(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
     detailsChanged = pyqtSignal()
+    addressDeleteFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -84,7 +86,6 @@ class QEAddressDetails(AuthMixin, QObject):
     def canDelete(self):
         return self._candelete
 
-
     frozenChanged = pyqtSignal()
     @pyqtProperty(bool, notify=frozenChanged)
     def isFrozen(self):
@@ -131,10 +132,15 @@ class QEAddressDetails(AuthMixin, QObject):
 
         self.detailsChanged.emit()
 
-    @pyqtSlot()
+    @pyqtSlot(result=bool)
     def deleteAddress(self):
         assert self.canDelete
-        self._wallet.wallet.delete_address(self._address)
+        try:
+            self._wallet.wallet.delete_address(self._address)
+        except UserFacingException as e:
+            self.addressDeleteFailed.emit(str(e))
+            return False
+        return True
 
     def update(self):
         if self._wallet is None:
