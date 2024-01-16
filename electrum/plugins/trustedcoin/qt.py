@@ -479,6 +479,8 @@ class WCShowConfirmOTP(WizardComponent):
         self.exist_otp.setVisible(not is_new)
         self.authlabelnew.setVisible(is_new)
         self.authlabelexist.setVisible(not is_new)
+        self.authlabelexist.setEnabled(not self._otp_verified)
+        self.otp_e.setEnabled(not self._otp_verified)
         self.resetlabel.setVisible(not is_new and not self._otp_verified and not self._is_online_continuation)
         self.button.setVisible(not is_new and not self._otp_verified and not self._is_online_continuation)
 
