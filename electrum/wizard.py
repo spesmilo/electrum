@@ -322,7 +322,8 @@ class NewWalletWizard(AbstractWizard):
         return 'wallet_password'
 
     def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
-        _type, _info = wizard_data['hardware_device']
+        current_cosigner = self.current_cosigner(wizard_data)
+        _type, _info = current_cosigner['hardware_device']
         run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         plugin = self.plugins.get_plugin(_type)
         return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)

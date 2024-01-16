@@ -1335,7 +1335,9 @@ class WCHWXPub(WalletWizardComponent, Logger):
 
         self.ok_l = WWLabel(_('Hardware keystore added to wallet'))
         self.ok_l.setAlignment(Qt.AlignCenter)
+        self.layout().addStretch(1)
         self.layout().addWidget(self.ok_l)
+        self.layout().addStretch(1)
 
     def on_ready(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
@@ -1412,7 +1414,9 @@ class WCHWUninitialized(WalletWizardComponent):
         _name, _info = cosigner_data['hardware_device']
         label = WWLabel(_('This {} is not initialized. Use manufacturer tooling to initialize the device.').format(_info.model_name))
         label.setAlignment(Qt.AlignCenter)
+        self.layout().addStretch(1)
         self.layout().addWidget(label)
+        self.layout().addStretch(1)
 
     def apply(self):
         pass
