@@ -33,16 +33,9 @@ from .logging import get_logger
 _logger = get_logger(__name__)
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 
-# set initial default language, based on OS-locale
-# FIXME some module-level strings might get translated using this language, before
-#       any user-provided custom language (in config) can get set.
-language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
-try:
-    _lang = language.info().get('language', None)
-except Exception as e:
-    _logger.info(f"gettext setting initial language to ?? (error: {e!r})")
-else:
-    _logger.info(f"gettext setting initial language to {_lang!r}")
+# Set initial default language to None. i.e. translations explicitly disabled.
+# The main script or GUIs can call set_language to enable translations.
+language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
 
 
 # note: do not use old-style (%) formatting inside translations,

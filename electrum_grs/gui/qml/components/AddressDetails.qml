@@ -315,9 +315,11 @@ Pane {
                         yesno: true
                     })
                     confirmdialog.accepted.connect(function () {
-                        addressdetails.deleteAddress()
-                        addressDeleted()
-                        app.stack.pop()
+                        var success = addressdetails.deleteAddress()
+                        if (success) {
+                            addressDeleted()
+                            app.stack.pop()
+                        }
                     })
                     confirmdialog.open()
                 }
@@ -334,6 +336,12 @@ Pane {
         onLabelChanged: addressDetailsChanged()
         onAuthRequired: (method, authMessage) => {
             app.handleAuthRequired(addressdetails, method, authMessage)
+        }
+        onAddressDeleteFailed: (message) => {
+            var dialog = app.messageDialog.createObject(root, {
+                text: message
+            })
+            dialog.open()
         }
     }
 }

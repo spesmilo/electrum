@@ -119,9 +119,6 @@ class ChannelsList(MyTreeView):
     def on_channel_closed(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
 
-    def on_request_sent(self, b):
-        self.main_window.show_message(_('Request sent'))
-
     def on_failure(self, exc_info):
         type_, e, tb = exc_info
         traceback.print_tb(tb)
@@ -137,7 +134,7 @@ class ChannelsList(MyTreeView):
         on_success = self.on_channel_closed
         def task():
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
+        WaitingDialog(self, _('Please wait...'), task, on_success, self.on_failure)
 
     def force_close(self, channel_id):
         self.save_backup = True
@@ -161,7 +158,7 @@ class ChannelsList(MyTreeView):
         def task():
             coro = self.lnworker.force_close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_channel_closed, self.on_failure)
+        WaitingDialog(self, _('Please wait...'), task, self.on_channel_closed, self.on_failure)
 
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
@@ -191,7 +188,9 @@ class ChannelsList(MyTreeView):
         def task():
             coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
+        def on_done(b):
+            self.main_window.show_message(_('Request scheduled'))
+        WaitingDialog(self, _('Please wait...'), task, on_done, self.on_failure)
 
     def set_frozen(self, chan, *, for_sending, value):
         if not self.lnworker.uses_trampoline() or self.lnworker.is_trampoline_peer(chan.node_id):

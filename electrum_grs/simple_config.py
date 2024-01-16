@@ -872,7 +872,8 @@ class SimpleConfig(Logger):
     def format_amount_and_units(self, *args, **kwargs) -> str:
         return self.format_amount(*args, **kwargs) + ' ' + self.get_base_unit()
 
-    def format_fee_rate(self, fee_rate):
+    def format_fee_rate(self, fee_rate) -> str:
+        """fee_rate is in gro/kvByte."""
         return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' gro/byte'
 
     def get_base_unit(self):

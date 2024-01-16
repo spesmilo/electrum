@@ -65,6 +65,10 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
         error_layout = QVBoxLayout()
         error_layout.addStretch(1)
+        error_icon = QLabel()
+        error_icon.setPixmap(QPixmap(icon_path('warning.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
+        error_icon.setAlignment(Qt.AlignCenter)
+        error_layout.addWidget(error_icon)
         self.error_msg = WWLabel()
         self.error_msg.setAlignment(Qt.AlignCenter)
         error_layout.addWidget(self.error_msg)

@@ -402,6 +402,7 @@ class WCShowConfirmOTP(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Authenticator secret'))
         self._otp_verified = False
+        self._is_online_continuation = False
 
         self.new_otp = QWidget()
         new_otp_layout = QVBoxLayout()
@@ -417,8 +418,8 @@ class WCShowConfirmOTP(WizardComponent):
         exist_otp_layout = QVBoxLayout()
         knownlabel = WWLabel(_('This wallet is already registered with TrustedCoin.'))
         exist_otp_layout.addWidget(knownlabel)
-        knownsecretlabel = WWLabel(_('If you still have your OTP secret, then authenticate below to finalize wallet creation'))
-        exist_otp_layout.addWidget(knownsecretlabel)
+        self.knownsecretlabel = WWLabel(_('If you still have your OTP secret, then authenticate below to finalize wallet creation'))
+        exist_otp_layout.addWidget(self.knownsecretlabel)
         self.exist_otp.setLayout(exist_otp_layout)
 
         self.authlabelnew = WWLabel(_('Then, enter your Google Authenticator code:'))
@@ -466,6 +467,10 @@ class WCShowConfirmOTP(WizardComponent):
         self.wizard.trustedcoin_qhelper.otpError.connect(self.on_otp_error)
         self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
 
+        self._is_online_continuation = 'seed' not in self.wizard_data
+        if self._is_online_continuation:
+            self.knownsecretlabel.setText(_('Authenticate below to finalize wallet creation'))
+
         self.wizard.trustedcoin_qhelper.createKeystore()
 
     def update(self):
@@ -474,8 +479,10 @@ class WCShowConfirmOTP(WizardComponent):
         self.exist_otp.setVisible(not is_new)
         self.authlabelnew.setVisible(is_new)
         self.authlabelexist.setVisible(not is_new)
-        self.resetlabel.setVisible(not is_new and not self._otp_verified)
-        self.button.setVisible(not is_new and not self._otp_verified)
+        self.authlabelexist.setEnabled(not self._otp_verified)
+        self.otp_e.setEnabled(not self._otp_verified)
+        self.resetlabel.setVisible(not is_new and not self._otp_verified and not self._is_online_continuation)
+        self.button.setVisible(not is_new and not self._otp_verified and not self._is_online_continuation)
 
         if self.wizard.trustedcoin_qhelper.otpSecret:
             self.secretlabel.setText(self.wizard.trustedcoin_qhelper.otpSecret)

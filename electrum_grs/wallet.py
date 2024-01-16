@@ -811,9 +811,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.is_watching_only():
             raise UserFacingException(_("This is a watching-only wallet"))
         if not is_address(address):
-            raise UserFacingException(f"Invalid groestlcoin address: {address}")
+            raise UserFacingException(_('Invalid groestlcoin address: {}').format(address))
         if not self.is_mine(address):
-            raise UserFacingException(_('Address not in wallet.') + f' {address}')
+            raise UserFacingException(_('Address not in wallet: {}').format(address))
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
         txin_type = self.get_txin_type(address)
@@ -3380,7 +3380,7 @@ class Imported_Wallet(Simple_Wallet):
         if not self.db.has_imported_address(address):
             return
         if len(self.get_addresses()) <= 1:
-            raise UserFacingException("cannot delete last remaining address from wallet")
+            raise UserFacingException(_('Cannot delete last remaining address from wallet'))
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:

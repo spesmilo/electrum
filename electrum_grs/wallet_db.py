@@ -56,11 +56,13 @@ class WalletRequiresUpgrade(WalletFileException):
 
 class WalletRequiresSplit(WalletFileException):
     def __init__(self, split_data):
+        super().__init__()
         self._split_data = split_data
 
 
 class WalletUnfinished(WalletFileException):
     def __init__(self, wallet_db: 'WalletDB'):
+        super().__init__()
         self._wallet_db = wallet_db
 
 

@@ -253,7 +253,7 @@ class TxFeeSlider(FeeSlider):
             outputs.append({
                 'address': o.get_ui_address_str(),
                 'value': o.value,
-                'short_id': str(TxOutpoint(bytes.fromhex(tx.txid()), idx).short_name()),
+                'short_id': str(TxOutpoint(bytes.fromhex(tx.txid()), idx).short_name()) if tx.txid() else '',
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
                 'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str())

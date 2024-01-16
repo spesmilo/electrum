@@ -102,9 +102,8 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def __init__(self):
         QToolButton.__init__(self)
-        self.size = max(18, font_height())
         self._list = []
-        self.R = QRect(6, 3, self.size, self.size)
+        self._update_size()
 
     def update_list(self, l):
         self._list = l
@@ -117,6 +116,14 @@ class BalanceToolButton(QToolButton, PieChartObject):
     def paintEvent(self, event):
         QToolButton.paintEvent(self, event)
         PieChartObject.paintEvent(self, event)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._update_size()
+
+    def _update_size(self):
+        size = round(font_height(self) * 1.1)
+        self.R = QRect(6, 3, size, size)
 
 
 class LegendWidget(QWidget):

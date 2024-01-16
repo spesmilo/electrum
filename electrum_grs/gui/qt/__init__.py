@@ -352,6 +352,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 pass  # open with wizard below
             except WalletRequiresUpgrade:
                 pass  # open with wizard below
+            except WalletUnfinished:
+                pass  # open with wizard below
             except Exception as e:
                 self.logger.exception('')
                 err_text = str(e) if isinstance(e, WalletFileException) else repr(e)

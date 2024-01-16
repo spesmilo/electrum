@@ -566,30 +566,50 @@ class TestPeerDirect(TestPeer):
             await gath
 
     async def test_reestablish_with_old_state(self):
-        random_seed = os.urandom(32)
-        alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
-        alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
-        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        lnaddr, pay_req = self.prepare_invoice(w2)
-        async def pay():
-            result, log = await w1.pay_invoice(pay_req)
-            self.assertEqual(result, True)
-            gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
-        with self.assertRaises(asyncio.CancelledError):
-            await gath
-        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
-        for chan in (alice_channel_0, bob_channel):
-            chan.peer_state = PeerState.DISCONNECTED
-        async def reestablish():
-            await asyncio.gather(
-                p1.reestablish_channel(alice_channel_0),
-                p2.reestablish_channel(bob_channel))
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
-        with self.assertRaises(lnutil.RemoteMisbehaving):
-            await gath
-        self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
-        self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
+        async def f(alice_slow: bool, bob_slow: bool):
+            random_seed = os.urandom(32)
+            alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
+            alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            lnaddr, pay_req = self.prepare_invoice(w2)
+            async def pay():
+                result, log = await w1.pay_invoice(pay_req)
+                self.assertEqual(result, True)
+                gath.cancel()
+            gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            with self.assertRaises(asyncio.CancelledError):
+                await gath
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
+            for chan in (alice_channel_0, bob_channel):
+                chan.peer_state = PeerState.DISCONNECTED
+
+            async def alice_sends_reest():
+                if alice_slow: await asyncio.sleep(0.05)
+                await p1.reestablish_channel(alice_channel_0)
+            async def bob_sends_reest():
+                if bob_slow: await asyncio.sleep(0.05)
+                await p2.reestablish_channel(bob_channel)
+
+            with self.assertRaises(GracefulDisconnect):
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await group.spawn(alice_sends_reest)
+                    await group.spawn(bob_sends_reest)
+            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+            self.assertEqual(alice_channel_0._state, ChannelState.WE_ARE_TOXIC)
+            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
+
+        with self.subTest(msg="both fast"):
+            # FIXME: we want to test the case where both Alice and Bob sends channel-reestablish before
+            #        receiving what the other sent. This is not a reliable way to do that...
+            await f(alice_slow=False, bob_slow=False)
+        with self.subTest(msg="alice is slow"):
+            await f(alice_slow=True, bob_slow=False)
+        with self.subTest(msg="bob is slow"):
+            await f(alice_slow=False, bob_slow=True)
 
     @staticmethod
     def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:

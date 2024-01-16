@@ -1859,13 +1859,20 @@ class LNWallet(LNWorker):
                 if (amount_msat / final_total_msat > self.MPP_SPLIT_PART_FRACTION
                         and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT):
                     exclude_single_part_payments = True
-        split_configurations = suggest_splits(
-            amount_msat,
-            channels_with_funds,
-            exclude_single_part_payments=exclude_single_part_payments,
-            exclude_multinode_payments=exclude_multinode_payments,
-            exclude_single_channel_splits=exclude_single_channel_splits
-        )
+
+        def get_splits():
+            return suggest_splits(
+                amount_msat,
+                channels_with_funds,
+                exclude_single_part_payments=exclude_single_part_payments,
+                exclude_multinode_payments=exclude_multinode_payments,
+                exclude_single_channel_splits=exclude_single_channel_splits
+            )
+
+        split_configurations = get_splits()
+        if not split_configurations and exclude_single_part_payments:
+            exclude_single_part_payments = False
+            split_configurations = get_splits()
         self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
         return split_configurations
 
@@ -2866,9 +2873,8 @@ class LNWallet(LNWorker):
                 if self._can_retry_addr(peer, urgent=True):
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
             for chan in self.channels.values():
-                if chan.is_closed():
-                    continue
                 # reestablish
+                # note: we delegate filtering out uninteresting chans to this:
                 if not chan.should_try_to_reestablish_peer():
                     continue
                 peer = self._peers.get(chan.node_id, None)
@@ -2881,10 +2887,11 @@ class LNWallet(LNWorker):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
         from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
         if constants.net is constants.BitcoinRegtest:
-            return self.network.config.FEE_EST_STATIC_FEERATE // 4
-        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-        if feerate_per_kvbyte is None:
-            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
+            feerate_per_kvbyte = self.network.config.FEE_EST_STATIC_FEERATE
+        else:
+            feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            if feerate_per_kvbyte is None:
+                feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
     def create_channel_backup(self, channel_id: bytes):
@@ -2922,10 +2929,9 @@ class LNWallet(LNWorker):
         if channel_id in self.channels:
             chan = self.channels[channel_id]
             peer = self._peers.get(chan.node_id)
-            if not peer:
-                raise Exception('Peer not found')
             chan.should_request_force_close = True
-            peer.close_and_cleanup()
+            if peer:
+                peer.close_and_cleanup()  # to force a reconnect
         elif connect_str:
             peer = await self.add_peer(connect_str)
             await peer.request_force_close(channel_id)
