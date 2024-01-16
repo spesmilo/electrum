@@ -140,6 +140,7 @@ state_transitions = [
     (cs.OPEN,     cs.WE_ARE_TOXIC),
     (cs.SHUTDOWN, cs.WE_ARE_TOXIC),
     (cs.REQUESTED_FCLOSE, cs.WE_ARE_TOXIC),
+    (cs.WE_ARE_TOXIC, cs.WE_ARE_TOXIC),
     #
     (cs.FORCE_CLOSING, cs.FORCE_CLOSING),  # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
@@ -1015,6 +1016,8 @@ class Channel(AbstractChannel):
     def should_try_to_reestablish_peer(self) -> bool:
         if self.peer_state != PeerState.DISCONNECTED:
             return False
+        if self.should_request_force_close:
+            return True
         return ChannelState.PREOPENING < self._state < ChannelState.CLOSING
 
     def get_funding_address(self):
@@ -1629,6 +1632,8 @@ class Channel(AbstractChannel):
             if not self.has_unsettled_htlcs():
                 ret.append(ChanCloseOption.COOP_CLOSE)
                 ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
+        if self.get_state() == ChannelState.WE_ARE_TOXIC:
+            ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
         if not self.is_closed() or self.get_state() == ChannelState.REQUESTED_FCLOSE:
             ret.append(ChanCloseOption.LOCAL_FCLOSE)
         assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"

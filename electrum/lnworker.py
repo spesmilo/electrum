@@ -2904,9 +2904,8 @@ class LNWallet(LNWorker):
                 if self._can_retry_addr(peer, urgent=True):
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
             for chan in self.channels.values():
-                if chan.is_closed():
-                    continue
                 # reestablish
+                # note: we delegate filtering out uninteresting chans to this:
                 if not chan.should_try_to_reestablish_peer():
                     continue
                 peer = self._peers.get(chan.node_id, None)
@@ -2961,10 +2960,9 @@ class LNWallet(LNWorker):
         if channel_id in self.channels:
             chan = self.channels[channel_id]
             peer = self._peers.get(chan.node_id)
-            if not peer:
-                raise Exception('Peer not found')
             chan.should_request_force_close = True
-            peer.close_and_cleanup()
+            if peer:
+                peer.close_and_cleanup()  # to force a reconnect
         elif connect_str:
             peer = await self.add_peer(connect_str)
             await peer.request_force_close(channel_id)
