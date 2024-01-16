@@ -6,7 +6,7 @@ import threading
 from typing import TYPE_CHECKING, Optional
 
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal
-from PyQt5.QtGui import QPen, QPainter, QPalette
+from PyQt5.QtGui import QPen, QPainter, QPalette, QPixmap
 from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout, QDialog, QApplication)
 
@@ -30,7 +30,7 @@ from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PA
 from electrum.gui.qt.seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
                                   ChoiceWidget, MessageBoxMixin, WindowModalDialog, ChoicesLayout, CancelButton,
-                                  Buttons, OkButton)
+                                  Buttons, OkButton, icon_path)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -1265,9 +1265,15 @@ class WCHWUnlock(WalletWizardComponent, Logger):
         self._busy = True
         self.password = None
 
+        ok_icon = QLabel()
+        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
+        ok_icon.setAlignment(Qt.AlignCenter)
         self.ok_l = WWLabel(_('Hardware successfully unlocked'))
         self.ok_l.setAlignment(Qt.AlignCenter)
+        self.layout().addStretch(1)
+        self.layout().addWidget(ok_icon)
         self.layout().addWidget(self.ok_l)
+        self.layout().addStretch(1)
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
@@ -1333,9 +1339,13 @@ class WCHWXPub(WalletWizardComponent, Logger):
         self.label = None
         self.soft_device_id = None
 
+        ok_icon = QLabel()
+        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
+        ok_icon.setAlignment(Qt.AlignCenter)
         self.ok_l = WWLabel(_('Hardware keystore added to wallet'))
         self.ok_l.setAlignment(Qt.AlignCenter)
         self.layout().addStretch(1)
+        self.layout().addWidget(ok_icon)
         self.layout().addWidget(self.ok_l)
         self.layout().addStretch(1)
 
@@ -1412,9 +1422,13 @@ class WCHWUninitialized(WalletWizardComponent):
     def on_ready(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         _name, _info = cosigner_data['hardware_device']
+        w_icon = QLabel()
+        w_icon.setPixmap(QPixmap(icon_path('warning.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
+        w_icon.setAlignment(Qt.AlignCenter)
         label = WWLabel(_('This {} is not initialized. Use manufacturer tooling to initialize the device.').format(_info.model_name))
         label.setAlignment(Qt.AlignCenter)
         self.layout().addStretch(1)
+        self.layout().addWidget(w_icon)
         self.layout().addWidget(label)
         self.layout().addStretch(1)
 
