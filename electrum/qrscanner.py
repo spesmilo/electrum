@@ -59,7 +59,7 @@ except BaseException as e1:
 
 def scan_barcode(device='', timeout=-1, display=True, threaded=False) -> Optional[str]:
     if libzbar is None:
-        raise UserFacingException("Cannot start QR scanner: zbar not available.")
+        raise UserFacingException(_('Cannot start QR scanner: zbar not available.'))
     libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
     libzbar.zbar_processor_create.restype = ctypes.POINTER(ctypes.c_int)
     libzbar.zbar_processor_get_results.restype = ctypes.POINTER(ctypes.c_int)

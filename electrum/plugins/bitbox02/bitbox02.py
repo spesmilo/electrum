@@ -326,7 +326,7 @@ class BitBox02Client(HardwareClientBase):
             except bitbox02.DuplicateEntryException:
                 raise
             except Exception:
-                raise UserFacingException("Failed to register multisig\naccount configuration on BitBox02")
+                raise UserFacingException(_('Failed to register multisig\naccount configuration on BitBox02'))
         return multisig_config
 
     @runs_in_hwd_thread
@@ -464,9 +464,7 @@ class BitBox02Client(HardwareClientBase):
                 raise Exception("Can only use p2wsh-p2sh or p2wsh with multisig wallets")
         else:
             raise UserFacingException(
-                "invalid input script type: {} is not supported by the BitBox02".format(
-                    tx_script_type
-                )
+                _('Invalid input script type: {} is not supported by the BitBox02').format(tx_script_type)
             )
 
         # Build BTCOutputType list
@@ -495,7 +493,7 @@ class BitBox02Client(HardwareClientBase):
                     output_type = bitbox02.btc.P2TR
                 else:
                     raise UserFacingException(
-                        "Received unsupported output type during transaction signing: {} is not supported by the BitBox02".format(
+                        _('Received unsupported output type during transaction signing: {} is not supported by the BitBox02').format(
                             addrtype
                         )
                     )
@@ -546,9 +544,9 @@ class BitBox02Client(HardwareClientBase):
                 "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
             }[script_type]
         except KeyError:
-            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(script_type))
+            raise UserFacingException(_('The BitBox02 does not support signing messages for this address type: {}').format(script_type))
 
-        _, _, signature = self.bitbox02_device.btc_sign_msg(
+        _a, _b, signature = self.bitbox02_device.btc_sign_msg(
             self._get_coin(),
             bitbox02.btc.BTCScriptConfigWithKeypath(
                 script_config=bitbox02.btc.BTCScriptConfig(
@@ -580,9 +578,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
     def decrypt_message(self, pubkey, message, password):
         raise UserFacingException(
-            _(
-                "Message encryption, decryption and signing are currently not supported for {}"
-            ).format(self.device)
+            _('Message encryption, decryption and signing are currently not supported for {}').format(self.device)
         )
 
     def sign_message(self, sequence, message, password, *, script_type=None):

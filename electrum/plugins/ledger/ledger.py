@@ -867,18 +867,17 @@ class Ledger_Client_Legacy_HW1(Ledger_Client_Legacy):
                     msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
                 confirmed, p, pin = self.password_dialog(msg)
                 if not confirmed:
-                    raise UserFacingException('Aborted by user - please unplug the dongle and plug it again before retrying')
+                    raise UserFacingException(_('Aborted by user - please unplug the dongle and plug it again before retrying'))
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
         except BTChipException as e:
             if (e.sw == 0x6faa):
-                raise UserFacingException("Dongle is temporarily locked - please unplug it and replug it again")
+                raise UserFacingException(_('Dongle is temporarily locked - please unplug it and replug it again'))
             if ((e.sw & 0xFFF0) == 0x63c0):
-                raise UserFacingException("Invalid PIN - please unplug the dongle and plug it again before retrying")
+                raise UserFacingException(_('Invalid PIN - please unplug the dongle and plug it again before retrying'))
             if e.sw == 0x6f00 and e.message == 'Invalid channel':
                 # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
-                raise UserFacingException("Invalid channel.\n"
-                                          "Please make sure that 'Browser support' is disabled on your device.")
+                raise UserFacingException(_("Invalid channel.\nPlease make sure that 'Browser support' is disabled on your device."))
             if e.sw == 0x6d00 or e.sw == 0x6700:
                 raise UserFacingException(_("Device not in Bitcoin mode")) from e
             raise e
@@ -1002,7 +1001,7 @@ class Ledger_Client_New(Ledger_Client):
         path_parts = path.split("/")
 
         if not 5 <= len(path_parts) <= 6:
-            raise UserFacingException(f"Unsupported path: {path}")
+            raise UserFacingException(_('Unsupported derivation path: {}').format(path))
 
         path_root = "/".join(path_parts[:-2])
 
@@ -1097,14 +1096,14 @@ class Ledger_Client_New(Ledger_Client):
             wallets: Dict[bytes, Tuple[AddressType, WalletPolicy, Optional[bytes]]] = {}
             for input_num, (electrum_txin, psbt_in) in enumerate(zip(tx.inputs(), psbt.inputs)):
                 if electrum_txin.is_coinbase_input():
-                    raise UserFacingException("Coinbase not supported")     # should never happen
+                    raise UserFacingException(_('Coinbase not supported'))     # should never happen
 
                 utxo = None
                 if psbt_in.witness_utxo:
                     utxo = psbt_in.witness_utxo
                 if psbt_in.non_witness_utxo:
                     if psbt_in.prev_txid != psbt_in.non_witness_utxo.hash:
-                        raise UserFacingException(f"Input {input_num} has a non_witness_utxo with the wrong hash")
+                        raise UserFacingException(_('Input {} has a non_witness_utxo with the wrong hash').format(input_num))
                     assert psbt_in.prev_out is not None
                     utxo = psbt_in.non_witness_utxo.vout[psbt_in.prev_out]
 
@@ -1125,7 +1124,7 @@ class Ledger_Client_New(Ledger_Client):
                         if wit_ver == 0:
                             script_addrtype = AddressType.SH_WIT
                         else:
-                            raise UserFacingException("Cannot have witness v1+ in p2sh")
+                            raise UserFacingException(_('Cannot have witness v1+ in p2sh'))
                     else:
                         if wit_ver == 0:
                             script_addrtype = AddressType.WIT
