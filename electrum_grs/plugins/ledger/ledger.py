@@ -209,18 +209,17 @@ class Ledger_Client(HardwareClientBase):
                     msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
                 confirmed, p, pin = self.password_dialog(msg)
                 if not confirmed:
-                    raise UserFacingException('Aborted by user - please unplug the dongle and plug it again before retrying')
+                    raise UserFacingException(_('Aborted by user - please unplug the dongle and plug it again before retrying'))
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
         except BTChipException as e:
             if (e.sw == 0x6faa):
-                raise UserFacingException("Dongle is temporarily locked - please unplug it and replug it again")
+                raise UserFacingException(_('Dongle is temporarily locked - please unplug it and replug it again'))
             if ((e.sw & 0xFFF0) == 0x63c0):
-                raise UserFacingException("Invalid PIN - please unplug the dongle and plug it again before retrying")
+                raise UserFacingException(_('Invalid PIN - please unplug the dongle and plug it again before retrying'))
             if e.sw == 0x6f00 and e.message == 'Invalid channel':
                 # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
-                raise UserFacingException("Invalid channel.\n"
-                                          "Please make sure that 'Browser support' is disabled on your device.")
+                raise UserFacingException(_("Invalid channel.\nPlease make sure that 'Browser support' is disabled on your device."))
             raise e
 
     @runs_in_hwd_thread
@@ -369,7 +368,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
             if txin.is_coinbase_input():
-                self.give_error("Coinbase not supported")     # should never happen
+                self.give_error(_('Coinbase not supported'))     # should never happen
 
             if is_txin_legacy_multisig(txin):
                 p2shTransaction = True
