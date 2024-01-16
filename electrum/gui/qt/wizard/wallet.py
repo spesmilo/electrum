@@ -1413,3 +1413,6 @@ class WCHWUninitialized(WalletWizardComponent):
         label = WWLabel(_('This {} is not initialized. Use manufacturer tooling to initialize the device.').format(_info.model_name))
         label.setAlignment(Qt.AlignCenter)
         self.layout().addWidget(label)
+
+    def apply(self):
+        pass
