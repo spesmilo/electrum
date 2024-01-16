@@ -2697,3 +2697,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg += _("Lightning funds were not received.")
             self.show_error_signal.emit(msg)
 
+    def set_payment_identifier(self, pi: str):
+        # delegate to send_tab
+        self.send_tab.set_payment_identifier(pi)
