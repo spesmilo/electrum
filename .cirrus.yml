@@ -149,8 +149,16 @@ task:
         ELECTRUM_LINTERS_IGNORE: ""
       allow_failures: true
 
+
+# Cron jobs configured in https://cirrus-ci.com/settings/...
+# - job "nightly" on branch "master" at "0 30 2 * * ?"  (every day at 02:30Z)
 task:
   name: "build: Windows"
+  matrix:
+    - trigger_type: manual
+      only_if: $CIRRUS_CRON == ""
+    - trigger_type: automatic
+      only_if: $CIRRUS_CRON == "nightly"
   container:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
@@ -182,6 +190,11 @@ task:
 
 task:
   name: "build: Android (QML $APK_ARCH)"
+  matrix:
+    - trigger_type: manual
+      only_if: $CIRRUS_CRON == ""
+    - trigger_type: automatic
+      only_if: $CIRRUS_CRON == "nightly"
   timeout_in: 90m
   container:
     dockerfile: contrib/android/Dockerfile
@@ -242,6 +255,11 @@ task:
 
 task:
   name: "build: AppImage"
+  matrix:
+    - trigger_type: manual
+      only_if: $CIRRUS_CRON == ""
+    - trigger_type: automatic
+      only_if: $CIRRUS_CRON == "nightly"
   container:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
