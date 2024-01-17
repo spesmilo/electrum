@@ -66,6 +66,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                enabled: !invoiceParser.busy
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
                 onClicked: {
