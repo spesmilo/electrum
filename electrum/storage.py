@@ -54,6 +54,9 @@ class StorageEncryptionVersion(IntEnum):
 class StorageReadWriteError(Exception): pass
 
 
+class StorageOnDiskUnexpectedlyChanged(Exception): pass
+
+
 # TODO: Rename to Storage
 class WalletStorage(Logger):
 
@@ -108,7 +111,8 @@ class WalletStorage(Logger):
         assert not self.is_encrypted()
         with open(self.path, "rb+") as f:
             pos = f.seek(0, os.SEEK_END)
-            assert pos == self.pos, (self.pos, pos)
+            if pos != self.pos:
+                raise StorageOnDiskUnexpectedlyChanged(f"expected size {self.pos}, found {pos}")
             f.write(data.encode("utf-8"))
             self.pos = f.seek(0, os.SEEK_END)
             f.flush()
