@@ -137,6 +137,7 @@ class QEAddressDetails(AuthMixin, QObject):
         assert self.canDelete
         try:
             self._wallet.wallet.delete_address(self._address)
+            self._wallet.historyModel.setDirty()
         except UserFacingException as e:
             self.addressDeleteFailed.emit(str(e))
             return False

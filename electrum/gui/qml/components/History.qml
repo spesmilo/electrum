@@ -150,4 +150,11 @@ Pane {
             listview.positionViewAtBeginning()
         }
     }
+
+    StackView.onVisibleChanged: {
+        // refresh model if History becomes visible and the model is dirty.
+        if (StackView.visible) {
+            Daemon.currentWallet.historyModel.initModel(false)
+        }
+    }
 }
