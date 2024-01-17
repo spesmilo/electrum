@@ -1479,6 +1479,40 @@ class TestWalletSending(ElectrumTestCase):
         tx.version = 2
         self.assertEqual('6b03c00f47cb145ffb632c3ce54dece29b9a980949ef5c574321f7fc83fa2238', tx.txid())
 
+    async def test_bump_fee_fullrbf(self):
+        wallet = self.create_standard_wallet_from_seed('gallery elegant struggle ramp mouse crush divide later maze life asthma crop',
+                                                       config=self.config)
+
+        # bootstrap wallet
+        funding_tx = Transaction('0200000000010134db753b70b109e3b2794029264155ee5848e014523f2f3907ef31851b25192a0000000000fdffffff02a086010000000000160014b518986cf2f8e3832c8b6a123dc7a1c7e446ffba38bb020000000000160014bfbd54bc8f5122583342613ee627553e6b8d858502463043021f533e885dd1f5fdde1c3686d37b34ae6c481cbcb3260aadc4522abd7681a7000220745f5456b42cbe2166437ae2a7652e1a9d7b2646dcb92bf6c30320ad8f86c46d0121021a49a14049ba577a877ed2fce0eb865b448fdd968a55d862be1e36e546cd42db7f432700')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('745b125f426f25bf2a88f4986de9a749df14148ca827ebd3bd6c4ec46bb268f8', funding_txid)
+        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        orig_tx = Transaction('02000000000101f868b26bc44e6cbdd3eb27a88c1414df49a7e96d98f4882abf256f425f125b740000000000feffffff02789b00000000000016001407d3bd97fa803b9ef65b55eb1f7e51da7f88310d60ea000000000000160014ec72d69efd49847d2bc5cc71ee99199d4ae30cc80247304402202984488d2f2c3e2bfba9a4f858c3bdeac753e557682e9b0144a236c5e440eed602200fe7d94d195deef8efddfe8543a2ba79c7d18fd3f0f55a633cbe36c71fac4c5c012102b2a282a8ae615f9299319231ae4a4d61d8673ec782e09b254162abf5845376a582432700')
+        self.assertEqual('bee4b88d69e3707ef1eb7630fbc2d9355126c12d750f5738e260bed52ba7721e', orig_tx.txid())
+        wallet.adb.receive_tx_callback(orig_tx, TX_HEIGHT_UNCONFIRMED)
+        self.assertFalse(orig_tx.is_rbf_enabled())  # note: orig_tx does not signal RBF
+
+        self.config.WALLET_FULLRBF = False
+        with self.assertRaises(CannotBumpFee):
+            tx = wallet.bump_fee(
+                tx=tx_from_any(orig_tx.serialize()),
+                new_fee_rate=60,
+                strategy=BumpFeeStrategy.PRESERVE_PAYMENT,
+            )
+
+        self.config.WALLET_FULLRBF = True
+        tx = wallet.bump_fee(
+            tx=tx_from_any(orig_tx.serialize()),
+            new_fee_rate=60,
+            strategy=BumpFeeStrategy.PRESERVE_PAYMENT,
+        )
+        tx.locktime = 2573187
+        tx.version = 2
+        self.assertEqual('d9e5269786e8a5a83ec82cacbf8449402968b46a963ee76ee86a5bcc2ee4a143', tx.txid())
+        self.assertTrue(tx.is_rbf_enabled())
+
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_cpfp_p2pkh(self, mock_save_db):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean')
