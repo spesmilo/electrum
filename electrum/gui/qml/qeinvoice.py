@@ -337,7 +337,7 @@ class QEInvoice(QObject, QtEventListener):
         self.canPay = False
         self.canSave = False
 
-        if self.invoiceType == QEInvoice.Type.Invalid:
+        if self.invoiceType in [QEInvoice.Type.Invalid, QEInvoice.Type.LNURLPayRequest]:
             return
 
         if not self.amountOverride.isEmpty:
