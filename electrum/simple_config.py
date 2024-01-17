@@ -1173,8 +1173,9 @@ This will result in longer routes; it might increase your fees and decrease the 
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
-    # submarine swap server
+    # connect to remote submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
+    # run submarine swap server locally
     SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
 
