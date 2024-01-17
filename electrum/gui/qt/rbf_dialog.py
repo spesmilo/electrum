@@ -30,13 +30,10 @@ class _BaseRBFDialog(TxEditor):
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
-            txid: str,
             title: str):
 
         self.wallet = main_window.wallet
         self.old_tx = tx
-        assert txid
-        self.old_txid = txid
         self.message = ''
 
         self.old_fee = self.old_tx.get_fee()
@@ -58,7 +55,7 @@ class _BaseRBFDialog(TxEditor):
     def create_grid(self):
         self.method_label = QLabel(_('Method') + ':')
         self.method_combo = QComboBox()
-        self._strategies, def_strat_idx = self.wallet.get_bumpfee_strategies_for_tx(tx=self.old_tx, txid=self.old_txid)
+        self._strategies, def_strat_idx = self.wallet.get_bumpfee_strategies_for_tx(tx=self.old_tx)
         self.method_combo.addItems([strat.text() for strat in self._strategies])
         self.method_combo.setCurrentIndex(def_strat_idx)
         self.method_combo.currentIndexChanged.connect(self.trigger_update)
@@ -140,18 +137,16 @@ class BumpFeeDialog(_BaseRBFDialog):
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
-            txid: str):
+    ):
         _BaseRBFDialog.__init__(
             self,
             main_window=main_window,
             tx=tx,
-            txid=txid,
             title=_('Bump Fee'))
 
     def rbf_func(self, fee_rate, *, confirmed_only=False):
         return self.wallet.bump_fee(
             tx=self.old_tx,
-            txid=self.old_txid,
             new_fee_rate=fee_rate,
             coins=self.main_window.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
             strategy=self._strategies[self.method_combo.currentIndex()],
@@ -169,12 +164,11 @@ class DSCancelDialog(_BaseRBFDialog):
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
-            txid: str):
+    ):
         _BaseRBFDialog.__init__(
             self,
             main_window=main_window,
             tx=tx,
-            txid=txid,
             title=_('Cancel transaction'))
         self.method_label.setVisible(False)
         self.method_combo.setVisible(False)

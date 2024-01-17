@@ -1243,7 +1243,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoices(self, path):
         write_json_file(path, list(self._invoices.values()))
 
-    def get_relevant_invoices_for_tx(self, tx_hash) -> Sequence[Invoice]:
+    def get_relevant_invoices_for_tx(self, tx_hash: Optional[str]) -> Sequence[Invoice]:
+        if not tx_hash:
+            return []
         invoice_keys = self._invoices_from_txid_map.get(tx_hash, set())
         invoices = [self.get_invoice(key) for key in invoice_keys]
         invoices = [inv for inv in invoices if inv]  # filter out None
@@ -2042,15 +2044,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self,
         *,
         tx: Transaction,
-        txid: str = None,
     ) -> Tuple[Sequence[BumpFeeStrategy], int]:
         """Returns tuple(list of available strategies, idx of recommended option among those)."""
-        txid = txid or tx.txid()
-        assert txid
-        assert tx.txid() in (None, txid)
         all_strats = BumpFeeStrategy.all()
         # are we paying max?
-        invoices = self.get_relevant_invoices_for_tx(txid)
+        invoices = self.get_relevant_invoices_for_tx(tx.txid())
         if len(invoices) == 1 and len(invoices[0].outputs) == 1:
             if invoices[0].outputs[0].value == '!':
                 return all_strats, all_strats.index(BumpFeeStrategy.DECREASE_PAYMENT)
@@ -2064,7 +2062,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self,
             *,
             tx: Transaction,
-            txid: str = None,
             new_fee_rate: Union[int, float, Decimal],
             coins: Sequence[PartialTxInput] = None,
             strategy: BumpFeeStrategy = BumpFeeStrategy.PRESERVE_PAYMENT,
@@ -2076,9 +2073,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         note: it is the caller's responsibility to have already called tx.add_info_from_network().
               Without that, all txins must be ismine.
         """
-        txid = txid or tx.txid()
-        assert txid
-        assert tx.txid() in (None, txid)
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
@@ -2102,7 +2096,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             try:
                 tx_new = self._bump_fee_through_coinchooser(
                     tx=tx,
-                    txid=txid,
                     new_fee_rate=new_fee_rate,
                     coins=coins,
                 )
@@ -2131,7 +2124,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self,
             *,
             tx: PartialTransaction,
-            txid: str,
             new_fee_rate: Union[int, Decimal],
             coins: Sequence[PartialTxInput] = None,
     ) -> PartialTransaction:
@@ -2141,7 +2133,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         - keeps all not is_mine outputs,
         - allows adding new inputs
         """
-        assert txid
         tx = copy.deepcopy(tx)
         tx.add_info_from_wallet(self)
         assert tx.get_fee() is not None
@@ -2170,7 +2161,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if coins is None:
             coins = self.get_spendable_coins(None)
         # make sure we don't try to spend output from the tx-to-be-replaced:
-        coins = [c for c in coins if c.prevout.txid.hex() != txid]
+        coins = [c for c in coins
+                 if c.prevout.txid.hex() not in self.adb.get_conflicting_transactions(tx, include_self=True)]
         for item in coins:
             self.add_input_info(item)
         def fee_estimator(size):

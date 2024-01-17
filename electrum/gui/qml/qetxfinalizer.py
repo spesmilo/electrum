@@ -543,7 +543,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._orig_tx = self._wallet.wallet.db.get_transaction(self._txid)
         assert self._orig_tx
 
-        strategies, def_strat_idx = self._wallet.wallet.get_bumpfee_strategies_for_tx(tx=self._orig_tx, txid=self._txid)
+        strategies, def_strat_idx = self._wallet.wallet.get_bumpfee_strategies_for_tx(tx=self._orig_tx)
         self._bump_methods_available = [{'value': strat.name, 'text': strat.text()} for strat in strategies]
         self.bumpMethodsAvailableChanged.emit()
         self.bumpMethod = strategies[def_strat_idx].name
@@ -581,7 +581,6 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         try:
             self._tx = self._wallet.wallet.bump_fee(
                 tx=self._orig_tx,
-                txid=self._txid,
                 new_fee_rate=new_fee_rate,
                 strategy=BumpFeeStrategy[self._bump_method],
             )

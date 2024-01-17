@@ -817,7 +817,6 @@ class Commands:
         await tx.add_info_from_network(self.network)
         new_tx = wallet.bump_fee(
             tx=tx,
-            txid=tx.txid(),
             coins=coins,
             strategy=BumpFeeStrategy.DECREASE_PAYMENT if decrease_payment else BumpFeeStrategy.PRESERVE_PAYMENT,
             new_fee_rate=new_fee_rate)
