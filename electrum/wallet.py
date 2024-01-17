@@ -834,8 +834,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_lightning_funding_tx(self, txid: Optional[str]) -> bool:
         if not self.lnworker or txid is None:
             return False
-        return any([chan.funding_outpoint.txid == txid
-                    for chan in self.lnworker.channels.values()])
+        if any([chan.funding_outpoint.txid == txid
+                for chan in self.lnworker.channels.values()]):
+            return True
+        if any([chan.funding_outpoint.txid == txid
+                for chan in self.lnworker.channel_backups.values()]):
+            return True
+        return False
 
     def get_swap_by_claim_tx(self, tx: Transaction) -> bool:
         return self.lnworker.swap_manager.get_swap_by_claim_tx(tx) if self.lnworker else None
