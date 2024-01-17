@@ -838,7 +838,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             locktime_final_str = f"LockTime: {self.tx.locktime} ({datetime.datetime.fromtimestamp(self.tx.locktime)})"
         self.locktime_final_label.setText(locktime_final_str)
 
-        self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
+        self.rbf_label.setText(_('Replace by fee') + f": {self.tx.is_rbf_enabled()}")
 
         if tx_mined_status.header_hash:
             self.block_height_label.setText(_("At block height: {}")

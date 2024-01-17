@@ -922,8 +922,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
-                    can_dscancel = (is_any_input_ismine and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and tx.is_rbf_enabled()
+                    can_dscancel = (is_any_input_ismine and tx.is_rbf_enabled()
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                     try:
                         self.cpfp(tx, 0)
@@ -937,7 +937,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         num_blocks_remainining = max(0, num_blocks_remainining)
                         status = _('Local (future: {})').format(_('in {} blocks').format(num_blocks_remainining))
                     can_broadcast = self.network is not None
-                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and tx.is_rbf_enabled()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -1650,7 +1650,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = self.db.get_transaction(tx_hash)
             if not tx:
                 return 2, _("unknown")
-            is_final = tx and tx.is_final()
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
@@ -1713,7 +1712,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.is_lightning_funding_tx(txid):
                 continue
             # tx must have opted-in for RBF (even if local, for consistency)
-            if tx.is_final():
+            if not tx.is_rbf_enabled():
                 continue
             # reject merge if we need to spend outputs from the base tx
             remaining_amount = sum(c.value_sats() for c in coins if c.prevout.txid.hex() != tx.txid())
@@ -2079,7 +2078,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
         tx.remove_signatures()
-        if tx.is_final():
+        if not tx.is_rbf_enabled():
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
@@ -2344,7 +2343,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert isinstance(tx, PartialTransaction)
         tx.remove_signatures()
 
-        if tx.is_final():
+        if not tx.is_rbf_enabled():
             raise CannotDoubleSpendTx(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)

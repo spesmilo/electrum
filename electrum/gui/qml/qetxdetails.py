@@ -55,7 +55,7 @@ class QETxDetails(QObject, QtEventListener):
         self._is_unrelated = False
         self._is_complete = False
         self._is_mined = False
-        self._is_final = False
+        self._is_rbf_enabled = False
         self._lock_delay = 0
         self._sighash_danger = TxSighashDanger()
 
@@ -244,8 +244,8 @@ class QETxDetails(QObject, QtEventListener):
         return self._is_complete
 
     @pyqtProperty(bool, notify=detailsChanged)
-    def isFinal(self):
-        return self._is_final
+    def isRbfEnabled(self):
+        return self._is_rbf_enabled
 
     @pyqtProperty(int, notify=detailsChanged)
     def lockDelay(self):
@@ -339,7 +339,7 @@ class QETxDetails(QObject, QtEventListener):
                 self._lnamount.satsInt = 0
 
         self._is_complete = self._tx.is_complete()
-        self._is_final = self._tx.is_final()
+        self._is_rbf_enabled = self._tx.is_rbf_enabled()
         self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_broadcast = txinfo.can_broadcast
