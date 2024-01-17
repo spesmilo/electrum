@@ -2073,6 +2073,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         note: it is the caller's responsibility to have already called tx.add_info_from_network().
               Without that, all txins must be ismine.
         """
+        assert tx
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
@@ -2300,6 +2301,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return True
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
+        assert tx
         txid = tx.txid()
         for i, o in enumerate(tx.outputs()):
             address, value = o.address, o.value
@@ -2335,6 +2337,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         note: it is the caller's responsibility to have already called tx.add_info_from_network().
               Without that, all txins must be ismine.
         """
+        assert tx
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)

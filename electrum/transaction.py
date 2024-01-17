@@ -1858,6 +1858,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
+        assert tx
         res = cls()
         res._inputs = [PartialTxInput.from_txin(txin, strip_witness=True)
                        for txin in tx.inputs()]
