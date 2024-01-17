@@ -195,6 +195,8 @@ assert PW_HASH_VERSION_LATEST in SUPPORTED_PW_HASH_VERSIONS
 
 class UnexpectedPasswordHashVersion(InvalidPassword, WalletFileException):
     def __init__(self, version):
+        InvalidPassword.__init__(self)
+        WalletFileException.__init__(self)
         self.version = version
 
     def __str__(self):
@@ -206,6 +208,8 @@ class UnexpectedPasswordHashVersion(InvalidPassword, WalletFileException):
 
 class UnsupportedPasswordHashVersion(InvalidPassword, WalletFileException):
     def __init__(self, version):
+        InvalidPassword.__init__(self)
+        WalletFileException.__init__(self)
         self.version = version
 
     def __str__(self):
