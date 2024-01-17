@@ -89,16 +89,18 @@ class MyMenu(QMenu):
         configvar: 'ConfigVarWithConfig',
         *,
         callback=None,
+        checked: Optional[bool] = None,  # to override initial state of checkbox
         short_desc: Optional[str] = None,
     ) -> QAction:
         assert isinstance(configvar, ConfigVarWithConfig), configvar
         if short_desc is None:
             short_desc = configvar.get_short_desc()
             assert short_desc is not None, f"short_desc missing for {configvar}"
-        b = configvar.get()
+        if checked is None:
+            checked = bool(configvar.get())
         m = self.addAction(short_desc, lambda: self._do_toggle_config(configvar, callback=callback))
         m.setCheckable(True)
-        m.setChecked(bool(b))
+        m.setChecked(checked)
         if (long_desc := configvar.get_long_desc()) is not None:
             m.setToolTip(messages.to_rtf(long_desc))
         return m

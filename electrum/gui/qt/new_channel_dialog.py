@@ -37,6 +37,7 @@ class NewChannelDialog(WindowModalDialog):
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
             self.config.cv.LIGHTNING_USE_RECOVERABLE_CHANNELS,
+            checked=self.lnworker.has_recoverable_channels(),
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
         msg = _('Choose a remote node and an amount to fund the channel.')
