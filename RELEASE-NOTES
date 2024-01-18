@@ -1,3 +1,24 @@
+# Release 4.5.1 (January 19, 2024)
+ * Lightning:
+   - fix: MPP regression when using gossip that made paying small invoices fail (95c55c542)
+   - fix: better handle dataloss (#8814)
+     - allow manually requesting force-close in WE_ARE_TOXIC state
+     - fix some timing issues
+ * General:
+   - localization: never translate CLI/RPC (0e5a1380)
+   - localization: simplify how default language is chosen (0e5a1380)
+ * QML GUI (Android):
+   - min-sdk in manifest now 23 (android 6+)
+   - properly refresh history if addresses are deleted from imported wallets (#8782)
+   - fix crash when LNURLp is scanned/pasted (#8822)
+   - fix crash for new wallets having cosigner using hww #8808)
+   - fix crash in finalizer when txid is undefined (#8807)
+   - various UI fixes (291f0ce, 3d9996a, ec81f00)
+ * Qt Desktop GUI:
+   - also support unfinished wallets when opened through File>Open (#8809)
+   - fix handler for OpenFileEventFilter (6a28ef5)
+
+
 # Release 4.5.0 (January 12, 2024)
  * General:
    - remove SSL options from config (012ce1c)
