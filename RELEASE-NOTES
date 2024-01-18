@@ -8,7 +8,8 @@
    - localization: never translate CLI/RPC (0e5a1380)
    - localization: simplify how default language is chosen (0e5a1380)
  * QML GUI (Android):
-   - min-sdk in manifest now 23 (android 6+)
+   - bump min required android version from android 5.0 to 6.0 (#8761)
+     (older versions have not been working in practice since at least 4.4.0)
    - properly refresh history if addresses are deleted from imported wallets (#8782)
    - fix crash when LNURLp is scanned/pasted (#8822)
    - fix crash for new wallets having cosigner using hww #8808)
