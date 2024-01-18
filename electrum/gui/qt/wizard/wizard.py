@@ -113,12 +113,12 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         QTimer.singleShot(40, self.strt)
 
         # TODO: re-test if needed on macOS
-        # self.refresh_gui()  # Need for QT on MacOSX.  Lame.
+        self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    # def refresh_gui(self):
-    #     # For some reason, to refresh the GUI this needs to be called twice
-    #     self.app.processEvents()
-    #     self.app.processEvents()
+    def refresh_gui(self):
+        # For some reason, to refresh the GUI this needs to be called twice
+        self.app.processEvents()
+        self.app.processEvents()
 
     def sizeHint(self) -> QSize:
         return QSize(600, 400)
