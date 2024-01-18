@@ -1474,7 +1474,7 @@ class LNWallet(LNWorker):
     async def pay_invoice(
             self, invoice: str, *,
             amount_msat: int = None,
-            attempts: int = None,  # used only in unit tests (and for swaps?!)
+            attempts: int = None,  # used only in unit tests
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
