@@ -3,7 +3,7 @@ import threading
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize, QMetaObject
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout)
@@ -110,11 +110,12 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.show()
         self.raise_()
 
-        QTimer.singleShot(40, self.strt)
+        QMetaObject.invokeMethod(self, 'strt', Qt.QueuedConnection)  # call strt after subclass constructor(s)
 
     def sizeHint(self) -> QSize:
         return QSize(600, 400)
 
+    @pyqtSlot()
     def strt(self):
         if self.start_viewstate is not None:
             viewstate = self._current = self.start_viewstate
