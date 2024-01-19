@@ -38,7 +38,7 @@ from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
 
 from .util import ColorScheme, MONOSPACE_FONT, EnterButton
-from .my_treeview import MyTreeView
+from .my_treeview import MyTreeView, MySortModel
 from .new_channel_dialog import NewChannelDialog
 from ..messages import MSG_FREEZE_ADDRESS, MSG_FREEZE_COIN
 
@@ -68,6 +68,7 @@ class UTXOList(MyTreeView):
     stretch_column = Columns.LABEL
 
     ROLE_PREVOUT_STR = Qt.UserRole + 1000
+    ROLE_SORT_ORDER = Qt.UserRole + 1001
     key_role = ROLE_PREVOUT_STR
 
     def __init__(self, main_window: 'ElectrumWindow'):
@@ -80,6 +81,9 @@ class UTXOList(MyTreeView):
         self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
         self.setModel(self.std_model)
+        self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
 
@@ -92,11 +96,11 @@ class UTXOList(MyTreeView):
     @profiler(min_threshold=0.05)
     def update(self):
         # not calling maybe_defer_update() as it interferes with coincontrol status bar
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
-        utxos.sort(key=lambda x: x.block_height, reverse=True)
         self._maybe_reset_coincontrol(utxos)
         self._utxo_dict = {}
-        self.model().clear()
+        self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, utxo in enumerate(utxos):
             name = utxo.prevout.to_str()
@@ -117,9 +121,11 @@ class UTXOList(MyTreeView):
             utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.PARENTS].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
-            self.model().insertRow(idx, utxo_item)
+            self.std_model.insertRow(idx, utxo_item)
             self.refresh_row(name, idx)
         self.filter()
+        self.proxy.setDynamicSortFilter(True)
+        self.sortByColumn(self.Columns.OUTPOINT, Qt.DescendingOrder)
         self.update_coincontrol_bar()
         self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
 
@@ -144,6 +150,8 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.PARENTS].setText('%6s'%num_parents if num_parents else '-')
         label = self.wallet.get_label_for_txid(txid) or ''
         utxo_item[self.Columns.LABEL].setText(label)
+        block_height_sort_key = self.wallet.adb.tx_height_to_sort_height(utxo.block_height)
+        utxo_item[self.Columns.OUTPOINT].setData(block_height_sort_key, self.ROLE_SORT_ORDER)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if key in self._spend_set:
             tooltip = key + "\n" + SELECTED_TO_SPEND_TOOLTIP
