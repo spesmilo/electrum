@@ -80,7 +80,6 @@ class UTXOList(MyTreeView):
         self._utxo_dict = {}
         self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
-        self.setModel(self.std_model)
         self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
