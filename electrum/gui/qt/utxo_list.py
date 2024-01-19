@@ -149,8 +149,11 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.PARENTS].setText('%6s'%num_parents if num_parents else '-')
         label = self.wallet.get_label_for_txid(txid) or ''
         utxo_item[self.Columns.LABEL].setText(label)
-        block_height_sort_key = self.wallet.adb.tx_height_to_sort_height(utxo.block_height)
-        utxo_item[self.Columns.OUTPOINT].setData(block_height_sort_key, self.ROLE_SORT_ORDER)
+        sort_key = (
+            self.wallet.adb.tx_height_to_sort_height(utxo.block_height),  # sort by block height
+            str(utxo.short_id),                                           # order inside block (if mined), or just txid
+        )
+        utxo_item[self.Columns.OUTPOINT].setData(sort_key, self.ROLE_SORT_ORDER)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if key in self._spend_set:
             tooltip = key + "\n" + SELECTED_TO_SPEND_TOOLTIP
