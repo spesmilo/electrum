@@ -860,6 +860,7 @@ class AddressSynchronizer(Logger, EventListener):
                     excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
         """Return the balance of a set of addresses:
         confirmed and matured, unconfirmed, unmatured
+        Note: intended for display-purposes. would need extreme care for "has enough funds" checks (see #8835)
         """
         if excluded_addresses is None:
             excluded_addresses = set()
