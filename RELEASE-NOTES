@@ -1,3 +1,8 @@
+# Release 4.5.2 (January 20, 2024)
+ * Qt Desktop GUI:
+   - fix crash during startup/wizard-open (#8833)
+
+
 # Release 4.5.1 (January 19, 2024)
  * Lightning:
    - fix: MPP regression when using gossip that made paying small invoices fail (95c55c542)
