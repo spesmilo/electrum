@@ -209,10 +209,11 @@ class Mnemonic(Logger):
         bpw = math.log(len(self.wordlist), 2)
         num_bits = int(math.ceil(num_bits/bpw) * bpw)
         self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
+        # generate random
         entropy = 1
-        while entropy < pow(2, num_bits - bpw):
-            # try again if seed would not contain enough words
+        while entropy < pow(2, num_bits - bpw):  # try again if seed would not contain enough words
             entropy = randrange(pow(2, num_bits))
+        # brute-force seed that has correct "version number"
         nonce = 0
         while True:
             nonce += 1
