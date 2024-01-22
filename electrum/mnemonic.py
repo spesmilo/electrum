@@ -27,7 +27,7 @@ import math
 import hashlib
 import unicodedata
 import string
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Iterator, Optional
 from types import MappingProxyType
 
 from .util import resource_path, bfh, randrange
@@ -69,10 +69,11 @@ CJK_INTERVALS = [
     (0xA490, 0xA4CF, 'Yi Radicals'),
 ]
 
-def is_CJK(c):
+def is_CJK(c: str) -> bool:
     n = ord(c)
-    for imin,imax,name in CJK_INTERVALS:
-        if n>=imin and n<=imax: return True
+    for imin, imax, name in CJK_INTERVALS:
+        if imin <= n <= imax:
+            return True
     return False
 
 
@@ -110,13 +111,13 @@ class Wordlist(tuple):
         index_from_word = {w: i for i, w in enumerate(words)}
         self._index_from_word = MappingProxyType(index_from_word)  # no mutation
 
-    def index(self, word, start=None, stop=None) -> int:
+    def index(self, word: str, start=None, stop=None) -> int:
         try:
             return self._index_from_word[word]
         except KeyError as e:
             raise ValueError from e
 
-    def __contains__(self, word) -> bool:
+    def __contains__(self, word: str) -> bool:
         try:
             self.index(word)
         except ValueError:
@@ -125,7 +126,7 @@ class Wordlist(tuple):
             return True
 
     @classmethod
-    def from_file(cls, filename) -> 'Wordlist':
+    def from_file(cls, filename: str) -> 'Wordlist':
         path = resource_path('wordlist', filename)
         if path not in _WORDLIST_CACHE:
             with open(path, 'r', encoding='utf-8') as f:
@@ -157,7 +158,7 @@ class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang=None):
+    def __init__(self, lang: str = None):
         Logger.__init__(self)
         lang = lang or 'en'
         self.logger.info(f'language {lang}')
@@ -166,28 +167,28 @@ class Mnemonic(Logger):
         self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
-    def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
+    def mnemonic_to_seed(cls, mnemonic: str, *, passphrase: Optional[str]) -> bytes:
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
         passphrase = passphrase or ''
         passphrase = normalize_text(passphrase)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
-    def mnemonic_encode(self, i):
+    def mnemonic_encode(self, i: int) -> str:
         n = len(self.wordlist)
         words = []
         while i:
-            x = i%n
+            x = i % n
             i = i//n
             words.append(self.wordlist[x])
         return ' '.join(words)
 
-    def get_suggestions(self, prefix):
+    def get_suggestions(self, prefix: str) -> Iterator[str]:
         for w in self.wordlist:
             if w.startswith(prefix):
                 yield w
 
-    def mnemonic_decode(self, seed):
+    def mnemonic_decode(self, seed: str) -> int:
         n = len(self.wordlist)
         words = seed.split()
         i = 0
@@ -197,7 +198,7 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, *, seed_type=None, num_bits=None) -> str:
+    def make_seed(self, *, seed_type: str = None, num_bits: int = None) -> str:
         from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'

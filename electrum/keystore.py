@@ -1159,7 +1159,7 @@ def from_seed(seed, passphrase, is_p2sh=False):
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
-        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase=passphrase)
         if t == 'standard':
             der = "m/"
             xtype = 'standard'

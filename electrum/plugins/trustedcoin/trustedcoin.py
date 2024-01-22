@@ -548,7 +548,7 @@ class TrustedCoinPlugin(BasePlugin):
     def get_xkeys(self, seed, t, passphrase, derivation):
         assert is_any_2fa_seed_type(t)
         xtype = 'standard' if t == '2fa' else 'p2wsh'
-        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase=passphrase)
         rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
         child_node = rootnode.subkey_at_private_derivation(derivation)
         return child_node.to_xprv(), child_node.to_xpub()
