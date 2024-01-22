@@ -353,10 +353,12 @@ class Commands:
             cv.set(value)
 
     @command('')
-    async def make_seed(self, nbits=None, language=None, seed_type=None):
+    async def make_seed(self, nbits=None, language=None, seed_type=None, extra_entropy: str = None):
         """Create a seed"""
+        if extra_entropy is not None:
+            extra_entropy = extra_entropy.encode("utf-8")
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
+        s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits, extra_entropy=extra_entropy)
         return s
 
     @command('n')
@@ -1437,6 +1439,7 @@ command_options = {
     'from_coins':  (None, "Source coins (must be in wallet; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
+    'extra_entropy': (None, "Arbitrary string used as additional entropy"),
     'seed_type':   (None, "The type of seed to create, e.g. 'standard' or 'segwit'"),
     'language':    ("-L", "Default language for wordlist"),
     'passphrase':  (None, "Seed extension"),
