@@ -338,7 +338,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     billingInfoChanged = pyqtSignal()
     @pyqtProperty('QVariantMap', notify=billingInfoChanged)
     def billingInfo(self):
-        return {} if self.wallet.wallet_type != '2fa' else self.wallet.billing_info
+        if self.wallet.wallet_type != '2fa':
+            return {}
+        return self.wallet.billing_info if self.wallet.billing_info is not None else {}
 
     @pyqtProperty(bool, notify=dataChanged)
     def canHaveLightning(self):
