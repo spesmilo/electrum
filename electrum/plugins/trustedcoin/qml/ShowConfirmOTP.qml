@@ -113,7 +113,7 @@ WizardComponent {
 
     Component.onCompleted: {
         plugin = AppController.plugin('trustedcoin')
-        plugin.createKeystore(wizard_data['2fa_email'])
+        plugin.createKeystore()
         otp_auth.forceActiveFocus()
     }
 

@@ -127,7 +127,7 @@ class TrustedcoinPluginQObject(PluginQObject):
         t.daemon = True
         t.start()
 
-    @pyqtSlot(str)
+    @pyqtSlot()
     def createKeystore(self):
         email = 'dummy@electrum.org'
 
