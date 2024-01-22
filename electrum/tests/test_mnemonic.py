@@ -122,10 +122,16 @@ class Test_NewMnemonic(ElectrumTestCase):
     def test_random_seeds(self):
         iters = 10
         m = mnemonic.Mnemonic(lang='en')
+        pool = set()
         for _ in range(iters):
             seed = m.make_seed(seed_type="standard")
-            i = m.mnemonic_decode(seed)
-            self.assertEqual(m.mnemonic_encode(i), seed)
+            pool.add(seed)
+            with self.subTest(seed=seed, msg="decode-encode"):
+                i = m.mnemonic_decode(seed)
+                self.assertEqual(m.mnemonic_encode(i), seed)
+            with self.subTest(seed=seed, msg="num-words"):
+                self.assertTrue(12 <= len(seed.split()) <= 13)
+        self.assertEqual(iters, len(pool))
 
 
 class Test_OldMnemonic(ElectrumTestCase):
