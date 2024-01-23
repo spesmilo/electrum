@@ -140,6 +140,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
         self.multiline = False
 
         self._is_paytomany = False
+        self.line_edit.setFont(QFont(MONOSPACE_FONT))
         self.text_edit.setFont(QFont(MONOSPACE_FONT))
         self.send_tab = send_tab
         self.config = send_tab.config
