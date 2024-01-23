@@ -228,8 +228,7 @@ class JsonDB(Logger):
         if self.storage and self.storage.file_exists():
             self.write_and_force_consolidation()
 
-    def load_data(self, s:str) -> dict:
-        """ overloaded in wallet_db """
+    def load_data(self, s: str) -> dict:
         if s == '':
             return {}
         try:

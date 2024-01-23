@@ -49,6 +49,9 @@ from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
 
+if TYPE_CHECKING:
+    from .storage import WalletStorage
+
 
 class WalletRequiresUpgrade(WalletFileException):
     pass
@@ -1204,7 +1207,7 @@ class WalletDBUpgrader(Logger):
         raise WalletFileException(msg)
 
 
-def upgrade_wallet_db(data: dict, do_upgrade) -> Tuple[dict, bool]:
+def upgrade_wallet_db(data: dict, do_upgrade: bool) -> Tuple[dict, bool]:
     was_upgraded = False
 
     if len(data) == 0:
@@ -1232,7 +1235,13 @@ def upgrade_wallet_db(data: dict, do_upgrade) -> Tuple[dict, bool]:
 
 class WalletDB(JsonDB):
 
-    def __init__(self, s, *, storage=None, upgrade=False):
+    def __init__(
+        self,
+        s: str,
+        *,
+        storage: Optional['WalletStorage'] = None,
+        upgrade: bool = False,
+    ):
         JsonDB.__init__(self, s, storage, encoder=MyEncoder, upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade))
         # create pointers
         self.load_transactions()
@@ -1648,9 +1657,6 @@ class WalletDB(JsonDB):
         if key in multisig_keystore_names:
             return False
         return True
-
-    def is_ready_to_be_used_by_wallet(self):
-        return not self._requires_upgrade
 
     @classmethod
     def split_accounts(klass, root_path, split_data):
