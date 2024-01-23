@@ -8,7 +8,10 @@ import getpass
 from typing import TYPE_CHECKING, Optional
 
 # 3rd-party dependency:
-import pyperclip
+try:
+    import pyperclip
+except ImportError:  # only use vendored lib as fallback, to allow Linux distros to bring their own
+    from electrum._vendor import pyperclip
 
 import electrum
 from electrum.gui import BaseElectrumGui
