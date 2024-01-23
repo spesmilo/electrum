@@ -5,9 +5,10 @@ import datetime
 import locale
 from decimal import Decimal
 import getpass
-import logging
-import pyperclip
 from typing import TYPE_CHECKING, Optional
+
+# 3rd-party dependency:
+import pyperclip
 
 import electrum
 from electrum.gui import BaseElectrumGui
@@ -22,7 +23,6 @@ from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import ServerAddr
 from electrum.invoices import Invoice
-from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -31,6 +31,12 @@ if TYPE_CHECKING:
 
 
 _ = lambda x:x  # i18n
+
+
+# ascii key codes
+KEY_BACKSPACE = 8
+KEY_ESC = 27
+KEY_DELETE = 127
 
 
 def parse_bip21(text):
@@ -233,9 +239,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.str_recv_description = self.edit_str(self.str_recv_description, c)
         elif self.pos == 1:
             self.str_recv_amount = self.edit_str(self.str_recv_amount, c)
-        elif self.pos in self.buttons and c == 10:
+        elif self.pos in self.buttons and c == ord("\n"):
             self.buttons[self.pos]()
-        elif self.pos >= 5 and c == 10:
+        elif self.pos >= 5 and c == ord("\n"):
             key = self.requests[self.pos - 5]
             self.show_request(key)
 
@@ -434,7 +440,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if self.need_update and redraw:
                 self.update()
             if self.tab == -1:
-                return 27
+                return KEY_ESC
 
     def main_command(self):
         c = self.getch(redraw=True)
@@ -443,7 +449,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.tab = (self.tab + 1)%self.num_tabs
         elif c == curses.KEY_LEFT:
             self.tab = (self.tab - 1)%self.num_tabs
-        elif c in [curses.KEY_DOWN, 9]:
+        elif c in [curses.KEY_DOWN, ord("\t")]:
             self.increase_cursor(1)
         elif c == curses.KEY_UP:
             self.increase_cursor(-1)
@@ -466,7 +472,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
     def run_history_tab(self, c):
         # Get txid from cursor position
-        if c == 10:
+        if c == ord("\n"):
             out = self.run_popup('', ['Transaction ID:', self.txid[self.pos]])
 
     def edit_str(self, target, c, is_num=False):
@@ -474,7 +480,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             target = ''
         # detect backspace
         cc = curses.unctrl(c).decode()
-        if c in [8, 127, 263] and target:
+        if c in [KEY_BACKSPACE, KEY_DELETE, curses.KEY_BACKSPACE] and target:
             target = target[:-1]
         elif not is_num or cc in '0123456789.':
             target += cc
@@ -488,13 +494,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.str_description = self.edit_str(self.str_description, c)
         elif self.pos == 2:
             self.str_amount = self.edit_str(self.str_amount, c, True)
-        elif self.pos in self.buttons and c == 10:
+        elif self.pos in self.buttons and c == ord("\n"):
             self.buttons[self.pos]()
-        elif self.pos >= 7 and c == 10:
+        elif self.pos >= 7 and c == ord("\n"):
             self.show_invoice_menu()
 
     def run_contacts_tab(self, c):
-        if c == 10 and self.contacts:
+        if c == ord("\n") and self.contacts:
             out = self.run_popup('Address', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
             key = list(self.contacts.keys())[self.pos%len(self.contacts.keys())]
             if out == "Pay to":
@@ -513,7 +519,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def run_channels_tab(self, c):
-        if c == 10:
+        if c == ord("\n"):
             out = self.run_popup('Channel Details', ['Short channel ID:', self.channel_ids[self.pos]])
 
     def run_banner_tab(self, c):
@@ -811,7 +817,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             w.refresh()
 
             c = self.getch()
-            if c in [ord('q'), 27]:
+            if c in [ord('q'), KEY_ESC]:
                 break
             elif c in [curses.KEY_LEFT, curses.KEY_UP]:
                 self.popup_pos -= 1
@@ -819,7 +825,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 self.popup_pos +=1
             else:
                 i = self.popup_pos%numpos
-                if buttons and c==10:
+                if buttons and c == ord("\n"):
                     if i == numpos-2:
                         return out
                     elif i == numpos -1:
@@ -906,9 +912,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             c = self.getch()
             if c in [curses.KEY_UP]:
                 pos -= 1
-            elif c in [curses.KEY_DOWN, 9]:
-                pos +=1
-            elif c == 10:
+            elif c in [curses.KEY_DOWN, ord("\t")]:
+                pos += 1
+            elif c == ord("\n"):
                 if pos in [0,1,2]:
                     pyperclip.copy(text)
                     self.show_message('Text copied to clipboard')
