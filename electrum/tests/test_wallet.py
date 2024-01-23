@@ -17,7 +17,11 @@ from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
+from electrum import util
 from electrum.daemon import Daemon
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
+from electrum.transaction import tx_from_any
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 from . import ElectrumTestCase
 
@@ -111,6 +115,32 @@ class TestWalletStorage(WalletTestCase):
         self.assertTrue('03bf450797034dc95693096e575e3b3db14e5f074679b349b727f90fc7804ce7ab' in wallet.keystore.keypairs)
         self.assertTrue('030dac677b9484e23db6f9255eddf433f4f12c02f9b35e0100f2f103ffbccf540f' in wallet.keystore.keypairs)
         self.assertTrue('02f11d5f222a728fd08226cb5a1e85a74d58fc257bd3764bf1234346f91defed72' in wallet.keystore.keypairs)
+
+    async def test_storage_prevouts_by_scripthash_persistence(self):
+        text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
+        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=2, config=self.config)
+        wallet1 = d['wallet']  # type: Standard_Wallet
+        # create payreq
+        addr = wallet1.get_unused_address()
+        self.assertEqual("1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf", addr)
+        pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
+        pr = wallet1.get_request(pr_key)
+        self.assertIsNotNone(pr)
+        self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
+        await wallet1.stop()
+
+        # open the wallet anew again, and get paid onchain
+        del wallet1
+        wallet1 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        tx = tx_from_any("02000000000101a97a9ae7fb1a9220fdd170a974987ac24631dcff89b60fa4907c78c3639994db0000000000fdffffff0210270000000000001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac20491e0000000000160014b8e4fdc91593b67de2bf214694ef47e38dc2ee8e02473044022005326882904906cfa9c1de75333ace1019596f2ab25d21118220d037dfc0e48b02207d0b3f075cfe5e1e0247ff3cdd7155dc05e7459daf1bfa0ea02e9112b9151ec90121026cc6a74c2b0e38661d341ffae48fe7dde5196ca4afe95d28b496673fa4cf646700000000")
+        wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
+        await wallet1.stop()
+
+        # open the wallet anew again, and verify payreq is still paid
+        del wallet1
+        wallet1 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
 
 
 class FakeExchange(ExchangeBase):
