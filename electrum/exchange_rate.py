@@ -33,7 +33,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0,
                   # Cryptocurrencies
-                  'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,
+                  'BTC': 8, 'LTC': 6, 'XRP': 4, 'ETH': 8,
                   }
 
 SPOT_RATE_REFRESH_TARGET = 150      # approx. every 2.5 minutes, try to refresh spot price
