@@ -159,6 +159,9 @@ class StoredDict(dict):
         # convert lists
         if isinstance(v, list):
             v = StoredList(v, self.db, self.path + [key])
+        # reject sets. they do not work well with jsonpatch
+        if isinstance(v, set):
+            raise Exception(f"Do not store sets inside jsondb. path={self.path!r}")
         # set item
         dict.__setitem__(self, key, v)
         if self.db and patch:
