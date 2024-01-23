@@ -30,7 +30,7 @@ ElDialog {
     function updateAmountText() {
         btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
         fiatValue.text = Daemon.fx.enabled
-            ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+            ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
             : ''
     }
 
@@ -57,119 +57,82 @@ ElDialog {
 
                 Label {
                     id: amountLabel
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: implicitWidth
+                    Layout.columnSpan: 2
                     text: qsTr('Amount to send')
                     color: Material.accentColor
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label {
-                        id: btcValue
-                        font.bold: true
-                        font.family: FixedFont
-                    }
 
-                    Label {
-                        text: Config.baseUnit
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        id: fiatValue
-                        Layout.fillWidth: true
-                        font.pixelSize: constants.fontSizeMedium
-                    }
-
-                    Component.onCompleted: updateAmountText()
-                    Connections {
-                        target: finalizer
-                        function onEffectiveAmountChanged() {
-                            updateAmountText()
-                        }
-                    }
-                }
-
-                Label {
-                    text: qsTr('Mining fee')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: finalizer.fee
-                }
-
-                Label {
-                    visible: !finalizer.extraFee.isEmpty
-                    text: qsTr('Extra fee')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    visible: !finalizer.extraFee.isEmpty
-                    amount: finalizer.extraFee
-                }
-
-                Label {
-                    text: qsTr('Fee rate')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Label {
-                        id: feeRate
-                        text: finalizer.feeRate
-                        font.family: FixedFont
-                    }
-
-                    Label {
-                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
-                        color: Material.accentColor
-                    }
-                }
-
-                Label {
-                    text: qsTr('Target')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    id: targetdesc
-                    text: finalizer.target
-                }
-
-                RowLayout {
+                TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-
-                    Slider {
-                        id: feeslider
-                        Layout.fillWidth: true
-                        leftPadding: constants.paddingMedium
-
-                        snapMode: Slider.SnapOnRelease
-                        stepSize: 1
-                        from: 0
-                        to: finalizer.sliderSteps
-
-                        onValueChanged: {
-                            if (activeFocus)
-                                finalizer.sliderPos = value
+                    GridLayout {
+                        columns: 2
+                        Label {
+                            id: btcValue
+                            Layout.alignment: Qt.AlignRight
+                            font.pixelSize: constants.fontSizeXLarge
+                            font.family: FixedFont
+                            font.bold: true
                         }
-                        Component.onCompleted: {
-                            value = finalizer.sliderPos
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: Config.baseUnit
+                            color: Material.accentColor
+                            font.pixelSize: constants.fontSizeXLarge
                         }
+
+                        Label {
+                            id: fiatValue
+                            Layout.alignment: Qt.AlignRight
+                            visible: Daemon.fx.enabled
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: Daemon.fx.enabled
+                            text: Daemon.fx.fiatCurrency
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+                        Component.onCompleted: updateAmountText()
                         Connections {
                             target: finalizer
-                            function onSliderPosChanged() {
-                                feeslider.value = finalizer.sliderPos
+                            function onEffectiveAmountChanged() {
+                                updateAmountText()
                             }
                         }
                     }
+                }
 
-                    FeeMethodComboBox {
-                        id: target
-                        feeslider: finalizer
+                Label {
+                    Layout.columnSpan: 2
+                    text: qsTr('Fee')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    height: feepicker.height
+
+                    FeePicker {
+                        id: feepicker
+                        width: parent.width
+                        finalizer: dialog.finalizer
+
+                        Label {
+                            visible: !finalizer.extraFee.isEmpty
+                            text: qsTr('Extra fee')
+                            color: Material.accentColor
+                        }
+
+                        FormattedAmount {
+                            visible: !finalizer.extraFee.isEmpty
+                            amount: finalizer.extraFee
+                        }
                     }
                 }
 

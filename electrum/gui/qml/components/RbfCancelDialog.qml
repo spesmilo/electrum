@@ -73,71 +73,22 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     text: qsTr('New fee')
                     color: Material.accentColor
                 }
 
-                FormattedAmount {
-                    amount: txcanceller.fee
-                    valid: txcanceller.valid
-                }
-
-                Label {
-                    text: qsTr('New fee rate')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Label {
-                        id: feeRate
-                        text: txcanceller.valid ? txcanceller.feeRate : ''
-                        font.family: FixedFont
-                    }
-
-                    Label {
-                        visible: txcanceller.valid
-                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
-                        color: Material.accentColor
-                    }
-                }
-
-                Label {
-                    text: qsTr('Target')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    id: targetdesc
-                    text: txcanceller.target
-                }
-
-                RowLayout {
+                TextHighlightPane {
                     Layout.columnSpan: 2
-                    Slider {
-                        id: feeslider
-                        leftPadding: constants.paddingMedium
-                        snapMode: Slider.SnapOnRelease
-                        stepSize: 1
-                        from: 0
-                        to: txcanceller.sliderSteps
-                        onValueChanged: {
-                            if (activeFocus)
-                                txcanceller.sliderPos = value
-                        }
-                        Component.onCompleted: {
-                            value = txcanceller.sliderPos
-                        }
-                        Connections {
-                            target: txcanceller
-                            function onSliderPosChanged() {
-                                feeslider.value = txcanceller.sliderPos
-                            }
-                        }
-                    }
+                    Layout.fillWidth: true
+                    height: feepicker.height
 
-                    FeeMethodComboBox {
-                        id: target
-                        feeslider: txcanceller
+                    FeePicker {
+                        id: feepicker
+                        width: parent.width
+                        finalizer: dialog.txcanceller
+
                     }
                 }
 

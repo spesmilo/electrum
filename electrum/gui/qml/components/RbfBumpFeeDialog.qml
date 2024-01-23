@@ -49,17 +49,12 @@ ElDialog {
                 }
 
                 Label {
-                    Layout.preferredWidth: 1
                     Layout.fillWidth: true
                     text: qsTr('Method')
                     color: Material.accentColor
                 }
 
                 RowLayout {
-                    Layout.preferredWidth: 1
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: bumpMethodComboBox.implicitWidth
-
                     ElComboBox {
                         id: bumpMethodComboBox
 
@@ -79,15 +74,11 @@ ElDialog {
                 }
 
                 Label {
-                    Layout.preferredWidth: 1
-                    Layout.fillWidth: true
                     text: qsTr('Old fee')
                     color: Material.accentColor
                 }
 
                 FormattedAmount {
-                    Layout.preferredWidth: 1
-                    Layout.fillWidth: true
                     amount: rbffeebumper.oldfee
                 }
 
@@ -110,71 +101,22 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     text: qsTr('New fee')
                     color: Material.accentColor
                 }
 
-                FormattedAmount {
-                    amount: rbffeebumper.fee
-                    valid: rbffeebumper.valid
-                }
-
-                Label {
-                    text: qsTr('New fee rate')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Label {
-                        id: feeRate
-                        text: rbffeebumper.valid ? rbffeebumper.feeRate : ''
-                        font.family: FixedFont
-                    }
-
-                    Label {
-                        visible: rbffeebumper.valid
-                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
-                        color: Material.accentColor
-                    }
-                }
-
-                Label {
-                    text: qsTr('Target')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    id: targetdesc
-                    text: rbffeebumper.target
-                }
-
-                RowLayout {
+                TextHighlightPane {
                     Layout.columnSpan: 2
-                    Slider {
-                        id: feeslider
-                        leftPadding: constants.paddingMedium
-                        snapMode: Slider.SnapOnRelease
-                        stepSize: 1
-                        from: 0
-                        to: rbffeebumper.sliderSteps
-                        onValueChanged: {
-                            if (activeFocus)
-                                rbffeebumper.sliderPos = value
-                        }
-                        Component.onCompleted: {
-                            value = rbffeebumper.sliderPos
-                        }
-                        Connections {
-                            target: rbffeebumper
-                            function onSliderPosChanged() {
-                                feeslider.value = rbffeebumper.sliderPos
-                            }
-                        }
-                    }
+                    Layout.fillWidth: true
+                    height: feepicker.height
 
-                    FeeMethodComboBox {
-                        id: target
-                        feeslider: rbffeebumper
+                    FeePicker {
+                        id: feepicker
+                        width: parent.width
+                        finalizer: dialog.rbffeebumper
+
                     }
                 }
 
