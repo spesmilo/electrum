@@ -17,7 +17,7 @@ from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
-from electrum import util
+from electrum.daemon import Daemon
 
 from . import ElectrumTestCase
 
@@ -92,25 +92,20 @@ class TestWalletStorage(WalletTestCase):
         d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
-
-        wallet.save_db()
+        await wallet.stop()
 
         # open the wallet anew again, and add a privkey. This should add the new data as a json_patch
-        wallet = None
-        storage = WalletStorage(self.wallet_path)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
-        wallet = Wallet(db, config=self.config)
+        del wallet
+        wallet = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
 
         wallet.import_private_keys(['p2wpkh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'], password=None)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
         self.assertEqual(3, len(wallet.keystore.keypairs))
-        wallet.save_db()
+        await wallet.stop()
 
         # open the wallet anew again, and verify if the privkey was stored
-        wallet = None
-        storage = WalletStorage(self.wallet_path)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
-        wallet = Wallet(db, config=self.config)
+        del wallet
+        wallet = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
         self.assertEqual(3, len(wallet.keystore.keypairs))
         self.assertTrue('03bf450797034dc95693096e575e3b3db14e5f074679b349b727f90fc7804ce7ab' in wallet.keystore.keypairs)
