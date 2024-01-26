@@ -6,7 +6,7 @@ aiohttp>=3.3.0,<4.0.0
 aiohttp_socks>=0.3
 certifi
 bitstring
-attrs>=19.2.0
+attrs>=20.1.0
 
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!

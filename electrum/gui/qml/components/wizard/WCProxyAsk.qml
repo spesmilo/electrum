@@ -26,12 +26,12 @@ WizardComponent {
             onCheckedButtonChanged: checkIsLast()
         }
 
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: wantproxygroup
             property bool wantproxy: true
             text: qsTr('Yes')
         }
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: wantproxygroup
             property bool wantproxy: false
             text: qsTr('No')

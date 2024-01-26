@@ -1,5 +1,8 @@
+import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
+
+import "../controls"
 
 WizardComponent {
     valid: keystoregroup.checkedButton !== null
@@ -12,26 +15,35 @@ WizardComponent {
         id: keystoregroup
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('What kind of wallet do you want to create?') }
-        RadioButton {
+    ColumnLayout {
+        width: parent.width
+
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            text: qsTr('Do you want to create a new seed, restore using an existing seed, or restore from master key?')
+        }
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'createseed'
             checked: true
             text: qsTr('Create a new seed')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'haveseed'
             text: qsTr('I already have a seed')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'masterkey'
             text: qsTr('Use a master key')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             enabled: false
             visible: false
             ButtonGroup.group: keystoregroup

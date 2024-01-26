@@ -500,7 +500,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 if invoice.amount_msat is None:
                     amount_sat = self.get_amount()
                     if amount_sat:
-                        invoice.amount_msat = int(amount_sat * 1000)
+                        invoice.set_amount_msat(int(amount_sat * 1000))
                 if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
                     self.show_error(_('Lightning is disabled'))
                     return
