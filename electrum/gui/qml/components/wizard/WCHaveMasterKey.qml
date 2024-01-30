@@ -129,8 +129,9 @@ WizardComponent {
                 font.family: FixedFont
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: {
-                    if (activeFocus)
+                    if (anyActiveFocus) {
                         verifyMasterKey(text)
+                    }
                 }
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 background: PaneInsetBackground {

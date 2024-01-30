@@ -19,6 +19,7 @@ Flickable {
     property alias inputMethodHints: edit.inputMethodHints
     property alias placeholderText: edit.placeholderText
     property alias color: edit.color
+    readonly property bool anyActiveFocus: activeFocus || edit.activeFocus
 
     contentWidth: rootpane.width
     contentHeight: rootpane.height
