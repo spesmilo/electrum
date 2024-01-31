@@ -166,7 +166,7 @@ class AbstractWizard:
         sensitive_keys = [
             'seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password',
             # trustedcoin:
-            'xprv1', 'xpub1', 'xpub2',
+            'xprv1', 'xpub1', 'xpub2', 'xprv', 'xpub',
         ]
 
         def sanitize(_dict):
