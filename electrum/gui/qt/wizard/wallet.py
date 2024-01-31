@@ -1357,7 +1357,7 @@ class WCHWXPub(WalletWizardComponent, Logger):
 
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
-        if not client.handler:
+        if not getattr(client, 'handler', None):
             client.handler = self.plugin.create_handler(self.wizard)
 
         xtype = cosigner_data['script_type']
