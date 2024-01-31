@@ -52,7 +52,7 @@ from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
-from .simple_config import FEE_LN_ETA_TARGET
+from .simple_config import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
@@ -738,7 +738,7 @@ class Peer(Logger):
             raise Exception('Cannot create public channels')
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
-        feerate = self.lnworker.current_feerate_per_kw()
+        feerate = self.lnworker.current_target_feerate_per_kw()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
@@ -2219,7 +2219,17 @@ class Peer(Logger):
         """
         if not chan.can_send_ctx_updates():
             return
-        feerate_per_kw = self.lnworker.current_feerate_per_kw()
+        feerate_per_kw = self.lnworker.current_target_feerate_per_kw()
+        def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> bool:
+            # We raise fees more aggressively than we lower them. Overpaying is not too bad,
+            # but lowballing can be fatal if we can't even get into the mempool...
+            high_fee = 2 * feerate_per_kw  # type: Union[float, int]
+            low_fee = self.lnworker.current_low_feerate_per_kw()  # type: Union[float, int]
+            low_fee = max(low_fee, 0.75 * feerate_per_kw)
+            # make sure low_feerate and target_feerate are not too close to each other:
+            low_fee = min(low_fee, feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
+            assert low_fee < high_fee, (low_fee, high_fee)
+            return not (low_fee < chan_feerate < high_fee)
         if not chan.constraints.is_initiator:
             if constants.net is not constants.BitcoinRegtest:
                 chan_feerate = chan.get_latest_feerate(LOCAL)
@@ -2232,14 +2242,13 @@ class Peer(Logger):
                         f"({chan.get_id_for_log()}) feerate is {chan_feerate} sat/kw, "
                         f"current recommended feerate is {feerate_per_kw} sat/kw, consider force closing!")
             return
+        # it is our responsibility to update the fee
         chan_fee = chan.get_next_feerate(REMOTE)
-        if feerate_per_kw < chan_fee / 2:
-            self.logger.info("FEES HAVE FALLEN")
-        elif feerate_per_kw > chan_fee * 2:
-            self.logger.info("FEES HAVE RISEN")
+        if does_chan_fee_need_update(chan_fee):
+            self.logger.info(f"({chan.get_id_for_log()}) onchain fees have changed considerably. updating fee.")
         elif chan.get_latest_ctn(REMOTE) == 0:
             # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730
-            self.logger.info("updating fee to bump remote ctn")
+            self.logger.info(f"({chan.get_id_for_log()}) updating fee to bump remote ctn")
             if feerate_per_kw == chan_fee:
                 feerate_per_kw += 1
         else:

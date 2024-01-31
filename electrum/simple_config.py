@@ -24,7 +24,8 @@ from .logging import get_logger, Logger
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
                      800_000, 600_000, 400_000, 250_000, 100_000]
-FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
+FEE_LN_ETA_TARGET = 2       # note: make sure the network is asking for estimates for this target
+FEE_LN_LOW_ETA_TARGET = 25  # note: make sure the network is asking for estimates for this target
 
 # satoshi per kbyte
 FEERATE_MAX_DYNAMIC = 1500000
