@@ -72,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 57     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 58     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -106,7 +106,6 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 
 # register dicts that require value conversions not handled by constructor
 json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
-json_db.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
 json_db.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
 json_db.register_dict('contacts', tuple, None)
 # register dicts that require key conversion
@@ -233,6 +232,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_55()
         self._convert_version_56()
         self._convert_version_57()
+        self._convert_version_58()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1110,6 +1110,25 @@ class WalletDBUpgrader(Logger):
         self.data.pop('seed_type', None)
         self.data['seed_version'] = 57
 
+    def _convert_version_58(self):
+        # re-construct prevouts_by_scripthash
+        # new structure:  scripthash -> outpoint -> value
+        if not self._is_upgrade_method_needed(57, 57):
+            return
+        from .bitcoin import script_to_scripthash
+        transactions = self.get('transactions', {})  # txid -> raw_tx
+        prevouts_by_scripthash = {}
+        for txid, raw_tx in transactions.items():
+            tx = Transaction(raw_tx)
+            for idx, txout in enumerate(tx.outputs()):
+                outpoint = f"{txid}:{idx}"
+                scripthash = script_to_scripthash(txout.scriptpubkey.hex())
+                if scripthash not in prevouts_by_scripthash:
+                    prevouts_by_scripthash[scripthash] = {}
+                prevouts_by_scripthash[scripthash][outpoint] = txout.value
+        self.put('prevouts_by_scripthash', prevouts_by_scripthash)
+        self.data['seed_version'] = 58
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1371,23 +1390,23 @@ class WalletDB(JsonDB):
         assert isinstance(prevout, TxOutpoint)
         assert isinstance(value, int)
         if scripthash not in self._prevouts_by_scripthash:
-            self._prevouts_by_scripthash[scripthash] = set()
-        self._prevouts_by_scripthash[scripthash].add((prevout.to_str(), value))
+            self._prevouts_by_scripthash[scripthash] = dict()
+        self._prevouts_by_scripthash[scripthash][prevout.to_str()] = value
 
     @modifier
     def remove_prevout_by_scripthash(self, scripthash: str, *, prevout: TxOutpoint, value: int) -> None:
         assert isinstance(scripthash, str)
         assert isinstance(prevout, TxOutpoint)
         assert isinstance(value, int)
-        self._prevouts_by_scripthash[scripthash].discard((prevout.to_str(), value))
+        self._prevouts_by_scripthash[scripthash].pop(prevout.to_str(), None)
         if not self._prevouts_by_scripthash[scripthash]:
             self._prevouts_by_scripthash.pop(scripthash)
 
     @locked
     def get_prevouts_by_scripthash(self, scripthash: str) -> Set[Tuple[TxOutpoint, int]]:
         assert isinstance(scripthash, str)
-        prevouts_and_values = self._prevouts_by_scripthash.get(scripthash, set())
-        return {(TxOutpoint.from_str(prevout), value) for prevout, value in prevouts_and_values}
+        prevouts_and_values = self._prevouts_by_scripthash.get(scripthash, {})
+        return {(TxOutpoint.from_str(prevout), value) for prevout, value in prevouts_and_values.items()}
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
@@ -1624,8 +1643,8 @@ class WalletDB(JsonDB):
         self.history = self.get_dict('addr_history')             # address -> list of (txid, height)
         self.verified_tx = self.get_dict('verified_tx3')         # txid -> (height, timestamp, txpos, header_hash)
         self.tx_fees = self.get_dict('tx_fees')                  # type: Dict[str, TxFeesValue]
-        # scripthash -> set of (outpoint, value)
-        self._prevouts_by_scripthash = self.get_dict('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
+        # scripthash -> outpoint -> value
+        self._prevouts_by_scripthash = self.get_dict('prevouts_by_scripthash')  # type: Dict[str, Dict[str, int]]
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
             if not self.get_txi_addresses(tx_hash) and not self.get_txo_addresses(tx_hash):
