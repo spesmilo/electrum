@@ -68,5 +68,11 @@ WizardComponent {
             visible: password1.text != password2.text
             iconStyle: InfoTextArea.IconStyle.Warn
         }
+        InfoTextArea {
+            Layout.alignment: Qt.AlignCenter
+            text: qsTr('Password too short')
+            visible: (password1.text == password2.text) && !valid
+            iconStyle: InfoTextArea.IconStyle.Warn
+        }
     }
 }
