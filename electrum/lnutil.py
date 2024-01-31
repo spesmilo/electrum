@@ -63,6 +63,7 @@ def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[b
     return i.to_bytes(32, 'big'), funding_txid_bytes
 
 hex_to_bytes = lambda v: v if isinstance(v, bytes) else bytes.fromhex(v) if v is not None else None
+bytes_to_hex = lambda v: repr(v.hex()) if v is not None else None
 json_to_keypair = lambda v: v if isinstance(v, OnlyPubkeyKeypair) else Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
 
 
@@ -77,11 +78,11 @@ def deserialize_htlc_key(htlc_key: str) -> Tuple[bytes, int]:
 
 @attr.s
 class OnlyPubkeyKeypair(StoredObject):
-    pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    pubkey = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 @attr.s
 class Keypair(OnlyPubkeyKeypair):
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 @attr.s
 class ChannelConfig(StoredObject):
@@ -98,9 +99,9 @@ class ChannelConfig(StoredObject):
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
-    upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes)
-    announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes)
-    announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes)
+    upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -202,11 +203,11 @@ class ChannelConfig(StoredObject):
 @stored_as('local_config')
 @attr.s
 class LocalConfig(ChannelConfig):
-    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
+    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
-    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
-    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
-    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
     @classmethod
     def from_seed(cls, **kwargs):
@@ -239,8 +240,8 @@ class LocalConfig(ChannelConfig):
 @stored_as('remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
-    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
-    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
+    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 @stored_in('fee_updates')
 @attr.s
