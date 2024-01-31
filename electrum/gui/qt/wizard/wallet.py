@@ -1253,6 +1253,8 @@ class WCWalletPasswordHardware(WalletWizardComponent):
             device_id = _info.device.id_
             client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
             # client.handler = self.plugin.create_handler(self.wizard)
+            # FIXME client can be None if it was recently disconnected.
+            #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
             self.wizard_data['password'] = client.get_password_for_storage_encryption()
 
 
@@ -1282,6 +1284,11 @@ class WCHWUnlock(WalletWizardComponent, Logger):
 
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client is None:
+            self.error = _("Client for hardware device was unpaired.")
+            self.busy = False
+            self.validate()
+            return
         client.handler = self.plugin.create_handler(self.wizard)
 
         def unlock_task(client):
@@ -1357,6 +1364,11 @@ class WCHWXPub(WalletWizardComponent, Logger):
 
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client is None:
+            self.error = _("Client for hardware device was unpaired.")
+            self.busy = False
+            self.validate()
+            return
         if not client.handler:
             client.handler = self.plugin.create_handler(self.wizard)
 
