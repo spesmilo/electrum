@@ -96,15 +96,16 @@ class NodesListWidget(QTreeWidget):
         DISCONNECTED_SERVER = 2
         TOPLEVEL = 3
 
-    followServer = pyqtSignal([object], arguments=['server'])
+    followServer = pyqtSignal([ServerAddr], arguments=['server'])
     followChain = pyqtSignal([str], arguments=['chain_id'])
     setServer = pyqtSignal([str], arguments=['server'])
 
-    def __init__(self):
+    def __init__(self, *, network: Network):
         QTreeWidget.__init__(self)
         self.setHeaderLabels([_('Server'), _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
+        self.network = network
 
     def create_menu(self, position):
         item = self.currentItem()
@@ -112,16 +113,16 @@ class NodesListWidget(QTreeWidget):
             return
         item_type = item.data(0, self.ITEMTYPE_ROLE)
         menu = QMenu()
-        if item_type == self.ItemType.CONNECTED_SERVER:
+        if item_type in [self.ItemType.CONNECTED_SERVER, self.ItemType.DISCONNECTED_SERVER]:
             server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
-            def do_follow_server():
-                self.followServer.emit(server)
-            menu.addAction(_("Use as server"), do_follow_server)
-        elif item_type == self.ItemType.DISCONNECTED_SERVER:
-            server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
-            def do_set_server():
-                self.setServer.emit(str(server))
-            menu.addAction(_("Use as server"), do_set_server)
+            if item_type == self.ItemType.CONNECTED_SERVER:
+                def do_follow_server():
+                    self.followServer.emit(server)
+                menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_follow_server)
+            elif item_type == self.ItemType.DISCONNECTED_SERVER:
+                def do_set_server():
+                    self.setServer.emit(str(server))
+                menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_set_server)
         elif item_type == self.ItemType.CHAIN:
             chain_id = item.data(0, self.CHAIN_ID_ROLE)
             def do_follow_chain():
@@ -143,8 +144,10 @@ class NodesListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, *, network: Network, servers: dict):
+    def update(self):
         self.clear()
+        network = self.network
+        servers = self.network.get_servers()
 
         use_tor = bool(network.is_proxy_tor)
 
@@ -186,12 +189,13 @@ class NodesListWidget(QTreeWidget):
             if _host.endswith('.onion') and not use_tor:
                 continue
             port = d.get(protocol)
-            if port:
-                server = ServerAddr(_host, port, protocol=protocol)
-                item = QTreeWidgetItem([server.net_addr_str(), ""])
-                item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
-                item.setData(0, self.SERVER_ADDR_ROLE, server)
-                disconnected_servers_item.addChild(item)
+            if not port:
+                continue
+            server = ServerAddr(_host, port, protocol=protocol)
+            item = QTreeWidgetItem([server.net_addr_str(), ""])
+            item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
+            item.setData(0, self.SERVER_ADDR_ROLE, server)
+            disconnected_servers_item.addChild(item)
 
         self.addTopLevelItem(connected_servers_item)
         self.addTopLevelItem(disconnected_servers_item)
@@ -319,7 +323,7 @@ class NetworkChoiceLayout(object):
         self.split_label = QLabel('')
         grid.addWidget(self.split_label, 4, 0, 1, 3)
 
-        self.nodes_list_widget = NodesListWidget()
+        self.nodes_list_widget = NodesListWidget(network=self.network)
         self.nodes_list_widget.followServer.connect(self.follow_server)
         self.nodes_list_widget.followChain.connect(self.follow_branch)
 
@@ -382,8 +386,7 @@ class NetworkChoiceLayout(object):
         else:
             msg = ''
         self.split_label.setText(msg)
-        self.nodes_list_widget.update(network=self.network,
-                                      servers=self.network.get_servers())
+        self.nodes_list_widget.update()
         self.enable_set_server()
 
     def fill_in_proxy_settings(self):
@@ -605,7 +608,7 @@ class ServerWidget(QWidget, QtEventListener):
 
         self.layout().addLayout(grid)
 
-        self.nodes_list_widget = NodesListWidget()
+        self.nodes_list_widget = NodesListWidget(network=self.network)
         self.nodes_list_widget.followServer.connect(self.follow_server)
         self.nodes_list_widget.followChain.connect(self.follow_branch)
 
@@ -615,15 +618,14 @@ class ServerWidget(QWidget, QtEventListener):
         self.nodes_list_widget.setServer.connect(do_set_server)
 
         self.layout().addWidget(self.nodes_list_widget)
-        self.nodes_list_widget.update(network=self.network,
-                                      servers=self.network.get_servers())
+        self.nodes_list_widget.update()
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
     @qt_event_listener
     def on_event_network_updated(self):
-        self.nodes_list_widget.update(network=self.network, servers=self.network.get_servers())
+        self.nodes_list_widget.update()
 
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
