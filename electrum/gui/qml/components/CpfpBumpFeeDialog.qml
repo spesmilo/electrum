@@ -65,7 +65,7 @@ ElDialog {
                 Label {
                     Layout.preferredWidth: 1
                     Layout.fillWidth: true
-                    text: qsTr('%1 bytes').arg(cpfpfeebumper.totalSize)
+                    text: cpfpfeebumper.totalSize + ' ' + UI_UNIT_NAME.TXSIZE_VBYTES
                 }
 
                 Label {
@@ -161,7 +161,7 @@ ElDialog {
 
                     Label {
                         visible: cpfpfeebumper.valid
-                        text: 'sat/vB'
+                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
                         color: Material.accentColor
                     }
                 }

@@ -590,7 +590,7 @@ class SimpleConfig(Logger):
     def get_depth_mb_str(self, depth: int) -> str:
         # e.g. 500_000 -> "0.50 MB"
         depth_mb = "{:.2f}".format(depth / 1_000_000)  # maybe .rstrip("0") ?
-        return f"{depth_mb} MB"
+        return f"{depth_mb} {util.UI_UNIT_NAME_MEMPOOL_MB}"
 
     def depth_tooltip(self, depth: Optional[int]) -> str:
         """Returns text tooltip for given mempool depth (in vbytes)."""
@@ -637,7 +637,7 @@ class SimpleConfig(Logger):
             fee_per_byte = None
         else:
             fee_per_byte = fee_per_kb/1000
-            rate_str = format_fee_satoshis(fee_per_byte) + f" {util.FEERATE_UI_NAME_SAT_PER_VBYTE}"
+            rate_str = format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
 
         if dyn:
             if mempool:
@@ -875,7 +875,7 @@ class SimpleConfig(Logger):
 
     def format_fee_rate(self, fee_rate) -> str:
         """fee_rate is in sat/kvByte."""
-        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + f" {util.FEERATE_UI_NAME_SAT_PER_VBYTE}"
+        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
 
     def get_base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point)

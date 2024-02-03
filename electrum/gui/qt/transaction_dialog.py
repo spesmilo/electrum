@@ -52,7 +52,7 @@ from electrum.plugin import run_hook
 from electrum import simple_config
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
-from electrum.util import ShortID, get_asyncio_loop
+from electrum.util import ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES
 from electrum.network import Network
 from electrum.wallet import TxSighashRiskLevel, TxSighashDanger
 
@@ -863,7 +863,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.amount_label.setText(amount_str)
         else:
             self.amount_label.hide()
-        size_str = _("Size:") + ' %d bytes'% size
+        size_str = _("Size:") + f" {size} {UI_UNIT_NAME_TXSIZE_VBYTES}"
         if fee is None:
             if prog := self._fetch_txin_data_progress:
                 if not prog.has_errored:

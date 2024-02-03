@@ -12,6 +12,7 @@ from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSIO
 from PyQt6.QtGui import QGuiApplication, QFontDatabase, QScreen
 from PyQt6.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
+import electrum
 from electrum import version, constants
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
@@ -416,6 +417,12 @@ class ElectrumQmlApplication(QGuiApplication):
             'protocol_version': version.PROTOCOL_VERSION,
             'qt_version': QT_VERSION_STR,
             'pyqt_version': PYQT_VERSION_STR
+        })
+        self.context.setContextProperty('UI_UNIT_NAME', {
+            "FEERATE_SAT_PER_VBYTE": electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
+            "FEERATE_SAT_PER_VB":    electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VB,
+            "TXSIZE_VBYTES":         electrum.util.UI_UNIT_NAME_TXSIZE_VBYTES,
+            "MEMPOOL_MB":            electrum.util.UI_UNIT_NAME_MEMPOOL_MB,
         })
 
         self.plugins.load_plugin('trustedcoin')
