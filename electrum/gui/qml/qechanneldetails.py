@@ -112,6 +112,13 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
         return format_short_id(rsa) if rsa else ''
 
     @pyqtProperty(str, notify=channelChanged)
+    def currentFeerate(self):
+        if self._channel.is_backup():
+            return ''
+        assert isinstance(self._channel, Channel)
+        return self._wallet.wallet.config.format_fee_rate(4 * self._channel.get_latest_feerate(LOCAL))
+
+    @pyqtProperty(str, notify=channelChanged)
     def state(self):
         return self._channel.get_state_for_GUI()
 

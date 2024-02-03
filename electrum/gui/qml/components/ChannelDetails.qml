@@ -257,6 +257,18 @@ Pane {
                     }
 
                     Label {
+                        text: qsTr('Current feerate')
+                        color: Material.accentColor
+                        visible: channeldetails.currentFeerate
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.currentFeerate
+                        visible: channeldetails.currentFeerate
+                    }
+
+                    Label {
                         visible: channeldetails.isBackup
                         text: qsTr('Backup type')
                         color: Material.accentColor
