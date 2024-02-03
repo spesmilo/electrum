@@ -581,6 +581,18 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 out[server.host].update({server.protocol: port})
             else:
                 out[server.host] = {server.protocol: port}
+        # add bookmarks
+        bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+        for server_str in bookmarks:
+            try:
+                server = ServerAddr.from_str(server_str)
+            except ValueError:
+                continue
+            port = str(server.port)
+            if server.host in out:
+                out[server.host].update({server.protocol: port})
+            else:
+                out[server.host] = {server.protocol: port}
         # potentially filter out some
         if self.config.NETWORK_NOONION:
             out = filter_noonion(out)
@@ -705,6 +717,22 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         oneserver = self.config.NETWORK_ONESERVER
         self.oneserver = oneserver
         self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
+
+    def is_server_bookmarked(self, server: ServerAddr) -> bool:
+        bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+        return str(server) in bookmarks
+
+    def set_server_bookmark(self, server: ServerAddr, *, add: bool) -> None:
+        server_str = str(server)
+        with self.config.lock:
+            bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+            if add:
+                if server_str not in bookmarks:
+                    bookmarks.append(server_str)
+            else:  # remove
+                if server_str in bookmarks:
+                    bookmarks.remove(server_str)
+            self.config.NETWORK_BOOKMARKED_SERVERS = bookmarks
 
     async def _switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''

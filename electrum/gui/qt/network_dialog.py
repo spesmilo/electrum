@@ -123,6 +123,13 @@ class NodesListWidget(QTreeWidget):
                 def do_set_server():
                     self.setServer.emit(str(server))
                 menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_set_server)
+            def set_bookmark(*, add: bool):
+                self.network.set_server_bookmark(server, add=add)
+                self.update()
+            if self.network.is_server_bookmarked(server):
+                menu.addAction(read_QIcon("bookmark_remove.png"), _("Remove from bookmarks"), lambda: set_bookmark(add=False))
+            else:
+                menu.addAction(read_QIcon("bookmark_add.png"), _("Bookmark this server"), lambda: set_bookmark(add=True))
         elif item_type == self.ItemType.CHAIN:
             chain_id = item.data(0, self.CHAIN_ID_ROLE)
             def do_follow_chain():
@@ -174,6 +181,8 @@ class NodesListWidget(QTreeWidget):
                 item.setToolTip(0, str(i.server))
                 if i == network.interface:
                     item.setIcon(0, read_QIcon("chevron-right.png"))
+                elif network.is_server_bookmarked(i.server):
+                    item.setIcon(0, read_QIcon("bookmark.png"))
                 x.addChild(item)
             if n_chains > 1:
                 connected_servers_item.addChild(x)
@@ -195,6 +204,8 @@ class NodesListWidget(QTreeWidget):
             item = QTreeWidgetItem([server.net_addr_str(), ""])
             item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
             item.setData(0, self.SERVER_ADDR_ROLE, server)
+            if network.is_server_bookmarked(server):
+                item.setIcon(0, read_QIcon("bookmark.png"))
             disconnected_servers_item.addChild(item)
 
         self.addTopLevelItem(connected_servers_item)
