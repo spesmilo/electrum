@@ -463,12 +463,6 @@ class SimpleConfig(Logger):
     def get_fallback_wallet_path(self):
         return os.path.join(self.get_datadir_wallet_path(), "default_wallet")
 
-    def remove_from_recently_open(self, filename):
-        recent = self.RECENTLY_OPEN_WALLET_FILES or []
-        if filename in recent:
-            recent.remove(filename)
-            self.RECENTLY_OPEN_WALLET_FILES = recent
-
     def set_session_timeout(self, seconds):
         self.logger.info(f"session timeout -> {seconds} seconds")
         self.HWD_SESSION_TIMEOUT = seconds
