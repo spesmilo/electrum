@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 from .util import char_width_in_lineedit, ColorScheme
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
-                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT)
+                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT, FEERATE_UI_NAME_SAT_PER_VBYTE)
 from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
 _NOT_GIVEN = object()  # sentinel value
@@ -165,7 +165,7 @@ class FeerateEdit(BTCAmountEdit):
         self.extra_precision = FEERATE_PRECISION
 
     def _base_unit(self):
-        return 'sat/byte'
+        return FEERATE_UI_NAME_SAT_PER_VBYTE
 
     def _get_amount_from_text(self, text):
         sat_per_byte_amount = super()._get_amount_from_text(text)

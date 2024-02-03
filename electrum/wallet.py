@@ -1657,7 +1657,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
-                extra.append(format_fee_satoshis(fee_per_byte) + ' sat/b')
+                extra.append(format_fee_satoshis(fee_per_byte) + f" {util.FEERATE_UI_NAME_SAT_PER_VBYTE_SHORT}")
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.config.has_fee_mempool():
                 exp_n = self.config.fee_to_depth(fee_per_byte)
@@ -3184,7 +3184,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             long_warning = ' '.join([
                 _("The fee for this transaction seems unusually high."),
-                _("(feerate: {} sat/byte)").format(f'{feerate:.2f}')
+                _("(feerate: {})").format(self.config.format_fee_rate(1000 * feerate))
             ])
             short_warning = _("high fee rate") + "!"
         if long_warning is None:
