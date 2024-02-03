@@ -192,15 +192,16 @@ class NodesListWidget(QTreeWidget):
         disconnected_servers_item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.TOPLEVEL)
         connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
         protocol = PREFERRED_NETWORK_PROTOCOL
-        for _host, d in sorted(servers.items()):
-            if _host in connected_hosts:
+        server_addrs = [
+            ServerAddr(_host, port, protocol=protocol)
+            for _host, d in servers.items()
+            if (port := d.get(protocol))]
+        server_addrs.sort(key=lambda x: (-network.is_server_bookmarked(x), str(x)))
+        for server in server_addrs:
+            if server.host in connected_hosts:
                 continue
-            if _host.endswith('.onion') and not use_tor:
+            if server.host.endswith('.onion') and not use_tor:
                 continue
-            port = d.get(protocol)
-            if not port:
-                continue
-            server = ServerAddr(_host, port, protocol=protocol)
             item = QTreeWidgetItem([server.net_addr_str(), ""])
             item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
             item.setData(0, self.SERVER_ADDR_ROLE, server)
