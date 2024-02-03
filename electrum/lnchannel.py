@@ -290,6 +290,12 @@ class AbstractChannel(Logger, ABC):
     def is_backup(self):
         return False
 
+    def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
+        return None
+
+    def get_remote_scid_alias(self) -> Optional[bytes]:
+        return None
+
     def sweep_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
         txid = ctx.txid()
         if self._sweep_info.get(txid) is None:
@@ -468,6 +474,10 @@ class AbstractChannel(Logger, ABC):
         """Returns channel capacity in satoshis, or None if unknown."""
         pass
 
+    @abstractmethod
+    def can_be_deleted(self) -> bool:
+        pass
+
 
 class ChannelBackup(AbstractChannel):
     """
@@ -557,12 +567,6 @@ class ChannelBackup(AbstractChannel):
 
     def is_backup(self):
         return True
-
-    def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
-        return None
-
-    def get_remote_scid_alias(self) -> Optional[bytes]:
-        return None
 
     def create_sweeptxs_for_their_ctx(self, ctx):
         return {}

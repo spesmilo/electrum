@@ -1,5 +1,6 @@
 import threading
 from enum import IntEnum
+from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum
 
@@ -7,7 +8,7 @@ from electrum.i18n import _
 from electrum.gui import messages
 from electrum.logging import get_logger
 from electrum.lnutil import LOCAL, REMOTE
-from electrum.lnchannel import ChanCloseOption, ChannelState
+from electrum.lnchannel import ChanCloseOption, ChannelState, AbstractChannel, Channel
 from electrum.util import format_short_id
 
 from .auth import AuthMixin, auth_protect
@@ -33,9 +34,9 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
-        self._channelid = None
-        self._channel = None
+        self._wallet = None  # type: Optional[QEWallet]
+        self._channelid = None  # type: Optional[str]
+        self._channel = None  # type: Optional[AbstractChannel]
 
         self._capacity = QEAmount()
         self._local_capacity = QEAmount()
