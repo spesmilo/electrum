@@ -6,6 +6,8 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import get_logger
 from electrum import mnemonic
 from electrum.wizard import NewWalletWizard, ServerConnectWizard
+from electrum.storage import WalletStorage, StorageReadWriteError
+from electrum.util import WalletFileException
 
 if TYPE_CHECKING:
     from electrum.gui.qml.qedaemon import QEDaemon
@@ -116,6 +118,30 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'message': validation_message
         }
 
+    def _wallet_path_from_wallet_name(self, wallet_name: str) -> str:
+        return os.path.join(self._qedaemon.daemon.config.get_datadir_wallet_path(), wallet_name)
+
+    @pyqtSlot(str, result=bool)
+    def isValidNewWalletName(self, wallet_name: str) -> bool:
+        if not wallet_name:
+            return False
+        if self._qedaemon.availableWallets.wallet_name_exists(wallet_name):
+            return False
+        wallet_path = self._wallet_path_from_wallet_name(wallet_name)
+        # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
+        #       wallet_name might contain ".." (etc) and hence sketchy path traversals are possible.
+        #       Anyway, this at least validates that the path looks sane to the filesystem:
+        try:
+            temp_storage = WalletStorage(wallet_path)
+        except (StorageReadWriteError, WalletFileException) as e:
+            return False
+        except Exception as e:
+            self._logger.exception("")
+            return False
+        if temp_storage.file_exists():
+            return False
+        return True
+
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
@@ -125,7 +151,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             data['encrypt'] = True
             data['password'] = single_password
 
-        path = os.path.join(os.path.dirname(self._qedaemon.daemon.config.get_wallet_path()), data['wallet_name'])
+        path = self._wallet_path_from_wallet_name(data['wallet_name'])
 
         try:
             self.create_storage(path, data)
