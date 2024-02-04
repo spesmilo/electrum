@@ -365,10 +365,12 @@ class TrezorPlugin(HW_PluginBase):
                         my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
                         if full_path:
                             txinputtype.address_n = full_path
+                    # Add witness if any. This is useful when signing a tx (for_sig=True)
+                    # that has some already pre-signed external inputs.
+                    txinputtype.witness = txin.witness
 
             txinputtype.amount = txin.value_sats()
             txinputtype.script_sig = txin.script_sig
-            txinputtype.witness = txin.witness
             txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
