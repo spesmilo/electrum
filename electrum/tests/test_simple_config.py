@@ -164,6 +164,14 @@ class Test_SimpleConfig(ElectrumTestCase):
         finally:
             constants.set_mainnet()
 
+    def test_configvars_convert_getter(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(None, config.NETWORK_PROXY)
+        config.user_config[config.cv.NETWORK_PROXY.key()] = None
+        self.assertEqual("none", config.NETWORK_PROXY)
+        config.NETWORK_PROXY = None
+        self.assertEqual(None, config.NETWORK_PROXY)
+
     def test_configvars_is_set(self):
         config = SimpleConfig(self.options)
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)

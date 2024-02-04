@@ -63,12 +63,14 @@ class ConfigVar(property):
         *,
         default: Union[Any, Callable[['SimpleConfig'], Any]],  # typically a literal, but can also be a callable
         type_=None,
+        convert_getter: Callable[[Any], Any] = None,
         short_desc: Callable[[], str] = None,
         long_desc: Callable[[], str] = None,
     ):
         self._key = key
         self._default = default
         self._type = type_
+        self._convert_getter = convert_getter
         # note: the descriptions are callables instead of str literals, to delay evaluating the _() translations
         #       until after the language is set.
         assert short_desc is None or callable(short_desc)
@@ -83,6 +85,10 @@ class ConfigVar(property):
         with config.lock:
             if config.is_set(self._key):
                 value = config.get(self._key)
+                # run converter
+                if self._convert_getter is not None:
+                    value = self._convert_getter(value)
+                # type-check
                 if self._type is not None:
                     assert value is not None, f"got None for key={self._key!r}"
                     try:
@@ -924,7 +930,7 @@ class SimpleConfig(Logger):
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
-    NETWORK_PROXY = ConfigVar('proxy', default=None, type_=str)
+    NETWORK_PROXY = ConfigVar('proxy', default=None, type_=str, convert_getter=lambda v: "none" if v is None else v)
     NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None, type_=str)
     NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None, type_=str)
     NETWORK_SERVER = ConfigVar('server', default=None, type_=str)
