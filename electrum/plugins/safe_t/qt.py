@@ -562,7 +562,7 @@ class WCSafeTInitMethod(WizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['safe_t_init'] = self.choice_w.selected_item[0]
+        self.wizard_data['safe_t_init'] = self.choice_w.selected_key
 
 
 class WCSafeTInitParams(WizardComponent):

@@ -423,7 +423,7 @@ class WCWalletType(WalletWizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['wallet_type'] = self.choice_w.selected_item[0]
+        self.wizard_data['wallet_type'] = self.choice_w.selected_key
 
 
 class WCKeystoreType(WalletWizardComponent):
@@ -443,7 +443,7 @@ class WCKeystoreType(WalletWizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['keystore_type'] = self.choice_w.selected_item[0]
+        self.wizard_data['keystore_type'] = self.choice_w.selected_key
 
 
 class WCCreateSeed(WalletWizardComponent):
@@ -767,7 +767,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
 
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-        cosigner_data['script_type'] = self.choice_w.selected_item[0]
+        cosigner_data['script_type'] = self.choice_w.selected_key
         cosigner_data['derivation_path'] = str(self.derivation_path_edit.text())
 
 
@@ -812,10 +812,10 @@ class WCCosignerKeystore(WalletWizardComponent):
         self.layout().addStretch(1)
 
     def apply(self):
-        self.wizard_data['cosigner_keystore_type'] = self.choice_w.selected_item[0]
+        self.wizard_data['cosigner_keystore_type'] = self.choice_w.selected_key
         self.wizard_data['multisig_current_cosigner'] = self.cosigner
         self.wizard_data['multisig_cosigner_data'][str(self.cosigner)] = {
-            'keystore_type': self.choice_w.selected_item[0]
+            'keystore_type': self.choice_w.selected_key
         }
 
 
@@ -1231,7 +1231,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
     def apply(self):
         if self.choice_w:
             cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-            cosigner_data['hardware_device'] = self.choice_w.selected_item[0]
+            cosigner_data['hardware_device'] = self.choice_w.selected_key
 
 
 class WCWalletPasswordHardware(WalletWizardComponent):

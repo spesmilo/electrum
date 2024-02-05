@@ -357,7 +357,7 @@ class WCChooseSeed(WizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['keystore_type'] = self.choice_w.selected_item[0]
+        self.wizard_data['keystore_type'] = self.choice_w.selected_key
 
 
 class WCTerms(WizardComponent):
@@ -559,7 +559,7 @@ class WCKeepDisable(WizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['trustedcoin_keepordisable'] = self.choice_w.selected_item[0]
+        self.wizard_data['trustedcoin_keepordisable'] = self.choice_w.selected_key
 
 
 class WCContinueOnline(WizardComponent):
