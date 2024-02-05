@@ -46,8 +46,10 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
         self.back_button = QPushButton(_("Back"), self)
         self.back_button.clicked.connect(self.on_back_button_clicked)
+        self.back_button.setEnabled(False)
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.clicked.connect(self.on_next_button_clicked)
+        self.next_button.setEnabled(False)
         self.next_button.setDefault(True)
         self.requestPrev.connect(self.on_back_button_clicked)
         self.requestNext.connect(self.on_next_button_clicked)
@@ -144,12 +146,14 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
             raise e
         page.wizard_data = copy.deepcopy(wdata)
         page.params = params
-        page.updated.connect(self.on_page_updated)
+        page.on_ready()  # call before component emits any signals
+
         self._logger.debug(f'load_next_component: {page=!r}')
+
+        page.updated.connect(self.on_page_updated)
 
         # add to stack and update wizard
         self.main_widget.setCurrentIndex(self.main_widget.addWidget(page))
-        page.on_ready()
         page.apply()
         self.update()
 
