@@ -202,6 +202,12 @@ class KeyStore(Logger, ABC):
     def can_have_deterministic_lightning_xprv(self) -> bool:
         return False
 
+    def has_support_for_slip_19_ownership_proofs(self) -> bool:
+        return False
+
+    def add_slip_19_ownership_proofs_to_tx(self, tx: 'PartialTransaction', *, password) -> None:
+        raise NotImplementedError()
+
 
 class Software_KeyStore(KeyStore):
 

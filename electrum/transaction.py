@@ -1289,6 +1289,7 @@ class PSBTInputType(IntEnum):
     BIP32_DERIVATION = 6
     FINAL_SCRIPTSIG = 7
     FINAL_SCRIPTWITNESS = 8
+    SLIP19_OWNERSHIP_PROOF = 0x19
 
 
 class PSBTOutputType(IntEnum):
@@ -1386,6 +1387,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
         self.redeem_script = None  # type: Optional[bytes]
         self.witness_script = None  # type: Optional[bytes]
+        self.slip_19_ownership_proof = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
         self._script_descriptor = None  # type: Optional[Descriptor]
@@ -1439,6 +1441,7 @@ class PartialTxInput(TxInput, PSBTSection):
             'part_sigs': {pubkey.hex(): sig.hex() for pubkey, sig in self.part_sigs.items()},
             'bip32_paths': {pubkey.hex(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))
                             for pubkey, (xfp, path) in self.bip32_paths.items()},
+            'slip_19_ownership_proof': self.slip_19_ownership_proof.hex() if self.slip_19_ownership_proof else None,
             'unknown_psbt_fields': {key.hex(): val.hex() for key, val in self._unknown.items()},
         })
         return d
@@ -1553,6 +1556,11 @@ class PartialTxInput(TxInput, PSBTSection):
                 raise SerializationError(f"duplicate key: {repr(kt)}")
             self.witness = val
             if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+        elif kt == PSBTInputType.SLIP19_OWNERSHIP_PROOF:
+            if self.slip_19_ownership_proof is not None:
+                raise SerializationError(f"duplicate key: {repr(kt)}")
+            self.slip_19_ownership_proof = val
+            if key: raise SerializationError(f"key for {repr(kt)} must be empty")
         else:
             full_key = self.get_fullkey_from_keytype_and_key(kt, key)
             if full_key in self._unknown:
@@ -1579,6 +1587,8 @@ class PartialTxInput(TxInput, PSBTSection):
             wr(PSBTInputType.FINAL_SCRIPTSIG, self.script_sig)
         if self.witness is not None:
             wr(PSBTInputType.FINAL_SCRIPTWITNESS, self.witness)
+        if self.slip_19_ownership_proof:
+            wr(PSBTInputType.SLIP19_OWNERSHIP_PROOF, self.slip_19_ownership_proof)
         for full_key, val in sorted(self._unknown.items()):
             key_type, key = self.get_keytype_and_key_from_fullkey(full_key)
             wr(key_type, val, key=key)
