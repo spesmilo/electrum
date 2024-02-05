@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Set
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
-from PyQt6.QtGui import QGuiApplication, QFontDatabase, QScreen
-from PyQt6.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
+from PyQt6.QtGui import QGuiApplication, QFontDatabase
+from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 
 import electrum
 from electrum import version, constants
@@ -219,7 +219,7 @@ class QEAppController(BaseCrashReporter, QObject):
         self.logger.debug(f'now {self._plugins.count()} plugins loaded')
         plugin = self._plugins.get(plugin_name)
         self.logger.debug(f'plugin with name {plugin_name} is {str(type(plugin))}')
-        if plugin and hasattr(plugin,'so'):
+        if plugin and hasattr(plugin, 'so'):
             return plugin.so
         else:
             self.logger.debug('None!')
@@ -264,9 +264,9 @@ class QEAppController(BaseCrashReporter, QObject):
             'reportstring': self.get_report_string()
         }
 
-    @pyqtSlot(object,object,object,object)
+    @pyqtSlot(object, object, object, object)
     def crash(self, config, e, text, tb):
-        self.exc_args = (e, text, tb) # for BaseCrashReporter
+        self.exc_args = (e, text, tb)  # for BaseCrashReporter
         self.showException.emit(self.crashData())
 
     @pyqtSlot()
@@ -305,7 +305,7 @@ class QEAppController(BaseCrashReporter, QObject):
         # if traceback contains special HTML characters, e.g. '<',
         # they need to be escaped to avoid formatting issues.
         traceback_str = super()._get_traceback_str_to_display()
-        return html.escape(traceback_str).replace('&#x27;','&apos;')
+        return html.escape(traceback_str).replace('&#x27;', '&apos;')
 
     def get_user_description(self):
         return self._crash_user_text

@@ -76,7 +76,7 @@ class QEWalletListModel(QAbstractListModel):
                     available.append(i.path)
         for path in sorted(available):
             wallet = self.daemon.get_wallet(path)
-            self.add_wallet(wallet_path = path)
+            self.add_wallet(wallet_path=path)
 
     def add_wallet(self, wallet_path):
         self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
@@ -142,10 +142,10 @@ class QEDaemon(AuthMixin, QObject):
     loadingChanged = pyqtSignal()
     requestNewPassword = pyqtSignal()
 
-    walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
-    walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
+    walletLoaded = pyqtSignal([str, str], arguments=['name', 'path'])
+    walletRequiresPassword = pyqtSignal([str, str], arguments=['name', 'path'])
     walletOpenError = pyqtSignal([str], arguments=["error"])
-    walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
+    walletDeleteError = pyqtSignal([str, str], arguments=['code', 'message'])
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)

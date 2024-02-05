@@ -23,7 +23,7 @@ from .qewallet import QEWallet
 class QEChannelOpener(QObject, AuthMixin):
     _logger = get_logger(__name__)
 
-    validationError = pyqtSignal([str,str], arguments=['code','message'])
+    validationError = pyqtSignal([str, str], arguments=['code', 'message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
     channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
