@@ -3735,9 +3735,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.txin_type
 
 
-class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
-
+class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     """ Deterministic Wallet with a single pubkey per address """
+    wallet_type = 'standard'
 
     def __init__(self, db, *, config):
         Deterministic_Wallet.__init__(self, db, config=config)
@@ -3760,14 +3760,6 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
     def derive_pubkeys(self, c, i):
         return [self.keystore.derive_pubkey(c, i).hex()]
-
-
-
-
-
-
-class Standard_Wallet(Simple_Deterministic_Wallet):
-    wallet_type = 'standard'
 
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
