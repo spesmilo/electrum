@@ -572,7 +572,9 @@ class VLine(QFrame):
         self.setLineWidth(1)
 
 
-def address_field(addresses):
+def address_field(addresses, *, btn_text: str = None):
+    if btn_text is None:
+        btn_text = _('Get wallet address')
     hbox = QHBoxLayout()
     address_e = QLineEdit()
     if addresses and len(addresses) > 0:
@@ -590,7 +592,7 @@ def address_field(addresses):
             # address not in the wallet (or to something that isn't an address)
             if addresses and len(addresses) > 0:
                 address_e.setText(addresses[0])
-    button = QPushButton(_('Address'))
+    button = QPushButton(btn_text)
     button.clicked.connect(func)
     hbox.addWidget(button)
     hbox.addWidget(address_e)
