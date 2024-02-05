@@ -142,10 +142,10 @@ class QEDaemon(AuthMixin, QObject):
     loadingChanged = pyqtSignal()
     requestNewPassword = pyqtSignal()
 
-    walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
-    walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
+    walletLoaded = pyqtSignal([str, str], arguments=['name', 'path'])
+    walletRequiresPassword = pyqtSignal([str, str], arguments=['name', 'path'])
     walletOpenError = pyqtSignal([str], arguments=["error"])
-    walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
+    walletDeleteError = pyqtSignal([str, str], arguments=['code', 'message'])
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
@@ -159,10 +159,6 @@ class QEDaemon(AuthMixin, QObject):
     def passwordValidityCheck(self):
         if not self._walletdb._validPassword:
             self.walletRequiresPassword.emit(self._name, self._path)
-
-    @pyqtSlot(str)
-    def onWalletOpenProblem(self, error):
-        self.walletOpenError.emit(error)
 
     @pyqtSlot()
     @pyqtSlot(str)
