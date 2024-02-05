@@ -473,9 +473,12 @@ Pane {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
             dialog.accepted.connect(function() {
                 txdetails.removeLocalTx(true)
-                root.close()
+                root.enabled = false
             })
             dialog.open()
+        }
+        onTxRemoved: {
+            root.close()
         }
         Component.onCompleted: {
             if (root.txid) {

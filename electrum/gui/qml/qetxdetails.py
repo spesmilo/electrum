@@ -19,6 +19,7 @@ class QETxDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     confirmRemoveLocalTx = pyqtSignal([str], arguments=['message'])
+    txRemoved = pyqtSignal()
     saveTxError = pyqtSignal([str,str], arguments=['code', 'message'])
     saveTxSuccess = pyqtSignal()
 
@@ -82,6 +83,12 @@ class QETxDetails(QObject, QtEventListener):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
             self._logger.debug(f'new_transaction event for our txid {self._txid}')
             self.update()
+
+    @event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self._wallet.wallet and tx.txid() == self._txid:
+            self._logger.debug(f'removed my transaction {tx.txid()}')
+            self.txRemoved.emit()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -426,7 +433,7 @@ class QETxDetails(QObject, QtEventListener):
         self._can_broadcast = False
         self.detailsChanged.emit()
 
-    @pyqtSlot(str,str,str)
+    @pyqtSlot(str, str, str)
     def onBroadcastFailed(self, txid, code, reason):
         if txid != self._txid:
             return
@@ -461,7 +468,6 @@ class QETxDetails(QObject, QtEventListener):
 
         # NOTE: from here, the tx/txid is unknown and all properties are invalid.
         # UI should close TxDetails and avoid interacting with this qetxdetails instance.
-        self._txid = None
         self._tx = None
 
     @pyqtSlot()
