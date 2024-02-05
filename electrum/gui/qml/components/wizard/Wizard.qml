@@ -84,6 +84,14 @@ ElDialog {
                 console.log('END')
             }
         })
+        page.finish.connect(function() {
+            // run wizard.submit() a final time, so that the navmap[view]['accept'] handler can run (if any)
+            var newview = wiz.submit(page.wizard_data)
+            _setWizardData(newview.wizard_data)
+            console.log('wizard finished')
+            // finish wizard
+            wizard.doAccept()
+        })
         page.prev.connect(function() {
             var wdata = wiz.prev()
         })
@@ -134,11 +142,7 @@ ElDialog {
             function finish() {
                 currentItem.accept()
                 _setWizardData(pages.contentChildren[currentIndex].wizard_data)
-                // run wizard.resolve_next() a final time, so that the navmap[view]['accept'] handler can run (if any)
-                var newview = wiz.submit(wizard_data)
-                _setWizardData(newview.wizard_data)
-                // finish wizard
-                wizard.doAccept()
+                currentItem.finish()
             }
 
             property bool pagevalid: false

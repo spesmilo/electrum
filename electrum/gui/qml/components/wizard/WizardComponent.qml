@@ -5,6 +5,7 @@ import QtQuick.Controls.Material
 Pane {
     id: root
     signal next
+    signal finish
     signal prev
     signal accept
     property var wizard_data : ({})
