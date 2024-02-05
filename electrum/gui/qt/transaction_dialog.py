@@ -63,7 +63,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
-                   get_iconname_qrcode, VLine)
+                   get_iconname_qrcode, VLine, WaitingDialog)
 from .rate_limiter import rate_limited
 from .my_treeview import create_toolbar_with_menu, QMenuWithConfig
 
@@ -511,6 +511,15 @@ class TxDialog(QDialog, MessageBoxMixin):
         export_option = export_actions_menu.addConfig(
             self.config.cv.GUI_QT_TX_DIALOG_EXPORT_INCLUDE_GLOBAL_XPUBS)
         self.psbt_only_widgets.append(export_option)
+        if self.wallet.has_support_for_slip_19_ownership_proofs():
+            export_option = export_actions_menu.addAction(
+                _('Include SLIP-19 ownership proofs'),
+                self._add_slip_19_ownership_proofs_to_tx)
+            export_option.setToolTip(_("Some cosigners (e.g. Trezor) might require this for coinjoins."))
+            self._export_option_slip19 = export_option
+            export_option.setCheckable(True)
+            export_option.setChecked(False)
+            self.psbt_only_widgets.append(export_option)
 
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Share"))
@@ -627,6 +636,20 @@ class TxDialog(QDialog, MessageBoxMixin):
         action = QAction(_("Save to file"), self)
         action.triggered.connect(lambda: self.export_to_file(tx=gettx()))
         menu.addAction(action)
+
+    def _add_slip_19_ownership_proofs_to_tx(self):
+        assert isinstance(self.tx, PartialTransaction)
+        def on_success(result):
+            self._export_option_slip19.setEnabled(False)
+            self.main_window.pop_top_level_window(self)
+        def on_failure(exc_info):
+            self._export_option_slip19.setChecked(False)
+            self.main_window.on_error(exc_info)
+            self.main_window.pop_top_level_window(self)
+        task = partial(self.wallet.add_slip_19_ownership_proofs_to_tx, self.tx)
+        msg = _('Adding SLIP-19 ownership proofs to transaction...')
+        self.main_window.push_top_level_window(self)
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def copy_to_clipboard(self, *, tx: Transaction = None):
         if tx is None:
