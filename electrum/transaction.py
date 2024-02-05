@@ -1389,6 +1389,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self._unknown = {}  # type: Dict[bytes, bytes]
 
         self._script_descriptor = None  # type: Optional[Descriptor]
+        self.is_mine = False  # type: bool  # whether the wallet considers the input to be ismine
         self._trusted_value_sats = None  # type: Optional[int]
         self._trusted_address = None  # type: Optional[str]
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown

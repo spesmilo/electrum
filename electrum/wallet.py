@@ -2443,6 +2443,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
         txin.script_descriptor = self.get_script_descriptor_for_address(address)
+        txin.is_mine = True
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 

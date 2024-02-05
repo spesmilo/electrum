@@ -352,7 +352,7 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    if txin.is_complete():
+                    if txin.is_complete() or not txin.is_mine:
                         txinputtype.script_type = InputScriptType.EXTERNAL
                         assert txin.scriptpubkey
                         txinputtype.script_pubkey = txin.scriptpubkey
