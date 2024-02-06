@@ -160,14 +160,14 @@ class QEDaemon(AuthMixin, QObject):
         if not self._walletdb._validPassword:
             self.walletRequiresPassword.emit(self._name, self._path)
 
-    @pyqtSlot(str)
-    def onWalletOpenProblem(self, error):
-        self.walletOpenError.emit(error)
-
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str, str)
     def loadWallet(self, path=None, password=None):
+        if self._loading:
+            return
+        self._loading = True
+
         if path is None:
             self._path = self.daemon.config.get('wallet_path')  # command line -w option
             if self._path is None:
@@ -175,7 +175,10 @@ class QEDaemon(AuthMixin, QObject):
         else:
             self._path = path
         if self._path is None:
+            self._loading = False
             return
+
+        self.loadingChanged.emit()
 
         self._path = standardize_path(self._path)
         self._name = os.path.basename(self._path)
@@ -189,12 +192,12 @@ class QEDaemon(AuthMixin, QObject):
         if not password:
             password = self._password
 
-        wallet_already_open = self.daemon.get_wallet(self._path) is not None
+        wallet_already_open = self.daemon.get_wallet(self._path)
+        if wallet_already_open is not None:
+            wallet_already_open_password = QEWallet.getInstanceFor(wallet_already_open).password
 
         def load_wallet_task():
-            self._loading = True
-            self.loadingChanged.emit()
-
+            success = False
             try:
                 local_password = password  # need this in local scope
                 wallet = None
@@ -214,10 +217,10 @@ class QEDaemon(AuthMixin, QObject):
                 if wallet is None:
                     return
 
-                if wallet_already_open:
+                if wallet_already_open is not None:
                     # wallet already open. daemon.load_wallet doesn't mind, but
                     # we need the correct current wallet password below
-                    local_password = QEWallet.getInstanceFor(wallet).password
+                    local_password = wallet_already_open_password
 
                 if self.daemon.config.WALLET_USE_SINGLE_PASSWORD:
                     self._use_single_password = self.daemon.update_password_for_directory(old_password=local_password, new_password=local_password)
@@ -231,10 +234,12 @@ class QEDaemon(AuthMixin, QObject):
 
                 run_hook('load_wallet', wallet)
 
+                success = True
                 self._backendWalletLoaded.emit(local_password)
             finally:
-                self._loading = False
-                self.loadingChanged.emit()
+                if not success:  # if successful, _loading guard will be reset by _on_backend_wallet_loaded
+                    self._loading = False
+                    self.loadingChanged.emit()
 
         threading.Thread(target=load_wallet_task, daemon=False).start()
 
@@ -247,6 +252,8 @@ class QEDaemon(AuthMixin, QObject):
         self._current_wallet = QEWallet.getInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
         self._current_wallet.password = password if password else None
+        self._loading = False
+        self.loadingChanged.emit()
         self.walletLoaded.emit(self._name, self._path)
 
     @pyqtSlot(QEWallet)
