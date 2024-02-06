@@ -468,10 +468,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not lock_max and self.amount_e.text() == '!':
             self.spend_max()
 
-        pi_unusable = pi.is_error() \
-            or (not self.wallet.has_lightning() and not pi.is_onchain()) \
-            or pi.need_resolve()
-        self.logger.debug(f'usable? {not pi_unusable}')
+        pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
 
         amount_valid = is_spk_script or bool(self.amount_e.get_amount())
