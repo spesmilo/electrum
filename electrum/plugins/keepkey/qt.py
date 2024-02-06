@@ -604,7 +604,7 @@ class SettingsDialog(WindowModalDialog):
 
 class WCKeepkeyInitMethod(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
+        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
@@ -635,7 +635,7 @@ class WCKeepkeyInitMethod(WizardComponent):
 
 class WCKeepkeyInitParams(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up keepkey'))
+        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
         self.plugins = wizard.plugins
         self._busy = True
 
@@ -658,7 +658,7 @@ class WCKeepkeyInitParams(WizardComponent):
 
 class WCKeepkeyInit(WizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up Keepkey'))
+        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('keepkey')

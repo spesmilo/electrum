@@ -536,7 +536,7 @@ class SettingsDialog(WindowModalDialog):
 
 class WCSafeTInitMethod(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
 
     def on_ready(self):
         _name, _info = self.wizard_data['hardware_device']
@@ -567,7 +567,7 @@ class WCSafeTInitMethod(WizardComponent):
 
 class WCSafeTInitParams(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up safe-t'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
         self.plugins = wizard.plugins
         self._busy = True
 
@@ -590,7 +590,7 @@ class WCSafeTInitParams(WizardComponent):
 
 class WCSafeTInit(WizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up safe-t'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('safe_t')

@@ -813,7 +813,7 @@ class WCTrezorXPub(WCHWXPub):
 
 class WCTrezorInitMethod(WizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('HW Setup'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = None
@@ -848,7 +848,7 @@ class WCTrezorInitMethod(WizardComponent, Logger):
 
 class WCTrezorInitParams(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up trezor'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
         self.plugins = wizard.plugins
         self._busy = True
 
@@ -867,7 +867,7 @@ class WCTrezorInitParams(WizardComponent):
 
 class WCTrezorInit(WizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Set-up trezor'))
+        WizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('trezor')
