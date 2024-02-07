@@ -4,7 +4,7 @@ import urllib
 import re
 from decimal import Decimal, InvalidOperation
 from enum import IntEnum
-from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple
+from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple, Union
 
 from . import bitcoin
 from .contacts import AliasNotFoundException
@@ -541,7 +541,7 @@ class PaymentIdentifier(Logger):
                 script += construct_script([word])
         return script
 
-    def parse_amount(self, x: str) -> str | int:
+    def parse_amount(self, x: str) -> Union[str, int]:
         x = x.strip()
         if not x:
             raise Exception("Amount is empty")
