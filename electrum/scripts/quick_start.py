@@ -29,7 +29,6 @@ if not os.path.exists(wallet_path):
 
 # open wallet
 wallet = daemon.load_wallet(wallet_path, password=None, upgrade=True)
-wallet.start_network(network)
 
 # you can use ~CLI commands by accessing command_runner
 command_runner = Commands(config=config, daemon=daemon, network=network)
