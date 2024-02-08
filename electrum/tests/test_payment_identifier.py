@@ -8,7 +8,10 @@ from ..transaction import PartialTxOutput
 
 class WalletMock:
     def __init__(self, electrum_path):
-        self.config = SimpleConfig({'electrum_path': electrum_path})
+        self.config = SimpleConfig({
+            'electrum_path': electrum_path,
+            'decimal_point': 5
+        })
         self.contacts = None
 
 
@@ -138,6 +141,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertIsNotNone(pi.multiline_outputs)
         self.assertEqual(2, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertEqual(1000, pi.multiline_outputs[1].value)
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -151,6 +156,9 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertIsNotNone(pi.multiline_outputs)
         self.assertEqual(3, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertEqual(1000, pi.multiline_outputs[1].value)
+        self.assertEqual('!', pi.multiline_outputs[2].value)
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -164,6 +172,9 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertIsNotNone(pi.multiline_outputs)
         self.assertEqual(3, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertEqual('2!', pi.multiline_outputs[1].value)
+        self.assertEqual('3!', pi.multiline_outputs[2].value)
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -175,6 +186,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertIsNotNone(pi.multiline_outputs)
         self.assertEqual(2, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertEqual(0, pi.multiline_outputs[1].value)
 
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
