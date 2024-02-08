@@ -161,7 +161,6 @@ class TestPaymentIdentifier(ElectrumTestCase):
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
             'bc1q66ex4c3vek4cdmrfjxtssmtguvs3r30pf42jpj,0.01',
             'bc1qy7ps80x5csdqpfcekn97qfljxtg2lrya8826ds,!',
-            'script(OP_RETURN deadbeef),0'
         ])
         pi = PaymentIdentifier(self.wallet, pi_str)
         self.assertTrue(pi.is_valid())
@@ -177,16 +176,26 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.is_multiline())
 
     def test_spk(self):
-        pi_str = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertTrue(pi.is_available())
+        address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
+        for pi_str in [
+            f'{address}',
+            f'  {address}',
+            f'{address}  ',
+            f'{address}'.upper(),
+        ]:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertTrue(pi.is_available())
 
-        # TODO: script should be valid?
-        # pi_str = 'script(OP_RETURN baddc0ffee),0'
-        # pi = PaymentIdentifier(None, pi_str)
-        # self.assertTrue(pi.is_valid())
-        # self.assertTrue(pi.is_available())
+        spk = 'script(OP_RETURN baddc0ffee)'
+        for pi_str in [
+            f'{spk}',
+            f'  {spk}',
+            f'{spk}  ',
+        ]:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertTrue(pi.is_available())
 
     def test_email_and_domain(self):
         pi_str = 'some.domain'
