@@ -3,6 +3,7 @@ from electrum.payment_identifier import (maybe_extract_lightning_payment_identif
                                          PaymentIdentifierType)
 
 from . import ElectrumTestCase
+from ..transaction import PartialTxOutput
 
 
 class WalletMock:
@@ -156,6 +157,9 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.is_valid())
         self.assertTrue(pi.is_multiline())
         self.assertFalse(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(2, len(pi.multiline_outputs))
+        self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -166,6 +170,22 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.is_valid())
         self.assertTrue(pi.is_multiline())
         self.assertTrue(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(3, len(pi.multiline_outputs))
+        self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+
+        pi_str = '\n'.join([
+            'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
+            'bc1q66ex4c3vek4cdmrfjxtssmtguvs3r30pf42jpj,2!',
+            'bc1qy7ps80x5csdqpfcekn97qfljxtg2lrya8826ds,3!',
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertTrue(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertTrue(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(3, len(pi.multiline_outputs))
+        self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -174,6 +194,9 @@ class TestPaymentIdentifier(ElectrumTestCase):
         pi = PaymentIdentifier(self.wallet, pi_str)
         self.assertTrue(pi.is_valid())
         self.assertTrue(pi.is_multiline())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(2, len(pi.multiline_outputs))
+        self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
 
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
