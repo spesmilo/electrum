@@ -492,6 +492,7 @@ class ChoiceWidget(QWidget):
             if (i == 0 and selected is None) or c[0] == selected:
                 self.selected_index = i
                 self.selected_item = c
+                self.selected_key = c[0]
                 button.setChecked(True)
         group.buttonClicked.connect(self.on_selected)
 
