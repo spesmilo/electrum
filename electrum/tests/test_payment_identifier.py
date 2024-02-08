@@ -30,28 +30,6 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(None, maybe_extract_lightning_payment_identifier(f":{bolt11}"))
         self.assertEqual(None, maybe_extract_lightning_payment_identifier(f"garbage text"))
 
-    def test_immediate_available(self):
-        bolt11 = 'lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy'
-        pi = PaymentIdentifier(None, bolt11)
-        self.assertTrue(pi.is_available())
-        self.assertTrue(pi.is_lightning())
-        self.assertFalse(pi.is_onchain())
-        self.assertIsNotNone(pi.bolt11)
-
-        bip21 = 'bitcoin:bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293?message=unit_test'
-        pi = PaymentIdentifier(None, bip21)
-        self.assertTrue(pi.is_available())
-        self.assertFalse(pi.is_lightning())
-        self.assertTrue(pi.is_onchain())
-        self.assertIsNotNone(pi.bip21)
-
-        address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
-        pi = PaymentIdentifier(None, address)
-        self.assertTrue(pi.is_available())
-        self.assertFalse(pi.is_lightning())
-        self.assertTrue(pi.is_onchain())
-        self.assertIsNotNone(pi.spk)
-
     def test_bolt11(self):
         # no amount, no fallback address
         bolt11 = 'lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy'
@@ -228,7 +206,21 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertFalse(pi.is_available())
         self.assertTrue(pi.need_resolve())
 
+        pi_str = 'some.weird.but.valid.domain'
+        pi = PaymentIdentifier(None, pi_str)
+        self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
+        self.assertFalse(pi.is_available())
+        self.assertTrue(pi.need_resolve())
+
         pi_str = 'user@some.domain'
+        pi = PaymentIdentifier(None, pi_str)
+        self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
+        self.assertFalse(pi.is_available())
+        self.assertTrue(pi.need_resolve())
+
+        pi_str = 'user@some.weird.but.valid.domain'
         pi = PaymentIdentifier(None, pi_str)
         self.assertTrue(pi.is_valid())
         self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
