@@ -973,7 +973,7 @@ class Commands:
         return wallet.create_new_address(False)
 
     @command('w')
-    async def changegaplimit(self, new_limit, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
+    async def changegaplimit(self, new_limit, change=False, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """Change the gap limit of the wallet."""
         if not iknowwhatimdoing:
             raise Exception("WARNING: Are you SURE you want to change the gap limit?\n"
@@ -983,10 +983,12 @@ class Commands:
                             "To proceed, try again, with the --iknowwhatimdoing option.")
         if not isinstance(wallet, Deterministic_Wallet):
             raise Exception("This wallet is not deterministic.")
+        if change:
+            return wallet.change_gap_limit_for_change(new_limit)
         return wallet.change_gap_limit(new_limit)
 
     @command('wn')
-    async def getminacceptablegap(self, wallet: Abstract_Wallet = None):
+    async def getminacceptablegap(self, change=False, wallet: Abstract_Wallet = None):
         """Returns the minimum value for gap limit that would be sufficient to discover all
         known addresses in the wallet.
         """
@@ -994,7 +996,7 @@ class Commands:
             raise Exception("This wallet is not deterministic.")
         if not wallet.is_up_to_date():
             raise NotSynchronizedException("Wallet not fully synchronized.")
-        return wallet.min_acceptable_gap()
+        return wallet.min_acceptable_gap(change)
 
     @command('w')
     async def getunusedaddress(self, wallet: Abstract_Wallet = None):

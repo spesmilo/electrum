@@ -380,7 +380,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     LOGGING_SHORTCUT = 'w'
     max_change_outputs = 3
-    gap_limit_for_change = 10
 
     txin_type: str
     wallet_type: str
@@ -3522,6 +3521,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         self._ephemeral_addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]
         Abstract_Wallet.__init__(self, db, config=config)
         self.gap_limit = db.get('gap_limit', 20)
+        self.gap_limit_for_change = db.get('gap_limit_for_change', 10)
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
         self.synchronize()
@@ -3589,6 +3589,17 @@ class Deterministic_Wallet(Abstract_Wallet):
         else:
             return False
 
+    def change_gap_limit_for_change(self, value):
+        '''This method is not called in the code, it is kept for console use'''
+        value = int(value)
+        if value >= self.min_acceptable_gap(True):
+            self.gap_limit_for_change = value
+            self.db.put('gap_limit_for_change', self.gap_limit_for_change)
+            self.save_db()
+            return True
+        else:
+            return False
+
     def num_unused_trailing_addresses(self, addresses):
         k = 0
         for addr in addresses[::-1]:
@@ -3597,11 +3608,14 @@ class Deterministic_Wallet(Abstract_Wallet):
             k += 1
         return k
 
-    def min_acceptable_gap(self) -> int:
+    def min_acceptable_gap(self, for_change: bool = False) -> int:
         # fixme: this assumes wallet is synchronized
         n = 0
         nmax = 0
-        addresses = self.get_receiving_addresses()
+        if for_change:
+            addresses = self.get_change_addresses()
+        else:
+            addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for addr in addresses[0:-k]:
             if self.adb.address_is_old(addr):
@@ -3887,8 +3901,17 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=None,
-                      encrypt_file=True, seed_type=None, gap_limit=None) -> dict:
+def create_new_wallet(
+    *,
+    path,
+    config: SimpleConfig,
+    passphrase=None,
+    password=None,
+    encrypt_file=True,
+    seed_type=None,
+    gap_limit=None,
+    gap_limit_for_change=None
+) -> dict:
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
@@ -3903,6 +3926,8 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
         db.put('lightning_xprv', k.get_lightning_xprv(None))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
+    if gap_limit_for_change is not None:
+        db.put('gap_limit_for_change', gap_limit_for_change)
     wallet = Wallet(db, config=config)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
@@ -3920,6 +3945,7 @@ def restore_wallet_from_text(
     password: Optional[str] = None,
     encrypt_file: Optional[bool] = None,
     gap_limit: Optional[int] = None,
+    gap_limit_for_change: Optional[int] = None,
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
@@ -3963,6 +3989,8 @@ def restore_wallet_from_text(
         db.put('wallet_type', 'standard')
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
+        if gap_limit_for_change is not None:
+            db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = Wallet(db, config=config)
     if db.storage:
         assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
