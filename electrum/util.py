@@ -1782,7 +1782,9 @@ class CallbackManager(Logger):
                 def on_done(fut_: concurrent.futures.Future):
                     assert fut_.done()
                     self._running_cb_futs.remove(fut_)
-                    if exc := fut_.exception():
+                    if fut_.cancelled():
+                        self.logger.debug(f"cb cancelled. {event=}.")
+                    elif exc := fut_.exception():
                         self.logger.error(f"cb errored. {event=}. {exc=}", exc_info=exc)
                 fut.add_done_callback(on_done)
             else:  # non-async cb
