@@ -1,4 +1,5 @@
 import threading
+import traceback
 import unittest
 from functools import wraps, partial
 from unittest import SkipTest
@@ -69,7 +70,7 @@ def qt_test(func):
             QMetaObject.invokeMethod(self.app, 'doInvoke', Qt.ConnectionType.QueuedConnection)
             self._event.wait(15)
             if self._e:
-                print(f'raising ex: {self._e!r}')
+                print("".join(traceback.format_exception(self._e)))
                 # deallocate stored exception from qt thread otherwise we SEGV garbage collector
                 # instead, re-create using the exception message, special casing AssertionError and SkipTest
                 e = None
