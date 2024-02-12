@@ -14,7 +14,6 @@ from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
                     NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict, Callable, Awaitable)
 import threading
 import socket
-import aiohttp
 import json
 from datetime import datetime, timezone
 from functools import partial, cached_property
@@ -22,7 +21,9 @@ from collections import defaultdict
 import concurrent
 from concurrent import futures
 import urllib.parse
+import itertools
 
+import aiohttp
 import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
@@ -1063,7 +1064,7 @@ class LNWallet(LNWorker):
         current_height = self.wallet.adb.get_local_height()
         out = {}
         # add funding events
-        for chan in self.channels.values():
+        for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
             item = chan.get_funding_height()
             if item is None:
                 continue
