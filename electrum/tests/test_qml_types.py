@@ -3,7 +3,7 @@ import tempfile
 
 from electrum import SimpleConfig
 from electrum.gui.qml.qetypes import QEAmount
-from electrum.tests.test_qt_base import QETestCase, QEventReceiver, qt_test
+from electrum.tests.qt_util import QETestCase, QEventReceiver, qt_test
 
 
 class WalletMock:
