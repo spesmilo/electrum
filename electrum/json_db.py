@@ -25,7 +25,7 @@
 import threading
 import copy
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import jsonpatch
 
 from . import util
@@ -213,7 +213,14 @@ class StoredList(list):
 
 class JsonDB(Logger):
 
-    def __init__(self, s: str, storage=None, encoder=None, upgrader=None):
+    def __init__(
+        self,
+        s: str,
+        *,
+        storage: Optional['WalletStorage'] = None,
+        encoder=None,
+        upgrader=None,
+    ):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = storage
