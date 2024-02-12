@@ -817,7 +817,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return serialized_privkey
 
     def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
-        raise Exception("this wallet is not deterministic")
+        raise UserFacingException("this wallet is not deterministic")
 
     @abstractmethod
     def get_public_keys(self, address: str) -> Sequence[str]:
@@ -1440,7 +1440,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # FIXME: Lightning capital gains would requires FIFO
         if (from_timestamp is not None or to_timestamp is not None) \
                 and (from_height is not None or to_height is not None):
-            raise Exception('timestamp and block height based filtering cannot be used together')
+            raise UserFacingException('timestamp and block height based filtering cannot be used together')
 
         show_fiat = fx and fx.is_enabled() and fx.has_history()
         out = []
@@ -2591,17 +2591,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return choice
 
     def create_new_address(self, for_change: bool = False):
-        raise Exception("this wallet cannot generate new addresses")
+        raise UserFacingException("this wallet cannot generate new addresses")
 
     def import_address(self, address: str) -> str:
-        raise Exception("this wallet cannot import addresses")
+        raise UserFacingException("this wallet cannot import addresses")
 
     def import_addresses(self, addresses: List[str], *,
                          write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
-        raise Exception("this wallet cannot import addresses")
+        raise UserFacingException("this wallet cannot import addresses")
 
     def delete_address(self, address: str) -> None:
-        raise Exception("this wallet cannot delete addresses")
+        raise UserFacingException("this wallet cannot delete addresses")
 
     def get_request_URI(self, req: Request) -> Optional[str]:
         lightning_invoice = None
@@ -3050,7 +3050,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> PartialTransaction:
         """Helper function for make_unsigned_transaction."""
         if fee is not None and feerate is not None:
-            raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
+            raise UserFacingException("Cannot specify both 'fee' and 'feerate' at the same time!")
         coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
@@ -3892,7 +3892,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
-        raise Exception("Remove the existing wallet first!")
+        raise UserFacingException("Remove the existing wallet first!")
     db = WalletDB('', storage=storage, upgrade=True)
 
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
@@ -3929,7 +3929,7 @@ def restore_wallet_from_text(
     else:
         storage = WalletStorage(path)
         if storage.file_exists():
-            raise Exception("Remove the existing wallet first!")
+            raise UserFacingException("Remove the existing wallet first!")
     if encrypt_file is None:
         encrypt_file = True
     db = WalletDB('', storage=storage, upgrade=True)
@@ -3940,7 +3940,7 @@ def restore_wallet_from_text(
         good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
         # FIXME tell user about bad_inputs
         if not good_inputs:
-            raise Exception("None of the given addresses can be imported")
+            raise UserFacingException("None of the given addresses can be imported")
     elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
         k = keystore.Imported_KeyStore({})
         db.put('keystore', k.dump())
@@ -3949,7 +3949,7 @@ def restore_wallet_from_text(
         good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
         # FIXME tell user about bad_inputs
         if not good_inputs:
-            raise Exception("None of the given privkeys can be imported")
+            raise UserFacingException("None of the given privkeys can be imported")
     else:
         if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
@@ -3958,7 +3958,7 @@ def restore_wallet_from_text(
             if k.can_have_deterministic_lightning_xprv():
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:
-            raise Exception("Seed or key not recognized")
+            raise UserFacingException("Seed or key not recognized")
         db.put('keystore', k.dump())
         db.put('wallet_type', 'standard')
         if gap_limit is not None:
