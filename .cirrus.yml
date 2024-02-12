@@ -34,6 +34,8 @@ task:
   install_script:
     - apt-get update
     - apt-get -y install libsecp256k1-dev
+    # qml test reqs:
+    - apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
   tox_script:
     - export PYTHONASYNCIODEBUG
