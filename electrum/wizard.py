@@ -166,13 +166,15 @@ class AbstractWizard:
         whitelist = [
             "wallet_name", "wallet_exists", "wallet_is_open", "wallet_needs_hw_unlock",
             "wallet_type", "keystore_type", "seed_variant", "seed_type", "seed_extend",
-            "trustedcoin_keepordisable",  "script_type", "derivation_path", "encrypt",
+            "script_type", "derivation_path", "encrypt",
             # hardware devices:
             "hardware_device", "hw_type", "label", "soft_device_id",
             # inside keystore:
             "type", "pw_hash_version", "derivation", "root_fingerprint",
             # multisig:
             "multisig_participants", "multisig_signatures", "multisig_current_cosigner", "cosigner_keystore_type",
+            # trustedcoin:
+            "trustedcoin_keepordisable", "trustedcoin_go_online",
         ]
 
         def sanitize(_dict):
