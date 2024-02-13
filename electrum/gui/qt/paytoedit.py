@@ -129,6 +129,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
         self.line_edit = QLineEdit()
         self.line_edit.textChanged.connect(line_edit_changed)
         self.text_edit = ResizingTextEdit()
+        self.text_edit.setTabChangesFocus(True)
         self.text_edit.textReallyChanged.connect(text_edit_changed)
         self.text_edit.resized.connect(text_edit_resized)
 
