@@ -131,6 +131,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.paste_button.setIcon(read_QIcon('copy.png'))
         self.paste_button.setToolTip(_('Paste invoice from clipboard'))
         self.paste_button.setMaximumWidth(35)
+        self.paste_button.setFocusPolicy(Qt.NoFocus)
         grid.addWidget(self.paste_button, 0, 5)
 
         self.spinner = QMovie(icon_path('spinner.gif'))
@@ -198,6 +199,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.finalize_done_signal.connect(self.on_finalize_done)
         self.notify_merchant_done_signal.connect(self.on_notify_merchant_done)
         self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
+
+        self.setTabOrder(self.send_button, self.invoice_list)
 
     def showSpinner(self, b):
         self.spinner_l.setVisible(b)
