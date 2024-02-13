@@ -163,10 +163,16 @@ class AbstractWizard:
         self._logger.debug(logstr)
 
     def sanitize_stack_item(self, _stack_item) -> dict:
-        sensitive_keys = [
-            'seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password',
-            # trustedcoin:
-            'xprv1', 'xpub1', 'xpub2', 'xprv', 'xpub',
+        whitelist = [
+            "wallet_name", "wallet_exists", "wallet_is_open", "wallet_needs_hw_unlock",
+            "wallet_type", "keystore_type", "seed_variant", "seed_type", "seed_extend",
+            "trustedcoin_keepordisable",  "script_type", "derivation_path", "encrypt",
+            # hardware devices:
+            "hardware_device", "hw_type", "label", "soft_device_id",
+            # inside keystore:
+            "type", "pw_hash_version", "derivation", "root_fingerprint",
+            # multisig:
+            "multisig_participants", "multisig_signatures", "multisig_current_cosigner", "cosigner_keystore_type",
         ]
 
         def sanitize(_dict):
@@ -175,10 +181,10 @@ class AbstractWizard:
                 if isinstance(_dict[item], dict):
                     result[item] = sanitize(_dict[item])
                 else:
-                    if item in sensitive_keys:
-                        result[item] = '<sensitive value removed>'
-                    else:
+                    if item in whitelist:
                         result[item] = _dict[item]
+                    else:
+                        result[item] = '<redacted>'
             return result
         return sanitize(_stack_item)
 
