@@ -823,6 +823,12 @@ class WCTrezorInitMethod(WizardComponent, Logger):
         self.plugin = self.plugins.get_plugin(_info.plugin_name)
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client.features.bootloader_mode:
+            msg = (_("Looks like your device is in bootloader mode. Try reconnecting it.\n"
+                     "If you haven't installed a firmware on it yet, you can download it from {}")
+                   .format(self.plugin.firmware_URL))
+            self.error = msg
+            return
         if not client.is_uptodate():
             msg = (_('Outdated {} firmware for device labelled {}. Please '
                      'download the updated firmware from {}')
@@ -843,6 +849,8 @@ class WCTrezorInitMethod(WizardComponent, Logger):
         self._valid = True
 
     def apply(self):
+        if not self.valid:
+            return
         self.wizard_data['trezor_init'] = self.choice_w.selected_key
 
 
