@@ -684,6 +684,7 @@ class WCKeepkeyInit(WizardComponent, Logger):
             except Exception as e:
                 self.valid = False
                 self.error = repr(e)
+                self.logger.exception(repr(e))
             finally:
                 self.busy = False
 

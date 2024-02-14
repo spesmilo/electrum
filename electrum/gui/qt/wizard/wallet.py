@@ -1296,7 +1296,7 @@ class WCHWUnlock(WalletWizardComponent, Logger):
                 self.password = client.get_password_for_storage_encryption()
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
-                self.logger.error(repr(e))
+                self.logger.exception(repr(e))
             self.busy = False
             self.validate()
 
@@ -1386,7 +1386,7 @@ class WCHWXPub(WalletWizardComponent, Logger):
                 self.logger.error(repr(e))
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
-                self.logger.error(repr(e))
+                self.logger.exception(repr(e))
             self.logger.debug(f'Done retrieve xpub: {self.xpub}')
             self.busy = False
             self.validate()

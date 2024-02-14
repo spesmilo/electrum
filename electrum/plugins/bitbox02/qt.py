@@ -149,6 +149,7 @@ class WCBitbox02ScriptAndDerivation(WCScriptAndDerivation):
                 self.error = str(e)
             except Exception as e:
                 self.error = repr(e)
+                self.logger.exception(repr(e))
             finally:
                 self.busy = False
 
