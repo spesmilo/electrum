@@ -425,8 +425,15 @@ class InitSettingsLayout(QVBoxLayout):
         if method == TIM_NEW:
             self.cb_no_backup = QCheckBox(_('Enable seedless mode'))
             self.cb_no_backup.setChecked(False)
-            if (model == '1' and fw_version >= (1, 7, 1)
-                    or model == 'T' and fw_version >= (2, 0, 9)):
+            supports_no_backup = False
+            if model == '1':
+                if fw_version >= (1, 7, 1):
+                    supports_no_backup = True
+            else:
+                if fw_version >= (2, 0, 9):
+                    supports_no_backup = True
+            if supports_no_backup:
+                self.cb_no_backup.setEnabled(True)
                 self.cb_no_backup.setToolTip(SEEDLESS_MODE_WARNING)
             else:
                 self.cb_no_backup.setEnabled(False)
