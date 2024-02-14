@@ -19,8 +19,7 @@ from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .keepkey import KeepKeyPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub
-from electrum.gui.qt.wizard.wizard import WizardComponent
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -602,12 +601,13 @@ class SettingsDialog(WindowModalDialog):
         invoke_client(None)
 
 
-class WCKeepkeyInitMethod(WizardComponent):
+class WCKeepkeyInitMethod(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
         msg = _("Choose how you want to initialize your {}.\n\n"
                 "The first two methods are secure as no secret information "
                 "is entered into your computer.\n\n"
@@ -630,35 +630,38 @@ class WCKeepkeyInitMethod(WizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['keepkey_init'] = self.choice_w.selected_item[0]
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['keepkey_init'] = self.choice_w.selected_key
 
 
-class WCKeepkeyInitParams(WizardComponent):
+class WCKeepkeyInitParams(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
         self.plugins = wizard.plugins
         self._busy = True
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
-        self.settings_layout = KeepkeyInitLayout(self.wizard_data['keepkey_init'], _info.device.id_)
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        self.settings_layout = KeepkeyInitLayout(current_cosigner['keepkey_init'], _info.device.id_)
         self.settings_layout.validChanged.connect(self.on_settings_valid_changed)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 
-        self.valid = self.wizard_data['keepkey_init'] != TIM_PRIVKEY  # TODO: only privkey is validated
+        self.valid = current_cosigner['keepkey_init'] != TIM_PRIVKEY  # TODO: only privkey is validated
         self.busy = False
 
     def on_settings_valid_changed(self, is_valid: bool):
         self.valid = is_valid
 
     def apply(self):
-        self.wizard_data['keepkey_settings'] = self.settings_layout.get_settings()
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['keepkey_settings'] = self.settings_layout.get_settings()
 
 
-class WCKeepkeyInit(WizardComponent, Logger):
+class WCKeepkeyInit(WalletWizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('KeepKey Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('keepkey')
@@ -668,9 +671,10 @@ class WCKeepkeyInit(WizardComponent, Logger):
         self._busy = True
 
     def on_ready(self):
-        settings = self.wizard_data['keepkey_settings']
-        method = self.wizard_data['keepkey_init']
-        _name, _info = self.wizard_data['hardware_device']
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        settings = current_cosigner['keepkey_settings']
+        method = current_cosigner['keepkey_init']
+        _name, _info = current_cosigner['hardware_device']
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)

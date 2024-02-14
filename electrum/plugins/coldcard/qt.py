@@ -1,11 +1,10 @@
 from functools import partial
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
-                                  getSaveFileName)
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, getOpenFileName, getSaveFileName
 from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.i18n import _

@@ -122,7 +122,8 @@ class WCBitbox02ScriptAndDerivation(WCScriptAndDerivation):
 
     def on_ready(self):
         super().on_ready()
-        _name, _info = self.wizard_data['hardware_device']
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
         plugin = self.wizard.plugins.get_plugin(_info.plugin_name)
 
         device_id = _info.device.id_

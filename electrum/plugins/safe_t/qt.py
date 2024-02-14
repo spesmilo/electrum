@@ -19,8 +19,7 @@ from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub
-from electrum.gui.qt.wizard.wizard import WizardComponent
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -534,12 +533,13 @@ class SettingsDialog(WindowModalDialog):
         invoke_client(None)
 
 
-class WCSafeTInitMethod(WizardComponent):
+class WCSafeTInitMethod(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
         msg = _("Choose how you want to initialize your {}.\n\n"
                 "The first two methods are secure as no secret information "
                 "is entered into your computer.\n\n"
@@ -562,35 +562,38 @@ class WCSafeTInitMethod(WizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['safe_t_init'] = self.choice_w.selected_key
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['safe_t_init'] = self.choice_w.selected_key
 
 
-class WCSafeTInitParams(WizardComponent):
+class WCSafeTInitParams(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
         self.plugins = wizard.plugins
         self._busy = True
 
     def on_ready(self):
-        _name, _info = self.wizard_data['hardware_device']
-        self.settings_layout = SafeTInitLayout(self.wizard_data['safe_t_init'], _info.device.id_)
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        self.settings_layout = SafeTInitLayout(current_cosigner['safe_t_init'], _info.device.id_)
         self.settings_layout.validChanged.connect(self.on_settings_valid_changed)
         self.layout().addLayout(self.settings_layout)
         self.layout().addStretch(1)
 
-        self.valid = self.wizard_data['safe_t_init'] != TIM_PRIVKEY
+        self.valid = current_cosigner['safe_t_init'] != TIM_PRIVKEY
         self.busy = False
 
     def on_settings_valid_changed(self, is_valid: bool):
         self.valid = is_valid
 
     def apply(self):
-        self.wizard_data['safe_t_settings'] = self.settings_layout.get_settings()
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['safe_t_settings'] = self.settings_layout.get_settings()
 
 
-class WCSafeTInit(WizardComponent, Logger):
+class WCSafeTInit(WalletWizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Safe-T Setup'))
         Logger.__init__(self)
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('safe_t')
@@ -600,9 +603,10 @@ class WCSafeTInit(WizardComponent, Logger):
         self._busy = True
 
     def on_ready(self):
-        settings = self.wizard_data['safe_t_settings']
-        method = self.wizard_data['safe_t_init']
-        _name, _info = self.wizard_data['hardware_device']
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        settings = current_cosigner['safe_t_settings']
+        method = current_cosigner['safe_t_init']
+        _name, _info = current_cosigner['hardware_device']
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
         client.handler = self.plugin.create_handler(self.wizard)
