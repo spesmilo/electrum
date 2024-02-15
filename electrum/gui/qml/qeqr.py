@@ -10,7 +10,13 @@ from PIL import ImageQt
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtQuick import QQuickImageProvider
-from PyQt6.QtMultimedia import QVideoSink
+try:
+    from PyQt6.QtMultimedia import QVideoSink
+except ImportError:
+    # stub QVideoSink when not found, as it's not essential on android
+    # and requires many dependencies when unit testing.
+    # Note: missing QtMultimedia will lead to errors when using QR scanner on desktop
+    from PyQt6.QtCore import QObject as QVideoSink
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
