@@ -660,6 +660,7 @@ class TestPeerDirect(TestPeer):
                 await p1.received_commitsig_event.wait()
                 await group.cancel_remaining()
             # simulating disconnection. recreate transports.
+            self.logger.info("simulating disconnection. recreating transports.")
             p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
             for chan in (chan_AB, chan_BA):
                 chan.peer_state = PeerState.DISCONNECTED
@@ -676,7 +677,8 @@ class TestPeerDirect(TestPeer):
                                      "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
                 self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
                 self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
-                raise SuccessfulTest()
+                await group.cancel_remaining()
+            raise SuccessfulTest()
         with self.assertRaises(SuccessfulTest):
             await f()
 
@@ -715,6 +717,7 @@ class TestPeerDirect(TestPeer):
                 await p1.received_commitsig_event.wait()
                 await group.cancel_remaining()
             # simulating disconnection. recreate transports.
+            self.logger.info("simulating disconnection. recreating transports.")
             p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
             for chan in (chan_AB, chan_BA):
                 chan.peer_state = PeerState.DISCONNECTED
@@ -731,7 +734,8 @@ class TestPeerDirect(TestPeer):
                                      "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
                 self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
                 self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
-                raise SuccessfulTest()
+                await group.cancel_remaining()
+            raise SuccessfulTest()
         with self.assertRaises(SuccessfulTest):
             await f()
 

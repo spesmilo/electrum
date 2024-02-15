@@ -9,6 +9,7 @@ import electrum
 import electrum.logging
 from electrum import constants
 from electrum import util
+from electrum.logging import Logger
 
 
 # Set this locally to make the test suite run faster.
@@ -23,7 +24,7 @@ electrum.logging._configure_stderr_logging()
 electrum.util.AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = True
 
 
-class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
+class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
     """Base class for our unit tests."""
 
     TESTNET = False
@@ -31,6 +32,10 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
 
     # some unit tests are modifying globals... so we run sequentially:
     _test_lock = threading.Lock()
+
+    def __init__(self, *args, **kwargs):
+        Logger.__init__(self)
+        unittest.IsolatedAsyncioTestCase.__init__(self, *args, **kwargs)
 
     @classmethod
     def setUpClass(cls):
