@@ -350,10 +350,10 @@ class QETxDetails(QObject, QtEventListener):
         self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_broadcast = txinfo.can_broadcast
-        self._can_bump = txinfo.can_bump and not txinfo.can_remove
-        self._can_dscancel = txinfo.can_dscancel and not txinfo.can_remove
-        self._can_cpfp = txinfo.can_cpfp and not txinfo.can_remove
-        self._can_save_as_local = txinfo.can_save_as_local and not txinfo.can_remove
+        self._can_bump = txinfo.can_bump
+        self._can_dscancel = txinfo.can_dscancel
+        self._can_cpfp = txinfo.can_cpfp
+        self._can_save_as_local = txinfo.can_save_as_local
         self._can_remove = txinfo.can_remove
         self._can_sign = (
             not self._is_complete
