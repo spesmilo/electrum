@@ -18,6 +18,8 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.10
        - env:
            ELECTRUM_PYTHON_VERSION: 3.11
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.12
        - name: "unittests: Tox Python 3 debug mode"
          env:
            ELECTRUM_PYTHON_VERSION: 3.11
