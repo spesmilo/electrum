@@ -44,10 +44,10 @@ class QETestCase(unittest.IsolatedAsyncioTestCase):
         def start_qt_task():
             self.app = TestQCoreApplication([])
 
-            self.timer = QTimer(self.app)
-            self.timer.setSingleShot(False)
-            self.timer.setInterval(500)  # msec
-            self.timer.timeout.connect(lambda: None)  # periodically enter python scope
+            # self.timer = QTimer(self.app)
+            # self.timer.setSingleShot(False)
+            # self.timer.setInterval(500)  # msec
+            # self.timer.timeout.connect(lambda: None)  # periodically enter python scope
 
             self.app.exec()
             self.app = None
