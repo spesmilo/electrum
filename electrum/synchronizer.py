@@ -119,6 +119,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         while True:
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
+
             self._handling_addr_statuses.add(addr)
             self.requested_addrs.discard(addr)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_address_status, addr, status)

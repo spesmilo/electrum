@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Feathercoin client
 # Copyright (C) 2018 The Electrum developers
 #
 # Permission is hereby granted, free of charge, to any person
@@ -29,6 +29,9 @@ import os
 import sys
 import hashlib
 import hmac
+
+from ctypes import *
+
 from typing import Union, Mapping, Optional
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
@@ -42,7 +45,7 @@ _logger = get_logger(__name__)
 HAS_PYAES = False
 try:
     import pyaes
-except Exception:
+except:
     pass
 else:
     HAS_PYAES = True
@@ -57,7 +60,7 @@ try:
     from Cryptodome.Cipher import ChaCha20_Poly1305 as CD_ChaCha20_Poly1305
     from Cryptodome.Cipher import ChaCha20 as CD_ChaCha20
     from Cryptodome.Cipher import AES as CD_AES
-except Exception:
+except:
     pass
 else:
     HAS_CRYPTODOME = True
@@ -75,7 +78,7 @@ try:
     from cryptography.hazmat.primitives.ciphers import modes as CG_modes
     from cryptography.hazmat.backends import default_backend as CG_default_backend
     import cryptography.hazmat.primitives.ciphers.aead as CG_aead
-except Exception:
+except:
     pass
 else:
     HAS_CRYPTOGRAPHY = True
@@ -104,6 +107,66 @@ def version_info() -> Mapping[str, Optional[str]]:
     else:
         ret["cryptography.version"] = None
     return ret
+
+def load_neoscrypt():
+    if sys.platform == 'darwin':
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libneoscrypt.0.dylib'),
+                         'libneoscrypt.0.dylib')
+    elif sys.platform in ('windows', 'win32'):
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libneoscrypt-0.dll'),
+                         'libneoscrypt-0.dll')
+    elif 'ANDROID_DATA' in os.environ:
+        library_paths = ('libneoscrypt.so',)
+    else:  # desktop Linux and similar
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libneoscrypt.so.0'),
+                         'libneoscrypt.so.0')
+
+    exceptions = []
+    result = None
+    for libpath in library_paths:
+        try:
+            result = CDLL(libpath)
+        except BaseException as e:
+            exceptions.append(e)
+        else:
+            break
+    if result==None:
+        raise Exception ("could not load neoscrypt library")
+
+    return result
+
+hash=load_neoscrypt()
+
+def load_scrypt():
+    if sys.platform == 'darwin':
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libscrypt.0.dylib'),
+                         'libscrypt.0.dylib')
+    elif sys.platform in ('windows', 'win32','win64'):
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libscrypt-0.dll',
+                        ),
+                         'libscrypt-0.dll')
+    elif 'ANDROID_DATA' in os.environ:
+        library_paths = ('libscrypt.so',)
+    else:  # desktop Linux and similar
+        library_paths = (os.path.join(os.path.dirname(__file__), 'libscrypt.so.0'),
+                         'libscrypt.so.0', 'electrum/libscrypt.so.0')
+
+    exceptions = []
+    result = None
+    for libpath in library_paths:
+        try:
+            result = CDLL(libpath)
+        except BaseException as e:
+            exceptions.append(e)
+        else:
+            break
+
+    if result==None:
+           raise Exception ("could not load scrypt library")
+
+    return result
+
+scrypt=load_scrypt()
 
 
 class InvalidPadding(Exception):
@@ -326,6 +389,18 @@ def sha256d(x: Union[bytes, str]) -> bytes:
     out = bytes(sha256(sha256(x)))
     return out
 
+def PoWHash(x):
+    x = create_string_buffer(to_bytes(x, 'utf8'))
+    y = create_string_buffer(32)
+    scrypt.scrypt_1024_1_1_256(byref(x), y)
+    return y
+
+
+def PoWNeoScryptHash(x):
+    x = create_string_buffer(to_bytes(x, 'utf8'))
+    y = create_string_buffer(32)
+    hash.neoscrypt(byref(x),y)
+    return y
 
 def hash_160(x: bytes) -> bytes:
     return ripemd(sha256(x))

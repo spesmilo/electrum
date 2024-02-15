@@ -216,7 +216,7 @@ class SimpleConfig(Logger):
             host, port, protocol = str(server_str).rsplit(':', 2)
             assert protocol in ('s', 't')
             int(port)  # Throw if cannot be converted to int
-            server_str = '{}:{}:s'.format(host, port)
+            server_str = '{}:{}fs'.format(host, port)
             self._set_key_in_user_config('server', server_str)
         except BaseException:
             self._set_key_in_user_config('server', None)
@@ -230,7 +230,7 @@ class SimpleConfig(Logger):
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
+            map_ = {'ftc':8, 'mftc':5, 'uftc':2, 'bits':2, 'sat':0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
 

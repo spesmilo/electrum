@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Feathercoin client
 # Copyright (C) 2018 The Electrum developers
 #
 # Permission is hereby granted, free of charge, to any person
@@ -35,33 +35,23 @@ def read_json(filename, default):
     try:
         with open(path, 'r') as f:
             r = json.loads(f.read())
-    except Exception:
+    except:
         r = default
     return r
 
 
 GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+GIT_REPO_ISSUES_URL = "https://github.com/Feathercoin-Foundation/electrum-ftc/issues"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
-
 
 class AbstractNet:
 
-    NET_NAME: str
-    TESTNET: bool
-    WIF_PREFIX: int
-    ADDRTYPE_P2PKH: int
-    ADDRTYPE_P2SH: int
-    SEGWIT_HRP: str
-    BOLT11_HRP: str
-    GENESIS: str
-    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS: int = 0
-    BIP44_COIN_TYPE: int
-    LN_REALM_BYTE: int
-
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+        if len(cls.CHECKPOINTS) >= 1:
+            return max(0, len(cls.CHECKPOINTS) * 2016 -1) # the original version from upstream
+        return 0
+
 
     @classmethod
     def rev_genesis_bytes(cls) -> bytes:
@@ -69,11 +59,11 @@ class AbstractNet:
 
 
 class BitcoinMainnet(AbstractNet):
-
-    NET_NAME = "mainnet"
+    #FTC Mainnet
+    NET_NAME = "Mainnet"
     TESTNET = False
-    WIF_PREFIX = 0x86
-    ADDRTYPE_P2PKH = 0x86
+    WIF_PREFIX = 0x8E
+    ADDRTYPE_P2PKH = 0x0E
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "fc"
     BOLT11_HRP = SEGWIT_HRP
@@ -85,8 +75,8 @@ class BitcoinMainnet(AbstractNet):
     LN_DNS_SEEDS = []
 
     XPRV_HEADERS = {
-        'standard':    0x0488ade4,  # xprv
-        'p2wpkh-p2sh': 0x0488daee,  # yprv
+        'standard':    0x0488daee,  # xprv
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
         'p2wsh-p2sh':  0x0295b005,  # Yprv
         'p2wpkh':      0x04b2430c,  # zprv
         'p2wsh':       0x02aa7a99,  # Zprv
@@ -100,7 +90,7 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 0
+    BIP44_COIN_TYPE = 8
     LN_REALM_BYTE = 0
     LN_DNS_SEEDS = [
     ]
@@ -138,10 +128,7 @@ class BitcoinTestnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
-    LN_DNS_SEEDS = [  # TODO investigate this again
-        #'test.nodes.lightning.directory.',  # times out.
-        #'lseed.bitcoinstats.com.',  # ignores REALM byte and returns mainnet peers...
-    ]
+    LN_DNS_SEEDS = []
 
 
 class BitcoinRegtest(BitcoinTestnet):

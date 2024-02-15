@@ -235,6 +235,7 @@ class UntrustedServerReturnedError(NetworkException):
     def __init__(self, *, original_exception):
         self.original_exception = original_exception
 
+
     def get_message_for_gui(self) -> str:
         return str(self)
 
