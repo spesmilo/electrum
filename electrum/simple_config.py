@@ -940,6 +940,7 @@ class SimpleConfig(Logger):
     NETWORK_SERVERFINGERPRINT = ConfigVar('serverfingerprint', default=None, type_=str)
     NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=1_000_000, type_=int)  # in bytes
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
+    NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
     WALLET_BATCH_RBF = ConfigVar(
         'batch_rbf', default=False, type_=bool,
