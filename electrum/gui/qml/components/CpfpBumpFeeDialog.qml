@@ -56,113 +56,101 @@ ElDialog {
                 }
 
                 Label {
-                    Layout.preferredWidth: 1
-                    Layout.fillWidth: true
-                    text: qsTr('Total size')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    Layout.preferredWidth: 1
-                    Layout.fillWidth: true
-                    text: cpfpfeebumper.totalSize + ' ' + UI_UNIT_NAME.TXSIZE_VBYTES
-                }
-
-                Label {
-                    text: qsTr('Input amount')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: cpfpfeebumper.inputAmount
-                }
-
-                Label {
-                    text: qsTr('Output amount')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: cpfpfeebumper.outputAmount
-                    valid: cpfpfeebumper.valid
-                }
-
-                RowLayout {
                     Layout.columnSpan: 2
-                    Slider {
-                        id: feeslider
-                        leftPadding: constants.paddingMedium
-                        snapMode: Slider.SnapOnRelease
-                        stepSize: 1
-                        from: 0
-                        to: cpfpfeebumper.sliderSteps
-                        onValueChanged: {
-                            if (activeFocus)
-                                cpfpfeebumper.sliderPos = value
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Child tx fee')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    height: feepicker_childinfo.height
+
+                    FeePicker {
+                        id: feepicker_childinfo
+                        width: parent.width
+                        finalizer: dialog.cpfpfeebumper
+                        targetLabel: qsTr('Target total')
+                        feeLabel: qsTr('Fee for child')
+                        feeRateLabel: qsTr('Fee rate for child')
+                        showPicker: false
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Total')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+
+                    GridLayout {
+                        width: parent.width
+                        columns: 2
+
+                        Label {
+                            Layout.preferredWidth: 1
+                            Layout.fillWidth: true
+                            text: qsTr('Total size')
+                            color: Material.accentColor
                         }
-                        Component.onCompleted: {
-                            value = cpfpfeebumper.sliderPos
+
+                        Label {
+                            Layout.preferredWidth: 2
+                            Layout.fillWidth: true
+                            text: cpfpfeebumper.valid
+                                ? cpfpfeebumper.totalSize + ' ' + UI_UNIT_NAME.TXSIZE_VBYTES
+                                : ''
                         }
-                        Connections {
-                            target: cpfpfeebumper
-                            function onSliderPosChanged() {
-                                feeslider.value = cpfpfeebumper.sliderPos
+
+                        Label {
+                            Layout.preferredWidth: 1
+                            Layout.fillWidth: true
+                            text: qsTr('Total fee')
+                            color: Material.accentColor
+                        }
+
+                        FormattedAmount {
+                            Layout.preferredWidth: 2
+                            Layout.fillWidth: true
+                            amount: cpfpfeebumper.totalFee
+                            valid: cpfpfeebumper.valid
+                        }
+
+                        Label {
+                            Layout.preferredWidth: 1
+                            Layout.fillWidth: true
+                            text: qsTr('Total fee rate')
+                            color: Material.accentColor
+                        }
+
+                        RowLayout {
+                            Layout.preferredWidth: 2
+                            Layout.fillWidth: true
+                            Label {
+                                text: cpfpfeebumper.valid ? cpfpfeebumper.totalFeeRate : ''
+                                font.family: FixedFont
+                            }
+
+                            Label {
+                                visible: cpfpfeebumper.valid
+                                text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
+                                color: Material.accentColor
                             }
                         }
-                    }
 
-                    FeeMethodComboBox {
-                        id: feemethod
-                        feeslider: cpfpfeebumper
-                    }
-                }
-
-                Label {
-                    visible: feemethod.currentValue
-                    text: qsTr('Target')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    visible: feemethod.currentValue
-                    text: cpfpfeebumper.target
-                }
-
-                Label {
-                    text: qsTr('Fee for child')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: cpfpfeebumper.feeForChild
-                    valid: cpfpfeebumper.valid
-                }
-
-                Label {
-                    text: qsTr('Total fee')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: cpfpfeebumper.totalFee
-                    valid: cpfpfeebumper.valid
-                }
-
-                Label {
-                    text: qsTr('Total fee rate')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Label {
-                        text: cpfpfeebumper.valid ? cpfpfeebumper.totalFeeRate : ''
-                        font.family: FixedFont
-                    }
-
-                    Label {
-                        visible: cpfpfeebumper.valid
-                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
-                        color: Material.accentColor
+                        FeePicker {
+                            id: feepicker
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            finalizer: dialog.cpfpfeebumper
+                            showTxInfo: false
+                        }
                     }
                 }
 
