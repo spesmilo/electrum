@@ -515,6 +515,10 @@ class Daemon(Logger):
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
+        if password:
+            # if a password was given, we check it.
+            # e.g. for unpassworded wallet, if given pw, we should raise.
+            wallet.check_password(password)
         return wallet
 
     @with_wallet_lock
@@ -641,33 +645,31 @@ class Daemon(Logger):
             if not os.path.isfile(path):
                 continue
             wallet = self.get_wallet(path)
-            # note: we only create a new wallet object if one was not loaded into the wallet already.
+            # note: we only create a new wallet object if one was not loaded into the daemon already.
             #       This is to avoid having two wallet objects contending for the same file.
             #       Take care: this only works if the daemon knows about all wallet objects.
             #                  if other code already has created a Wallet() for a file but did not tell the daemon,
             #                  hard-to-understand bugs will follow...
-            if wallet is None:
-                try:
-                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config)
-                except util.InvalidPassword:
-                    pass
-                except Exception:
-                    self.logger.exception(f'failed to load wallet at {path!r}:')
+            try:
+                for old_password_real in (old_password, None):
+                    try:
+                        if wallet is None:
+                            wallet = self._load_wallet(path, old_password_real, upgrade=True, config=self.config)
+                        if wallet is None:
+                            continue
+                        wallet.check_password(old_password_real)
+                    except util.InvalidPassword:
+                        wallet = None
+                    else:
+                        break
+            except Exception:
+                wallet = None
+                self.logger.exception(f'failed to load wallet at {path!r}:')
             if wallet is None:
                 failed.append(path)
                 continue
             if not wallet.storage.is_encrypted():
                 is_unified = False
-            try:
-                try:
-                    wallet.check_password(old_password)
-                    old_password_real = old_password
-                except util.InvalidPassword:
-                    wallet.check_password(None)
-                    old_password_real = None
-            except Exception:
-                failed.append(path)
-                continue
             if new_password:
                 self.logger.info(f'updating password for wallet: {path!r}')
                 wallet.update_password(old_password_real, new_password, encrypt_storage=True)
