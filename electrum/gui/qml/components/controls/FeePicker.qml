@@ -16,6 +16,9 @@ Item {
     property string feeLabel: qsTr('Mining fee')
     property string feeRateLabel: qsTr('Fee rate')
 
+    property bool showTxInfo: true
+    property bool showPicker: true
+
     implicitHeight: rootLayout.height
 
     GridLayout {
@@ -28,6 +31,7 @@ Item {
             Layout.preferredWidth: 1
             text: feeLabel
             color: Material.accentColor
+            visible: showTxInfo
         }
 
         FormattedAmount {
@@ -35,6 +39,7 @@ Item {
             Layout.preferredWidth: 2
             amount: finalizer.fee
             valid: finalizer.valid
+            visible: showTxInfo
         }
 
         Label {
@@ -42,11 +47,13 @@ Item {
             Layout.preferredWidth: 1
             text: feeRateLabel
             color: Material.accentColor
+            visible: showTxInfo
         }
 
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredWidth: 2
+            visible: showTxInfo
             Label {
                 id: feeRate
                 text: finalizer.valid ? finalizer.feeRate : ''
@@ -54,6 +61,7 @@ Item {
             }
 
             Label {
+                Layout.fillWidth: true
                 text: finalizer.valid ? UI_UNIT_NAME.FEERATE_SAT_PER_VBYTE : ''
                 color: Material.accentColor
             }
@@ -64,18 +72,20 @@ Item {
             Layout.preferredWidth: 1
             text: targetLabel
             color: Material.accentColor
+            visible: showPicker
         }
 
         Label {
             Layout.fillWidth: true
             Layout.preferredWidth: 2
-            id: targetdesc
             text: finalizer.target
+            visible: showPicker
         }
 
         RowLayout {
             Layout.columnSpan: 2
             Layout.fillWidth: true
+            visible: showPicker
 
             Slider {
                 id: feeslider

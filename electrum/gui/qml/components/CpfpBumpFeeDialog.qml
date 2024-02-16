@@ -65,15 +65,16 @@ ElDialog {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    height: feepicker.height
+                    height: feepicker_childinfo.height
 
                     FeePicker {
-                        id: feepicker
+                        id: feepicker_childinfo
                         width: parent.width
                         finalizer: dialog.cpfpfeebumper
                         targetLabel: qsTr('Target total')
                         feeLabel: qsTr('Fee for child')
                         feeRateLabel: qsTr('Fee rate for child')
+                        showPicker: false
                     }
                 }
 
@@ -82,13 +83,11 @@ ElDialog {
                     Layout.topMargin: constants.paddingSmall
                     text: qsTr('Total')
                     color: Material.accentColor
-                    visible: cpfpfeebumper.valid
                 }
 
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    visible: cpfpfeebumper.valid
 
                     GridLayout {
                         width: parent.width
@@ -104,7 +103,9 @@ ElDialog {
                         Label {
                             Layout.preferredWidth: 2
                             Layout.fillWidth: true
-                            text: cpfpfeebumper.totalSize + ' ' + UI_UNIT_NAME.TXSIZE_VBYTES
+                            text: cpfpfeebumper.valid
+                                ? cpfpfeebumper.totalSize + ' ' + UI_UNIT_NAME.TXSIZE_VBYTES
+                                : ''
                         }
 
                         Label {
@@ -118,6 +119,7 @@ ElDialog {
                             Layout.preferredWidth: 2
                             Layout.fillWidth: true
                             amount: cpfpfeebumper.totalFee
+                            valid: cpfpfeebumper.valid
                         }
 
                         Label {
@@ -140,6 +142,14 @@ ElDialog {
                                 text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
                                 color: Material.accentColor
                             }
+                        }
+
+                        FeePicker {
+                            id: feepicker
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            finalizer: dialog.cpfpfeebumper
+                            showTxInfo: false
                         }
                     }
                 }
