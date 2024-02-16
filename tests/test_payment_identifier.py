@@ -3,7 +3,7 @@ from electrum.payment_identifier import (maybe_extract_lightning_payment_identif
                                          PaymentIdentifierType)
 
 from . import ElectrumTestCase
-from ..transaction import PartialTxOutput
+from electrum.transaction import PartialTxOutput
 
 
 class WalletMock:
