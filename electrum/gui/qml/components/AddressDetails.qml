@@ -194,7 +194,9 @@ Pane {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
                     visible: addressdetails.pubkeys.length
-                    text: qsTr('Public keys')
+                    text: addressdetails.pubkeys.length > 1
+                        ? qsTr('Public keys')
+                        : qsTr('Public key')
                     color: Material.accentColor
                 }
 

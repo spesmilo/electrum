@@ -11,6 +11,7 @@ ElDialog {
     id: rootItem
 
     title: qsTr('Proxy settings')
+    iconSource: Qt.resolvedUrl('../../icons/status_connected_proxy.png')
 
     width: parent.width
     height: parent.height

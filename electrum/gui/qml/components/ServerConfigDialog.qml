@@ -11,6 +11,7 @@ ElDialog {
     id: rootItem
 
     title: qsTr('Server settings')
+    iconSource: Qt.resolvedUrl('../../icons/network.png')
 
     width: parent.width
     height: parent.height

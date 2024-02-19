@@ -18,6 +18,7 @@ ElDialog {
     property alias sendButtonText: sendButton.text
 
     title: qsTr('Transaction Fee')
+    iconSource: Qt.resolvedUrl('../../icons/question.png')
 
     // copy these to finalizer
     onAddressChanged: finalizer.address = address
