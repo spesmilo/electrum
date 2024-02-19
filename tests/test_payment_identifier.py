@@ -1,6 +1,10 @@
+import os
+
 from electrum import SimpleConfig
+from electrum.invoices import Invoice
 from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
-                                         PaymentIdentifierType)
+                                         PaymentIdentifierType, invoice_from_payment_identifier)
+from electrum.wallet import restore_wallet_from_text
 
 from . import ElectrumTestCase
 from electrum.transaction import PartialTxOutput
@@ -19,6 +23,12 @@ class TestPaymentIdentifier(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.wallet = WalletMock(self.electrum_path)
+
+        self.config = SimpleConfig({
+            'electrum_path': self.electrum_path,
+            'decimal_point': 5
+        })
+        self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
 
     def test_maybe_extract_lightning_payment_identifier(self):
         bolt11 = "lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy"
@@ -251,3 +261,32 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.need_resolve())
 
         # TODO resolve mock
+
+    async def test_invoice_from_payment_identifier(self):
+        # amount, expired, message, lightning w matching amount
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0.02&message=unit_test&time=1707382023&exp=3600&lightning=lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqj9n4evl6mr5aj9f58zp6fyjzup6ywn3x6sk8akg5v4tgn2q8g4fhx05wf6juaxu9760yp46454gpg5mtzgerlzezqcqvjnhjh8z3g2qqdhhwkj'
+
+        pi = PaymentIdentifier(None, bip21)
+        invoice = invoice_from_payment_identifier(pi, None, None)
+        self.assertTrue(isinstance(invoice, Invoice))
+        self.assertTrue(invoice.is_lightning())
+        self.assertEqual(2_000_000_000, invoice.amount_msat)
+
+        text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        d = restore_wallet_from_text(text, path=self.wallet2_path, gap_limit=2, config=self.config)
+        wallet2 = d['wallet']  # type: Standard_Wallet
+
+        # no amount bip21+lightning, MAX amount passed
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?message=unit_test&time=1707382023&exp=3600&lightning=lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy'
+        pi = PaymentIdentifier(None, bip21)
+        invoice = invoice_from_payment_identifier(pi, wallet2, '!')
+        self.assertTrue(isinstance(invoice, Invoice))
+        self.assertFalse(invoice.is_lightning())
+
+        # no amount lightning, MAX amount passed -> expect raise
+        bolt11 = 'lightning:lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy'
+        pi = PaymentIdentifier(None, bolt11)
+        with self.assertRaises(AssertionError):
+            invoice_from_payment_identifier(pi, wallet2, '!')
+        invoice = invoice_from_payment_identifier(pi, wallet2, 1)
+        self.assertEqual(1000, invoice.amount_msat)
