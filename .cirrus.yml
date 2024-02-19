@@ -110,12 +110,12 @@ task:
     - tar -xaf $BITCOIND_PATH || (rm -f /tmp/bitcoind/* && curl --output $BITCOIND_PATH $BITCOIND_URL && tar -xaf $BITCOIND_PATH)
     - cp -a bitcoin-$BITCOIND_VERSION/* /usr/
   bitcoind_service_background_script:
-    - electrum/tests/regtest/run_bitcoind.sh
+    - tests/regtest/run_bitcoind.sh
   electrumx_service_background_script:
-    - electrum/tests/regtest/run_electrumx.sh
+    - tests/regtest/run_electrumx.sh
   regtest_script:
     - sleep 10s
-    - python3 -m unittest electrum/tests/regtest.py
+    - python3 -m unittest tests/regtest.py
   env:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # ElectrumX exits with an error without this:

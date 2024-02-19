@@ -4,7 +4,7 @@ import tempfile
 from electrum import SimpleConfig
 from electrum.gui.qml.qetypes import QEAmount
 from electrum.invoices import Invoice, LN_EXPIRY_NEVER
-from electrum.tests.qt_util import QETestCase, QEventReceiver, qt_test
+from tests.qt_util import QETestCase, QEventReceiver, qt_test
 from electrum.transaction import PartialTxOutput
 
 
