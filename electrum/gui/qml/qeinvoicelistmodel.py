@@ -153,6 +153,9 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def updateStatusStrings(self):
         for i, item in enumerate(self._invoices):
             invoice = self.get_invoice_for_key(item['key'])
+            if invoice is None:  # invoice might be removed from the backend
+                self._logger.debug(f'invoice {item["key"]} not found')
+                continue
             item['status'] = self.wallet.get_invoice_status(invoice)
             item['status_str'] = invoice.get_status_str(item['status'])
             index = self.index(i, 0)
