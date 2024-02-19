@@ -3,7 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Sequence, List, Callable
+from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Union
 from PyQt5.QtCore import pyqtSignal, QPoint, QSize, Qt
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
@@ -600,7 +600,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         else:
             self.pay_onchain_dialog(invoice.outputs, invoice=invoice)
 
-    def read_amount(self) -> List[PartialTxOutput]:
+    def read_amount(self) -> Union[int, str]:
         amount = '!' if self.max_button.isChecked() else self.get_amount()
         return amount
 

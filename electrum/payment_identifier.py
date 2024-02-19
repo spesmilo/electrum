@@ -675,11 +675,13 @@ class PaymentIdentifier(Logger):
 def invoice_from_payment_identifier(
     pi: 'PaymentIdentifier',
     wallet: 'Abstract_Wallet',
-    amount_sat: int,
+    amount_sat: Union[int, str],
     message: str = None
 ) -> Optional[Invoice]:
     assert pi.state in [PaymentIdentifierState.AVAILABLE, PaymentIdentifierState.MERCHANT_NOTIFY]
-    if pi.is_lightning():
+    assert pi.is_onchain() if amount_sat == '!' else True  # MAX should only be allowed if pi has onchain destination
+
+    if pi.is_lightning() and not amount_sat == '!':
         invoice = pi.bolt11
         if not invoice:
             return
