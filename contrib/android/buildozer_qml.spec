@@ -20,7 +20,7 @@ source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
 source.exclude_dirs = bin, build, dist, contrib, env,
-    electrum/tests,
+    tests,
     electrum/www,
     electrum/scripts,
     electrum/utils,
