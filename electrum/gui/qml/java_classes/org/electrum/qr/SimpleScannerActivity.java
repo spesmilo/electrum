@@ -58,7 +58,7 @@ public class SimpleScannerActivity extends Activity implements ZXingScannerView.
                     ClipData.Item item = clipboard.getPrimaryClip().getItemAt(0);
                     String clipboardText = item.getText().toString();
                     // limit size of content. avoid https://developer.android.com/reference/android/os/TransactionTooLargeException.html
-                    if (clipboardText.length() >  512 * 1024 * 1024) {
+                    if (clipboardText.length() >  512 * 1024) {
                         Toast.makeText(SimpleScannerActivity.this, "Clipboard contents too large.", Toast.LENGTH_SHORT).show();
                     }
                     SimpleScannerActivity.this.setResultAndClose(clipboardText);
