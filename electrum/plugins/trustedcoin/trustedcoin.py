@@ -565,8 +565,8 @@ class TrustedCoinPlugin(BasePlugin):
                 # note: pre-2.7 2fa seeds were typically 24-25 words, however they
                 # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
                 # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
-                if passphrase != '':
-                    raise Exception('old 2fa seed cannot have passphrase')
+                if passphrase:
+                    raise Exception("old '2fa'-type electrum seed cannot have passphrase")
                 xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
                 xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
             elif n == 12:  # new scheme

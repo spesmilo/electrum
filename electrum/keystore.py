@@ -1159,6 +1159,8 @@ def purpose48_derivation(account_id: int, xtype: str) -> str:
 def from_seed(seed, passphrase, is_p2sh=False):
     t = seed_type(seed)
     if t == 'old':
+        if passphrase:
+            raise Exception("'old'-type electrum seed cannot have passphrase")
         keystore = Old_KeyStore({})
         keystore.add_seed(seed)
     elif t in ['standard', 'segwit']:
