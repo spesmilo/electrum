@@ -527,9 +527,14 @@ class WCShowConfirmOTP(WizardComponent):
     def on_otp_edited(self):
         self.otp_status_l.setVisible(False)
         text = self.otp_e.text()
+        if len(text) > 0:
+            try:
+                otp_int = int(text)
+            except ValueError:
+                return
         if len(text) == 6:
             # verify otp
-            self.wizard.trustedcoin_qhelper.checkOtp(self.wizard.trustedcoin_qhelper.shortId, int(text))
+            self.wizard.trustedcoin_qhelper.checkOtp(self.wizard.trustedcoin_qhelper.shortId, otp_int)
             self.setEnabled(False)
             self.spinner_l.setVisible(True)
             self.spinner.start()
