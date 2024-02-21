@@ -1083,6 +1083,14 @@ This will result in longer routes; it might increase your fees and decrease the 
             'Download parent transactions from the network.\n'
             'Allows filling in missing fee and input details.'),
     )
+    GUI_QT_TX_DIALOG_EXPORT_STRIP_SENSITIVE_METADATA = ConfigVar(
+        'gui_qt_tx_dialog_export_strip_sensitive_metadata', default=False, type_=bool,
+        short_desc=lambda: _('For CoinJoin; strip privates'),
+    )
+    GUI_QT_TX_DIALOG_EXPORT_INCLUDE_GLOBAL_XPUBS = ConfigVar(
+        'gui_qt_tx_dialog_export_include_global_xpubs', default=False, type_=bool,
+        short_desc=lambda: _('For hardware device; include xpubs'),
+    )
     GUI_QT_RECEIVE_TABS_INDEX = ConfigVar('receive_tabs_index', default=0, type_=int)
     GUI_QT_RECEIVE_TAB_QR_VISIBLE = ConfigVar('receive_qr_visible', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_IO = ConfigVar(

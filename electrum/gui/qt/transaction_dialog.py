@@ -63,9 +63,9 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
-                   get_iconname_qrcode, VLine)
+                   get_iconname_qrcode, VLine, WaitingDialog)
 from .rate_limiter import rate_limited
-from .my_treeview import create_toolbar_with_menu
+from .my_treeview import create_toolbar_with_menu, QMenuWithConfig
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -456,7 +456,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.desc = self.wallet.get_label_for_txid(txid) or None
         self.setMinimumWidth(640)
 
-        self.psbt_only_widgets = []  # type: List[QWidget]
+        self.psbt_only_widgets = []  # type: List[Union[QWidget, QAction]]
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -502,15 +502,24 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.clicked.connect(self.close)
         b.setDefault(True)
 
-        self.export_actions_menu = export_actions_menu = QMenu()
+        self.export_actions_menu = export_actions_menu = QMenuWithConfig(config=self.config)
         self.add_export_actions_to_menu(export_actions_menu)
         export_actions_menu.addSeparator()
-        export_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
-        self.add_export_actions_to_menu(export_submenu, gettx=self._gettx_for_coinjoin)
-        self.psbt_only_widgets.append(export_submenu)
-        export_submenu = export_actions_menu.addMenu(_("For hardware device; include xpubs"))
-        self.add_export_actions_to_menu(export_submenu, gettx=self._gettx_for_hardware_device)
-        self.psbt_only_widgets.append(export_submenu)
+        export_option = export_actions_menu.addConfig(
+            self.config.cv.GUI_QT_TX_DIALOG_EXPORT_STRIP_SENSITIVE_METADATA)
+        self.psbt_only_widgets.append(export_option)
+        export_option = export_actions_menu.addConfig(
+            self.config.cv.GUI_QT_TX_DIALOG_EXPORT_INCLUDE_GLOBAL_XPUBS)
+        self.psbt_only_widgets.append(export_option)
+        if self.wallet.has_support_for_slip_19_ownership_proofs():
+            export_option = export_actions_menu.addAction(
+                _('Include SLIP-19 ownership proofs'),
+                self._add_slip_19_ownership_proofs_to_tx)
+            export_option.setToolTip(_("Some cosigners (e.g. Trezor) might require this for coinjoins."))
+            self._export_option_slip19 = export_option
+            export_option.setCheckable(True)
+            export_option.setChecked(False)
+            self.psbt_only_widgets.append(export_option)
 
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Share"))
@@ -604,9 +613,17 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Override escape-key to close normally (and invoke closeEvent)
         self.close()
 
-    def add_export_actions_to_menu(self, menu: QMenu, *, gettx: Callable[[], Transaction] = None) -> None:
-        if gettx is None:
-            gettx = lambda: None
+    def add_export_actions_to_menu(self, menu: QMenu) -> None:
+        def gettx() -> Transaction:
+            if not isinstance(self.tx, PartialTransaction):
+                return self.tx
+            tx = copy.deepcopy(self.tx)
+            if self.config.GUI_QT_TX_DIALOG_EXPORT_INCLUDE_GLOBAL_XPUBS:
+                Network.run_from_another_thread(
+                    tx.prepare_for_export_for_hardware_device(self.wallet))
+            if self.config.GUI_QT_TX_DIALOG_EXPORT_STRIP_SENSITIVE_METADATA:
+                tx.prepare_for_export_for_coinjoin()
+            return tx
 
         action = QAction(_("Copy to clipboard"), self)
         action.triggered.connect(lambda: self.copy_to_clipboard(tx=gettx()))
@@ -620,20 +637,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         action.triggered.connect(lambda: self.export_to_file(tx=gettx()))
         menu.addAction(action)
 
-    def _gettx_for_coinjoin(self) -> PartialTransaction:
-        if not isinstance(self.tx, PartialTransaction):
-            raise Exception("Can only export partial transactions for coinjoins.")
-        tx = copy.deepcopy(self.tx)
-        tx.prepare_for_export_for_coinjoin()
-        return tx
-
-    def _gettx_for_hardware_device(self) -> PartialTransaction:
-        if not isinstance(self.tx, PartialTransaction):
-            raise Exception("Can only export partial transactions for hardware device.")
-        tx = copy.deepcopy(self.tx)
-        Network.run_from_another_thread(
-            tx.prepare_for_export_for_hardware_device(self.wallet))
-        return tx
+    def _add_slip_19_ownership_proofs_to_tx(self):
+        assert isinstance(self.tx, PartialTransaction)
+        def on_success(result):
+            self._export_option_slip19.setEnabled(False)
+            self.main_window.pop_top_level_window(self)
+        def on_failure(exc_info):
+            self._export_option_slip19.setChecked(False)
+            self.main_window.on_error(exc_info)
+            self.main_window.pop_top_level_window(self)
+        task = partial(self.wallet.add_slip_19_ownership_proofs_to_tx, self.tx)
+        msg = _('Adding SLIP-19 ownership proofs to transaction...')
+        self.main_window.push_top_level_window(self)
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def copy_to_clipboard(self, *, tx: Transaction = None):
         if tx is None:

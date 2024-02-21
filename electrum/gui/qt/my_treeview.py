@@ -71,9 +71,9 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-class MyMenu(QMenu):
+class QMenuWithConfig(QMenu):
 
-    def __init__(self, config):
+    def __init__(self, config: 'SimpleConfig'):
         QMenu.__init__(self)
         self.setToolTipsVisible(True)
         self.config = config
@@ -113,7 +113,7 @@ class MyMenu(QMenu):
 
 
 def create_toolbar_with_menu(config: 'SimpleConfig', title):
-    menu = MyMenu(config)
+    menu = QMenuWithConfig(config)
     toolbar_button = QToolButton()
     toolbar_button.setIcon(read_QIcon("preferences.png"))
     toolbar_button.setMenu(menu)

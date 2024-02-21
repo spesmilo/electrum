@@ -2447,6 +2447,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
+    def has_support_for_slip_19_ownership_proofs(self) -> bool:
+        return False
+
+    def add_slip_19_ownership_proofs_to_tx(self, tx: PartialTransaction) -> None:
+        raise NotImplementedError()
+
     def get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
         if not self.is_mine(address):
             return None
@@ -3764,6 +3770,13 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
+
+    def has_support_for_slip_19_ownership_proofs(self) -> bool:
+        return self.keystore.has_support_for_slip_19_ownership_proofs()
+
+    def add_slip_19_ownership_proofs_to_tx(self, tx: PartialTransaction) -> None:
+        tx.add_info_from_wallet(self)
+        self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
 
 
 class Multisig_Wallet(Deterministic_Wallet):

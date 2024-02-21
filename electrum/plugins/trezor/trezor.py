@@ -34,6 +34,8 @@ try:
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
 
     from trezorlib.client import PASSPHRASE_ON_DEVICE
+    import trezorlib.log
+    #trezorlib.log.enable_debug_output()
 
     TREZORLIB = True
 except Exception as e:
@@ -94,6 +96,39 @@ class TrezorKeyStore(Hardware_KeyStore):
             prev_tx[tx_hash] = txin.utxo
 
         self.plugin.sign_transaction(self, tx, prev_tx)
+
+    def has_support_for_slip_19_ownership_proofs(self) -> bool:
+        return True
+
+    def add_slip_19_ownership_proofs_to_tx(self, tx: 'PartialTransaction', password) -> None:
+        assert isinstance(tx, PartialTransaction)
+        client = self.get_client()
+        assert isinstance(client, TrezorClientBase), client
+        for txin in tx.inputs():
+            if txin.is_coinbase_input():
+                continue
+            if txin.is_complete() or not txin.is_mine:
+                continue
+            assert txin.scriptpubkey
+            desc = txin.script_descriptor
+            assert desc
+            trezor_multisig = None
+            if multi := desc.get_simple_multisig():
+                # trezor_multisig = self._make_multisig(multi)
+                raise Exception("multisig not supported for slip-19 ownership proof")
+            trezor_script_type = self.plugin.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
+            my_pubkey, full_path = self.find_my_pubkey_in_txinout(txin)
+            if full_path:
+                trezor_address_n = full_path
+            else:
+                continue
+            proof, _proof_sig = client.get_ownership_proof(
+                coin_name=self.plugin.get_coin_name(),
+                n=trezor_address_n,
+                multisig=trezor_multisig,
+                script_type=trezor_script_type,
+            )
+            txin.slip_19_ownership_proof = proof
 
 
 class TrezorInitSettings(NamedTuple):
@@ -352,11 +387,13 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    if txin.is_complete() or not txin.is_mine:
+                    if txin.is_complete() or not txin.is_mine:  # we don't sign
                         txinputtype.script_type = InputScriptType.EXTERNAL
                         assert txin.scriptpubkey
                         txinputtype.script_pubkey = txin.scriptpubkey
-                    else:
+                        if not txin.is_mine and txin.slip_19_ownership_proof:
+                            txinputtype.ownership_proof = txin.slip_19_ownership_proof
+                    else:  # we sign
                         desc = txin.script_descriptor
                         assert desc
                         if multi := desc.get_simple_multisig():

@@ -261,6 +261,16 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return trezorlib.btc.sign_tx(self.client, *args, **kwargs)
 
     @runs_in_hwd_thread
+    def get_ownership_id(self, *args, **kwargs):
+        with self.run_flow():
+            return trezorlib.btc.get_ownership_id(self.client, *args, **kwargs)
+
+    @runs_in_hwd_thread
+    def get_ownership_proof(self, *args, **kwargs):
+        with self.run_flow():
+            return trezorlib.btc.get_ownership_proof(self.client, *args, **kwargs)
+
+    @runs_in_hwd_thread
     def reset_device(self, *args, **kwargs):
         with self.run_flow():
             return trezorlib.device.reset(self.client, *args, **kwargs)
