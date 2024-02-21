@@ -92,7 +92,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
         self.assertEqual(seed_type(seed_words), 'standard')
 
-        ks = keystore.from_seed(seed_words, '', False)
+        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
@@ -111,7 +111,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         self.assertEqual(seed_type(seed_words), 'segwit')
 
-        ks = keystore.from_seed(seed_words, '', False)
+        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
@@ -133,7 +133,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         self.assertEqual(seed_type(seed_words), 'segwit')
 
-        ks = keystore.from_seed(seed_words, UNICODE_HORROR, False)
+        ks = keystore.from_seed(seed_words, passphrase=UNICODE_HORROR, for_multisig=False)
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
@@ -155,7 +155,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
         self.assertEqual(seed_type(seed_words), 'old')
 
-        ks = keystore.from_seed(seed_words, '', False)
+        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.Old_KeyStore))
@@ -277,8 +277,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        root_seed = keystore.bip39_to_seed(seed_words, '')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/44'/0'/0'")
+        root_seed = keystore.bip39_to_seed(seed_words, passphrase='')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/44'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -296,8 +296,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        root_seed = keystore.bip39_to_seed(seed_words, UNICODE_HORROR)
-        ks = keystore.from_bip43_rootseed(root_seed, "m/44'/0'/0'")
+        root_seed = keystore.bip39_to_seed(seed_words, passphrase=UNICODE_HORROR)
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/44'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -315,8 +315,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        root_seed = keystore.bip39_to_seed(seed_words, '')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/49'/0'/0'")
+        root_seed = keystore.bip39_to_seed(seed_words, passphrase='')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/49'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -335,8 +335,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        root_seed = keystore.bip39_to_seed(seed_words, '')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/84'/0'/0'")
+        root_seed = keystore.bip39_to_seed(seed_words, passphrase='')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/84'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -354,7 +354,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
         self.assertEqual(seed_type(seed_words), 'standard')
 
-        ks1 = keystore.from_seed(seed_words, '', True)
+        ks1 = keystore.from_seed(seed_words, passphrase='', for_multisig=True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
         self.assertEqual(ks1.xprv, 'xprv9s21ZrQH143K3t9vo23J3hajRbzvkRLJ6Y1zFrUFAfU3t8oooMPfb7f87cn5KntgqZs5nipZkCiBFo5ZtaSD2eDo7j7CMuFV8Zu6GYLTpY6')
@@ -376,7 +376,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
         self.assertEqual(seed_type(seed_words), 'segwit')
 
-        ks1 = keystore.from_seed(seed_words, '', True)
+        ks1 = keystore.from_seed(seed_words, passphrase='', for_multisig=True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
         self.assertEqual(ks1.xprv, 'ZprvAjxLRqPiDfPDxXrm8JvcoCGRAW6xUtktucG6AMtdzaEbTEJN8qcECvujfhtDU3jLJ9g3Dr3Gz5m1ypfMs8iSUh62gWyHZ73bYLRWyeHf6y4')
@@ -398,8 +398,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        root_seed = keystore.bip39_to_seed(seed_words, '')
-        ks1 = keystore.from_bip43_rootseed(root_seed, "m/45'/0")
+        root_seed = keystore.bip39_to_seed(seed_words, passphrase='')
+        ks1 = keystore.from_bip43_rootseed(root_seed, derivation="m/45'/0")
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
         self.assertEqual(ks1.xprv, 'xprv9vyEFyXf7pYVv4eDU3hhuCEAHPHNGuxX73nwtYdpbLcqwJCPwFKknAK8pHWuHHBirCzAPDZ7UJHrYdhLfn1NkGp9rk3rVz2aEqrT93qKRD9')
         self.assertEqual(ks1.xpub, 'xpub69xafV4YxC6o8Yiga5EiGLAtqR7rgNgNUGiYgw3S9g9pp6XYUne1KxdcfYtxwmA3eBrzMFuYcNQKfqsXCygCo4GxQFHfywxpUbKNfYvGJka')
@@ -441,7 +441,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
     async def test_bip32_extended_version_bytes(self, mock_save_db):
         seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
-        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        bip32_seed = keystore.bip39_to_seed(seed_words, passphrase='')
         self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
                          bip32_seed.hex())
 
@@ -510,7 +510,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         encrypted_seed = slip39.recover_ems(mnemonics)
         root_seed = encrypted_seed.decrypt('TREZOR')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/44'/0'/0'")
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/44'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -536,7 +536,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         encrypted_seed = slip39.recover_ems(mnemonics)
         root_seed = encrypted_seed.decrypt('TREZOR')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/49'/0'/0'")
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/49'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -566,7 +566,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         encrypted_seed = slip39.recover_ems(mnemonics)
         root_seed = encrypted_seed.decrypt('TREZOR')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/84'/0'/0'")
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/84'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -594,7 +594,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         encrypted_seed = slip39.recover_ems(mnemonics)
         root_seed = encrypted_seed.decrypt('TREZOR')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/49'/0'/0'")
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/49'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -640,7 +640,7 @@ class TestWalletKeystoreAddressIntegrityForTestnet(ElectrumTestCase):
     async def test_bip32_extended_version_bytes(self, mock_save_db):
         seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
-        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        bip32_seed = keystore.bip39_to_seed(seed_words, passphrase='')
         self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
                          bip32_seed.hex())
 
@@ -706,7 +706,7 @@ class TestWalletSending(ElectrumTestCase):
     def create_standard_wallet_from_seed(self, seed_words, *, config=None, gap_limit=2):
         if config is None:
             config = self.config
-        ks = keystore.from_seed(seed_words, '', False)
+        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=gap_limit, config=config)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
@@ -767,7 +767,7 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sending_between_p2sh_2of3_and_uncompressed_p2pkh(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
+                keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', passphrase='', for_multisig=True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf')
             ],
@@ -776,7 +776,7 @@ class TestWalletSending(ElectrumTestCase):
         )
         wallet1b = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
+                keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', passphrase='', for_multisig=True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX')
             ],
@@ -849,7 +849,7 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sending_between_p2wsh_2of3_and_p2wsh_p2sh_2of2(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                 keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra')
             ],
@@ -858,7 +858,7 @@ class TestWalletSending(ElectrumTestCase):
         )
         wallet1b = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
+                keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', passphrase='', for_multisig=True),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
                 keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk')
             ],
@@ -968,7 +968,7 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sending_between_p2sh_1of2_and_p2wpkh_p2sh(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('phone guilt ancient scan defy gasp off rotate approve ill word exchange', '', True),
+                keystore.from_seed('phone guilt ancient scan defy gasp off rotate approve ill word exchange', passphrase='', for_multisig=True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YPZ3ntVjqSCxiUUv2jikrUBU73Q3iJ7Y8iR41oYf991L5fanv7ciHjbjokdK2bjYqg1BzEUDxucU9qM5WRdBiY738wmgLP4')
             ],
             '1of2', gap_limit=2,
@@ -2152,12 +2152,12 @@ class TestWalletSending(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_coinjoin_between_two_p2wpkh_electrum_seeds(self, mock_save_db):
         wallet1 = WalletIntegrityHelper.create_standard_wallet(
-            keystore.from_seed('humor argue expand gain goat shiver remove morning security casual leopard degree', ''),
+            keystore.from_seed('humor argue expand gain goat shiver remove morning security casual leopard degree', passphrase=''),
             gap_limit=2,
             config=self.config
         )
         wallet2 = WalletIntegrityHelper.create_standard_wallet(
-            keystore.from_seed('couple fade lift useless text thank badge act august roof drastic violin', ''),
+            keystore.from_seed('couple fade lift useless text thank badge act august roof drastic violin', passphrase=''),
             gap_limit=2,
             config=self.config
         )
@@ -2844,8 +2844,8 @@ class TestWalletSending(ElectrumTestCase):
         """When exporting a PSBT to be signed by a hw device, test that we populate
         the PSBT_GLOBAL_XPUB field with wallet xpubs.
         """
-        root_seed = keystore.bip39_to_seed("pulse mixture jazz invite dune enrich minor weapon mosquito flight fly vapor", '')
-        ks = keystore.from_bip43_rootseed(root_seed, "m/84'/1'/0'")
+        root_seed = keystore.bip39_to_seed("pulse mixture jazz invite dune enrich minor weapon mosquito flight fly vapor", passphrase='')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/84'/1'/0'")
         wallet = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2, config=self.config)
 
         # bootstrap wallet
@@ -2883,7 +2883,9 @@ class TestWalletSending(ElectrumTestCase):
         """
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_bip43_rootseed(keystore.bip39_to_seed("income sample useless art skate lucky fold field bargain course hope chest", ''), "m/45h/0", xtype="standard"),
+                keystore.from_bip43_rootseed(
+                    keystore.bip39_to_seed("income sample useless art skate lucky fold field bargain course hope chest", passphrase=''),
+                    derivation="m/45h/0", xtype="standard"),
                 keystore.from_xpub('tpubDC1y33c2iTcxCBFva3zxbQxUnbzBT1TPVrwLgwVHtqSnVRx2pbJsrHzNYmXnKEnrNqyKk9BERrpSatqVu4JHV4K4hepFQdqnMojA5NVKxcF'),
             ],
             '2of2', gap_limit=2,
@@ -2902,7 +2904,9 @@ class TestWalletSending(ElectrumTestCase):
         wallet1b.get_keystores()[1].add_key_origin(derivation_prefix="m/45h/0", root_fingerprint="25750cf7")
         wallet1b_offline = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_bip43_rootseed(keystore.bip39_to_seed("wear wasp subject october amount essay maximum monkey excuse plastic ginger donor", ''), "m/45h/0", xtype="standard"),
+                keystore.from_bip43_rootseed(
+                    keystore.bip39_to_seed("wear wasp subject october amount essay maximum monkey excuse plastic ginger donor", passphrase=''),
+                    derivation="m/45h/0", xtype="standard"),
                 keystore.from_xpub('tpubDAKtPDG6fezcwhB7rNJ9NVEWwGokNzowW3AaMVYFTS4WKoBTNESS1NpntWYDq2uABVYM1xa5cVmu8LD2xKYipMRVLy1VjBQeVe6pixJeBgr'),
             ],
             '2of2', gap_limit=2,
@@ -3055,7 +3059,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_sending_offline_old_electrum_seed_online_mpk(self, mock_save_db):
         wallet_offline = WalletIntegrityHelper.create_standard_wallet(
-            keystore.from_seed('alone body father children lead goodbye phone twist exist grass kick join', '', False),
+            keystore.from_seed('alone body father children lead goodbye phone twist exist grass kick join', passphrase='', for_multisig=False),
             gap_limit=4,
             config=self.config
         )
@@ -3568,7 +3572,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # 2-of-3 legacy p2sh multisig
         wallet_offline1 = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
+                keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', passphrase='', for_multisig=True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf')
             ],
@@ -3577,7 +3581,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         )
         wallet_offline2 = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
+                keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', passphrase='', for_multisig=True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX')
             ],
@@ -3704,7 +3708,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # 2-of-3 p2wsh multisig
         wallet_offline1 = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                 keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra')
             ],
@@ -3713,7 +3717,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         )
         wallet_offline2 = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
+                keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', passphrase='', for_multisig=True),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
                 keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk')
             ],
@@ -3780,7 +3784,7 @@ class TestWalletCreationChecks(ElectrumTestCase):
         with self.assertRaises(Exception) as ctx1:
             w1 = WalletIntegrityHelper.create_multisig_wallet(
                 [
-                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                     keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk'),  # collides with seed
                     keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
                 ],
@@ -3792,7 +3796,7 @@ class TestWalletCreationChecks(ElectrumTestCase):
         with self.assertRaises(Exception) as ctx2:
             w2 = WalletIntegrityHelper.create_multisig_wallet(
                 [
-                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                     keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
                     keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
                 ],
@@ -3803,7 +3807,7 @@ class TestWalletCreationChecks(ElectrumTestCase):
         # all xpubs different. should not raise.
         w3 = WalletIntegrityHelper.create_multisig_wallet(
             [
-                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                 keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
             ],
@@ -3829,7 +3833,7 @@ class TestWalletCreationChecks(ElectrumTestCase):
             w1 = WalletIntegrityHelper.create_multisig_wallet(
                 [
                     keystore.from_xpub('tpubD6NzVbkrYhZ4XYdbWCGSusTDQRAX4UnuqcikJAkqMYxBkvnGfUBvXBE84eyQS6e4To3Pz1xwLrEuxGgQayn4dqVXwNM7dWh4U4DgHai2scz'),
-                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                 ],
                 '2of2', gap_limit=2,
                 config=self.config
@@ -3839,8 +3843,8 @@ class TestWalletCreationChecks(ElectrumTestCase):
         with self.assertRaises(Exception) as ctx3:
             w1 = WalletIntegrityHelper.create_multisig_wallet(
                 [
-                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
-                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', passphrase='', for_multisig=True),
+                    keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', passphrase='', for_multisig=True),
                 ],
                 '2of2', gap_limit=2,
                 config=self.config
@@ -3850,8 +3854,8 @@ class TestWalletCreationChecks(ElectrumTestCase):
         with self.assertRaises(Exception) as ctx4:
             w1 = WalletIntegrityHelper.create_multisig_wallet(
                 [
-                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
-                    keystore.from_seed('powerful random nobody notice nothing important anyway look away hidden message over', '', True),
+                    keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', passphrase='', for_multisig=True),
+                    keystore.from_seed('powerful random nobody notice nothing important anyway look away hidden message over', passphrase='', for_multisig=True),
                 ],
                 '2of2', gap_limit=2,
                 config=self.config

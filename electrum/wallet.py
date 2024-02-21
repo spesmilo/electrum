@@ -3909,7 +3909,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     db = WalletDB('', storage=storage, upgrade=True)
 
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
-    k = keystore.from_seed(seed, passphrase)
+    k = keystore.from_seed(seed, passphrase=passphrase)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
     if k.can_have_deterministic_lightning_xprv():
@@ -3967,7 +3967,7 @@ def restore_wallet_from_text(
         if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
         elif keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
+            k = keystore.from_seed(text, passphrase=passphrase)
             if k.can_have_deterministic_lightning_xprv():
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:

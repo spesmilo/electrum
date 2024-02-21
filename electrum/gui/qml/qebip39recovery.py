@@ -77,7 +77,7 @@ class QEBip39RecoveryListModel(QAbstractListModel):
 
         assert wallet_type == 'standard'
 
-        self._root_seed = keystore.bip39_to_seed(seed, seed_extra_words)
+        self._root_seed = keystore.bip39_to_seed(seed, passphrase=seed_extra_words)
 
         self.clear()
 

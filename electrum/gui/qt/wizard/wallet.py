@@ -712,7 +712,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
 
             passphrase = self.wizard_data['seed_extra_words'] if self.wizard_data['seed_extend'] else ''
             if self.wizard_data['seed_variant'] == 'bip39':
-                root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase)
+                root_seed = bip39_to_seed(self.wizard_data['seed'], passphrase=passphrase)
             elif self.wizard_data['seed_variant'] == 'slip39':
                 root_seed = self.wizard_data['seed'].decrypt(passphrase)
 

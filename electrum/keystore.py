@@ -374,7 +374,7 @@ class Deterministic_KeyStore(Software_KeyStore):
     def format_seed(self, seed: str) -> str:
         pass
 
-    def add_seed(self, seed):
+    def add_seed(self, seed: str) -> None:
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
@@ -577,7 +577,7 @@ class Xpub(MasterPublicKeyMixin):
             deriv_path=strpath,
         )
 
-    def add_key_origin_from_root_node(self, *, derivation_prefix: str, root_node: BIP32Node):
+    def add_key_origin_from_root_node(self, *, derivation_prefix: str, root_node: BIP32Node) -> None:
         assert self.xpub
         # try to derive ourselves from what we were given
         child_node1 = root_node.subkey_at_private_derivation(derivation_prefix)
@@ -677,18 +677,18 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
     def is_watching_only(self):
         return self.xprv is None
 
-    def add_xpub(self, xpub):
+    def add_xpub(self, xpub: str) -> None:
         assert is_xpub(xpub)
         self.xpub = xpub
         root_fingerprint, derivation_prefix = bip32.root_fp_and_der_prefix_from_xkey(xpub)
         self.add_key_origin(derivation_prefix=derivation_prefix, root_fingerprint=root_fingerprint)
 
-    def add_xprv(self, xprv):
+    def add_xprv(self, xprv: str) -> None:
         assert is_xprv(xprv)
         self.xprv = xprv
         self.add_xpub(bip32.xpub_from_xprv(xprv))
 
-    def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
+    def add_xprv_from_seed(self, bip32_seed: bytes, *, xtype: str, derivation: str) -> None:
         rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
         node = rootnode.subkey_at_private_derivation(derivation)
         self.add_xprv(node.to_xprv())
@@ -735,12 +735,12 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         d['mpk'] = self.mpk
         return d
 
-    def add_seed(self, seedphrase):
-        Deterministic_KeyStore.add_seed(self, seedphrase)
+    def add_seed(self, seed):
+        Deterministic_KeyStore.add_seed(self, seed)
         s = self.get_hex_seed(None)
         self.mpk = self.mpk_from_seed(s)
 
-    def add_master_public_key(self, mpk):
+    def add_master_public_key(self, mpk) -> None:
         self.mpk = mpk
 
     def format_seed(self, seed):
@@ -978,11 +978,13 @@ KeyStoreWithMPK = Union[KeyStore, MasterPublicKeyMixin]  # intersection really..
 AddressIndexGeneric = Union[Sequence[int], str]  # can be hex pubkey str
 
 
-def bip39_normalize_passphrase(passphrase):
+def bip39_normalize_passphrase(passphrase: str):
     return normalize('NFKD', passphrase or '')
 
-def bip39_to_seed(mnemonic, passphrase):
-    import hashlib, hmac
+
+def bip39_to_seed(mnemonic: str, *, passphrase: Optional[str]) -> bytes:
+    import hashlib
+    passphrase = passphrase or ""
     PBKDF2_ROUNDS = 2048
     mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
     passphrase = bip39_normalize_passphrase(passphrase)
@@ -1024,11 +1026,16 @@ def bip39_is_checksum_valid(
     return checksum == calculated_checksum, True
 
 
-def from_bip43_rootseed(root_seed, derivation, xtype=None):
+def from_bip43_rootseed(
+    root_seed: bytes,
+    *,
+    derivation: str,
+    xtype: Optional[str] = None,
+):
     k = BIP32_KeyStore({})
     if xtype is None:
         xtype = xtype_from_derivation(derivation)
-    k.add_xprv_from_seed(root_seed, xtype, derivation)
+    k.add_xprv_from_seed(root_seed, xtype=xtype, derivation=derivation)
     return k
 
 
@@ -1156,7 +1163,8 @@ def purpose48_derivation(account_id: int, xtype: str) -> str:
     return normalize_bip32_derivation(der)
 
 
-def from_seed(seed, passphrase, is_p2sh=False):
+def from_seed(seed: str, *, passphrase: Optional[str], for_multisig: bool = False):
+    passphrase = passphrase or ""
     t = seed_type(seed)
     if t == 'old':
         if passphrase:
@@ -1172,9 +1180,9 @@ def from_seed(seed, passphrase, is_p2sh=False):
             der = "m/"
             xtype = 'standard'
         else:
-            der = "m/1'/" if is_p2sh else "m/0'/"
-            xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
-        keystore.add_xprv_from_seed(bip32_seed, xtype, der)
+            der = "m/1'/" if for_multisig else "m/0'/"
+            xtype = 'p2wsh' if for_multisig else 'p2wpkh'
+        keystore.add_xprv_from_seed(bip32_seed, xtype=xtype, derivation=der)
     else:
         raise BitcoinException('Unexpected seed type {}'.format(repr(t)))
     return keystore
