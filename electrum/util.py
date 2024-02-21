@@ -50,6 +50,7 @@ import functools
 from functools import partial
 from abc import abstractmethod, ABC
 import socket
+import enum
 
 import attr
 import aiohttp
@@ -1932,6 +1933,20 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return ret
 
 
+class JsonRPCError(Exception):
+
+    class Codes(enum.IntEnum):
+        # application-specific error codes
+        USERFACING = 1
+        INTERNAL = 2
+
+    def __init__(self, *, code: int, message: str, data: Optional[dict] = None):
+        Exception.__init__(self)
+        self.code = code
+        self.message = message
+        self.data = data
+
+
 class JsonRPCClient:
 
     def __init__(self, session: aiohttp.ClientSession, url: str):
@@ -1940,6 +1955,10 @@ class JsonRPCClient:
         self._id = 0
 
     async def request(self, endpoint, *args):
+        """Send request to server, parse and return result.
+        note: parsing code is naive, the server is assumed to be well-behaved.
+              Up to the caller to handle exceptions, including those arising from parsing errors.
+        """
         self._id += 1
         data = ('{"jsonrpc": "2.0", "id":"%d", "method": "%s", "params": %s }'
                 % (self._id, endpoint, json.dumps(args)))
@@ -1949,7 +1968,7 @@ class JsonRPCClient:
                 result = r.get('result')
                 error = r.get('error')
                 if error:
-                    return 'Error: ' + str(error)
+                    raise JsonRPCError(code=error["code"], message=error["message"], data=error.get("data"))
                 else:
                     return result
             else:

@@ -42,7 +42,8 @@ import os
 
 from .import util, ecc
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal)
+                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
+                   UserFacingException)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -77,7 +78,7 @@ if TYPE_CHECKING:
 known_commands = {}  # type: Dict[str, Command]
 
 
-class NotSynchronizedException(Exception):
+class NotSynchronizedException(UserFacingException):
     pass
 
 
@@ -144,21 +145,21 @@ def command(s):
                     if isinstance(wallet, str):
                         wallet = daemon.get_wallet(wallet)
                         if wallet is None:
-                            raise Exception('wallet not loaded')
+                            raise UserFacingException('wallet not loaded')
                         kwargs['wallet'] = wallet
                     if cmd.requires_password and password is None and wallet.has_password():
                         password = wallet.get_unlocked_password()
                         if password:
                             kwargs['password'] = password
                         else:
-                            raise Exception('Password required. Unlock the wallet, or add a --password option to your command')
+                            raise UserFacingException('Password required. Unlock the wallet, or add a --password option to your command')
             wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
             if cmd.requires_wallet and not wallet:
-                raise Exception('wallet not loaded')
+                raise UserFacingException('wallet not loaded')
             if cmd.requires_password and password is None and wallet.has_password():
-                raise Exception('Password required')
+                raise UserFacingException('Password required')
             if cmd.requires_lightning and (not wallet or not wallet.has_lightning()):
-                raise Exception('Lightning not enabled in this wallet')
+                raise UserFacingException('Lightning not enabled in this wallet')
             return await func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -251,7 +252,7 @@ class Commands:
         """
         wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
         if wallet is None:
-            raise Exception('could not load wallet')
+            raise UserFacingException('could not load wallet')
         if unlock:
             wallet.unlock(password)
         run_hook('load_wallet', wallet, None)
@@ -301,7 +302,7 @@ class Commands:
     async def password(self, password=None, new_password=None, encrypt_file=None, wallet: Abstract_Wallet = None):
         """Change wallet password. """
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
-            raise Exception("Can't change the password of a wallet encrypted with a hw device.")
+            raise UserFacingException("Can't change the password of a wallet encrypted with a hw device.")
         if encrypt_file is None:
             if not password and new_password:
                 # currently no password, setting one now: we encrypt by default
@@ -403,18 +404,18 @@ class Commands:
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
         locktime = jsontx.get('locktime', 0)
-        for txin_dict in jsontx.get('inputs'):
+        for txin_idx, txin_dict in enumerate(jsontx.get('inputs')):
             if txin_dict.get('prevout_hash') is not None and txin_dict.get('prevout_n') is not None:
                 prevout = TxOutpoint(txid=bfh(txin_dict['prevout_hash']), out_idx=int(txin_dict['prevout_n']))
             elif txin_dict.get('output'):
                 prevout = TxOutpoint.from_str(txin_dict['output'])
             else:
-                raise Exception("missing prevout for txin")
+                raise UserFacingException(f"missing prevout for txin {txin_idx}")
             txin = PartialTxInput(prevout=prevout)
             try:
                 txin._trusted_value_sats = int(txin_dict.get('value') or txin_dict['value_sats'])
             except KeyError:
-                raise Exception("missing 'value_sats' field for txin")
+                raise UserFacingException(f"missing 'value_sats' field for txin {txin_idx}")
             nsequence = txin_dict.get('nsequence', None)
             if nsequence is not None:
                 txin.nsequence = nsequence
@@ -428,15 +429,15 @@ class Commands:
             inputs.append(txin)
 
         outputs = []  # type: List[PartialTxOutput]
-        for txout_dict in jsontx.get('outputs'):
+        for txout_idx, txout_dict in enumerate(jsontx.get('outputs')):
             try:
                 txout_addr = txout_dict['address']
             except KeyError:
-                raise Exception("missing 'address' field for txout")
+                raise UserFacingException(f"missing 'address' field for txout {txout_idx}")
             try:
                 txout_val = int(txout_dict.get('value') or txout_dict['value_sats'])
             except KeyError:
-                raise Exception("missing 'value_sats' field for txout")
+                raise UserFacingException(f"missing 'value_sats' field for txout {txout_idx}")
             txout = PartialTxOutput.from_address_and_value(txout_addr, txout_val)
             outputs.append(txout)
 
@@ -651,7 +652,7 @@ class Commands:
         try:
             node = BIP32Node.from_xkey(xkey)
         except Exception:
-            raise Exception('xkey should be a master public/private key')
+            raise UserFacingException('xkey should be a master public/private key')
         return node._replace(xtype=xtype).to_xkey()
 
     @command('wp')
@@ -672,12 +673,12 @@ class Commands:
             out = "Error: " + repr(e)
         return out
 
-    def _resolver(self, x, wallet):
+    def _resolver(self, x, wallet: Abstract_Wallet):
         if x is None:
             return None
         out = wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
-            raise Exception('cannot verify alias', x)
+            raise UserFacingException(f"cannot verify alias: {x}")
         return out['address']
 
     @command('n')
@@ -802,13 +803,13 @@ class Commands:
         if is_hash256_str(tx):  # txid
             tx = wallet.db.get_transaction(tx)
             if tx is None:
-                raise Exception("Transaction not in wallet.")
+                raise UserFacingException("Transaction not in wallet.")
         else:  # raw tx
             try:
                 tx = Transaction(tx)
                 tx.deserialize()
             except transaction.SerializationError as e:
-                raise Exception(f"Failed to deserialize transaction: {e}") from e
+                raise UserFacingException(f"Failed to deserialize transaction: {e}") from e
         domain_coins = from_coins.split(',') if from_coins else None
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
@@ -891,20 +892,20 @@ class Commands:
             if raw:
                 tx = Transaction(raw)
             else:
-                raise Exception("Unknown transaction")
+                raise UserFacingException("Unknown transaction")
         if tx.txid() != txid:
-            raise Exception("Mismatching txid")
+            raise UserFacingException("Mismatching txid")
         return tx.serialize()
 
     @command('')
     async def encrypt(self, pubkey, message) -> str:
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
         if not is_hex_str(pubkey):
-            raise Exception(f"pubkey must be a hex string instead of {repr(pubkey)}")
+            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
         try:
             message = to_bytes(message)
         except TypeError:
-            raise Exception(f"message must be a string-like object instead of {repr(message)}")
+            raise UserFacingException(f"message must be a string-like object instead of {repr(message)}")
         public_key = ecc.ECPubkey(bfh(pubkey))
         encrypted = public_key.encrypt_message(message)
         return encrypted.decode('utf-8')
@@ -913,9 +914,9 @@ class Commands:
     async def decrypt(self, pubkey, encrypted, password=None, wallet: Abstract_Wallet = None) -> str:
         """Decrypt a message encrypted with a public key."""
         if not is_hex_str(pubkey):
-            raise Exception(f"pubkey must be a hex string instead of {repr(pubkey)}")
+            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
         if not isinstance(encrypted, (str, bytes, bytearray)):
-            raise Exception(f"encrypted must be a string-like object instead of {repr(encrypted)}")
+            raise UserFacingException(f"encrypted must be a string-like object instead of {repr(encrypted)}")
         decrypted = wallet.decrypt_message(pubkey, encrypted, password)
         return decrypted.decode('utf-8')
 
@@ -924,7 +925,7 @@ class Commands:
         """Returns a payment request"""
         r = wallet.get_request(request_id)
         if not r:
-            raise Exception("Request not found")
+            raise UserFacingException("Request not found")
         return wallet.export_request(r)
 
     @command('w')
@@ -932,7 +933,7 @@ class Commands:
         """Returns an invoice (request for outgoing payment)"""
         r = wallet.get_invoice(invoice_id)
         if not r:
-            raise Exception("Request not found")
+            raise UserFacingException("Request not found")
         return wallet.export_invoice(r)
 
     #@command('w')
@@ -976,13 +977,14 @@ class Commands:
     async def changegaplimit(self, new_limit, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """Change the gap limit of the wallet."""
         if not iknowwhatimdoing:
-            raise Exception("WARNING: Are you SURE you want to change the gap limit?\n"
-                            "It makes recovering your wallet from seed difficult!\n"
-                            "Please do your research and make sure you understand the implications.\n"
-                            "Typically only merchants and power users might want to do this.\n"
-                            "To proceed, try again, with the --iknowwhatimdoing option.")
+            raise UserFacingException(
+                "WARNING: Are you SURE you want to change the gap limit?\n"
+                "It makes recovering your wallet from seed difficult!\n"
+                "Please do your research and make sure you understand the implications.\n"
+                "Typically only merchants and power users might want to do this.\n"
+                "To proceed, try again, with the --iknowwhatimdoing option.")
         if not isinstance(wallet, Deterministic_Wallet):
-            raise Exception("This wallet is not deterministic.")
+            raise UserFacingException("This wallet is not deterministic.")
         return wallet.change_gap_limit(new_limit)
 
     @command('wn')
@@ -991,7 +993,7 @@ class Commands:
         known addresses in the wallet.
         """
         if not isinstance(wallet, Deterministic_Wallet):
-            raise Exception("This wallet is not deterministic.")
+            raise UserFacingException("This wallet is not deterministic.")
         if not wallet.is_up_to_date():
             raise NotSynchronizedException("Wallet not fully synchronized.")
         return wallet.min_acceptable_gap()
@@ -1091,11 +1093,12 @@ class Commands:
         transactions.
         """
         if not is_hash256_str(txid):
-            raise Exception(f"{repr(txid)} is not a txid")
+            raise UserFacingException(f"{repr(txid)} is not a txid")
         height = wallet.adb.get_tx_height(txid).height
         if height != TX_HEIGHT_LOCAL:
-            raise Exception(f'Only local transactions can be removed. '
-                            f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
+            raise UserFacingException(
+                f'Only local transactions can be removed. '
+                f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
         wallet.adb.remove_transaction(txid)
         wallet.save_db()
 
@@ -1105,9 +1108,9 @@ class Commands:
         The transaction must be related to the wallet.
         """
         if not is_hash256_str(txid):
-            raise Exception(f"{repr(txid)} is not a txid")
+            raise UserFacingException(f"{repr(txid)} is not a txid")
         if not wallet.db.get_transaction(txid):
-            raise Exception("Transaction not in wallet.")
+            raise UserFacingException("Transaction not in wallet.")
         return {
             "confirmations": wallet.adb.get_tx_height(txid).conf,
         }
@@ -1253,8 +1256,9 @@ class Commands:
     async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """ return the current commitment transaction of a channel """
         if not iknowwhatimdoing:
-            raise Exception("WARNING: this command is potentially unsafe.\n"
-                            "To proceed, try again, with the --iknowwhatimdoing option.")
+            raise UserFacingException(
+                "WARNING: this command is potentially unsafe.\n"
+                "To proceed, try again, with the --iknowwhatimdoing option.")
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         chan = wallet.lnworker.channels[chan_id]
@@ -1354,7 +1358,7 @@ class Commands:
         configured exchange rate source.
         """
         if not self.daemon.fx.is_enabled():
-            raise Exception("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
+            raise UserFacingException("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
         # Currency codes are uppercase
         from_ccy = from_ccy.upper()
         to_ccy = to_ccy.upper()
@@ -1368,9 +1372,9 @@ class Commands:
         rate_to = self.daemon.fx.exchange.get_cached_spot_quote(to_ccy)
         # Test if currencies exist
         if rate_from.is_nan():
-            raise Exception(f'Currency to convert from ({from_ccy}) is unknown or rate is unavailable')
+            raise UserFacingException(f'Currency to convert from ({from_ccy}) is unknown or rate is unavailable')
         if rate_to.is_nan():
-            raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
+            raise UserFacingException(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
         # Conversion
         try:
             from_amount = to_decimal(from_amount)

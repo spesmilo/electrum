@@ -35,6 +35,7 @@ from base64 import b64decode, b64encode
 from collections import defaultdict
 import json
 import socket
+from enum import IntEnum
 
 import aiohttp
 from aiohttp import web, client_exceptions
@@ -44,7 +45,7 @@ from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
 from .invoices import PR_PAID, PR_EXPIRED
-from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
+from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
 from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -251,11 +252,20 @@ class AuthenticatedServer(Logger):
                 response['result'] = await f(**params)
             else:
                 response['result'] = await f(*params)
+        except UserFacingException as e:
+            response['error'] = {
+                'code': JsonRPCError.Codes.USERFACING,
+                'message': str(e),
+            }
         except BaseException as e:
             self.logger.exception("internal error while executing RPC")
             response['error'] = {
-                'code': 1,
-                'message': str(e),
+                'code': JsonRPCError.Codes.INTERNAL,
+                'message': "internal error while executing RPC",
+                'data': {
+                    "exception": repr(e),
+                    "traceback": "".join(traceback.format_exception(e)),
+                },
             }
         return web.json_response(response)
 
@@ -325,12 +335,11 @@ class CommandsServer(AuthenticatedServer):
             if hasattr(self.daemon.gui_object, 'new_window'):
                 path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
-                response = "ok"
+                return True
             else:
-                response = "error: current GUI does not support multiple windows"
+                raise UserFacingException("error: current GUI does not support multiple windows")
         else:
-            response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
-        return response
+            raise UserFacingException("error: Electrum is running in daemon mode. Please stop the daemon first.")
 
     async def run_cmdline(self, config_options):
         cmdname = config_options['cmd']
@@ -348,11 +357,8 @@ class CommandsServer(AuthenticatedServer):
         elif 'wallet' in cmd.options:
             kwargs['wallet'] = config_options.get('wallet_path')
         func = getattr(self.cmd_runner, cmd.name)
-        # fixme: not sure how to retrieve message in jsonrpcclient
-        try:
-            result = await func(*args, **kwargs)
-        except Exception as e:
-            result = {'error':str(e)}
+        # execute requested command now.  note: cmd can raise, the caller (self.handle) will wrap it.
+        result = await func(*args, **kwargs)
         return result
 
 

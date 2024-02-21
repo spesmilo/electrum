@@ -104,7 +104,7 @@ from electrum.util import InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
-from electrum.util import create_and_start_event_loop
+from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
 from electrum.i18n import set_language
 
 if TYPE_CHECKING:
@@ -462,7 +462,17 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             else:
                 sys_exit(0)
         else:
-            result = daemon.request(config, 'gui', (config_options,))
+            try:
+                result = daemon.request(config, 'gui', (config_options,))
+            except JsonRPCError as e:
+                if e.code == JsonRPCError.Codes.USERFACING:
+                    print_stderr(e.message)
+                elif e.code == JsonRPCError.Codes.INTERNAL:
+                    print_stderr("(inside daemon): " + e.data["traceback"])
+                    print_stderr(e.message)
+                else:
+                    raise Exception(f"unknown error code {e.code}")
+                sys_exit(1)
 
     elif cmdname == 'daemon':
 
@@ -497,8 +507,17 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                         print_msg("Found lingering lockfile for daemon. Removing.")
                         daemon.remove_lockfile(lockfile)
                 sys_exit(1)
+            except JsonRPCError as e:
+                if e.code == JsonRPCError.Codes.USERFACING:
+                    print_stderr(e.message)
+                elif e.code == JsonRPCError.Codes.INTERNAL:
+                    print_stderr("(inside daemon): " + e.data["traceback"])
+                    print_stderr(e.message)
+                else:
+                    raise Exception(f"unknown error code {e.code}")
+                sys_exit(1)
             except Exception as e:
-                print_stderr(str(e) or repr(e))
+                _logger.exception("error running command (with daemon)")
                 sys_exit(1)
         else:
             if cmd.requires_network:
@@ -520,14 +539,15 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 finally:
                     plugins.stop()
                     plugins.stopped_event.wait(1)
-            except Exception as e:
-                print_stderr(str(e) or repr(e))
+            except UserFacingException as e:
+                print_stderr(str(e))
                 sys_exit(1)
+            except Exception as e:
+                _logger.exception("error running command (without daemon)")
+                sys_exit(1)
+    # print result
     if isinstance(result, str):
         print_msg(result)
-    elif type(result) is dict and result.get('error'):
-        print_stderr(result.get('error'))
-        sys_exit(1)
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)
