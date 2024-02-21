@@ -20,20 +20,23 @@ WizardComponent {
 
     property string _seedType
     property string _validationMessage
+    property bool _canPassphrase
+    property bool _seedValid
 
     function apply() {
+        var seed_extend = extendcb.checked && _canPassphrase
         if (cosigner) {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = _seedType
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = seed_extend
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = seed_extend ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['seed_type'] = _seedType
-            wizard_data['seed_extend'] = extendcb.checked
-            wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+            wizard_data['seed_extend'] = seed_extend
+            wizard_data['seed_extra_words'] = seed_extend ? customwordstext.text : ''
 
             // determine script type from electrum seed type
             // (used to limit script type options for bip39 cosigners)
@@ -69,19 +72,16 @@ WizardComponent {
 
     function checkValid() {
         valid = false
-        _validationMessage = ''
-
-        if (extendcb.checked && customwordstext.text == '')
-            return
+        _seedValid = false
 
         var verifyResult = wiz.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
 
         _validationMessage = verifyResult.message
         _seedType = verifyResult.type
+        _canPassphrase = verifyResult.can_passphrase
 
         if (!cosigner || !verifyResult.valid) {
-            valid = verifyResult.valid
-            return
+            _seedValid = verifyResult.valid
         } else {
             // bip39 validate after derivation path is known
             if (seed_variant_cb.currentValue == 'electrum') {
@@ -93,12 +93,19 @@ WizardComponent {
                     validationtext.text = qsTr('Error: master public key types do not match')
                     return
                 } else {
-                    valid = true
+                    _seedValid = true
                 }
             } else {
-                valid = true
+                _seedValid = true
             }
         }
+
+        if (_canPassphrase && extendcb.checked && customwordstext.text == '') {
+            valid = false
+            return
+        }
+
+        valid = _seedValid
     }
 
     Flickable {
@@ -202,16 +209,14 @@ WizardComponent {
 
                 placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
 
-                indicatorValid: root.valid
+                indicatorValid: root._seedValid
                     ? root._seedType == 'bip39' && root._validationMessage
                         ? false
-                        : root.valid
-                    : root.valid
-                indicatorText: root.valid
-                    ? root._validationMessage
+                        : root._seedValid
+                    : root._seedValid
+                indicatorText: root._validationMessage
                         ? root._validationMessage
                         : root._seedType
-                    : ''
                 onTextChanged: {
                     startValidationTimer()
                 }
@@ -221,13 +226,14 @@ WizardComponent {
                 id: extendcb
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
+                visible: _canPassphrase
                 text: qsTr('Extend seed with custom words')
                 onCheckedChanged: startValidationTimer()
             }
 
             TextField {
                 id: customwordstext
-                visible: extendcb.checked
+                visible: extendcb.checked && extendcb.visible
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')

@@ -612,6 +612,8 @@ class WCHaveSeed(WalletWizardComponent, Logger):
 
         self.next_button = Hack()
 
+        self.can_passphrase = True
+
     def on_ready(self):
         options = ['ext'] if self.wizard_data['wallet_type'] == '2fa' else ['ext', 'bip39', 'slip39']
         self.slayout = SeedLayout(
@@ -640,7 +642,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         seed = self.slayout.get_seed()
         seed_variant = self.slayout.seed_type
         wallet_type = self.wizard_data['wallet_type']
-        seed_valid, seed_type, validation_message = self.wizard.validate_seed(seed, seed_variant, wallet_type)  #
+        seed_valid, seed_type, validation_message, self.can_passphrase = self.wizard.validate_seed(seed, seed_variant, wallet_type)
 
         is_cosigner = self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data
 
@@ -664,7 +666,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
             cosigner_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
         else:
             cosigner_data['seed_type'] = self.slayout.seed_type
-        cosigner_data['seed_extend'] = self.slayout.is_ext
+        cosigner_data['seed_extend'] = self.slayout.is_ext if self.can_passphrase else False
         cosigner_data['seed_extra_words'] = ''  # empty default
 
 

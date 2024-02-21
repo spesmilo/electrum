@@ -486,11 +486,14 @@ class NewWalletWizard(AbstractWizard):
         seed_type = ''
         seed_valid = False
         validation_message = ''
+        can_passphrase = True
 
         if seed_variant == 'electrum':
             seed_type = mnemonic.seed_type(seed)
             if seed_type != '':
                 seed_valid = True
+            if seed_type in ['old', '2fa']:
+                can_passphrase = False
         elif seed_variant == 'bip39':
             is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
             validation_message = ('' if is_checksum else _('BIP39 checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
@@ -520,7 +523,7 @@ class NewWalletWizard(AbstractWizard):
 
         self._logger.debug(f'seed verified: {seed_valid}, type={seed_type}, validation_message={validation_message}')
 
-        return seed_valid, seed_type, validation_message
+        return seed_valid, seed_type, validation_message, can_passphrase
 
     def create_storage(self, path: str, data: dict):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
