@@ -78,6 +78,7 @@ class TestLightningAB(TestLightning):
 class TestLightningSwapserver(TestLightning):
     agents = {
         'alice': {
+            'use_gossip': 'false',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
