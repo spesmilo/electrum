@@ -1503,6 +1503,12 @@ class LNWallet(LNWorker):
             f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
             f"using_trampoline={self.uses_trampoline()}. "
             f"invoice_features={invoice_features.get_names()}")
+        if not self.uses_trampoline():
+            self.logger.info(
+                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
+                f"num_nodes={self.channel_db.num_nodes}, "
+                f"num_channels={self.channel_db.num_channels}, "
+                f"num_policies={self.channel_db.num_policies}.")
         self.set_invoice_status(key, PR_INFLIGHT)
         budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay)
         success = False
