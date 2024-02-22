@@ -79,7 +79,10 @@ dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
-        self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
+        text = ""
+        if byte_size:
+            text = f"x   {byte_size} {UI_UNIT_NAME_TXSIZE_VBYTES}   ="
+        self.setText(text)
 
 
 class TxFiatLabel(QLabel):
