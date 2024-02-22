@@ -261,7 +261,7 @@ class SwapManager(Logger):
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
             payment_key = swap.payment_hash + payment_secret
-            e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+            e = OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             self.lnworker.save_forwarding_failure(payment_key.hex(), failure_message=e)
         self.lnwatcher.remove_callback(swap.lockup_address)
         if swap.funding_txid is None:
