@@ -1968,37 +1968,29 @@ class LNWallet(LNWorker):
                     # for each trampoline forwarder, construct mpp trampoline
                     for trampoline_node_id, trampoline_parts in per_trampoline_channel_amounts.items():
                         per_trampoline_amount = sum([x[1] for x in trampoline_parts])
-                        if trampoline_node_id == paysession.invoice_pubkey:
-                            trampoline_route = None
-                            trampoline_onion = None
-                            per_trampoline_secret = paysession.payment_secret
-                            per_trampoline_amount_with_fees = amount_msat
-                            per_trampoline_cltv_delta = paysession.min_final_cltv_delta
-                            per_trampoline_fees = 0
-                        else:
-                            trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
-                                amount_msat=per_trampoline_amount,
-                                total_msat=paysession.amount_to_pay,
-                                min_final_cltv_delta=paysession.min_final_cltv_delta,
-                                my_pubkey=self.node_keypair.pubkey,
-                                invoice_pubkey=paysession.invoice_pubkey,
-                                invoice_features=paysession.invoice_features,
-                                node_id=trampoline_node_id,
-                                r_tags=paysession.r_tags,
-                                payment_hash=paysession.payment_hash,
-                                payment_secret=paysession.payment_secret,
-                                local_height=local_height,
-                                trampoline_fee_level=paysession.trampoline_fee_level,
-                                use_two_trampolines=paysession.use_two_trampolines,
-                                failed_routes=paysession.failed_trampoline_routes,
-                                budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
-                            )
-                            # node_features is only used to determine is_tlv
-                            per_trampoline_secret = os.urandom(32)
-                            per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount
-                            self.logger.info(f'created route with trampoline fee level={paysession.trampoline_fee_level}')
-                            self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
-                            self.logger.info(f'per trampoline fees: {per_trampoline_fees}')
+                        trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
+                            amount_msat=per_trampoline_amount,
+                            total_msat=paysession.amount_to_pay,
+                            min_final_cltv_delta=paysession.min_final_cltv_delta,
+                            my_pubkey=self.node_keypair.pubkey,
+                            invoice_pubkey=paysession.invoice_pubkey,
+                            invoice_features=paysession.invoice_features,
+                            node_id=trampoline_node_id,
+                            r_tags=paysession.r_tags,
+                            payment_hash=paysession.payment_hash,
+                            payment_secret=paysession.payment_secret,
+                            local_height=local_height,
+                            trampoline_fee_level=paysession.trampoline_fee_level,
+                            use_two_trampolines=paysession.use_two_trampolines,
+                            failed_routes=paysession.failed_trampoline_routes,
+                            budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
+                        )
+                        # node_features is only used to determine is_tlv
+                        per_trampoline_secret = os.urandom(32)
+                        per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount
+                        self.logger.info(f'created route with trampoline fee level={paysession.trampoline_fee_level}')
+                        self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
+                        self.logger.info(f'per trampoline fees: {per_trampoline_fees}')
                         for chan_id, part_amount_msat in trampoline_parts:
                             chan = self.channels[chan_id]
                             margin = chan.available_to_spend(LOCAL, strict=True) - part_amount_msat

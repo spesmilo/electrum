@@ -267,7 +267,9 @@ def create_trampoline_route(
 
     # Add final edge. note: eclair requires an encrypted t-onion blob even in legacy case.
     # Also needed for fees for last TF!
-    _extend_trampoline_route(route, end_node=invoice_pubkey, trampoline_fee_level=trampoline_fee_level)
+    if route[-1].end_node != invoice_pubkey:
+        _extend_trampoline_route(route, end_node=invoice_pubkey, trampoline_fee_level=trampoline_fee_level)
+
     # check that we can pay amount and fees
     if not is_route_within_budget(
         route=route,
