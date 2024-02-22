@@ -120,6 +120,46 @@ ElDialog {
                     }
                 }
 
+                ToggleLabel {
+                    id: optionstoggle
+                    Layout.columnSpan: 2
+                    labelText: qsTr('Options')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: !optionstoggle.collapsed
+                    height: optionslayout.height
+
+                    GridLayout {
+                        id: optionslayout
+                        width: parent.width
+                        columns: 2
+
+                        ElCheckBox {
+                            Layout.fillWidth: true
+                            text: qsTr('Enable output value rounding')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.outputValueRounding = checked
+                                    rbffeebumper.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Config.outputValueRounding
+                            }
+                        }
+
+                        HelpButton {
+                            heading: qsTr('Enable output value rounding')
+                            helptext: qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.')
+                                    + ' ' + qsTr('This may result in higher transactions fees.')
+                        }
+                    }
+                }
+
                 InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.preferredWidth: parent.width * 3/4

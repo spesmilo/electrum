@@ -161,6 +161,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._logger.info(progress)
             self.synchronizingProgressChanged.emit()
 
+    multipleChangeChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=multipleChangeChanged)
+    def multipleChange(self):
+        return self.wallet.multiple_change
+
+    @multipleChange.setter
+    def multipleChange(self, multiple_change):
+        if self.wallet.multiple_change != multiple_change:
+            self.wallet.multiple_change = multiple_change
+            self.wallet.db.put('multiple_change', self.wallet.multiple_change)
+            self.multipleChangeChanged.emit()
+
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
         if wallet == self.wallet:
