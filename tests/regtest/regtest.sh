@@ -19,7 +19,7 @@ function wait_until_htlcs_settled()
 {
     msg="wait until $1's local_unsettled_sent is zero"
     cmd="./run_electrum --regtest -D /tmp/$1"
-    while unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent') && [ $unsettled != "0" ]; do
+    while unsettled=$($cmd list_channels | jq '.[] | .local_unsettled_sent') && [ $unsettled != "0" ]; do
         sleep 1
         msg="$msg."
         printf "$msg\r"
