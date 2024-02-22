@@ -67,6 +67,7 @@ class MockNetwork:
         self.channel_db = ChannelDB(self)
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
+        self.lngossip = MockLNGossip()
         self.tx_queue = tx_queue
         self._blockchain = MockBlockchain()
 
@@ -127,6 +128,11 @@ class MockWallet:
 
     def get_fingerprint(self):
         return ''
+
+
+class MockLNGossip:
+    def get_sync_progress_estimate(self):
+        return None, None, None
 
 
 class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):

@@ -321,6 +321,7 @@ class ChannelDB(SqlDB):
         self.lock = threading.RLock()
         self.num_nodes = 0
         self.num_channels = 0
+        self.num_policies = 0
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], Tuple[dict, int]]
         # note: ^ we could maybe move this cache into PaySession instead of being global.
         #       That would only make sense though if PaySessions were never too short
