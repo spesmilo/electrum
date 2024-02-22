@@ -521,7 +521,7 @@ class NewWalletWizard(AbstractWizard):
         elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
 
-        self._logger.debug(f'seed verified: {seed_valid}, type={seed_type}, validation_message={validation_message}')
+        self._logger.debug(f'seed verified: {seed_valid}, type={seed_type!r}, validation_message={validation_message}')
 
         return seed_valid, seed_type, validation_message, can_passphrase
 

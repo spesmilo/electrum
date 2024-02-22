@@ -537,7 +537,7 @@ class TrustedCoinPlugin(BasePlugin):
 
     def make_seed(self, seed_type):
         if not is_any_2fa_seed_type(seed_type):
-            raise Exception(f'unexpected seed type: {seed_type}')
+            raise Exception(f'unexpected seed type: {seed_type!r}')
         return Mnemonic('english').make_seed(seed_type=seed_type)
 
     @hook
@@ -557,7 +557,7 @@ class TrustedCoinPlugin(BasePlugin):
     def xkeys_from_seed(self, seed, passphrase):
         t = seed_type(seed)
         if not is_any_2fa_seed_type(t):
-            raise Exception(f'unexpected seed type: {t}')
+            raise Exception(f'unexpected seed type: {t!r}')
         words = seed.split()
         n = len(words)
         if t == '2fa':
@@ -578,7 +578,7 @@ class TrustedCoinPlugin(BasePlugin):
             xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
         else:
-            raise Exception(f'unexpected seed type: {t}')
+            raise Exception(f'unexpected seed type: {t!r}')
         return xprv1, xpub1, xprv2, xpub2
 
     @hook
