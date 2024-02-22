@@ -1,3 +1,29 @@
+# Release 4.5.3 (February 23, 2024)
+ * General:
+   - changed: label tx sizes as "vbytes", and feerates as "sat/vbyte" (#8864)
+   - fix: wizard regression not able to use HWW as cosigner for new wallets (643fbec)
+   - fix: onchain invoice paid detection broken if jsonpatch enabled (#8842)
+   - fix: program not starting because of bad "proxy" config value (#8837)
+   - fix: wizard: don't log sensitive values: replace blacklist with whitelist (638fdf11)
+ * Qt Desktop GUI:
+   - new: basic "add server as bookmark" functionality (#8865)
+   - fix: potential race condition in wizard page construction (c78a90a)
+   - fix: don't use lightning invoice when user specifies MAX amount (#8900)
+   - various UI fixes (#8874, 2882c4b, #8889, 66af6e6)
+ * QML GUI (Android):
+   - fix potential concurrency issue loading wallet (#8355)
+   - fix: wizard: fails to restore from 2fa seed: KeyError: 'x1' (#8861)
+   - various UI fixes (50a53aa, 0a6b2d5, #8782, 6738e1e, c0b8927, 016e500, #8898)
+ * Hardware wallets:
+   - Trezor:
+     - new: support SLIP-19 ownership proofs, for trezor-based Standard_Wallets (#8871)
+     - fix: regression in sign_transaction for trezor one for multisig (#8813)
+ * CLI/RPC:
+   - changed: nicer error messages and error-passing (#8888)
+ * Lightning:
+   - fix: timing issue in lnpeer.reest_chan, for replaying unacked updates (79d88dcb)
+
+
 # Release 4.5.2 (January 20, 2024)
  * Qt Desktop GUI:
    - fix crash during startup/wizard-open (#8833)
