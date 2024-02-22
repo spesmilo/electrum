@@ -214,6 +214,10 @@ class TxFeeSlider(FeeSlider):
     def valid(self):
         return self._valid
 
+    @pyqtSlot()
+    def doUpdate(self):
+        self.update()
+
     def update_from_tx(self, tx):
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
