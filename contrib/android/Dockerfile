@@ -198,7 +198,7 @@ RUN cd /opt \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
     # commit: from branch accumulator/qt6-wip (note: careful with force-pushing! see #8162) \
-    && git checkout "4f1a1a3a41f6bf8d28984bfd1ec8af3c5d8eb362^{commit}" \
+    && git checkout "0c507ead85cc603d0e4a2f5e58e9247a1fae262d^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars
