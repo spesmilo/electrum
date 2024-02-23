@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from enum import IntEnum
 from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple, Union
 
-from . import bitcoin
+from . import bitcoin, bolt12
 from .contacts import AliasNotFoundException
 from .i18n import _
 from .invoices import Invoice
@@ -81,6 +81,7 @@ class PaymentIdentifierType(IntEnum):
     OPENALIAS = 8
     LNADDR = 9
     DOMAINLIKE = 10
+    BOLT12_OFFER = 11
 
 
 class FieldsForGUI(NamedTuple):
@@ -101,6 +102,7 @@ class PaymentIdentifier(Logger):
         * bip21 URI
         * lightning-URI (containing bolt11 or lnurl)
         * bolt11 invoice
+        * bolt12 offer
         * lnurl
         * lightning address
     """
@@ -134,6 +136,8 @@ class PaymentIdentifier(Logger):
         #
         self.lnurl = None
         self.lnurl_data = None
+        #
+        self.bolt12_offer = None
 
         self.parse(text)
 
@@ -228,6 +232,16 @@ class PaymentIdentifier(Logger):
                     self.set_state(PaymentIdentifierState.NEED_RESOLVE)
                 except Exception as e:
                     self.error = _("Error parsing LNURL") + f":\n{e}"
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return
+            elif bolt12.is_offer(invoice_or_lnurl):
+                self.logger.debug(f'BOLT12 offer')
+                try:
+                    self.bolt12_offer = bolt12.decode_offer(invoice_or_lnurl)
+                    self._type = PaymentIdentifierType.BOLT12_OFFER
+                    self.set_state(PaymentIdentifierState.NEED_RESOLVE)
+                except Exception as e:
+                    self.error = _("Error parsing BOLT12 offer") + f":\n{e}"
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
             else:
@@ -356,6 +370,14 @@ class PaymentIdentifier(Logger):
                 self.lnurl_data = data
                 self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
                 self.logger.debug(f'LNURL data: {data!r}')
+            elif self.bolt12_offer:
+                try:
+                    data = await bolt12.request_invoice(self.bolt12_offer)
+                    self.set_state(PaymentIdentifierState.AVAILABLE)
+                    self.logger.debug(f'BOLT12 invoice request data: {data!r}')
+                except Exception as e:
+                    self.error = str(e)
+                    self.set_state(PaymentIdentifierState.NOT_FOUND)
             else:
                 self.set_state(PaymentIdentifierState.ERROR)
                 return
