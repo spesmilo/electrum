@@ -107,7 +107,8 @@ class TrezorKeyStore(Hardware_KeyStore):
         for txin in tx.inputs():
             if txin.is_coinbase_input():
                 continue
-            if txin.is_complete() or not txin.is_mine:
+            # note: we add proofs even for txin.is_complete() inputs.
+            if not txin.is_mine:
                 continue
             assert txin.scriptpubkey
             desc = txin.script_descriptor
@@ -391,6 +392,8 @@ class TrezorPlugin(HW_PluginBase):
                         txinputtype.script_type = InputScriptType.EXTERNAL
                         assert txin.scriptpubkey
                         txinputtype.script_pubkey = txin.scriptpubkey
+                        # note: we add the ownership proof, if present, regardless of txin.is_complete().
+                        #       The "Trezor One" model always requires it for external inputs. (see #8910)
                         if not txin.is_mine and txin.slip_19_ownership_proof:
                             txinputtype.ownership_proof = txin.slip_19_ownership_proof
                     else:  # we sign
