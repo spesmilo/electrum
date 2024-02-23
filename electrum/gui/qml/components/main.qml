@@ -361,6 +361,14 @@ ApplicationWindow
         }
     }
 
+    property alias helpDialog: _helpDialog
+    Component {
+        id: _helpDialog
+        HelpDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias passwordDialog: _passwordDialog
     Component {
         id: _passwordDialog
