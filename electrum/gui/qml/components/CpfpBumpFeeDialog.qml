@@ -41,18 +41,15 @@ ElDialog {
                 columns: 2
 
                 Label {
-                    Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    text: qsTr('A CPFP is a transaction that sends an unconfirmed output back to yourself, with a high fee. The goal is to have miners confirm the parent transaction in order to get the fee attached to the child transaction.')
+                    text: qsTr('A CPFP is a transaction that sends an unconfirmed output back to yourself, with a high fee.')
                     wrapMode: Text.Wrap
                 }
 
-                Label {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: constants.paddingLarge
-                    text: qsTr('The proposed fee is computed using your fee/kB settings, applied to the total size of both child and parent transactions. After you broadcast a CPFP transaction, it is normal to see a new unconfirmed transaction in your history.')
-                    wrapMode: Text.Wrap
+                HelpButton {
+                    heading: qsTr('CPFP - Child Pays For Parent')
+                    helptext: qsTr('A CPFP is a transaction that sends an unconfirmed output back to yourself, with a high fee. The goal is to have miners confirm the parent transaction in order to get the fee attached to the child transaction.')
+                    + '<br/><br/>' + qsTr('The proposed fee is computed using your fee/vkB settings, applied to the total size of both child and parent transactions. After you broadcast a CPFP transaction, it is normal to see a new unconfirmed transaction in your history.')
                 }
 
                 Label {
