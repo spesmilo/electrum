@@ -105,11 +105,11 @@ tlvdata,onionmsg_tlv,reply_path,path,blinded_path,
 tlvtype,onionmsg_tlv,encrypted_recipient_data,4
 tlvdata,onionmsg_tlv,encrypted_recipient_data,encrypted_recipient_data,byte,...
 tlvtype,onionmsg_tlv,invoice_request,64
-tlvdata,onionmsg_tlv,invoice_request,invreq,tlv_invoice_request,
+tlvdata,onionmsg_tlv,invoice_request,invoice_request,byte,...
 tlvtype,onionmsg_tlv,invoice,66
-tlvdata,onionmsg_tlv,invoice,inv,tlv_invoice,
+tlvdata,onionmsg_tlv,invoice,invoice,byte,...
 tlvtype,onionmsg_tlv,invoice_error,68
-tlvdata,onionmsg_tlv,invoice_error,inverr,tlv_invoice_error,
+tlvdata,onionmsg_tlv,invoice_error,invoice_error,byte,...
 subtype,blinded_path
 subtypedata,blinded_path,first_node_id,sciddir_or_pubkey,
 subtypedata,blinded_path,blinding,point,
