@@ -30,6 +30,7 @@ from enum import IntEnum
 
 from . import ecc
 from .crypto import sha256, hmac_oneshot, chacha20_encrypt
+from .ecc import ECPubkey
 from .util import profiler, xor_bytes, bfh
 from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
@@ -52,11 +53,12 @@ class InvalidOnionPubkey(Exception): pass
 
 class OnionHopsDataSingle:  # called HopData in lnd
 
-    def __init__(self, *, payload: dict = None):
+    def __init__(self, *, payload: dict = None, tlv_stream_name: str = 'payload'):
         if payload is None:
             payload = {}
         self.payload = payload
         self.hmac = None
+        self.tlv_stream_name = tlv_stream_name
         self._raw_bytes_payload = None  # used in unit tests
 
     def to_bytes(self) -> bytes:
@@ -68,7 +70,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
         # adding TLV payload. note: legacy hop data format no longer supported.
         payload_fd = io.BytesIO()
         OnionWireSerializer.write_tlv_stream(fd=payload_fd,
-                                             tlv_stream_name="payload",
+                                             tlv_stream_name=self.tlv_stream_name,
                                              **self.payload)
         payload_bytes = payload_fd.getvalue()
         with io.BytesIO() as fd:
@@ -145,7 +147,7 @@ class OnionPacket:
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
-    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad'):
+    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad', b'blinded_node_id'):
         raise Exception('invalid key_type {}'.format(key_type))
     key = hmac_oneshot(key_type, msg=secret, digest=hashlib.sha256)
     return key
@@ -172,6 +174,7 @@ def get_shared_secrets_along_route2(payment_path_pubkeys: Sequence[Union[bytes, 
                                     session_key: bytes) -> Sequence[bytes]:
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets = num_hops * [b'']
+    hop_blinded_node_ids = num_hops * [b'']
     ephemeral_key = session_key
     # compute shared key for each hop
     for i in range(0, num_hops):
@@ -179,13 +182,21 @@ def get_shared_secrets_along_route2(payment_path_pubkeys: Sequence[Union[bytes, 
             ephemeral_key = payment_path_pubkeys[i][1]
             payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
+
+        # blinded node id
+        # B(i) = HMAC256("blinded_node_id", ss(i)) * N(i)
+        ss_bni_hmac = get_bolt04_onion_key(b'blinded_node_id', hop_shared_secrets[i])
+        ss_bni_hmac_int = int.from_bytes(ss_bni_hmac, byteorder="big")
+        blinded_node_id = ECPubkey(payment_path_pubkeys[i]) * ss_bni_hmac_int
+        hop_blinded_node_ids[i] = blinded_node_id.get_public_key_bytes()
+
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
         blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
         ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
         ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
         ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
-    return hop_shared_secrets
+    return hop_shared_secrets, hop_blinded_node_ids
 
 
 def new_onion_packet(
@@ -193,7 +204,7 @@ def new_onion_packet(
     session_key: bytes,
     hops_data: Sequence[OnionHopsDataSingle],
     *,
-    associated_data: bytes,
+    associated_data: bytes = b'',
     trampoline: bool = False,
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
