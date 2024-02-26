@@ -28,7 +28,7 @@ import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
-from . import constants, util
+from . import constants, util, ecc
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
@@ -70,7 +70,9 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NoPathFound, InvalidGossipMsg)
 from .lnutil import ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
+from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket, OnionHopsDataSingle, \
+    new_onion_packet, get_shared_secrets_along_route, get_bolt04_onion_key, new_onion_packet2, \
+    get_shared_secrets_along_route2
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget,
@@ -1450,6 +1452,44 @@ class LNWallet(LNWorker):
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
         return chan, funding_tx
+
+    def send_tst(self, connstr):
+        fut = asyncio.run_coroutine_threadsafe(self.add_peer(connstr), self.network.asyncio_loop)
+        m = fut.result()
+        time.sleep(2)
+        fut = asyncio.run_coroutine_threadsafe(self.send_tst_async(peer=m), self.network.asyncio_loop)
+        fut.result()
+
+    async def send_tst_async(
+        self, *,
+        peer: Peer
+    ):
+        # direct to peer
+        payment_path_pubkeys = [
+            peer.pubkey
+        ]
+        session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
+        hops_data = [
+            OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv',
+                                payload={'invoice_request': {'invoice_request': b'\x00'}},
+                                blind_fields={'padding': {'padding': b''},
+                                              'path_id': {'data': bfh('deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0')}}
+                                )
+        ]
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        packet = new_onion_packet2(payment_path_pubkeys, session_key, hops_data)
+        packet_b = packet.to_bytes()
+
+        blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
+
+        self.logger.debug(f'blinding: {blinding.hex()}')
+        self.logger.debug(f'ss: {hop_shared_secrets[0].hex()}')
+        peer.send_message(
+            "onion_message",
+            blinding=blinding,
+            len=len(packet_b),
+            onion_message_packet=packet_b
+        )
 
     def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
         # First check against *real* SCIDs.
