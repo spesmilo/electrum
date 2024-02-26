@@ -123,7 +123,7 @@ If you just follow the instructions above, you will build the apk
 in debug mode. The most notable difference is that the apk will be
 signed using a debug keystore. If you are planning to upload
 what you build to e.g. the Play Store, you should create your own
-keystore, back it up safely, and run `./contrib/make_apk.sh release`.
+keystore, back it up safely, and run `./build.sh` in `release` mode.
 
 See e.g. [kivy wiki](https://github.com/kivy/kivy/wiki/Creating-a-Release-APK)
 and [android dev docs](https://developer.android.com/studio/build/building-cmdline#sign_cmdline).
