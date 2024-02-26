@@ -40,7 +40,7 @@ from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, MyEncoder
 from .invoices import Invoice, Request
 from .keystore import bip44_derivation
-from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
+from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
 from .logging import Logger
 
 from .lnutil import LOCAL, REMOTE, HTLCOwner, ChannelType
@@ -1119,7 +1119,10 @@ class WalletDBUpgrader(Logger):
         transactions = self.get('transactions', {})  # txid -> raw_tx
         prevouts_by_scripthash = {}
         for txid, raw_tx in transactions.items():
-            tx = Transaction(raw_tx)
+            try:
+                tx = PartialTransaction.from_raw_psbt(raw_tx)
+            except BadHeaderMagic:
+                tx = Transaction(raw_tx)
             for idx, txout in enumerate(tx.outputs()):
                 outpoint = f"{txid}:{idx}"
                 scripthash = script_to_scripthash(txout.scriptpubkey.hex())

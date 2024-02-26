@@ -313,6 +313,14 @@ class TestStorageUpgrade(WalletTestCase):
         wallet_str = self._get_wallet_str()
         await self._upgrade_storage(wallet_str)
 
+    @as_testnet
+    async def test_upgrade_from_client_4_5_2_9dk_with_ln(self):
+        # This is a realistic testnet wallet, from the "9dk" seed, including some lightning sends/receives,
+        # some labels, frozen addresses, saved local txs, invoices/requests, etc. The file also has partial writes.
+        # Also, regression test for #8913
+        wallet_str = self._get_wallet_str()
+        await self._upgrade_storage(wallet_str)
+
 ##########
 
     plugins: 'electrum.plugin.Plugins'
