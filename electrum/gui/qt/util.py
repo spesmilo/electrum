@@ -176,7 +176,7 @@ class HelpButton(HelpMixin, QToolButton):
 
 class InfoButton(HelpMixin, QPushButton):
     def __init__(self, text: str):
-        QPushButton.__init__(self, 'Info')
+        QPushButton.__init__(self, _('Info'))
         HelpMixin.__init__(self, text, help_title=_('Info'))
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(6 * char_width_in_lineedit())
