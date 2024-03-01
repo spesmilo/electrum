@@ -146,6 +146,8 @@ class SwapServer(Logger, EventListener):
                 'timeoutBlockHeight': swap.locktime,
                 "onchainAmount": swap.onchain_amount,
             }
+        elif req_type == 'submarine':
+            raise Exception('Deprecated API. Please upgrade your version of Electrum')
         else:
             raise Exception('unsupported request type:' + req_type)
         return web.json_response(response)
