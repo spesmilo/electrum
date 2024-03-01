@@ -2021,7 +2021,7 @@ class Peer(Logger):
             processed_onion: ProcessedOnionPacket,
             onion_packet_bytes: bytes,
             already_forwarded: bool = False,
-    ) -> Tuple[Optional[str], Optional[Tuple[str, Callable[[], Awaitable[Optional[str]]]]]]:
+    ) -> Tuple[Optional[bytes], Optional[Tuple[str, Callable[[], Awaitable[Optional[str]]]]]]:
         """
         Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
         Return (preimage, (payment_key, callback)) with at most a single element not None.
@@ -2613,6 +2613,7 @@ class Peer(Logger):
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_key) in unfulfilled.items():
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
+                    forwarding_key = forwarding_key or None  # type: Optional[str]
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
                     error_reason = None  # type: Optional[OnionRoutingFailure]
                     error_bytes = None  # type: Optional[bytes]
@@ -2632,7 +2633,7 @@ class Peer(Logger):
                                 onion_packet_bytes=onion_packet_bytes,
                                 onion_packet=onion_packet)
                             if _forwarding_key:
-                                assert forwarding_key is False
+                                assert forwarding_key is None
                                 unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, _forwarding_key
                         except OnionRoutingFailure as e:
                             error_bytes = construct_onion_error(e, onion_packet.public_key, our_onion_private_key=self.privkey)
@@ -2688,9 +2689,9 @@ class Peer(Logger):
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
-            forwarding_key: str,
+            forwarding_key: Optional[str],
             onion_packet_bytes: bytes,
-            onion_packet: OnionPacket) -> Tuple[Optional[bytes], Union[bool, None, Tuple[str, int]], Optional[bytes]]:
+            onion_packet: OnionPacket) -> Tuple[Optional[bytes], Optional[str], Optional[bytes]]:
         """
         return (preimage, payment_key, error_bytes) with at most a single element that is not None
         raise an OnionRoutingFailure if we need to fail the htlc
@@ -2739,7 +2740,7 @@ class Peer(Logger):
                 return None, None, None
         else:
             # HTLC we are supposed to forward, and have already forwarded
-            # for trampoline onions, forwarding failures are stored with forwarding_key (which is the inner key)
+            # for final trampoline onions, forwarding failures are stored with forwarding_key (which is the inner key)
             payment_key = forwarding_key
             preimage = self.lnworker.get_preimage(payment_hash)
             error_bytes, error_reason = self.lnworker.get_forwarding_failure(payment_key)
