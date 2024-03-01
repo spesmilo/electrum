@@ -126,6 +126,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
         # TODO: re-test if needed on macOS
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
+        self.next_button.setFocus() # setDefault() is not enough
 
     def refresh_gui(self):
         # For some reason, to refresh the GUI this needs to be called twice
