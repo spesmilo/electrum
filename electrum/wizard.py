@@ -126,7 +126,7 @@ class AbstractWizard:
 
     # check if this view is the final view
     def is_last_view(self, view: str, wizard_data: dict) -> bool:
-        assert view
+        assert view, f'view not defined: {repr(self.sanitize_stack_item(wizard_data))}'
         assert view in self.navmap
 
         nav = self.navmap[view]
