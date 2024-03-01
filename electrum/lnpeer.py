@@ -950,8 +950,7 @@ class Peer(Logger):
             'onion_keys': {},
             'data_loss_protect_remote_pcp': {},
             "log": {},
-            "fail_htlc_reasons": {},  # htlc_id -> onion_packet
-            "unfulfilled_htlcs": {},  # htlc_id -> error_bytes, failure_message
+            "unfulfilled_htlcs": {},
             "revocation_store": {},
             "channel_type": channel_type,
         }
@@ -2610,10 +2609,9 @@ class Peer(Logger):
                 self.maybe_send_commitment(chan)
                 done = set()
                 unfulfilled = chan.unfulfilled_htlcs
-                for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_key) in unfulfilled.items():
+                for htlc_id, (onion_packet_hex, forwarding_key) in unfulfilled.items():
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
-                    forwarding_key = forwarding_key or None  # type: Optional[str]
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
                     error_reason = None  # type: Optional[OnionRoutingFailure]
                     error_bytes = None  # type: Optional[bytes]
@@ -2634,7 +2632,7 @@ class Peer(Logger):
                                 onion_packet=onion_packet)
                             if _forwarding_key:
                                 assert forwarding_key is None
-                                unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, _forwarding_key
+                                unfulfilled[htlc_id] = onion_packet_hex, _forwarding_key
                         except OnionRoutingFailure as e:
                             error_bytes = construct_onion_error(e, onion_packet.public_key, our_onion_private_key=self.privkey)
                         if error_bytes:

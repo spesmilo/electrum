@@ -72,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 58     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 59     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -111,7 +111,7 @@ json_db.register_dict('contacts', tuple, None)
 # register dicts that require key conversion
 for key in [
         'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-        'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
+        'unacked_updates', 'unfulfilled_htlcs', 'onion_keys']:
     json_db.register_dict_key(key, int)
 for key in ['log']:
     json_db.register_dict_key(key, lambda x: HTLCOwner(int(x)))
@@ -233,6 +233,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_56()
         self._convert_version_57()
         self._convert_version_58()
+        self._convert_version_59()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1131,6 +1132,19 @@ class WalletDBUpgrader(Logger):
                 prevouts_by_scripthash[scripthash][outpoint] = txout.value
         self.put('prevouts_by_scripthash', prevouts_by_scripthash)
         self.data['seed_version'] = 58
+
+    def _convert_version_59(self):
+        if not self._is_upgrade_method_needed(58, 58):
+            return
+        channels = self.data.get('channels', {})
+        for _key, chan in channels.items():
+            chan.pop('fail_htlc_reasons', {})
+            unfulfilled_htlcs = {}
+            for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_key) in chan['unfulfilled_htlcs'].items():
+                unfulfilled_htlcs[htlc_id] = (onion_packet_hex, forwarding_key or None)
+            chan['unfulfilled_htlcs'] = unfulfilled_htlcs
+        self.data['channels'] = channels
+        self.data['seed_version'] = 59
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
