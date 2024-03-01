@@ -60,7 +60,7 @@ class AbstractWizard:
     #   msg in a generic choice dialog)
     # exception: stay on this view
     def resolve_next(self, view: str, wizard_data: dict) -> WizardViewState:
-        assert view
+        assert view, f'view not defined: {repr(self.sanitize_stack_item(wizard_data))}'
         self._logger.debug(f'view={view}')
         assert view in self.navmap
 
