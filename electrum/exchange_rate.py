@@ -36,7 +36,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0,
                   # Cryptocurrencies
-                  'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,
+                  'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,'FTC':8,
                   }
 
 POLL_PERIOD_SPOT_RATE = 150  # approx. every 2.5 minutes, try to refresh spot price
@@ -169,7 +169,7 @@ class ExchangeBase(Logger):
 
     def get_cached_spot_quote(self, ccy: str) -> Decimal:
         """Returns the cached exchange rate as a Decimal"""
-        if ccy == 'BTC':
+        if ccy == 'FTC':
             return Decimal(1)
         rate = self._quotes.get(ccy)
         if rate is None:
@@ -178,7 +178,7 @@ class ExchangeBase(Logger):
             # Our rate is stale. Probably better to return no rate than an incorrect one.
             return Decimal('NaN')
         return Decimal(rate)
-
+'''
 class Yadio(ExchangeBase):
 
     async def get_currencies(self):
@@ -338,7 +338,8 @@ class CoinDesk(ExchangeBase):
         json = await self.get_json('api.coindesk.com', query)
         return json['bpi']
 
-
+'''
+'''
 class CoinGecko(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -352,12 +353,29 @@ class CoinGecko(ExchangeBase):
 
     async def request_history(self, ccy):
         history = await self.get_json('api.coingecko.com',
+                                      '/api/v3/coins/feathercoin/market_chart?vs_currency=%s&days=max' % ccy)
+
+        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), str(h[1]))
+                     for h in history['prices']])
+'''
+class CoinGecko(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.coingecko.com', '/api/v3/coins/markets?vs_currency=%s&ids=feathercoin&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h' % ccy)
+        return {ccy.upper():  to_decimal(json[0]['current_price'])}
+
+    def history_ccys(self):
+        # CoinGecko seems to have historical data for all ccys it supports
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        history = await self.get_json('api.coingecko.com',
                                       '/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=max' % ccy)
 
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), str(h[1]))
                      for h in history['prices']])
 
-
+'''
 class CointraderMonitor(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -446,7 +464,7 @@ class Walltime(ExchangeBase):
                              '/data-production-walltime-info/production/dynamic/walltime-info.json')
         return {'BRL': to_decimal(json['BRL_XBT']['last_inexact'])}
 
-
+'''
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():
