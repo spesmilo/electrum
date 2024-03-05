@@ -412,14 +412,6 @@ class MercadoBitcoin(ExchangeBase):
         return {'BRL': to_decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
 
 
-class TheRockTrading(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('api.therocktrading.com',
-                             '/v1/funds/BTCEUR/ticker')
-        return {'EUR': to_decimal(json['last'])}
-
-
 class Winkdex(ExchangeBase):
 
     async def get_rates(self, ccy):
