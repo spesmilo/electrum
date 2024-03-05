@@ -662,7 +662,8 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]
+        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Tuple[str, Optional[str]]]
+        # ^ htlc_id -> onion_packet_hex, forwarding_key
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._sweep_info = {}
@@ -1058,11 +1059,8 @@ class Channel(AbstractChannel):
             htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
         with self.db_lock:
             self.hm.recv_htlc(htlc)
-            local_ctn = self.get_latest_ctn(LOCAL)
-            remote_ctn = self.get_latest_ctn(REMOTE)
             if onion_packet:
-                # TODO neither local_ctn nor remote_ctn are used anymore... no point storing them.
-                self.unfulfilled_htlcs[htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
+                self.unfulfilled_htlcs[htlc.htlc_id] = onion_packet.hex(), None
 
         self.logger.info("receive_htlc")
         return htlc

@@ -108,7 +108,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             'data_loss_protect_remote_pcp': {},
             'state': 'PREOPENING',
             'log': {},
-            'fail_htlc_reasons': {},
             'unfulfilled_htlcs': {},
             'revocation_store': {},
             'channel_type': lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
