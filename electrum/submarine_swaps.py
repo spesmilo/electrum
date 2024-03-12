@@ -50,9 +50,11 @@ LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
 MIN_LOCKTIME_DELTA = 60
 LOCKTIME_DELTA_REFUND = 70
 MAX_LOCKTIME_DELTA = 100
+MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
 assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
 assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 # The script of the reverse swaps has one extra check in it to verify
@@ -443,6 +445,7 @@ class SwapManager(Logger):
             our_privkey: bytes,
             prepay: bool,
             channels: Optional[Sequence['Channel']] = None,
+            min_final_cltv_expiry_delta: Optional[int] = None,
     ) -> Tuple[SwapData, str, str]:
         """creates a hold invoice"""
         if prepay:
@@ -458,6 +461,7 @@ class SwapManager(Logger):
             expiry=300,
             fallback_address=None,
             channels=channels,
+            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
         )
         # add payment info to lnworker
         self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
@@ -471,6 +475,7 @@ class SwapManager(Logger):
                 expiry=300,
                 fallback_address=None,
                 channels=channels,
+                min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
             self.prepayments[prepay_hash] = payment_hash
@@ -666,6 +671,13 @@ class SwapManager(Logger):
             our_privkey=refund_privkey,
             prepay=False,
             channels=channels,
+            # When the client is doing a normal swap, we create a ln-invoice with larger than usual final_cltv_delta.
+            # If the user goes offline after broadcasting the funding tx (but before it is mined and
+            # the server claims it), they need to come back online before the held ln-htlc expires (see #8940).
+            # If the held ln-htlc expires, and the funding tx got confirmed, the server will have claimed the onchain
+            # funds, and the ln-htlc will be timed out onchain (and channel force-closed). i.e. the user loses the swap
+            # amount. Increasing the final_cltv_delta the user puts in the invoice extends this critical window.
+            min_final_cltv_expiry_delta=MIN_FINAL_CLTV_DELTA_FOR_CLIENT,
         )
         return swap, invoice
 

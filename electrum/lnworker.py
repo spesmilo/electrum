@@ -2146,9 +2146,10 @@ class LNWallet(LNWorker):
             payment_hash: bytes,
             amount_msat: Optional[int],
             message: str,
-            expiry: int,
+            expiry: int,  # expiration of invoice (in seconds, relative)
             fallback_address: Optional[str],
             channels: Optional[Sequence[Channel]] = None,
+            min_final_cltv_expiry_delta: Optional[int] = None,
     ) -> Tuple[LnAddr, str]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
 
@@ -2169,12 +2170,14 @@ class LNWallet(LNWorker):
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
+        if min_final_cltv_expiry_delta is None:
+            min_final_cltv_expiry_delta = MIN_FINAL_CLTV_DELTA_FOR_INVOICE
         lnaddr = LnAddr(
             paymenthash=payment_hash,
             amount=amount_btc,
             tags=[
                 ('d', message),
-                ('c', MIN_FINAL_CLTV_DELTA_FOR_INVOICE),
+                ('c', min_final_cltv_expiry_delta),
                 ('x', expiry),
                 ('9', invoice_features),
                 ('f', fallback_address),

@@ -2119,6 +2119,7 @@ class Peer(Logger):
         else:
             raise Exception(f"unexpected {mpp_resolution=}")
 
+        # TODO check against actual min_final_cltv_expiry_delta from invoice (and give 2-3 blocks of leeway?)
         if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs:
             if not already_forwarded:
                 log_fail_reason(f"htlc.cltv_abs is unreasonably close")
