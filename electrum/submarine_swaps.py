@@ -446,7 +446,7 @@ class SwapManager(Logger):
             prepay: bool,
             channels: Optional[Sequence['Channel']] = None,
             min_final_cltv_expiry_delta: Optional[int] = None,
-    ) -> Tuple[SwapData, str, str]:
+    ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
         if prepay:
             prepay_amount_sat = self.get_claim_fee() * 2
@@ -771,6 +771,10 @@ class SwapManager(Logger):
         - User generates preimage, RHASH. Sends RHASH to server.
         - Server creates an LN invoice for RHASH.
         - User pays LN invoice - except server needs to hold the HTLC as preimage is unknown.
+            - if the server requested a fee prepayment (using 'minerFeeInvoice'),
+              the server will have the preimage for that. The user will send HTLCs for both the main RHASH,
+              and for the fee prepayment. Once both MPP sets arrive at the server, the server will fulfill
+              the HTLCs for the fee prepayment (before creating the on-chain output).
         - Server creates on-chain output locked to RHASH.
         - User spends on-chain output, revealing preimage.
         - Server fulfills HTLC using preimage.
