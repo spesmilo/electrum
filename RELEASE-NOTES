@@ -1,3 +1,19 @@
+# Release 4.5.4 (March 14, 2024)
+ * General:
+    - fix: failing WalletDB upgrade(58) in 4.5.3 (#8913), for wallets with
+      partial txs saved into the history as local txs
+ * Lightning:
+   - changed: use longer final_cltv_delta for client-normal-swap, to
+     give more time for user to come back online while doing the swap (#8940)
+   - changed: create trampoline onions even when directly paying
+     a trampoline forwarder node (777c2ffb)
+ * Hardware wallets:
+   - Trezor:
+     - fix: allow adding SLIP-19 ownership proofs to complete inputs (#8910)
+ * Plugins:
+   - fix: a race in swapserver when handling server-normal-swaps (#8825)
+
+
 # Release 4.5.3 (February 23, 2024)
  * General:
    - changed: label tx sizes as "vbytes", and feerates as "sat/vbyte" (#8864)
