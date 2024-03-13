@@ -255,7 +255,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
             )
-            self.window.run_coroutine_from_thread(coro, _('Swapping funds'), on_result=self.window.on_swap_result)
+            self.window.run_coroutine_from_thread(
+                coro, _('Swapping funds'),
+                on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=True),
+            )
             return True
         else:
             lightning_amount = self.recv_amount_e.get_amount()
@@ -334,7 +337,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         coro2 = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
         self.window.run_coroutine_dialog(
             coro2, _('Awaiting swap payment...'),
-            on_result=self.window.on_swap_result,
+            on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
             on_cancelled=lambda: sm.cancel_normal_swap(swap))
 
     def get_description(self):

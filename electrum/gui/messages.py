@@ -1,4 +1,5 @@
 from electrum.i18n import _
+from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 def to_rtf(msg):
@@ -47,3 +48,22 @@ If you want to keep using this channel, you need to disable trampoline routing i
 
 MSG_FREEZE_ADDRESS = _("When you freeze an address, the funds in that address will not be used for sending bitcoins.")
 MSG_FREEZE_COIN = _("When you freeze a coin, it will not be used for sending bitcoins.")
+
+MSG_FORWARD_SWAP_FUNDING_MEMPOOL = (
+    _('Your funding transaction has been broadcast.') + " " +
+    _('The swap will be finalized once your transaction is confirmed.') + " " +
+    _("After the funding transaction is mined, the server will reveal the preimage needed to "
+      "fulfill the pending received lightning HTLCs. The HTLCs expire in {} blocks. "
+      "You will need to be online after the funding transaction is confirmed but before the HTLCs expire, "
+      "to claim your money. If you go offline for several days while the swap is pending, "
+      "you risk losing the swap amount!").format(MIN_FINAL_CLTV_DELTA_FOR_CLIENT) + " " +
+    _("Please remain online until the funding transaction is confirmed.")
+)
+
+MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
+    _('The funding transaction has been detected.') + " " +
+    _('Your claiming transaction will be broadcast when the funding transaction is confirmed.') + " " +
+    _('You may choose to broadcast it earlier, although that would not be trustless.') + " " +
+    _("If you go offline before broadcasting the claiming transaction and let the swap time out, "
+      "you will not get back the already pre-paid mining fees.")
+)
