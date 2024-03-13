@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple
+from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple, Iterable
 from decimal import Decimal
 import math
 import time
@@ -294,6 +294,7 @@ class SwapManager(Logger):
 
         if txin:
             # the swap is funded
+            # note: swap.funding_txid can change due to RBF, it will get updated here:
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
@@ -1016,13 +1017,19 @@ class SwapManager(Logger):
                                 f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_recv_amount={inverted_recv_amount}")
         return send_amount
 
-    def get_swap_by_funding_tx(self, tx: Transaction) -> Optional[SwapData]:
-        if len(tx.outputs()) != 1:
-            return False
-        prevout = TxOutpoint(txid=bytes.fromhex(tx.txid()), out_idx=0)
-        return self._swaps_by_funding_outpoint.get(prevout)
+    def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable[SwapData]:
+        swaps = []
+        for txout_idx, _txo in enumerate(tx.outputs()):
+            prevout = TxOutpoint(txid=bytes.fromhex(tx.txid()), out_idx=txout_idx)
+            if swap := self._swaps_by_funding_outpoint.get(prevout):
+                swaps.append(swap)
+        return swaps
 
     def get_swap_by_claim_tx(self, tx: Transaction) -> Optional[SwapData]:
+        # note: we don't batch claim txs atm (batch_rbf cannot combine them
+        #       as the inputs do not belong to the wallet)
+        if not (len(tx.inputs()) == 1 and len(tx.outputs()) == 1):
+            return None
         txin = tx.inputs()[0]
         return self.get_swap_by_claim_txin(txin)
 

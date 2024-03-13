@@ -91,6 +91,7 @@ from .descriptor import Descriptor
 if TYPE_CHECKING:
     from .network import Network
     from .exchange_rate import FxThread
+    from .submarine_swaps import SwapData
 
 
 _logger = get_logger(__name__)
@@ -838,11 +839,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return True
         return False
 
-    def get_swap_by_claim_tx(self, tx: Transaction) -> bool:
+    def get_swap_by_claim_tx(self, tx: Transaction) -> Optional['SwapData']:
         return self.lnworker.swap_manager.get_swap_by_claim_tx(tx) if self.lnworker else None
 
-    def get_swap_by_funding_tx(self, tx: Transaction) -> bool:
-        return bool(self.lnworker.swap_manager.get_swap_by_funding_tx(tx)) if self.lnworker else None
+    def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
+        return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
 
     def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
         """Return the effect a transaction has on the wallet.
@@ -2049,7 +2050,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if invoices[0].outputs[0].value == '!':
                 return all_strats, all_strats.index(BumpFeeStrategy.DECREASE_PAYMENT)
         # do not decrease payment if it is a swap
-        if self.get_swap_by_funding_tx(tx):
+        if self.get_swaps_by_funding_tx(tx):
             return [BumpFeeStrategy.PRESERVE_PAYMENT], 0
         # default
         return all_strats, all_strats.index(BumpFeeStrategy.PRESERVE_PAYMENT)
