@@ -741,7 +741,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             coro = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=tx.swap_invoice, tx=tx)
             self.window.run_coroutine_dialog(
                 coro, _('Awaiting swap payment...'),
-                on_result=self.window.on_swap_result,
+                on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
                 on_cancelled=lambda: sm.cancel_normal_swap(swap))
             return
 

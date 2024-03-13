@@ -2686,14 +2686,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d = RebalanceDialog(self, chan1, chan2, amount_sat)
         d.run()
 
-    def on_swap_result(self, txid):
+    def on_swap_result(self, txid: Optional[str], *, is_reverse: bool):
         msg = _("Submarine swap") + ': ' + (_("Success") if txid else _("Expired")) + '\n\n'
         if txid:
-            msg += _("Funding transaction") + ': ' + txid + '\n'
-            msg += _("Please remain online until the funding transaction is confirmed.")
+            msg += _("Funding transaction") + ': ' + txid + '\n\n'
+            if is_reverse:
+                msg += messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL
+            else:
+                msg += messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL
             self.show_message_signal.emit(msg)
         else:
-            msg += _("Lightning funds were not received.")
+            msg += _("Lightning funds were not received.")  # FIXME should this not depend on is_reverse?
             self.show_error_signal.emit(msg)
 
     def set_payment_identifier(self, pi: str):
