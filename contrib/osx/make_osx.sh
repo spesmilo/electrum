@@ -213,4 +213,4 @@ info "Creating unsigned .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
 
 info "App was built successfully but was not code signed. Users may get security warnings from macOS."
-info "Now you also need to run make_osx2.sh to codesign/notarize the binary."
+info "Now you also need to run sign_osx.sh to codesign/notarize the binary."

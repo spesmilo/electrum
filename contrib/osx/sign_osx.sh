@@ -2,6 +2,8 @@
 
 set -e
 
+security -v unlock-keychain login.keychain
+
 
 PACKAGE=Electrum
 
