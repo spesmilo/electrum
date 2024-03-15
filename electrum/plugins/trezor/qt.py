@@ -243,7 +243,7 @@ class QtPlugin(QtPluginBase):
 
     @only_hook_if_libraries_available
     @hook
-    def receive_menu(self, menu, addrs, wallet):
+    def receive_menu(self, wallet, menu, addrs):
         if len(addrs) != 1:
             return
         for keystore in wallet.get_keystores():

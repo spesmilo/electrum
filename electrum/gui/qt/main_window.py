@@ -52,7 +52,6 @@ from electrum.gui import messages
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
-from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
 from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
                            UserFacingException, get_new_wallet_name, send_exception_to_crash_reporter,
@@ -509,7 +508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
-        run_hook('close_wallet', self.wallet)
+        self.wallet.run_hook('close_wallet')
 
     @profiler
     def load_wallet(self, wallet: Abstract_Wallet):
@@ -533,12 +532,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.show()
         self.watching_only_changed()
-        run_hook('load_wallet', wallet, self)
         try:
             wallet.try_detecting_internal_addresses_corruption()
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
+        wallet.run_hook('load_wallet', self)
 
     def init_geometry(self):
         winpos = self.wallet.db.get("winpos-qt")
@@ -768,7 +767,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
         raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
-        run_hook('init_menubar_tools', self, tools_menu)
+        self.wallet.run_hook('init_menubar_tools', self, tools_menu)
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
@@ -1281,7 +1280,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def on_failure(exc_info):
             self.on_error(exc_info)
             callback(False)
-        on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
+        on_success = self.wallet.run_hook('tc_sign_wrapper', tx, on_success, on_failure) or on_success
         if external_keypairs:
             # can sign directly
             task = partial(tx.sign, external_keypairs)
@@ -1678,7 +1677,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             )
             sb.addPermanentWidget(self.status_button)
         # add plugins
-        run_hook('create_status_bar', sb)
+        self.wallet.run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
 
     def create_coincontrol_statusbar(self):
@@ -2499,7 +2498,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.exec_()
         if self.fx:
             self.fx.trigger_update()
-        run_hook('close_settings_dialog')
+        self.wallet.run_hook('close_settings_dialog')
         if d.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 

@@ -33,7 +33,6 @@ from PyQt5.QtWidgets import (QAbstractItemView, QMenu)
 from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
-from electrum.plugin import run_hook
 
 from .util import webopen
 from .my_treeview import MyTreeView
@@ -99,7 +98,7 @@ class ContactList(MyTreeView):
             if URLs:
                 menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
 
-        run_hook('create_contact_menu', menu, selected_keys)
+        self.main_window.wallet.run_hook('create_contact_menu', menu, selected_keys)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
@@ -127,7 +126,7 @@ class ContactList(MyTreeView):
         # FIXME refresh loses sort order; so set "default" here:
         self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
         self.filter()
-        run_hook('update_contacts_tab', self)
+        self.main_window.wallet.run_hook('update_contacts_tab', self)
 
     def refresh_row(self, key, row):
         # nothing to update here

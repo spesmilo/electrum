@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComb
 
 from electrum.i18n import _
 from electrum.gui import messages
-from electrum.plugin import run_hook, BasePlugin
+from electrum.plugin import BasePlugin
 
 from . import util
 from .util import WindowModalDialog, Buttons, CloseButton, HelpButton
@@ -50,33 +50,35 @@ class PluginsDialog(WindowModalDialog):
             self.grid.removeWidget(widget)
             widget.setParent(None)
             self.settings_widgets.pop(name)
-        elif widget is None and p and p.requires_settings() and p.is_enabled():
+        elif widget is None and p and p.requires_settings() and p.is_enabled(self.wallet):
             # plugin got enabled, add widget
             widget = self.settings_widgets[name] = p.settings_widget(self)
             self.grid.addWidget(widget, i, 1)
 
     def do_toggle(self, cb, name, i):
-        p = self.plugins.toggle(name)
+        p = self.plugins.toggle(self.wallet, name)
         cb.setChecked(bool(p))
         self.enable_settings_widget(p, name, i)
-        # note: all enabled plugins will receive this hook:
-        run_hook('init_qt', self.window.gui_object)
+
+        #if p and p.is_enabled(self.wallet):
+        #    p.load_wallet(self.wallet, self.window)
+        # user needs to restart GUI
 
     def show_list(self):
-        descriptions = self.plugins.descriptions.values()
-        for i, descr in enumerate(descriptions):
-            full_name = descr['__name__']
-            prefix, _separator, name = full_name.rpartition('.')
+        descriptions = sorted(self.plugins.descriptions.items())
+        i = 0
+        for name, descr in descriptions:
+            i += 1
             p = self.plugins.get(name)
             if descr.get('registers_keystore'):
                 continue
             try:
-                cb = QCheckBox(descr['fullname'])
+                cb = QCheckBox(descr['display_name'])
                 plugin_is_loaded = p is not None
                 cb_enabled = (not plugin_is_loaded and self.plugins.is_available(name, self.wallet)
                               or plugin_is_loaded and p.can_user_disable())
                 cb.setEnabled(cb_enabled)
-                cb.setChecked(plugin_is_loaded and p.is_enabled())
+                cb.setChecked(plugin_is_loaded and p.is_enabled(self.wallet))
                 self.grid.addWidget(cb, i, 0)
                 self.enable_settings_widget(p, name, i)
                 cb.clicked.connect(partial(self.do_toggle, cb, name, i))

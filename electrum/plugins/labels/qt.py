@@ -26,7 +26,6 @@ class Plugin(LabelsPlugin):
     def __init__(self, *args):
         LabelsPlugin.__init__(self, *args)
         self.obj = QLabelsSignalObject()
-        self._init_qt_received = False
 
     def requires_settings(self):
         return True
@@ -73,22 +72,12 @@ class Plugin(LabelsPlugin):
         dialog.show_error(_("Error synchronising labels") + f':\n{repr(exc_info[1])}')
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
-        if self._init_qt_received:  # only need/want the first signal
-            return
-        self._init_qt_received = True
-        # If the user just enabled the plugin, the 'load_wallet' hook would not
-        # get called for already loaded wallets, hence we call it manually for those:
-        for window in gui.windows:
-            self.load_wallet(window.wallet, window)
-
-    @hook
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         self.obj.labels_changed_signal.connect(window.update_tabs)
         self.start_wallet(wallet)
 
     @hook
-    def on_close_window(self, window):
+    def on_close_window(self, wallet, window):
         try:
             self.obj.labels_changed_signal.disconnect(window.update_tabs)
         except TypeError:

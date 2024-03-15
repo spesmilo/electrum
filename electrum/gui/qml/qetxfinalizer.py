@@ -9,7 +9,6 @@ from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
 from electrum.util import NotEnoughFunds, profiler, quantize_feerate
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy
-from electrum.plugin import run_hook
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -377,7 +376,7 @@ class QETxFinalizer(TxFeeSlider):
 
         self.update_from_tx(tx)
 
-        x_fee = run_hook('get_tx_extra_fee', self._wallet.wallet, tx)
+        x_fee = self._wallet.wallet.run_hook('get_tx_extra_fee', tx)
         if x_fee:
             x_fee_address, x_fee_amount = x_fee
             self.extraFee = QEAmount(amount_sat=x_fee_amount)

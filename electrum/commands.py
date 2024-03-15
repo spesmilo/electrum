@@ -321,11 +321,8 @@ class Commands:
     @command('')
     async def getconfig(self, key):
         """Return a configuration variable. """
-        if Plugins.is_plugin_enabler_config_key(key):
-            return self.config.get(key)
-        else:
-            cv = self.config.cv.from_key(key)
-            return cv.get()
+        cv = self.config.cv.from_key(key)
+        return cv.get()
 
     @classmethod
     def _setconfig_normalize_value(cls, key, value):
@@ -338,6 +335,19 @@ class Commands:
                 pass
         return value
 
+    @command('w')
+    async def enable_plugin(self, key, wallet=None):
+        """enable plugin"""
+        plugin_manager = self.daemon._plugins
+        p = plugin_manager.enable(wallet, key)
+        p.daemon_wallet_loaded(wallet, self.daemon)
+
+    @command('w')
+    async def disable_plugin(self, key, wallet=None):
+        """disable plugin"""
+        plugin_manager = self.daemon._plugins
+        plugin_manager.disable(wallet, key)
+
     @command('')
     async def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
@@ -346,11 +356,8 @@ class Commands:
             self.daemon.commands_server.rpc_user = value
         if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():
             self.daemon.commands_server.rpc_password = value
-        if Plugins.is_plugin_enabler_config_key(key):
-            self.config.set_key(key, value)
-        else:
-            cv = self.config.cv.from_key(key)
-            cv.set(value)
+        cv = self.config.cv.from_key(key)
+        cv.set(value)
 
     @command('')
     async def make_seed(self, nbits=None, language=None, seed_type=None):

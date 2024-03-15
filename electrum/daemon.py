@@ -496,6 +496,9 @@ class Daemon(Logger):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
         wallet.start_network(self.network)
+        # plugins must be loaded before add_wallet
+        if self._plugins:
+            self._plugins.load_plugins(wallet)
         self.add_wallet(wallet)
         return wallet
 
@@ -528,7 +531,7 @@ class Daemon(Logger):
         path = wallet.storage.path
         wallet_key = self._wallet_key_from_path(path)
         self._wallets[wallet_key] = wallet
-        run_hook('daemon_wallet_loaded', self, wallet)
+        run_hook('daemon_wallet_loaded', wallet, self)
 
     def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
         wallet_key = self._wallet_key_from_path(path)

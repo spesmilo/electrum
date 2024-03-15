@@ -120,19 +120,10 @@ class Plugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self._init_qt_received = False
         self.cosigner_wallets = {}  # type: Dict[Abstract_Wallet, CosignerWallet]
 
         transport = XMLRPCProxyTransport()
         self.cosigner_service = ServerProxy('https://cosigner.electrum.org/', transport, allow_none=True, context=ssl_context)
-
-    @hook
-    def init_qt(self, gui: 'ElectrumGui'):
-        if self._init_qt_received:  # only need/want the first signal
-            return
-        self._init_qt_received = True
-        for window in gui.windows:
-            self.load_wallet(window.wallet, window)
 
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
@@ -141,7 +132,7 @@ class Plugin(BasePlugin):
         self.cosigner_wallets[wallet] = CosignerWallet(wallet, self.cosigner_service, window)
 
     @hook
-    def on_close_window(self, window):
+    def on_close_window(self, wallet, window):
         wallet = window.wallet
         if cw := self.cosigner_wallets.get(wallet):
             cw.close()
@@ -151,12 +142,12 @@ class Plugin(BasePlugin):
         return True
 
     @hook
-    def transaction_dialog(self, d: 'TxDialog'):
+    def transaction_dialog(self, wallet, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
             cw.hook_transaction_dialog(d)
 
     @hook
-    def transaction_dialog_update(self, d: 'TxDialog'):
+    def transaction_dialog_update(self, wallet, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
             cw.hook_transaction_dialog_update(d)
 

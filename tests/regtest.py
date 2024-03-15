@@ -82,7 +82,6 @@ class TestLightningSwapserver(TestLightning):
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
-            'use_swapserver': 'true',
         }
     }
 

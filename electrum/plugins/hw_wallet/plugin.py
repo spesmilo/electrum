@@ -59,7 +59,7 @@ class HW_PluginBase(BasePlugin, ABC):
         self.keystore_class.plugin = self
         self._ignore_outdated_fw = False
 
-    def is_enabled(self):
+    def is_enabled(self, wallet):
         return True
 
     def device_manager(self) -> 'DeviceMgr':

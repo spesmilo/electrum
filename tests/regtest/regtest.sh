@@ -211,6 +211,7 @@ fi
 
 
 if [[ $1 == "swapserver_success" ]]; then
+    $bob enable_plugin swapserver
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -230,6 +231,7 @@ fi
 
 
 if [[ $1 == "swapserver_refund" ]]; then
+    $bob enable_plugin swapserver
     $alice setconfig test_swapserver_refund true
     wait_for_balance alice 1
     echo "alice opens channel"

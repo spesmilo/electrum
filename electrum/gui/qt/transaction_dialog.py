@@ -48,7 +48,6 @@ from electrum import bitcoin
 
 from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, DummyAddress
 from electrum.i18n import _
-from electrum.plugin import run_hook
 from electrum import simple_config
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
@@ -546,7 +545,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.buttons = [self.partial_tx_actions_button, self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
         self.sharing_buttons = [self.export_actions_button, self.save_button]
-        run_hook('transaction_dialog', self)
+        self.wallet.run_hook('transaction_dialog', self)
         self.hbox = hbox = QHBoxLayout()
         hbox.addLayout(Buttons(*self.sharing_buttons))
         hbox.addStretch(1)
@@ -944,7 +943,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             self.save_button.setToolTip(_("Transaction already in history or not yet signed."))
 
-        run_hook('transaction_dialog_update', self)
+        self.wallet.run_hook('transaction_dialog_update', self)
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()

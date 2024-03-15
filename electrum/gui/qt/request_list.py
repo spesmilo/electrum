@@ -32,7 +32,6 @@ from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum.i18n import _
 from electrum.util import format_time
-from electrum.plugin import run_hook
 from electrum.invoices import Invoice
 
 from .util import pr_icons, read_QIcon, webopen
@@ -206,7 +205,7 @@ class RequestList(MyTreeView):
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
-        run_hook('receive_list_menu', self.main_window, menu, key)
+        self.wallet.run_hook('receive_list_menu', self.main_window, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):

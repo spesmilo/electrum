@@ -72,7 +72,6 @@ from .wallet_db import WalletDB
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash)
-from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
 from .invoices import BaseInvoice, Invoice, Request
@@ -421,6 +420,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
         self._num_parents          = db.get_dict('num_parents')
+        self.enabled_plugins       = db.get_dict('enabled_plugins')
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
@@ -712,7 +712,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._labels.pop(name)
                     changed = True
         if changed:
-            run_hook('set_label', self, name, text)
+            self.run_hook('set_label', name, text)
         return changed
 
     def import_labels(self, path):
@@ -1933,7 +1933,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.rbf_merge_txid = rbf_merge_txid
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
-        run_hook('make_unsigned_transaction', self, tx)
+        self.run_hook('make_unsigned_transaction', tx)
         return tx
 
     def is_frozen_address(self, addr: str) -> bool:
@@ -2699,7 +2699,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
-        run_hook('wallet_export_request', d, key)
+        self.run_hook('wallet_export_request', d, key)
         return d
 
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
@@ -3276,6 +3276,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_unlocked_password(self):
         return self._password_in_memory
+
+    def run_hook(self, name, *args):
+        from .plugin import run_hook
+        run_hook(name, self, *args)
 
 
 class Simple_Wallet(Abstract_Wallet):

@@ -7,7 +7,7 @@ from electrum.i18n import _
 from electrum.interface import ServerAddr
 from electrum.keystore import hardware_keystore
 from electrum.logging import get_logger
-from electrum.plugin import run_hook
+from electrum.plugin import run_wizard_hook
 from electrum.slip39 import EncryptedSeed
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
@@ -332,7 +332,7 @@ class NewWalletWizard(AbstractWizard):
     def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
         current_cosigner = self.current_cosigner(wizard_data)
         _type, _info = current_cosigner['hardware_device']
-        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
+        run_wizard_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         plugin = self.plugins.get_plugin(_type)
         return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 

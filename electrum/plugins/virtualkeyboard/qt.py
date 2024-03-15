@@ -12,7 +12,7 @@ class Plugin(BasePlugin):
     vkb_index = 0
 
     @hook
-    def password_dialog(self, pw, grid, pos):
+    def password_dialog(self, wallet, pw, grid, pos):
         vkb_button = QPushButton("+")
         font_height = QFontMetrics(vkb_button.font()).height()
         vkb_button.setFixedWidth(round(1.7 * font_height))

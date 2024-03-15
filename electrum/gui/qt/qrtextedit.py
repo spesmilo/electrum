@@ -2,7 +2,7 @@ from functools import partial
 from typing import Callable
 
 from electrum.i18n import _
-from electrum.plugin import run_hook
+from electrum.plugin import run_wizard_hook
 from electrum.simple_config import SimpleConfig
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, read_QIcon
@@ -15,7 +15,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(True)
         self.add_qr_show_button(config=config)
-        run_hook('show_text_edit', self)
+        run_wizard_hook('show_text_edit', self)
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
@@ -56,7 +56,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         # for send tab, buttons are available in the toolbar
         if not is_payto:
             self.add_input_buttons(config, allow_multi, setText)
-        run_hook('scan_text_edit', self)
+        run_wizard_hook('scan_text_edit', self)
 
     def add_input_buttons(self, config, allow_multi, setText):
         self.add_menu_button(
@@ -83,8 +83,8 @@ class ScanShowQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         self.setReadOnly(False)
         self.add_qr_input_combined_button(config=config, show_error=self.show_error, allow_multi=allow_multi)
         self.add_qr_show_button(config=config)
-        run_hook('scan_text_edit', self)
-        run_hook('show_text_edit', self)
+        run_wizard_hook('scan_text_edit', self)
+        run_wizard_hook('show_text_edit', self)
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()

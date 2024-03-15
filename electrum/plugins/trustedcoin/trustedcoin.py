@@ -452,8 +452,8 @@ class TrustedCoinPlugin(BasePlugin):
     def is_available(self):
         return True
 
-    def is_enabled(self):
-        return True
+    def is_enabled(self, wallet):
+        return isinstance(wallet, self.wallet_class)
 
     def can_user_disable(self):
         return False

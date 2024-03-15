@@ -242,14 +242,15 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
-    def electrum_path(self):
+    def electrum_path_root(self):
         # Read electrum_path from command line
         # Otherwise use the user's default data directory.
-        path = self.get('electrum_path')
-        if path is None:
-            path = self.user_dir()
-
+        path = self.get('electrum_path') or self.user_dir()
         make_dir(path, allow_symlink=False)
+        return path
+
+    def electrum_path(self):
+        path = self.electrum_path_root()
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
             make_dir(path, allow_symlink=False)

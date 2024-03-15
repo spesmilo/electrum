@@ -221,7 +221,7 @@ Pane {
                             id: syncLabels
                             onCheckedChanged: {
                                 if (activeFocus)
-                                    AppController.setPluginEnabled('labels', checked)
+                                    AppController.setPluginEnabled(Daemon.currentWallet, 'labels', checked)
                             }
                         }
                         Label {

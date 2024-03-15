@@ -33,7 +33,6 @@ from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
 
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler
-from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
@@ -332,7 +331,7 @@ class AddressList(MyTreeView):
             else:
                 menu.addAction(_("Add to coin control"), lambda: self.main_window.utxo_list.add_to_coincontrol(coins))
 
-        run_hook('receive_menu', menu, addrs, self.wallet)
+        self.wallet.run_hook('receive_menu', menu, addrs)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:

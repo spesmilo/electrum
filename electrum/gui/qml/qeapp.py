@@ -19,7 +19,6 @@ from electrum.logging import Logger, get_logger
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
-from electrum.plugin import run_hook
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
@@ -239,14 +238,13 @@ class QEAppController(BaseCrashReporter, QObject):
         self.logger.debug(f'{str(s)}')
         return s
 
-    @pyqtSlot(str, bool)
-    def setPluginEnabled(self, plugin: str, enabled: bool):
+    @pyqtSlot('QVariant', str, bool)
+    def setPluginEnabled(self, qewallet, name: str, enabled: bool):
+        wallet = qewallet.wallet
         if enabled:
-            self._plugins.enable(plugin)
-            # note: all enabled plugins will receive this hook:
-            run_hook('init_qml', self._app)
+            self._plugins.enable(wallet, name)
         else:
-            self._plugins.disable(plugin)
+            self._plugins.disable(wallet, name)
 
     @pyqtSlot(str, result=bool)
     def isPluginEnabled(self, plugin: str):
@@ -425,7 +423,7 @@ class ElectrumQmlApplication(QGuiApplication):
             "MEMPOOL_MB":            electrum.util.UI_UNIT_NAME_MEMPOOL_MB,
         })
 
-        self.plugins.load_plugin('trustedcoin')
+        self.plugins.load_internal_plugin('trustedcoin')
 
         qInstallMessageHandler(self.message_handler)
 

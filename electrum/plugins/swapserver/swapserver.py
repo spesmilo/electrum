@@ -45,7 +45,7 @@ class SwapServerPlugin(BasePlugin):
         self.server = None
 
     @hook
-    def daemon_wallet_loaded(self, daemon: 'Daemon', wallet: 'Abstract_Wallet'):
+    def daemon_wallet_loaded(self, wallet: 'Abstract_Wallet', daemon: 'Daemon'):
         # we use the first wallet loaded
         if self.server is not None:
             return

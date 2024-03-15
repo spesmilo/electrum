@@ -31,7 +31,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     @only_hook_if_libraries_available
     @hook
-    def receive_menu(self, menu, addrs, wallet):
+    def receive_menu(self, wallet, menu, addrs):
         # Context menu on each address in the Addresses Tab, right click...
         if len(addrs) != 1:
             return
@@ -44,11 +44,10 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     @only_hook_if_libraries_available
     @hook
-    def wallet_info_buttons(self, main_window: 'ElectrumWindow', dialog):
+    def wallet_info_buttons(self, wallet, main_window: 'ElectrumWindow', dialog):
         # user is about to see the "Wallet Information" dialog
         # - add a button if multisig wallet, and a Coldcard is a cosigner.
         assert isinstance(main_window, ElectrumWindow), f"{type(main_window)}"
-        wallet = main_window.wallet
 
         if type(wallet) is not Multisig_Wallet:
             return

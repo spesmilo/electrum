@@ -14,7 +14,7 @@ from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_deriv
 from electrum.daemon import Daemon
 from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
-from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
+from electrum.plugin import run_wizard_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
 from electrum.util import is_subpath
@@ -135,7 +135,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             },
         })
 
-        run_hook('init_wallet_wizard', self)
+        run_wizard_hook('init_wallet_wizard', self)
 
     @property
     def path(self):

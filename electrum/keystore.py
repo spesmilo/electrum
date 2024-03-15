@@ -47,7 +47,7 @@ from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATE
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bfh, inv_dict, is_hex_str)
 from .mnemonic import Mnemonic, Wordlist, seed_type, is_seed
-from .plugin import run_hook
+from .plugin import run_wizard_hook
 from .logging import Logger
 
 if TYPE_CHECKING:
@@ -882,7 +882,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         self.label = d.get('label')  # type: Optional[str]
         self.soft_device_id = d.get('soft_device_id')  # type: Optional[str]
         self.handler = None  # type: Optional[HardwareHandlerBase]
-        run_hook('init_keystore', self)
+        run_wizard_hook('init_keystore', self)
 
     def set_label(self, label):
         self.label = label

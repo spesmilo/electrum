@@ -53,7 +53,6 @@ except ImportError as e:
     pass  # failure is ok; it is an optional dependency.
 
 from electrum.i18n import _, set_language
-from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name, InvalidPassword)
 from electrum.wallet import Wallet, Abstract_Wallet
@@ -150,9 +149,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.reload_app_stylesheet()
 
         # always load 2fa
-        self.plugins.load_plugin('trustedcoin')
-
-        run_hook('init_qt', self)
+        self.plugins.load_internal_plugin('trustedcoin')
 
     def _init_tray(self):
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -481,7 +478,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # save wallet path of last open window
         if not self.windows:
             self.config.save_last_wallet(window.wallet)
-        run_hook('on_close_window', window)
+        window.wallet.run_hook('on_close_window', window)
         self.daemon.stop_wallet(window.wallet.storage.path)
 
     def init_network(self):

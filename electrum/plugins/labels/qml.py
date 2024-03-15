@@ -124,8 +124,3 @@ class Plugin(LabelsPlugin):
         # important: QSignalObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
         self.so = Plugin.QSignalObject(self, self._app)
-
-        # If the user just enabled the plugin, the 'load_wallet' hook would not
-        # get called for already loaded wallets, hence we call it manually for those:
-        for wallet_name, wallet in app.daemon.daemon._wallets.items():
-            self.load_wallet(wallet)

@@ -9,7 +9,6 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
-from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
 from electrum.ecc import verify_message_with_address
@@ -232,7 +231,7 @@ class QEDaemon(AuthMixin, QObject):
 
                 self.daemon.config.save_last_wallet(wallet)
 
-                run_hook('load_wallet', wallet)
+                wallet.run_hook('load_wallet')
 
                 success = True
                 self._backendWalletLoaded.emit(local_password)

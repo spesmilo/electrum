@@ -12,7 +12,6 @@ from PyQt5.QtGui import QMovie, QColor
 from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
-from electrum.plugin import run_hook
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
@@ -193,7 +192,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         vbox.setStretchFactor(self.invoice_list, 1000)
         self.searchable_list = self.invoice_list
         self.invoice_list.update()  # after parented and put into a layout, can update without flickering
-        run_hook('create_send_tab', grid)
+        self.wallet.run_hook('create_send_tab', grid)
 
         self.resolve_done_signal.connect(self.on_resolve_done)
         self.finalize_done_signal.connect(self.on_finalize_done)
@@ -247,7 +246,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi.type == PaymentIdentifierType.BIP21:
             assert 'amount' not in pi.bip21
 
-        if run_hook('abort_send', self):
+        if self.wallet.run_hook('abort_send', self):
             return
         outputs = pi.get_onchain_outputs('!')
         if not outputs:
@@ -272,7 +271,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.max_button.setChecked(True)
         amount = tx.output_value()
-        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+        __, x_fee_amount = self.wallet.run_hook('get_tx_extra_fee', tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
         self.amount_e.setAmount(amount_after_all_fees)
         # show tooltip explaining max amount
@@ -300,7 +299,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             invoice: Optional[Invoice] = None
     ) -> None:
         # trustedcoin requires this
-        if run_hook('abort_send', self):
+        if self.wallet.run_hook('abort_send', self):
             return
 
         payment_identifier = None
@@ -381,7 +380,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.window.update_status()
         self.paytomany_menu.setChecked(self.payto_e.multiline)
 
-        run_hook('do_clear', self)
+        self.wallet.run_hook('do_clear', self)
 
     def prepare_for_send_tab_network_lookup(self):
         for btn in [self.save_button, self.send_button, self.clear_button]:

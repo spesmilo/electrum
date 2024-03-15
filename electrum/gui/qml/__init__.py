@@ -25,7 +25,7 @@ from PyQt6.QtGui import QGuiApplication
 sys._GUI_QT_VERSION = 6  # used by gui/common_qt
 
 from electrum.i18n import _
-from electrum.plugin import run_hook
+from electrum.plugin import run_wizard_hook
 from electrum.util import profiler
 from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
@@ -93,7 +93,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
 
         # Initialize any QML plugins
-        run_hook('init_qml', self.app)
+        run_wizard_hook('init_qml', self.app)
         self.app.engine.load('electrum/gui/qml/components/main.qml')
 
     def close(self):

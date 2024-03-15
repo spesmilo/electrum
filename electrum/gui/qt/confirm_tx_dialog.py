@@ -35,7 +35,6 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGridLayo
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.util import quantize_feerate
-from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
@@ -714,7 +713,7 @@ class ConfirmTxDialog(TxEditor):
         return grid
 
     def _update_extra_fees(self):
-        x_fee = run_hook('get_tx_extra_fee', self.wallet, self.tx)
+        x_fee = self.wallet.run_hook('get_tx_extra_fee', self.tx)
         if x_fee:
             x_fee_address, x_fee_amount = x_fee
             self.extra_fee_label.setVisible(True)

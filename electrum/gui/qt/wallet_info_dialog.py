@@ -10,7 +10,6 @@ from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QPushButton, QWidget, QStackedWidget)
 
 from electrum import keystore
-from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
 
@@ -133,7 +132,7 @@ class WalletInfoDialog(WindowModalDialog):
                 mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=config)
                 mpk_text.setMaximumHeight(max(150, 10 * font_height()))
                 mpk_text.addCopyButton()
-                run_hook('show_xpub_button', mpk_text, ks)
+                wallet.run_hook('show_xpub_button', mpk_text, ks)
                 ks_vbox.addWidget(WWLabel(_("Master Public Key")))
                 ks_vbox.addWidget(mpk_text)
 
@@ -161,7 +160,7 @@ class WalletInfoDialog(WindowModalDialog):
             vbox.addWidget(ks_stack)
 
         vbox.addStretch(1)
-        btn_export_info = run_hook('wallet_info_buttons', window, self)
+        btn_export_info = wallet.run_hook('wallet_info_buttons', window, self)
         btn_close = CloseButton(self)
         btns = Buttons(btn_export_info, btn_close)
         vbox.addLayout(btns)
