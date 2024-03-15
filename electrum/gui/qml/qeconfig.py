@@ -244,6 +244,17 @@ class QEConfig(AuthMixin, QObject):
             self.config.GUI_QML_ADDRESS_LIST_SHOW_USED = addresslistShowUsed
             self.addresslistShowUsedChanged.emit()
 
+    outputValueRoundingChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=outputValueRoundingChanged)
+    def outputValueRounding(self):
+        return self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING
+
+    @outputValueRounding.setter
+    def outputValueRounding(self, outputValueRounding):
+        if outputValueRounding != self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING:
+            self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = outputValueRounding
+            self.outputValueRoundingChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):
