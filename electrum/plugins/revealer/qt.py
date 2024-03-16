@@ -6,7 +6,7 @@ Secret backup plug-in for the electrum wallet.
 
 Copyright:
     2017 Tiago Romagnani Silveira
-    2023 Soren Stoutner <soren@stoutner.com>
+    2023 Soren Stoutner <soren@debian.org>
 
 Distributed under the MIT software license, see the accompanying
 file LICENCE or http://www.opensource.org/licenses/mit-license.php
