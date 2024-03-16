@@ -4,6 +4,8 @@
   Copyright 2023-2024 Soren Stoutner <soren@debian.org>.
 
   This file can be validated using `appstreamcli validate org.electrum.electrum.metainfo.xml`.
+
+  Distributed under the MIT software license, see the accompanying file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 -->
 
 <component type="desktop-application">
