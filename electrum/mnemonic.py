@@ -31,7 +31,7 @@ from typing import Sequence, Dict, Iterator, Optional
 from types import MappingProxyType
 
 from .util import resource_path, bfh, randrange
-from .crypto import hmac_oneshot
+from .crypto import hmac_oneshot, sha256
 from . import version
 from .logging import Logger
 
@@ -198,7 +198,7 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, *, seed_type: str = None, num_bits: int = None) -> str:
+    def make_seed(self, *, seed_type: str = None, num_bits: int = None, extra_entropy: bytes = None) -> str:
         from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'
@@ -209,10 +209,19 @@ class Mnemonic(Logger):
         bpw = math.log(len(self.wordlist), 2)
         num_bits = int(math.ceil(num_bits/bpw) * bpw)
         self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
+        # prepare user-provided additional entropy
+        if extra_entropy:
+            assert isinstance(extra_entropy, bytes), type(extra_entropy)
+            extra_entropy = sha256(extra_entropy)
+            extra_entropy_int = int.from_bytes(extra_entropy, byteorder="big", signed=False)
+            extra_entropy_int &= ((1 << num_bits) - 1)  # limit length to "num_bits"
+        else:
+            extra_entropy_int = 0
         # generate random
         entropy = 1
         while entropy < pow(2, num_bits - bpw):  # try again if seed would not contain enough words
             entropy = randrange(pow(2, num_bits))
+            entropy ^= extra_entropy_int  # mix-in provided additional entropy, if any
         # brute-force seed that has correct "version number"
         nonce = 0
         while True:
