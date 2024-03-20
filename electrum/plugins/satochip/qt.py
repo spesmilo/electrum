@@ -4,7 +4,7 @@ from electrum.keystore import bip39_is_checksum_valid
 from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub, WalletWizardComponent
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub, WalletWizardComponent, QENewWalletWizard
 from electrum.plugin import hook
 from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
 from PyQt5.QtGui import QRegExpValidator
@@ -728,7 +728,7 @@ class SatochipSetupLayout(QVBoxLayout):
     def __init__(self, device):
         _logger.info("[SatochipSetupLayout] __init__()")
         QVBoxLayout.__init__(self)
-        
+
         vbox = QVBoxLayout()
 
         # intro
@@ -753,7 +753,7 @@ class SatochipSetupLayout(QVBoxLayout):
         self.addLayout(vbox2)
 
         # PIN validation
-        if (self.pw.text()=="" or self.pw.text()==None):
+        if (self.pw.text()=="" or self.pw.text() is None):
             self.validChanged.emit(False)
 
         def set_enabled():
@@ -801,7 +801,7 @@ class WCSatochipSetupParams(WalletWizardComponent):
     def on_settings_valid_changed(self, is_valid: bool):
         _logger.info(f"[WCSatochipSetupParams] on_settings_valid_changed() is_valid: {is_valid}")
         self.valid = is_valid
-        
+
     def apply(self):
         _logger.info("[WCSatochipSetupParams] apply()")
         current_cosigner = self.wizard.current_cosigner(self.wizard_data)
@@ -812,7 +812,7 @@ class WCSatochipSetup(WalletWizardComponent):
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Satochip Setup'))
         _logger.info('[WCSatochipSetup] __init__()') # debugsatochip
-        
+
         self.plugins = wizard.plugins
         self.plugin = self.plugins.get_plugin('satochip')
 
@@ -865,7 +865,7 @@ class SatochipSeedLayout(QVBoxLayout):
 
     def __init__(self, device):
         QVBoxLayout.__init__(self)
-        
+
         label = QLabel(_("Enter a label to name your device:"))
         self.label_e = QLineEdit()
         hl = QHBoxLayout()
@@ -877,7 +877,7 @@ class SatochipSeedLayout(QVBoxLayout):
         self.text_e = QTextEdit()
         self.text_e.setMaximumHeight(60)
         msg = _("Enter your BIP39 mnemonic:")
-        
+
         # TODO: validation?
         def set_enabled():
             item = ' '.join(str(clean_text(self.text_e)).split())

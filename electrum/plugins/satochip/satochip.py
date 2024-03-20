@@ -8,10 +8,11 @@ from electrum import constants
 from electrum import descriptor
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
-from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.keystore import Hardware_KeyStore, bip39_to_seed, bip39_is_checksum_valid
+from electrum.plugin import Device, DeviceInfo
+from electrum.keystore import Hardware_KeyStore, bip39_to_seed, bip39_is_checksum_valid, ScriptTypeNotSupported
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
+from electrum.wizard import NewWalletWizard
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
@@ -64,17 +65,6 @@ class SatochipClient(HardwareClientBase):
         self.handler = handler
         #self.parser= CardDataParser()
         self.cc= CardConnector(self, _logger.getEffectiveLevel())
-        self.ux_busy= False
-
-    def show_error(self, message, clear_client=False):
-        _logger.error(f"[SatochipClient] show_error() {message}")
-        if not self.ux_busy:
-            self.handler.show_error(message)
-        else:
-            self.ux_busy = False
-        if clear_client:
-            self.client = None
-        #raise UserFacingException(message)
 
     def __repr__(self):
         return '<SatochipClient TODO>'
@@ -132,7 +122,6 @@ class SatochipClient(HardwareClientBase):
     def verify_PIN(self, pin=None):
         while(True):
             try:
-                print("DEBUG verify pin")
                 #when pin is None, pysatochip use a cached pin if available
                 (response, sw1, sw2)= self.cc.card_verify_PIN_simple(pin)
                 return True
@@ -140,20 +129,20 @@ class SatochipClient(HardwareClientBase):
             # recoverable errors
             except CardNotPresentError:
                 msg = f"No card found! \nPlease insert card, then enter your PIN:"
-                (is_PIN, pin)= self.PIN_dialog(msg) 
-                if is_PIN == False:
+                (is_PIN, pin)= self.PIN_dialog(msg)
+                if is_PIN is False:
                     return False
             except PinRequiredError as ex:
                 # no pin value cached in pysatochip
                 msg = f'Enter the PIN for your card:'
-                (is_PIN, pin)= self.PIN_dialog(msg) 
-                if is_PIN == False:
+                (is_PIN, pin)= self.PIN_dialog(msg)
+                if is_PIN is False:
                     return False
             except WrongPinError as ex:
                 pin= None # reset pin
                 msg = f"Wrong PIN! {ex.pin_left} tries remaining! \n Enter the PIN for your card:"
-                (is_PIN, pin)= self.PIN_dialog(msg) 
-                if is_PIN == False:
+                (is_PIN, pin)= self.PIN_dialog(msg)
+                if is_PIN is False:
                     return False
 
             # unrecoverable errors
@@ -194,7 +183,7 @@ class SatochipClient(HardwareClientBase):
     def ping_check(self):
         #check connection is working
         try:
-            print('ping_check')#debug
+            _logger.info('[SatochipClient] ping_check()')#debug
             #atr= self.cc.card_get_ATR()
         except Exception as e:
             _logger.exception(f"Exception: {str(e)}")
@@ -221,9 +210,6 @@ class SatochipClient(HardwareClientBase):
             return None
 
     def PIN_dialog(self, msg):
-        while self.ux_busy:
-            sleep(1)
-
         while True:
             password = self.handler.get_passphrase(msg, False)
             if password is None:
@@ -347,10 +333,10 @@ class Satochip_KeyStore(Hardware_KeyStore):
         finally:
             _logger.info(f"[Satochip_KeyStore] sign_message: finally")
             self.handler.finished()
-            
+
 
     def sign_transaction(self, tx, password):
-        _logger.info(f"In sign_transaction(): tx: {str(tx)}") 
+        _logger.info(f"In sign_transaction(): tx: {str(tx)}")
         client = self.get_client()
         is_ok = client.verify_PIN()
         segwitTransaction = False
@@ -364,8 +350,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
             txOutputs += script
         #txOutputs = bfh(txOutputs)
         hashOutputs = sha256d(bfh(txOutputs)).hex()
-        _logger.info(f"In sign_transaction(): hashOutputs= {hashOutputs}") 
-        _logger.info(f"In sign_transaction(): outputs= {txOutputs}") 
+        _logger.info(f"In sign_transaction(): hashOutputs= {hashOutputs}")
+        _logger.info(f"In sign_transaction(): outputs= {txOutputs}")
 
         # Fetch inputs of the transaction to sign
         for i,txin in enumerate(tx.inputs()):
@@ -624,9 +610,9 @@ class SatochipPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         if not client:
             raise Exception(_("The device was disconnected."))
-        
+
         label, seed, passphrase = settings
-        
+
         # check seed validity
         (is_checksum_valid, is_wordlist_valid) = bip39_is_checksum_valid(seed)
         if is_checksum_valid and is_wordlist_valid:
@@ -636,7 +622,7 @@ class SatochipPlugin(HW_PluginBase):
         else:
             _logger.error(f"[SatochipPlugin] _import_seed() wrong seed format!")
             raise Exception('Wrong BIP39 mnemonic format!')
-        
+
         # verify pin:
         is_ok = client.verify_PIN()
 
@@ -668,13 +654,13 @@ class SatochipPlugin(HW_PluginBase):
         _logger.info(f"[SatochipPlugin] wizard_entry_for_device() device_info: {device_info}")
         _logger.info(f"[SatochipPlugin] wizard_entry_for_device() new_wallet: {new_wallet}")
 
-        device_state = device_info.initialized # can be None, False or True. 
+        device_state = device_info.initialized # can be None, False or True.
         # None is used to distinguish a completely new card from a card where the seed has been reset, but the PIN is still set.
         _logger.info(f"[SatochipPlugin] wizard_entry_for_device() device_state: {device_state}")
         if new_wallet:
-            if device_state == None:
+            if device_state is None:
                 return 'satochip_not_setup'
-            elif device_state == False:
+            elif device_state is False:
                 return 'satochip_not_seeded'
             else:
                 return 'satochip_start'
