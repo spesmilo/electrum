@@ -202,6 +202,14 @@ class BitBox02Client(HardwareClientBase):
 
     @runs_in_hwd_thread
     def get_password_for_storage_encryption(self) -> str:
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+
+        if self.bitbox02_device is None:
+            raise Exception(
+                "Need to setup communication first before attempting any BitBox02 calls"
+            )
+
         derivation = get_derivation_used_for_hw_device_encryption()
         derivation_list = bip32.convert_bip32_strpath_to_intpath(derivation)
         xpub = self.bitbox02_device.electrum_encryption_key(derivation_list)
