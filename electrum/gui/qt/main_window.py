@@ -74,6 +74,7 @@ from electrum.lnutil import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
 from electrum.submarine_swaps import SwapServerError
 
+from .rate_limiter import rate_limited
 from .exception_window import Exception_Hook
 from .amountedit import BTCAmountEdit
 from .qrcodewidget import QRDialog
@@ -1573,7 +1574,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         notes_tab.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
         notes_tab.setPlainText(self.wallet.db.get('notes_text', ''))
         notes_tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_NOTES
+        notes_tab.textChanged.connect(self.maybe_save_notes_text)
         return notes_tab
+
+    @rate_limited(10, ts_after=True)
+    def maybe_save_notes_text(self):
+        self.save_notes_text()
+
+    def save_notes_text(self):
+        self.logger.info('saving notes')
+        self.wallet.db.put('notes_text', self.notes_tab.toPlainText())
 
     def update_console(self):
         console = self.console
@@ -2521,7 +2531,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             fut.cancel()
         self.unregister_callbacks()
         self.config.GUI_QT_WINDOW_IS_MAXIMIZED = self.isMaximized()
-        self.wallet.db.put('notes_text', self.notes_tab.toPlainText())
+        self.save_notes_text()
         if not self.isMaximized():
             g = self.geometry()
             self.wallet.db.put("winpos-qt", [g.left(),g.top(),
