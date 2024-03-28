@@ -4,6 +4,7 @@
 *.swp
 build/
 dist/
+deb_dist/
 *.egg/
 Electrum.egg-info/
 electrum/locale/
