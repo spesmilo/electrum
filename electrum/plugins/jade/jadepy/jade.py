@@ -77,7 +77,7 @@ def _hexlify(data):
 #         The default implementation used in JadeAPI._jadeRpc() below.
 #         NOTE: Only available if the 'requests' dependency is available.
 #
-#         Callers can supply their own implmentation of this call where it is required.
+#         Callers can supply their own implementation of this call where it is required.
 #
 #         Parameters
 #         ----------
@@ -1422,7 +1422,7 @@ class JadeInterface:
         Returns
         -------
         JadeInterface
-            Inerface object configured to use given serial parameters.
+            Interface object configured to use given serial parameters.
             NOTE: the instance has not yet tried to contact the hw
             - caller must call 'connect()' before trying to use the Jade.
         """
@@ -1464,7 +1464,7 @@ class JadeInterface:
         Returns
         -------
         JadeInterface
-            Inerface object configured to use given BLE parameters.
+            Interface object configured to use given BLE parameters.
             NOTE: the instance has not yet tried to contact the hw
             - caller must call 'connect()' before trying to use the Jade.
 
@@ -1718,7 +1718,7 @@ class JadeInterface:
     def make_rpc_call(self, request, long_timeout=False):
         """
         Method to send a request over the underlying interface, and await a response.
-        The request is minimally validated before it is sent, and the response is simialrly
+        The request is minimally validated before it is sent, and the response is similarly
         validated before being returned.
         Any read-timeout is respected unless 'long_timeout' is passed, in which case the call
         blocks indefinitely awaiting a response.
