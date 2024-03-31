@@ -414,6 +414,16 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                text: qsTr('Rename')
+                onClicked: {
+                    var dialog = renameWalletDialog.createObject(rootItem)
+                    dialog.open()
+                }
+                icon.source: '../../icons/pen.png'
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 text: qsTr('Change Password')
                 onClicked: Daemon.startChangePassword()
                 icon.source: '../../icons/lock.png'
@@ -528,6 +538,13 @@ Pane {
         ImportAddressesKeysDialog {
             width: parent.width
             height: parent.height
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: renameWalletDialog
+        RenameWalletDialog {
             onClosed: destroy()
         }
     }
