@@ -57,7 +57,6 @@ class Plugins(DaemonThread):
 
     LOGGING_SHORTCUT = 'p'
     pkgpath = os.path.dirname(plugins.__file__)
-    _all_found_plugins = None  # type: Optional[Dict[str, dict]]
 
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):
@@ -66,48 +65,44 @@ class Plugins(DaemonThread):
         self.config = config
         self.hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
+        self.internal_plugin_metadata = {}
         self.gui_name = gui_name
-        self.descriptions = {}
         self.device_manager = DeviceMgr(config)
+        self.find_internal_plugins()
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
-    @classmethod
-    def find_all_plugins(cls) -> Mapping[str, dict]:
-        """Return a map of all found plugins: name -> description.
-        Note that plugins not available for the current GUI are also included.
-        """
-        if cls._all_found_plugins is None:
-            cls._all_found_plugins = dict()
-            iter_modules = list(pkgutil.iter_modules([cls.pkgpath]))
-            for loader, name, ispkg in iter_modules:
-                # FIXME pyinstaller binaries are packaging each built-in plugin twice:
-                #       once as data and once as code. To honor the "no duplicates" rule below,
-                #       we exclude the ones packaged as *code*, here:
-                if loader.__class__.__qualname__ == "FrozenImporter":
-                    continue
-                full_name = f'electrum.plugins.{name}'
-                spec = importlib.util.find_spec(full_name)
-                if spec is None:  # pkgutil found it but importlib can't ?!
-                    raise Exception(f"Error pre-loading {full_name}: no spec")
-                try:
-                    module = importlib.util.module_from_spec(spec)
-                    # sys.modules needs to be modified for relative imports to work
-                    # see https://stackoverflow.com/a/50395128
-                    sys.modules[spec.name] = module
-                    spec.loader.exec_module(module)
-                except Exception as e:
-                    raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
-                d = module.__dict__
-                if name in cls._all_found_plugins:
-                    _logger.info(f"Found the following plugin modules: {iter_modules=}")
-                    raise Exception(f"duplicate plugins? for {name=}")
-                cls._all_found_plugins[name] = d
-        return cls._all_found_plugins
+    @property
+    def descriptions(self):
+        return dict(list(self.internal_plugin_metadata.items()))
 
-    def load_plugins(self):
-        for name, d in self.find_all_plugins().items():
+    def find_internal_plugins(self) -> Mapping[str, dict]:
+        """Populates self.internal_plugin_metadata
+        """
+        iter_modules = list(pkgutil.iter_modules([self.pkgpath]))
+        for loader, name, ispkg in iter_modules:
+            # FIXME pyinstaller binaries are packaging each built-in plugin twice:
+            #       once as data and once as code. To honor the "no duplicates" rule below,
+            #       we exclude the ones packaged as *code*, here:
+            if loader.__class__.__qualname__ == "FrozenImporter":
+                continue
+            full_name = f'electrum.plugins.{name}'
+            spec = importlib.util.find_spec(full_name)
+            if spec is None:  # pkgutil found it but importlib can't ?!
+                raise Exception(f"Error pre-loading {full_name}: no spec")
+            try:
+                module = importlib.util.module_from_spec(spec)
+                # sys.modules needs to be modified for relative imports to work
+                # see https://stackoverflow.com/a/50395128
+                sys.modules[spec.name] = module
+                spec.loader.exec_module(module)
+            except Exception as e:
+                raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
+            d = module.__dict__
+            if 'fullname' not in d:
+                continue
+            d['display_name'] = d['fullname']
             gui_good = self.gui_name in d.get('available_for', [])
             if not gui_good:
                 continue
@@ -117,8 +112,20 @@ class Plugins(DaemonThread):
             details = d.get('registers_keystore')
             if details:
                 self.register_keystore(name, gui_good, details)
-            self.descriptions[name] = d
-            if not d.get('requires_wallet_type') and self.config.get('use_' + name):
+            if d.get('requires_wallet_type'):
+                # trustedcoin will not be added to list
+                continue
+            if name in self.internal_plugin_metadata:
+                _logger.info(f"Found the following plugin modules: {iter_modules=}")
+                raise Exception(f"duplicate plugins? for {name=}")
+            self.internal_plugin_metadata[name] = d
+
+    def load_plugins(self):
+        self.load_internal_plugins()
+
+    def load_internal_plugins(self):
+        for name, d in self.internal_plugin_metadata.items():
+            if self.config.get('enable_plugin_' + name) is True:
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
@@ -156,14 +163,14 @@ class Plugins(DaemonThread):
         self.remove_jobs(plugin.thread_jobs())
 
     def enable(self, name: str) -> 'BasePlugin':
-        self.config.set_key('use_' + name, True, save=True)
+        self.config.set_key('enable_plugin_' + name, True, save=True)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
     def disable(self, name: str) -> None:
-        self.config.set_key('use_' + name, False, save=True)
+        self.config.set_key('enable_plugin_' + name, False, save=True)
         p = self.get(name)
         if not p:
             return
@@ -173,12 +180,7 @@ class Plugins(DaemonThread):
 
     @classmethod
     def is_plugin_enabler_config_key(cls, key: str) -> bool:
-        if not key.startswith('use_'):
-            return False
-        # note: the 'use_' prefix is not sufficient to check, there are
-        #       non-plugin-related config keys that also have it... hence:
-        name = key[4:]
-        return name in cls.find_all_plugins()
+        return key.startswith('enable_plugin_')
 
     def toggle(self, name: str) -> Optional['BasePlugin']:
         p = self.get(name)
@@ -204,7 +206,7 @@ class Plugins(DaemonThread):
             if gui_good:
                 try:
                     p = self.get_plugin(name)
-                    if p.is_enabled():
+                    if p.is_available():
                         out.append(HardwarePluginToScan(name=name,
                                                         description=details[2],
                                                         plugin=p,
@@ -276,7 +278,7 @@ class BasePlugin(Logger):
         self.parent = parent  # type: Plugins  # The plugins object
         self.name = name
         self.config = config
-        self.wallet = None
+        self.wallet = None # fixme: this field should not exist
         Logger.__init__(self)
         # add self to hooks
         for k in dir(self):
@@ -313,7 +315,7 @@ class BasePlugin(Logger):
         return []
 
     def is_enabled(self):
-        return self.is_available() and self.config.get('use_'+self.name) is True
+        return self.is_available() and self.config.get('enable_plugin_'+self.name) is True
 
     def is_available(self):
         return True
