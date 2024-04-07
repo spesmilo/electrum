@@ -422,6 +422,14 @@ class BasePlugin(Logger):
     def settings_dialog(self, window):
         raise NotImplementedError()
 
+    def read_file(self, filename: str) -> bytes:
+        """ note: only for external plugins """
+        import zipfile
+        plugin_file_path = os.path.join(self.parent.get_external_plugin_dir(), self.name + '.zip')
+        with zipfile.ZipFile(plugin_file_path) as myzip:
+            with myzip.open(os.path.join(self.name, filename)) as myfile:
+                s = myfile.read()
+                return s
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
