@@ -144,36 +144,68 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     self.logger.exception(f"cannot initialize plugin {name}: {e}")
 
+    def requires_download(self, name):
+        metadata = self.external_plugin_metadata.get(name)
+        if not metadata:
+            return False
+        if os.path.exists(self.external_plugin_path(name)):
+            return False
+        return True
+
+    def check_plugin_hash(self, name: str)-> bool:
+        from .crypto import sha256
+        metadata = self.external_plugin_metadata.get(name)
+        filename = self.external_plugin_path(name)
+        if not os.path.exists(filename):
+            return False
+        with open(filename, 'rb') as f:
+            s = f.read()
+        if sha256(s).hex() != metadata['hash']:
+            return False
+        return True
+
+    async def download_external_plugin(self, name):
+        import aiohttp
+        metadata = self.external_plugin_metadata.get(name)
+        if metadata is None:
+            raise Exception("unknown external plugin %s" % name)
+        url = metadata['download_url']
+        filename = self.external_plugin_path(name)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    with open(filename, 'wb') as fd:
+                        async for chunk in resp.content.iter_chunked(10):
+                            fd.write(chunk)
+        if not self.check_plugin_hash(name):
+            os.unlink(filename)
+            raise Exception("wrong plugin hash %s" % name)
+
     def load_external_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
         # If we do not have the metadata, it was not detected by `load_external_plugins`
         # on startup, or added by manual user installation after that point.
-        metadata = self.external_plugin_metadata.get(name, None)
+        metadata = self.external_plugin_metadata.get(name)
         if metadata is None:
             self.logger.exception("attempted to load unknown external plugin %s" % name)
             return
-
-        from .crypto import sha256
-        external_plugin_dir = self.get_external_plugin_dir()
-        plugin_file_path = os.path.join(external_plugin_dir, name + '.zip')
-        if not os.path.exists(plugin_file_path):
+        filename = self.external_plugin_path(name)
+        if not os.path.exists(filename):
             return
-        with open(plugin_file_path, 'rb') as f:
-            s = f.read()
-        if sha256(s).hex() != metadata['hash']:
-            self.logger.exception("wrong hash for plugin '%s'" % plugin_file_path)
+        if not self.check_plugin_hash(name):
+            self.logger.exception("wrong hash for plugin '%s'" % name)
+            os.unlink(filename)
             return
-
         try:
-            zipfile = zipimport.zipimporter(plugin_file_path)
+            zipfile = zipimport.zipimporter(filename)
         except zipimport.ZipImportError:
-            self.logger.exception("unable to load zip plugin '%s'" % plugin_file_path)
+            self.logger.exception("unable to load zip plugin '%s'" % filename)
             return
         try:
             module = zipfile.load_module(name)
         except zipimport.ZipImportError as e:
-            self.logger.exception(f"unable to load zip plugin '{plugin_file_path}' package '{name}'")
+            self.logger.exception(f"unable to load zip plugin '{filename}' package '{name}'")
             return
         sys.modules['electrum_external_plugins.'+ name] = module
         full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
@@ -201,6 +233,9 @@ class Plugins(DaemonThread):
 
     def get_external_plugin_dir(self):
         return self.user_pkgpath
+
+    def external_plugin_path(self, name):
+        return os.path.join(self.get_external_plugin_dir(), name + '.zip')
 
     def find_external_plugins(self):
         """ read json file """
@@ -425,8 +460,8 @@ class BasePlugin(Logger):
     def read_file(self, filename: str) -> bytes:
         """ note: only for external plugins """
         import zipfile
-        plugin_file_path = os.path.join(self.parent.get_external_plugin_dir(), self.name + '.zip')
-        with zipfile.ZipFile(plugin_file_path) as myzip:
+        plugin_filename = self.parent.external_plugin_path(self.name)
+        with zipfile.ZipFile(plugin_filename) as myzip:
             with myzip.open(os.path.join(self.name, filename)) as myfile:
                 s = myfile.read()
                 return s

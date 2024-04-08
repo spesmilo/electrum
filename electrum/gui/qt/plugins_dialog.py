@@ -56,11 +56,24 @@ class PluginsDialog(WindowModalDialog):
             self.grid.addWidget(widget, i, 1)
 
     def do_toggle(self, cb, name, i):
+        if self.plugins.requires_download(name):
+            cb.setChecked(False)
+            self.download_plugin_dialog(cb, name, i)
+            return
         p = self.plugins.toggle(name)
         cb.setChecked(bool(p))
         self.enable_settings_widget(p, name, i)
         # note: all enabled plugins will receive this hook:
         run_hook('init_qt', self.window.gui_object)
+
+    def download_plugin_dialog(self, cb, name, i):
+        import asyncio
+        if not self.window.question("Download plugin '%s'?"%name):
+            return
+        coro = self.plugins.download_external_plugin(name)
+        def on_success(x):
+            self.do_toggle(cb, name, i)
+        self.window.run_coroutine_dialog(coro, "Downloading '%s' "%name, on_result=on_success, on_cancelled=None)
 
     def show_list(self):
         descriptions = sorted(self.plugins.descriptions.items())
