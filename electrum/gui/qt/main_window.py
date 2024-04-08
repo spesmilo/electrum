@@ -2332,7 +2332,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def do_export_privkeys(self, fileName, pklist, is_csv):
         with open(fileName, "w+") as f:
-            os_chmod(fileName, 0o600)
+            os_chmod(fileName, 0o600)  # set restrictive perms *before* we write data
             if is_csv:
                 transaction = csv.writer(f)
                 transaction.writerow(["address", "private_key"])

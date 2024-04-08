@@ -87,22 +87,22 @@ class WalletStorage(Logger):
         return self.decrypted if self.is_encrypted() else self.raw
 
     def write(self, data: str) -> None:
-        s = self.encrypt_before_writing(data)
-        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "wb") as f:
-            f.write(s.encode("utf-8"))
-            self.pos = f.seek(0, os.SEEK_END)
-            f.flush()
-            os.fsync(f.fileno())
         try:
             mode = os.stat(self.path).st_mode
         except FileNotFoundError:
             mode = stat.S_IREAD | stat.S_IWRITE
+        s = self.encrypt_before_writing(data)
+        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
+        with open(temp_path, "wb") as f:
+            os_chmod(temp_path, mode)  # set restrictive perms *before* we write data
+            f.write(s.encode("utf-8"))
+            self.pos = f.seek(0, os.SEEK_END)
+            f.flush()
+            os.fsync(f.fileno())
         # assert that wallet file does not exist, to prevent wallet corruption (see issue #5082)
         if not self.file_exists():
             assert not os.path.exists(self.path)
         os.replace(temp_path, self.path)
-        os_chmod(self.path, mode)
         self._file_exists = True
         self.logger.info(f"saved {self.path}")
 

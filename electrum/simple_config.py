@@ -421,8 +421,8 @@ class SimpleConfig(Logger):
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
         try:
             with open(path, "w", encoding='utf-8') as f:
+                os_chmod(path, stat.S_IREAD | stat.S_IWRITE)  # set restrictive perms *before* we write data
                 f.write(s)
-            os_chmod(path, stat.S_IREAD | stat.S_IWRITE)
         except OSError:
             # datadir probably deleted while running... e.g. portable exe running on ejected USB drive
             # (in which case it is typically either FileNotFoundError or PermissionError,
