@@ -662,7 +662,7 @@ class PaymentIdentifier(Logger):
             return None
 
     def has_expired(self):
-        if self.bip70:
+        if self.bip70 and self.bip70_data:
             return self.bip70_data.has_expired()
         elif self.bolt11:
             return self.bolt11.has_expired()
