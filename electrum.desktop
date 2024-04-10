@@ -3,19 +3,19 @@
 # Note: This assumes $HOME/.local/bin is in your $PATH
 
 [Desktop Entry]
-Comment=Lightweight Bitcoin Client
+Comment=Lightweight Feathercoin Client
 Exec=electrum %u
-GenericName[en_US]=Bitcoin Wallet
-GenericName=Bitcoin Wallet
+GenericName[en_US]=Feathercoin Wallet
+GenericName=Feathercoin Wallet
 Icon=electrum
-Name[en_US]=Electrum Bitcoin Wallet
-Name=Electrum Bitcoin Wallet
+Name[en_US]=Electrum Feathercoin Wallet
+Name=Electrum Feathercoin Wallet
 Categories=Finance;Network;
 StartupNotify=true
 StartupWMClass=electrum
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/bitcoin;x-scheme-handler/lightning;
+MimeType=x-scheme-handler/Feathercoin;x-scheme-handler/lightning;
 Actions=Testnet;
 
 [Desktop Action Testnet]
