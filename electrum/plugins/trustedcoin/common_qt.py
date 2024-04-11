@@ -208,7 +208,7 @@ class TrustedcoinPluginQObject(PluginQObject):
                 def f(xprv):
                     rootnode = BIP32Node.from_xkey(xprv)
                     key = rootnode.subkey_at_private_derivation((0, 0)).eckey
-                    sig = key.sign_message(message, True)
+                    sig = key.ecdsa_sign_usermessage(message, is_compressed=True)
                     return base64.b64encode(sig).decode()
 
                 signatures = [f(x) for x in [xprv1, xprv2]]

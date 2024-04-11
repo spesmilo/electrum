@@ -223,7 +223,7 @@ class Software_KeyStore(KeyStore):
     def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
-        return key.sign_message(message, compressed)
+        return key.ecdsa_sign_usermessage(message, is_compressed=compressed)
 
     def decrypt_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)

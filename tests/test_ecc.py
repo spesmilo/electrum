@@ -47,19 +47,19 @@ class TestSchnorr(ElectrumTestCase):
                     if seckey:
                         seckey = ECPrivkey(bytes.fromhex(seckey))
                         aux_rand = bytes.fromhex(aux_rand)
-                        sig_created = seckey.sign_schnorr(msg32, aux_rand32=aux_rand)
+                        sig_created = seckey.schnorr_sign(msg32, aux_rand32=aux_rand)
                         self.assertEqual(signature, sig_created)
-                    is_sig_good = pubkey.verify_message_schnorr(signature, msg32)
+                    is_sig_good = pubkey.schnorr_verify(signature, msg32)
                     expected_res = True if expected_res == "TRUE" else False
                     self.assertEqual(expected_res, is_sig_good)
 
     def test_sign_schnorr_aux_rand(self):
         seckey = ECPrivkey(bytes.fromhex("B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF"))
         msg32 = sha256("hello there")
-        sig1 = seckey.sign_schnorr(msg32, aux_rand32=None)
-        sig2 = seckey.sign_schnorr(msg32, aux_rand32=b"\x00" * 32)
+        sig1 = seckey.schnorr_sign(msg32, aux_rand32=None)
+        sig2 = seckey.schnorr_sign(msg32, aux_rand32=b"\x00" * 32)
         self.assertEqual(sig1, sig2)
-        sig3 = seckey.sign_schnorr(msg32, aux_rand32=bytes(range(32)))
+        sig3 = seckey.schnorr_sign(msg32, aux_rand32=bytes(range(32)))
         self.assertNotEqual(sig1, sig3)
 
     def test_y_parity_malleability(self):
@@ -79,6 +79,6 @@ class TestSchnorr(ElectrumTestCase):
         self.assertNotEqual(pubkey1.get_public_key_bytes(True), pubkey2.get_public_key_bytes(True))
         self.assertEqual(pubkey1.get_public_key_bytes(True)[1:], pubkey2.get_public_key_bytes(True)[1:])
         msg32 = sha256("hello there")
-        sig = seckey.sign_schnorr(msg32, aux_rand32=None)
-        self.assertTrue(pubkey1.verify_message_schnorr(sig, msg32))
-        self.assertTrue(pubkey2.verify_message_schnorr(sig, msg32))
+        sig = seckey.schnorr_sign(msg32, aux_rand32=None)
+        self.assertTrue(pubkey1.schnorr_verify(sig, msg32))
+        self.assertTrue(pubkey2.schnorr_verify(sig, msg32))

@@ -19,7 +19,7 @@ from aiorpcx import ignore_after
 from .crypto import sha256, sha256d
 from . import bitcoin, util
 from . import ecc
-from .ecc import sig_string_from_r_and_s, der_sig_from_sig_string
+from .ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str)
@@ -424,9 +424,9 @@ class Peer(Logger):
         h = chan.get_channel_announcement_hash()
         node_signature = payload["node_signature"]
         bitcoin_signature = payload["bitcoin_signature"]
-        if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, bitcoin_signature, h):
+        if not ECPubkey(chan.config[REMOTE].multisig_key.pubkey).ecdsa_verify(bitcoin_signature, h):
             raise Exception("bitcoin_sig invalid in announcement_signatures")
-        if not ecc.verify_signature(self.pubkey, node_signature, h):
+        if not ECPubkey(self.pubkey).ecdsa_verify(node_signature, h):
             raise Exception("node_sig invalid in announcement_signatures")
         chan.config[REMOTE].announcement_node_sig = node_signature
         chan.config[REMOTE].announcement_bitcoin_sig = bitcoin_signature
@@ -1453,7 +1453,7 @@ class Peer(Logger):
             addrlen=len(addresses),
             addresses=addresses)
         h = sha256d(raw_msg[64+2:])
-        signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
+        signature = ecc.ECPrivkey(self.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
         message_type, payload = decode_msg(raw_msg)
         payload['signature'] = signature
         raw_msg = encode_msg(message_type, **payload)
@@ -1516,8 +1516,8 @@ class Peer(Logger):
         if not is_reply and chan.config[REMOTE].announcement_node_sig:
             return
         h = chan.get_channel_announcement_hash()
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
+        node_signature = ecc.ECPrivkey(self.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
         self.send_message(
             "announcement_signatures",
             channel_id=chan.channel_id,
@@ -2446,11 +2446,11 @@ class Peer(Logger):
                 closing_signed_tlvs=closing_signed_tlvs,
             )
 
-        def verify_signature(tx, sig):
+        def verify_signature(tx: 'PartialTransaction', sig) -> bool:
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
             preimage_hex = tx.serialize_preimage(0)
             pre_hash = sha256d(bfh(preimage_hex))
-            return ecc.verify_signature(their_pubkey, sig, pre_hash)
+            return ECPubkey(their_pubkey).ecdsa_verify(sig, pre_hash)
 
         async def receive_closing_signed():
             nonlocal our_sig, closing_tx
@@ -2571,11 +2571,11 @@ class Peer(Logger):
         closing_tx.add_signature_to_txin(
             txin_idx=0,
             signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
-            sig=(der_sig_from_sig_string(our_sig) + Sighash.to_sigbytes(Sighash.ALL)).hex())
+            sig=(ecdsa_der_sig_from_ecdsa_sig64(our_sig) + Sighash.to_sigbytes(Sighash.ALL)).hex())
         closing_tx.add_signature_to_txin(
             txin_idx=0,
             signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
-            sig=(der_sig_from_sig_string(their_sig) + Sighash.to_sigbytes(Sighash.ALL)).hex())
+            sig=(ecdsa_der_sig_from_ecdsa_sig64(their_sig) + Sighash.to_sigbytes(Sighash.ALL)).hex())
         # save local transaction and set state
         try:
             self.lnworker.wallet.adb.add_transaction(closing_tx)

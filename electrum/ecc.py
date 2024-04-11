@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Electrum - lightweight Bitcoin client
-# Copyright (C) 2018 The Electrum developers
+# Copyright (C) 2018-2024 The Electrum developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -28,8 +28,7 @@ import hashlib
 import functools
 from typing import Union, Tuple, Optional
 from ctypes import (
-    byref, c_byte, c_int, c_uint, c_char_p, c_size_t, c_void_p, create_string_buffer,
-    CFUNCTYPE, POINTER, cast
+    byref, c_char_p, c_size_t, create_string_buffer, cast,
 )
 
 from .util import bfh, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
@@ -50,21 +49,22 @@ def string_to_number(b: bytes) -> int:
     return int.from_bytes(b, byteorder='big', signed=False)
 
 
-def sig_string_from_der_sig(der_sig: bytes) -> bytes:
-    r, s = get_r_and_s_from_der_sig(der_sig)
-    return sig_string_from_r_and_s(r, s)
+def ecdsa_sig64_from_der_sig(der_sig: bytes) -> bytes:
+    r, s = get_r_and_s_from_ecdsa_der_sig(der_sig)
+    return ecdsa_sig64_from_r_and_s(r, s)
 
 
-def der_sig_from_sig_string(sig_string: bytes) -> bytes:
-    r, s = get_r_and_s_from_sig_string(sig_string)
-    return der_sig_from_r_and_s(r, s)
+def ecdsa_der_sig_from_ecdsa_sig64(sig64: bytes) -> bytes:
+    r, s = get_r_and_s_from_ecdsa_sig64(sig64)
+    return ecdsa_der_sig_from_r_and_s(r, s)
 
 
-def der_sig_from_r_and_s(r: int, s: int) -> bytes:
-    sig_string = (int.to_bytes(r, length=32, byteorder="big") +
-                  int.to_bytes(s, length=32, byteorder="big"))
+def ecdsa_der_sig_from_r_and_s(r: int, s: int) -> bytes:
+    sig64 = (
+        int.to_bytes(r, length=32, byteorder="big") +
+        int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
-    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
+    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig64)
     if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
@@ -77,7 +77,7 @@ def der_sig_from_r_and_s(r: int, s: int) -> bytes:
     return bytes(der_sig)[:der_sig_size]
 
 
-def get_r_and_s_from_der_sig(der_sig: bytes) -> Tuple[int, int]:
+def get_r_and_s_from_ecdsa_der_sig(der_sig: bytes) -> Tuple[int, int]:
     assert isinstance(der_sig, bytes)
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_der(_libsecp256k1.ctx, sig, der_sig, len(der_sig))
@@ -91,11 +91,11 @@ def get_r_and_s_from_der_sig(der_sig: bytes) -> Tuple[int, int]:
     return r, s
 
 
-def get_r_and_s_from_sig_string(sig_string: bytes) -> Tuple[int, int]:
-    if not (isinstance(sig_string, bytes) and len(sig_string) == 64):
-        raise Exception("sig_string must be bytes, and 64 bytes exactly")
+def get_r_and_s_from_ecdsa_sig64(sig64: bytes) -> Tuple[int, int]:
+    if not (isinstance(sig64, bytes) and len(sig64) == 64):
+        raise Exception("sig64 must be bytes, and 64 bytes exactly")
     sig = create_string_buffer(64)
-    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
+    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig64)
     if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
@@ -106,11 +106,12 @@ def get_r_and_s_from_sig_string(sig_string: bytes) -> Tuple[int, int]:
     return r, s
 
 
-def sig_string_from_r_and_s(r: int, s: int) -> bytes:
-    sig_string = (int.to_bytes(r, length=32, byteorder="big") +
-                  int.to_bytes(s, length=32, byteorder="big"))
+def ecdsa_sig64_from_r_and_s(r: int, s: int) -> bytes:
+    sig64 = (
+        int.to_bytes(r, length=32, byteorder="big") +
+        int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
-    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
+    ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig64)
     if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
@@ -155,28 +156,31 @@ class ECPubkey(object):
             self._x, self._y = None, None
 
     @classmethod
-    def from_sig_string(cls, sig_string: bytes, recid: int, msg_hash: bytes) -> 'ECPubkey':
-        assert_bytes(sig_string)
-        if len(sig_string) != 64:
-            raise Exception(f'wrong encoding used for signature? len={len(sig_string)} (should be 64)')
+    def from_ecdsa_sig64(cls, sig64: bytes, recid: int, msg32: bytes) -> 'ECPubkey':
+        assert_bytes(sig64)
+        if len(sig64) != 64:
+            raise Exception(f'wrong encoding used for signature? len={len(sig64)} (should be 64)')
         if not (0 <= recid <= 3):
             raise ValueError('recid is {}, but should be 0 <= recid <= 3'.format(recid))
+        assert isinstance(msg32, (bytes, bytearray)), type(msg32)
+        assert len(msg32) == 32, len(msg32)
         sig65 = create_string_buffer(65)
         ret = _libsecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
-            _libsecp256k1.ctx, sig65, sig_string, recid)
+            _libsecp256k1.ctx, sig65, sig64, recid)
         if 1 != ret:
             raise Exception('failed to parse signature')
         pubkey = create_string_buffer(64)
-        ret = _libsecp256k1.secp256k1_ecdsa_recover(_libsecp256k1.ctx, pubkey, sig65, msg_hash)
+        ret = _libsecp256k1.secp256k1_ecdsa_recover(_libsecp256k1.ctx, pubkey, sig65, msg32)
         if 1 != ret:
             raise InvalidECPointException('failed to recover public key')
         return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey)
 
     @classmethod
-    def from_signature65(cls, sig: bytes, msg_hash: bytes) -> Tuple['ECPubkey', bool, Optional[str]]:
-        if len(sig) != 65:
-            raise Exception(f'wrong encoding used for signature? len={len(sig)} (should be 65)')
-        nV = sig[0]
+    def from_ecdsa_sig65(cls, sig65: bytes, msg32: bytes) -> Tuple['ECPubkey', bool, Optional[str]]:
+        assert_bytes(sig65)
+        if len(sig65) != 65:
+            raise Exception(f'wrong encoding used for signature? len={len(sig65)} (should be 65)')
+        nV = sig65[0]
         # as per BIP-0137:
         #     27-30: p2pkh (uncompressed)
         #     31-34: p2pkh (compressed)
@@ -199,7 +203,7 @@ class ECPubkey(object):
         else:
             compressed = False
         recid = nV - 27
-        pubkey = cls.from_sig_string(sig[1:], recid, msg_hash)
+        pubkey = cls.from_ecdsa_sig64(sig65[1:], recid, msg32)
         return pubkey, compressed, txin_type_guess
 
     @classmethod
@@ -321,38 +325,36 @@ class ECPubkey(object):
         p2 = ((other.x() or 0), (other.y() or 0))
         return p1 < p2
 
-    def verify_message_for_address(self, sig65: bytes, message: bytes, algo=lambda x: sha256d(msg_magic(x))) -> bool:
-        assert_bytes(message)
-        h = algo(message)
+    def ecdsa_verify_recoverable(self, sig65: bytes, msg32: bytes) -> bool:
         try:
-            public_key, compressed, txin_type_guess = self.from_signature65(sig65, h)
+            public_key, _compressed, _txin_type_guess = self.from_ecdsa_sig65(sig65, msg32)
         except Exception:
             return False
         # check public key
         if public_key != self:
             return False
         # check message
-        return self.verify_message_hash(sig65[1:], h)
+        return self.ecdsa_verify(sig65[1:], msg32)
 
-    def verify_message_hash(self, sig_string: bytes, msg_hash: bytes) -> bool:
-        assert_bytes(sig_string)
-        if len(sig_string) != 64:
+    def ecdsa_verify(self, sig64: bytes, msg32: bytes) -> bool:
+        assert_bytes(sig64)
+        if len(sig64) != 64:
             return False
-        if not (isinstance(msg_hash, bytes) and len(msg_hash) == 32):
+        if not (isinstance(msg32, bytes) and len(msg32) == 32):
             return False
 
         sig = create_string_buffer(64)
-        ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
+        ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig64)
         if 1 != ret:
             return False
         ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
 
         pubkey = self._to_libsecp256k1_pubkey_ptr()
-        if 1 != _libsecp256k1.secp256k1_ecdsa_verify(_libsecp256k1.ctx, sig, msg_hash, pubkey):
+        if 1 != _libsecp256k1.secp256k1_ecdsa_verify(_libsecp256k1.ctx, sig, msg32, pubkey):
             return False
         return True
 
-    def verify_message_schnorr(self, sig64: bytes, msg32: bytes) -> bool:
+    def schnorr_verify(self, sig64: bytes, msg32: bytes) -> bool:
         assert isinstance(sig64, bytes), type(sig64)
         assert len(sig64) == 64, len(sig64)
         assert isinstance(msg32, bytes), type(msg32)
@@ -363,7 +365,7 @@ class ECPubkey(object):
             return False
         return True
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1') -> bytes:
+    def encrypt_message(self, message: bytes, *, magic: bytes = b'BIE1') -> bytes:
         """
         ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
@@ -402,23 +404,19 @@ CURVE_ORDER = 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D
 POINT_AT_INFINITY = ECPubkey(None)
 
 
-def msg_magic(message: bytes) -> bytes:
+def usermessage_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
     length = bfh(var_int(len(message)))
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
-def verify_signature(pubkey: bytes, sig: bytes, h: bytes) -> bool:
-    return ECPubkey(pubkey).verify_message_hash(sig, h)
-
-
-def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
+def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
     from .bitcoin import pubkey_to_address
     assert_bytes(sig65, message)
     if net is None: net = constants.net
-    h = sha256d(msg_magic(message))
+    h = sha256d(usermessage_magic(message))
     try:
-        public_key, compressed, txin_type_guess = ECPubkey.from_signature65(sig65, h)
+        public_key, compressed, txin_type_guess = ECPubkey.from_ecdsa_sig65(sig65, h)
     except Exception as e:
         return False
     # check public key using the address
@@ -431,7 +429,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, n
     else:
         return False
     # check message
-    return public_key.verify_message_hash(sig65[1:], h)
+    return public_key.ecdsa_verify(sig65[1:], h)
 
 
 def is_secret_within_curve_range(secret: Union[int, bytes]) -> bool:
@@ -487,18 +485,18 @@ class ECPrivkey(ECPubkey):
     def get_secret_bytes(self) -> bytes:
         return int.to_bytes(self.secret_scalar, length=32, byteorder='big', signed=False)
 
-    def sign(self, msg_hash: bytes, sigencode=None) -> bytes:
-        if not (isinstance(msg_hash, bytes) and len(msg_hash) == 32):
-            raise Exception("msg_hash to be signed must be bytes, and 32 bytes exactly")
+    def ecdsa_sign(self, msg32: bytes, *, sigencode=None) -> bytes:
+        if not (isinstance(msg32, bytes) and len(msg32) == 32):
+            raise Exception("msg32 to be signed must be bytes, and 32 bytes exactly")
         if sigencode is None:
-            sigencode = sig_string_from_r_and_s
+            sigencode = ecdsa_sig64_from_r_and_s
 
         privkey_bytes = self.secret_scalar.to_bytes(32, byteorder="big")
         nonce_function = None
         sig = create_string_buffer(64)
         def sign_with_extra_entropy(extra_entropy):
             ret = _libsecp256k1.secp256k1_ecdsa_sign(
-                _libsecp256k1.ctx, sig, msg_hash, privkey_bytes,
+                _libsecp256k1.ctx, sig, msg32, privkey_bytes,
                 nonce_function, extra_entropy)
             if 1 != ret:
                 raise Exception('the nonce generation function failed, or the private key was invalid')
@@ -516,14 +514,14 @@ class ECPrivkey(ECPubkey):
                 extra_entropy = counter.to_bytes(32, byteorder="little")
                 r, s = sign_with_extra_entropy(extra_entropy=extra_entropy)
 
-        sig_string = sig_string_from_r_and_s(r, s)
-        if not self.verify_message_hash(sig_string, msg_hash):
+        sig64 = ecdsa_sig64_from_r_and_s(r, s)
+        if not self.ecdsa_verify(sig64, msg32):
             raise Exception("sanity check failed: signature we just created does not verify!")
 
         sig = sigencode(r, s)
         return sig
 
-    def sign_schnorr(self, msg32: bytes, *, aux_rand32: bytes = None) -> bytes:
+    def schnorr_sign(self, msg32: bytes, *, aux_rand32: bytes = None) -> bytes:
         assert isinstance(msg32, bytes), type(msg32)
         assert len(msg32) == 32, len(msg32)
         if aux_rand32 is None:
@@ -543,35 +541,30 @@ class ECPrivkey(ECPubkey):
         sig64 = bytes(sig64)
         if 1 != ret:
             raise Exception('signing failure')
-        if not self.verify_message_schnorr(sig64, msg32):
+        if not self.schnorr_verify(sig64, msg32):
             raise Exception("sanity check failed: signature we just created does not verify!")
         return sig64
 
-    def sign_transaction(self, hashed_preimage: bytes) -> bytes:
-        return self.sign(hashed_preimage, sigencode=der_sig_from_r_and_s)
-
-    def sign_message(
-            self,
-            message: Union[bytes, str],
-            is_compressed: bool,
-            algo=lambda x: sha256d(msg_magic(x)),
-    ) -> bytes:
-        def bruteforce_recid(sig_string):
+    def ecdsa_sign_recoverable(self, msg32: bytes, *, is_compressed: bool) -> bytes:
+        def bruteforce_recid(sig64: bytes):
             for recid in range(4):
-                sig65 = construct_sig65(sig_string, recid, is_compressed)
-                if not self.verify_message_for_address(sig65, message, algo):
+                sig65 = construct_ecdsa_sig65(sig64, recid, is_compressed=is_compressed)
+                if not self.ecdsa_verify_recoverable(sig65, msg32):
                     continue
                 return sig65, recid
             else:
                 raise Exception("error: cannot sign message. no recid fits..")
 
-        message = to_bytes(message, 'utf8')
-        msg_hash = algo(message)
-        sig_string = self.sign(msg_hash, sigencode=sig_string_from_r_and_s)
-        sig65, recid = bruteforce_recid(sig_string)
+        sig64 = self.ecdsa_sign(msg32, sigencode=ecdsa_sig64_from_r_and_s)
+        sig65, recid = bruteforce_recid(sig64)
         return sig65
 
-    def decrypt_message(self, encrypted: Union[str, bytes], magic: bytes=b'BIE1') -> bytes:
+    def ecdsa_sign_usermessage(self, message: Union[bytes, str], *, is_compressed: bool) -> bytes:
+        message = to_bytes(message, 'utf8')
+        msg32 = sha256d(usermessage_magic(message))
+        return self.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
+
+    def decrypt_message(self, encrypted: Union[str, bytes], *, magic: bytes=b'BIE1') -> bytes:
         encrypted = base64.b64decode(encrypted)  # type: bytes
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
@@ -593,6 +586,6 @@ class ECPrivkey(ECPubkey):
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 
-def construct_sig65(sig_string: bytes, recid: int, is_compressed: bool) -> bytes:
+def construct_ecdsa_sig65(sig64: bytes, recid: int, *, is_compressed: bool) -> bytes:
     comp = 4 if is_compressed else 0
-    return bytes([27 + recid + comp]) + sig_string
+    return bytes([27 + recid + comp]) + sig64

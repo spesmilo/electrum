@@ -34,6 +34,7 @@ from aiorpcx import NetAddress
 import attr
 
 from . import ecc
+from .ecc import ECPubkey
 from . import constants, util
 from .util import bfh, chunks, TxMinedInfo
 from .invoices import PR_PAID
@@ -802,7 +803,7 @@ class Channel(AbstractChannel):
             timestamp=now(),
         )
         sighash = sha256d(chan_upd[2 + 64:])
-        sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
+        sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).ecdsa_sign(sighash, sigencode=ecc.ecdsa_sig64_from_r_and_s)
         message_type, payload = decode_msg(chan_upd)
         payload['signature'] = sig
         chan_upd = encode_msg(message_type, **payload)
@@ -1099,7 +1100,7 @@ class Channel(AbstractChannel):
                                                               ctx_output_idx=ctx_output_idx,
                                                               htlc=htlc)
             sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-            htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
+            htlc_sig = ecc.ecdsa_sig64_from_der_sig(sig[:-1])
             htlcsigs.append((ctx_output_idx, htlc_sig))
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
@@ -1122,7 +1123,7 @@ class Channel(AbstractChannel):
         pending_local_commitment = self.get_next_commitment(LOCAL)
         preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = sha256d(bfh(preimage_hex))
-        if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
+        if not ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(sig, pre_hash):
             raise LNProtocolWarning(
                 f'failed verifying signature for our updated commitment transaction. '
                 f'sig={sig.hex()}. '
@@ -1169,7 +1170,7 @@ class Channel(AbstractChannel):
         preimage_hex = htlc_tx.serialize_preimage(0)
         pre_hash = sha256d(bfh(preimage_hex))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
-        if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
+        if not ECPubkey(remote_htlc_pubkey).ecdsa_verify(htlc_sig, pre_hash):
             raise LNProtocolWarning(
                 f'failed verifying HTLC signatures: {htlc=}, {htlc_direction=}. '
                 f'htlc_tx={htlc_tx.serialize()}. '
@@ -1185,7 +1186,7 @@ class Channel(AbstractChannel):
         data = self.config[LOCAL].current_htlc_signatures
         htlc_sigs = list(chunks(data, 64))
         htlc_sig = htlc_sigs[htlc_relative_idx]
-        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sig) + Sighash.to_sigbytes(Sighash.ALL)
+        remote_htlc_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(htlc_sig) + Sighash.to_sigbytes(Sighash.ALL)
         return remote_htlc_sig
 
     def revoke_current_commitment(self):
@@ -1599,7 +1600,7 @@ class Channel(AbstractChannel):
                                      outputs=outputs)
 
         der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
-        sig = ecc.sig_string_from_der_sig(der_sig[:-1])
+        sig = ecc.ecdsa_sig64_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
     def signature_fits(self, tx: PartialTransaction) -> bool:
@@ -1607,7 +1608,7 @@ class Channel(AbstractChannel):
         preimage_hex = tx.serialize_preimage(0)
         msg_hash = sha256d(bfh(preimage_hex))
         assert remote_sig
-        res = ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, msg_hash)
+        res = ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(remote_sig, msg_hash)
         return res
 
     def force_close_tx(self) -> PartialTransaction:
@@ -1615,7 +1616,7 @@ class Channel(AbstractChannel):
         assert self.signature_fits(tx)
         tx.sign({self.config[LOCAL].multisig_key.pubkey.hex(): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
-        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
+        remote_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
         tx.add_signature_to_txin(txin_idx=0,
                                  signing_pubkey=self.config[REMOTE].multisig_key.pubkey.hex(),
                                  sig=remote_sig.hex())

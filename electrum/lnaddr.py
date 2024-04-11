@@ -252,8 +252,9 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
 
     # We actually sign the hrp, then data (padded to 8 bits with zeroes).
     msg = hrp.encode("ascii") + data.tobytes()
+    msg32 = sha256(msg).digest()
     privkey = ecc.ECPrivkey(privkey)
-    sig = privkey.sign_message(msg, is_compressed=False, algo=lambda x:sha256(x).digest())
+    sig = privkey.ecdsa_sign_recoverable(msg32, is_compressed=False)
     recovery_flag = bytes([sig[0] - 27])
     sig = bytes(sig[1:]) + recovery_flag
     data += sig
@@ -550,13 +551,13 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         #
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
-        if not ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash):
+        if not ecc.ECPubkey(addr.pubkey).ecdsa_verify(sigdecoded[:64], hrp_hash):
             raise LnDecodeException("bad signature")
         pubkey_copy = addr.pubkey
         class WrappedBytesKey:
             serialize = lambda: pubkey_copy
         addr.pubkey = WrappedBytesKey
     else: # Recover pubkey from signature.
-        addr.pubkey = SerializableKey(ecc.ECPubkey.from_sig_string(sigdecoded[:64], sigdecoded[64], hrp_hash))
+        addr.pubkey = SerializableKey(ecc.ECPubkey.from_ecdsa_sig64(sigdecoded[:64], sigdecoded[64], hrp_hash))
 
     return addr
