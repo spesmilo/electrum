@@ -236,11 +236,22 @@ class ECPubkey(object):
         return self._y
 
     def _to_libsecp256k1_pubkey_ptr(self):
+        """pointer to `secp256k1_pubkey` C struct"""
         pubkey = create_string_buffer(64)
         public_pair_bytes = self.get_public_key_bytes(compressed=False)
         ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
             _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
         if not ret:
+            raise Exception('public key could not be parsed or is invalid')
+        return pubkey
+
+    def _to_libsecp256k1_xonly_pubkey_ptr(self):
+        """pointer to `secp256k1_xonly_pubkey` C struct"""
+        pubkey = create_string_buffer(64)
+        pk_bytes = self.get_public_key_bytes(compressed=True)[1:]
+        ret = _libsecp256k1.secp256k1_xonly_pubkey_parse(
+            _libsecp256k1.ctx, pubkey, pk_bytes)
+        if 1 != ret:
             raise Exception('public key could not be parsed or is invalid')
         return pubkey
 
@@ -338,6 +349,17 @@ class ECPubkey(object):
 
         pubkey = self._to_libsecp256k1_pubkey_ptr()
         if 1 != _libsecp256k1.secp256k1_ecdsa_verify(_libsecp256k1.ctx, sig, msg_hash, pubkey):
+            return False
+        return True
+
+    def verify_message_schnorr(self, sig64: bytes, msg32: bytes) -> bool:
+        assert isinstance(sig64, bytes), type(sig64)
+        assert len(sig64) == 64, len(sig64)
+        assert isinstance(msg32, bytes), type(msg32)
+        assert len(msg32) == 32, len(msg32)
+        msglen = 32
+        pubkey = self._to_libsecp256k1_xonly_pubkey_ptr()
+        if 1 != _libsecp256k1.secp256k1_schnorrsig_verify(_libsecp256k1.ctx, sig64, msg32, msglen, pubkey):
             return False
         return True
 
@@ -500,6 +522,30 @@ class ECPrivkey(ECPubkey):
 
         sig = sigencode(r, s)
         return sig
+
+    def sign_schnorr(self, msg32: bytes, *, aux_rand32: bytes = None) -> bytes:
+        assert isinstance(msg32, bytes), type(msg32)
+        assert len(msg32) == 32, len(msg32)
+        if aux_rand32 is None:
+            aux_rand32 = bytes(32)
+        assert isinstance(aux_rand32, bytes), type(aux_rand32)
+        assert len(aux_rand32) == 32, len(aux_rand32)
+        # construct "keypair" obj
+        privkey_bytes = self.secret_scalar.to_bytes(32, byteorder="big")
+        keypair = create_string_buffer(96)
+        ret = _libsecp256k1.secp256k1_keypair_create(_libsecp256k1.ctx, keypair, privkey_bytes)
+        if 1 != ret:
+            raise Exception('secret key was invalid')
+        # sign msg and verify sig
+        sig64 = create_string_buffer(64)
+        ret = _libsecp256k1.secp256k1_schnorrsig_sign32(
+            _libsecp256k1.ctx, sig64, msg32, keypair, aux_rand32)
+        sig64 = bytes(sig64)
+        if 1 != ret:
+            raise Exception('signing failure')
+        if not self.verify_message_schnorr(sig64, msg32):
+            raise Exception("sanity check failed: signature we just created does not verify!")
+        return sig64
 
     def sign_transaction(self, hashed_preimage: bytes) -> bytes:
         return self.sign(hashed_preimage, sigencode=der_sig_from_r_and_s)

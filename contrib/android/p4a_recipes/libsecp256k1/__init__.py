@@ -10,5 +10,8 @@ class LibSecp256k1RecipePinned(LibSecp256k1Recipe):
     url = "https://github.com/bitcoin-core/secp256k1/archive/{version}.zip"
     sha512sum = "64080d7c3345fe8117787e328a09a3b493c38880cabf73d34e472ab0db4cb17ff989689f0c785680bdba39c446dc8a64d34587f4a0797b225c5687d0eb2da607"
 
+    # TODO: configure needs options:
+    #   --enable-module-extrakeys
+    #   --enable-module-schnorrsig
 
 recipe = LibSecp256k1RecipePinned()
