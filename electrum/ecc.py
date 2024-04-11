@@ -65,13 +65,13 @@ def der_sig_from_r_and_s(r: int, s: int) -> bytes:
                   int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
-    if not ret:
+    if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
     der_sig = create_string_buffer(80)  # this much space should be enough
     der_sig_size = c_size_t(len(der_sig))
     ret = _libsecp256k1.secp256k1_ecdsa_signature_serialize_der(_libsecp256k1.ctx, der_sig, byref(der_sig_size), sig)
-    if not ret:
+    if 1 != ret:
         raise Exception("failed to serialize DER sig")
     der_sig_size = der_sig_size.value
     return bytes(der_sig)[:der_sig_size]
@@ -81,7 +81,7 @@ def get_r_and_s_from_der_sig(der_sig: bytes) -> Tuple[int, int]:
     assert isinstance(der_sig, bytes)
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_der(_libsecp256k1.ctx, sig, der_sig, len(der_sig))
-    if not ret:
+    if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
     compact_signature = create_string_buffer(64)
@@ -96,7 +96,7 @@ def get_r_and_s_from_sig_string(sig_string: bytes) -> Tuple[int, int]:
         raise Exception("sig_string must be bytes, and 64 bytes exactly")
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
-    if not ret:
+    if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
     compact_signature = create_string_buffer(64)
@@ -111,7 +111,7 @@ def sig_string_from_r_and_s(r: int, s: int) -> bytes:
                   int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
-    if not ret:
+    if 1 != ret:
         raise Exception("Bad signature")
     ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
     compact_signature = create_string_buffer(64)
@@ -124,7 +124,7 @@ def _x_and_y_from_pubkey_bytes(pubkey: bytes) -> Tuple[int, int]:
     pubkey_ptr = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
         _libsecp256k1.ctx, pubkey_ptr, pubkey, len(pubkey))
-    if not ret:
+    if 1 != ret:
         raise InvalidECPointException('public key could not be parsed or is invalid')
 
     pubkey_serialized = create_string_buffer(65)
@@ -164,11 +164,11 @@ class ECPubkey(object):
         sig65 = create_string_buffer(65)
         ret = _libsecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
             _libsecp256k1.ctx, sig65, sig_string, recid)
-        if not ret:
+        if 1 != ret:
             raise Exception('failed to parse signature')
         pubkey = create_string_buffer(64)
         ret = _libsecp256k1.secp256k1_ecdsa_recover(_libsecp256k1.ctx, pubkey, sig65, msg_hash)
-        if not ret:
+        if 1 != ret:
             raise InvalidECPointException('failed to recover public key')
         return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey)
 
@@ -241,7 +241,7 @@ class ECPubkey(object):
         public_pair_bytes = self.get_public_key_bytes(compressed=False)
         ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
             _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
-        if not ret:
+        if 1 != ret:
             raise Exception('public key could not be parsed or is invalid')
         return pubkey
 
@@ -278,7 +278,7 @@ class ECPubkey(object):
         pubkey = self._to_libsecp256k1_pubkey_ptr()
 
         ret = _libsecp256k1.secp256k1_ec_pubkey_tweak_mul(_libsecp256k1.ctx, pubkey, other.to_bytes(32, byteorder="big"))
-        if not ret:
+        if 1 != ret:
             return POINT_AT_INFINITY
         return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey)
 
@@ -299,7 +299,7 @@ class ECPubkey(object):
         pubkey2 = cast(pubkey2, c_char_p)
         array_of_pubkey_ptrs = (c_char_p * 2)(pubkey1, pubkey2)
         ret = _libsecp256k1.secp256k1_ec_pubkey_combine(_libsecp256k1.ctx, pubkey_sum, array_of_pubkey_ptrs, 2)
-        if not ret:
+        if 1 != ret:
             return POINT_AT_INFINITY
         return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey_sum)
 
@@ -343,7 +343,7 @@ class ECPubkey(object):
 
         sig = create_string_buffer(64)
         ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig_string)
-        if not ret:
+        if 1 != ret:
             return False
         ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
 
@@ -500,7 +500,7 @@ class ECPrivkey(ECPubkey):
             ret = _libsecp256k1.secp256k1_ecdsa_sign(
                 _libsecp256k1.ctx, sig, msg_hash, privkey_bytes,
                 nonce_function, extra_entropy)
-            if not ret:
+            if 1 != ret:
                 raise Exception('the nonce generation function failed, or the private key was invalid')
             compact_signature = create_string_buffer(64)
             _libsecp256k1.secp256k1_ecdsa_signature_serialize_compact(_libsecp256k1.ctx, compact_signature, sig)
