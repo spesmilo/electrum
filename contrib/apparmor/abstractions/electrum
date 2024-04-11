@@ -1,0 +1,43 @@
+include <abstractions/base>
+include <abstractions/fonts>
+include <abstractions/user-tmp>
+include <abstractions/X>
+include <abstractions/wayland>
+include <abstractions/mesa>
+include <abstractions/dri-enumerate>
+include <abstractions/nameservice>
+include <abstractions/openssl>
+include <abstractions/vulkan>
+include <abstractions/python>
+include if exists <abstractions/evince>
+include if exists <abstractions/xdg-open> 
+include if exists <abstractions/ubuntu-browsers>
+include if exists <abstractions/snap_browsers>
+  
+  owner @{PROC}/@{pid}/{mounts,fd/} r,
+
+  /{usr/,}sbin/ldconfig ix,
+  /{usr/,}bin/{file,dash,dirname,uname} rix,
+  /{usr/,}bin/@{multiarch}-gcc-8 ix,
+  /{usr/,}bin/@{multiarch}-ld.bfd ix,
+  /etc/mime.types r,
+  @{system_share_dirs}/{mime,icons}/{**,} r,
+  /dev/bus/usb/ r,
+  /dev/bus/usb/** rw,
+  @{sys}/class/ r,
+  @{sys}/bus/ r,
+  /etc/udev/udev.conf r,
+  /etc/magic r,
+  @{sys}/devices/pci*/**/usb*/**{busnum,devnum,descriptors,speed,bConfigurationValue} r,
+  /dev/ r,
+  /{var/,}run/udev/data/* r,
+  @{sys}/bus/usb/devices/ r,
+  /{usr/,}/bin/uname rix,
+  owner @{user_share_dirs}/mime/** r,
+  
+  /{,run/}user/**/dconf/* rw,
+  /{var/,}lib/dbus/** r,
+  /etc/apt/apt.conf.d/ r,
+  /etc/machine-id r,
+  /{usr/,}bin/xdg-open ix,
+  /{usr/,}bin/evince ix,
