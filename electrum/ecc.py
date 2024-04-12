@@ -35,7 +35,8 @@ from .util import bfh, assert_bytes, to_bytes, InvalidPassword, profiler, randra
 from .crypto import (sha256, sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from . import constants
 from .logging import get_logger
-from .ecc_fast import _libsecp256k1, SECP256K1_EC_UNCOMPRESSED
+from . import ecc_fast
+from .ecc_fast import _libsecp256k1, SECP256K1_EC_UNCOMPRESSED, LibModuleMissing
 
 _logger = get_logger(__name__)
 
@@ -251,6 +252,10 @@ class ECPubkey(object):
 
     def _to_libsecp256k1_xonly_pubkey_ptr(self):
         """pointer to `secp256k1_xonly_pubkey` C struct"""
+        if not ecc_fast.HAS_SCHNORR:
+            raise LibModuleMissing(
+                'libsecp256k1 library found but it was built '
+                'without required modules (--enable-module-schnorrsig --enable-module-extrakeys)')
         pubkey = create_string_buffer(64)
         pk_bytes = self.get_public_key_bytes(compressed=True)[1:]
         ret = _libsecp256k1.secp256k1_xonly_pubkey_parse(
@@ -359,6 +364,10 @@ class ECPubkey(object):
         assert len(sig64) == 64, len(sig64)
         assert isinstance(msg32, bytes), type(msg32)
         assert len(msg32) == 32, len(msg32)
+        if not ecc_fast.HAS_SCHNORR:
+            raise LibModuleMissing(
+                'libsecp256k1 library found but it was built '
+                'without required modules (--enable-module-schnorrsig --enable-module-extrakeys)')
         msglen = 32
         pubkey = self._to_libsecp256k1_xonly_pubkey_ptr()
         if 1 != _libsecp256k1.secp256k1_schnorrsig_verify(_libsecp256k1.ctx, sig64, msg32, msglen, pubkey):
@@ -534,6 +543,10 @@ class ECPrivkey(ECPubkey):
             aux_rand32 = bytes(32)
         assert isinstance(aux_rand32, bytes), type(aux_rand32)
         assert len(aux_rand32) == 32, len(aux_rand32)
+        if not ecc_fast.HAS_SCHNORR:
+            raise LibModuleMissing(
+                'libsecp256k1 library found but it was built '
+                'without required modules (--enable-module-schnorrsig --enable-module-extrakeys)')
         # construct "keypair" obj
         privkey_bytes = self.secret_scalar.to_bytes(32, byteorder="big")
         keypair = create_string_buffer(96)

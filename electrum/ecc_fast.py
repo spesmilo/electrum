@@ -42,6 +42,8 @@ class LibModuleMissing(Exception): pass
 
 
 def load_library():
+    global HAS_SCHNORR
+
     # note: for a mapping between bitcoin-core/secp256k1 git tags and .so.V libtool version numbers,
     #       see https://github.com/bitcoin-core/secp256k1/pull/1055#issuecomment-1227505189
     tested_libversions = [2, 1, 0, ]  # try latest version first
@@ -140,8 +142,10 @@ def load_library():
             secp256k1.secp256k1_schnorrsig_verify.argtypes = [c_void_p, c_char_p, c_char_p, c_size_t, c_char_p]
             secp256k1.secp256k1_schnorrsig_verify.restype = c_int
         except (OSError, AttributeError):
-            raise LibModuleMissing('libsecp256k1 library found but it was built '
-                                   'without required module (--enable-module-schnorrsig)')
+            _logger.warning(f"libsecp256k1 library found but it was built without desired module (--enable-module-schnorrsig)")
+            HAS_SCHNORR = False
+            # raise LibModuleMissing('libsecp256k1 library found but it was built '
+            #                        'without required module (--enable-module-schnorrsig)')
 
         # --enable-module-extrakeys
         try:
@@ -154,8 +158,10 @@ def load_library():
             secp256k1.secp256k1_keypair_create.argtypes = [c_void_p, c_char_p, c_char_p]
             secp256k1.secp256k1_keypair_create.restype = c_int
         except (OSError, AttributeError):
-            raise LibModuleMissing('libsecp256k1 library found but it was built '
-                                   'without required module (--enable-module-extrakeys)')
+            _logger.warning(f"libsecp256k1 library found but it was built without desired module (--enable-module-extrakeys)")
+            HAS_SCHNORR = False
+            # raise LibModuleMissing('libsecp256k1 library found but it was built '
+            #                        'without required module (--enable-module-extrakeys)')
 
         secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
         ret = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
@@ -170,6 +176,7 @@ def load_library():
 
 
 _libsecp256k1 = None
+HAS_SCHNORR = True
 try:
     _libsecp256k1 = load_library()
 except BaseException as e:
