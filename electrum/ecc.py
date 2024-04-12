@@ -32,7 +32,7 @@ from ctypes import (
 )
 
 from .util import bfh, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
-from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
+from .crypto import (sha256, sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from . import constants
 from .logging import get_logger
 from .ecc_fast import _libsecp256k1, SECP256K1_EC_UNCOMPRESSED
@@ -522,6 +522,12 @@ class ECPrivkey(ECPubkey):
         return sig
 
     def schnorr_sign(self, msg32: bytes, *, aux_rand32: bytes = None) -> bytes:
+        """Creates a BIP-340 schnorr signature for the given message (hash)
+        and using the optional auxiliary random data.
+
+        note: msg32 is supposed to be a 32 byte hash of the message to be signed.
+              The BIP recommends using bip340_tagged_hash for hashing the message.
+        """
         assert isinstance(msg32, bytes), type(msg32)
         assert len(msg32) == 32, len(msg32)
         if aux_rand32 is None:
@@ -589,3 +595,8 @@ class ECPrivkey(ECPubkey):
 def construct_ecdsa_sig65(sig64: bytes, recid: int, *, is_compressed: bool) -> bytes:
     comp = 4 if is_compressed else 0
     return bytes([27 + recid + comp]) + sig64
+
+
+def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
+    # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
+    return sha256(sha256(tag) + sha256(tag) + msg)

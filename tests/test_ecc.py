@@ -1,8 +1,13 @@
 import csv
+from ctypes import (
+    c_int, c_char_p, c_size_t, c_void_p, create_string_buffer,
+)
 import io
 
 from electrum import ecc
 from electrum.ecc import ECPubkey, ECPrivkey
+from electrum.ecc_fast import _libsecp256k1
+from electrum import crypto
 from electrum.crypto import sha256
 
 from . import ElectrumTestCase
@@ -82,3 +87,32 @@ class TestSchnorr(ElectrumTestCase):
         sig = seckey.schnorr_sign(msg32, aux_rand32=None)
         self.assertTrue(pubkey1.schnorr_verify(sig, msg32))
         self.assertTrue(pubkey2.schnorr_verify(sig, msg32))
+
+    def test_bip340_tagged_hash(self):
+        try:
+            _libsecp256k1.secp256k1_tagged_sha256.argtypes = [c_void_p, c_char_p, c_char_p, c_size_t, c_char_p, c_size_t]
+            _libsecp256k1.secp256k1_tagged_sha256.restype = c_int
+        except (OSError, AttributeError):
+            raise Exception('libsecp256k1 library too old: missing secp256k1_tagged_sha256 method')
+
+        def bip340_tagged_hash__from_libsecp(tag: bytes, msg: bytes) -> bytes:
+            assert isinstance(tag, bytes), type(tag)
+            assert isinstance(msg, bytes), type(msg)
+            thash = create_string_buffer(32)
+            ret = _libsecp256k1.secp256k1_tagged_sha256(
+                _libsecp256k1.ctx, thash, tag, len(tag), msg, len(msg))
+            assert 1 == ret, ret
+            thash = bytes(thash)
+            return thash
+
+        data = (
+            (b"", b""),
+            (b"", b"hello there"),
+            (b"mytag", b""),
+            (b"mytag", b"hello there"),
+            (bytes(range(256)) * 10, bytes(range(256)) * 50),
+            (bytes(range(256)) * 1000, bytes(range(256)) * 5000),
+        )
+        for tag, msg in data:
+            self.assertEqual(bip340_tagged_hash__from_libsecp(tag, msg),
+                             ecc.bip340_tagged_hash(tag, msg))
