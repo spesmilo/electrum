@@ -6,7 +6,7 @@ Submarine swap server for an Electrum daemon.
 
 Example setup:
 
-  electrum -o setconfig use_swapserver True
+  electrum -o setconfig enable_plugin_swapserver True
   electrum -o setconfig swapserver_port 5455
   electrum daemon -v
 
