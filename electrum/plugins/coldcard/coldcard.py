@@ -45,7 +45,7 @@ try:
             # verify a signature (65 bytes) over the session key, using the master bip32 node
             # - customized to use specific EC library of Electrum.
             pubkey = BIP32Node.from_xkey(expect_xpub).eckey
-            return pubkey.verify_message_hash(sig[1:65], self.session_key)
+            return pubkey.ecdsa_verify(sig[1:65], self.session_key)
 
 except ImportError as e:
     if not (isinstance(e, ModuleNotFoundError) and e.name == 'ckcc'):

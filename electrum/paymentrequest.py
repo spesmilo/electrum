@@ -235,7 +235,7 @@ class PaymentRequest:
             address = info.get('address')
             pr.signature = b''
             message = pr.SerializeToString()
-            if ecc.verify_message_with_address(address, sig, message):
+            if ecc.verify_usermessage_with_address(address, sig, message):
                 self._verified_success_msg = 'Verified with DNSSEC'
                 self._verified_success = True
                 return True
@@ -356,7 +356,7 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     message = pr.SerializeToString()
     ec_key = ecc.ECPrivkey(alias_privkey)
     compressed = bitcoin.is_compressed_privkey(alias_privkey)
-    pr.signature = ec_key.sign_message(message, compressed)
+    pr.signature = ec_key.ecdsa_sign_usermessage(message, is_compressed=compressed)
 
 
 def verify_cert_chain(chain):

@@ -1,4 +1,9 @@
-# taken (with minor modifications) from pycoin
+# Copyright (c) 2013-2018 Richard Kiss
+# Copyright (c) 2018-2024 The Electrum developers
+# Distributed under the MIT software license, see the accompanying
+# file LICENCE or http://www.opensource.org/licenses/mit-license.php
+#
+# Originally based on pycoin:
 # https://github.com/richardkiss/pycoin/blob/01b1787ed902df23f99a55deb00d8cd076a906fe/pycoin/ecdsa/native/secp256k1.py
 
 import os
@@ -37,6 +42,8 @@ class LibModuleMissing(Exception): pass
 
 
 def load_library():
+    global HAS_SCHNORR
+
     # note: for a mapping between bitcoin-core/secp256k1 git tags and .so.V libtool version numbers,
     #       see https://github.com/bitcoin-core/secp256k1/pull/1055#issuecomment-1227505189
     tested_libversions = [2, 1, 0, ]  # try latest version first
@@ -127,6 +134,35 @@ def load_library():
             raise LibModuleMissing('libsecp256k1 library found but it was built '
                                    'without required module (--enable-module-recovery)')
 
+        # --enable-module-schnorrsig
+        try:
+            secp256k1.secp256k1_schnorrsig_sign32.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p, c_char_p]
+            secp256k1.secp256k1_schnorrsig_sign32.restype = c_int
+
+            secp256k1.secp256k1_schnorrsig_verify.argtypes = [c_void_p, c_char_p, c_char_p, c_size_t, c_char_p]
+            secp256k1.secp256k1_schnorrsig_verify.restype = c_int
+        except (OSError, AttributeError):
+            _logger.warning(f"libsecp256k1 library found but it was built without desired module (--enable-module-schnorrsig)")
+            HAS_SCHNORR = False
+            # raise LibModuleMissing('libsecp256k1 library found but it was built '
+            #                        'without required module (--enable-module-schnorrsig)')
+
+        # --enable-module-extrakeys
+        try:
+            secp256k1.secp256k1_xonly_pubkey_parse.argtypes = [c_void_p, c_char_p, c_char_p]
+            secp256k1.secp256k1_xonly_pubkey_parse.restype = c_int
+
+            secp256k1.secp256k1_xonly_pubkey_serialize.argtypes = [c_void_p, c_char_p, c_char_p]
+            secp256k1.secp256k1_xonly_pubkey_serialize.restype = c_int
+
+            secp256k1.secp256k1_keypair_create.argtypes = [c_void_p, c_char_p, c_char_p]
+            secp256k1.secp256k1_keypair_create.restype = c_int
+        except (OSError, AttributeError):
+            _logger.warning(f"libsecp256k1 library found but it was built without desired module (--enable-module-extrakeys)")
+            HAS_SCHNORR = False
+            # raise LibModuleMissing('libsecp256k1 library found but it was built '
+            #                        'without required module (--enable-module-extrakeys)')
+
         secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
         ret = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
         if not ret:
@@ -140,6 +176,7 @@ def load_library():
 
 
 _libsecp256k1 = None
+HAS_SCHNORR = True
 try:
     _libsecp256k1 = load_library()
 except BaseException as e:

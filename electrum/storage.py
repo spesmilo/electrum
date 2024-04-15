@@ -190,7 +190,7 @@ class WalletStorage(Logger):
         ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
-            s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
+            s = zlib.decompress(ec_key.decrypt_message(self.raw, magic=enc_magic))
             s = s.decode('utf8')
         else:
             s = ''
@@ -205,7 +205,7 @@ class WalletStorage(Logger):
             c = zlib.compress(s, level=zlib.Z_BEST_SPEED)
             enc_magic = self._get_encryption_magic()
             public_key = ecc.ECPubkey(bfh(self.pubkey))
-            s = public_key.encrypt_message(c, enc_magic)
+            s = public_key.encrypt_message(c, magic=enc_magic)
             s = s.decode('utf8')
         return s
 

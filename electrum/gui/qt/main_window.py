@@ -1982,7 +1982,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
-            verified = ecc.verify_message_with_address(address, sig, message)
+            verified = ecc.verify_usermessage_with_address(address, sig, message)
         except Exception as e:
             verified = False
         if verified:

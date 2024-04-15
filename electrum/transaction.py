@@ -2153,7 +2153,7 @@ class PartialTransaction(Transaction):
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
-        sig = privkey.sign_transaction(pre_hash)
+        sig = privkey.ecdsa_sign(pre_hash, sigencode=ecc.ecdsa_der_sig_from_r_and_s)
         sig = sig.hex() + Sighash.to_sigbytes(sighash).hex()
         return sig
 
@@ -2208,16 +2208,16 @@ class PartialTransaction(Transaction):
             if bfh(sig) in list(txin.part_sigs.values()):
                 continue
             pre_hash = sha256d(bfh(self.serialize_preimage(i)))
-            sig_string = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
+            sig_string = ecc.ecdsa_sig64_from_der_sig(bfh(sig[:-2]))
             for recid in range(4):
                 try:
-                    public_key = ecc.ECPubkey.from_sig_string(sig_string, recid, pre_hash)
+                    public_key = ecc.ECPubkey.from_ecdsa_sig64(sig_string, recid, pre_hash)
                 except ecc.InvalidECPointException:
                     # the point might not be on the curve for some recid values
                     continue
                 pubkey_hex = public_key.get_public_key_hex(compressed=True)
                 if pubkey_hex in pubkeys:
-                    if not public_key.verify_message_hash(sig_string, pre_hash):
+                    if not public_key.ecdsa_verify(sig_string, pre_hash):
                         continue
                     _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={pubkey_hex}, sig={sig}")
                     self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_hex, sig=sig)

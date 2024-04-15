@@ -51,7 +51,7 @@ from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
-from .ecc import der_sig_from_sig_string
+from .ecc import ecdsa_der_sig_from_ecdsa_sig64
 from .lnchannel import Channel, AbstractChannel
 from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater

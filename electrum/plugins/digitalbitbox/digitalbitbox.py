@@ -23,7 +23,7 @@ from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_p
 from electrum.bip32 import normalize_bip32_derivation
 from electrum import descriptor
 from electrum import ecc
-from electrum.ecc import msg_magic
+from electrum.ecc import usermessage_magic
 from electrum.wallet import Standard_Wallet
 from electrum import constants
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
@@ -470,7 +470,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             message = message.encode('utf8')
             inputPath = self.get_derivation_prefix() + "/%d/%d" % sequence
             inputPath = normalize_bip32_derivation(inputPath, hardened_char="'")
-            msg_hash = sha256d(msg_magic(message))
+            msg_hash = sha256d(usermessage_magic(message))
             inputHash = to_hexstr(msg_hash)
             hasharray = []
             hasharray.append({'hash': inputHash, 'keypath': inputPath})
@@ -500,19 +500,19 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 # firmware > v2.1.1
                 sig_string = binascii.unhexlify(reply['sign'][0]['sig'])
                 recid = int(reply['sign'][0]['recid'], 16)
-                sig = ecc.construct_sig65(sig_string, recid, True)
-                pubkey, compressed, txin_type_guess = ecc.ECPubkey.from_signature65(sig, msg_hash)
+                sig = ecc.construct_ecdsa_sig65(sig_string, recid, is_compressed=True)
+                pubkey, compressed, txin_type_guess = ecc.ECPubkey.from_ecdsa_sig65(sig, msg_hash)
                 addr = public_key_to_p2pkh(pubkey.get_public_key_bytes(compressed=compressed))
-                if ecc.verify_message_with_address(addr, sig, message) is False:
+                if ecc.verify_usermessage_with_address(addr, sig, message) is False:
                     raise Exception(_("Could not sign message"))
             elif 'pubkey' in reply['sign'][0]:
                 # firmware <= v2.1.1
                 for recid in range(4):
                     sig_string = binascii.unhexlify(reply['sign'][0]['sig'])
-                    sig = ecc.construct_sig65(sig_string, recid, True)
+                    sig = ecc.construct_ecdsa_sig65(sig_string, recid, is_compressed=True)
                     try:
                         addr = public_key_to_p2pkh(binascii.unhexlify(reply['sign'][0]['pubkey']))
-                        if ecc.verify_message_with_address(addr, sig, message):
+                        if ecc.verify_usermessage_with_address(addr, sig, message):
                             break
                     except Exception:
                         continue
@@ -649,7 +649,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         recid = int(signed['recid'], 16)
                         s = binascii.unhexlify(signed['sig'])
                         h = inputhasharray[i]
-                        pk = ecc.ECPubkey.from_sig_string(s, recid, h)
+                        pk = ecc.ECPubkey.from_ecdsa_sig64(s, recid, h)
                         pk = pk.get_public_key_hex(compressed=True)
                     elif 'pubkey' in signed:
                         # firmware <= v2.1.1
@@ -658,7 +658,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                         continue
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
-                    sig = ecc.der_sig_from_r_and_s(sig_r, sig_s)
+                    sig = ecc.ecdsa_der_sig_from_r_and_s(sig_r, sig_s)
                     sig = to_hexstr(sig) + Sighash.to_sigbytes(Sighash.ALL).hex()
                     tx.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_bytes.hex(), sig=sig)
         except UserCancelled:

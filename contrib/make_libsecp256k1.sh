@@ -52,6 +52,8 @@ info "Building $pkgname..."
             $AUTOCONF_FLAGS \
             --prefix="$here/$pkgname/dist" \
             --enable-module-recovery \
+            --enable-module-extrakeys \
+            --enable-module-schnorrsig \
             --enable-experimental \
             --enable-module-ecdh \
             --disable-benchmark \
