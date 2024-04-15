@@ -1,8 +1,9 @@
 import serial
 import logging
 
+from serial.tools import list_ports
 
-logger = logging.getLogger('jade.serial')
+logger = logging.getLogger(__name__)
 
 
 #
@@ -19,8 +20,25 @@ logger = logging.getLogger('jade.serial')
 # (caveat cranium)
 #
 class JadeSerialImpl:
+    # Used when searching for devices that might be a Jade/compatible hw
+    JADE_DEVICE_IDS = [
+            (0x10c4, 0xea60), (0x1a86, 0x55d4), (0x0403, 0x6001),
+            (0x1a86, 0x7523), (0x303a, 0x4001), (0x303a, 0x1001)]
+
+    @classmethod
+    def _get_first_compatible_device(cls):
+        jades = []
+        for devinfo in list_ports.comports():
+            if (devinfo.vid, devinfo.pid) in cls.JADE_DEVICE_IDS:
+                jades.append(devinfo.device)
+
+        if len(jades) > 1:
+            logger.warning(f'Multiple potential jade devices detected: {jades}')
+
+        return jades[0] if jades else None
+
     def __init__(self, device, baud, timeout):
-        self.device = device
+        self.device = device or self._get_first_compatible_device()
         self.baud = baud
         self.timeout = timeout
         self.ser = None
