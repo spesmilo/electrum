@@ -2,7 +2,7 @@ import socket
 import logging
 
 
-logger = logging.getLogger('jade.tcp')
+logger = logging.getLogger(__name__)
 
 
 #
@@ -25,9 +25,10 @@ class JadeTCPImpl:
     def isSupportedDevice(cls, device):
         return device is not None and device.startswith(cls.PROTOCOL_PREFIX)
 
-    def __init__(self, device):
+    def __init__(self, device, timeout):
         assert self.isSupportedDevice(device)
         self.device = device
+        self.timeout = timeout
         self.tcp_sock = None
 
     def connect(self):
@@ -36,6 +37,7 @@ class JadeTCPImpl:
 
         logger.info('Connecting to {}'.format(self.device))
         self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_sock.settimeout(self.timeout)
 
         url = self.device[len(self.PROTOCOL_PREFIX):].split(':')
         self.tcp_sock.connect((url[0], int(url[1])))
@@ -57,4 +59,7 @@ class JadeTCPImpl:
 
     def read(self, n):
         assert self.tcp_sock is not None
-        return self.tcp_sock.recv(n)
+        buf = self.tcp_sock.recv(n)
+        while len(buf) < n:
+            buf += self.tcp_sock.recv(n - len(buf))
+        return buf
