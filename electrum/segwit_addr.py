@@ -43,6 +43,9 @@ class DecodedBech32(NamedTuple):
     data: Optional[Sequence[int]]  # 5-bit ints
 
 
+INVALID_BECH32 = DecodedBech32(None, None, None)
+
+
 def bech32_polymod(values):
     """Internal function that computes the Bech32 checksum."""
     generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
