@@ -175,7 +175,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
 
 
 def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
-                                    session_key: bytes) -> Sequence[bytes]:
+                                    session_key: bytes) -> Sequence[Tuple[bytes, bytes]]:
     num_hops = len(payment_path_pubkeys_plus)
     hop_shared_secrets = num_hops * [b'']
     hop_blinded_node_ids = num_hops * [b'']
@@ -285,7 +285,15 @@ def new_onion_packet2(
                                                  **hops_data[i].blind_fields)
             encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
             encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
-            hops_data[i]._raw_bytes_payload = encrypted_recipient_data
+
+            onionmsg_tlv_fd = io.BytesIO()
+            payload = hops_data[i].payload
+            payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
+            OnionWireSerializer.write_tlv_stream(fd=onionmsg_tlv_fd,
+                                                 tlv_stream_name='onionmsg_tlv',
+                                                 **payload)
+            onionmsg_tlv_bytes = onionmsg_tlv_fd.getvalue()
+            hops_data[i]._raw_bytes_payload = onionmsg_tlv_bytes
 
         stream_bytes = generate_cipher_stream(rho_key, data_size)
         hop_data_bytes = hops_data[i].to_bytes()
