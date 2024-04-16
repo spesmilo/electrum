@@ -105,7 +105,7 @@ class CKCCClient(HardwareClientBase):
         if ((self._expected_device is not None)
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
-            # probably indicating programing error, not hacking
+            # probably indicating programming error, not hacking
             _logger.info(f"xpubs. reported by device: {self.dev.master_xpub}. "
                          f"stored in file: {expected_xpub}")
             raise RuntimeError("Expecting %s but that's not what's connected?!" %
@@ -239,7 +239,7 @@ class CKCCClient(HardwareClientBase):
 
     @runs_in_hwd_thread
     def sign_transaction_poll(self):
-        # poll device... if user has approved, will get tuple: (legnth, checksum) else None
+        # poll device... if user has approved, will get tuple: (length, checksum) else None
         return self.dev.send_recv(CCProtocolPacker.get_signed_txn(), timeout=None)
 
     @runs_in_hwd_thread
