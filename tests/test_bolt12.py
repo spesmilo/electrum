@@ -1,9 +1,9 @@
-from electrum import segwit_addr
+from electrum import segwit_addr, ecc
 from electrum import bolt12
 from electrum.bolt12 import is_offer, decode_offer
-from electrum.lnmsg import UnknownMandatoryTLVRecordType
+from electrum.lnmsg import UnknownMandatoryTLVRecordType, OnionWireSerializer
 from electrum.lnonion import get_shared_secrets_along_route, get_shared_secrets_along_route2, OnionHopsDataSingle, \
-    new_onion_packet
+    new_onion_packet, get_bolt04_onion_key
 from electrum.util import bfh
 
 from . import ElectrumTestCase
@@ -102,6 +102,7 @@ class TestBolt12(ElectrumTestCase):
             bfh('032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991')    # Dave
         ]
         session_key = bfh('6363636363636363636363636363636363636363636363636363636363636363')
-        hop_shared_secrets = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        hop_shared_secrets, bl = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
         h = list(map(lambda x: x.hex(), hop_shared_secrets))
+        b = list(map(lambda x: x.hex(), bl))
         pass
