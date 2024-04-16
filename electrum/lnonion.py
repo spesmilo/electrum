@@ -258,7 +258,8 @@ def new_onion_packet2(
     assert num_hops == len(hops_data)
     hop_shared_secrets, blindings = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
 
-    data_size = TRAMPOLINE_HOPS_DATA_SIZE if trampoline else HOPS_DATA_SIZE
+    # data_size = TRAMPOLINE_HOPS_DATA_SIZE if trampoline else HOPS_DATA_SIZE
+    data_size = HOPS_DATA_SIZE  # TODO: bigger alt size dep on data amount
     filler = _generate_filler(b'rho', hops_data, hop_shared_secrets, data_size)
     next_hmac = bytes(PER_HOP_HMAC_SIZE)
 
@@ -272,7 +273,11 @@ def new_onion_packet2(
         rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
         mu_key = get_bolt04_onion_key(b'mu', hop_shared_secrets[i])
         hops_data[i].hmac = next_hmac
-
+        from electrum.logging import get_logger
+        get_logger(__name__).info(f'SS for hop {i}: {hop_shared_secrets[i].hex()}')
+        get_logger(__name__).info(f'HMAC for hop {i}: {next_hmac.hex()}')
+        get_logger(__name__).info(f'rho for hop {i}: {rho_key.hex()}')
+        get_logger(__name__).info(f'mu for hop {i}: {mu_key.hex()}')
         if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
             encrypted_data_tlv_fd = io.BytesIO()
             OnionWireSerializer.write_tlv_stream(fd=encrypted_data_tlv_fd,
@@ -280,6 +285,7 @@ def new_onion_packet2(
                                                  **hops_data[i].blind_fields)
             encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
             encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
+            hops_data[i]._raw_bytes_payload = encrypted_recipient_data
 
         stream_bytes = generate_cipher_stream(rho_key, data_size)
         hop_data_bytes = hops_data[i].to_bytes()
@@ -291,8 +297,14 @@ def new_onion_packet2(
         packet = mix_header + associated_data
         next_hmac = hmac_oneshot(mu_key, msg=packet, digest=hashlib.sha256)
 
+    from electrum.logging import get_logger
+    get_logger(__name__).info(f'HMAC for packet: {next_hmac.hex()}')
+    get_logger(__name__).info(f'session_key for packet: {session_key.hex()}')
+    public_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
+    get_logger(__name__).info(f'public_key for packet: {public_key.hex()}')
+
     return OnionPacket(
-        public_key=ecc.ECPrivkey(session_key).get_public_key_bytes(),
+        public_key=public_key,
         hops_data=mix_header,
         hmac=next_hmac)
 
