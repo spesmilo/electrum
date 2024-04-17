@@ -542,12 +542,20 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                         raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + node_id.hex())
                     host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
-            # Try DNS-resolving the host (if needed). This is simply so that
-            # the caller gets a nice exception if it cannot be resolved.
-            try:
-                await asyncio.get_running_loop().getaddrinfo(host, port)
-            except socket.gaierror:
-                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+
+            if host.endswith('.onion'):
+                if not self.network.proxy:
+                    raise ConnStringFormatError(_('.onion address, but no proxy configured'))
+                if not self.network.is_proxy_tor:
+                    raise ConnStringFormatError(_('.onion address, but proxy is not a TOR proxy'))
+            else:
+                # Try DNS-resolving the host (if needed). This is simply so that
+                # the caller gets a nice exception if it cannot be resolved.
+                try:
+                    await asyncio.get_running_loop().getaddrinfo(host, port)
+                except socket.gaierror:
+                    raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+
             # add peer
             peer = await self._add_peer(host, port, node_id)
         return peer
