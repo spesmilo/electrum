@@ -613,7 +613,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
 
-    @unittest.skip("broken probably because we havn't implemented detecting when we come out of a situation where we violate reserve")
+    @unittest.skip("broken probably because we haven't implemented detecting when we come out of a situation where we violate reserve")
     def test_AddHTLCNegativeBalance(self):
         # the test in lnd doesn't set the fee to zero.
         # probably lnd subtracts commitment fee after deciding weather
@@ -707,7 +707,7 @@ class TestChanReserve(ElectrumTestCase):
         self.alice_channel = alice_channel
         self.bob_channel = bob_channel
 
-    @unittest.skip("broken probably because we havn't implemented detecting when we come out of a situation where we violate reserve")
+    @unittest.skip("broken probably because we haven't implemented detecting when we come out of a situation where we violate reserve")
     def test_part1(self):
         # Add an HTLC that will increase Bob's balance. This should succeed,
         # since Alice stays above her channel reserve, and Bob increases his
