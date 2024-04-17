@@ -256,65 +256,28 @@ def new_onion_packet2(
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
     assert num_hops == len(hops_data)
-    hop_shared_secrets, blindings = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
-
-    # data_size = TRAMPOLINE_HOPS_DATA_SIZE if trampoline else HOPS_DATA_SIZE
-    data_size = HOPS_DATA_SIZE  # TODO: bigger alt size dep on data amount
-    filler = _generate_filler(b'rho', hops_data, hop_shared_secrets, data_size)
-    next_hmac = bytes(PER_HOP_HMAC_SIZE)
-
-    # Our starting packet needs to be filled out with random bytes, we
-    # generate some deterministically using the session private key.
-    pad_key = get_bolt04_onion_key(b'pad', session_key)
-    mix_header = generate_cipher_stream(pad_key, data_size)
-
+    hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
     # compute routing info and MAC for each hop
-    for i in range(num_hops-1, -1, -1):
+    for i in range(num_hops):
         rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
-        mu_key = get_bolt04_onion_key(b'mu', hop_shared_secrets[i])
-        hops_data[i].hmac = next_hmac
-        from electrum.logging import get_logger
-        get_logger(__name__).info(f'SS for hop {i}: {hop_shared_secrets[i].hex()}')
-        get_logger(__name__).info(f'HMAC for hop {i}: {next_hmac.hex()}')
-        get_logger(__name__).info(f'rho for hop {i}: {rho_key.hex()}')
-        get_logger(__name__).info(f'mu for hop {i}: {mu_key.hex()}')
         if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
             encrypted_data_tlv_fd = io.BytesIO()
-            OnionWireSerializer.write_tlv_stream(fd=encrypted_data_tlv_fd,
-                                                 tlv_stream_name='encrypted_data_tlv',
-                                                 **hops_data[i].blind_fields)
+            OnionWireSerializer.write_tlv_stream(
+                fd=encrypted_data_tlv_fd,
+                tlv_stream_name='encrypted_data_tlv',
+                **hops_data[i].blind_fields)
             encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
             encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
-
-            onionmsg_tlv_fd = io.BytesIO()
             payload = hops_data[i].payload
             payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
-            OnionWireSerializer.write_tlv_stream(fd=onionmsg_tlv_fd,
-                                                 tlv_stream_name='onionmsg_tlv',
-                                                 **payload)
-            onionmsg_tlv_bytes = onionmsg_tlv_fd.getvalue()
-            hops_data[i]._raw_bytes_payload = onionmsg_tlv_bytes
 
-        stream_bytes = generate_cipher_stream(rho_key, data_size)
-        hop_data_bytes = hops_data[i].to_bytes()
-        mix_header = mix_header[:-len(hop_data_bytes)]
-        mix_header = hop_data_bytes + mix_header
-        mix_header = xor_bytes(mix_header, stream_bytes)
-        if i == num_hops - 1 and len(filler) != 0:
-            mix_header = mix_header[:-len(filler)] + filler
-        packet = mix_header + associated_data
-        next_hmac = hmac_oneshot(mu_key, msg=packet, digest=hashlib.sha256)
-
-    from electrum.logging import get_logger
-    get_logger(__name__).info(f'HMAC for packet: {next_hmac.hex()}')
-    get_logger(__name__).info(f'session_key for packet: {session_key.hex()}')
-    public_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
-    get_logger(__name__).info(f'public_key for packet: {public_key.hex()}')
-
-    return OnionPacket(
-        public_key=public_key,
-        hops_data=mix_header,
-        hmac=next_hmac)
+    return new_onion_packet(
+        payment_path_pubkeys=blinded_node_ids,
+        session_key=session_key,
+        hops_data=hops_data,
+        associated_data=associated_data,
+        trampoline=trampoline,
+    )
 
 
 def calc_hops_data_for_payment(
