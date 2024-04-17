@@ -122,6 +122,8 @@ class ExchangeBase(Logger):
             ccy=ccy,
             cache_dir=cache_dir,
         )
+        if not h:
+            return None
         h['timestamp'] = timestamp
         self._history[ccy] = h
         self.on_history()
@@ -153,6 +155,7 @@ class ExchangeBase(Logger):
         h_old, _timestamp = self._read_historical_rates_from_file(
             exchange_name=self.name(), ccy=ccy, cache_dir=cache_dir,
         )
+        h_old = h_old or {}
         h = {**h_old, **h_new}
         # write merged data to disk cache
         self._write_historical_rates_to_file(
