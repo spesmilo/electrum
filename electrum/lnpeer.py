@@ -992,7 +992,7 @@ class Peer(Logger):
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
         if self.is_channel_type() and channel_type is None:
-            raise Exception("sender has advertized option_channel_type, but hasn't sent the channel type")
+            raise Exception("sender has advertised option_channel_type, but hasn't sent the channel type")
         # MUST fail the channel if it supports channel_type,
         # channel_type was set, and the type is not suitable.
         elif self.is_channel_type() and channel_type is not None:
@@ -2325,7 +2325,7 @@ class Peer(Logger):
             raise Exception(f"received shutdown in unexpected {chan.peer_state=!r}")
         their_scriptpubkey = payload['scriptpubkey']
         their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
-        # BOLT-02 check if they use the upfront shutdown script they advertized
+        # BOLT-02 check if they use the upfront shutdown script they advertised
         if self.is_upfront_shutdown_script() and their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
                 await self.send_warning(

@@ -126,7 +126,7 @@ async def node_flag_stats(opt_flag: LnFeatures, presync: False):
         with wallet.lnworker.channel_db.lock:
             nodes = wallet.lnworker.channel_db._nodes.copy()
 
-        # check how many nodes advertize opt/req flag in the gossip
+        # check how many nodes advertise opt/req flag in the gossip
         n_opt = 0
         n_req = 0
         print(f"analyzing {len(nodes.keys())} nodes")

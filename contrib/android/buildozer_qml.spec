@@ -176,7 +176,7 @@ android.manifest.intent_filters = contrib/android/bitcoin_intent.xml
 # (str) launchMode to set for the main activity
 android.manifest.launch_mode = singleTask
 
-# (list) Android additionnal libraries to copy into libs/armeabi
+# (list) Android additional libraries to copy into libs/armeabi
 #android.add_libs_armeabi = lib/android/*.so
 
 # (bool) Indicate whether the screen should stay on

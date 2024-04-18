@@ -556,7 +556,7 @@ class Plugin(RevealerPlugin):
         painter.drawText(600,2077, _("Instructions:"))
         font = QFont('Source Sans Pro', 7, QFont.Normal)
         painter.setFont(font)
-        painter.drawText(700, 2177, _("1. Place this paper on a flat and well iluminated surface."))
+        painter.drawText(700, 2177, _("1. Place this paper on a flat and well illuminated surface."))
         painter.drawText(700, 2277, _("2. Align your Revealer borderlines to the dashed lines on the top and left."))
         painter.drawText(700, 2377, _("3. Press slightly the Revealer against the paper and read the numbers that best "
                                       "match on the opposite sides. "))
