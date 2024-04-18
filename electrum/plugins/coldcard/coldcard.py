@@ -282,7 +282,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.is_requesting_to_be_rewritten_to_wallet_file = True
 
     def get_client(self, *args, **kwargs):
-        # called when user tries to do something like view address, sign somthing.
+        # called when user tries to do something like view address, sign something.
         # - not called during probing/setup
         # - will fail if indicated device can't produce the xpub (at derivation) expected
         client = super().get_client(*args, **kwargs)  # type: Optional[CKCCClient]
