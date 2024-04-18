@@ -97,7 +97,7 @@ class Plugins(DaemonThread):
             # FIXME pyinstaller binaries are packaging each built-in plugin twice:
             #       once as data and once as code. To honor the "no duplicates" rule below,
             #       we exclude the ones packaged as *code*, here:
-            if loader.__class__.__qualname__ == "FrozenImporter":
+            if loader.__class__.__qualname__ == "PyiFrozenImporter":
                 continue
             full_name = f'electrum.plugins.{name}'
             spec = importlib.util.find_spec(full_name)
