@@ -425,7 +425,7 @@ class ElectrumQmlApplication(QGuiApplication):
             "MEMPOOL_MB":            electrum.util.UI_UNIT_NAME_MEMPOOL_MB,
         })
 
-        self.plugins.load_plugin('trustedcoin')
+        self.plugins.load_internal_plugin('trustedcoin')
 
         qInstallMessageHandler(self.message_handler)
 
