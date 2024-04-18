@@ -19,8 +19,8 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.10.13
-PY_VER_MAJOR="3.10"  # as it appears in fs paths
+PYTHON_VERSION=3.11.9
+PY_VER_MAJOR="3.11"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
@@ -41,7 +41,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "5c88848668640d3e152b35b4536ef1c23b2ca4bd2c957ef1ecbb053f571dd3f6"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "9b1e896523fc510691126c864406d9360a3d1e986acbda59cda57b5abda45b87"
 
 
 
@@ -55,9 +55,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
     cd "$CACHEDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
-    # Patches taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.7-1ubuntu0.3.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.10-reproducible-buildinfo.diff"
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.10-reproducible-pyc.diff"
+    # Patches taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.11/python3.11_3.11.6-3.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.11-reproducible-buildinfo.diff"
     ./configure \
         --cache-file="$CACHEDIR/python.config.cache" \
         --prefix="$APPDIR/usr" \
