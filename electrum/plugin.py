@@ -266,7 +266,7 @@ class Plugins(DaemonThread):
         elif name in self.external_plugin_metadata:
             return self.load_external_plugin(name)
         else:
-            raise Exception()
+            raise Exception(f"could not find plugin {name!r}")
 
     def load_internal_plugin(self, name) -> 'BasePlugin':
         if name in self.plugins:
