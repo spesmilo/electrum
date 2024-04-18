@@ -537,6 +537,8 @@ class TestPeerDirect(TestPeer):
             k2 = keypair()
         alice_channel.node_id = k2.pubkey
         bob_channel.node_id = k1.pubkey
+        alice_channel.storage['node_id'] = alice_channel.node_id
+        bob_channel.storage['node_id'] = bob_channel.node_id
         t1, t2 = transport_pair(k1, k2, alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name)
