@@ -1,0 +1,15 @@
+#Credits: Anton Nesterov
+abi <abi/3.0>,
+
+include <tunables/global>
+
+@{electrum_exec_path} = /{usr/,usr/local/,*/*/.local/,}bin/electrum
+
+profile electrum @{electrum_exec_path} {
+  include <abstractions/electrum>
+
+  @{electrum_exec_path} mr,
+  owner @{HOME}/.electrum/{**,} rw,
+  owner @{HOME}/.local/{**,} mrw,
+
+}
