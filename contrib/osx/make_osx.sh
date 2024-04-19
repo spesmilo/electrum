@@ -88,8 +88,8 @@ brew install autoconf automake libtool gettext coreutils pkgconfig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="d1b6b520a017578a19e1cb9514752a4517755ee0"
-# ^ tag "v5.13.2"
+PYINSTALLER_COMMIT="5d7a0449ecea400eccbbb30d5fcef27d72f8f75d"
+# ^ tag "v6.6.0"
 (
     if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ]; then
         info "pyinstaller already built, skipping"
@@ -204,7 +204,7 @@ find . -exec touch -t '200101220000' {} + || true
 VERSION=$(git describe --tags --dirty --always)
 
 info "Building binary"
-ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"
+ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
