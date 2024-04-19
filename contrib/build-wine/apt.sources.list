@@ -1,2 +1,2 @@
-deb https://snapshot.debian.org/archive/debian/20230317T205011Z/ bullseye main
-deb-src https://snapshot.debian.org/archive/debian/20230317T205011Z/ bullseye main
+deb https://snapshot.debian.org/archive/debian/20240419T084725Z/ bookworm main
+deb-src https://snapshot.debian.org/archive/debian/20240419T084725Z/ bookworm main
