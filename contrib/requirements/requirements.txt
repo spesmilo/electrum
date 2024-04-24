@@ -5,7 +5,6 @@ aiorpcx>=0.22.0,<0.24
 aiohttp>=3.3.0,<4.0.0
 aiohttp_socks>=0.8.4
 certifi
-bitstring
 attrs>=20.1.0
 jsonpatch
 

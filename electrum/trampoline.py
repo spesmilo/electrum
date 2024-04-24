@@ -1,8 +1,7 @@
+import io
 import os
-import bitstring
 import random
-
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set
+from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any
 
 from .lnutil import LnFeatures, PaymentFeeBudget
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
@@ -91,33 +90,38 @@ def trampolines_by_id():
 def is_hardcoded_trampoline(node_id: bytes) -> bool:
     return node_id in trampolines_by_id()
 
-def encode_routing_info(r_tags):
-    result = bitstring.BitArray()
+def encode_routing_info(r_tags: Sequence[Sequence[Sequence[Any]]]) -> bytes:
+    result = bytearray()
     for route in r_tags:
-        result.append(bitstring.pack('uint:8', len(route)))
+        result += bytes([len(route)])
         for step in route:
             pubkey, scid, feebase, feerate, cltv = step
-            result.append(
-                bitstring.BitArray(pubkey) \
-                + bitstring.BitArray(scid)\
-                + bitstring.pack('intbe:32', feebase)\
-                + bitstring.pack('intbe:32', feerate)\
-                + bitstring.pack('intbe:16', cltv))
-    return result.tobytes()
+            result += pubkey
+            result += scid
+            result += int.to_bytes(feebase, length=4, byteorder="big", signed=False)
+            result += int.to_bytes(feerate, length=4, byteorder="big", signed=False)
+            result += int.to_bytes(cltv, length=2, byteorder="big", signed=False)
+    return bytes(result)
 
-def decode_routing_info(s: bytes):
-    s = bitstring.BitArray(s)
+
+def decode_routing_info(rinfo: bytes) -> Sequence[Sequence[Sequence[Any]]]:
+    if not rinfo:
+        return []
     r_tags = []
-    n = 8*(33 + 8 + 4 + 4 + 2)
-    while s:
-        route = []
-        length, s = s[0:8], s[8:]
-        length = length.unpack('uint:8')[0]
-        for i in range(length):
-            chunk, s = s[0:n], s[n:]
-            item = chunk.unpack('bytes:33, bytes:8, intbe:32, intbe:32, intbe:16')
-            route.append(item)
-        r_tags.append(route)
+    with io.BytesIO(bytes(rinfo)) as s:
+        while True:
+            route = []
+            route_len = s.read(1)
+            if not route_len:
+                break
+            for step in range(route_len[0]):
+                pubkey = s.read(33)
+                scid = s.read(8)
+                feebase = int.from_bytes(s.read(4), byteorder="big")
+                feerate = int.from_bytes(s.read(4), byteorder="big")
+                cltv = int.from_bytes(s.read(2), byteorder="big")
+                route.append((pubkey, scid, feebase, feerate, cltv))
+            r_tags.append(route)
     return r_tags
 
 
