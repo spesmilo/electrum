@@ -543,14 +543,12 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                     host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
 
-            if host.endswith('.onion'):
-                if not self.network.proxy:
-                    raise ConnStringFormatError(_('.onion address, but no proxy configured'))
-                if not self.network.is_proxy_tor:
-                    raise ConnStringFormatError(_('.onion address, but proxy is not a TOR proxy'))
-            else:
+            if not self.network.proxy:
                 # Try DNS-resolving the host (if needed). This is simply so that
                 # the caller gets a nice exception if it cannot be resolved.
+                # (we don't do the DNS lookup if a proxy is set, to avoid a DNS-leak)
+                if host.endswith('.onion'):
+                    raise ConnStringFormatError(_('.onion address, but no proxy configured'))
                 try:
                     await asyncio.get_running_loop().getaddrinfo(host, port)
                 except socket.gaierror:
