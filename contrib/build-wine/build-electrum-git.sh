@@ -22,8 +22,8 @@ LOCALE="$WINEPREFIX/drive_c/electrum/electrum/locale/"
 # we want the binary to have only compiled (.mo) locale files; not source (.po) files
 rm -rf "$LOCALE"
 "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
-
-find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
+pwd
+#find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 
@@ -50,9 +50,12 @@ pushd $WINEPREFIX/drive_c/electrum
 info "Pip installing Electrum. This might take a long time if the project folder is large."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location .
 popd
+pwd
+ls
 
 
-rm -rf dist/
+
+#rm -rf dist/
 
 # build standalone and portable versions
 info "Running pyinstaller..."
@@ -60,7 +63,8 @@ ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSION" wine "$WINE_PYHOME/scripts/pyinstall
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
-find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
+pwd
+# find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 info "building NSIS installer"

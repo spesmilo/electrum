@@ -6,7 +6,7 @@ here="$(dirname "$(readlink -e "$0")")"
 test -n "$here" -a -d "$here" || exit
 
 if [ -z "$WIN_ARCH" ] ; then
-    export WIN_ARCH="win32"  # default
+    export WIN_ARCH="win64"  # default
 fi
 if [ "$WIN_ARCH" = "win32" ] ; then
     export GCC_TRIPLET_HOST="i686-w64-mingw32"
@@ -42,6 +42,20 @@ rm "$here"/build/* -rf
 rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
+mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
+
+if [ -f "$DLL_TARGET_DIR/libscrypt-0.dll" ]; then
+    info "libscrypt already built, skipping"
+else
+"$CONTRIB"/compile_scrypt_lib.sh || fail "Could not build scrypt"
+
+fi
+
+if [ -f "$DLL_TARGET_DIR/libneoscrypt-0.dll" ]; then
+    info "libneoscrypt already built, skipping"
+else
+"$CONTRIB"/compile_neoscrypt_lib.sh || fail "Could not build neoscrypt"
+fi
 
 if [ -f "$DLL_TARGET_DIR/libsecp256k1-2.dll" ]; then
     info "libsecp256k1 already built, skipping"
@@ -84,6 +98,9 @@ if [ -f "$DLL_TARGET_DIR/libusb-1.0.dll" ]; then
 else
     "$CONTRIB"/make_libusb.sh || fail "Could not build libusb"
 fi
+
+
+
 
 "$here/prepare-wine.sh" || fail "prepare-wine failed"
 
