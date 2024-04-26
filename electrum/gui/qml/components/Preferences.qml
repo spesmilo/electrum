@@ -15,7 +15,7 @@ Pane {
 
     padding: 0
 
-    property var _baseunits: ['BTC','mBTC','bits','sat']
+    property var _baseunits: ['FTC','mFTC','bits','sat']
 
     ColumnLayout {
         anchors.fill: parent

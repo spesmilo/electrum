@@ -112,9 +112,10 @@ def load_neoscrypt():
     if sys.platform == 'darwin':
         library_paths = (os.path.join(os.path.dirname(__file__), 'libneoscrypt.0.dylib'),
                          'libneoscrypt.0.dylib')
-    elif sys.platform in ('windows', 'win32'):
+    elif sys.platform in ('windows', 'win32', 'win64','wine'):
         library_paths = (os.path.join(os.path.dirname(__file__), 'libneoscrypt-0.dll'),
                          'libneoscrypt-0.dll')
+
     elif 'ANDROID_DATA' in os.environ:
         library_paths = ('libneoscrypt.so',)
     else:  # desktop Linux and similar
@@ -131,8 +132,8 @@ def load_neoscrypt():
         else:
             break
     if result==None:
-        raise Exception ("could not load neoscrypt library")
-
+        raise Exception ("could not load neoscrypt library. \n path: ", libpath, "\nPlattform: ",
+sys.platform)
     return result
 
 hash=load_neoscrypt()
@@ -149,7 +150,7 @@ def load_scrypt():
         library_paths = ('libscrypt.so',)
     else:  # desktop Linux and similar
         library_paths = (os.path.join(os.path.dirname(__file__), 'libscrypt.so.0'),
-                         'libscrypt.so.0', 'electrum/libscrypt.so.0')
+                         'libscrypt.so.0')
 
     exceptions = []
     result = None
@@ -162,7 +163,8 @@ def load_scrypt():
             break
 
     if result==None:
-           raise Exception ("could not load scrypt library")
+        raise Exception("could not load scrypt library. \n path: ", libpath, "\nPlattform: ",
+                        sys.platform)
 
     return result
 
