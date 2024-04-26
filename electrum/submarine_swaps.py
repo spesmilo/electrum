@@ -12,8 +12,8 @@ import aiohttp
 from . import lnutil
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
-from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script,
-                      is_segwit_address, construct_witness)
+from .bitcoin import (script_to_p2wsh, opcodes,
+                      construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions, BelowDustLimit, OldTaskGroup
@@ -87,18 +87,17 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 
 def check_reverse_redeem_script(
     *,
-    redeem_script: str,
+    redeem_script: bytes,
     lockup_address: str,
     payment_hash: bytes,
     locktime: int,
     refund_pubkey: bytes = None,
     claim_pubkey: bytes = None,
 ) -> None:
-    redeem_script = bytes.fromhex(redeem_script)
     parsed_script = [x for x in script_GetOp(redeem_script)]
     if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
         raise Exception("rswap check failed: scriptcode does not match template")
-    if script_to_p2wsh(redeem_script.hex()) != lockup_address:
+    if script_to_p2wsh(redeem_script) != lockup_address:
         raise Exception("rswap check failed: inconsistent scriptcode and address")
     if ripemd(payment_hash) != parsed_script[5][1]:
         raise Exception("rswap check failed: our preimage not in script")
@@ -438,7 +437,7 @@ class SwapManager(Logger):
 
     def add_normal_swap(
             self, *,
-            redeem_script: str,
+            redeem_script: bytes,
             locktime: int,  # onchain
             onchain_amount_sat: int,
             lightning_amount_sat: int,
@@ -487,7 +486,7 @@ class SwapManager(Logger):
         lockup_address = script_to_p2wsh(redeem_script)
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
-            redeem_script = bytes.fromhex(redeem_script),
+            redeem_script=redeem_script,
             locktime = locktime,
             privkey = our_privkey,
             preimage = None,
@@ -533,7 +532,7 @@ class SwapManager(Logger):
     def add_reverse_swap(
         self,
         *,
-        redeem_script: str,
+        redeem_script: bytes,
         locktime: int,  # onchain
         privkey: bytes,
         lightning_amount_sat: int,
@@ -545,7 +544,7 @@ class SwapManager(Logger):
         lockup_address = script_to_p2wsh(redeem_script)
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
-            redeem_script = bytes.fromhex(redeem_script),
+            redeem_script = redeem_script,
             locktime = locktime,
             privkey = privkey,
             preimage = preimage,
@@ -645,7 +644,7 @@ class SwapManager(Logger):
         onchain_amount = data["expectedAmount"]
         locktime = data["timeoutBlockHeight"]
         lockup_address = data["address"]
-        redeem_script = data["redeemScript"]
+        redeem_script = bytes.fromhex(data["redeemScript"])
         # verify redeem_script is built with our pubkey and preimage
         check_reverse_redeem_script(
             redeem_script=redeem_script,
@@ -805,7 +804,7 @@ class SwapManager(Logger):
         invoice = data['invoice']
         fee_invoice = data.get('minerFeeInvoice')
         lockup_address = data['lockupAddress']
-        redeem_script = data['redeemScript']
+        redeem_script = bytes.fromhex(data['redeemScript'])
         locktime = data['timeoutBlockHeight']
         onchain_amount = data["onchainAmount"]
         response_id = data['id']
@@ -1052,7 +1051,7 @@ class SwapManager(Logger):
         txin.witness_script = witness_script
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
-        txin.witness_sizehint = len(bytes.fromhex(construct_witness(witness)))
+        txin.witness_sizehint = len(construct_witness(witness))
 
     @classmethod
     def sign_tx(cls, tx: PartialTransaction, swap: SwapData) -> None:
@@ -1063,9 +1062,9 @@ class SwapManager(Logger):
         assert txin.prevout.txid.hex() == swap.funding_txid
         txin.script_sig = b''
         txin.witness_script = witness_script
-        sig = bytes.fromhex(tx.sign_txin(0, swap.privkey))
+        sig = tx.sign_txin(0, swap.privkey)
         witness = [sig, preimage, witness_script]
-        txin.witness = bytes.fromhex(construct_witness(witness))
+        txin.witness = construct_witness(witness)
 
     @classmethod
     def _create_and_sign_claim_tx(

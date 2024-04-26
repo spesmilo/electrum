@@ -8,7 +8,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
-                              script_num_to_hex, push_script, add_number_to_script, int_to_hex,
+                              script_num_to_bytes, push_script, add_number_to_script,
                               opcodes, base_encode, base_decode, BitcoinException)
 from electrum import bip32
 from electrum import segwit_addr
@@ -423,83 +423,63 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4',
                          sha256d(u"test"))
 
-    def test_int_to_hex(self):
-        self.assertEqual('00', int_to_hex(0, 1))
-        self.assertEqual('ff', int_to_hex(-1, 1))
-        self.assertEqual('00000000', int_to_hex(0, 4))
-        self.assertEqual('01000000', int_to_hex(1, 4))
-        self.assertEqual('7f', int_to_hex(127, 1))
-        self.assertEqual('7f00', int_to_hex(127, 2))
-        self.assertEqual('80', int_to_hex(128, 1))
-        self.assertEqual('80', int_to_hex(-128, 1))
-        self.assertEqual('8000', int_to_hex(128, 2))
-        self.assertEqual('ff', int_to_hex(255, 1))
-        self.assertEqual('ff7f', int_to_hex(32767, 2))
-        self.assertEqual('0080', int_to_hex(-32768, 2))
-        self.assertEqual('ffff', int_to_hex(65535, 2))
-        with self.assertRaises(OverflowError): int_to_hex(256, 1)
-        with self.assertRaises(OverflowError): int_to_hex(-129, 1)
-        with self.assertRaises(OverflowError): int_to_hex(-257, 1)
-        with self.assertRaises(OverflowError): int_to_hex(65536, 2)
-        with self.assertRaises(OverflowError): int_to_hex(-32769, 2)
-
     def test_var_int(self):
         for i in range(0xfd):
-            self.assertEqual(var_int(i), "{:02x}".format(i))
+            self.assertEqual(var_int(i), bfh("{:02x}".format(i)))
 
-        self.assertEqual(var_int(0xfd), "fdfd00")
-        self.assertEqual(var_int(0xfe), "fdfe00")
-        self.assertEqual(var_int(0xff), "fdff00")
-        self.assertEqual(var_int(0x1234), "fd3412")
-        self.assertEqual(var_int(0xffff), "fdffff")
-        self.assertEqual(var_int(0x10000), "fe00000100")
-        self.assertEqual(var_int(0x12345678), "fe78563412")
-        self.assertEqual(var_int(0xffffffff), "feffffffff")
-        self.assertEqual(var_int(0x100000000), "ff0000000001000000")
-        self.assertEqual(var_int(0x0123456789abcdef), "ffefcdab8967452301")
+        self.assertEqual(var_int(0xfd), bfh("fdfd00"))
+        self.assertEqual(var_int(0xfe), bfh("fdfe00"))
+        self.assertEqual(var_int(0xff), bfh("fdff00"))
+        self.assertEqual(var_int(0x1234), bfh("fd3412"))
+        self.assertEqual(var_int(0xffff), bfh("fdffff"))
+        self.assertEqual(var_int(0x10000), bfh("fe00000100"))
+        self.assertEqual(var_int(0x12345678), bfh("fe78563412"))
+        self.assertEqual(var_int(0xffffffff), bfh("feffffffff"))
+        self.assertEqual(var_int(0x100000000), bfh("ff0000000001000000"))
+        self.assertEqual(var_int(0x0123456789abcdef), bfh("ffefcdab8967452301"))
 
     def test_op_push(self):
-        self.assertEqual(_op_push(0x00), '00')
-        self.assertEqual(_op_push(0x12), '12')
-        self.assertEqual(_op_push(0x4b), '4b')
-        self.assertEqual(_op_push(0x4c), '4c4c')
-        self.assertEqual(_op_push(0xfe), '4cfe')
-        self.assertEqual(_op_push(0xff), '4cff')
-        self.assertEqual(_op_push(0x100), '4d0001')
-        self.assertEqual(_op_push(0x1234), '4d3412')
-        self.assertEqual(_op_push(0xfffe), '4dfeff')
-        self.assertEqual(_op_push(0xffff), '4dffff')
-        self.assertEqual(_op_push(0x10000), '4e00000100')
-        self.assertEqual(_op_push(0x12345678), '4e78563412')
+        self.assertEqual(_op_push(0x00), bfh('00'))
+        self.assertEqual(_op_push(0x12), bfh('12'))
+        self.assertEqual(_op_push(0x4b), bfh('4b'))
+        self.assertEqual(_op_push(0x4c), bfh('4c4c'))
+        self.assertEqual(_op_push(0xfe), bfh('4cfe'))
+        self.assertEqual(_op_push(0xff), bfh('4cff'))
+        self.assertEqual(_op_push(0x100), bfh('4d0001'))
+        self.assertEqual(_op_push(0x1234), bfh('4d3412'))
+        self.assertEqual(_op_push(0xfffe), bfh('4dfeff'))
+        self.assertEqual(_op_push(0xffff), bfh('4dffff'))
+        self.assertEqual(_op_push(0x10000), bfh('4e00000100'))
+        self.assertEqual(_op_push(0x12345678), bfh('4e78563412'))
 
     def test_script_num_to_hex(self):
         # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77
-        self.assertEqual(script_num_to_hex(127), '7f')
-        self.assertEqual(script_num_to_hex(-127), 'ff')
-        self.assertEqual(script_num_to_hex(128), '8000')
-        self.assertEqual(script_num_to_hex(-128), '8080')
-        self.assertEqual(script_num_to_hex(129), '8100')
-        self.assertEqual(script_num_to_hex(-129), '8180')
-        self.assertEqual(script_num_to_hex(256), '0001')
-        self.assertEqual(script_num_to_hex(-256), '0081')
-        self.assertEqual(script_num_to_hex(32767), 'ff7f')
-        self.assertEqual(script_num_to_hex(-32767), 'ffff')
-        self.assertEqual(script_num_to_hex(32768), '008000')
-        self.assertEqual(script_num_to_hex(-32768), '008080')
+        self.assertEqual(script_num_to_bytes(127), bfh('7f'))
+        self.assertEqual(script_num_to_bytes(-127), bfh('ff'))
+        self.assertEqual(script_num_to_bytes(128), bfh('8000'))
+        self.assertEqual(script_num_to_bytes(-128), bfh('8080'))
+        self.assertEqual(script_num_to_bytes(129), bfh('8100'))
+        self.assertEqual(script_num_to_bytes(-129), bfh('8180'))
+        self.assertEqual(script_num_to_bytes(256), bfh('0001'))
+        self.assertEqual(script_num_to_bytes(-256), bfh('0081'))
+        self.assertEqual(script_num_to_bytes(32767), bfh('ff7f'))
+        self.assertEqual(script_num_to_bytes(-32767), bfh('ffff'))
+        self.assertEqual(script_num_to_bytes(32768), bfh('008000'))
+        self.assertEqual(script_num_to_bytes(-32768), bfh('008080'))
 
     def test_push_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
-        self.assertEqual(push_script(''), bytes([opcodes.OP_0]).hex())
-        self.assertEqual(push_script('07'), bytes([opcodes.OP_7]).hex())
-        self.assertEqual(push_script('10'), bytes([opcodes.OP_16]).hex())
-        self.assertEqual(push_script('81'), bytes([opcodes.OP_1NEGATE]).hex())
-        self.assertEqual(push_script('11'), '0111')
-        self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
-        self.assertEqual(push_script(76 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')).hex())
-        self.assertEqual(push_script(100 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')).hex())
-        self.assertEqual(push_script(255 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')).hex())
-        self.assertEqual(push_script(256 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')).hex())
-        self.assertEqual(push_script(520 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')).hex())
+        self.assertEqual(push_script(b""), bytes([opcodes.OP_0]))
+        self.assertEqual(push_script(b'\x07'), bytes([opcodes.OP_7]))
+        self.assertEqual(push_script(b'\x10'), bytes([opcodes.OP_16]))
+        self.assertEqual(push_script(b'\x81'), bytes([opcodes.OP_1NEGATE]))
+        self.assertEqual(push_script(b'\x11'), bfh('0111'))
+        self.assertEqual(push_script(75 * b'\x42'), bfh('4b' + 75 * '42'))
+        self.assertEqual(push_script(76 * b'\x42'), bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42'))
+        self.assertEqual(push_script(100 * b'\x42'), bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42'))
+        self.assertEqual(push_script(255 * b'\x42'), bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42'))
+        self.assertEqual(push_script(256 * b'\x42'), bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42'))
+        self.assertEqual(push_script(520 * b'\x42'), bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42'))
 
     def test_add_number_to_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
@@ -528,17 +508,17 @@ class Test_bitcoin(ElectrumTestCase):
         # bech32/bech32m native segwit
         # test vectors from BIP-0173
         # note: the ones that are commented out have been invalidated by BIP-0350
-        self.assertEqual(address_to_script('BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4'), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4').hex(), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
         # self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
         # self.assertEqual(address_to_script('BC1SW50QA3JX3S'), '6002751e')
         # self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), '5210751e76e8199196d454941c45d1b3a323')
 
         # bech32/bech32m native segwit
         # test vectors from BIP-0350
-        self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
-        self.assertEqual(address_to_script('BC1SW50QGDZ25J'), '6002751e')
-        self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs'), '5210751e76e8199196d454941c45d1b3a323')
-        self.assertEqual(address_to_script('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0'), '512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
+        self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y').hex(), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('BC1SW50QGDZ25J').hex(), '6002751e')
+        self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs').hex(), '5210751e76e8199196d454941c45d1b3a323')
+        self.assertEqual(address_to_script('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0').hex(), '512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
 
         # invalid addresses (from BIP-0173)
         self.assertFalse(is_address('tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty'))
@@ -570,12 +550,12 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertFalse(is_address('bc1gmk9yu'))
 
         # base58 P2PKH
-        self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
-        self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
+        self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG').hex(), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
+        self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv').hex(), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
 
         # base58 P2SH
-        self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
-        self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+        self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT').hex(), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
+        self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji').hex(), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
 
     def test_address_to_payload(self):
         # bech32 P2WPKH
@@ -698,14 +678,14 @@ class Test_bitcoin_testnet(ElectrumTestCase):
     def test_address_to_script(self):
         # bech32/bech32m native segwit
         # test vectors from BIP-0173
-        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
+        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7').hex(), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
+        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy').hex(), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
 
         # bech32/bech32m native segwit
         # test vectors from BIP-0350
-        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
-        self.assertEqual(address_to_script('tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c'), '5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
+        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7').hex(), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
+        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy').hex(), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
+        self.assertEqual(address_to_script('tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c').hex(), '5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
 
         # invalid addresses (from BIP-0173)
         self.assertFalse(is_address('tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty'))
@@ -737,12 +717,12 @@ class Test_bitcoin_testnet(ElectrumTestCase):
         self.assertFalse(is_address('bc1gmk9yu'))
 
         # base58 P2PKH
-        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX'), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
-        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K'), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
+        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX').hex(), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
+        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K').hex(), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
 
         # base58 P2SH
-        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p'), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
-        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
+        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p').hex(), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
+        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk').hex(), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
 class Test_xprv_xpub(ElectrumTestCase):

@@ -268,7 +268,6 @@ class Jade_KeyStore(Hardware_KeyStore):
                 pubkey, path = self.find_my_pubkey_in_txinout(txin)
                 witness_input = txin.is_segwit()
                 redeem_script = Transaction.get_preimage_script(txin)
-                redeem_script = bytes.fromhex(redeem_script) if redeem_script is not None else None
                 input_tx = txin.utxo
                 input_tx = bytes.fromhex(input_tx.serialize()) if input_tx is not None else None
 
@@ -314,9 +313,11 @@ class Jade_KeyStore(Hardware_KeyStore):
             for index, (txin, signature) in enumerate(zip(tx.inputs(), signatures)):
                 pubkey, path = self.find_my_pubkey_in_txinout(txin)
                 if pubkey is not None and signature is not None:
-                    tx.add_signature_to_txin(txin_idx=index,
-                                            signing_pubkey=pubkey.hex(),
-                                            sig=signature.hex())
+                    tx.add_signature_to_txin(
+                        txin_idx=index,
+                        signing_pubkey=pubkey,
+                        sig=signature,
+                    )
         finally:
             self.handler.finished()
 

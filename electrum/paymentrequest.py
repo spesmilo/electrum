@@ -291,7 +291,7 @@ class PaymentRequest:
         paymnt.merchant_data = pay_det.merchant_data
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
-        ref_out.script = util.bfh(address_to_script(refund_addr))
+        ref_out.script = address_to_script(refund_addr)
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
@@ -334,7 +334,7 @@ def make_unsigned_request(req: 'Invoice'):
     if amount is None:
         amount = 0
     memo = req.message
-    script = bfh(address_to_script(addr))
+    script = address_to_script(addr)
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
     if constants.net.TESTNET:

@@ -547,7 +547,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if not inputPath:
                     self.give_error("No matching pubkey for sign_transaction")  # should never happen
                 inputPath = convert_bip32_intpath_to_strpath(inputPath)
-                inputHash = sha256d(bfh(tx.serialize_preimage(i)))
+                inputHash = sha256d(tx.serialize_preimage(i))
                 hasharray_i = {'hash': to_hexstr(inputHash), 'keypath': inputPath}
                 hasharray.append(hasharray_i)
                 inputhasharray.append(inputHash)
@@ -659,8 +659,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = ecc.ecdsa_der_sig_from_r_and_s(sig_r, sig_s)
-                    sig = to_hexstr(sig) + Sighash.to_sigbytes(Sighash.ALL).hex()
-                    tx.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_bytes.hex(), sig=sig)
+                    sig = sig + Sighash.to_sigbytes(Sighash.ALL)
+                    tx.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_bytes, sig=sig)
         except UserCancelled:
             raise
         except BaseException as e:

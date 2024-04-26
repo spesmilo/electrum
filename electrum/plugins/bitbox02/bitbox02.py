@@ -536,8 +536,8 @@ class BitBox02Client(HardwareClientBase):
         # Fill signatures
         if len(sigs) != len(tx.inputs()):
             raise Exception("Incorrect number of inputs signed.")  # Should never occur
-        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [ecc.ecdsa_der_sig_from_ecdsa_sig64(x[1]).hex() + sighash for x in sigs]
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        signatures = [ecc.ecdsa_der_sig_from_ecdsa_sig64(x[1]) + sighash for x in sigs]
         tx.update_signatures(signatures)
 
     def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:

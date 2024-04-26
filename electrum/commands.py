@@ -494,8 +494,8 @@ class Commands:
         """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
         redeem_script = multisig_script(pubkeys, num)
-        address = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
-        return {'address':address, 'redeemScript':redeem_script}
+        address = bitcoin.hash160_to_p2sh(hash_160(redeem_script))
+        return {'address': address, 'redeemScript': redeem_script.hex()}
 
     @command('w')
     async def freeze(self, address: str, wallet: Abstract_Wallet = None):

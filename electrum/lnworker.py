@@ -58,7 +58,7 @@ from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
 from .lnutil import serialize_htlc_key, deserialize_htlc_key
-from .bitcoin import redeem_script_to_address, DummyAddress
+from .bitcoin import DummyAddress
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,

@@ -75,7 +75,7 @@ class ExpandedScripts:
         self._scriptcode_for_sighash = value
 
     def address(self, *, net=None) -> Optional[str]:
-        return bitcoin.script_to_address(self.output_script.hex(), net=net)
+        return bitcoin.script_to_address(self.output_script, net=net)
 
 
 class ScriptSolutionInner(NamedTuple):
@@ -379,9 +379,9 @@ class Descriptor(object):
         witness = None
         script_sig = None
         if self.is_segwit():
-            witness = bfh(construct_witness(sol.witness_items))
+            witness = construct_witness(sol.witness_items)
         else:
-            script_sig = bfh(construct_script(sol.witness_items))
+            script_sig = construct_script(sol.witness_items)
         return ScriptSolutionTop(
             witness=witness,
             script_sig=script_sig,
@@ -473,7 +473,7 @@ class PKDescriptor(Descriptor):
     def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
         script = construct_script([pubkey, opcodes.OP_CHECKSIG])
-        return ExpandedScripts(output_script=bytes.fromhex(script))
+        return ExpandedScripts(output_script=script)
 
     def _satisfy_inner(self, *, sigdata=None, allow_dummy=False) -> ScriptSolutionInner:
         if sigdata is None: sigdata = {}
@@ -513,9 +513,9 @@ class PKHDescriptor(Descriptor):
 
     def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
-        pkh = hash_160(pubkey).hex()
+        pkh = hash_160(pubkey)
         script = bitcoin.pubkeyhash_to_p2pkh_script(pkh)
-        return ExpandedScripts(output_script=bytes.fromhex(script))
+        return ExpandedScripts(output_script=script)
 
     def _satisfy_inner(self, *, sigdata=None, allow_dummy=False) -> ScriptSolutionInner:
         if sigdata is None: sigdata = {}
@@ -556,10 +556,10 @@ class WPKHDescriptor(Descriptor):
     def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         pkh = hash_160(self.pubkeys[0].get_pubkey_bytes(pos=pos))
         output_script = construct_script([0, pkh])
-        scriptcode = bitcoin.pubkeyhash_to_p2pkh_script(pkh.hex())
+        scriptcode = bitcoin.pubkeyhash_to_p2pkh_script(pkh)
         return ExpandedScripts(
-            output_script=bytes.fromhex(output_script),
-            scriptcode_for_sighash=bytes.fromhex(scriptcode),
+            output_script=output_script,
+            scriptcode_for_sighash=scriptcode,
         )
 
     def _satisfy_inner(self, *, sigdata=None, allow_dummy=False) -> ScriptSolutionInner:
@@ -625,7 +625,7 @@ class MultisigDescriptor(Descriptor):
         der_pks = [p.get_pubkey_bytes(pos=pos) for p in self.pubkeys]
         if self.is_sorted:
             der_pks.sort()
-        script = bfh(construct_script([self.thresh, *der_pks, len(der_pks), opcodes.OP_CHECKMULTISIG]))
+        script = construct_script([self.thresh, *der_pks, len(der_pks), opcodes.OP_CHECKMULTISIG])
         return ExpandedScripts(output_script=script)
 
     def _satisfy_inner(self, *, sigdata=None, allow_dummy=False) -> ScriptSolutionInner:
@@ -678,7 +678,7 @@ class SHDescriptor(Descriptor):
         sub_scripts = self.subdescriptors[0].expand(pos=pos)
         redeem_script = sub_scripts.output_script
         witness_script = sub_scripts.witness_script
-        script = bfh(construct_script([opcodes.OP_HASH160, hash_160(redeem_script), opcodes.OP_EQUAL]))
+        script = construct_script([opcodes.OP_HASH160, hash_160(redeem_script), opcodes.OP_EQUAL])
         return ExpandedScripts(
             output_script=script,
             redeem_script=redeem_script,
@@ -697,10 +697,10 @@ class SHDescriptor(Descriptor):
         witness = None
         if isinstance(subdesc, (WSHDescriptor, WPKHDescriptor)):  # witness_v0 nested in p2sh
             witness = subdesc.satisfy(sigdata=sigdata, allow_dummy=allow_dummy).witness
-            script_sig = bfh(construct_script([redeem_script]))
+            script_sig = construct_script([redeem_script])
         else:  # legacy p2sh
             subsol = subdesc._satisfy_inner(sigdata=sigdata, allow_dummy=allow_dummy)
-            script_sig = bfh(construct_script([*subsol.witness_items, redeem_script]))
+            script_sig = construct_script([*subsol.witness_items, redeem_script])
         return ScriptSolutionTop(
             witness=witness,
             script_sig=script_sig,
@@ -724,7 +724,7 @@ class WSHDescriptor(Descriptor):
         assert len(self.subdescriptors) == 1
         sub_scripts = self.subdescriptors[0].expand(pos=pos)
         witness_script = sub_scripts.output_script
-        output_script = bfh(construct_script([0, sha256(witness_script)]))
+        output_script = construct_script([0, sha256(witness_script)])
         return ExpandedScripts(
             output_script=output_script,
             witness_script=witness_script,
@@ -740,7 +740,7 @@ class WSHDescriptor(Descriptor):
         witness_script = self.expand().witness_script
         witness = construct_witness([*subsol.witness_items, witness_script])
         return ScriptSolutionTop(
-            witness=bytes.fromhex(witness),
+            witness=witness,
         )
 
     def is_segwit(self) -> bool:

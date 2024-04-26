@@ -197,34 +197,14 @@ class opcodes(IntEnum):
         return bytes([self]).hex()
 
 
-def rev_hex(s: str) -> str:
-    return bfh(s)[::-1].hex()
-
-
-def int_to_hex(i: int, length: int=1) -> str:
-    """Converts int to little-endian hex string.
-    `length` is the number of bytes available
-    """
-    if not isinstance(i, int):
-        raise TypeError('{} instead of int'.format(i))
-    range_size = pow(256, length)
-    if i < -(range_size//2) or i >= range_size:
-        raise OverflowError('cannot convert int {} to hex ({} bytes)'.format(i, length))
-    if i < 0:
-        # two's complement
-        i = range_size + i
-    s = hex(i)[2:].rstrip('L')
-    s = "0"*(2*length - len(s)) + s
-    return rev_hex(s)
-
-def script_num_to_hex(i: int) -> str:
+def script_num_to_bytes(i: int) -> bytes:
     """See CScriptNum in Bitcoin Core.
-    Encodes an integer as hex, to be used in script.
+    Encodes an integer as bytes, to be used in script.
 
     ported from https://github.com/bitcoin/bitcoin/blob/8cbc5c4be4be22aca228074f087a374a7ec38be8/src/script/script.h#L326
     """
     if i == 0:
-        return ''
+        return b""
 
     result = bytearray()
     neg = i < 0
@@ -238,104 +218,102 @@ def script_num_to_hex(i: int) -> str:
     elif neg:
         result[-1] |= 0x80
 
-    return result.hex()
+    return bytes(result)
 
 
-def var_int(i: int) -> str:
+def var_int(i: int) -> bytes:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
     # "CompactSize"
     assert i >= 0, i
-    if i<0xfd:
-        return int_to_hex(i)
-    elif i<=0xffff:
-        return "fd"+int_to_hex(i,2)
-    elif i<=0xffffffff:
-        return "fe"+int_to_hex(i,4)
-    else:
-        return "ff"+int_to_hex(i,8)
-
-
-def witness_push(item: str) -> str:
-    """Returns data in the form it should be present in the witness.
-    hex -> hex
-    """
-    return var_int(len(item) // 2) + item
-
-
-def _op_push(i: int) -> str:
-    if i < opcodes.OP_PUSHDATA1:
-        return int_to_hex(i)
-    elif i <= 0xff:
-        return opcodes.OP_PUSHDATA1.hex() + int_to_hex(i, 1)
+    if i < 0xfd:
+        return int.to_bytes(i, length=1, byteorder="little", signed=False)
     elif i <= 0xffff:
-        return opcodes.OP_PUSHDATA2.hex() + int_to_hex(i, 2)
+        return b"\xfd" + int.to_bytes(i, length=2, byteorder="little", signed=False)
+    elif i <= 0xffffffff:
+        return b"\xfe" + int.to_bytes(i, length=4, byteorder="little", signed=False)
     else:
-        return opcodes.OP_PUSHDATA4.hex() + int_to_hex(i, 4)
+        return b"\xff" + int.to_bytes(i, length=8, byteorder="little", signed=False)
 
 
-def push_script(data: str) -> str:
+def witness_push(item: bytes) -> bytes:
+    """Returns data in the form it should be present in the witness."""
+    return var_int(len(item)) + item
+
+
+def _op_push(i: int) -> bytes:
+    if i < opcodes.OP_PUSHDATA1:
+        return int.to_bytes(i, length=1, byteorder="little", signed=False)
+    elif i <= 0xff:
+        return bytes([opcodes.OP_PUSHDATA1]) + int.to_bytes(i, length=1, byteorder="little", signed=False)
+    elif i <= 0xffff:
+        return bytes([opcodes.OP_PUSHDATA2]) + int.to_bytes(i, length=2, byteorder="little", signed=False)
+    else:
+        return bytes([opcodes.OP_PUSHDATA4]) + int.to_bytes(i, length=4, byteorder="little", signed=False)
+
+
+def push_script(data: bytes) -> bytes:
     """Returns pushed data to the script, automatically
     choosing canonical opcodes depending on the length of the data.
-    hex -> hex
 
     ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
-    data = bfh(data)
     data_len = len(data)
 
     # "small integer" opcodes
     if data_len == 0 or data_len == 1 and data[0] == 0:
-        return opcodes.OP_0.hex()
+        return bytes([opcodes.OP_0])
     elif data_len == 1 and data[0] <= 16:
-        return bytes([opcodes.OP_1 - 1 + data[0]]).hex()
+        return bytes([opcodes.OP_1 - 1 + data[0]])
     elif data_len == 1 and data[0] == 0x81:
-        return opcodes.OP_1NEGATE.hex()
+        return bytes([opcodes.OP_1NEGATE])
 
-    return _op_push(data_len) + data.hex()
+    return _op_push(data_len) + data
 
 
-def make_op_return(x:bytes) -> bytes:
-    return bytes([opcodes.OP_RETURN]) + bytes.fromhex(push_script(x.hex()))
+def make_op_return(x: bytes) -> bytes:
+    return bytes([opcodes.OP_RETURN]) + push_script(x)
 
 
 def add_number_to_script(i: int) -> bytes:
-    return bfh(push_script(script_num_to_hex(i)))
+    return push_script(script_num_to_bytes(i))
 
 
-def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> bytes:
     """Constructs a witness from the given stack items."""
-    witness = var_int(len(items))
+    witness = bytearray()
+    witness += var_int(len(items))
     for item in items:
         if type(item) is int:
-            item = script_num_to_hex(item)
+            item = script_num_to_bytes(item)
         elif isinstance(item, (bytes, bytearray)):
-            item = item.hex()
+            pass  # use as-is
         else:
-            assert is_hex_str(item)
+            assert is_hex_str(item), repr(item)
+            item = bfh(item)
         witness += witness_push(item)
-    return witness
+    return bytes(witness)
 
 
-def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=None) -> str:
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=None) -> bytes:
     """Constructs bitcoin script from given items."""
-    script = ''
+    script = bytearray()
     values = values or {}
     for i, item in enumerate(items):
         if i in values:
             item = values[i]
         if isinstance(item, opcodes):
-            script += item.hex()
+            script += bytes([item])
         elif type(item) is int:
-            script += add_number_to_script(item).hex()
+            script += add_number_to_script(item)
         elif isinstance(item, (bytes, bytearray)):
-            script += push_script(item.hex())
+            script += push_script(item)
         elif isinstance(item, str):
             assert is_hex_str(item)
-            script += push_script(item)
+            script += push_script(bfh(item))
         else:
             raise Exception(f'unexpected item for script: {item!r}')
-    return script
+    return bytes(script)
 
 
 def relayfee(network: 'Network' = None) -> int:
@@ -412,15 +390,11 @@ def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
     return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
-def script_to_p2wsh(script: str, *, net=None) -> str:
-    return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
+def script_to_p2wsh(script: bytes, *, net=None) -> str:
+    return hash_to_segwit_addr(sha256(script), witver=0, net=net)
 
-def p2wpkh_nested_script(pubkey: str) -> str:
-    pkh = hash_160(bfh(pubkey))
-    return construct_script([0, pkh])
-
-def p2wsh_nested_script(witness_script: str) -> str:
-    wsh = sha256(bfh(witness_script))
+def p2wsh_nested_script(witness_script: bytes) -> bytes:
+    wsh = sha256(witness_script)
     return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
@@ -430,27 +404,28 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
 
 
 # TODO this method is confusingly named
-def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
+def redeem_script_to_address(txin_type: str, scriptcode: bytes, *, net=None) -> str:
+    assert isinstance(scriptcode, bytes)
     if txin_type == 'p2sh':
         # given scriptcode is a redeem_script
-        return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
+        return hash160_to_p2sh(hash_160(scriptcode), net=net)
     elif txin_type == 'p2wsh':
         # given scriptcode is a witness_script
         return script_to_p2wsh(scriptcode, net=net)
     elif txin_type == 'p2wsh-p2sh':
         # given scriptcode is a witness_script
         redeem_script = p2wsh_nested_script(scriptcode)
-        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
+        return hash160_to_p2sh(hash_160(redeem_script), net=net)
     else:
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script: str, *, net=None) -> Optional[str]:
+def script_to_address(script: bytes, *, net=None) -> Optional[str]:
     from .transaction import get_address_from_output_script
-    return get_address_from_output_script(bfh(script), net=net)
+    return get_address_from_output_script(script, net=net)
 
 
-def address_to_script(addr: str, *, net=None) -> str:
+def address_to_script(addr: str, *, net=None) -> bytes:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
@@ -461,7 +436,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        script = pubkeyhash_to_p2pkh_script(hash_160_.hex())
+        script = pubkeyhash_to_p2pkh_script(hash_160_)
     elif addrtype == net.ADDRTYPE_P2SH:
         script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
@@ -514,14 +489,12 @@ def address_to_scripthash(addr: str, *, net=None) -> str:
     return script_to_scripthash(script)
 
 
-def script_to_scripthash(script: str) -> str:
-    h = sha256(bfh(script))[0:32]
+def script_to_scripthash(script: bytes) -> str:
+    h = sha256(script)
     return h[::-1].hex()
 
-def public_key_to_p2pk_script(pubkey: str) -> str:
-    return construct_script([pubkey, opcodes.OP_CHECKSIG])
 
-def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
+def pubkeyhash_to_p2pkh_script(pubkey_hash160: bytes) -> bytes:
     return construct_script([
         opcodes.OP_DUP,
         opcodes.OP_HASH160,
@@ -756,7 +729,7 @@ def minikey_to_private_key(text: str) -> bytes:
 
 
 def _get_dummy_address(purpose: str) -> str:
-    return redeem_script_to_address('p2wsh', sha256(bytes(purpose, "utf8")).hex())
+    return redeem_script_to_address('p2wsh', sha256(bytes(purpose, "utf8")))
 
 _dummy_addr_funcs = set()
 class DummyAddress:

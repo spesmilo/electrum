@@ -11,7 +11,7 @@ from .util import bfh, BitcoinException
 from . import constants
 from . import ecc
 from .crypto import hash_160, hmac_oneshot
-from .bitcoin import rev_hex, int_to_hex, EncodeBase58Check, DecodeBase58Check
+from .bitcoin import EncodeBase58Check, DecodeBase58Check
 from .logging import get_logger
 
 
@@ -49,7 +49,7 @@ def CKD_priv(parent_privkey: bytes, parent_chaincode: bytes, child_index: int) -
     is_hardened_child = bool(child_index & BIP32_PRIME)
     return _CKD_priv(parent_privkey=parent_privkey,
                      parent_chaincode=parent_chaincode,
-                     child_index=bfh(rev_hex(int_to_hex(child_index, 4))),
+                     child_index=int.to_bytes(child_index, length=4, byteorder="big", signed=False),
                      is_hardened_child=is_hardened_child)
 
 
@@ -85,7 +85,7 @@ def CKD_pub(parent_pubkey: bytes, parent_chaincode: bytes, child_index: int) -> 
     if child_index & BIP32_PRIME: raise Exception('not possible to derive hardened child from parent pubkey')
     return _CKD_pub(parent_pubkey=parent_pubkey,
                     parent_chaincode=parent_chaincode,
-                    child_index=bfh(rev_hex(int_to_hex(child_index, 4))))
+                    child_index=int.to_bytes(child_index, length=4, byteorder="big", signed=False))
 
 
 # helper function, callable with arbitrary 'child_index' byte-string.
