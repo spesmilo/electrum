@@ -50,7 +50,6 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
 (
     if [ -f "$CACHEDIR/Python-$PYTHON_VERSION/python" ]; then
         info "python already built, skipping"
-        exit 0
     fi
     cd "$CACHEDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
@@ -60,7 +59,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
     ./configure \
         --cache-file="$CACHEDIR/python.config.cache" \
         --prefix="$APPDIR/usr" \
-        --enable-ipv6 \
+        --disable-ipv6 \
         --enable-shared \
         -q
     make "-j$CPU_COUNT" -s || fail "Could not build Python"
@@ -177,7 +176,11 @@ info "installing electrum and its dependencies."
 
 info "copying zbar"
 cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
+info "copying neoscrypt"
+cp "$PROJECT_ROOT/electrum/libneoscrypt.so.0"  "$APPDIR/usr/lib/libneoscrypt.so.0"
 
+info "copying scrypt"
+cp "$PROJECT_ROOT/electrum/libscrypt.so.0"  "$APPDIR/usr/lib/libscrypt.so.0"
 
 info "desktop integration."
 cp "$PROJECT_ROOT/electrum.desktop" "$APPDIR/electrum.desktop"
