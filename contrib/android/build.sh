@@ -1,4 +1,4 @@
-#!/bin/bash
+ me.md#!/bin/bash
 #
 # env vars:
 # - ELECBUILD_NOCACHE: if set, forces rebuild of docker image
