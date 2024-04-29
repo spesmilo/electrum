@@ -84,6 +84,19 @@ else
 fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not copy libsecp to its destination"
 
+if [ -f "$DLL_TARGET_DIR/libneoscrypt.so.0" ]; then
+    info "libneoscrypt already built, skipping"
+else
+    "$CONTRIB"/compile_neoscrypt_lib.sh || fail "Could not build libneoscrypt"
+fi
+cp -f "$DLL_TARGET_DIR"/libneoscrypt.so.* "$APPDIR/usr/lib/" || fail "Could not copy $DLL_TARGET_DIR/libneoscrypt to its destination"
+
+if [ -f "$DLL_TARGET_DIR/libscrypt.so.0" ]; then
+    info "libscrypt already built, skipping"
+else
+    "$CONTRIB"/compile_scrypt_lib.sh || fail "Could not build libscrypt"
+fi
+cp -f "$DLL_TARGET_DIR"/libscrypt.so.* "$APPDIR/usr/lib/" || fail "Could not copy libscrypt to its destination"
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
 #       This pkg is needed on some distros for Qt to launch. (see #8011)
@@ -176,11 +189,7 @@ info "installing electrum and its dependencies."
 
 info "copying zbar"
 cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
-info "copying neoscrypt"
-cp "$PROJECT_ROOT/electrum/libneoscrypt.so.0"  "$APPDIR/usr/lib/libneoscrypt.so.0"
 
-info "copying scrypt"
-cp "$PROJECT_ROOT/electrum/libscrypt.so.0"  "$APPDIR/usr/lib/libscrypt.so.0"
 
 info "desktop integration."
 cp "$PROJECT_ROOT/electrum.desktop" "$APPDIR/electrum.desktop"
