@@ -3,7 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Union
+from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Union, Mapping
 from PyQt5.QtCore import pyqtSignal, QPoint, QSize, Qt
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
@@ -295,7 +295,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs: List[PartialTxOutput],
             *,
             nonlocal_only=False,
-            external_keypairs=None,
+            external_keypairs: Mapping[bytes, bytes] = None,
             get_coins: Callable[..., Sequence[PartialTxInput]] = None,
             invoice: Optional[Invoice] = None
     ) -> None:

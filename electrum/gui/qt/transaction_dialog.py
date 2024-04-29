@@ -30,7 +30,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple, Mapping
 from functools import partial
 from decimal import Decimal
 
@@ -410,7 +410,7 @@ def show_transaction(
     *,
     parent: 'ElectrumWindow',
     prompt_if_unsaved: bool = False,
-    external_keypairs=None,
+    external_keypairs: Mapping[bytes, bytes] = None,
     payment_identifier: 'PaymentIdentifier' = None,
 ):
     try:
@@ -438,7 +438,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         *,
         parent: 'ElectrumWindow',
         prompt_if_unsaved: bool,
-        external_keypairs=None,
+        external_keypairs: Mapping[bytes, bytes] = None,
         payment_identifier: 'PaymentIdentifier' = None,
     ):
         '''Transactions in the wallet will show their description.

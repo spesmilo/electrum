@@ -1614,7 +1614,7 @@ class Channel(AbstractChannel):
     def force_close_tx(self) -> PartialTransaction:
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
-        tx.sign({self.config[LOCAL].multisig_key.pubkey.hex(): (self.config[LOCAL].multisig_key.privkey, True)})
+        tx.sign({self.config[LOCAL].multisig_key.pubkey: self.config[LOCAL].multisig_key.privkey})
         remote_sig = self.config[LOCAL].current_commitment_signature
         remote_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
         tx.add_signature_to_txin(txin_idx=0,

@@ -33,7 +33,7 @@ import sys
 import io
 import base64
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
-                    Callable, List, Dict, Set, TYPE_CHECKING)
+                    Callable, List, Dict, Set, TYPE_CHECKING, Mapping)
 from collections import defaultdict
 from enum import IntEnum
 import itertools
@@ -2130,22 +2130,21 @@ class PartialTransaction(Transaction):
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
 
-    def sign(self, keypairs) -> None:
-        # keypairs:  pubkey_hex -> (secret_bytes, is_compressed)
+    def sign(self, keypairs: Mapping[bytes, bytes]) -> None:
+        # keypairs:  pubkey_bytes -> secret_bytes
         bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
         for i, txin in enumerate(self.inputs()):
-            pubkeys = [pk.hex() for pk in txin.pubkeys]
-            for pubkey in pubkeys:
+            for pubkey in txin.pubkeys:
                 if txin.is_complete():
                     break
                 if pubkey not in keypairs:
                     continue
                 _logger.info(f"adding signature for {pubkey}. spending utxo {txin.prevout.to_str()}")
-                sec, compressed = keypairs[pubkey]
+                sec = keypairs[pubkey]
                 sig = self.sign_txin(i, sec, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)
-                self.add_signature_to_txin(txin_idx=i, signing_pubkey=bfh(pubkey), sig=sig)
+                self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey, sig=sig)
 
-        _logger.debug(f"is_complete {self.is_complete()}")
+        _logger.debug(f"tx.sign() finished. is_complete={self.is_complete()}")
         self.invalidate_ser_cache()
 
     def sign_txin(

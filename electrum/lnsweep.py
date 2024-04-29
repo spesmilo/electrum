@@ -511,12 +511,12 @@ def create_sweeptx_their_ctx_to_remote(
         sweep_address: str, ctx: Transaction, output_idx: int,
         our_payment_privkey: ecc.ECPrivkey,
         config: SimpleConfig) -> Optional[PartialTransaction]:
-    our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
+    our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
     val = ctx.outputs()[output_idx].value
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
     txin = PartialTxInput(prevout=prevout)
     txin._trusted_value_sats = val
-    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey, script_type='p2wpkh')
+    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey.hex(), script_type='p2wpkh')
     txin.script_descriptor = desc
     sweep_inputs = [txin]
     tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
@@ -526,7 +526,7 @@ def create_sweeptx_their_ctx_to_remote(
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
     sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
     sweep_tx.set_rbf(True)
-    sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
+    sweep_tx.sign({our_payment_pubkey: our_payment_privkey.get_secret_bytes()})
     if not sweep_tx.is_complete():
         raise Exception('channel close sweep tx is not complete')
     return sweep_tx

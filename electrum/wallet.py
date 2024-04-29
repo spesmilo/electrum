@@ -40,7 +40,7 @@ from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
 from abc import ABC, abstractmethod
 import itertools
 import threading
@@ -136,20 +136,22 @@ async def _append_utxos_to_inputs(
             await group.spawn(append_single_utxo(item))
 
 
-async def sweep_preparations(privkeys, network: 'Network', imax=100):
+async def sweep_preparations(
+    privkeys: Iterable[str], network: 'Network', imax=100,
+) -> Tuple[Sequence[PartialTxInput], Mapping[bytes, bytes]]:
 
-    async def find_utxos_for_privkey(txin_type, privkey, compressed):
-        pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
-        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+    async def find_utxos_for_privkey(txin_type: str, privkey: bytes, compressed: bool):
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=compressed)
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
         await _append_utxos_to_inputs(
             inputs=inputs,
             network=network,
             script_descriptor=desc,
             imax=imax)
-        keypairs[pubkey] = privkey, compressed
+        keypairs[pubkey] = privkey
 
     inputs = []  # type: List[PartialTxInput]
-    keypairs = {}
+    keypairs = {}  # type: Dict[bytes, bytes]
     async with OldTaskGroup() as group:
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
@@ -169,7 +171,7 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
 
 async def sweep(
-        privkeys,
+        privkeys: Iterable[str],
         *,
         network: 'Network',
         config: 'SimpleConfig',
