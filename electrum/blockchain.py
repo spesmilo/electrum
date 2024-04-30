@@ -26,7 +26,7 @@ import time
 from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING
 
 from . import util
-from .bitcoin import hash_encode, int_to_hex, rev_hex
+from .bitcoin import hash_encode
 from .crypto import sha256d
 from . import constants
 from .util import bfh, with_lock
@@ -49,13 +49,14 @@ class MissingHeader(Exception):
 class InvalidHeader(Exception):
     pass
 
-def serialize_header(header_dict: dict) -> str:
-    s = int_to_hex(header_dict['version'], 4) \
-        + rev_hex(header_dict['prev_block_hash']) \
-        + rev_hex(header_dict['merkle_root']) \
-        + int_to_hex(int(header_dict['timestamp']), 4) \
-        + int_to_hex(int(header_dict['bits']), 4) \
-        + int_to_hex(int(header_dict['nonce']), 4)
+def serialize_header(header_dict: dict) -> bytes:
+    s = (
+        int.to_bytes(header_dict['version'], length=4, byteorder="little", signed=False)
+        + bfh(header_dict['prev_block_hash'])[::-1]
+        + bfh(header_dict['merkle_root'])[::-1]
+        + int.to_bytes(int(header_dict['timestamp']), length=4, byteorder="little", signed=False)
+        + int.to_bytes(int(header_dict['bits']), length=4, byteorder="little", signed=False)
+        + int.to_bytes(int(header_dict['nonce']), length=4, byteorder="little", signed=False))
     return s
 
 def deserialize_header(s: bytes, height: int) -> dict:
@@ -63,14 +64,13 @@ def deserialize_header(s: bytes, height: int) -> dict:
         raise InvalidHeader('Invalid header: {}'.format(s))
     if len(s) != HEADER_SIZE:
         raise InvalidHeader('Invalid header length: {}'.format(len(s)))
-    hex_to_int = lambda s: int.from_bytes(s, byteorder='little')
     h = {}
-    h['version'] = hex_to_int(s[0:4])
+    h['version'] = int.from_bytes(s[0:4], byteorder='little')
     h['prev_block_hash'] = hash_encode(s[4:36])
     h['merkle_root'] = hash_encode(s[36:68])
-    h['timestamp'] = hex_to_int(s[68:72])
-    h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['timestamp'] = int.from_bytes(s[68:72], byteorder='little')
+    h['bits'] = int.from_bytes(s[72:76], byteorder='little')
+    h['nonce'] = int.from_bytes(s[76:80], byteorder='little')
     h['block_height'] = height
     return h
 
@@ -82,8 +82,9 @@ def hash_header(header: dict) -> str:
     return hash_raw_header(serialize_header(header))
 
 
-def hash_raw_header(header: str) -> str:
-    return hash_encode(sha256d(bfh(header)))
+def hash_raw_header(header: bytes) -> str:
+    assert isinstance(header, bytes)
+    return hash_encode(sha256d(header))
 
 
 pow_hash_header = hash_header
@@ -413,7 +414,7 @@ class Blockchain(Logger):
         # swap parameters
         self.parent, parent.parent = parent.parent, self  # type: Optional[Blockchain], Optional[Blockchain]
         self.forkpoint, parent.forkpoint = parent.forkpoint, self.forkpoint
-        self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(parent_data[:HEADER_SIZE].hex())
+        self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(parent_data[:HEADER_SIZE])
         self._prev_hash, parent._prev_hash = parent._prev_hash, self._prev_hash
         # parent's new name
         os.replace(child_old_name, parent.path())
@@ -454,7 +455,7 @@ class Blockchain(Logger):
     @with_lock
     def save_header(self, header: dict) -> None:
         delta = header.get('block_height') - self.forkpoint
-        data = bfh(serialize_header(header))
+        data = serialize_header(header)
         # headers are only _appended_ to the end:
         assert delta == self.size(), (delta, self.size())
         assert len(data) == HEADER_SIZE

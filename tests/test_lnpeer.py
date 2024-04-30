@@ -1208,7 +1208,7 @@ class TestPeerDirect(TestPeer):
         # shutdown script
         bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
         bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bob_uss_pub.hex())
-        bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
+        bob_uss = bitcoin.address_to_script(bob_uss_addr)
 
         # bob commits to close to bob_uss
         alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss

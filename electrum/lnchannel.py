@@ -1099,7 +1099,7 @@ class Channel(AbstractChannel):
                                                               commit=pending_remote_commitment,
                                                               ctx_output_idx=ctx_output_idx,
                                                               htlc=htlc)
-            sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
+            sig = htlc_tx.sign_txin(0, their_remote_htlc_privkey)
             htlc_sig = ecc.ecdsa_sig64_from_der_sig(sig[:-1])
             htlcsigs.append((ctx_output_idx, htlc_sig))
         htlcsigs.sort()
@@ -1121,13 +1121,13 @@ class Channel(AbstractChannel):
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
         pending_local_commitment = self.get_next_commitment(LOCAL)
-        preimage_hex = pending_local_commitment.serialize_preimage(0)
-        pre_hash = sha256d(bfh(preimage_hex))
-        if not ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(sig, pre_hash):
+        pre_hash = pending_local_commitment.serialize_preimage(0)
+        msg_hash = sha256d(pre_hash)
+        if not ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(sig, msg_hash):
             raise LNProtocolWarning(
                 f'failed verifying signature for our updated commitment transaction. '
                 f'sig={sig.hex()}. '
-                f'pre_hash={pre_hash.hex()}. '
+                f'msg_hash={msg_hash.hex()}. '
                 f'pubkey={self.config[REMOTE].multisig_key.pubkey}. '
                 f'ctx={pending_local_commitment.serialize()} '
             )
@@ -1167,16 +1167,16 @@ class Channel(AbstractChannel):
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
-        preimage_hex = htlc_tx.serialize_preimage(0)
-        pre_hash = sha256d(bfh(preimage_hex))
+        pre_hash = htlc_tx.serialize_preimage(0)
+        msg_hash = sha256d(pre_hash)
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
-        if not ECPubkey(remote_htlc_pubkey).ecdsa_verify(htlc_sig, pre_hash):
+        if not ECPubkey(remote_htlc_pubkey).ecdsa_verify(htlc_sig, msg_hash):
             raise LNProtocolWarning(
                 f'failed verifying HTLC signatures: {htlc=}, {htlc_direction=}. '
                 f'htlc_tx={htlc_tx.serialize()}. '
                 f'htlc_sig={htlc_sig.hex()}. '
                 f'remote_htlc_pubkey={remote_htlc_pubkey.hex()}. '
-                f'pre_hash={pre_hash.hex()}. '
+                f'msg_hash={msg_hash.hex()}. '
                 f'ctx={ctx.serialize()}. '
                 f'ctx_output_idx={ctx_output_idx}. '
                 f'ctn={ctn}. '
@@ -1587,8 +1587,8 @@ class Channel(AbstractChannel):
                 },
                 local_amount_msat=self.balance(LOCAL),
                 remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
-                local_script=local_script.hex(),
-                remote_script=remote_script.hex(),
+                local_script=local_script,
+                remote_script=remote_script,
                 htlcs=[],
                 dust_limit_sat=self.config[LOCAL].dust_limit_sat)
 
@@ -1599,14 +1599,14 @@ class Channel(AbstractChannel):
                                      funding_sat=self.constraints.capacity,
                                      outputs=outputs)
 
-        der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
+        der_sig = closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey)
         sig = ecc.ecdsa_sig64_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
     def signature_fits(self, tx: PartialTransaction) -> bool:
         remote_sig = self.config[LOCAL].current_commitment_signature
-        preimage_hex = tx.serialize_preimage(0)
-        msg_hash = sha256d(bfh(preimage_hex))
+        pre_hash = tx.serialize_preimage(0)
+        msg_hash = sha256d(pre_hash)
         assert remote_sig
         res = ECPubkey(self.config[REMOTE].multisig_key.pubkey).ecdsa_verify(remote_sig, msg_hash)
         return res
@@ -1614,12 +1614,12 @@ class Channel(AbstractChannel):
     def force_close_tx(self) -> PartialTransaction:
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
-        tx.sign({self.config[LOCAL].multisig_key.pubkey.hex(): (self.config[LOCAL].multisig_key.privkey, True)})
+        tx.sign({self.config[LOCAL].multisig_key.pubkey: self.config[LOCAL].multisig_key.privkey})
         remote_sig = self.config[LOCAL].current_commitment_signature
         remote_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
         tx.add_signature_to_txin(txin_idx=0,
-                                 signing_pubkey=self.config[REMOTE].multisig_key.pubkey.hex(),
-                                 sig=remote_sig.hex())
+                                 signing_pubkey=self.config[REMOTE].multisig_key.pubkey,
+                                 sig=remote_sig)
         assert tx.is_complete()
         return tx
 

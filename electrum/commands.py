@@ -422,9 +422,9 @@ class Commands:
             sec = txin_dict.get('privkey')
             if sec:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-                pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
-                keypairs[pubkey] = privkey, compressed
-                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+                pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=compressed)
+                keypairs[pubkey] = privkey
+                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
                 txin.script_descriptor = desc
             inputs.append(txin)
 
@@ -465,7 +465,7 @@ class Commands:
             if address in txins_dict.keys():
                 for txin in txins_dict[address]:
                     txin.script_descriptor = desc
-                tx.sign({pubkey.hex(): (priv2, compressed)})
+                tx.sign({pubkey: priv2})
 
         return tx.serialize()
 
@@ -494,8 +494,8 @@ class Commands:
         """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
         redeem_script = multisig_script(pubkeys, num)
-        address = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
-        return {'address':address, 'redeemScript':redeem_script}
+        address = bitcoin.hash160_to_p2sh(hash_160(redeem_script))
+        return {'address': address, 'redeemScript': redeem_script.hex()}
 
     @command('w')
     async def freeze(self, address: str, wallet: Abstract_Wallet = None):

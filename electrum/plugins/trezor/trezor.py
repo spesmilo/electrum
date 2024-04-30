@@ -346,8 +346,8 @@ class TrezorPlugin(HW_PluginBase):
                                        amount_unit=self.get_trezor_amount_unit(),
                                        serialize=False,
                                        prev_txes=prev_tx)
-        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [((x.hex() + sighash) if x else None) for x in signatures]
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        signatures = [((sig + sighash) if sig else None) for sig in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread

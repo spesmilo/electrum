@@ -522,7 +522,7 @@ class WalletDBUpgrader(Logger):
             tx = Transaction(raw_tx)
             for idx, txout in enumerate(tx.outputs()):
                 outpoint = f"{txid}:{idx}"
-                scripthash = script_to_scripthash(txout.scriptpubkey.hex())
+                scripthash = script_to_scripthash(txout.scriptpubkey)
                 prevouts_by_scripthash[scripthash].append((outpoint, txout.value))
         self.put('prevouts_by_scripthash', prevouts_by_scripthash)
 
@@ -1126,7 +1126,7 @@ class WalletDBUpgrader(Logger):
                 tx = Transaction(raw_tx)
             for idx, txout in enumerate(tx.outputs()):
                 outpoint = f"{txid}:{idx}"
-                scripthash = script_to_scripthash(txout.scriptpubkey.hex())
+                scripthash = script_to_scripthash(txout.scriptpubkey)
                 if scripthash not in prevouts_by_scripthash:
                     prevouts_by_scripthash[scripthash] = {}
                 prevouts_by_scripthash[scripthash][outpoint] = txout.value

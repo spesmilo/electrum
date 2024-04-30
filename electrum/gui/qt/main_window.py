@@ -34,7 +34,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set
+from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set, Mapping
 import concurrent.futures
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics
@@ -1106,7 +1106,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self,
         tx: Transaction,
         *,
-        external_keypairs=None,
+        external_keypairs: Mapping[bytes, bytes] = None,
         payment_identifier: PaymentIdentifier = None,
     ):
         show_transaction(tx, parent=self, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
@@ -1269,10 +1269,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.broadcast_transaction(tx, payment_identifier=payment_identifier)
 
     @protected
-    def sign_tx(self, tx, *, callback, external_keypairs, password):
+    def sign_tx(
+        self,
+        tx: PartialTransaction,
+        *,
+        callback,
+        external_keypairs: Optional[Mapping[bytes, bytes]],
+        password,
+    ):
         self.sign_tx_with_password(tx, callback=callback, password=password, external_keypairs=external_keypairs)
 
-    def sign_tx_with_password(self, tx: PartialTransaction, *, callback, password, external_keypairs=None):
+    def sign_tx_with_password(
+        self,
+        tx: PartialTransaction,
+        *,
+        callback,
+        password,
+        external_keypairs: Mapping[bytes, bytes] = None,
+    ):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''

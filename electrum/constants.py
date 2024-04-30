@@ -74,7 +74,7 @@ class AbstractNet:
 
     @classmethod
     def rev_genesis_bytes(cls) -> bytes:
-        return bytes.fromhex(bitcoin.rev_hex(cls.GENESIS))
+        return bytes.fromhex(cls.GENESIS)[::-1]
 
 
 class BitcoinMainnet(AbstractNet):

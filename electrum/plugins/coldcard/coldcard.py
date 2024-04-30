@@ -600,7 +600,7 @@ class ColdcardPlugin(HW_PluginBase):
                 xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
                 xfp_paths.append([xfp_int] + list(der_full))
 
-            script = bfh(wallet.pubkeys_to_scriptcode(pubkey_hexes))
+            script = wallet.pubkeys_to_scriptcode(pubkey_hexes)
 
             keystore.show_p2sh_address(wallet.m, script, xfp_paths, txin_type)
 

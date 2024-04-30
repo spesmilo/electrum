@@ -624,7 +624,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                     return
         elif is_address(self.str_recipient):
             amount_sat = self.parse_amount(self.str_amount)
-            scriptpubkey = bytes.fromhex(address_to_script(self.str_recipient))
+            scriptpubkey = address_to_script(self.str_recipient)
             outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat)]
             invoice = self.wallet.create_invoice(
                 outputs=outputs,
