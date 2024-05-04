@@ -79,10 +79,12 @@ class TestLightningSwapserver(TestLightning):
     agents = {
         'alice': {
             'use_gossip': 'false',
+            'swapserver_url': 'http://localhost:5455',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'enable_plugin_swapserver': 'true',
+            'swapserver_port': '5455',
         }
     }
 

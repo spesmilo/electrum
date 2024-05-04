@@ -1179,19 +1179,47 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        def get_pairs_thread():
-            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
-        try:
-            BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
-        except SwapServerError as e:
-            self.show_error(str(e))
-            return
+        if self.config.NOSTR_SWAPSERVER_PUBKEY is None:
+            if not self.question('\n'.join([
+                    _('Swap providers use Nostr to announce their liquidity.'),
+                    _('Do you want to enable Nostr now?'),
+            ])):
+                return
+            # should open popup too if server offer cannot be found on nostr
+            if not self.swap_server_dialog():
+                return
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
         try:
             return d.run()
         except InvalidSwapParameters as e:
             self.show_error(str(e))
             return
+
+    async def start_sm(self):
+        sm = self.wallet.lnworker.swap_manager
+        sm.start_network(network=self.network, lnwatcher=self.wallet.lnworker.lnwatcher)
+        await asyncio.sleep(3)
+
+    def swap_server_dialog(self):
+        sm = self.wallet.lnworker.swap_manager
+        if sm.network_started is False:
+            BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(self.start_sm()))
+        def descr(x):
+            last_seen = util.age(x['timestamp'])
+            return f"{x['pubkey'][0:10]}, fee={x['percentage_fee']} {last_seen}"
+        server_keys = [(k, descr(v)) for k, v in sm.transport.offers.items()]
+        choice = self.query_choice(
+            msg = _("Please choose a server"),
+            choices = server_keys,
+            title = _("Choose swap server"),
+            default_choice = self.config.NOSTR_SWAPSERVER_PUBKEY
+        )
+        if choice not in sm.transport.offers:
+            return False
+        self.config.NOSTR_SWAPSERVER_PUBKEY = choice
+        pairs = sm.transport.get_offer(choice)
+        sm.update_pairs(pairs)
+        return True
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
