@@ -301,7 +301,7 @@ class QEInvoice(QObject, QtEventListener):
         if amount.isEmpty and self.status == PR_UNPAID:  # unspecified amount
             return
 
-        def userinfo_for_invoice_status(status):
+        def userinfo_for_invoice_status(status: int) -> str:
             return {
                 PR_EXPIRED: _('This invoice has expired'),
                 PR_PAID: _('This invoice was already paid'),
@@ -324,13 +324,13 @@ class QEInvoice(QObject, QtEventListener):
                     # TODO: subtract fee?
                     self.userinfo = _('Insufficient balance')
             else:
-                self.userinfo = userinfo_for_invoice_status([self.status])
+                self.userinfo = userinfo_for_invoice_status(self.status)
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if not ((amount.isMax and self.get_max_spendable_onchain() > 0) or (self.get_max_spendable_onchain() >= amount.satsInt)):
                     self.userinfo = _('Insufficient balance')
             else:
-                self.userinfo = userinfo_for_invoice_status([self.status])
+                self.userinfo = userinfo_for_invoice_status(self.status)
 
     def determine_can_pay(self):
         self.canPay = False
