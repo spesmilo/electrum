@@ -86,7 +86,7 @@ from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
-from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
+from .trampoline import create_trampoline_route_and_onion, is_legacy_relay
 
 if TYPE_CHECKING:
     from .network import Network
@@ -2630,8 +2630,8 @@ class LNWallet(LNWorker):
     def fee_estimate(self, amount_sat):
         # Here we have to guess a fee, because some callers (submarine swaps)
         # use this method to initiate a payment, which would otherwise fail.
-        fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
-        fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
+        fee_base_msat = 5000               # FIXME ehh.. there ought to be a better way...
+        fee_proportional_millionths = 500  # FIXME
         # inverse of fee_for_edge_msat
         amount_msat = amount_sat * 1000
         amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
