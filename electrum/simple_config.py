@@ -1039,6 +1039,16 @@ Note you are at risk of losing the funds in the swap, if the funding transaction
 This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
     )
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
+    LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = ConfigVar(
+        'lightning_payment_fee_max_millionths', default=10_000,  # 1%
+        type_=int,
+        short_desc=lambda: _("Max lightning fees (%) to pay"),
+    )
+    LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = ConfigVar(
+        'lightning_payment_fee_cutoff_msat', default=10_000,  # 10 sat
+        type_=int,
+        short_desc=lambda: _("Max lightning fees to pay for small payments"),
+    )
 
     LIGHTNING_NODE_ALIAS = ConfigVar('lightning_node_alias', default='', type_=str)
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)

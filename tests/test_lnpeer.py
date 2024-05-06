@@ -258,7 +258,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             amount_msat=amount_msat,
             paysession=paysession,
             full_path=full_path,
-            budget=PaymentFeeBudget.default(invoice_amount_msat=amount_msat),
+            budget=PaymentFeeBudget.default(invoice_amount_msat=amount_msat, config=self.config),
         )]
 
     get_payments = LNWallet.get_payments
