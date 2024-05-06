@@ -580,6 +580,14 @@ class SwapManager(Logger):
             assert swap.spending_txid is None
             self.invoices_to_pay[key] = 0
 
+    async def send_request_to_server(self, method, request_data):
+        response = await self.network.async_send_http_on_proxy(
+            'post' if request_data else 'get',
+            self.api_url + '/' + method,
+            json=request_data,
+            timeout=30)
+        return json.loads(response)
+
     async def normal_swap(
             self,
             *,
@@ -633,12 +641,7 @@ class SwapManager(Logger):
             "invoiceAmount": lightning_amount_sat,
             "refundPublicKey": refund_pubkey.hex()
         }
-        response = await self.network.async_send_http_on_proxy(
-            'post',
-            self.api_url + '/createnormalswap',
-            json=request_data,
-            timeout=30)
-        data = json.loads(response)
+        data = await self.send_request_to_server('createnormalswap', request_data)
         payment_hash = bytes.fromhex(data["preimageHash"])
 
         zeroconf = data["acceptZeroConf"]
@@ -702,12 +705,7 @@ class SwapManager(Logger):
             "invoice": invoice,
             "refundPublicKey": refund_pubkey.hex(),
         }
-        response = await self.network.async_send_http_on_proxy(
-            'post',
-            self.api_url + '/addswapinvoice',
-            json=request_data,
-            timeout=30)
-        data = json.loads(response)
+        data = await self.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
         lnaddr = lndecode(invoice)
         while swap.funding_txid is None and not lnaddr.is_expired():
@@ -796,12 +794,7 @@ class SwapManager(Logger):
             "preimageHash": payment_hash.hex(),
             "claimPublicKey": our_pubkey.hex()
         }
-        response = await self.network.async_send_http_on_proxy(
-            'post',
-            self.api_url + '/createswap',
-            json=request_data,
-            timeout=30)
-        data = json.loads(response)
+        data = await self.send_request_to_server('createswap', request_data)
         invoice = data['invoice']
         fee_invoice = data.get('minerFeeInvoice')
         lockup_address = data['lockupAddress']
@@ -882,15 +875,10 @@ class SwapManager(Logger):
         """Might raise SwapServerError."""
         from .network import Network
         try:
-            response = await Network.async_send_http_on_proxy(
-                'get',
-                self.api_url + '/getpairs',
-                timeout=30)
+            pairs = await self.send_request_to_server('getpairs', None)
         except aiohttp.ClientError as e:
             self.logger.error(f"Swap server errored: {e!r}")
             raise SwapServerError() from e
-        # we assume server response is well-formed; otherwise let an exception propagate to the crash reporter
-        pairs = json.loads(response)
         # cache data to disk
         with open(self.pairs_filename(), 'w', encoding='utf-8') as f:
             f.write(json.dumps(pairs))
