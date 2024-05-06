@@ -1505,16 +1505,6 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-        self.logger.info(
-            f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
-            f"using_trampoline={self.uses_trampoline()}. "
-            f"invoice_features={invoice_features.get_names()}")
-        if not self.uses_trampoline():
-            self.logger.info(
-                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
-                f"num_nodes={self.channel_db.num_nodes}, "
-                f"num_channels={self.channel_db.num_channels}, "
-                f"num_policies={self.channel_db.num_policies}.")
         self.set_invoice_status(key, PR_INFLIGHT)
         budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
         success = False
@@ -1586,6 +1576,18 @@ class LNWallet(LNWorker):
             use_two_trampolines=self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
+
+        paysession.logger.info(
+            f"pay_to_node starting session for RHASH={payment_hash.hex()}. "
+            f"using_trampoline={self.uses_trampoline()}. "
+            f"invoice_features={paysession.invoice_features.get_names()}. "
+            f"{amount_to_pay=} msat. {budget=}")
+        if not self.uses_trampoline():
+            self.logger.info(
+                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
+                f"num_nodes={self.channel_db.num_nodes}, "
+                f"num_channels={self.channel_db.num_channels}, "
+                f"num_policies={self.channel_db.num_policies}.")
 
         # when encountering trampoline forwarding difficulties in the legacy case, we
         # sometimes need to fall back to a single trampoline forwarder, at the expense
@@ -1665,6 +1667,7 @@ class LNWallet(LNWorker):
             paysession.is_active = False
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
+            paysession.logger.info(f"pay_to_node ending session for RHASH={payment_hash.hex()}")
 
     async def pay_to_route(
             self, *,
