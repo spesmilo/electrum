@@ -1042,7 +1042,10 @@ This will result in longer routes; it might increase your fees and decrease the 
     LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = ConfigVar(
         'lightning_payment_fee_max_millionths', default=10_000,  # 1%
         type_=int,
-        short_desc=lambda: _("Max lightning fees (%) to pay"),
+        short_desc=lambda: _("Max lightning fees to pay"),
+        long_desc=lambda: _("""When sending lightning payments, this value is an upper bound for the fees we allow paying, proportional to the payment amount. The fees are paid in addition to the payment amount, by the sender.
+
+Warning: setting this to too low will result in lots of payment failures."""),
     )
     LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = ConfigVar(
         'lightning_payment_fee_cutoff_msat', default=10_000,  # 10 sat

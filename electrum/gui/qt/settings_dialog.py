@@ -30,7 +30,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QWidget, QHBoxLayout)
+                             QPushButton, QWidget, QHBoxLayout, QSlider)
 
 from electrum.i18n import _, languages
 from electrum import util, paymentrequest
@@ -154,6 +154,37 @@ class SettingsDialog(QDialog, QtEventListener):
             url = self.watchtower_url_e.text() or None
             self.config.WATCHTOWER_CLIENT_URL = url
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
+
+        lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+        def lnfee_update_vlabel(fee_val: int):
+            lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+        def lnfee_slider_moved():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            lnfee_update_vlabel(fee_val)
+        def lnfee_slider_released():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+        lnfee_slider = QSlider(Qt.Horizontal)
+        lnfee_slider.setRange(0, len(lnfee_map)-1)
+        lnfee_slider.setTracking(True)
+        try:
+            lnfee_spos = lnfee_map.index(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        except ValueError:
+            lnfee_spos = 0
+        lnfee_slider.setSliderPosition(lnfee_spos)
+        lnfee_vlabel = QLabel("")
+        lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_slider.valueChanged.connect(lnfee_slider_moved)
+        lnfee_slider.sliderReleased.connect(lnfee_slider_released)
+        lnfee_hbox = QHBoxLayout()
+        lnfee_hbox.setContentsMargins(0, 0, 0, 0)
+        lnfee_hbox.addWidget(lnfee_vlabel)
+        lnfee_hbox.addWidget(lnfee_slider)
+        lnfee_hbox_w = QWidget()
+        lnfee_hbox_w.setLayout(lnfee_hbox)
 
         alias_label = HelpLabel.from_configvar(self.config.cv.OPENALIAS_ID)
         alias = self.config.OPENALIAS_ID
@@ -351,6 +382,7 @@ class SettingsDialog(QDialog, QtEventListener):
         lightning_widgets.append((trampoline_cb, None))
         lightning_widgets.append((legacy_add_trampoline_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
+        lightning_widgets.append((lnfee_hlabel, lnfee_hbox_w))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
