@@ -1672,9 +1672,24 @@ class PaymentFeeBudget(NamedTuple):
     #num_htlc: int
 
     @classmethod
-    def default(cls, *, invoice_amount_msat: int) -> 'PaymentFeeBudget':
-        from .lnrouter import get_default_fee_budget_msat
+    def default(cls, *, invoice_amount_msat: int, config: 'SimpleConfig') -> 'PaymentFeeBudget':
+        millionths_orig = config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS
+        millionths = min(max(0, millionths_orig), 250_000)  # clamp into [0, 25%]
+        cutoff_orig = config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT
+        cutoff = min(max(0, cutoff_orig), 10_000_000)  # clamp into [0, 10k sat]
+        if millionths != millionths_orig:
+            _logger.warning(
+                f"PaymentFeeBudget. found insane fee millionths in config. "
+                f"clamped: {millionths_orig}->{millionths}")
+        if cutoff != cutoff_orig:
+            _logger.warning(
+                f"PaymentFeeBudget. found insane fee cutoff in config. "
+                f"clamped: {cutoff_orig}->{cutoff}")
+        # for small payments, fees <= constant cutoff are fine
+        # for large payments, the max fee is percentage-based
+        fee_msat = invoice_amount_msat * millionths // 1_000_000
+        fee_msat = max(fee_msat, cutoff)
         return PaymentFeeBudget(
-            fee_msat=get_default_fee_budget_msat(invoice_amount_msat=invoice_amount_msat),
+            fee_msat=fee_msat,
             cltv=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
         )

@@ -1516,7 +1516,7 @@ class LNWallet(LNWorker):
                 f"num_channels={self.channel_db.num_channels}, "
                 f"num_policies={self.channel_db.num_policies}.")
         self.set_invoice_status(key, PR_INFLIGHT)
-        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay)
+        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
         success = False
         try:
             await self.pay_to_node(
