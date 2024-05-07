@@ -83,7 +83,7 @@ from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
-from .submarine_swaps import SwapManager
+from .submarine_swaps import HttpSwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
 from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
@@ -856,7 +856,7 @@ class LNWallet(LNWorker):
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
-        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+        self.swap_manager = HttpSwapManager(wallet=self.wallet, lnworker=self)
 
 
     def has_deterministic_node_id(self) -> bool:
