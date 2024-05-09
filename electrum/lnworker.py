@@ -86,7 +86,7 @@ from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import HttpSwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
-from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
+from .trampoline import create_trampoline_route_and_onion, is_legacy_relay
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1505,18 +1505,8 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-        self.logger.info(
-            f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
-            f"using_trampoline={self.uses_trampoline()}. "
-            f"invoice_features={invoice_features.get_names()}")
-        if not self.uses_trampoline():
-            self.logger.info(
-                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
-                f"num_nodes={self.channel_db.num_nodes}, "
-                f"num_channels={self.channel_db.num_channels}, "
-                f"num_policies={self.channel_db.num_policies}.")
         self.set_invoice_status(key, PR_INFLIGHT)
-        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay)
+        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
         success = False
         try:
             await self.pay_to_node(
@@ -1586,6 +1576,18 @@ class LNWallet(LNWorker):
             use_two_trampolines=self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
+
+        paysession.logger.info(
+            f"pay_to_node starting session for RHASH={payment_hash.hex()}. "
+            f"using_trampoline={self.uses_trampoline()}. "
+            f"invoice_features={paysession.invoice_features.get_names()}. "
+            f"{amount_to_pay=} msat. {budget=}")
+        if not self.uses_trampoline():
+            self.logger.info(
+                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
+                f"num_nodes={self.channel_db.num_nodes}, "
+                f"num_channels={self.channel_db.num_channels}, "
+                f"num_policies={self.channel_db.num_policies}.")
 
         # when encountering trampoline forwarding difficulties in the legacy case, we
         # sometimes need to fall back to a single trampoline forwarder, at the expense
@@ -1665,6 +1667,7 @@ class LNWallet(LNWorker):
             paysession.is_active = False
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
+            paysession.logger.info(f"pay_to_node ending session for RHASH={payment_hash.hex()}")
 
     async def pay_to_route(
             self, *,
@@ -2630,8 +2633,8 @@ class LNWallet(LNWorker):
     def fee_estimate(self, amount_sat):
         # Here we have to guess a fee, because some callers (submarine swaps)
         # use this method to initiate a payment, which would otherwise fail.
-        fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
-        fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
+        fee_base_msat = 5000               # FIXME ehh.. there ought to be a better way...
+        fee_proportional_millionths = 500  # FIXME
         # inverse of fee_for_edge_msat
         amount_msat = amount_sat * 1000
         amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
