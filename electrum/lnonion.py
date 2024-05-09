@@ -368,9 +368,11 @@ class ProcessedOnionPacket(NamedTuple):
 # TODO replay protection
 def process_onion_packet(
         onion_packet: OnionPacket,
-        associated_data: bytes,
         our_onion_private_key: bytes,
-        is_trampoline=False) -> ProcessedOnionPacket:
+        *,
+        associated_data: bytes = bytes(),
+        is_trampoline=False,
+        tlv_stream_name='payload') -> ProcessedOnionPacket:
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
@@ -388,7 +390,7 @@ def process_onion_packet(
     padded_header = onion_packet.hops_data + bytes(data_size)
     next_hops_data = xor_bytes(padded_header, stream_bytes)
     next_hops_data_fd = io.BytesIO(next_hops_data)
-    hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd)
+    hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd, tlv_stream_name=tlv_stream_name)
     # trampoline
     trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
     if trampoline_onion_packet:
