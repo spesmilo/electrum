@@ -31,6 +31,9 @@ import threading
 import traceback
 import sys
 import aiohttp
+import json
+import hashlib
+import asyncio
 
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
@@ -40,11 +43,12 @@ from concurrent import futures
 from functools import wraps, partial
 
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, log_exceptions)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
+from .ecc import ECPubkey
 
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
@@ -72,22 +76,45 @@ class Plugins(DaemonThread):
         self.plugins = {}  # type: Dict[str, BasePlugin]
         self.internal_plugin_metadata = {}
         self.external_plugin_metadata = {}
+        self.installed_plugin_metadata = {}
         self.gui_name = gui_name
         self.device_manager = DeviceMgr(config)
         self.user_pkgpath = os.path.join(self.config.electrum_path_root(), 'plugins')
         if not os.path.exists(self.user_pkgpath):
             os.mkdir(self.user_pkgpath)
+        self.init_trusted_plugins()
         self.find_internal_plugins()
         self.find_external_plugins()
+        self.find_installed_plugins()
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
     @property
     def descriptions(self):
-        return dict(list(self.internal_plugin_metadata.items()) + list(self.external_plugin_metadata.items()))
+        # if a plugin was installed but is no longer in external_plugin_metadata,
+        # it will be returned by this method
+        d = {}
+        d.update(self.internal_plugin_metadata)
+        d.update(self.external_plugin_metadata)
+        d.update(self.installed_plugin_metadata)
+        return d
 
-    def find_internal_plugins(self):
+    def is_installed(self, name):
+        return name in self.installed_plugin_metadata
+
+    def can_be_upgraded(self, name):
+        from .util import versiontuple
+        from .version import ELECTRUM_VERSION
+        if name not in self.external_plugin_metadata:
+            return False
+        installed_version = self.installed_plugin_metadata[name].get('version')
+        available_version = self.external_plugin_metadata[name].get('version')
+        min_electrum_version = self.external_plugin_metadata[name].get('min_electrum_version', '0.0.0')
+        return versiontuple(min_electrum_version) <= versiontuple(ELECTRUM_VERSION)\
+            and versiontuple(installed_version) < versiontuple(available_version)
+
+    def find_internal_plugins(self) -> Mapping[str, dict]:
         """Populates self.internal_plugin_metadata
         """
         iter_modules = list(pkgutil.iter_modules([self.pkgpath]))
@@ -142,23 +169,14 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     self.logger.exception(f"cannot initialize plugin {name}: {e}")
 
-    def requires_download(self, name):
-        metadata = self.external_plugin_metadata.get(name)
-        if not metadata:
-            return False
-        if os.path.exists(self.external_plugin_path(name)):
-            return False
-        return True
-
-    def check_plugin_hash(self, name: str)-> bool:
+    def check_plugin_hash(self, name: str, expected_hash:str)-> bool:
         from .crypto import sha256
-        metadata = self.external_plugin_metadata.get(name)
         filename = self.external_plugin_path(name)
         if not os.path.exists(filename):
             return False
         with open(filename, 'rb') as f:
             s = f.read()
-        if sha256(s).hex() != metadata['hash']:
+        if sha256(s).hex() != expected_hash:
             return False
         return True
 
@@ -174,11 +192,25 @@ class Plugins(DaemonThread):
                     with open(filename, 'wb') as fd:
                         async for chunk in resp.content.iter_chunked(10):
                             fd.write(chunk)
-        if not self.check_plugin_hash(name):
+        if not self.check_plugin_hash(name, metadata['hash']):
             os.unlink(filename)
             raise Exception(f"wrong plugin hash {name}")
 
+        self.installed_plugin_metadata[name] = metadata
+        self.save_installed_plugin_metadata()
+
+    def save_installed_plugin_metadata(self):
+        path = os.path.join(self.get_external_plugin_dir(), 'installed_plugins.json')
+        try:
+            with open(path, 'w') as f:
+                s = json.dumps(self.installed_plugin_metadata, sort_keys=True, indent=4)
+                f.write(s)
+        except Exception:
+            self.logger.exception('cannot save plugin metadata')
+
     def remove_external_plugin(self, name):
+        self.installed_plugin_metadata.pop(name)
+        self.save_installed_plugin_metadata()
         filename = self.external_plugin_path(name)
         os.unlink(filename)
 
@@ -187,16 +219,25 @@ class Plugins(DaemonThread):
             return self.plugins[name]
         # If we do not have the metadata, it was not detected by `load_external_plugins`
         # on startup, or added by manual user installation after that point.
-        metadata = self.external_plugin_metadata.get(name)
+        metadata = self.installed_plugin_metadata.get(name)
         if metadata is None:
-            self.logger.exception(f"attempted to load unknown external plugin {name}")
+            self.logger.exception(f"attempted to load uninstalled plugin {name}")
             return
         filename = self.external_plugin_path(name)
         if not os.path.exists(filename):
             return
-        if not self.check_plugin_hash(name):
+        # verify signature
+        if not self.verify_plugin_signature(metadata):
+            self.logger.exception(f"wrong signature for plugin '{name}'")
+            os.unlink(filename)
+            return
+        # verify the hash
+        if not self.check_plugin_hash(name, metadata['hash']):
             self.logger.exception(f"wrong hash for plugin '{name}'")
             os.unlink(filename)
+            return
+        gui_good = self.gui_name in metadata.get('available_for', [])
+        if not gui_good:
             return
         try:
             zipfile = zipimport.zipimporter(filename)
@@ -239,11 +280,30 @@ class Plugins(DaemonThread):
 
     def find_external_plugins(self):
         """ read json file """
-        from .constants import read_json
-        self.external_plugin_metadata = read_json('plugins.json', {})
+        path = os.path.join(self.get_external_plugin_dir(), 'plugins.json')
+        try:
+            with open(path, 'r') as f:
+                r = json.loads(f.read())
+        except Exception:
+            r = {}
+        for k, v in r.items():
+            if self.verify_plugin_signature(v):
+                self.external_plugin_metadata[k] = v
+
+    def find_installed_plugins(self):
+        """ read json file """
+        path = os.path.join(self.get_external_plugin_dir(), 'installed_plugins.json')
+        try:
+            with open(path, 'r') as f:
+                r = json.loads(f.read())
+        except Exception:
+            r = {}
+        for k, v in r.items():
+            if self.verify_plugin_signature(v):
+                self.installed_plugin_metadata[k] = v
 
     def load_external_plugins(self):
-        for name, d in self.external_plugin_metadata.items():
+        for name, d in self.installed_plugin_metadata.items():
             if not d.get('requires_wallet_type') and self.config.get('enable_plugin_' + name):
                 try:
                     self.load_external_plugin(name)
@@ -263,7 +323,7 @@ class Plugins(DaemonThread):
         """
         if name in self.internal_plugin_metadata:
             return self.load_internal_plugin(name)
-        elif name in self.external_plugin_metadata:
+        elif name in self.installed_plugin_metadata:
             return self.load_external_plugin(name)
         else:
             raise Exception(f"could not find plugin {name!r}")
@@ -376,6 +436,85 @@ class Plugins(DaemonThread):
             self.wake_up_event.wait(0.1)  # time.sleep(0.1) OR event
             self.run_jobs()
         self.on_stop()
+
+    def init_trusted_plugins(self):
+        # read dict: trusted pubkeys -> URL from config path
+        import re, platform
+        self.trusted_plugins = {}
+        if sys.platform not in ['linux', 'darwin'] and not sys.platform.startswith('freebsd'):
+            return
+        config_path = '/etc/electrum/trusted_plugins'
+        if not os.path.exists(config_path):
+            return
+        if os.access(config_path, os.W_OK):
+            self.logger.info(f'not loading {config_path}: file has write permissions')
+            return
+        with open(config_path) as f:
+            data = f.read()
+        plugin_sources = {}
+        for line in data.split('\n'):
+            if not line:
+                continue
+            m = re.match(r'^([0-9a-f]{66}):https://(.*)$', line)
+            if not m:
+                self.logger.info(f'could not parse line: {line}')
+                continue
+            pubkey = m.group(1)
+            url = 'https://' + m.group(2)
+            self.trusted_plugins[pubkey] = url
+
+    def maybe_fetch_metadata(self, network, asyncio_loop):
+        # update plugins.json
+        json_path = os.path.join(self.get_external_plugin_dir(), 'plugins.json')
+        if os.path.exists(json_path):
+            # early return if file is more recent than config and less than a day old
+            json_file_is_recent = time.time() - os.path.getmtime(json_path) < 24*60*60
+            if json_file_is_recent:
+                return
+        coro = self.fetch_remote_plugins(network)
+        asyncio.run_coroutine_threadsafe(coro, asyncio_loop)
+
+    def verify_plugin_signature(self, metadata):
+        try:
+            name = metadata['name']
+            pubkey = metadata['pubkey']
+            # verify that pubkey is trusted
+            if pubkey not in self.trusted_plugins:
+                raise Exception('pubkey not trusted')
+            metadata_sig = bytes.fromhex(metadata.pop('signature'))
+            metadata_hash = bytes(hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).digest())
+            ec_key = ECPubkey(bytes.fromhex(pubkey))
+            if not ec_key.ecdsa_verify(metadata_sig, metadata_hash):
+                raise Exception('incorrect signature')
+            # put signature back
+            metadata['signature'] = metadata_sig.hex()
+            self.logger.info(f'good signature for plugin {name}')
+            return True
+        except Exception as e:
+            self.logger.info(f'could not verify plugin {name}: {e}')
+            return False
+
+    @log_exceptions
+    async def fetch_remote_plugins(self, network):
+        self.logger.info('fetching plugin metadata')
+        for pubkey, url in self.trusted_plugins.items():
+            try:
+                response = await network.async_send_http_on_proxy(
+                    'get', url, timeout=10)
+                metadata = json.loads(response)
+                name = metadata['name']
+                assert metadata['pubkey'] == pubkey # redundant
+            except Exception as e:
+                self.logger.exception(f'could not fetch plugin metadata from {url}: {e}')
+                continue
+            if not self.verify_plugin_signature(metadata):
+                continue
+            # add to our list
+            self.external_plugin_metadata[name] = metadata
+        # add metadata to json file
+        path = os.path.join(self.get_external_plugin_dir(), 'plugins.json')
+        with open(path, 'w') as f:
+            f.write(json.dumps(self.external_plugin_metadata, sort_keys=True, indent=4))
 
 
 def hook(func):

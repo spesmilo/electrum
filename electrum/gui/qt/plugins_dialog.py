@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class PluginDialog(WindowModalDialog):
 
     def __init__(self, name, metadata, cb: 'QCheckBox', window: 'ElectrumWindow', index:int):
+        self.name = name
         display_name = metadata.get('display_name', '')
         author = metadata.get('author', '')
         description = metadata.get('description', '')
@@ -43,16 +44,38 @@ class PluginDialog(WindowModalDialog):
             msg = '\n'.join(map(lambda x: x[1], requires))
             form.addRow(QLabel(_('Requires') + ':'), WWLabel(msg))
         vbox.addLayout(form)
+
         if name in self.plugins.internal_plugin_metadata:
             text = _('Disable') if p else _('Enable')
         else:
             text = _('Remove') if p else _('Install')
         toggle_button = QPushButton(text)
         toggle_button.clicked.connect(partial(self.do_toggle, toggle_button, name))
+
+        if self.plugins.is_installed(name) and self.plugins.can_be_upgraded(name):
+            upgrade_button = QPushButton(_('Upgrade'))
+            upgrade_button.clicked.connect(self.do_upgrade)
+        else:
+            upgrade_button = None
+
         close_button = CloseButton(self)
         close_button.setText(_('Cancel'))
-        buttons = [toggle_button, close_button]
+        buttons = [toggle_button, upgrade_button, close_button]
         vbox.addLayout(Buttons(*buttons))
+
+    def download(self):
+        coro = self.plugins.download_external_plugin(self.name)
+        def on_success(x):
+            self.plugins.enable(self.name)
+            p = self.plugins.get(self.name)
+            self.cb.setChecked(bool(p))
+        self.window.window.run_coroutine_from_thread(coro, "Downloading '%s' "%self.name, on_result=on_success)
+
+    def do_upgrade(self):
+        self.plugins.disable(self.name)
+        self.plugins.remove_external_plugin(self.name)
+        self.download()
+        self.close()
 
     def do_toggle(self, button, name):
         button.setEnabled(False)
@@ -64,12 +87,7 @@ class PluginDialog(WindowModalDialog):
             if not p:
                 #if not self.window.window.question("Install plugin '%s'?"%name):
                 #    return
-                coro = self.plugins.download_external_plugin(name)
-                def on_success(x):
-                    self.plugins.enable(name)
-                    p = self.plugins.get(name)
-                    self.cb.setChecked(bool(p))
-                self.window.window.run_coroutine_from_thread(coro, "Downloading '%s' "%name, on_result=on_success)
+                self.download()
             else:
                 #if not self.window.window.question("Remove plugin '%s'?"%name):
                 #    return
@@ -141,12 +159,13 @@ class PluginsDialog(WindowModalDialog):
             cb.setChecked(plugin_is_loaded and p.is_enabled())
             grid.addWidget(cb, i, 0)
             self.enable_settings_widget(name, i)
-            cb.clicked.connect(partial(self.show_plugin_dialog, name, metadata, cb, i))
+            cb.clicked.connect(partial(self.show_plugin_dialog, name, cb, i))
 
         #grid.setRowStretch(len(descriptions), 1)
 
-    def show_plugin_dialog(self, name, metadata, cb, i):
+    def show_plugin_dialog(self, name, cb, i):
         p = self.plugins.get(name)
+        metadata = self.plugins.descriptions[name]
         cb.setChecked(p is not None and p.is_enabled())
         d = PluginDialog(name, metadata, cb, self, i)
         d.exec()

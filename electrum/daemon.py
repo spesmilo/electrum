@@ -469,6 +469,9 @@ class Daemon(Logger):
         # prepare lightning functionality, also load channel db early
         if self.config.LIGHTNING_USE_GOSSIP:
             self.network.start_gossip()
+        # refresh plugins
+        if self._plugins:
+            self._plugins.maybe_fetch_metadata(self.network, self.asyncio_loop)
 
     @staticmethod
     def _wallet_key_from_path(path) -> str:
