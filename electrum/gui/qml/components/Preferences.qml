@@ -258,6 +258,42 @@ Pane {
                         text: qsTr('Lightning')
                     }
 
+                    Label {
+                        Layout.fillWidth: true
+                        text: Config.shortDescFor('LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS')
+                        wrapMode: Text.Wrap
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr('<b>%1%</b> of payment').arg(maxfeeslider._fees[maxfeeslider.value]/10000)
+                        wrapMode: Text.Wrap
+                    }
+
+                    Slider {
+                        id: maxfeeslider
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.leftMargin: constants.paddingXLarge
+                        Layout.rightMargin: constants.paddingXLarge
+
+                        property var _fees: [500, 1000, 3000, 5000, 10000, 20000, 30000, 50000]
+
+                        snapMode: Slider.SnapOnRelease
+                        stepSize: 1
+                        from: 0
+                        to: _fees.length - 1
+
+                        onValueChanged: {
+                            if (activeFocus)
+                                Config.lightningPaymentFeeMaxMillionths = _fees[value]
+                        }
+
+                        Component.onCompleted: {
+                            value = _fees.indexOf(Config.lightningPaymentFeeMaxMillionths)
+                        }
+                    }
+
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
