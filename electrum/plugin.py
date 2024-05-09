@@ -74,9 +74,6 @@ class Plugins(DaemonThread):
         self.external_plugin_metadata = {}
         self.gui_name = gui_name
         self.device_manager = DeviceMgr(config)
-        self.user_pkgpath = os.path.join(self.config.electrum_path_root(), 'plugins')
-        if not os.path.exists(self.user_pkgpath):
-            os.mkdir(self.user_pkgpath)
         self.find_internal_plugins()
         self.find_external_plugins()
         self.load_plugins()
@@ -101,14 +98,7 @@ class Plugins(DaemonThread):
             spec = importlib.util.find_spec(full_name)
             if spec is None:  # pkgutil found it but importlib can't ?!
                 raise Exception(f"Error pre-loading {full_name}: no spec")
-            try:
-                module = importlib.util.module_from_spec(spec)
-                # sys.modules needs to be modified for relative imports to work
-                # see https://stackoverflow.com/a/50395128
-                sys.modules[spec.name] = module
-                spec.loader.exec_module(module)
-            except Exception as e:
-                raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
+            module = self.exec_module_from_spec(spec, full_name)
             d = module.__dict__
             if 'fullname' not in d:
                 continue
@@ -130,6 +120,20 @@ class Plugins(DaemonThread):
                 raise Exception(f"duplicate plugins? for {name=}")
             self.internal_plugin_metadata[name] = d
 
+    def exec_module_from_spec(self, spec, path):
+        try:
+            module = importlib.util.module_from_spec(spec)
+            # sys.modules needs to be modified for relative imports to work
+            # see https://stackoverflow.com/a/50395128
+            sys.modules[path] = module
+            if sys.version_info >= (3, 10):
+                spec.loader.exec_module(module)
+            else:
+                module = spec.loader.load_module(path)
+        except Exception as e:
+            raise Exception(f"Error pre-loading {path}: {repr(e)}") from e
+        return module
+
     def load_plugins(self):
         self.load_internal_plugins()
         self.load_external_plugins()
@@ -142,46 +146,6 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     self.logger.exception(f"cannot initialize plugin {name}: {e}")
 
-    def requires_download(self, name):
-        metadata = self.external_plugin_metadata.get(name)
-        if not metadata:
-            return False
-        if os.path.exists(self.external_plugin_path(name)):
-            return False
-        return True
-
-    def check_plugin_hash(self, name: str)-> bool:
-        from .crypto import sha256
-        metadata = self.external_plugin_metadata.get(name)
-        filename = self.external_plugin_path(name)
-        if not os.path.exists(filename):
-            return False
-        with open(filename, 'rb') as f:
-            s = f.read()
-        if sha256(s).hex() != metadata['hash']:
-            return False
-        return True
-
-    async def download_external_plugin(self, name):
-        metadata = self.external_plugin_metadata.get(name)
-        if metadata is None:
-            raise Exception(f"unknown external plugin {name}")
-        url = metadata['download_url']
-        filename = self.external_plugin_path(name)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    with open(filename, 'wb') as fd:
-                        async for chunk in resp.content.iter_chunked(10):
-                            fd.write(chunk)
-        if not self.check_plugin_hash(name):
-            os.unlink(filename)
-            raise Exception(f"wrong plugin hash {name}")
-
-    def remove_external_plugin(self, name):
-        filename = self.external_plugin_path(name)
-        os.unlink(filename)
-
     def load_external_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
@@ -191,56 +155,69 @@ class Plugins(DaemonThread):
         if metadata is None:
             self.logger.exception(f"attempted to load unknown external plugin {name}")
             return
-        filename = self.external_plugin_path(name)
-        if not os.path.exists(filename):
-            return
-        if not self.check_plugin_hash(name):
-            self.logger.exception(f"wrong hash for plugin '{name}'")
-            os.unlink(filename)
-            return
-        try:
-            zipfile = zipimport.zipimporter(filename)
-        except zipimport.ZipImportError:
-            self.logger.exception(f"unable to load zip plugin '{filename}'")
-            return
-        try:
-            module = zipfile.load_module(name)
-        except zipimport.ZipImportError as e:
-            self.logger.exception(f"unable to load zip plugin '{filename}' package '{name}'")
-            return
-        sys.modules['electrum_external_plugins.' + name] = module
         full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
-        module = importlib.util.module_from_spec(spec)
-        self._register_module(spec, module)
-        if sys.version_info >= (3, 10):
-            spec.loader.exec_module(module)
-        else:
-            module = spec.loader.load_module(full_name)
+        module = self.exec_module_from_spec(spec, full_name)
         plugin = module.Plugin(self, self.config, name)
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.logger.info(f"loaded external plugin {name}")
         return plugin
 
-    @staticmethod
-    def _register_module(spec, module):
-        # sys.modules needs to be modified for relative imports to work
-        # see https://stackoverflow.com/a/50395128
-        sys.modules[spec.name] = module
+    def _has_root_permissions(self, path):
+        return os.stat(path).st_uid == 0 and not os.access(path, os.W_OK)
 
     def get_external_plugin_dir(self):
-        return self.user_pkgpath
+        if sys.platform not in ['linux', 'darwin'] and not sys.platform.startswith('freebsd'):
+            return
+        pkg_path = '/opt/electrum_plugins'
+        if not os.path.exists(pkg_path):
+            self.logger.info(f'direcctory {pkg_path} does not exist')
+            return
+        if not self._has_root_permissions(pkg_path):
+            self.logger.info(f'not loading {pkg_path}: directory has user write permissions')
+            return
+        return pkg_path
 
     def external_plugin_path(self, name):
-        return os.path.join(self.get_external_plugin_dir(), name + '.zip')
+        metadata = self.external_plugin_metadata[name]
+        filename = metadata['filename']
+        return os.path.join(self.get_external_plugin_dir(), filename)
 
     def find_external_plugins(self):
-        """ read json file """
-        from .constants import read_json
-        self.external_plugin_metadata = read_json('plugins.json', {})
+        pkg_path = self.get_external_plugin_dir()
+        if pkg_path is None:
+            return
+        for filename in os.listdir(pkg_path):
+            path = os.path.join(pkg_path, filename)
+            if not self._has_root_permissions(path):
+                self.logger.info(f'not loading {path}: file has user write permissions')
+                continue
+            try:
+                zipfile = zipimport.zipimporter(path)
+            except zipimport.ZipImportError:
+                self.logger.exception(f"unable to load zip plugin '{filename}'")
+                continue
+            for name, b in pkgutil.iter_zipimport_modules(zipfile):
+                if b is False:
+                    continue
+                if name in self.internal_plugin_metadata:
+                    raise Exception(f"duplicate plugins for name={name}")
+                if name in self.external_plugin_metadata:
+                    raise Exception(f"duplicate plugins for name={name}")
+                spec = zipfile.find_spec(name)
+                module = self.exec_module_from_spec(spec, f'electrum_external_plugins.{name}')
+                d = module.__dict__
+                gui_good = self.gui_name in d.get('available_for', [])
+                if not gui_good:
+                    continue
+                d['filename'] = filename
+                if 'fullname' not in d:
+                    continue
+                d['display_name'] = d['fullname']
+                self.external_plugin_metadata[name] = d
 
     def load_external_plugins(self):
         for name, d in self.external_plugin_metadata.items():
