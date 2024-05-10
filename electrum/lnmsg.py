@@ -423,6 +423,10 @@ class LNSerializer:
                 subtype_field_count = _resolve_field_count(subtype_field_count_str,
                                                            vars_dict=record,
                                                            allow_any=True)
+
+                if subtype_field_name not in record:
+                    raise Exception(f'complex field type {field_type} missing element {subtype_field_name}')
+
                 if subtype_field_type in self.subtypes:
                     self._write_complex_field(fd=fd,
                                               field_type=subtype_field_type,
@@ -440,16 +444,19 @@ class LNSerializer:
         if isinstance(count, int):
             assert count >= 0, f"{count!r} must be non-neg int"
         elif count == "...":
-            #pass
-            raise Exception('reading needs defined length.')
+            pass
         else:
             raise Exception(f"unexpected field count: {count!r}")
         if count == 0:
             return b""
 
-        parsedlist = [{} for x in range(count)]
+        parsedlist = []
 
-        for parsed in parsedlist:
+        # since we don't know the length of the field in advance, and io.BytesIO doesn't provide a look-ahead,
+        # we use this crappy way to detect EOF; read all, and if len(left) > 0, re-wrap in BytesIO stream
+        while left := fd.read(-1):
+            left_fd = io.BytesIO(left)  # FIXME: left_fd needs to be closed after
+            parsed = {}
             for subtypename, row in self.subtypes[field_type].items():
                 # subtypedata,<subtypename>,<fieldname>,<typename>,[<count>]
                 subtype_field_name = row[2]
@@ -461,13 +468,15 @@ class LNSerializer:
                                                            allow_any=True)
 
                 if subtype_field_type in self.subtypes:
-                    parsed[subtype_field_name] = self._read_complex_field(fd=fd,
+                    parsed[subtype_field_name] = self._read_complex_field(fd=left_fd,
                                                                           field_type=subtype_field_type,
                                                                           count=subtype_field_count)
                 else:
-                    parsed[subtype_field_name] = _read_field(fd=fd,
+                    parsed[subtype_field_name] = _read_field(fd=left_fd,
                                                              field_type=subtype_field_type,
                                                              count=subtype_field_count)
+            parsedlist.append(parsed)
+            fd = left_fd
 
         return parsedlist[0] if len(parsedlist) == 1 else parsedlist
 
