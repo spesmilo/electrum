@@ -100,7 +100,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
             hop_payload = fd.read(hop_payload_length)
             if hop_payload_length != len(hop_payload):
                 raise Exception(f"unexpected EOF")
-            ret = OnionHopsDataSingle()
+            ret = OnionHopsDataSingle(tlv_stream_name=tlv_stream_name)
             ret.payload = OnionWireSerializer.read_tlv_stream(fd=io.BytesIO(hop_payload),
                                                               tlv_stream_name=tlv_stream_name)
             ret.hmac = fd.read(PER_HOP_HMAC_SIZE)
@@ -259,8 +259,8 @@ def new_onion_packet2(
     hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
     # compute routing info and MAC for each hop
     for i in range(num_hops):
-        rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
         if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
+            rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
             encrypted_data_tlv_fd = io.BytesIO()
             OnionWireSerializer.write_tlv_stream(
                 fd=encrypted_data_tlv_fd,
