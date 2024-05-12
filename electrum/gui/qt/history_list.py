@@ -307,7 +307,7 @@ class HistoryModel(CustomModel, Logger):
                 # add child to parent
                 node.addChild(child_node)
 
-        # compute balance once all children have beed added
+        # compute balance once all children have been added
         balance = 0
         for node in self._root._children:
             balance += node._data['value'].value

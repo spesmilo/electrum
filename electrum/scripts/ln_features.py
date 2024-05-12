@@ -109,7 +109,7 @@ async def node_flag_stats(opt_flag: LnFeatures, presync: False):
     try:
         await wallet.lnworker.channel_db.data_loaded.wait()
 
-        # optionally presync graph (not relyable)
+        # optionally presync graph (not reliable)
         if presync:
             network.start_gossip()
 
