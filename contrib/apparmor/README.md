@@ -4,9 +4,9 @@ AppArmor confinement is provided via profiles loaded into the kernel.
 
 ## Installation
 
-Copy the AppArmor profile from `contrib/apparmor/` to `/etc/apparmor.d/`:
+Copy the AppArmor profile from `contrib/apparmor/apparmor.d/` to `/etc/apparmor.d/`:
 ```
-sudo cp -R -L contrib/apparmor/* /etc/apparmor.d
+sudo cp -R -L contrib/apparmor/apparmor.d/* /etc/apparmor.d
 ```
 Reload the AppArmor profiles to apply the changes:
 ```
