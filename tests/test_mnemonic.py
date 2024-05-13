@@ -247,7 +247,7 @@ class Test_slip39(ElectrumTestCase):
         test_vector_file = os.path.join(os.path.dirname(__file__), "slip39-vectors.json")
         with open(test_vector_file, "r") as f:
             vectors = json.load(f)
-        for description, mnemonics, expected_secret in vectors:
+        for description, mnemonics, expected_secret, extended_private_key in vectors:
             if expected_secret:
                 encrypted_seed = slip39.recover_ems(mnemonics)
                 assert bytes.fromhex(expected_secret) == encrypted_seed.decrypt("TREZOR"), 'Incorrect secret for test vector "{}".'.format(description)
@@ -257,3 +257,6 @@ class Test_slip39(ElectrumTestCase):
                     self.fail(
                         'Failed to raise exception for test vector "{}".'.format(description)
                     )
+
+    def test_make_group_prefix(self):
+        self.assertEqual(slip39._make_group_prefix(5, 0, 4, 3, 2, 1), "academic cover decision")
