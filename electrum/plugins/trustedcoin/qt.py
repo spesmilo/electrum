@@ -227,6 +227,8 @@ class Plugin(TrustedCoinPlugin):
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         wizard.trustedcoin_qhelper = TrustedcoinPluginQObject(self, wizard, None)
         self.extend_wizard(wizard)
+        if wizard.start_viewstate and wizard.start_viewstate.view.startswith('trustedcoin_'):
+            wizard.start_viewstate.params.update({'icon': icon_path('trustedcoin-wizard.png')})
 
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)

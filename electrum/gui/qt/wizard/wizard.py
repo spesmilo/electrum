@@ -187,8 +187,9 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.error_msg.setText(str(page.error))
         self.error.setVisible(not page.busy and bool(page.error))
         icon = page.params.get('icon', icon_path('electrum.png'))
-        if icon and icon != self.icon_filename:
-            self.set_icon(icon)
+        if icon:
+            if icon != self.icon_filename:
+                self.set_icon(icon)
             self.logo.setVisible(True)
         else:
             self.logo.setVisible(False)
