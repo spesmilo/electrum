@@ -1501,7 +1501,7 @@ class JadeAPI:
                 is_witness, bool - whether this is a segwit input
                 script, bytes- the redeem script
                 path, [int] - the bip32 path to sign with
-                value_commitment, 33-bytes - The value commitment of ths input
+                value_commitment, 33-bytes - The value commitment of the input
 
                 This is optional if signing this input:
                 sighash, int - The sighash to use, defaults to 0x01 (SIGHASH_ALL)
