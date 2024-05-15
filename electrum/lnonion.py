@@ -175,7 +175,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
 
 
 def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
-                                    session_key: bytes) -> Sequence[Tuple[bytes, bytes]]:
+                                    session_key: bytes) -> tuple[Sequence[bytes], Sequence[bytes]]:
     num_hops = len(payment_path_pubkeys_plus)
     hop_shared_secrets = num_hops * [b'']
     hop_blinded_node_ids = num_hops * [b'']
@@ -188,12 +188,7 @@ def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[by
             payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
 
-        # blinded node id
-        # B(i) = HMAC256("blinded_node_id", ss(i)) * N(i)
-        ss_bni_hmac = get_bolt04_onion_key(b'blinded_node_id', hop_shared_secrets[i])
-        ss_bni_hmac_int = int.from_bytes(ss_bni_hmac, byteorder="big")
-        blinded_node_id = ECPubkey(payment_path_pubkeys[i]) * ss_bni_hmac_int
-        hop_blinded_node_ids[i] = blinded_node_id.get_public_key_bytes()
+        hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
 
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
@@ -202,6 +197,15 @@ def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[by
         ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
         ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
     return hop_shared_secrets, hop_blinded_node_ids
+
+
+def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
+    # blinded node id
+    # B(i) = HMAC256("blinded_node_id", ss(i)) * N(i)
+    ss_bni_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
+    ss_bni_hmac_int = int.from_bytes(ss_bni_hmac, byteorder="big")
+    blinded_node_id = ECPubkey(node_id) * ss_bni_hmac_int
+    return blinded_node_id.get_public_key_bytes()
 
 
 def new_onion_packet(
@@ -261,15 +265,15 @@ def new_onion_packet2(
     for i in range(num_hops):
         if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
             rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
-            encrypted_data_tlv_fd = io.BytesIO()
-            OnionWireSerializer.write_tlv_stream(
-                fd=encrypted_data_tlv_fd,
-                tlv_stream_name='encrypted_data_tlv',
-                **hops_data[i].blind_fields)
-            encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
-            encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
-            payload = hops_data[i].payload
-            payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
+            with io.BytesIO() as encrypted_data_tlv_fd:
+                OnionWireSerializer.write_tlv_stream(
+                    fd=encrypted_data_tlv_fd,
+                    tlv_stream_name='encrypted_data_tlv',
+                    **hops_data[i].blind_fields)
+                encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
+                encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
+                payload = hops_data[i].payload
+                payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
 
     return new_onion_packet(
         payment_path_pubkeys=blinded_node_ids,
