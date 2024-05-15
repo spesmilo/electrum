@@ -25,7 +25,7 @@
 
 import queue
 from collections import defaultdict
-from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set
+from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable
 import time
 import threading
 from threading import RLock
@@ -531,9 +531,16 @@ class LNPathFinder(Logger):
             invoice_amount_msat: int,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+            node_filter: Optional[Callable[[NodeInfo], bool]] = None
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
+
+        # if destination is filtered, there is no route
+        if node_filter:
+            node_info = self.channel_db.get_node_info_for_node_id(nodeB)
+            if not node_filter(node_info):
+                return {}
 
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
@@ -577,6 +584,10 @@ class LNPathFinder(Logger):
                 if channel_info is None:
                     continue
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
+                if node_filter:
+                    node_info = self.channel_db.get_node_info_for_node_id(edge_startnode)
+                    if not node_filter(node_info):
+                        continue
                 is_mine = edge_channel_id in my_sending_channels
                 if is_mine:
                     if edge_startnode == nodeA:  # payment outgoing, on our channel
@@ -617,6 +628,7 @@ class LNPathFinder(Logger):
             invoice_amount_msat: int,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+            node_filter: Optional[Callable[[NodeInfo], bool]] = None
     ) -> Optional[LNPaymentPath]:
         """Return a path from nodeA to nodeB."""
         assert type(nodeA) is bytes
@@ -630,7 +642,8 @@ class LNPathFinder(Logger):
             nodeB=nodeB,
             invoice_amount_msat=invoice_amount_msat,
             my_sending_channels=my_sending_channels,
-            private_route_edges=private_route_edges)
+            private_route_edges=private_route_edges,
+            node_filter=node_filter)
 
         if nodeA not in previous_hops:
             return None  # no path found
@@ -690,7 +703,7 @@ class LNPathFinder(Logger):
             nodeA: bytes,
             nodeB: bytes,
             invoice_amount_msat: int,
-            path = None,
+            path: Optional[Sequence[PathEdge]] = None,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
     ) -> Optional[LNPaymentRoute]:

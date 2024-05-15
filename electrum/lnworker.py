@@ -31,6 +31,7 @@ from electrum_ecc import ecdsa_der_sig_from_ecdsa_sig64
 
 from . import constants, util
 from . import keystore
+from .onion_message import OnionMessageManager
 from .util import profiler, chunks, OldTaskGroup, ESocksProxy
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
 from .invoices import BaseInvoice
@@ -881,6 +882,7 @@ class LNWallet(LNWorker):
 
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+        self.onion_message_manager = OnionMessageManager(self)
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -969,6 +971,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.swap_manager.start_network(network)
         self.lnrater = LNRater(self, network)
+        self.onion_message_manager.start_network(network=network)
 
         for chan in self.channels.values():
             if chan.need_to_subscribe():
@@ -999,6 +1002,8 @@ class LNWallet(LNWorker):
             self.lnwatcher = None
         if self.swap_manager and self.swap_manager.network:  # may not be present in tests
             await self.swap_manager.stop()
+        if self.onion_message_manager:
+            await self.onion_message_manager.stop()
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):
         assert self.stopping_soon is True
