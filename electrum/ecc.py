@@ -124,8 +124,9 @@ def _x_and_y_from_pubkey_bytes(pubkey: bytes) -> Tuple[int, int]:
     pubkey_ptr = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
         _libsecp256k1.ctx, pubkey_ptr, pubkey, len(pubkey))
-    if not ret:
-        raise InvalidECPointException('public key could not be parsed or is invalid')
+    if 1 != ret:
+        raise InvalidECPointException(
+            f'public key could not be parsed or is invalid: {pubkey.hex()!r}')
 
     pubkey_serialized = create_string_buffer(65)
     pubkey_size = c_size_t(65)
@@ -236,13 +237,14 @@ class ECPubkey(object):
         return self._y
 
     def _to_libsecp256k1_pubkey_ptr(self):
-        pubkey = create_string_buffer(64)
-        public_pair_bytes = self.get_public_key_bytes(compressed=False)
+        """pointer to `secp256k1_pubkey` C struct"""
+        pubkey_ptr = create_string_buffer(64)
+        pk_bytes = self.get_public_key_bytes(compressed=False)
         ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
-            _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
-        if not ret:
-            raise Exception('public key could not be parsed or is invalid')
-        return pubkey
+            _libsecp256k1.ctx, pubkey_ptr, pk_bytes, len(pk_bytes))
+        if 1 != ret:
+            raise Exception(f'public key could not be parsed or is invalid: {pk_bytes.hex()!r}')
+        return pubkey_ptr
 
     @classmethod
     def _from_libsecp256k1_pubkey_ptr(cls, pubkey) -> 'ECPubkey':
