@@ -127,7 +127,8 @@ def _x_and_y_from_pubkey_bytes(pubkey: bytes) -> Tuple[int, int]:
     ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
         _libsecp256k1.ctx, pubkey_ptr, pubkey, len(pubkey))
     if 1 != ret:
-        raise InvalidECPointException('public key could not be parsed or is invalid')
+        raise InvalidECPointException(
+            f'public key could not be parsed or is invalid: {pubkey.hex()!r}')
 
     pubkey_serialized = create_string_buffer(65)
     pubkey_size = c_size_t(65)
@@ -242,13 +243,13 @@ class ECPubkey(object):
 
     def _to_libsecp256k1_pubkey_ptr(self):
         """pointer to `secp256k1_pubkey` C struct"""
-        pubkey = create_string_buffer(64)
-        public_pair_bytes = self.get_public_key_bytes(compressed=False)
+        pubkey_ptr = create_string_buffer(64)
+        pk_bytes = self.get_public_key_bytes(compressed=False)
         ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
-            _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
+            _libsecp256k1.ctx, pubkey_ptr, pk_bytes, len(pk_bytes))
         if 1 != ret:
-            raise Exception('public key could not be parsed or is invalid')
-        return pubkey
+            raise Exception(f'public key could not be parsed or is invalid: {pk_bytes.hex()!r}')
+        return pubkey_ptr
 
     def _to_libsecp256k1_xonly_pubkey_ptr(self):
         """pointer to `secp256k1_xonly_pubkey` C struct"""
@@ -256,13 +257,13 @@ class ECPubkey(object):
             raise LibModuleMissing(
                 'libsecp256k1 library found but it was built '
                 'without required modules (--enable-module-schnorrsig --enable-module-extrakeys)')
-        pubkey = create_string_buffer(64)
+        pubkey_ptr = create_string_buffer(64)
         pk_bytes = self.get_public_key_bytes(compressed=True)[1:]
         ret = _libsecp256k1.secp256k1_xonly_pubkey_parse(
-            _libsecp256k1.ctx, pubkey, pk_bytes)
+            _libsecp256k1.ctx, pubkey_ptr, pk_bytes)
         if 1 != ret:
-            raise Exception('public key could not be parsed or is invalid')
-        return pubkey
+            raise Exception(f'public key could not be parsed or is invalid: {pk_bytes.hex()!r}')
+        return pubkey_ptr
 
     @classmethod
     def _from_libsecp256k1_pubkey_ptr(cls, pubkey) -> 'ECPubkey':
