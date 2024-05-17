@@ -175,7 +175,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
 
 
 def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
-                                    session_key: bytes) -> tuple[Sequence[bytes], Sequence[bytes]]:
+                                    session_key: bytes) -> Tuple[Sequence[bytes], Sequence[bytes]]:
     num_hops = len(payment_path_pubkeys_plus)
     hop_shared_secrets = num_hops * [b'']
     hop_blinded_node_ids = num_hops * [b'']
@@ -251,7 +251,7 @@ def new_onion_packet(
 
 
 def new_onion_packet2(
-    payment_path_pubkeys: Sequence[Union[bytes, tuple]],
+    payment_path_pubkeys: Sequence[Union[bytes, Tuple[bytes, bytes]]],
     session_key: bytes,
     hops_data: Sequence[OnionHopsDataSingle],
     *,
@@ -374,7 +374,7 @@ def process_onion_packet(
         onion_packet: OnionPacket,
         our_onion_private_key: bytes,
         *,
-        associated_data: bytes = bytes(),
+        associated_data: bytes = b'',
         is_trampoline=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):

@@ -37,6 +37,7 @@ from electrum.util import OldTaskGroup, now
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
+    from electrum.network import Network
 
 logger = get_logger(__name__)
 
