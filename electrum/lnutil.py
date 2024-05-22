@@ -1606,7 +1606,12 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
 
 
 # key derivation
-# see lnd/keychain/derivation.go
+# originally based on lnd/keychain/derivation.go
+# notes:
+# - Add a new path for each use case. Do not reuse existing paths.
+#   (to avoid having to carefully consider if reuse would be safe)
+# - Always prefer to use hardened derivation for new paths you add.
+#   (to avoid having to carefully consider if unhardened would be safe)
 class LnKeyFamily(IntEnum):
     MULTISIG = 0 | BIP32_PRIME
     REVOCATION_BASE = 1 | BIP32_PRIME

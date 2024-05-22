@@ -1383,6 +1383,8 @@ class LNWallet(LNWorker):
     def encrypt_cb_data(self, data, funding_address):
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
+        # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
+        #       (not have the 16 byte MAC). Otherwise, the latter would be preferable.
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
 
     def mktx_for_open_channel(
