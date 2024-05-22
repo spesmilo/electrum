@@ -410,6 +410,9 @@ def chacha20_poly1305_decrypt(
 
 
 def chacha20_encrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
+    """note: for any new protocol you design, please consider using chacha20_poly1305_encrypt instead
+             (for its Authenticated Encryption property).
+    """
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(data, (bytes, bytearray))
