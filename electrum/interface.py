@@ -801,6 +801,7 @@ class Interface(Logger):
                         raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
+                util.trigger_callback('blockchain_updated')
                 util.trigger_callback('network_updated')
                 height = (height // 2016 * 2016) + num_headers
                 assert height <= next_height+1, (height, self.tip)
