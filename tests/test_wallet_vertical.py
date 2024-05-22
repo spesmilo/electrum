@@ -497,7 +497,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_change_addresses()[0], 'bc1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3tsrkg3gs')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_slip39_basic_3of6_bip44_standard(self, mock_save_db):
+    async def test_slip39_non_extendable_basic_3of6_bip44_standard(self, mock_save_db):
         """
         BIP32 Root Key for passphrase "TREZOR":
         xprv9s21ZrQH143K2pMWi8jrTawHaj16uKk4CSbvo4Zt61tcrmuUDMx2o1Byzcr3saXNGNvHP8zZgXVdJHsXVdzYFPavxvCyaGyGr1WkAYG83ce
@@ -524,7 +524,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_change_addresses()[0], '1Aw4wpXsAyEHSgMZqPdyewoAtJqH9Jaso3')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_slip39_basic_2of5_bip49_p2sh_segwit(self, mock_save_db):
+    async def test_slip39_non_extendable_basic_2of5_bip49_p2sh_segwit(self, mock_save_db):
         """
         BIP32 Root Key for passphrase "TREZOR":
         xprv9s21ZrQH143K2o6EXEHpVy8TCYoMmkBnDCCESLdR2ieKwmcNG48ck2XJQY4waS7RUQcXqR9N7HnQbUVEDMWYyREdF1idQqxFHuCfK7fqFni
@@ -550,7 +550,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_change_addresses()[0], '3FVvdRhR7racZhmcvrGAqX9eJoP8Sw3ypp')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_slip39_groups_128bit_bip84_native_segwit(self, mock_save_db):
+    async def test_slip39_non_extendable_groups_128bit_bip84_native_segwit(self, mock_save_db):
         """
         BIP32 Root Key for passphrase "TREZOR":
         xprv9s21ZrQH143K3dzDLfeY3cMp23u5vDeFYftu5RPYZPucKc99mNEddU4w99GxdgUGcSfMpVDxhnR1XpJzZNXRN1m6xNgnzFS5MwMP6QyBRKV
@@ -580,7 +580,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_change_addresses()[0], 'bc1q8l6hcvlczu4mtjcnlwhczw7vdxnvwccpjl3cwz')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_slip39_groups_256bit_bip49_p2sh_segwit(self, mock_save_db):
+    async def test_slip39_non_extendable_groups_256bit_bip49_p2sh_segwit(self, mock_save_db):
         """
         BIP32 Root Key for passphrase "TREZOR":
         xprv9s21ZrQH143K2UspC9FRPfQC9NcDB4HPkx1XG9UEtuceYtpcCZ6ypNZWdgfxQ9dAFVeD1F4Zg4roY7nZm2LB7THPD6kaCege3M7EuS8v85c
@@ -607,6 +607,117 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '3FoqkcrEHgkKQ3iXStantygCetRGSRMMNE')
         self.assertEqual(w.get_change_addresses()[0], '32tvTmBLfLofu8ps4SWpUJC4fS699jiWvC')
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_slip39_extendable_basic_3of6_bip44_standard(self, mock_save_db):
+        """
+        BIP32 Root Key for passphrase "TREZOR":
+        xprv9yba7duYBT5g7SbaN1oCX43xeDtjKXNUZ2uSmJ3efHsWYaLkqzdjg2bjLYYzQ9rmXdNzDHYWXv5m9aBCqbFbZzAoGcAceH1K8cPYVDpsJLH
+        """
+        mnemonics = [
+            "judicial dramatic academic agree craft physics memory born prize academic black listen elder station premium dance sympathy flip always kitchen",
+            "judicial dramatic academic arcade clogs timber taught recover burning judicial desktop square ecology budget nervous overall tidy knife fused knit",
+            "judicial dramatic academic axle destroy justice username elegant filter seafood device ranked behavior pecan infant lunar answer identify hour enjoy",
+        ]
+
+        encrypted_seed = slip39.recover_ems(mnemonics)
+        root_seed = encrypted_seed.decrypt('TREZOR')
+        self.assertEqual("255415e2b20ad13cef7adca1e336eaec", root_seed.hex())
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/44'/0'/0'")
+
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'xprv9yba7duYBT5g7SbaN1oCX43xeDtjKXNUZ2uSmJ3efHsWYaLkqzdjg2bjLYYzQ9rmXdNzDHYWXv5m9aBCqbFbZzAoGcAceH1K8cPYVDpsJLH')
+        self.assertEqual(ks.xpub, 'xpub6CavX9SS1pdyKvg3U3LCtBzhCFjDiz6KvFq3ZgTGDdQVRNfuPXwzDpvDBqbg1kEsDgEeHo6uWeYsZWALRejoJMVCq4rprrHkbw8Jyu3uaMb')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+        self.assertEqual(w.txin_type, 'p2pkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '1N4hqJRTVqUbwT5WCbbsQSwKRPPPzG1TSo')
+        self.assertEqual(w.get_change_addresses()[0], '1FW3QQzbYRSUoNDDYGWPvSCoom8fBhPC9k')
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_slip39_extendable_basic_2of5_bip49_p2sh_segwit(self, mock_save_db):
+        """
+        BIP32 Root Key for passphrase "TREZOR":
+        yprvAJP391MZiYGpkDnSkAfHBGrEKNxpkFVbx9hap59M2hxD1i7kmnaBUC2yo8tzz5AwxSv3ekJRrSGYWA8ec7XmQGLvX4xkWwCRqiadT5fuTfh
+        """
+        mnemonics = [
+            "station type academic acid away gather venture pupal speak treat ruler pecan soldier cowboy paces wavy review similar born moment",
+            "station type academic aquatic bundle mineral twice temple miracle ruin earth olympic system dining inform alive branch false easy manual",
+        ]
+
+        encrypted_seed = slip39.recover_ems(mnemonics)
+        root_seed = encrypted_seed.decrypt('TREZOR')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/49'/0'/0'")
+
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'yprvAJP391MZiYGpkDnSkAfHBGrEKNxpkFVbx9hap59M2hxD1i7kmnaBUC2yo8tzz5AwxSv3ekJRrSGYWA8ec7XmQGLvX4xkWwCRqiadT5fuTfh')
+        self.assertEqual(ks.xpub, 'ypub6XNPYWtTYuq7xhrurCCHYQnxsQoK9iDTKNdBcTYxb3VBtWSuKKtS1zMTeQTDeVe1Y8mzGue1oDYyvjczspnPznLmyruzxVTU785W2QpbTW9')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+        self.assertEqual(w.txin_type, 'p2wpkh-p2sh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '38diDMcH7japAtpJjVKviBroQfTdvgpdqX')
+        self.assertEqual(w.get_change_addresses()[0], '36Hd2PnEvJpN9pUdhpZWh3aQccbRp46FVc')
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_slip39_extendable_groups_128bit_bip84_native_segwit(self, mock_save_db):
+        """
+        BIP32 Root Key for passphrase "TREZOR":
+        zprvAe6okUFoH5tieuTJJxN84xjPCvWkhFiiP87myHqTNmfux4wY8XnLG7DxezL5Dt2jXu5FrsMc4wEPhAJovAGhH1cAPjmkhh3KcSCMRyuQghd
+        """
+
+        # SLIP39 shares (128 bits, 2 groups from 1 of 1, 1 of 1, 3 of 5, 2 of 6)
+        mnemonics = [
+            "fact else acrobat romp analysis usher havoc vitamins analysis garden prevent romantic silent dramatic adjust priority mailman plains vintage else",
+            "fact else ceramic round craft lips snake faint adorn square bucket deadline violence guitar greatest academic stadium snake frequent memory",
+            "fact else ceramic scatter counter remove club forbid busy cause taxi forecast prayer uncover living type training forward software pumps",
+            "fact else ceramic shaft clock crowd detect cleanup wildlife depict include trip profile isolate express category wealthy advance garden mixture",
+        ]
+
+        encrypted_seed = slip39.recover_ems(mnemonics)
+        root_seed = encrypted_seed.decrypt('TREZOR')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/84'/0'/0'")
+
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'zprvAe6okUFoH5tieuTJJxN84xjPCvWkhFiiP87myHqTNmfux4wY8XnLG7DxezL5Dt2jXu5FrsMc4wEPhAJovAGhH1cAPjmkhh3KcSCMRyuQghd')
+        self.assertEqual(ks.xpub, 'zpub6s6A9ynh7TT1sPXmQyu8S6g7kxMF6iSZkM3NmgF4w7CtpsGgg56aouYSWHgAoMy186a8FRT8zkmhcwV5SWKFFQfMpvV8C9Ft4woWSzD5sXz')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+        self.assertEqual(w.txin_type, 'p2wpkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qmjq5nenac3vjwltldk5qsq4yd8mttw2dpkmx06')
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_slip39_extendable_groups_256bit_bip49_p2sh_segwit(self, mock_save_db):
+        """
+        BIP32 Root Key for passphrase "TREZOR":
+        yprvAJbhup8ey3hmPhgVsXKySTS54BfywUZR6SvQ2jrjdsUgNd4P8B5HR7ute93zXVTXKUvrmvnav1spLzEkDuT7Cy3bf3hWtYoH6A5p8vNzbEC
+        """
+
+        # SLIP39 shares (256 bits, 2 groups from 1 of 1, 1 of 1, 3 of 5, 2 of 6):
+        mnemonics = [
+            "smart surprise acrobat romp deal omit pupal capacity invasion should glen smear segment frost surprise ancestor plan frost cultural herd",
+            "smart surprise beard romp closet antenna pencil rapids goat artwork race industry segment parcel briefing glad voice camera priority satoshi",
+        ]
+
+        encrypted_seed = slip39.recover_ems(mnemonics)
+        root_seed = encrypted_seed.decrypt('TREZOR')
+        ks = keystore.from_bip43_rootseed(root_seed, derivation="m/49'/0'/0'")
+
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'yprvAJbhup8ey3hmPhgVsXKySTS54BfywUZR6SvQ2jrjdsUgNd4P8B5HR7ute93zXVTXKUvrmvnav1spLzEkDuT7Cy3bf3hWtYoH6A5p8vNzbEC')
+        self.assertEqual(ks.xpub, 'ypub6Xb4KKfYoRG4cBkxyYryobNocDWULwHGTfqzq8GMCD1fFRPXfiPXxvENVQYVbi64BJzdPnPUiJ4iY37X5BA594dqxyE4FwccHdhydU9RhPJ')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+        self.assertEqual(w.txin_type, 'p2wpkh-p2sh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '3JDN4wF5BphZqcJFFYuDA7N1apzfPYyJLG')
+        self.assertEqual(w.get_change_addresses()[0], '3J8zNvhJndqzBcuPuarzUn1kWs9N4ZY7HS')
 
 class TestWalletKeystoreAddressIntegrityForTestnet(ElectrumTestCase):
     TESTNET = True
