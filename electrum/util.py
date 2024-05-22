@@ -238,6 +238,7 @@ class Satoshis(object):
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
         # note: 'value' sometimes has msat precision
+        assert isinstance(value, (int, Decimal)), f"unexpected type for {value=!r}"
         self.value = value
         return self
 
