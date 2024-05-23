@@ -106,9 +106,6 @@ if TYPE_CHECKING:
     from . import ElectrumGui
 
 
-LN_NUM_PAYMENT_ATTEMPTS = 10
-
-
 class StatusBarButton(QToolButton):
     # note: this class has a custom stylesheet applied in stylesheet_patcher.py
     def __init__(self, icon, tooltip, func, sb_height):
