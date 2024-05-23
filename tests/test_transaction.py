@@ -1,10 +1,12 @@
+import json
+import os
 from typing import NamedTuple, Union
 
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
-                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
+                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, TxOutput)
 from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
@@ -929,7 +931,7 @@ class TestTransactionTestnet(ElectrumTestCase):
         self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
                          tx.serialize())
 
-class TestSighashTypes(ElectrumTestCase):
+class TestSighashBIP143(ElectrumTestCase):
     #These tests are taken from bip143, https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki
     #Input of transaction
     locktime=0
@@ -992,3 +994,36 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
                          sig.hex())
+
+
+class TestSighashBIP341(ElectrumTestCase):
+
+    def test_taproot_keypath_spending(self):
+        test_vector_file = os.path.join(os.path.dirname(__file__), "bip-0341", "wallet-test-vectors.json")
+        with open(test_vector_file, "r") as f:
+            vectors = json.load(f)
+        assert len(vectors["keyPathSpending"]) > 0, "test vectors missing"
+        for tcase in vectors["keyPathSpending"]:
+            unsigned_tx = Transaction(tcase["given"]["rawUnsignedTx"])
+            self.assertEqual(len(tcase["given"]["utxosSpent"]), len(unsigned_tx.inputs()))
+            tx = PartialTransaction.from_tx(unsigned_tx)
+            # add utxo data
+            for txin, json_utxo in zip(tx.inputs(), tcase["given"]["utxosSpent"]):
+                txin.witness_utxo = TxOutput(scriptpubkey=bfh(json_utxo["scriptPubKey"]), value=int(json_utxo["amountSats"]))
+            for txin_test in tcase["inputSpending"]:
+                txin_idx = txin_test["given"]["txinIndex"]
+                txin = tx.inputs()[txin_idx]
+                txin.sighash = int(txin_test["given"]["hashType"])
+                txin.tap_merkle_root = bfh(txin_test["given"]["merkleRoot"]) if txin_test["given"]["merkleRoot"] else None
+                pre_hash = tx.serialize_preimage(txin_idx)
+                self.assertEqual(txin_test["intermediary"]["sigMsg"], pre_hash.hex())
+                privkey = bfh(txin_test["given"]["internalPrivkey"])
+                sig = tx.sign_txin(txin_idx, privkey)
+                assert len(txin_test["expected"]["witness"]) == 1
+                self.assertEqual(txin_test["expected"]["witness"][0], sig.hex())
+                txin.witness = construct_witness([sig])
+                txin.script_sig = b""
+                self.assertTrue(txin.is_complete())
+            # note: some input utxos are not taproot, and there is no key data for them
+            #       - txin_idx=2, addr 1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH
+            #       - txin_idx=5, addr bc1q0ht9tyks4vh7p5p904t340cr9nvahy7u3re7zg

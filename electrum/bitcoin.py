@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence, Any
 import enum
 from enum import IntEnum, Enum
 
@@ -686,6 +686,14 @@ def is_segwit_address(addr: str, *, net=None) -> bool:
         return False
     return witprog is not None
 
+def is_taproot_address(addr: str, *, net=None) -> bool:
+    if net is None: net = constants.net
+    try:
+        witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
+    except Exception as e:
+        return False
+    return witver == 1
+
 def is_b58_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
@@ -753,3 +761,80 @@ class DummyAddress:
 
 
 class DummyAddressUsedInTxException(Exception): pass
+
+
+def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
+    assert isinstance(pubkey32, bytes), type(pubkey32)
+    assert isinstance(h, bytes), type(h)
+    assert len(pubkey32) == 32, len(pubkey32)
+    int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
+
+    tweak = int_from_bytes(ecc.bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    if tweak >= ecc.CURVE_ORDER:
+        raise ValueError
+    P = ecc.ECPubkey(b"\x02" + pubkey32)
+    Q = P + (ecc.GENERATOR * tweak)
+    return 0 if Q.has_even_y() else 1, Q.get_public_key_bytes(compressed=True)[1:]
+
+
+def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
+    assert isinstance(seckey0, bytes), type(seckey0)
+    assert isinstance(h, bytes), type(h)
+    assert len(seckey0) == 32, len(seckey0)
+    int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
+
+    P = ecc.ECPrivkey(seckey0)
+    seckey = P.secret_scalar if P.has_even_y() else ecc.CURVE_ORDER - P.secret_scalar
+    pubkey32 = P.get_public_key_bytes(compressed=True)[1:]
+    tweak = int_from_bytes(ecc.bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    if tweak >= ecc.CURVE_ORDER:
+        raise ValueError
+    return int.to_bytes((seckey + tweak) % ecc.CURVE_ORDER, length=32, byteorder="big", signed=False)
+
+
+# a TapTree is either:
+#  - a (leaf_version, script) tuple (leaf_version is 0xc0 for BIP-0342 scripts)
+#  - a list of two elements, each with the same structure as TapTree itself
+TapTreeLeaf = Tuple[int, bytes]
+TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
+
+
+def taproot_tree_helper(script_tree: TapTree):
+    if isinstance(script_tree, tuple):
+        leaf_version, script = script_tree
+        h = ecc.bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
+        return ([((leaf_version, script), bytes())], h)
+    left, left_h = taproot_tree_helper(script_tree[0])
+    right, right_h = taproot_tree_helper(script_tree[1])
+    ret = [(l, c + right_h) for l, c in left] + [(l, c + left_h) for l, c in right]
+    if right_h < left_h:
+        left_h, right_h = right_h, left_h
+    return (ret, ecc.bip340_tagged_hash(b"TapBranch", left_h + right_h))
+
+
+def taproot_output_script(internal_pubkey: bytes, *, script_tree: Optional[TapTree]) -> bytes:
+    """Given an internal public key and a tree of scripts, compute the output script."""
+    assert isinstance(internal_pubkey, bytes), type(internal_pubkey)
+    assert len(internal_pubkey) == 32, len(internal_pubkey)
+    if script_tree is None:
+        merkle_root = bytes()
+    else:
+        _, merkle_root = taproot_tree_helper(script_tree)
+    _, output_pubkey = taproot_tweak_pubkey(internal_pubkey, merkle_root)
+    return construct_script([1, output_pubkey])
+
+
+def control_block_for_taproot_script_spend(
+    *, internal_pubkey: bytes, script_tree: TapTree, script_num: int,
+) -> Tuple[bytes, bytes]:
+    """Constructs the control block necessary for spending a taproot UTXO using a script.
+    script_num indicates which script to use, which indexes into (flattened) script_tree.
+    """
+    assert isinstance(internal_pubkey, bytes), type(internal_pubkey)
+    assert len(internal_pubkey) == 32, len(internal_pubkey)
+    info, merkle_root = taproot_tree_helper(script_tree)
+    (leaf_version, leaf_script), merkle_path = info[script_num]
+    output_pubkey_y_parity, _ = taproot_tweak_pubkey(internal_pubkey, merkle_root)
+    pubkey_data = bytes([output_pubkey_y_parity + leaf_version]) + internal_pubkey
+    control_block = pubkey_data + merkle_path
+    return (leaf_script, control_block)
