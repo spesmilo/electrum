@@ -584,7 +584,7 @@ class TestLNUtil(ElectrumTestCase):
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=htlc_output_index,
             amount_msat=amount_msat,
-            witness_script=htlc.hex())
+            witness_script=htlc)
         our_htlc_tx = make_htlc_tx(
             cltv_abs=cltv_abs,
             inputs=our_htlc_tx_inputs,

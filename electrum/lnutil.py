@@ -620,14 +620,14 @@ def make_htlc_tx_witness(remotehtlcsig: bytes, localhtlcsig: bytes,
     return construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script])
 
 def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
-                        amount_msat: int, witness_script: str) -> List[PartialTxInput]:
+                        amount_msat: int, witness_script: bytes) -> List[PartialTxInput]:
     assert type(htlc_output_txid) is str
     assert type(htlc_output_index) is int
     assert type(amount_msat) is int
-    assert type(witness_script) is str
+    assert type(witness_script) is bytes
     txin = PartialTxInput(prevout=TxOutpoint(txid=bfh(htlc_output_txid), out_idx=htlc_output_index),
                           nsequence=0)
-    txin.witness_script = bfh(witness_script)
+    txin.witness_script = witness_script
     txin.script_sig = b''
     txin._trusted_value_sats = amount_msat // 1000
     c_inputs = [txin]
@@ -826,13 +826,15 @@ def possible_output_idxs_of_htlc_in_ctx(*, chan: 'Channel', pcp: bytes, subject:
     other_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
     other_htlc_pubkey = derive_pubkey(other_conf.htlc_basepoint.pubkey, pcp)
     htlc_pubkey = derive_pubkey(conf.htlc_basepoint.pubkey, pcp)
-    preimage_script = make_htlc_output_witness_script(is_received_htlc=htlc_direction == RECEIVED,
-                                                      remote_revocation_pubkey=other_revocation_pubkey,
-                                                      remote_htlc_pubkey=other_htlc_pubkey,
-                                                      local_htlc_pubkey=htlc_pubkey,
-                                                      payment_hash=payment_hash,
-                                                      cltv_abs=cltv_abs)
-    htlc_address = redeem_script_to_address('p2wsh', preimage_script)
+    witness_script = make_htlc_output_witness_script(
+        is_received_htlc=htlc_direction == RECEIVED,
+        remote_revocation_pubkey=other_revocation_pubkey,
+        remote_htlc_pubkey=other_htlc_pubkey,
+        local_htlc_pubkey=htlc_pubkey,
+        payment_hash=payment_hash,
+        cltv_abs=cltv_abs,
+    )
+    htlc_address = redeem_script_to_address('p2wsh', witness_script)
     candidates = ctx.get_output_idxs_from_address(htlc_address)
     return {output_idx for output_idx in candidates
             if ctx.outputs()[output_idx].value == htlc.amount_msat // 1000}
@@ -889,16 +891,18 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
         local_delayedpubkey=delayedpubkey,
         success = is_htlc_success,
         to_self_delay = other_conf.to_self_delay)
-    preimage_script = make_htlc_output_witness_script(is_received_htlc=is_htlc_success,
-                                                      remote_revocation_pubkey=other_revocation_pubkey,
-                                                      remote_htlc_pubkey=other_htlc_pubkey,
-                                                      local_htlc_pubkey=htlc_pubkey,
-                                                      payment_hash=payment_hash,
-                                                      cltv_abs=cltv_abs)
+    witness_script_in = make_htlc_output_witness_script(
+        is_received_htlc=is_htlc_success,
+        remote_revocation_pubkey=other_revocation_pubkey,
+        remote_htlc_pubkey=other_htlc_pubkey,
+        local_htlc_pubkey=htlc_pubkey,
+        payment_hash=payment_hash,
+        cltv_abs=cltv_abs,
+    )
     htlc_tx_inputs = make_htlc_tx_inputs(
         commit.txid(), ctx_output_idx,
         amount_msat=amount_msat,
-        witness_script=preimage_script.hex())
+        witness_script=witness_script_in)
     if is_htlc_success:
         cltv_abs = 0
     htlc_tx = make_htlc_tx(cltv_abs=cltv_abs, inputs=htlc_tx_inputs, output=htlc_tx_output)

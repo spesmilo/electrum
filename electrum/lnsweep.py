@@ -458,7 +458,7 @@ def create_htlctx_that_spends_from_our_ctx(
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    witness_script, htlc_tx = make_htlc_tx_with_open_channel(
+    witness_script_out, htlc_tx = make_htlc_tx_with_open_channel(
         chan=chan,
         pcp=our_pcp,
         subject=LOCAL,
@@ -471,9 +471,10 @@ def create_htlctx_that_spends_from_our_ctx(
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc_relative_idx=htlc_relative_idx)
     local_htlc_sig = htlc_tx.sign_txin(0, local_htlc_privkey)
     txin = htlc_tx.inputs()[0]
-    witness_program = Transaction.get_preimage_script(txin)
-    txin.witness = make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program)
-    return witness_script, htlc_tx
+    witness_script_in = txin.witness_script
+    assert witness_script_in
+    txin.witness = make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_script_in)
+    return witness_script_out, htlc_tx
 
 
 def create_sweeptx_their_ctx_htlc(
