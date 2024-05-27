@@ -566,6 +566,8 @@ class ECPrivkey(ECPubkey):
         return sig64
 
     def ecdsa_sign_recoverable(self, msg32: bytes, *, is_compressed: bool) -> bytes:
+        assert len(msg32) == 32, len(msg32)
+
         def bruteforce_recid(sig64: bytes):
             for recid in range(4):
                 sig65 = construct_ecdsa_sig65(sig64, recid, is_compressed=is_compressed)
