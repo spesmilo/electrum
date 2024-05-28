@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class HTLCManager:
 
-    def __init__(self, log: 'StoredDict', *, initial_feerate=None):
+    def __init__(self, log: 'StoredDict', *, initiator=None, initial_feerate=None):
 
         if len(log) == 0:
             initial = {
@@ -32,9 +32,8 @@ class HTLCManager:
         # maybe bootstrap fee_updates if initial_feerate was provided
         if initial_feerate is not None:
             assert type(initial_feerate) is int
-            for sub in (LOCAL, REMOTE):
-                if not log[sub]['fee_updates']:
-                    log[sub]['fee_updates'][0] = FeeUpdate(rate=initial_feerate, ctn_local=0, ctn_remote=0)
+            assert initiator in [LOCAL, REMOTE]
+            log[initiator]['fee_updates'][0] = FeeUpdate(rate=initial_feerate, ctn_local=0, ctn_remote=0)
         self.log = log
 
         # We need a lock as many methods of HTLCManager are accessed by both the asyncio thread and the GUI.
@@ -595,9 +594,9 @@ class HTLCManager:
         """Return feerate (sat/kw) used in subject's commitment txn at ctn."""
         ctn = max(0, ctn)  # FIXME rm this
         # only one party can update fees; use length of logs to figure out which:
-        assert not (len(self.log[LOCAL]['fee_updates']) > 1 and len(self.log[REMOTE]['fee_updates']) > 1)
+        assert not (len(self.log[LOCAL]['fee_updates']) > 0 and len(self.log[REMOTE]['fee_updates']) > 0)
         fee_log = self.log[LOCAL]['fee_updates']  # type: Sequence[FeeUpdate]
-        if len(self.log[REMOTE]['fee_updates']) > 1:
+        if len(self.log[REMOTE]['fee_updates']) > 0:
             fee_log = self.log[REMOTE]['fee_updates']
         # binary search
         left = 0
