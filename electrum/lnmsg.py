@@ -1,9 +1,13 @@
+import itertools
 import os
 import csv
 import io
-from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional
+from typing import Tuple, Any, Dict, List, Sequence, Union, Optional
 from collections import OrderedDict
 
+import electrum_ecc as ecc
+
+from . import bitcoin
 from .lnutil import OnionFailureCodeMetaFlag
 
 
@@ -11,10 +15,10 @@ class FailedToParseMsg(Exception):
     msg_type_int: Optional[int] = None
     msg_type_name: Optional[str] = None
 
+
 class UnknownMsgType(FailedToParseMsg): pass
 class UnknownOptionalMsgType(UnknownMsgType): pass
 class UnknownMandatoryMsgType(UnknownMsgType): pass
-
 class MalformedMsg(FailedToParseMsg): pass
 class UnknownMsgFieldType(MalformedMsg): pass
 class UnexpectedEndOfStream(MalformedMsg): pass
@@ -149,6 +153,8 @@ def _read_primitive_field(
         type_len = 32
     elif field_type == 'signature':
         type_len = 64
+    elif field_type == 'bip340sig':
+        type_len = 64
     elif field_type == 'point':
         type_len = 33
     elif field_type == 'short_channel_id':
@@ -165,6 +171,9 @@ def _read_primitive_field(
         if len(buf) != type_len:
             raise UnexpectedEndOfStream()
         return buf
+    elif field_type == 'utf8':
+        if count != '...':
+            raise Exception(f"utf8 fields can only have unbounded count")
 
     if count == "...":
         total_len = -1  # read all
@@ -176,6 +185,10 @@ def _read_primitive_field(
     buf = fd.read(total_len)
     if total_len >= 0 and len(buf) != total_len:
         raise UnexpectedEndOfStream()
+
+    if field_type == 'utf8':
+        return buf.decode('utf-8')
+
     return buf
 
 
@@ -245,6 +258,8 @@ def _write_primitive_field(
         type_len = 32
     elif field_type == 'signature':
         type_len = 64
+    elif field_type == 'bip340sig':
+        type_len = 64
     elif field_type == 'point':
         type_len = 33
     elif field_type == 'short_channel_id':
@@ -257,6 +272,10 @@ def _write_primitive_field(
             type_len = 33  # point
         else:
             raise Exception(f"invalid sciddir_or_pubkey, prefix byte not in range 0-3")
+    elif field_type == 'utf8':
+        if count != '...':
+            raise Exception(f"utf8 fields can only have unbounded count")
+        value = value.encode('utf-8')
     total_len = -1
     if count != "...":
         if type_len is None:
@@ -273,12 +292,17 @@ def _write_primitive_field(
         raise Exception(f"tried to write {len(value)} bytes, but only wrote {nbytes_written}!?")
 
 
-def _read_tlv_record(*, fd: io.BytesIO) -> Tuple[int, bytes]:
+def _read_tlv_record(*, fd: io.BytesIO) -> Tuple[int, bytes, bytes]:
     if not fd: raise Exception()
+    pos_start = fd.seek(0, 1)
     tlv_type = _read_primitive_field(fd=fd, field_type="bigsize", count=1)
     tlv_len = _read_primitive_field(fd=fd, field_type="bigsize", count=1)
     tlv_val = _read_primitive_field(fd=fd, field_type="byte", count=tlv_len)
-    return tlv_type, tlv_val
+    pos_end = fd.seek(0, 1)
+    rawlen = pos_end - pos_start
+    fd.seek(-rawlen, 1)
+    rawbytes = fd.read(rawlen)
+    return tlv_type, tlv_val, rawbytes
 
 
 def _write_tlv_record(*, fd: io.BytesIO, tlv_type: int, tlv_val: bytes) -> None:
@@ -318,6 +342,47 @@ def _parse_msgtype_intvalue_for_onion_wire(value: str) -> int:
         except ValueError:
             msg_type_int |= OnionFailureCodeMetaFlag[component]
     return msg_type_int
+
+
+def batched(iterable, n):  # itertools.batched available from python >=3.12
+    # batched('ABCDEFG', 3) → ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    it = iter(iterable)
+    while batch := tuple(itertools.islice(it, n)):
+        yield batch
+
+
+def _tlv_merkle_root(tlvs: List[Sequence[bytes]]) -> bytes:
+    first_tlv = None
+    tlv_merkle_nodes = []
+
+    for tlvt, tlv in tlvs:
+        if first_tlv is None:
+            first_tlv = tlv
+        tlv_val = tlv
+        tlv_record_type = write_bigsize_int(tlvt)
+        merkle_leaf_hash = bitcoin.bip340_tagged_hash(b'LnLeaf', tlv_val)
+        merkle_nonce = bitcoin.bip340_tagged_hash(b'LnNonce' + first_tlv, tlv_record_type)
+
+        # ascending order
+        msg = merkle_leaf_hash + merkle_nonce if merkle_leaf_hash < merkle_nonce else merkle_nonce + merkle_leaf_hash
+        merkle_node_hash = bitcoin.bip340_tagged_hash(b'LnBranch', msg)
+
+        tlv_merkle_nodes.append(merkle_node_hash)
+
+    while len(tlv_merkle_nodes) > 1:
+        target = []
+        for batch in batched(tlv_merkle_nodes, 2):
+            if len(batch) == 1:
+                target.append(batch[0])
+            else:
+                msg = batch[0] + batch[1] if batch[0] < batch[1] else batch[1] + batch[0]
+                merkle_node_hash = bitcoin.bip340_tagged_hash(b'LnBranch', msg)
+                target.append(merkle_node_hash)
+        tlv_merkle_nodes = target
+
+    return tlv_merkle_nodes[0]
 
 
 class LNSerializer:
@@ -395,7 +460,7 @@ class LNSerializer:
                     assert fieldname not in self.subtypes[subtypename], f"duplicate field definition for {fieldname} for subtype {subtypename}"
                     self.subtypes[subtypename][fieldname] = tuple(row)
                 else:
-                    pass  # TODO
+                    pass  # TODO: raise?
 
     def write_field(
             self,
@@ -499,12 +564,24 @@ class LNSerializer:
 
         return parsedlist if count == '...' or count > 1 else parsedlist[0]
 
-    def write_tlv_stream(self, *, fd: io.BytesIO, tlv_stream_name: str, **kwargs) -> None:
+    def write_tlv_stream(self, *, fd: io.BytesIO, tlv_stream_name: str, signing_key: bytes = None, **kwargs) -> None:
+        sign_over_tlvs = []
+
         scheme_map = self.in_tlv_stream_get_tlv_record_scheme_from_type[tlv_stream_name]
         for tlv_record_type, scheme in scheme_map.items():  # note: tlv_record_type is monotonically increasing
             tlv_record_name = self.in_tlv_stream_get_record_name_from_type[tlv_stream_name][tlv_record_type]
             if tlv_record_name not in kwargs:
-                continue
+                # skip record_name if not in kwargs, unless we need to generate it
+                if tlv_record_name != 'signature' or signing_key is None:
+                    continue
+                else:
+                    # calculate signature over previously serialized tlv records
+                    # and store in kwargs for inclusion in tlv stream
+                    merkle_root = _tlv_merkle_root(sign_over_tlvs)
+                    priv = ecc.ECPrivkey(signing_key)
+                    tag = b'lightning' + tlv_stream_name.encode('ascii') + b'signature'
+                    signature = priv.schnorr_sign(bitcoin.bip340_tagged_hash(tag, merkle_root))
+                    kwargs[tlv_record_name] = {'sig': signature}
             with io.BytesIO() as tlv_record_fd:
                 for row in scheme:
                     if row[0] == "tlvtype":
@@ -527,14 +604,27 @@ class LNSerializer:
                             value=field_value)
                     else:
                         raise Exception(f"unexpected row in scheme: {row!r}")
-                _write_tlv_record(fd=fd, tlv_type=tlv_record_type, tlv_val=tlv_record_fd.getvalue())
 
-    def read_tlv_stream(self, *, fd: io.BytesIO, tlv_stream_name: str) -> Dict[str, Dict[str, Any]]:
+                tlv_val = tlv_record_fd.getvalue()
+                _write_tlv_record(fd=fd, tlv_type=tlv_record_type, tlv_val=tlv_val)
+
+                # if we need to sign the tlvs, we need the entire TLV, so serialize again
+                # and collect in `sign_over_tlvs`
+                if signing_key and tlv_record_name != 'signature':
+                    with io.BytesIO() as tlvfd:
+                        _write_tlv_record(fd=tlvfd, tlv_type=tlv_record_type, tlv_val=tlv_val)
+                        sign_over_tlvs.append((tlv_record_type, tlvfd.getvalue()))
+
+    def read_tlv_stream(self, *,
+                        fd: io.BytesIO,
+                        tlv_stream_name: str,
+                        signing_key_path: Optional[Sequence[str]] = None) -> Dict[str, Dict[str, Any]]:
+        sign_over_tlvs = []
         parsed = {}  # type: Dict[str, Dict[str, Any]]
         scheme_map = self.in_tlv_stream_get_tlv_record_scheme_from_type[tlv_stream_name]
         last_seen_tlv_record_type = -1  # type: int
         while _num_remaining_bytes_to_read(fd) > 0:
-            tlv_record_type, tlv_record_val = _read_tlv_record(fd=fd)
+            tlv_record_type, tlv_record_val, rawbytes = _read_tlv_record(fd=fd)
             if not (tlv_record_type > last_seen_tlv_record_type):
                 raise MsgInvalidFieldOrder(f"TLV records must be monotonically increasing by type. "
                                            f"cur: {tlv_record_type}. prev: {last_seen_tlv_record_type}")
@@ -549,6 +639,23 @@ class LNSerializer:
                     # unknown "odd" type: skip it
                     continue
             tlv_record_name = self.in_tlv_stream_get_record_name_from_type[tlv_stream_name][tlv_record_type]
+            # collect tlvs for signature check
+            if signing_key_path:
+                if tlv_record_name == 'signature':
+                    # verify
+                    merkle_root = _tlv_merkle_root(sign_over_tlvs)
+                    signature = tlv_record_val
+                    tag = b'lightning' + tlv_stream_name.encode('ascii') + b'signature'
+                    tagh = bitcoin.bip340_tagged_hash(tag, merkle_root)
+                    signing_key = parsed
+                    for key in signing_key_path:  # walk signing_key_path
+                        signing_key = signing_key[key]
+                    assert isinstance(signing_key, bytes)
+                    correct = ecc.ECPubkey(signing_key).schnorr_verify(signature, tagh)
+                    if not correct:
+                        raise Exception('invalid signature')
+                else:
+                    sign_over_tlvs.append((tlv_record_type, rawbytes))
             parsed[tlv_record_name] = {}
             with io.BytesIO(tlv_record_val) as tlv_record_fd:
                 for row in scheme:
