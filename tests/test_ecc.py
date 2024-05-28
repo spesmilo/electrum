@@ -116,3 +116,27 @@ class TestSchnorr(ElectrumTestCase):
         for tag, msg in data:
             self.assertEqual(bip340_tagged_hash__from_libsecp(tag, msg),
                              ecc.bip340_tagged_hash(tag, msg))
+
+
+class TestEcdsa(ElectrumTestCase):
+
+    def test_verify_enforces_low_s(self):
+        # privkey = ecc.ECPrivkey(bytes.fromhex("d473e2ec218dca8e3508798f01cdfde0135fc79d95526b12e3537fe57e479ac1"))
+        # r, low_s = privkey.ecdsa_sign(msg32, sigencode=lambda x, y: (x,y))
+        # pubkey = ecc.ECPubkey(privkey.get_public_key_bytes())
+        pubkey = ecc.ECPubkey(bytes.fromhex("03befe4f7c92eaed73fb8eddac28c6191c87c6a3546bf8dc09643e1e10bc6f5ab0"))
+        msg32 = sha256("hello there")
+        r = 29658118546717807188148256874354333643324863178937517286987684851194094232509
+        # low-S
+        low_s = 9695211969150896589566136599751503273246834163278279637071703776634378000266
+        sig64_low_s = (
+            int.to_bytes(r, length=32, byteorder="big") +
+            int.to_bytes(low_s, length=32, byteorder="big"))
+        self.assertTrue(pubkey.ecdsa_verify(sig64_low_s, msg32))
+        # high-S
+        high_s = ecc.CURVE_ORDER - low_s
+        sig64_high_s = (
+            int.to_bytes(r, length=32, byteorder="big") +
+            int.to_bytes(high_s, length=32, byteorder="big"))
+        self.assertFalse(pubkey.ecdsa_verify(sig64_high_s, msg32))
+        self.assertTrue(pubkey.ecdsa_verify(sig64_high_s, msg32, enforce_low_s=False))

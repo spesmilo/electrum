@@ -246,6 +246,15 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertFalse(ecc.verify_usermessage_with_address(addr1, b'wrong', msg1))
         self.assertFalse(ecc.verify_usermessage_with_address(addr1, sig2, msg1))
 
+    def test_signmessage_low_s(self):
+        """`$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs. This tests we do the same."""
+        addr = "15hETetDmcXm1mM4sEf7U2KXC9hDHFMSzz"
+        sig_low_s = b'Hzsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5aKfmX4Db7ExLGa7FGn0m6Mf43KsbEOWpvUUUBTM3Uusw='
+        sig_high_s = b'IDsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5a1gZoH8kE7O05lE65YLZFzLx3sh/rDzXMbo1dQAJhhnU='
+        msg = b'Chancellor on brink of second bailout for banks'
+        self.assertTrue(ecc.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_low_s), message=msg))
+        self.assertTrue(ecc.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_high_s), message=msg))
+
     def test_signmessage_segwit_witness_v0_address(self):
         msg = b'Electrum'
         # p2wpkh-p2sh

@@ -342,7 +342,13 @@ class ECPubkey(object):
         # check message
         return self.ecdsa_verify(sig65[1:], msg32)
 
-    def ecdsa_verify(self, sig64: bytes, msg32: bytes) -> bool:
+    def ecdsa_verify(
+        self,
+        sig64: bytes,
+        msg32: bytes,
+        *,
+        enforce_low_s: bool = True,  # policy/standardness rule
+    ) -> bool:
         assert_bytes(sig64)
         if len(sig64) != 64:
             return False
@@ -353,7 +359,8 @@ class ECPubkey(object):
         ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, sig64)
         if 1 != ret:
             return False
-        ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
+        if not enforce_low_s:
+            ret = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
 
         pubkey = self._to_libsecp256k1_pubkey_ptr()
         if 1 != _libsecp256k1.secp256k1_ecdsa_verify(_libsecp256k1.ctx, sig, msg32, pubkey):
@@ -439,7 +446,8 @@ def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, 
     else:
         return False
     # check message
-    return public_key.ecdsa_verify(sig65[1:], h)
+    # note: `$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs
+    return public_key.ecdsa_verify(sig65[1:], h, enforce_low_s=False)
 
 
 def is_secret_within_curve_range(secret: Union[int, bytes]) -> bool:
@@ -566,6 +574,8 @@ class ECPrivkey(ECPubkey):
         return sig64
 
     def ecdsa_sign_recoverable(self, msg32: bytes, *, is_compressed: bool) -> bytes:
+        assert len(msg32) == 32, len(msg32)
+
         def bruteforce_recid(sig64: bytes):
             for recid in range(4):
                 sig65 = construct_ecdsa_sig65(sig64, recid, is_compressed=is_compressed)
