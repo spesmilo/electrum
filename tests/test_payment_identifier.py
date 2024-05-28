@@ -85,7 +85,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
             self.assertEqual(PaymentIdentifierType.BOLT11, pi.type)
             self.assertFalse(pi.is_amount_locked())
             self.assertFalse(pi.is_error())
-            self.assertIsNotNone(pi.bolt11)
+            self.assertIsNotNone(pi.lightning_invoice)
 
         for pi_str in [
             f'lightning:  {bolt11}',
@@ -99,7 +99,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         pi = PaymentIdentifier(None, bolt_11_w_fallback)
         self.assertTrue(pi.is_valid())
         self.assertEqual(PaymentIdentifierType.BOLT11, pi.type)
-        self.assertIsNotNone(pi.bolt11)
+        self.assertIsNotNone(pi.lightning_invoice)
         self.assertTrue(pi.is_lightning())
         self.assertTrue(pi.is_onchain())
         self.assertTrue(pi.is_amount_locked())
@@ -143,7 +143,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.is_lightning())
         self.assertTrue(pi.is_onchain())
         self.assertIsNotNone(pi.bip21)
-        self.assertIsNotNone(pi.bolt11)
+        self.assertIsNotNone(pi.lightning_invoice)
 
         self.assertTrue(pi.has_expired())
         self.assertEqual('unit_test', pi.bip21.get('message'))
