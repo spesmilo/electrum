@@ -562,7 +562,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi.error:
             self.show_error(pi.error)
             return
-        invoice = pi.bolt11
+        invoice = invoice_from_payment_identifier(pi, self.wallet)
         self.pending_invoice = invoice
         self.logger.debug(f'after finalize invoice: {invoice!r}')
         self.do_pay_invoice(invoice)
