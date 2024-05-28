@@ -45,6 +45,10 @@ tlvdata,encrypted_data_tlv,payment_constraints,max_cltv_expiry,u32,
 tlvdata,encrypted_data_tlv,payment_constraints,htlc_minimum_msat,tu64,
 tlvtype,encrypted_data_tlv,allowed_features,14
 tlvdata,encrypted_data_tlv,allowed_features,features,byte,...
+tlvtype,encrypted_data_tlv,unknown_tag_561,561
+tlvdata,encrypted_data_tlv,unknown_tag_561,data,byte,...
+tlvtype,encrypted_data_tlv,unknown_tag_65535,65535
+tlvdata,encrypted_data_tlv,unknown_tag_65535,data,byte,...
 msgtype,invalid_realm,PERM|1
 msgtype,temporary_node_failure,NODE|2
 msgtype,permanent_node_failure,PERM|NODE|2
