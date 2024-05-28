@@ -59,7 +59,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
     ./configure \
         --cache-file="$CACHEDIR/python.config.cache" \
         --prefix="$APPDIR/usr" \
-        --disable-ipv6 \
+        --enable-ipv6 \
         --enable-shared \
         -q
     make "-j$CPU_COUNT" -s || fail "Could not build Python"
