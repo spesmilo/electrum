@@ -489,7 +489,7 @@ class WCShowConfirmOTP(WizardComponent):
         if self.wizard.trustedcoin_qhelper.otpSecret:
             self.secretlabel.setText(self.wizard.trustedcoin_qhelper.otpSecret)
             uri = 'otpauth://totp/Electrum 2FA %s?secret=%s&digits=6' % (
-                self.wizard_data['wallet_name'], self.wizard.trustedcoin_qhelper.otpSecret)
+                os.path.basename(self.wizard_data['wallet_name']), self.wizard.trustedcoin_qhelper.otpSecret)
             self.qr.setData(uri)
 
     def on_busy_changed(self):

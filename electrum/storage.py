@@ -60,6 +60,8 @@ class StorageOnDiskUnexpectedlyChanged(Exception): pass
 # TODO: Rename to Storage
 class WalletStorage(Logger):
 
+    # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
+    #      Until then, the onus is on the caller to check file_exists().
     def __init__(self, path):
         Logger.__init__(self)
         self.path = standardize_path(path)
