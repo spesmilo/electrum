@@ -130,8 +130,13 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             return False
         wallet_path = self._wallet_path_from_wallet_name(wallet_name)
         # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
-        #       wallet_name might contain ".." (etc) and hence sketchy path traversals are possible.
-        #       Anyway, this at least validates that the path looks sane to the filesystem:
+        # try to prevent sketchy path traversals:
+        for forbidden_char in ("/", "\\", ):
+            if forbidden_char in wallet_name:
+                return False
+        if os.path.basename(wallet_name) != wallet_name:
+            return False
+        # validate that the path looks sane to the filesystem:
         try:
             temp_storage = WalletStorage(wallet_path)
         except (StorageReadWriteError, WalletFileException) as e:
