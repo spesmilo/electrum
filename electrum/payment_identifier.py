@@ -6,11 +6,12 @@ from decimal import Decimal, InvalidOperation
 from enum import IntEnum
 from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple, Union
 
-from . import bitcoin
+from . import bitcoin, bolt12
 from .contacts import AliasNotFoundException
 from .i18n import _
 from .invoices import Invoice
 from .logging import Logger
+from .onion_message import Timeout
 from .util import parse_max_spend, InvoiceError
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
@@ -59,11 +60,12 @@ class PaymentIdentifierState(IntEnum):
                             # payable means there's enough addressing information to submit to one
                             # of the channels Electrum supports (on-chain, lightning)
     NEED_RESOLVE = 3        # PI contains a recognized destination format, but needs an online resolve step
-    LNURLP_FINALIZE = 4     # PI contains a resolved LNURLp, but needs amount and comment to resolve to a bolt11
+    LNURLP_FINALIZE = 4     # PI contains a resolved LNURLp, but needs amount and comment to resolve to a bolt11 invoice
     MERCHANT_NOTIFY = 5     # PI contains a valid payment request and on-chain destination. It should notify
                             # the merchant payment processor of the tx after on-chain broadcast,
                             # and supply a refund address (bip70)
     MERCHANT_ACK = 6        # PI notified merchant. nothing to be done.
+    BOLT12_FINALIZE = 7     # PI contains a bolt12 offer, but needs amount and comment to resolve to a bolt12 invoice
     ERROR = 50              # generic error
     NOT_FOUND = 51          # PI contains a recognized destination format, but resolve step was unsuccessful
     MERCHANT_ERROR = 52     # PI failed notifying the merchant after broadcasting onchain TX
@@ -82,6 +84,7 @@ class PaymentIdentifierType(IntEnum):
     OPENALIAS = 8
     LNADDR = 9
     DOMAINLIKE = 10
+    BOLT12_OFFER = 11
 
 
 class FieldsForGUI(NamedTuple):
@@ -102,6 +105,7 @@ class PaymentIdentifier(Logger):
         * bip21 URI
         * lightning-URI (containing bolt11 or lnurl)
         * bolt11 invoice
+        * bolt12 offer
         * lnurl
         * lightning address
     """
@@ -135,6 +139,9 @@ class PaymentIdentifier(Logger):
         #
         self.lnurl = None
         self.lnurl_data = None
+        #
+        self.bolt12_offer = None
+        self.bolt12_invoice = None
 
         self.parse(text)
 
@@ -154,7 +161,7 @@ class PaymentIdentifier(Logger):
         return self._state == PaymentIdentifierState.NEED_RESOLVE
 
     def need_finalize(self):
-        return self._state == PaymentIdentifierState.LNURLP_FINALIZE
+        return self._state in [PaymentIdentifierState.LNURLP_FINALIZE, PaymentIdentifierState.BOLT12_FINALIZE]
 
     def need_merchant_notify(self):
         return self._state == PaymentIdentifierState.MERCHANT_NOTIFY
@@ -231,6 +238,16 @@ class PaymentIdentifier(Logger):
                     self.error = _("Error parsing LNURL") + f":\n{e}"
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
+            elif bolt12.is_offer(invoice_or_lnurl):
+                self.logger.debug(f'BOLT12 offer')
+                try:
+                    self.bolt12_offer = bolt12.decode_offer(invoice_or_lnurl)
+                    self._type = PaymentIdentifierType.BOLT12_OFFER
+                    self.set_state(PaymentIdentifierState.BOLT12_FINALIZE)
+                except Exception as e:
+                    self.error = _("Error parsing BOLT12 offer") + f":\n{e}"
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return
             else:
                 self._type = PaymentIdentifierType.BOLT11
                 try:
@@ -304,7 +321,7 @@ class PaymentIdentifier(Logger):
             self.set_state(PaymentIdentifierState.INVALID)
 
     def resolve(self, *, on_finished: Callable[['PaymentIdentifier'], None]) -> None:
-        assert self._state == PaymentIdentifierState.NEED_RESOLVE
+        assert self.need_resolve()
         coro = self._do_resolve(on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
@@ -373,7 +390,7 @@ class PaymentIdentifier(Logger):
         comment: str = None,
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
-        assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
+        assert self.need_finalize()
         coro = self._do_finalize(amount_sat=amount_sat, comment=comment, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
@@ -387,35 +404,51 @@ class PaymentIdentifier(Logger):
     ):
         from .invoices import Invoice
         try:
-            if not self.lnurl_data:
-                raise Exception("Unexpected missing LNURL data")
+            if self._state == PaymentIdentifierState.LNURLP_FINALIZE:
+                if not self.lnurl_data:
+                    raise Exception("Unexpected missing LNURL data")
 
-            if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
-                self.error = _('Amount must be between {} and {} sat.').format(
-                    self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
-                self.set_state(PaymentIdentifierState.INVALID_AMOUNT)
-                return
+                if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
+                    self.error = _('Amount must be between {} and {} sat.').format(
+                        self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
+                    self.set_state(PaymentIdentifierState.INVALID_AMOUNT)
+                    return
 
-            if self.lnurl_data.comment_allowed == 0:
-                comment = None
-            params = {'amount': amount_sat * 1000}
-            if comment:
-                params['comment'] = comment
+                if self.lnurl_data.comment_allowed == 0:
+                    comment = None
+                params = {'amount': amount_sat * 1000}
+                if comment:
+                    params['comment'] = comment
 
-            try:
-                invoice_data = await callback_lnurl(self.lnurl_data.callback_url, params=params)
-            except LNURLError as e:
-                self.error = f"LNURL request encountered error: {e}"
-                self.set_state(PaymentIdentifierState.ERROR)
-                return
+                try:
+                    invoice_data = await callback_lnurl(self.lnurl_data.callback_url, params=params)
+                except LNURLError as e:
+                    self.error = f"LNURL request encountered error: {e}"
+                    self.set_state(PaymentIdentifierState.ERROR)
+                    return
 
-            bolt11_invoice = invoice_data.get('pr')
-            invoice = Invoice.from_bech32(bolt11_invoice)
-            if invoice.get_amount_sat() != amount_sat:
-                raise Exception("lnurl returned invoice with wrong amount")
-            # this will change what is returned by get_fields_for_GUI
-            self.bolt11 = invoice
-            self.set_state(PaymentIdentifierState.AVAILABLE)
+                bolt11_invoice = invoice_data.get('pr')
+                invoice = Invoice.from_bech32(bolt11_invoice)
+                if invoice.get_amount_sat() != amount_sat:
+                    raise Exception("lnurl returned invoice with wrong amount")
+                # this will change what is returned by get_fields_for_GUI
+                self.bolt11 = invoice
+                self.set_state(PaymentIdentifierState.AVAILABLE)
+            elif self._state == PaymentIdentifierState.BOLT12_FINALIZE:
+                assert self.bolt12_offer
+                try:
+                    if not self.wallet.lnworker:
+                        raise Exception('wallet is not lightning-enabled')
+                    data = await bolt12.request_invoice(self.wallet.lnworker, self.bolt12_offer, amount_sat, comment)
+                    self.bolt12_invoice = data
+                    self.set_state(PaymentIdentifierState.AVAILABLE)
+                    self.logger.debug(f'BOLT12 invoice request data: {data!r}')
+                except Timeout:
+                    self.error = _('Timeout requesting invoice')
+                    self.set_state(PaymentIdentifierState.NOT_FOUND)
+                except Exception as e:
+                    self.error = str(e)
+                    self.set_state(PaymentIdentifierState.NOT_FOUND)
         except Exception as e:
             self.error = str(e)
             self.logger.error(f"_do_finalize() got error: {e!r}")
