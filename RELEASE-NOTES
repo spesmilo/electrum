@@ -1,3 +1,31 @@
+# Release 4.5.5 (May 30, 2024)
+ * General:
+   - fix: timeout error shadowed by aiorpcx cancellation bug (#8954)
+   - changed: Fiat exchange rates: do not overwrite the locally saved historical
+     data. Instead, merge old and new data (a2fb70d6). This also ~fixes the
+     CoinGecko historical API by only asking for the last 365 days.
+   - update: support latest revision of SLIP-39 mnemonic spec (to restore) (#9059)
+ * Lightning:
+   - new: unify max fee bounds for payments, make it configurable (#9041)
+   - changed: trampoline fees: instead of hardcoded list, use
+     exponential search, capped by configurable budget (#9033)
+   - fix: opening new channels with peer that has .onion address (#9002)
+ * Dependencies:
+   - remove bitstring (#9020)
+ * QML GUI (Android):
+   - new: add tx options to ConfirmTxDialog, RbfBumpFeeDialog (#8909)
+   - various UI fixes (#9018, 472a65eb)
+ * Qt Desktop GUI:
+   - fix: save notes whenever modified (#8951)
+   - fix: offline 2fa wallet creation failing in some cases (#9037)
+   - various UI fixes (#8962, #8874, #9012, 1047200a, #9058)
+ * Hardware wallets:
+   - Bitbox02: fix: call pairing dialog when necessary (#8971)
+   - Jade: update: bump library to 1.0.29 (#9007)
+ * Binaries:
+   - new: add AppArmor profiles for tarball and AppImage (#9003)
+
+
 # Release 4.5.4 (March 14, 2024)
  * General:
     - fix: failing WalletDB upgrade(58) in 4.5.3 (#8913), for wallets with
