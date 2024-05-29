@@ -130,6 +130,19 @@ class TestPaymentIdentifier(ElectrumTestCase):
         pi = PaymentIdentifier(None, bip21)
         self.assertFalse(pi.is_valid())
 
+        # amount bounds
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=-1'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertFalse(pi.is_valid())
+
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=21000001'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertFalse(pi.is_valid())
+
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertFalse(pi.is_valid())
+
     def test_lnurl(self):
         lnurl = 'lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9'
         pi = PaymentIdentifier(None, lnurl)
