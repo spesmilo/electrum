@@ -46,6 +46,8 @@ task:
       - ./contrib/make_libsecp256k1.sh
       - mkdir contrib/_saved_secp256k1_build
       - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
+  libsecp_install_script:
+    - cp contrib/_saved_secp256k1_build/* electrum/
   tox_script:
     - export PYTHONASYNCIODEBUG
     - export PYTHONDEVMODE
