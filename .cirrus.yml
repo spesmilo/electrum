@@ -35,10 +35,17 @@ task:
     - git tag
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-dev
     # qml test reqs:
     - apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
+  libsecp_build_cache:
+    folder: contrib/_saved_secp256k1_build
+    fingerprint_script: sha256sum ./contrib/make_libsecp256k1.sh
+    populate_script:
+      - apt-get -y install automake libtool
+      - ./contrib/make_libsecp256k1.sh
+      - mkdir contrib/_saved_secp256k1_build
+      - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
   tox_script:
     - export PYTHONASYNCIODEBUG
     - export PYTHONDEVMODE
