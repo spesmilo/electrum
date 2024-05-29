@@ -90,6 +90,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_qr = QRCodeWidget(manual_size=True)
 
         self.receive_help_text = WWLabel('')
+        self.receive_help_text.setLayout(QHBoxLayout())
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
 
