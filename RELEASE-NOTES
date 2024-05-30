@@ -300,7 +300,7 @@
     - Coins tab: New menu that lets users easily spend a selection
       of UTXOs into a new channel, or into a submarine swap (Qt GUI).
  * Internal:
-    - Lightning invoices are regenerated everytime routing hints are
+    - Lightning invoices are regenerated every time routing hints are
       deprecated due to liquidity changes.
     - Script descriptors are used internally to sign transactions.
 
@@ -700,7 +700,7 @@ below are user-visible.
  * Android PIN reset: If the password is unified, the PIN can be reset
    by providing the password.
  * Android: on-chain fees have been removed from the settings
-   dialog. Instead, the fee slider is shown to the user everytime an
+   dialog. Instead, the fee slider is shown to the user every time an
    on-chain transaction will be performed (sending a payment, opening
    a channel, initiating a submarine swap)
  * BIP-0350: use bech32m for witness version 1+ addresses (4315fa43).
