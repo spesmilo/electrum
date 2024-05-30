@@ -1197,9 +1197,9 @@ class WalletDBUpgrader(Logger):
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
         if seed_version > FINAL_SEED_VERSION:
-            raise WalletFileException('This version of Electrum is too old to open this wallet.\n'
+            raise WalletFileException('This version of Electrum ({}) is too old to open this wallet.\n'
                                       '(highest supported storage version: {}, version of this file: {})'
-                                      .format(FINAL_SEED_VERSION, seed_version))
+                                      .format(ELECTRUM_VERSION, FINAL_SEED_VERSION, seed_version))
         if seed_version == 14 and self.get('seed_type') == 'segwit':
             self._raise_unsupported_version(seed_version)
         if seed_version == 51 and self._detect_insane_version_51():
