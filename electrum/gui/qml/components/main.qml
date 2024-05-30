@@ -413,7 +413,7 @@ ApplicationWindow
     Component {
         id: _scanDialog
         QRScanner {
-            //onClosed: destroy()
+            onFinished: destroy()
         }
     }
     Component {
