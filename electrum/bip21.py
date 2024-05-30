@@ -92,7 +92,7 @@ def parse_bip21_URI(uri: str) -> dict:
         amount_sat = out.get('amount')
         if amount_sat:
             # allow small leeway due to msat precision
-            if lnaddr.get_amount_msat() is None or abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
+            if lnaddr.get_amount_sat() is None or abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
                 raise InvalidBitcoinURI("Inconsistent lightning field in bip21: amount")
         address = out.get('address')
         ln_fallback_addr = lnaddr.get_fallback_address()
