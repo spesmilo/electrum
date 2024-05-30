@@ -66,6 +66,8 @@ if [ "$GPGUSER" == "ThomasV" ]; then
 elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
     PUBKEY="--local-user 0EEDCFD5CAFB459067349B23CA9EEEC43DF911DC"
     export SSHUSER=sombernight
+else
+    warn "unexpected GPGUSER=$GPGUSER"
 fi
 
 
