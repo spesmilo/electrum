@@ -629,6 +629,16 @@ ApplicationWindow
 
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
+
+        if (method == 'wallet_else_pin') {
+            // if no wallet loaded, delegate to pin auth, else use wallet password auth
+            if (!Daemon.currentWallet) {
+                method = 'pin'
+            } else {
+                method = 'wallet'
+            }
+        }
+
         if (method == 'wallet') {
             if (Daemon.currentWallet.verifyPassword('')) {
                 // wallet has no password
