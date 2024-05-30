@@ -138,7 +138,7 @@ class QEConfig(AuthMixin, QObject):
             self.config.CONFIG_PIN_CODE = pin_code
             self.pinCodeChanged.emit()
 
-    @auth_protect(method='wallet')
+    @auth_protect(method='wallet_else_pin')
     def pinCodeRemoveAuth(self):
         self.config.CONFIG_PIN_CODE = ""
         self.pinCodeChanged.emit()
