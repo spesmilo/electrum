@@ -631,11 +631,12 @@ ApplicationWindow
         console.log('auth using method ' + method)
 
         if (method == 'wallet_else_pin') {
-            // if no wallet loaded, delegate to pin auth, else use wallet password auth
-            if (!Daemon.currentWallet) {
-                method = 'pin'
-            } else {
+            // if there is a loaded wallet and all wallets use the same password, use that
+            // else delegate to pin auth
+            if (Daemon.currentWallet && Daemon.singlePasswordEnabled) {
                 method = 'wallet'
+            } else {
+                method = 'pin'
             }
         }
 
