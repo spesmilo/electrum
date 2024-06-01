@@ -1405,7 +1405,7 @@ class LNWallet(LNWorker):
         return tx
 
     def suggest_funding_amount(self, amount_to_pay, coins):
-        """ wether we can pay amount_sat after opening a new channel"""
+        """ whether we can pay amount_sat after opening a new channel"""
         num_sats_can_send = int(self.num_sats_can_send())
         lightning_needed = amount_to_pay - num_sats_can_send
         assert lightning_needed > 0
