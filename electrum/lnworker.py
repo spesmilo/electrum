@@ -348,16 +348,25 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
                                 proxy=self.network.proxy)
         peer = await self._add_peer_from_transport(node_id=node_id, transport=transport)
+        assert peer
         return peer
 
-    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Peer:
+    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Optional[Peer]:
         with self.lock:
             existing_peer = self._peers.get(node_id)
             if existing_peer:
-                # two instances of the same wallet are attempting to connect simultaneously.
-                # give priority to existing connection
-                return
+                # Two instances of the same wallet are attempting to connect simultaneously.
+                # If we let the new connection replace the existing one, the two instances might
+                # both keep trying to reconnect, resulting in neither being usable.
+                if existing_peer.is_initialized():
+                    # give priority to the existing connection
+                    return
+                else:
+                    # Use the new connection. (e.g. old peer might be an outgoing connection
+                    # for an outdated host/port that will never connect)
+                    existing_peer.close_and_cleanup()
             peer = Peer(self, node_id, transport)
+            assert node_id not in self._peers
             self._peers[node_id] = peer
         await self.taskgroup.spawn(peer.main_loop())
         return peer
