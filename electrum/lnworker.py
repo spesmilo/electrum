@@ -351,12 +351,13 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         return peer
 
     async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Peer:
-        peer = Peer(self, node_id, transport)
         with self.lock:
             existing_peer = self._peers.get(node_id)
             if existing_peer:
-                existing_peer.close_and_cleanup()
-            assert node_id not in self._peers
+                # two instances of the same wallet are attempting to connect simultaneously.
+                # give priority to existing connection
+                return
+            peer = Peer(self, node_id, transport)
             self._peers[node_id] = peer
         await self.taskgroup.spawn(peer.main_loop())
         return peer

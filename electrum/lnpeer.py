@@ -1259,11 +1259,12 @@ class Peer(Logger):
         else:
             # all good
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
-        # Block processing of further incoming messages until we finished our part of chan-reest.
-        # This is needed for the replaying of our local unacked updates to be sane (if the peer
-        # also replays some messages we must not react to them until we finished replaying our own).
-        # (it would be sufficient to only block messages related to this channel, but this is easier)
-        await self._chan_reest_finished[chan.channel_id].wait()
+            # Block processing of further incoming messages until we finished our part of chan-reest.
+            # This is needed for the replaying of our local unacked updates to be sane (if the peer
+            # also replays some messages we must not react to them until we finished replaying our own).
+            # (it would be sufficient to only block messages related to this channel, but this is easier)
+            await self._chan_reest_finished[chan.channel_id].wait()
+            # Note: if the above event is never set, we won't detect if the connection was closed by remote...
 
     def _send_channel_reestablish(self, chan: Channel):
         assert self.is_initialized()
