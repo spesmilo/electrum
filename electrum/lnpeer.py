@@ -22,7 +22,7 @@ from . import ecc
 from .ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
-                   UnrelatedTransactionException, error_text_bytes_to_safe_str)
+                   UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector)
 from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
@@ -240,7 +240,11 @@ class Peer(Logger):
             # note: the message handler might be async or non-async. In either case, by default,
             #       we wait for it to complete before we return, i.e. before the next message is processed.
             if asyncio.iscoroutinefunction(f):
-                await f(*args)
+                async with AsyncHangDetector(
+                    message=f"message handler still running for {message_type.upper()}",
+                    logger=self.logger,
+                ):
+                    await f(*args)
             else:
                 f(*args)
 

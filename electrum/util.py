@@ -22,6 +22,7 @@
 # SOFTWARE.
 import binascii
 import concurrent.futures
+import logging
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
@@ -486,6 +487,35 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
             _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
     return do_profile
+
+
+class AsyncHangDetector:
+    """Context manager that logs every `n` seconds if encapsulated context still has not exited."""
+
+    def __init__(
+        self,
+        *,
+        period_sec: int = 15,
+        message: str,
+        logger: logging.Logger = None,
+    ):
+        self.period_sec = period_sec
+        self.message = message
+        self.logger = logger or _logger
+
+    async def _monitor(self):
+        # note: this assumes that the event loop itself is not blocked
+        t0 = time.monotonic()
+        while True:
+            await asyncio.sleep(self.period_sec)
+            t1 = time.monotonic()
+            self.logger.info(f"{self.message} (after {t1 - t0:.2f} sec)")
+
+    async def __aenter__(self):
+        self.mtask = asyncio.create_task(self._monitor())
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.mtask.cancel()
 
 
 def android_ext_dir():
