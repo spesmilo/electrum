@@ -1453,12 +1453,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @classmethod
     def send_http_on_proxy(cls, method, url, **kwargs):
-        network = cls.get_instance()
-        if network:
-            assert util.get_running_loop() != network.asyncio_loop
-            loop = network.asyncio_loop
-        else:
-            loop = util.get_asyncio_loop()
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
         coro = asyncio.run_coroutine_threadsafe(cls.async_send_http_on_proxy(method, url, **kwargs), loop)
         # note: _send_http_on_proxy has its own timeout, so no timeout here:
         return coro.result()
