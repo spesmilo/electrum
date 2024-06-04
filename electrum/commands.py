@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import io
 import sys
 import datetime
 import copy
@@ -41,6 +41,9 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
 from .import util, ecc
+from .lnmsg import LNSerializer
+from .lnonion import OnionHopsDataSingle, get_shared_secrets_along_route2, new_onion_packet2
+from .logging import Logger
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
                    is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
                    UserFacingException)
@@ -165,11 +168,12 @@ def command(s):
     return decorator
 
 
-class Commands:
+class Commands(Logger):
 
     def __init__(self, *, config: 'SimpleConfig',
                  network: 'Network' = None,
                  daemon: 'Daemon' = None, callback=None):
+        Logger.__init__(self)
         self.config = config
         self.daemon = daemon
         self.network = network
@@ -1389,6 +1393,48 @@ class Commands:
             "source": self.daemon.fx.exchange.name(),
         }
 
+    @command('wnl')
+    async def send_onion_message(self, node_id: str, message: str, wallet: Abstract_Wallet = None):
+        """
+        Send an onion message with onionmsg_tlv.message payload to node_id.
+        """
+        assert wallet
+        assert node_id
+        assert message
+
+        pubkey = bfh(node_id)
+        assert len(pubkey) == 33
+
+        payload = {
+            'message': {'text': message.encode('utf-8')}
+        }
+
+        hops_data = [
+            OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=payload)
+        ]
+
+        payment_path_pubkeys = [pubkey]
+        session_key = os.urandom(32)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        packet = new_onion_packet2(payment_path_pubkeys, session_key, hops_data)
+        packet_b = packet.to_bytes()
+
+        blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
+
+        self.logger.debug(f'blinding: {blinding.hex()}')
+        self.logger.debug(f'ss: {hop_shared_secrets[0].hex()}')
+
+        peer = wallet.lnworker.peers[pubkey]
+        assert peer, 'destination not a peer'
+
+        peer.send_message(
+            "onion_message",
+            blinding=blinding,
+            len=len(packet_b),
+            onion_message_packet=packet_b
+        )
+
+        return True
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1416,6 +1462,7 @@ param_descriptions = {
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
     'onchain_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
+    'node_id': "Node pubkey in hex format"
 }
 
 command_options = {

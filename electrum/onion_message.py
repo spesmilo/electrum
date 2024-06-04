@@ -24,6 +24,7 @@ import asyncio
 import copy
 import io
 import os
+import threading
 from typing import TYPE_CHECKING, Optional
 
 from electrum import ecc
@@ -33,7 +34,7 @@ from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, new_onion_packet2)
 from electrum.lnutil import get_ecdh
-from electrum.util import OldTaskGroup, now
+from electrum.util import OldTaskGroup, now, bfh
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
@@ -125,6 +126,7 @@ class OnionMessageManager(Logger):
         self.lnwallet = lnwallet
 
         self.pending = {}
+        self.pending_lock = threading.Lock()
 
     def start_network(self, *, network: 'Network'):
         assert network
@@ -149,14 +151,15 @@ class OnionMessageManager(Logger):
     async def process(self):
         while True:
             await asyncio.sleep(2)
-            for key, pending_item in self.pending.items():
-                state = pending_item[0]
-                if now() - state['submitted'] > 120:  # expired
-                    continue
-                if now() - state['last_attempt'] > 5:
-                    state['last_attempt'] = now()
-                    self.logger.debug('spawning onionmsg send')
-                    await self.taskgroup.spawn(self.send_pending_onion_message(key))
+            with self.pending_lock:
+                for key, pending_item in self.pending.items():
+                    state = pending_item[0]
+                    if now() - state['submitted'] > 120:  # expired
+                        continue
+                    if now() - state['last_attempt'] > 5:
+                        state['last_attempt'] = now()
+                        self.logger.debug('spawning onionmsg send')
+                        await self.taskgroup.spawn(self.send_pending_onion_message(key))
 
     def on_onion_message_received(self, recipient_data, payload):
         # we are destination, sanity checks
@@ -167,9 +170,11 @@ class OnionMessageManager(Logger):
         #     - MUST ignore the onion message
         # TODO: store reply_path and lookup here
         if 'path_id' not in recipient_data:
-            logger.warning('not a reply to our request')
+            # unsolicited onion_message
+            self.on_onion_message_received_unsolicited(recipient_data, payload)
             return
 
+        # check if this reply is associated with a known request
         correl_data = recipient_data['path_id'].get('data')
         if not correl_data[:15] == b'electrum_invreq':
             logger.warning('not a reply to our request')
@@ -178,7 +183,8 @@ class OnionMessageManager(Logger):
             logger.warning('not a reply to our request')
             return
 
-        del self.pending[correl_data[15:]]
+        with self.pending_lock:
+            del self.pending[correl_data[15:]]
 
         # hardcoded, assumed invoice response
         invoice_tlv = payload['invoice']['invoice']
@@ -186,6 +192,27 @@ class OnionMessageManager(Logger):
             invoice_data = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice')
 
         logger.debug(f'invoice {invoice_data!r}')
+
+    def on_onion_message_received_unsolicited(self, recipient_data, payload):
+        logger.debug('unsolicited onion_message received')
+        logger.debug(f'recipient data: {recipient_data!r}')
+        logger.debug(f'payload: {payload!r}')
+
+        if 'message' not in payload:
+            logger.error('Unsupported onion message payload')
+            return
+
+        if 'text' not in payload['message'] or not isinstance(payload['message']['text'], bytes):
+            logger.error('Malformed \'message\' payload')
+            return
+
+        try:
+            text = payload['message']['text'].decode('utf-8')
+        except Exception as e:
+            self.logger.error(f'Malformed \'message\' payload: {e!r}')
+            return
+
+        self.logger.info(f'onion message with text received: {text}')
 
     def on_onion_message(self, payload):
         blinding = payload.get('blinding')
