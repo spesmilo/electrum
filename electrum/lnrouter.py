@@ -29,8 +29,9 @@ from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set
 import time
 import threading
 from threading import RLock
-import attr
 from math import inf
+
+import attr
 
 from .util import profiler, with_lock
 from .logging import Logger

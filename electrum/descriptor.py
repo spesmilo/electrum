@@ -14,18 +14,8 @@
 # TODO impl ADDR descriptors
 # TODO impl RAW descriptors
 
-import enum
-
-from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
-from . import bitcoin
-from .bitcoin import construct_script, opcodes, construct_witness
-from . import constants
-from .crypto import hash_160, sha256
-from . import ecc
-from . import segwit_addr
-from .util import bfh
-
 from binascii import unhexlify
+import enum
 from enum import Enum
 from typing import (
     List,
@@ -36,6 +26,14 @@ from typing import (
     Mapping,
     Set,
 )
+
+from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
+from . import bitcoin
+from .bitcoin import construct_script, opcodes, construct_witness
+from . import constants
+from .crypto import hash_160, sha256
+from . import ecc
+from . import segwit_addr
 
 
 MAX_TAPROOT_NODES = 128
