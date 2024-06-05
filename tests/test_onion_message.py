@@ -1,9 +1,11 @@
+import io
+
 from electrum import ecc
-from electrum.lnmsg import decode_msg
+from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import get_shared_secrets_along_route2, OnionHopsDataSingle, new_onion_packet2, OnionPacket, \
     process_onion_packet, get_bolt04_onion_key
 from electrum.lnutil import Keypair, get_ecdh
-from electrum.onion_message import blinding_privkey, create_reply_path
+from electrum.onion_message import blinding_privkey, create_blinded_path
 from electrum.util import bfh
 
 from . import ElectrumTestCase
@@ -127,7 +129,8 @@ class TestOnionMessage(ElectrumTestCase):
                 self.node_keypair = keypair
 
         mockwallet = MockKeypairWallet(Keypair(privkey=privkey, pubkey=pubkey))
-        rp = create_reply_path(mockwallet, session_key, reply_data=bfh('0102'))
+        final_recipient_data = {'path_id': {'data': bfh('0102')}}
+        rp = create_blinded_path(mockwallet, session_key, final_recipient_data)
         self.assertEqual(pubkey, rp['first_node_id'])
         self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp['blinding'])
         self.assertEqual(1, rp['num_hops'])
@@ -136,3 +139,14 @@ class TestOnionMessage(ElectrumTestCase):
             'enclen': 20,
             'encrypted_recipient_data': bfh('2dbaa54a819775aa0548ab85db68c5099e7b1180')
         }], rp['path'])
+
+        # TODO: serialization test to test_lnmsg.py
+        with io.BytesIO() as blinded_path_fd:
+            OnionWireSerializer._write_complex_field(fd=blinded_path_fd,
+                                                     field_type='blinded_path',
+                                                     count=1,
+                                                     value=rp)
+            blinded_path = blinded_path_fd.getvalue()
+        self.assertEqual(blinded_path, bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f5127701031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e00142dbaa54a819775aa0548ab85db68c5099e7b1180'))
+
+

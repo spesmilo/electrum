@@ -25,7 +25,7 @@ import copy
 import io
 import os
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List
 
 from electrum import ecc
 from electrum.logging import get_logger, Logger
@@ -34,7 +34,7 @@ from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, new_onion_packet2)
 from electrum.lnutil import get_ecdh
-from electrum.util import OldTaskGroup, now, bfh
+from electrum.util import OldTaskGroup, now
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
@@ -43,18 +43,24 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def create_reply_path(lnwallet: 'LNWallet', session_key: bytes, reply_data: bytes):
-    # TODO: pass route from introduction point to me
-    # for now, hardcoded direct single hop (introduction point = me)
-    introduction_point = lnwallet.node_keypair.pubkey
-    route = [introduction_point]
+def create_blinded_path(lnwallet: 'LNWallet', session_key: bytes, final_recipient_data: dict, path: Optional[List[bytes]] = None):
+    # assume blinded path always leads to myself
+    if path:
+        # assure last node in path is me (append for convenience)
+        if path[-1] != lnwallet.node_keypair.pubkey:
+            path.append(lnwallet.node_keypair.pubkey)
+    else:
+        # no path, take myself as introduction point
+        path = [lnwallet.node_keypair.pubkey]
+
+    introduction_point = path[0]
 
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
     onionmsg_hops = []
-    shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(route, session_key)
-    for i, node_id in enumerate(route):
-        is_non_final_node = i < len(route) - 1
+    shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(path, session_key)
+    for i, node_id in enumerate(path):
+        is_non_final_node = i < len(path) - 1
 
         if is_non_final_node:
             recipient_data = {
@@ -62,10 +68,8 @@ def create_reply_path(lnwallet: 'LNWallet', session_key: bytes, reply_data: byte
                 'next_node_id': {'node_id': node_id}
             }
         else:
-            recipient_data = {
-                # SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
-                'path_id': {'data': reply_data}
-            }
+            # SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
+            recipient_data = final_recipient_data
 
         with io.BytesIO() as recipient_data_fd:
             OnionWireSerializer.write_tlv_stream(fd=recipient_data_fd,
@@ -75,7 +79,6 @@ def create_reply_path(lnwallet: 'LNWallet', session_key: bytes, reply_data: byte
 
         rho_key = get_bolt04_onion_key(b'rho', shared_secrets[0])
         encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=recipient_data_tlv)
-        logger.debug(f'MAC: {encrypted_recipient_data[-16:].hex()}')
 
         hopdata = {
             'blinded_node_id': blinded_node_ids[i],
@@ -84,14 +87,14 @@ def create_reply_path(lnwallet: 'LNWallet', session_key: bytes, reply_data: byte
         }
         onionmsg_hops.append(hopdata)
 
-    reply_path = {
+    blinded_path = {
         'first_node_id': introduction_point,
         'blinding': blinding,
         'num_hops': len(onionmsg_hops),
         'path': onionmsg_hops
     }
 
-    return reply_path
+    return blinded_path
 
 
 def blinding_privkey(privkey, blinding):
@@ -163,9 +166,14 @@ class OnionMessageManager(Logger):
 
     def on_onion_message_received(self, recipient_data, payload):
         # we are destination, sanity checks
+        # - if `encrypted_data_tlv` contains `allowed_features`:
+        #   - MUST ignore the message if:
+        #     - `encrypted_data_tlv.allowed_features.features` contains an unknown feature bit (even if it is odd).
+        #     - the message uses a feature not included in `encrypted_data_tlv.allowed_features.features`.
         if 'allowed_features' in recipient_data:
-            pass  # TODO: features check
-        # if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
+            pass  # TODO
+
+        # - if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
         #   - if the onion message is not a reply to that previous onion:
         #     - MUST ignore the onion message
         # TODO: store reply_path and lookup here
@@ -174,16 +182,16 @@ class OnionMessageManager(Logger):
             self.on_onion_message_received_unsolicited(recipient_data, payload)
             return
 
-        # check if this reply is associated with a known request
-        correl_data = recipient_data['path_id'].get('data')
-        if not correl_data[:15] == b'electrum_invreq':
-            logger.warning('not a reply to our request')
-            return
-        if not correl_data[15:] in self.pending:
-            logger.warning('not a reply to our request')
-            return
-
         with self.pending_lock:
+            # check if this reply is associated with a known request
+            correl_data = recipient_data['path_id'].get('data')
+            if not correl_data[:15] == b'electrum_invreq':
+                logger.warning('not a reply to our request')
+                return
+            if not correl_data[15:] in self.pending:
+                logger.warning('not a reply to our request')
+                return
+
             del self.pending[correl_data[15:]]
 
         # hardcoded, assumed invoice response
@@ -272,7 +280,10 @@ class OnionMessageManager(Logger):
 
         state, payload, session_key = self.pending[key]
 
-        reply_path = create_reply_path(self.lnwallet, session_key, b'electrum_invreq' + key)
+        final_recipient_data = {
+            'path_id': {'data': b'electrum_invreq' + key}
+        }
+        reply_path = create_blinded_path(self.lnwallet, session_key, final_recipient_data)
 
         final_payload = copy.deepcopy(payload)
         final_payload['reply_path'] = {'path': reply_path}

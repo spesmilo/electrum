@@ -30,7 +30,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 
 from . import constants, util
 from . import keystore
-from .onion_message import create_reply_path, OnionMessageManager
+from .onion_message import OnionMessageManager
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
 from .invoices import BaseInvoice
