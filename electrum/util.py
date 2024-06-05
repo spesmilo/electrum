@@ -2064,6 +2064,14 @@ class nullcontext:
         pass
 
 
+def traceback_format_exception(exc: BaseException) -> Sequence[str]:
+    """Compatibility wrapper for stdlib traceback.format_exception using python 3.10+ API."""
+    if sys.version_info[:3] >= (3, 10):
+        return traceback.format_exception(exc)
+    else:
+        return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
+
+
 class classproperty(property):
     """~read-only class-level @property
     from https://stackoverflow.com/a/13624858 by denis-ryzhkov

@@ -46,7 +46,7 @@ from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
 from .invoices import PR_PAID, PR_EXPIRED
 from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
-from .util import EventListener, event_listener
+from .util import EventListener, event_listener, traceback_format_exception
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
@@ -264,7 +264,7 @@ class AuthenticatedServer(Logger):
                 'message': "internal error while executing RPC",
                 'data': {
                     "exception": repr(e),
-                    "traceback": "".join(traceback.format_exception(e)),
+                    "traceback": "".join(traceback_format_exception(e)),
                 },
             }
         return web.json_response(response)
