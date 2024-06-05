@@ -2380,10 +2380,10 @@ class LNWallet(LNWorker):
         is_htlc_key = ':' in payment_key_hex
         if not is_htlc_key:
             payment_key = bytes.fromhex(payment_key_hex)
-            mpp_status = self.received_mpp_htlcs[payment_key]
-            if mpp_status.resolution == RecvMPPResolution.WAITING:
-                # reconstructing the MPP after restart
-                self.logger.info(f'cannot cleanup mpp, still waiting')
+            mpp_status = self.received_mpp_htlcs.get(payment_key)
+            if not mpp_status or mpp_status.resolution == RecvMPPResolution.WAITING:
+                # After restart, self.received_mpp_htlcs needs to be reconstructed
+                self.logger.info(f'maybe_cleanup_forwarding: mpp_status not ready')
                 return
             htlc_key = (short_channel_id, htlc)
             mpp_status.htlc_set.remove(htlc_key)  # side-effecting htlc_set
