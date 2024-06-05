@@ -1123,8 +1123,7 @@ def read_json_file(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.loads(f.read())
-    #backwards compatibility for JSONDecodeError
-    except ValueError:
+    except json.JSONDecodeError:
         _logger.exception('')
         raise FileImportFailed(_("Invalid JSON code."))
     except BaseException as e:

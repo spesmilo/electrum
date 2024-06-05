@@ -348,12 +348,9 @@ def ripemd(x: bytes) -> bytes:
         md = ripemd.new(x)
         return md.digest()
 
+
 def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
-    if hasattr(hmac, 'digest'):
-        # requires python 3.7+; faster
-        return hmac.digest(key, msg, digest)
-    else:
-        return hmac.new(key, msg, digest).digest()
+    return hmac.digest(key, msg, digest)
 
 
 def chacha20_poly1305_encrypt(

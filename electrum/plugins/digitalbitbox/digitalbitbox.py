@@ -282,14 +282,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             return
 
         try:
-            # Python 3.5+
-            jsonDecodeError = json.JSONDecodeError
-        except AttributeError:
-            jsonDecodeError = ValueError
-        try:
             with open(os.path.join(dbb_user_dir, "config.dat")) as f:
                 dbb_config = json.load(f)
-        except (FileNotFoundError, jsonDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError):
             return
 
         if ENCRYPTION_PRIVKEY_KEY not in dbb_config or CHANNEL_ID_KEY not in dbb_config:
