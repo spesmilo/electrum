@@ -2731,6 +2731,15 @@ class Peer(Logger):
                         except OnionRoutingFailure as e:
                             assert len(self.lnworker.active_forwardings[payment_key]) == 0
                             self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
+                        # TODO what about other errors? e.g. TxBroadcastError for a swap.
+                        #        - malicious electrum server could fake TxBroadcastError
+                        #      Could we "catch-all Exception" and fail back the htlcs with e.g. TEMPORARY_NODE_FAILURE?
+                        #        - we don't want to fail the inc-HTLC for a syntax error that happens in the callback
+                        #      If we don't call save_forwarding_failure(), the inc-HTLC gets stuck until expiry
+                        #      and then the inc-channel will get force-closed.
+                        #      => forwarding_callback() could have an API with two exceptions types:
+                        #        - type1, such as OnionRoutingFailure, that signals we need to fail back the inc-HTLC
+                        #        - type2, such as TxBroadcastError, that signals we want to retry the callback
                     # add to list
                     assert len(self.lnworker.active_forwardings.get(payment_key, [])) == 0
                     self.lnworker.active_forwardings[payment_key] = []

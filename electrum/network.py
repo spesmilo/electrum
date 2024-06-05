@@ -993,6 +993,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @best_effort_reliable
     async def broadcast_transaction(self, tx: 'Transaction', *, timeout=None) -> None:
+        """caller should handle TxBroadcastError"""
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
         if timeout is None:

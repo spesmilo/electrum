@@ -30,7 +30,7 @@ from .i18n import _
 from .bitcoin import construct_script
 from .crypto import ripemd
 from .invoices import Invoice
-from .network import TxBroadcastServerReturnedError
+from .network import TxBroadcastError
 from .lnonion import OnionRoutingFailure, OnionFailureCode
 
 
@@ -312,7 +312,7 @@ class SwapManager(Logger):
                         tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                         try:
                             await self.network.broadcast_transaction(tx)
-                        except TxBroadcastServerReturnedError:
+                        except TxBroadcastError:
                             self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
                     elif funding_height.height == TX_HEIGHT_LOCAL:
                         # the funding tx was double spent.
@@ -385,7 +385,7 @@ class SwapManager(Logger):
             if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
                 try:
                     await self.network.broadcast_transaction(tx)
-                except TxBroadcastServerReturnedError:
+                except TxBroadcastError:
                     self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
 
     def get_claim_fee(self):
@@ -423,7 +423,7 @@ class SwapManager(Logger):
                     tx = self.create_funding_tx(swap, None, password=password, batch_rbf=batch_rbf)
                     try:
                         await self.broadcast_funding_tx(swap, tx)
-                    except TxBroadcastServerReturnedError:
+                    except TxBroadcastError:
                         continue
                     break
 
@@ -704,6 +704,8 @@ class SwapManager(Logger):
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
         async def callback(payment_hash):
+            # FIXME what if this raises, e.g. TxBroadcastError?
+            #       We will never retry the hold-invoice-callback.
             await self.broadcast_funding_tx(swap, tx)
 
         self.lnworker.register_hold_invoice(payment_hash, callback)
