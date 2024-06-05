@@ -6,6 +6,8 @@ from unittest import SkipTest
 
 from PyQt6.QtCore import QCoreApplication, QMetaObject, Qt, pyqtSlot, QObject
 
+from electrum.util import traceback_format_exception
+
 
 class TestQCoreApplication(QCoreApplication):
     @pyqtSlot()
@@ -76,7 +78,7 @@ def qt_test(func):
             if not res:
                 self._e = Exception('testcase timed out')
             if self._e:
-                print("".join(traceback.format_exception(self._e)))
+                print("".join(traceback_format_exception(self._e)))
                 # deallocate stored exception from qt thread otherwise we SEGV garbage collector
                 # instead, re-create using the exception message, special casing AssertionError and SkipTest
                 e = None
