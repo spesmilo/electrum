@@ -382,6 +382,11 @@ class SwapManager(Logger):
             self.logger.info(f'adding claim tx {tx.txid()}')
             self.wallet.adb.add_transaction(tx)
             swap.spending_txid = tx.txid()
+            if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
+                try:
+                    await self.network.broadcast_transaction(tx)
+                except TxBroadcastServerReturnedError:
+                    self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
 
     def get_claim_fee(self):
         return self.get_fee(CLAIM_FEE_SIZE)
