@@ -30,7 +30,7 @@ from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, 
 from enum import IntEnum
 
 from . import ecc
-from .crypto import sha256, hmac_oneshot, chacha20_encrypt, chacha20_poly1305_encrypt
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 from .ecc import ECPubkey
 from .util import profiler, xor_bytes, bfh
 from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
@@ -250,6 +250,29 @@ def new_onion_packet(
         hmac=next_hmac)
 
 
+def encrypt_encrypted_data_tlv(*, shared_secret, **kwargs):
+    rho_key = get_bolt04_onion_key(b'rho', shared_secret)
+    with io.BytesIO() as encrypted_data_tlv_fd:
+        OnionWireSerializer.write_tlv_stream(
+            fd=encrypted_data_tlv_fd,
+            tlv_stream_name='encrypted_data_tlv',
+            **kwargs)
+        encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
+        encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12),
+                                                             data=encrypted_data_tlv_bytes)
+        return encrypted_recipient_data
+
+
+def decrypt_encrypted_data_tlv(*, shared_secret: bytes, encrypted_recipient_data: bytes) -> dict:
+    rho_key = get_bolt04_onion_key(b'rho', shared_secret)
+    recipient_data_bytes = chacha20_poly1305_decrypt(key=rho_key, nonce=bytes(12), data=encrypted_recipient_data)
+
+    with io.BytesIO(recipient_data_bytes) as fd:
+        recipient_data = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='encrypted_data_tlv')
+
+    return recipient_data
+
+
 def new_onion_packet2(
     payment_path_pubkeys: Sequence[Union[bytes, Tuple[bytes, bytes]]],
     session_key: bytes,
@@ -263,20 +286,40 @@ def new_onion_packet2(
     hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
     # compute routing info and MAC for each hop
     for i in range(num_hops):
-        if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
-            rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
-            with io.BytesIO() as encrypted_data_tlv_fd:
-                OnionWireSerializer.write_tlv_stream(
-                    fd=encrypted_data_tlv_fd,
-                    tlv_stream_name='encrypted_data_tlv',
-                    **hops_data[i].blind_fields)
-                encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
-                encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
-                payload = hops_data[i].payload
-                payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
+        if hops_data[i].tlv_stream_name == 'onionmsg_tlv' and 'encrypted_recipient_data' not in hops_data[i].payload:
+            # construct encrypted_recipient_data from blind_fields
+            encrypted_recipient_data = encrypt_encrypted_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
+            hops_data[i].payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
 
     return new_onion_packet(
         payment_path_pubkeys=blinded_node_ids,
+        session_key=session_key,
+        hops_data=hops_data,
+        associated_data=associated_data,
+        trampoline=trampoline,
+    )
+
+
+def new_onion_packet3(
+    payment_path_pubkeys: Sequence[Union[bytes, Tuple[bytes, bytes]]],
+    session_key: bytes,
+    hops_data: Sequence[OnionHopsDataSingle],
+    *,
+    associated_data: bytes = b'',
+    trampoline: bool = False,
+) -> OnionPacket:
+    num_hops = len(payment_path_pubkeys)
+    assert num_hops == len(hops_data)
+    hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
+    # compute routing info and MAC for each hop
+    for i in range(num_hops):
+        if hops_data[i].tlv_stream_name == 'onionmsg_tlv' and 'encrypted_recipient_data' not in hops_data[i].payload:
+            # construct encrypted_recipient_data from blind_fields
+            encrypted_recipient_data = encrypt_encrypted_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
+            hops_data[i].payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
+
+    return new_onion_packet(
+        payment_path_pubkeys=payment_path_pubkeys,
         session_key=session_key,
         hops_data=hops_data,
         associated_data=associated_data,

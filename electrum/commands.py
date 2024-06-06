@@ -41,12 +41,11 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
 from .import util, ecc
-from .lnmsg import LNSerializer
-from .lnonion import OnionHopsDataSingle, get_shared_secrets_along_route2, new_onion_packet2
+from .lnmsg import OnionWireSerializer
 from .logging import Logger
-from .util import (bfh, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-                   UserFacingException)
+from .onion_message import create_blinded_path, send_onion_message_to
+from .util import (bfh, format_satoshis, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
+                   parse_max_spend, to_decimal, UserFacingException)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -1394,47 +1393,52 @@ class Commands(Logger):
         }
 
     @command('wnl')
-    async def send_onion_message(self, node_id: str, message: str, wallet: Abstract_Wallet = None):
+    async def send_onion_message(self, node_id_or_blinded_path_hex: str, message: str, wallet: Abstract_Wallet = None):
         """
         Send an onion message with onionmsg_tlv.message payload to node_id.
         """
         assert wallet
-        assert node_id
+        assert node_id_or_blinded_path_hex
         assert message
 
-        pubkey = bfh(node_id)
-        assert len(pubkey) == 33
+        node_id_or_blinded_path = bfh(node_id_or_blinded_path_hex)
+        assert len(node_id_or_blinded_path) >= 33
 
-        payload = {
+        destination_payload = {
             'message': {'text': message.encode('utf-8')}
         }
 
-        hops_data = [
-            OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=payload)
-        ]
-
-        payment_path_pubkeys = [pubkey]
-        session_key = os.urandom(32)
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
-        packet = new_onion_packet2(payment_path_pubkeys, session_key, hops_data)
-        packet_b = packet.to_bytes()
-
-        blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
-
-        self.logger.debug(f'blinding: {blinding.hex()}')
-        self.logger.debug(f'ss: {hop_shared_secrets[0].hex()}')
-
-        peer = wallet.lnworker.peers[pubkey]
-        assert peer, 'destination not a peer'
-
-        peer.send_message(
-            "onion_message",
-            blinding=blinding,
-            len=len(packet_b),
-            onion_message_packet=packet_b
-        )
+        send_onion_message_to(wallet, node_id_or_blinded_path, destination_payload)
 
         return True
+
+    @command('wnl')
+    async def get_blinded_path_via(self, node_id: str, wallet: Abstract_Wallet = None):
+        """
+        Create a blinded path with node_id as introduction point. Introduction point must be direct peer of me.
+        """
+        assert wallet
+        assert node_id
+
+        pubkey = bfh(node_id)
+        assert len(pubkey) == 33, 'invalid node_id'
+
+        peer = wallet.lnworker.peers[pubkey]
+        assert peer, 'node_id not a peer'
+
+        path = [pubkey, wallet.lnworker.node_keypair.pubkey]
+        session_key = os.urandom(32)
+        blinded_path = create_blinded_path(session_key, final_recipient_data={}, path=path)
+
+        with io.BytesIO() as blinded_path_fd:
+            OnionWireSerializer._write_complex_field(fd=blinded_path_fd,
+                                                     field_type='blinded_path',
+                                                     count=1,
+                                                     value=blinded_path)
+            encoded_blinded_path = blinded_path_fd.getvalue()
+
+        return encoded_blinded_path.hex()
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False

@@ -28,13 +28,15 @@ import threading
 from typing import TYPE_CHECKING, Optional, List
 
 from electrum import ecc
+from electrum.lnrouter import PathEdge
 from electrum.logging import get_logger, Logger
-from electrum.crypto import chacha20_poly1305_encrypt, chacha20_poly1305_decrypt, sha256
+from electrum.crypto import sha256
 from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
-                              OnionHopsDataSingle, new_onion_packet2)
+                              OnionHopsDataSingle, new_onion_packet2, decrypt_encrypted_data_tlv,
+                              encrypt_encrypted_data_tlv, new_onion_packet3)
 from electrum.lnutil import get_ecdh, LnFeatures
-from electrum.util import OldTaskGroup, now, trigger_callback
+from electrum.util import OldTaskGroup, now, trigger_callback, bfh
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
@@ -43,16 +45,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def create_blinded_path(lnwallet: 'LNWallet', session_key: bytes, final_recipient_data: dict, path: Optional[List[bytes]] = None):
-    # assume blinded path always leads to myself
-    if path:
-        # assure last node in path is me (append for convenience)
-        if path[-1] != lnwallet.node_keypair.pubkey:
-            path.append(lnwallet.node_keypair.pubkey)
-    else:
-        # no path, take myself as introduction point
-        path = [lnwallet.node_keypair.pubkey]
-
+def create_blinded_path(session_key: bytes, path: Optional[List[bytes]], final_recipient_data: dict, hop_extras: Optional[dict] = None):
     introduction_point = path[0]
 
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
@@ -65,20 +58,15 @@ def create_blinded_path(lnwallet: 'LNWallet', session_key: bytes, final_recipien
         if is_non_final_node:
             recipient_data = {
                 # SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
-                'next_node_id': {'node_id': node_id}
+                'next_node_id': {'node_id': path[i+1]}
             }
+            if hop_extras and hop_extras[i]:  # for debugging for now
+                recipient_data.update(hop_extras[i])
         else:
             # SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
             recipient_data = final_recipient_data
 
-        with io.BytesIO() as recipient_data_fd:
-            OnionWireSerializer.write_tlv_stream(fd=recipient_data_fd,
-                                                 tlv_stream_name='encrypted_data_tlv',
-                                                 **recipient_data)
-            recipient_data_tlv = recipient_data_fd.getvalue()
-
-        rho_key = get_bolt04_onion_key(b'rho', shared_secrets[0])
-        encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=recipient_data_tlv)
+        encrypted_recipient_data = encrypt_encrypted_data_tlv(shared_secret=shared_secrets[i], **recipient_data)
 
         hopdata = {
             'blinded_node_id': blinded_node_ids[i],
@@ -111,6 +99,154 @@ def blinding_privkey(privkey, blinding):
 
 def is_onion_message_node(node_info: 'NodeInfo'):
     return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
+
+
+# TODO: integrate this with OnionMessageManager below for retry/rate-limit etc
+def send_onion_message_to(wallet: 'LNWallet', node_id_or_blinded_path: bytes, destination_payload: dict):
+    assert wallet.lnworker, 'not a lightning wallet'
+
+    if len(node_id_or_blinded_path) > 33:  # assume blinded path
+        with io.BytesIO(node_id_or_blinded_path) as blinded_path_fd:
+            try:
+                blinded_path = OnionWireSerializer._read_complex_field(fd=blinded_path_fd,
+                                                                       field_type='blinded_path',
+                                                                       count=1)
+                logger.debug(f'blinded path: {blinded_path!r}')
+            except Exception as e:
+                logger.error(f'e!r')
+                return
+
+            introduction_point = blinded_path['first_node_id']
+
+            session_key = os.urandom(32)
+
+            # TODO: route to introduction point
+            # path = wallet.lnworker.network.path_finder.find_path_for_payment(
+            #     nodeA=wallet.lnworker.node_keypair.pubkey,
+            #     nodeB=introduction_point,
+            #     invoice_amount_msat=10000,  # TODO: do this without amount constraints
+            #     node_filter=is_onion_message_node
+            # )
+            # if path is None:
+            #     raise Exception('no path found')
+
+            # test hardcoded, route = introduction point is direct peer
+            path = [
+                PathEdge(
+                    short_channel_id=None,
+                    start_node=None,
+                    end_node=introduction_point
+                )
+            ]
+
+            # first hop must be our peer
+            peer = wallet.lnworker.peers[path[0].end_node]
+            assert peer, 'first hop not a peer'
+
+            # last hop is introduction point and start of blinded path. remove from route
+            assert path[-1].end_node == introduction_point, 'last hop in route must be introduction point'
+            path = path[:-1]
+
+            payment_path_pubkeys = [edge.end_node for edge in path]
+            hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys,
+                                                                                   session_key)
+            if len(path) == 0:
+                # start of blinded path is our peer
+                hops_data = []
+                blinding = blinded_path['blinding']
+            else:
+                hops_data = [
+                    lambda x: OnionHopsDataSingle(
+                        tlv_stream_name='onionmsg_tlv',
+                        blind_fields={'next_node_id': {'node_id': x.end_node}}
+                    ) for x in path[:-1]
+                ]
+
+                # final hop pre-ip, add next_blinding_override
+                final_hop_pre_ip = OnionHopsDataSingle(
+                    tlv_stream_name='onionmsg_tlv',
+                    blind_fields={'next_node_id': {'node_id': introduction_point},
+                                  'next_blinding_override': {'blinding': blinded_path['blinding']},
+                                  }
+                )
+
+                hops_data.append(final_hop_pre_ip)
+
+                # encrypt encrypted_data_tlv here
+                for i in range(len(hops_data)):
+                    encrypted_recipient_data = encrypt_encrypted_data_tlv(shared_secret=hop_shared_secrets[i],
+                                                                          **hops_data[i].blind_fields)
+                    hops_data[i].payload['encrypted_recipient_data'] = {
+                        'encrypted_recipient_data': encrypted_recipient_data
+                    }
+
+                blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
+
+            # append blinded path and payload
+            blinded_path_blinded_ids = []
+            for i, onionmsg_hop in enumerate(blinded_path['path']):
+                blinded_path_blinded_ids.append(onionmsg_hop.get('blinded_node_id'))
+                payload = {
+                    'encrypted_recipient_data': {'encrypted_recipient_data': onionmsg_hop['encrypted_recipient_data']}
+                }
+                if i == len(blinded_path['path']) - 1:  # final hop
+                    payload.update(destination_payload)
+                hop = OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=payload)
+                hops_data.append(hop)
+
+            payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
+            packet = new_onion_packet3(payment_path_pubkeys, session_key, hops_data)
+            packet_b = packet.to_bytes()
+
+    else:  # node pubkey
+        pubkey = node_id_or_blinded_path
+
+        # TODO: route-find to pubkey.
+        # path = wallet.lnworker.network.path_finder.find_path_for_payment(
+        #     nodeA=wallet.lnworker.node_keypair.pubkey,
+        #     nodeB=pubkey,
+        #     invoice_amount_msat=10000,  # TODO: do this without amount constraints
+        #     node_filter=is_onion_message_node
+        # )
+        # if path is None:
+        #     raise Exception('no path found')
+
+        # currently hardcoded for direct peer
+        path = [
+            PathEdge(
+                short_channel_id=None,
+                start_node=None,
+                end_node=pubkey
+            )
+        ]
+
+        # first hop must be our peer
+        peer = wallet.lnworker.peers[path[0].end_node]
+        assert peer, 'first hop not a peer'
+
+        hops_data = [
+            OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv',
+                                blind_fields={'next_node_id': {'node_id': pubkey}}
+                                ),
+            OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv',
+                                payload=destination_payload
+                                )
+        ]
+
+        payment_path_pubkeys = [edge.end_node for edge in path]
+
+        session_key = os.urandom(32)
+        packet = new_onion_packet2(payment_path_pubkeys, session_key, hops_data)
+        packet_b = packet.to_bytes()
+
+        blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
+
+    peer.send_message(
+        "onion_message",
+        blinding=blinding,
+        len=len(packet_b),
+        onion_message_packet=packet_b
+    )
 
 
 class OnionMessageManager(Logger):
@@ -281,13 +417,10 @@ class OnionMessageManager(Logger):
 
         # decrypt
         shared_secret = get_ecdh(self.lnwallet.node_keypair.privkey, blinding)
-        rho_key = get_bolt04_onion_key(b'rho', shared_secret)
-        encrypted_recipient_data = payload['encrypted_recipient_data']['encrypted_recipient_data']
-        recipient_data_bytes = chacha20_poly1305_decrypt(key=rho_key, nonce=bytes(12), data=encrypted_recipient_data)
-
-        # parse
-        with io.BytesIO(recipient_data_bytes) as fd:
-            recipient_data = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='encrypted_data_tlv')
+        recipient_data = decrypt_encrypted_data_tlv(
+            shared_secret=shared_secret,
+            encrypted_recipient_data=payload['encrypted_recipient_data']['encrypted_recipient_data']
+        )
 
         logger.debug(f'parsed recipient_data: {recipient_data!r}')
 
