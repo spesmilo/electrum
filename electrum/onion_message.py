@@ -34,7 +34,7 @@ from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, new_onion_packet2)
 from electrum.lnutil import get_ecdh
-from electrum.util import OldTaskGroup, now
+from electrum.util import OldTaskGroup, now, trigger_callback
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
@@ -221,6 +221,8 @@ class OnionMessageManager(Logger):
             return
 
         self.logger.info(f'onion message with text received: {text}')
+
+        trigger_callback('onion_message_textmessage', text)
 
     def on_onion_message(self, payload):
         blinding = payload.get('blinding')

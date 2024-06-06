@@ -13,7 +13,7 @@ from PyQt5 import QtWidgets
 from electrum import util
 from electrum.i18n import _
 
-from .util import MONOSPACE_FONT, font_height
+from .util import MONOSPACE_FONT, font_height, QtEventListener, qt_event_listener
 
 # sys.ps1 and sys.ps2 are only declared if an interpreter is in interactive mode.
 sys.ps1 = '>>> '
@@ -47,9 +47,10 @@ class OverlayLabel(QtWidgets.QLabel):
         self.setFixedWidth(w - padding)
 
 
-class Console(QtWidgets.QPlainTextEdit):
+class Console(QtWidgets.QPlainTextEdit, QtEventListener):
     def __init__(self, parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
+        QtEventListener.__init__(self)
 
         self.history = []
         self.namespace = {}
@@ -71,6 +72,16 @@ class Console(QtWidgets.QPlainTextEdit):
             _("Click here to hide this message.")
         )
         self.messageOverlay = OverlayLabel(warning_text, self)
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_onion_message_textmessage(self, text):
+        self.showMessage(f'ONION_MESSAGE text message received: {text}')
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
