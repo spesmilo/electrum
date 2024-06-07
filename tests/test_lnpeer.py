@@ -316,6 +316,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
     current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
     current_low_feerate_per_kw = LNWallet.current_low_feerate_per_kw
+    maybe_cleanup_mpp = LNWallet.maybe_cleanup_mpp
 
 
 class MockTransport:
@@ -1741,6 +1742,7 @@ class TestPeerForwarding(TestPeer):
         ):
             alice_w = graph.workers['alice']
             bob_w = graph.workers['bob']
+            carol_w = graph.workers['carol']
             dave_w = graph.workers['dave']
             if mpp_invoice:
                 dave_w.features |= LnFeatures.BASIC_MPP_OPT
@@ -1762,6 +1764,12 @@ class TestPeerForwarding(TestPeer):
                 await asyncio.sleep(2)
             if result:
                 self.assertEqual(PR_PAID, dave_w.get_payment_status(lnaddr.paymenthash))
+                # check mpp is cleaned up
+                async with OldTaskGroup() as g:
+                    for peer in peers:
+                        await g.spawn(peer.wait_one_htlc_switch_iteration())
+                for peer in peers:
+                    self.assertEqual(len(peer.lnworker.received_mpp_htlcs), 0)
                 raise PaymentDone()
             elif len(log) == 1 and log[0].failure_msg.code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentTimeout()
