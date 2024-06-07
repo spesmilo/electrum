@@ -254,6 +254,7 @@ class Commands:
         if wallet is None:
             raise UserFacingException('could not load wallet')
         if unlock:
+            # FIXME if this raises, load_wallet() above still succeeded...
             wallet.unlock(password)
         run_hook('load_wallet', wallet, None)
 
