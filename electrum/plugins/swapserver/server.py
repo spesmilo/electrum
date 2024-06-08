@@ -38,6 +38,11 @@ class SwapServer(Logger, EventListener):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
+
+        while self.wallet.has_password() and self.wallet.get_unlocked_password() is None:
+            self.logger.info("This wallet is password-protected. Please unlock it to start the swapserver plugin")
+            await asyncio.sleep(10)
+
         app = web.Application()
         app.add_routes([web.get('/getpairs', self.get_pairs)])
         app.add_routes([web.post('/createswap', self.create_swap)])
@@ -94,60 +99,15 @@ class SwapServer(Logger, EventListener):
 
     async def add_swap_invoice(self, r):
         request = await r.json()
-        invoice = request['invoice']
-        self.sm.add_invoice(invoice, pay_now=True)
+        self.sm.server_add_swap_invoice(request)
         return web.json_response({})
 
     async def create_normal_swap(self, r):
-        # normal for client, reverse for server
         request = await r.json()
-        lightning_amount_sat = request['invoiceAmount']
-        their_pubkey = bytes.fromhex(request['refundPublicKey'])
-        assert len(their_pubkey) == 33
-        swap = self.sm.create_reverse_swap(
-            lightning_amount_sat=lightning_amount_sat,
-            their_pubkey=their_pubkey,
-        )
-        response = {
-            "id": swap.payment_hash.hex(),
-            'preimageHash': swap.payment_hash.hex(),
-            "acceptZeroConf": False,
-            "expectedAmount": swap.onchain_amount,
-            "timeoutBlockHeight": swap.locktime,
-            "address": swap.lockup_address,
-            "redeemScript": swap.redeem_script.hex(),
-        }
+        response = self.sm.server_create_normal_swap(request)
         return web.json_response(response)
 
     async def create_swap(self, r):
-        # reverse for client, forward for server
-        # requesting a normal swap (old protocol) will raise an exception
-        self.sm.init_pairs()
         request = await r.json()
-        req_type = request['type']
-        assert request['pairId'] == 'BTC/BTC'
-        if req_type == 'reversesubmarine':
-            lightning_amount_sat=request['invoiceAmount']
-            payment_hash=bytes.fromhex(request['preimageHash'])
-            their_pubkey=bytes.fromhex(request['claimPublicKey'])
-            assert len(payment_hash) == 32
-            assert len(their_pubkey) == 33
-            swap, invoice, prepay_invoice = self.sm.create_normal_swap(
-                lightning_amount_sat=lightning_amount_sat,
-                payment_hash=payment_hash,
-                their_pubkey=their_pubkey
-            )
-            response = {
-                'id': payment_hash.hex(),
-                'invoice': invoice,
-                'minerFeeInvoice': prepay_invoice,
-                'lockupAddress': swap.lockup_address,
-                'redeemScript': swap.redeem_script.hex(),
-                'timeoutBlockHeight': swap.locktime,
-                "onchainAmount": swap.onchain_amount,
-            }
-        elif req_type == 'submarine':
-            raise Exception('Deprecated API. Please upgrade your version of Electrum')
-        else:
-            raise Exception('unsupported request type:' + req_type)
+        response = self.sm.server_create_swap(request)
         return web.json_response(response)

@@ -258,7 +258,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             amount_msat=amount_msat,
             paysession=paysession,
             full_path=full_path,
-            budget=PaymentFeeBudget.default(invoice_amount_msat=amount_msat),
+            budget=PaymentFeeBudget.default(invoice_amount_msat=amount_msat, config=self.config),
         )]
 
     get_payments = LNWallet.get_payments
@@ -537,6 +537,8 @@ class TestPeerDirect(TestPeer):
             k2 = keypair()
         alice_channel.node_id = k2.pubkey
         bob_channel.node_id = k1.pubkey
+        alice_channel.storage['node_id'] = alice_channel.node_id
+        bob_channel.storage['node_id'] = bob_channel.node_id
         t1, t2 = transport_pair(k1, k2, alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name)
@@ -1206,7 +1208,7 @@ class TestPeerDirect(TestPeer):
         # shutdown script
         bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
         bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bob_uss_pub.hex())
-        bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
+        bob_uss = bitcoin.address_to_script(bob_uss_addr)
 
         # bob commits to close to bob_uss
         alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss

@@ -648,24 +648,27 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.logger.info(f'setting proxy {proxy}')
         self.proxy = proxy
+
+        # reset is_proxy_tor to unknown, and re-detect it:
         self.is_proxy_tor = None
-
-        def tor_probe_task(p):
-            assert p is not None
-            tor_proxy = util.is_tor_socks_port(p['host'], int(p['port']))
-            if self.proxy == p:  # is this the proxy we probed?
-                self.logger.info(f'Proxy is {"" if tor_proxy else "not "}TOR')
-                self._tor_probe_done(tor_proxy)
-
-        if proxy and proxy['mode'] == 'socks5':
-            t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
-            t.start()
+        self._detect_if_proxy_is_tor()
 
         util.trigger_callback('proxy_set', self.proxy)
 
-    def _tor_probe_done(self, is_tor: bool):
-        self.is_proxy_tor = is_tor
-        util.trigger_callback('tor_probed', is_tor)
+    def _detect_if_proxy_is_tor(self) -> None:
+        def tor_probe_task(p):
+            assert p is not None
+            is_tor = util.is_tor_socks_port(p['host'], int(p['port']))
+            if self.proxy == p:  # is this the proxy we probed?
+                if self.is_proxy_tor != is_tor:
+                    self.logger.info(f'Proxy is {"" if is_tor else "not "}TOR')
+                    self.is_proxy_tor = is_tor
+                util.trigger_callback('tor_probed', is_tor)
+
+        proxy = self.proxy
+        if proxy and proxy['mode'] == 'socks5':
+            t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
+            t.start()
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -904,6 +907,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = True
         self._add_recent_server(server)
         util.trigger_callback('network_updated')
+        # When the proxy settings were set, the proxy (if any) might have been unreachable,
+        # resulting in a false-negative for Tor-detection. Given we just connected to a server, re-test now.
+        self._detect_if_proxy_is_tor()
 
     def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check: Interface) -> bool:
         # main interface is exempt. this makes switching servers easier
@@ -987,6 +993,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @best_effort_reliable
     async def broadcast_transaction(self, tx: 'Transaction', *, timeout=None) -> None:
+        """caller should handle TxBroadcastError"""
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
         if timeout is None:
@@ -1447,12 +1454,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @classmethod
     def send_http_on_proxy(cls, method, url, **kwargs):
-        network = cls.get_instance()
-        if network:
-            assert util.get_running_loop() != network.asyncio_loop
-            loop = network.asyncio_loop
-        else:
-            loop = util.get_asyncio_loop()
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
         coro = asyncio.run_coroutine_threadsafe(cls.async_send_http_on_proxy(method, url, **kwargs), loop)
         # note: _send_http_on_proxy has its own timeout, so no timeout here:
         return coro.result()

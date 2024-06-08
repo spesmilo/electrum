@@ -84,13 +84,13 @@ async def _request_lnurl(url: str) -> dict:
     try:
         response_raw = await Network.async_send_http_on_proxy("get", url, timeout=10)
     except asyncio.TimeoutError as e:
-        raise LNURLError("Server did not reply in time.") from e
+        raise LNURLError("LNURL server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
     try:
         response = json.loads(response_raw)
     except json.JSONDecodeError:
-        raise LNURLError(f"Invalid response from server")
+        raise LNURLError(f"Invalid response from LNURL server")
 
     status = response.get("status")
     if status and status == "ERROR":
@@ -148,13 +148,13 @@ async def callback_lnurl(url: str, params: dict) -> dict:
     try:
         response_raw = await Network.async_send_http_on_proxy("get", url, params=params)
     except asyncio.TimeoutError as e:
-        raise LNURLError("Server did not reply in time.") from e
+        raise LNURLError("LNURL server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
     try:
         response = json.loads(response_raw)
     except json.JSONDecodeError:
-        raise LNURLError(f"Invalid response from server")
+        raise LNURLError(f"Invalid response from LNURL server")
 
     status = response.get("status")
     if status and status == "ERROR":

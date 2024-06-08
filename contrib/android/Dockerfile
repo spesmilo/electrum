@@ -197,8 +197,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch accumulator/qt6-wip (note: careful with force-pushing! see #8162) \
-    && git checkout "0c507ead85cc603d0e4a2f5e58e9247a1fae262d^{commit}" \
+    # commit: from branch sombernight/qt6-wip (note: careful with force-pushing! see #8162) \
+    && git checkout "5df11be775eadcc19774e5bb118ee407330b8d83^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars

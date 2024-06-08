@@ -29,8 +29,9 @@ from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set
 import time
 import threading
 from threading import RLock
-import attr
 from math import inf
+
+import attr
 
 from .util import profiler, with_lock
 from .logging import Logger
@@ -105,16 +106,6 @@ class RouteEdge(PathEdge):
             cltv_delta=channel_policy.cltv_delta,
             node_features=node_info.features if node_info else 0)
 
-    def is_sane_to_use(self, amount_msat: int) -> bool:
-        # TODO revise ad-hoc heuristics
-        # cltv cannot be more than 2 weeks
-        if self.cltv_delta > 14 * 144:
-            return False
-        total_fee = self.fee_for_edge(amount_msat)
-        if total_fee > get_default_fee_budget_msat(invoice_amount_msat=amount_msat):
-            return False
-        return True
-
     def has_feature_varonion(self) -> bool:
         features = LnFeatures(self.node_features)
         return features.supports(LnFeatures.VAR_ONION_OPT)
@@ -153,7 +144,6 @@ def is_route_within_budget(
     amt = amount_msat_for_dest
     cltv_cost_of_route = 0  # excluding cltv_delta_for_dest
     for route_edge in reversed(route[1:]):
-        if not route_edge.is_sane_to_use(amt): return False
         amt += route_edge.fee_for_edge(amt)
         cltv_cost_of_route += route_edge.cltv_delta
     fee_cost = amt - amount_msat_for_dest
@@ -167,12 +157,6 @@ def is_route_within_budget(
     if total_cltv_delta > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
         return False
     return True
-
-
-def get_default_fee_budget_msat(*, invoice_amount_msat: int) -> int:
-    # fees <= 1 % of payment are fine
-    # fees <= 5 sat are fine
-    return max(5_000, invoice_amount_msat // 100)
 
 
 class LiquidityHint:
@@ -520,8 +504,9 @@ class LNPathFinder(Logger):
                 start_node=start_node,
                 end_node=end_node,
                 node_info=node_info)
-        if not route_edge.is_sane_to_use(payment_amt_msat):
-            return float('inf'), 0  # thanks but no thanks
+        # Cap cltv of any given edge at 2 weeks (the cost function would not work well for extreme cases)
+        if route_edge.cltv_delta > 14 * 144:
+            return float('inf'), 0
         # Distance metric notes:  # TODO constants are ad-hoc
         # ( somewhat based on https://github.com/lightningnetwork/lnd/pull/1358 )
         # - Edges have a base cost. (more edges -> less likely none will fail)

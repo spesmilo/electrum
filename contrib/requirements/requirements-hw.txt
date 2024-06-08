@@ -28,7 +28,7 @@ pyscard>=1.9.9
 pysatochip==0.12.6
 
 # device plugin: jade
-cbor>=1.0.0,<2.0.0
+cbor2>=5.4.6,<6.0.0
 pyserial>=3.5.0,<4.0.0
 
 # prefer older protobuf (see #7922)

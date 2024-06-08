@@ -56,22 +56,35 @@ class PluginsDialog(WindowModalDialog):
             self.grid.addWidget(widget, i, 1)
 
     def do_toggle(self, cb, name, i):
+        if self.plugins.requires_download(name):
+            cb.setChecked(False)
+            self.download_plugin_dialog(cb, name, i)
+            return
         p = self.plugins.toggle(name)
         cb.setChecked(bool(p))
         self.enable_settings_widget(p, name, i)
         # note: all enabled plugins will receive this hook:
         run_hook('init_qt', self.window.gui_object)
 
+    def download_plugin_dialog(self, cb, name, i):
+        import asyncio
+        if not self.window.question("Download plugin '%s'?"%name):
+            return
+        coro = self.plugins.download_external_plugin(name)
+        def on_success(x):
+            self.do_toggle(cb, name, i)
+        self.window.run_coroutine_dialog(coro, "Downloading '%s' "%name, on_result=on_success, on_cancelled=None)
+
     def show_list(self):
-        descriptions = self.plugins.descriptions.values()
-        for i, descr in enumerate(descriptions):
-            full_name = descr['__name__']
-            prefix, _separator, name = full_name.rpartition('.')
+        descriptions = sorted(self.plugins.descriptions.items())
+        i = 0
+        for name, descr in descriptions:
+            i += 1
             p = self.plugins.get(name)
             if descr.get('registers_keystore'):
                 continue
             try:
-                cb = QCheckBox(descr['fullname'])
+                cb = QCheckBox(descr['display_name'])
                 plugin_is_loaded = p is not None
                 cb_enabled = (not plugin_is_loaded and self.plugins.is_available(name, self.wallet)
                               or plugin_is_loaded and p.can_user_disable())

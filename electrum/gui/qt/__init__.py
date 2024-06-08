@@ -150,7 +150,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.reload_app_stylesheet()
 
         # always load 2fa
-        self.plugins.load_plugin('trustedcoin')
+        self.plugins.load_internal_plugin('trustedcoin')
 
         run_hook('init_qt', self)
 
@@ -423,8 +423,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
         d = wizard.get_wizard_data()
 
         if d['wallet_is_open']:
+            wallet_path = self.daemon._wallet_key_from_path(d['wallet_name'])
             for window in self.windows:
-                if window.wallet.storage.path == d['wallet_name']:
+                if window.wallet.storage.path == wallet_path:
                     return window.wallet
             raise Exception('found by wizard but not here?!')
 
@@ -454,7 +455,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             else:
                 xprv = db.get('x1')['xprv']
             _wiz_data_updates = {
-                'wallet_name': os.path.basename(wallet_file),
+                'wallet_name': wallet_file,
                 'xprv1': xprv,
                 'xpub1': db.get('x1')['xpub'],
                 'xpub2': db.get('x2')['xpub'],

@@ -45,7 +45,7 @@ try:
             # verify a signature (65 bytes) over the session key, using the master bip32 node
             # - customized to use specific EC library of Electrum.
             pubkey = BIP32Node.from_xkey(expect_xpub).eckey
-            return pubkey.verify_message_hash(sig[1:65], self.session_key)
+            return pubkey.ecdsa_verify(sig[1:65], self.session_key)
 
 except ImportError as e:
     if not (isinstance(e, ModuleNotFoundError) and e.name == 'ckcc'):
@@ -105,7 +105,7 @@ class CKCCClient(HardwareClientBase):
         if ((self._expected_device is not None)
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
-            # probably indicating programing error, not hacking
+            # probably indicating programming error, not hacking
             _logger.info(f"xpubs. reported by device: {self.dev.master_xpub}. "
                          f"stored in file: {expected_xpub}")
             raise RuntimeError("Expecting %s but that's not what's connected?!" %
@@ -239,7 +239,7 @@ class CKCCClient(HardwareClientBase):
 
     @runs_in_hwd_thread
     def sign_transaction_poll(self):
-        # poll device... if user has approved, will get tuple: (legnth, checksum) else None
+        # poll device... if user has approved, will get tuple: (length, checksum) else None
         return self.dev.send_recv(CCProtocolPacker.get_signed_txn(), timeout=None)
 
     @runs_in_hwd_thread
@@ -282,7 +282,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.is_requesting_to_be_rewritten_to_wallet_file = True
 
     def get_client(self, *args, **kwargs):
-        # called when user tries to do something like view address, sign somthing.
+        # called when user tries to do something like view address, sign something.
         # - not called during probing/setup
         # - will fail if indicated device can't produce the xpub (at derivation) expected
         client = super().get_client(*args, **kwargs)  # type: Optional[CKCCClient]
@@ -600,7 +600,7 @@ class ColdcardPlugin(HW_PluginBase):
                 xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
                 xfp_paths.append([xfp_int] + list(der_full))
 
-            script = bfh(wallet.pubkeys_to_scriptcode(pubkey_hexes))
+            script = wallet.pubkeys_to_scriptcode(pubkey_hexes)
 
             keystore.show_p2sh_address(wallet.m, script, xfp_paths, txin_type)
 

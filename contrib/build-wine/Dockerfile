@@ -1,4 +1,4 @@
-FROM debian:bullseye@sha256:43ef0c6c3585d5b406caa7a0f232ff5a19c1402aeb415f68bcd1cf9d10180af8
+FROM debian:bookworm@sha256:b37bc259c67238d814516548c17ad912f26c3eed48dd9bb54893eafec8739c89
 
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
@@ -36,23 +36,21 @@ RUN dpkg --add-architecture i386 && \
     apt-get autoremove -y && \
     apt-get clean
 
-RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
-        echo "c51bcb8cc4a12abfbd7c7660eaf90f49674d15e222c262f27e6c96429111b822 Release.key" | sha256sum -c - && \
-        apt-key add Release.key && \
-        rm Release.key && \
+RUN DEBIAN_CODENAME=$(lsb_release --codename --short) && \
+    WINEVERSION="9.0.0.0~${DEBIAN_CODENAME}-1" && \
     wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
         echo "78b185fabdb323971d13bd329fefc8038e08559aa51c4996de18db0639a51df6 winehq.key" | sha256sum -c - && \
-        apt-key add winehq.key && \
+        cat winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg && \
+        echo deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/debian/ ${DEBIAN_CODENAME} main >> /etc/apt/sources.list.d/winehq.list && \
         rm winehq.key && \
-    apt-add-repository https://dl.winehq.org/wine-builds/debian/ && \
     apt-get update -q && \
     apt-get install -qy --allow-downgrades \
-        wine-stable-amd64:amd64=8.0.1~bullseye-1 \
-        wine-stable-i386:i386=8.0.1~bullseye-1 \
-        wine-stable:amd64=8.0.1~bullseye-1 \
-        winehq-stable:amd64=8.0.1~bullseye-1 \
-        libvkd3d1:amd64=1.3~bullseye-1 \
-        libvkd3d1:i386=1.3~bullseye-1 \
+        wine-stable-amd64:amd64=${WINEVERSION} \
+        wine-stable-i386:i386=${WINEVERSION} \
+        wine-stable:amd64=${WINEVERSION} \
+        winehq-stable:amd64=${WINEVERSION} \
+        libvkd3d1:amd64=1.3~${DEBIAN_CODENAME}-1 \
+        libvkd3d1:i386=1.3~${DEBIAN_CODENAME}-1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

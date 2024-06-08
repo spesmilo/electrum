@@ -182,6 +182,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         wallet_file = wizard_data['wallet_name']
 
         storage = WalletStorage(wallet_file)
+        assert storage.file_exists(), f"file {wallet_file!r} does not exist"
         if not storage.is_encrypted_with_user_pw() and not storage.is_encrypted_with_hw_device():
             return True
 
@@ -398,6 +399,7 @@ class WCWalletName(WalletWizardComponent, Logger):
             wallet_folder = self.wizard.config.get_datadir_wallet_path()
             self.wizard_data['wallet_name'] = os.path.join(wallet_folder, self.name_e.text())
         else:
+            # FIXME: wizard_data['wallet_name'] is sometimes a full path, sometimes a basename
             self.wizard_data['wallet_name'] = self.name_e.text()
         self.wizard_data['wallet_exists'] = self.wallet_exists
         self.wizard_data['wallet_is_open'] = self.wallet_is_open

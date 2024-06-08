@@ -1237,6 +1237,10 @@ def icon_path(icon_basename: str):
 def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
+def read_QIcon_from_bytes(b: bytes) -> QIcon:
+    qp = QPixmap()
+    qp.loadFromData(b)
+    return QIcon(qp)
 
 class IconLabel(QWidget):
     HorizontalSpacing = 2

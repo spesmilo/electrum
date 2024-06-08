@@ -246,15 +246,13 @@ class Commands:
         ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, unlock=False, password=None):
+    async def load_wallet(self, wallet_path=None, password=None):
         """
         Load the wallet in memory
         """
         wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
         if wallet is None:
             raise UserFacingException('could not load wallet')
-        if unlock:
-            wallet.unlock(password)
         run_hook('load_wallet', wallet, None)
 
     @command('n')
@@ -367,6 +365,11 @@ class Commands:
         sh = bitcoin.address_to_scripthash(address)
         return await self.network.get_history_for_scripthash(sh)
 
+    @command('wp')
+    async def unlock(self, wallet: Abstract_Wallet = None, password=None):
+        """Unlock the wallet (store the password in memory)."""
+        wallet.unlock(password)
+
     @command('w')
     async def listunspent(self, wallet: Abstract_Wallet = None):
         """List unspent outputs. Returns the list of unspent transaction
@@ -422,9 +425,9 @@ class Commands:
             sec = txin_dict.get('privkey')
             if sec:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-                pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
-                keypairs[pubkey] = privkey, compressed
-                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+                pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=compressed)
+                keypairs[pubkey] = privkey
+                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
                 txin.script_descriptor = desc
             inputs.append(txin)
 
@@ -465,7 +468,7 @@ class Commands:
             if address in txins_dict.keys():
                 for txin in txins_dict[address]:
                     txin.script_descriptor = desc
-                tx.sign({pubkey.hex(): (priv2, compressed)})
+                tx.sign({pubkey: priv2})
 
         return tx.serialize()
 
@@ -494,8 +497,8 @@ class Commands:
         """Create multisig address"""
         assert isinstance(pubkeys, list), (type(num), type(pubkeys))
         redeem_script = multisig_script(pubkeys, num)
-        address = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
-        return {'address':address, 'redeemScript':redeem_script}
+        address = bitcoin.hash160_to_p2sh(hash_160(redeem_script))
+        return {'address': address, 'redeemScript': redeem_script.hex()}
 
     @command('w')
     async def freeze(self, address: str, wallet: Abstract_Wallet = None):
@@ -713,7 +716,7 @@ class Commands:
         """Verify a signature."""
         sig = base64.b64decode(signature)
         message = util.to_bytes(message)
-        return ecc.verify_message_with_address(address, sig, message)
+        return ecc.verify_usermessage_with_address(address, sig, message)
 
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
@@ -1469,7 +1472,6 @@ command_options = {
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
-    'unlock':      (None, "Unlock the wallet (store the password in memory)."),
     'public':      (None, 'Channel will be announced'),
 }
 

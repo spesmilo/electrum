@@ -199,7 +199,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
             self.line_edit.setText(text)
             self.text_edit.setText(text)
 
-    def setFocus(self, reason=None) -> None:
+    def setFocus(self, reason=Qt.OtherFocusReason) -> None:
         if self.multiline:
             self.text_edit.setFocus(reason)
         else:

@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+import os
+import sys
+import hashlib
+import json
+import zipfile
+import zipimport
+
+# todo: use version number
+
+if len(sys.argv) != 2:
+    print(f"usage: {os.path.basename(__file__)} <plugin_directory>", file=sys.stderr)
+    sys.exit(1)
+
+source_dir = sys.argv[1]  # where the plugin source code is
+
+plugin_name = os.path.basename(source_dir)
+dest_dir = os.path.dirname(source_dir)
+zip_path = os.path.join(dest_dir, plugin_name + '.zip')
+
+# remove old zipfile
+if os.path.exists(zip_path):
+    os.unlink(zip_path)
+# create zipfile
+print('creating', zip_path)
+with zipfile.ZipFile(zip_path, 'w') as zip_object:
+    for folder_name, sub_folders, file_names in os.walk(source_dir):
+        for filename in file_names:
+            file_path = os.path.join(folder_name, filename)
+            dest_path = os.path.join(plugin_name, os.path.relpath(folder_name, source_dir), os.path.basename(file_path))
+            zip_object.write(file_path, dest_path)
+            print('added', dest_path)
+
+# read hash
+with open(zip_path, 'rb') as f:
+    s = f.read()
+_hash = bytes(hashlib.sha256(s).digest()).hex()
+
+# read metadata
+zip_file = zipimport.zipimporter(zip_path)
+module = zip_file.load_module(plugin_name)
+plugin_metadata = {
+    'hash': _hash,
+    'description': module.description,
+    'display_name': module.fullname,
+    'available_for': module.available_for,
+    'download_url': module.download_url,
+    'author': module.author,
+    'licence': module.licence,
+    'version': module.version,
+}
+print(json.dumps(plugin_metadata, indent=4))
+
+# update plugins.json file
+json_path = os.path.join(os.path.dirname(__file__), '..', 'electrum', 'plugins.json')
+with open(json_path, 'r') as f:
+    s = f.read()
+try:
+    metadata = json.loads(s)
+except:
+    metadata = {}
+metadata[plugin_name] = plugin_metadata
+with open(json_path, 'w') as f:
+    f.write(json.dumps(metadata, indent=4))
+
+# rename zip file
+if module.version:
+    zip_path_with_version = os.path.join(dest_dir, plugin_name + '-' + module.version + '.zip')
+    os.rename(zip_path, zip_path_with_version)

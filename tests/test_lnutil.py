@@ -508,7 +508,7 @@ class TestLNUtil(ElectrumTestCase):
         htlc_payment_preimage[4] = b"\x04" * 32
         htlc[4] = make_received_htlc(**htlc_pubkeys, payment_hash=bitcoin.sha256(htlc_payment_preimage[4]), cltv_abs=htlc_cltv_timeout[4])
 
-        remote_signature = "304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606"
+        remote_signature = bfh("304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606")
         output_commit_tx = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8007e80300000000000022002052bfef0479d7b293c27e0f1eb294bea154c63a3294ef092c19af51409bce0e2ad007000000000000220020403d394747cae42e98ff01734ad5c08f82ba123d3d9a620abda88989651e2ab5d007000000000000220020748eba944fedc8827f6b06bc44678f93c0f9e6078b35c6331ed31e75f8ce0c2db80b000000000000220020c20b5d1f8584fd90443e7b7b720136174fa4b9333c261d04dbbd012635c0f419a00f0000000000002200208c48d15160397c9731df9bc3b236656efb6665fbfe92b4a6878e88a499f741c4c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de843110e0a06a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f060147304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b7060601475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
         htlc_obj = {}
@@ -584,7 +584,7 @@ class TestLNUtil(ElectrumTestCase):
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=htlc_output_index,
             amount_msat=amount_msat,
-            witness_script=htlc.hex())
+            witness_script=htlc)
         our_htlc_tx = make_htlc_tx(
             cltv_abs=cltv_abs,
             inputs=our_htlc_tx_inputs,
@@ -594,7 +594,7 @@ class TestLNUtil(ElectrumTestCase):
 
         our_htlc_tx_witness = make_htlc_tx_witness(
             remotehtlcsig=bfh(remote_htlc_sig) + b"\x01",  # 0x01 is SIGHASH_ALL
-            localhtlcsig=bfh(local_sig),
+            localhtlcsig=local_sig,
             payment_preimage=htlc_payment_preimage if success else b'',  # will put 00 on witness if timeout
             witness_script=htlc)
         our_htlc_tx._inputs[0].witness = our_htlc_tx_witness
@@ -604,7 +604,7 @@ class TestLNUtil(ElectrumTestCase):
         to_local_msat= 6988000000
         to_remote_msat= 3000000000
         local_feerate_per_kw= 9651181
-        remote_signature = "3044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e"
+        remote_signature = bfh("3044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e")
         output_commit_tx= "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8001c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de8431100400473044022031a82b51bd014915fe68928d1abf4b9885353fb896cac10c3fdd88d7f9c7f2e00220716bda819641d2c63e65d3549b6120112e1aeaf1742eed94a471488e79e206b101473044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e01475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
         our_commit_tx = make_commitment(
@@ -633,7 +633,7 @@ class TestLNUtil(ElectrumTestCase):
         to_local_msat= 6988000000
         to_remote_msat= 3000000000
         local_feerate_per_kw= 9651936
-        remote_signature = "3044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e"
+        remote_signature = bfh("3044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e")
         output_commit_tx= "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8001c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de8431100400473044022031a82b51bd014915fe68928d1abf4b9885353fb896cac10c3fdd88d7f9c7f2e00220716bda819641d2c63e65d3549b6120112e1aeaf1742eed94a471488e79e206b101473044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e01475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
         our_commit_tx = make_commitment(
@@ -701,7 +701,7 @@ class TestLNUtil(ElectrumTestCase):
         # actual commitment transaction fee = 10860
         # to_local amount 6989140 wscript 63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac
         # to_remote amount 3000000 P2WPKH(0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b)
-        remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
+        remote_signature = bfh("3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0")
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
         our_commit_tx = make_commitment(
             ctn=commitment_number,
@@ -725,17 +725,17 @@ class TestLNUtil(ElectrumTestCase):
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
 
-    def sign_and_insert_remote_sig(self, tx: PartialTransaction, remote_pubkey, remote_signature, pubkey, privkey):
+    def sign_and_insert_remote_sig(self, tx: PartialTransaction, remote_pubkey: bytes, remote_signature: bytes, pubkey: bytes, privkey: bytes):
         assert type(remote_pubkey) is bytes
         assert len(remote_pubkey) == 33
-        assert type(remote_signature) is str
+        assert type(remote_signature) is bytes
         assert type(pubkey) is bytes
         assert type(privkey) is bytes
         assert len(pubkey) == 33
         assert len(privkey) == 33
-        tx.sign({pubkey.hex(): (privkey[:-1], True)})
-        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + sighash)
+        tx.sign({pubkey: privkey[:-1]})
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey, sig=remote_signature + sighash)
 
     def test_get_compressed_pubkey_from_bech32(self):
         self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',

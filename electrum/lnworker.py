@@ -51,14 +51,14 @@ from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
-from .ecc import der_sig_from_sig_string
+from .ecc import ecdsa_der_sig_from_ecdsa_sig64
 from .lnchannel import Channel, AbstractChannel
 from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
 from .lnutil import serialize_htlc_key, deserialize_htlc_key
-from .bitcoin import redeem_script_to_address, DummyAddress
+from .bitcoin import DummyAddress
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -83,10 +83,10 @@ from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
-from .submarine_swaps import SwapManager
+from .submarine_swaps import HttpSwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
-from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
+from .trampoline import create_trampoline_route_and_onion, is_legacy_relay
 
 if TYPE_CHECKING:
     from .network import Network
@@ -348,14 +348,24 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
                                 proxy=self.network.proxy)
         peer = await self._add_peer_from_transport(node_id=node_id, transport=transport)
+        assert peer
         return peer
 
-    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Peer:
-        peer = Peer(self, node_id, transport)
+    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Optional[Peer]:
         with self.lock:
             existing_peer = self._peers.get(node_id)
             if existing_peer:
-                existing_peer.close_and_cleanup()
+                # Two instances of the same wallet are attempting to connect simultaneously.
+                # If we let the new connection replace the existing one, the two instances might
+                # both keep trying to reconnect, resulting in neither being usable.
+                if existing_peer.is_initialized():
+                    # give priority to the existing connection
+                    return
+                else:
+                    # Use the new connection. (e.g. old peer might be an outgoing connection
+                    # for an outdated host/port that will never connect)
+                    existing_peer.close_and_cleanup()
+            peer = Peer(self, node_id, transport)
             assert node_id not in self._peers
             self._peers[node_id] = peer
         await self.taskgroup.spawn(peer.main_loop())
@@ -542,12 +552,18 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                         raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + node_id.hex())
                     host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
-            # Try DNS-resolving the host (if needed). This is simply so that
-            # the caller gets a nice exception if it cannot be resolved.
-            try:
-                await asyncio.get_running_loop().getaddrinfo(host, port)
-            except socket.gaierror:
-                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+
+            if not self.network.proxy:
+                # Try DNS-resolving the host (if needed). This is simply so that
+                # the caller gets a nice exception if it cannot be resolved.
+                # (we don't do the DNS lookup if a proxy is set, to avoid a DNS-leak)
+                if host.endswith('.onion'):
+                    raise ConnStringFormatError(_('.onion address, but no proxy configured'))
+                try:
+                    await asyncio.get_running_loop().getaddrinfo(host, port)
+                except socket.gaierror:
+                    raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+
             # add peer
             peer = await self._add_peer(host, port, node_id)
         return peer
@@ -850,7 +866,7 @@ class LNWallet(LNWorker):
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
-        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+        self.swap_manager = HttpSwapManager(wallet=self.wallet, lnworker=self)
 
 
     def has_deterministic_node_id(self) -> bool:
@@ -1377,6 +1393,8 @@ class LNWallet(LNWorker):
     def encrypt_cb_data(self, data, funding_address):
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
+        # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
+        #       (not have the 16 byte MAC). Otherwise, the latter would be preferable.
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
 
     def mktx_for_open_channel(
@@ -1397,7 +1415,7 @@ class LNWallet(LNWorker):
         return tx
 
     def suggest_funding_amount(self, amount_to_pay, coins):
-        """ wether we can pay amount_sat after opening a new channel"""
+        """ whether we can pay amount_sat after opening a new channel"""
         num_sats_can_send = int(self.num_sats_can_send())
         lightning_needed = amount_to_pay - num_sats_can_send
         assert lightning_needed > 0
@@ -1499,18 +1517,8 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-        self.logger.info(
-            f"pay_invoice starting session for RHASH={payment_hash.hex()}. "
-            f"using_trampoline={self.uses_trampoline()}. "
-            f"invoice_features={invoice_features.get_names()}")
-        if not self.uses_trampoline():
-            self.logger.info(
-                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
-                f"num_nodes={self.channel_db.num_nodes}, "
-                f"num_channels={self.channel_db.num_channels}, "
-                f"num_policies={self.channel_db.num_policies}.")
         self.set_invoice_status(key, PR_INFLIGHT)
-        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay)
+        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
         success = False
         try:
             await self.pay_to_node(
@@ -1580,6 +1588,18 @@ class LNWallet(LNWorker):
             use_two_trampolines=self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
+
+        paysession.logger.info(
+            f"pay_to_node starting session for RHASH={payment_hash.hex()}. "
+            f"using_trampoline={self.uses_trampoline()}. "
+            f"invoice_features={paysession.invoice_features.get_names()}. "
+            f"{amount_to_pay=} msat. {budget=}")
+        if not self.uses_trampoline():
+            self.logger.info(
+                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
+                f"num_nodes={self.channel_db.num_nodes}, "
+                f"num_channels={self.channel_db.num_channels}, "
+                f"num_policies={self.channel_db.num_policies}.")
 
         # when encountering trampoline forwarding difficulties in the legacy case, we
         # sometimes need to fall back to a single trampoline forwarder, at the expense
@@ -1659,6 +1679,7 @@ class LNWallet(LNWorker):
             paysession.is_active = False
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
+            paysession.logger.info(f"pay_to_node ending session for RHASH={payment_hash.hex()}")
 
     async def pay_to_route(
             self, *,
@@ -2359,10 +2380,10 @@ class LNWallet(LNWorker):
         is_htlc_key = ':' in payment_key_hex
         if not is_htlc_key:
             payment_key = bytes.fromhex(payment_key_hex)
-            mpp_status = self.received_mpp_htlcs[payment_key]
-            if mpp_status.resolution == RecvMPPResolution.WAITING:
-                # reconstructing the MPP after restart
-                self.logger.info(f'cannot cleanup mpp, still waiting')
+            mpp_status = self.received_mpp_htlcs.get(payment_key)
+            if not mpp_status or mpp_status.resolution == RecvMPPResolution.WAITING:
+                # After restart, self.received_mpp_htlcs needs to be reconstructed
+                self.logger.info(f'maybe_cleanup_forwarding: mpp_status not ready')
                 return
             htlc_key = (short_channel_id, htlc)
             mpp_status.htlc_set.remove(htlc_key)  # side-effecting htlc_set
@@ -2624,8 +2645,8 @@ class LNWallet(LNWorker):
     def fee_estimate(self, amount_sat):
         # Here we have to guess a fee, because some callers (submarine swaps)
         # use this method to initiate a payment, which would otherwise fail.
-        fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
-        fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
+        fee_base_msat = 5000               # FIXME ehh.. there ought to be a better way...
+        fee_proportional_millionths = 500  # FIXME
         # inverse of fee_for_edge_msat
         amount_msat = amount_sat * 1000
         amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)

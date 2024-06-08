@@ -236,8 +236,8 @@ class SafeTPlugin(HW_PluginBase):
         outputs = self.tx_outputs(tx, keystore=keystore)
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs,
                                     lock_time=tx.locktime, version=tx.version)[0]
-        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [(x.hex() + sighash) for x in signatures]
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        signatures = [(sig + sighash) for sig in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread

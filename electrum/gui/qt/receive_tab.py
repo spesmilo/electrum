@@ -90,8 +90,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_qr = QRCodeWidget(manual_size=True)
 
         self.receive_help_text = WWLabel('')
+        self.receive_help_text.setLayout(QHBoxLayout())
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
+
         def on_receive_rebalance():
             if self.receive_rebalance_button.suggestion:
                 chan1, chan2, delta = self.receive_rebalance_button.suggestion
@@ -99,6 +101,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_rebalance_button.clicked.connect(on_receive_rebalance)
         self.receive_swap_button = QPushButton('Swap')
         self.receive_swap_button.suggestion = None
+
         def on_receive_swap():
             if self.receive_swap_button.suggestion:
                 chan, swap_recv_amount_sat = self.receive_swap_button.suggestion
@@ -160,7 +163,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
         hbox.addStretch()
-        hbox.addWidget(self.receive_widget)
+        hbox.addWidget(self.receive_widget, 1)
 
         self.searchable_list = self.request_list
         vbox = QVBoxLayout(self)
@@ -363,7 +366,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.request_list.clearSelection()
 
 
-
 class ReceiveWidget(QWidget):
     min_size = QSize(200, 200)
 
@@ -373,8 +375,6 @@ class ReceiveWidget(QWidget):
         self.qr = qr
         self.help_widget = help_widget
         self.setMinimumSize(self.min_size)
-        for w in [textedit, qr, help_widget]:
-            w.setMinimumSize(self.min_size)
 
         for w in [textedit, qr]:
             w.mousePressEvent = receive_tab.do_copy
@@ -384,12 +384,18 @@ class ReceiveWidget(QWidget):
         if isinstance(help_widget, QLabel):
             help_widget.setFrameStyle(QFrame.StyledPanel)
             help_widget.setStyleSheet("QLabel {border:1px solid gray; border-radius:2px; }")
+
         hbox = QHBoxLayout()
-        hbox.setContentsMargins(0, 0, 0, 0)
+        hbox.addStretch()
         hbox.addWidget(textedit)
         hbox.addWidget(help_widget)
         hbox.addWidget(qr)
-        self.setLayout(hbox)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(hbox)
+        vbox.addStretch()
+
+        self.setLayout(vbox)
 
     def update_visibility(self, is_qr):
         if str(self.textedit.toPlainText()):
@@ -404,9 +410,13 @@ class ReceiveWidget(QWidget):
     def resizeEvent(self, e):
         # keep square aspect ratio when resized
         size = e.size()
-        w = size.height()
-        self.setFixedWidth(w)
+        margin = 10
+        x = min(size.height(), size.width()) - margin
+        for w in [self.textedit, self.qr, self.help_widget]:
+            w.setFixedWidth(x)
+            w.setFixedHeight(x)
         return super().resizeEvent(e)
+
 
 class FramedWidget(QFrame):
     def __init__(self):

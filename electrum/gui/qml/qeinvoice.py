@@ -301,6 +301,18 @@ class QEInvoice(QObject, QtEventListener):
         if amount.isEmpty and self.status == PR_UNPAID:  # unspecified amount
             return
 
+        def userinfo_for_invoice_status(status: int) -> str:
+            return {
+                PR_EXPIRED: _('This invoice has expired'),
+                PR_PAID: _('This invoice was already paid'),
+                PR_INFLIGHT: _('Payment in progress...'),
+                PR_ROUTING: _('Payment in progress...'),
+                PR_BROADCASTING: _('Payment in progress...') + ' (' + _('broadcasting') + ')',
+                PR_BROADCAST:  _('Payment in progress...') + ' (' + _('broadcast successfully') + ')',
+                PR_UNCONFIRMED: _('Payment in progress...') + ' (' + _('waiting for confirmation') + ')',
+                PR_UNKNOWN: _('Invoice has unknown status'),
+            }[status]
+
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if self.get_max_spendable_lightning() >= amount.satsInt:
@@ -312,26 +324,13 @@ class QEInvoice(QObject, QtEventListener):
                     # TODO: subtract fee?
                     self.userinfo = _('Insufficient balance')
             else:
-                self.userinfo = {
-                        PR_EXPIRED: _('This invoice has expired'),
-                        PR_PAID: _('This invoice was already paid'),
-                        PR_INFLIGHT: _('Payment in progress...'),
-                        PR_ROUTING: _('Payment in progress'),
-                        PR_UNKNOWN: _('Invoice has unknown status'),
-                    }[self.status]
+                self.userinfo = userinfo_for_invoice_status(self.status)
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if not ((amount.isMax and self.get_max_spendable_onchain() > 0) or (self.get_max_spendable_onchain() >= amount.satsInt)):
                     self.userinfo = _('Insufficient balance')
             else:
-                self.userinfo = {
-                        PR_EXPIRED: _('This invoice has expired'),
-                        PR_PAID: _('This invoice was already paid'),
-                        PR_BROADCASTING: _('Payment in progress...') + ' (' + _('broadcasting') + ')',
-                        PR_BROADCAST:  _('Payment in progress...') + ' (' + _('broadcast successfully') + ')',
-                        PR_UNCONFIRMED: _('Payment in progress...') + ' (' + _('waiting for confirmation') + ')',
-                        PR_UNKNOWN: _('Invoice has unknown status'),
-                    }[self.status]
+                self.userinfo = userinfo_for_invoice_status(self.status)
 
     def determine_can_pay(self):
         self.canPay = False

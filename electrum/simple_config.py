@@ -242,14 +242,15 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
-    def electrum_path(self):
+    def electrum_path_root(self):
         # Read electrum_path from command line
         # Otherwise use the user's default data directory.
-        path = self.get('electrum_path')
-        if path is None:
-            path = self.user_dir()
-
+        path = self.get('electrum_path') or self.user_dir()
         make_dir(path, allow_symlink=False)
+        return path
+
+    def electrum_path(self):
+        path = self.electrum_path_root()
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
             make_dir(path, allow_symlink=False)
@@ -421,8 +422,8 @@ class SimpleConfig(Logger):
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
         try:
             with open(path, "w", encoding='utf-8') as f:
+                os_chmod(path, stat.S_IREAD | stat.S_IWRITE)  # set restrictive perms *before* we write data
                 f.write(s)
-            os_chmod(path, stat.S_IREAD | stat.S_IWRITE)
         except OSError:
             # datadir probably deleted while running... e.g. portable exe running on ejected USB drive
             # (in which case it is typically either FileNotFoundError or PermissionError,
@@ -1039,6 +1040,19 @@ Note you are at risk of losing the funds in the swap, if the funding transaction
 This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
     )
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
+    LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = ConfigVar(
+        'lightning_payment_fee_max_millionths', default=10_000,  # 1%
+        type_=int,
+        short_desc=lambda: _("Max lightning fees to pay"),
+        long_desc=lambda: _("""When sending lightning payments, this value is an upper bound for the fees we allow paying, proportional to the payment amount. The fees are paid in addition to the payment amount, by the sender.
+
+Warning: setting this to too low will result in lots of payment failures."""),
+    )
+    LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = ConfigVar(
+        'lightning_payment_fee_cutoff_msat', default=10_000,  # 10 sat
+        type_=int,
+        short_desc=lambda: _("Max lightning fees to pay for small payments"),
+    )
 
     LIGHTNING_NODE_ALIAS = ConfigVar('lightning_node_alias', default='', type_=str)
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)

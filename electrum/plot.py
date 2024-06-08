@@ -1,6 +1,7 @@
 # note: This module takes 1-2 seconds to import. It should be imported *on-demand*.
 
 import datetime
+from decimal import Decimal
 from collections import defaultdict
 
 import matplotlib
@@ -20,15 +21,15 @@ class NothingToPlotException(Exception):
 def plot_history(history):
     if len(history) == 0:
         raise NothingToPlotException()
-    hist_in = defaultdict(int)
-    hist_out = defaultdict(int)
+    hist_in = defaultdict(Decimal)
+    hist_out = defaultdict(Decimal)
     for item in history:
         is_lightning = item.get("lightning", False)
         if not is_lightning and not item['confirmations']:
             continue
         if item['timestamp'] is None:
             continue
-        value = item['value'].value/COIN
+        value = Decimal(item['value'].value)/COIN
         date = item['date']
         datenum = int(md.date2num(datetime.date(date.year, date.month, 1)))
         if value > 0:

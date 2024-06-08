@@ -40,7 +40,7 @@ from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
 from abc import ABC, abstractmethod
 import itertools
 import threading
@@ -111,14 +111,14 @@ async def _append_utxos_to_inputs(
     script_descriptor: 'descriptor.Descriptor',
     imax: int,
 ) -> None:
-    script = script_descriptor.expand().output_script.hex()
+    script = script_descriptor.expand().output_script
     scripthash = bitcoin.script_to_scripthash(script)
 
     async def append_single_utxo(item):
         prev_tx_raw = await network.get_transaction(item['tx_hash'])
         prev_tx = Transaction(prev_tx_raw)
         prev_txout = prev_tx.outputs()[item['tx_pos']]
-        if scripthash != bitcoin.script_to_scripthash(prev_txout.scriptpubkey.hex()):
+        if scripthash != bitcoin.script_to_scripthash(prev_txout.scriptpubkey):
             raise Exception('scripthash mismatch when sweeping')
         prevout_str = item['tx_hash'] + ':%d' % item['tx_pos']
         prevout = TxOutpoint.from_str(prevout_str)
@@ -136,20 +136,22 @@ async def _append_utxos_to_inputs(
             await group.spawn(append_single_utxo(item))
 
 
-async def sweep_preparations(privkeys, network: 'Network', imax=100):
+async def sweep_preparations(
+    privkeys: Iterable[str], network: 'Network', imax=100,
+) -> Tuple[Sequence[PartialTxInput], Mapping[bytes, bytes]]:
 
-    async def find_utxos_for_privkey(txin_type, privkey, compressed):
-        pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
-        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+    async def find_utxos_for_privkey(txin_type: str, privkey: bytes, compressed: bool):
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=compressed)
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
         await _append_utxos_to_inputs(
             inputs=inputs,
             network=network,
             script_descriptor=desc,
             imax=imax)
-        keypairs[pubkey] = privkey, compressed
+        keypairs[pubkey] = privkey
 
     inputs = []  # type: List[PartialTxInput]
-    keypairs = {}
+    keypairs = {}  # type: Dict[bytes, bytes]
     async with OldTaskGroup() as group:
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
@@ -169,7 +171,7 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
 
 async def sweep(
-        privkeys,
+        privkeys: Iterable[str],
         *,
         network: 'Network',
         config: 'SimpleConfig',
@@ -182,7 +184,7 @@ async def sweep(
     inputs, keypairs = await sweep_preparations(privkeys, network, imax)
     total = sum(txin.value_sats() for txin in inputs)
     if fee is None:
-        outputs = [PartialTxOutput(scriptpubkey=bfh(bitcoin.address_to_script(to_address)),
+        outputs = [PartialTxOutput(scriptpubkey=bitcoin.address_to_script(to_address),
                                    value=total)]
         tx = PartialTransaction.from_io(inputs, outputs)
         fee = config.estimate_fee(tx.estimated_size())
@@ -191,7 +193,7 @@ async def sweep(
     if total - fee < dust_threshold(network):
         raise Exception(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
 
-    outputs = [PartialTxOutput(scriptpubkey=bfh(bitcoin.address_to_script(to_address)),
+    outputs = [PartialTxOutput(scriptpubkey=bitcoin.address_to_script(to_address),
                                value=total - fee)]
     if locktime is None:
         locktime = get_locktime_for_new_transaction(network)
@@ -1297,7 +1299,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         conf_needed = None  # type: Optional[int]
         with self.lock, self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
-                scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey.hex())
+                scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey)
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
                 confs_and_values = []
                 for prevout, v in prevouts_and_values:
@@ -1387,6 +1389,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         'value': Satoshis(0),
                         'children': [],
                         'timestamp': 0,
+                        'date': timestamp_to_datetime(0),
                         'fee_sat': 0,
                     }
                     transactions[key] = parent
@@ -1401,6 +1404,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     parent['lightning'] = False
                     parent['txid'] = tx_item['txid']
                     parent['timestamp'] = tx_item['timestamp']
+                    parent['date'] = timestamp_to_datetime(tx_item['timestamp'])
                     parent['height'] = tx_item['height']
                     parent['confirmations'] = tx_item['confirmations']
                 parent['children'].append(tx_item)
@@ -2266,12 +2270,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             delta_total = target_fee - cur_fee
             if delta_total <= 0:
                 break
-            out_size_total = sum(Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
+            out_size_total = sum(Transaction.estimated_output_size_for_script(out.scriptpubkey)
                                  for (idx, out) in s if idx not in del_out_idxs)
             if out_size_total == 0:  # no outputs left to decrease
                 raise CannotBumpFee(_('Could not find suitable outputs'))
             for idx, out in s:
-                out_size = Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
+                out_size = Transaction.estimated_output_size_for_script(out.scriptpubkey)
                 delta = int(math.ceil(delta_total * out_size / out_size_total))
                 if out.value - delta >= self.dust_threshold():
                     new_output_value = out.value - delta
@@ -3270,8 +3274,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def unlock(self, password):
         self.logger.info(f'unlocking wallet')
-        if self.has_password():
-            self.check_password(password)
+        self.check_password(password)
         self._password_in_memory = password
 
     def get_unlocked_password(self):
@@ -3804,7 +3807,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         redeem_script = self.pubkeys_to_scriptcode(pubkeys)
         return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
 
-    def pubkeys_to_scriptcode(self, pubkeys: Sequence[str]) -> str:
+    def pubkeys_to_scriptcode(self, pubkeys: Sequence[str]) -> bytes:
         return transaction.multisig_script(sorted(pubkeys), self.m)
 
     def derive_pubkeys(self, c, i):

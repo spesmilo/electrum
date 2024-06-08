@@ -4,7 +4,7 @@ from binascii import unhexlify, hexlify
 import pprint
 import unittest
 
-from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
+from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode
 from electrum.segwit_addr import bech32_encode, bech32_decode
 from electrum import segwit_addr
 from electrum.lnutil import UnknownEvenFeatureBits, derive_payment_secret_from_payment_preimage, LnFeatures, IncompatibleLightningFeatures
@@ -125,19 +125,17 @@ class TestBolt11(ElectrumTestCase):
         _, hrp, data = bech32_decode(
             lnencode(LnAddr(paymenthash=RHASH, payment_secret=PAYMENT_SECRET, amount=24, tags=[('d', ''), ('9', 33282)]), PRIVKEY),
             ignore_long_length=True)
-        databits = u5_to_bitarray(data)
-        databits.invert(-1)
-        lnaddr = lndecode(bech32_encode(segwit_addr.Encoding.BECH32, hrp, bitarray_to_u5(databits)), verbose=True)
-        assert lnaddr.pubkey.serialize() != PUBKEY
+        data[-1] ^= 1
+        lnaddr = lndecode(bech32_encode(segwit_addr.Encoding.BECH32, hrp, data), verbose=True)
+        self.assertNotEqual(lnaddr.pubkey.serialize(), PUBKEY)
 
         # But not if we supply expliciy `n` specifier!
         _, hrp, data = bech32_decode(
             lnencode(LnAddr(paymenthash=RHASH, payment_secret=PAYMENT_SECRET, amount=24, tags=[('d', ''), ('n', PUBKEY), ('9', 33282)]), PRIVKEY),
             ignore_long_length=True)
-        databits = u5_to_bitarray(data)
-        databits.invert(-1)
-        lnaddr = lndecode(bech32_encode(segwit_addr.Encoding.BECH32, hrp, bitarray_to_u5(databits)), verbose=True)
-        assert lnaddr.pubkey.serialize() == PUBKEY
+        data[-1] ^= 1
+        lnaddr = lndecode(bech32_encode(segwit_addr.Encoding.BECH32, hrp, data), verbose=True)
+        self.assertEqual(lnaddr.pubkey.serialize(), PUBKEY)
 
     def test_min_final_cltv_expiry_decoding(self):
         lnaddr = lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qsp5qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsdqqcqzys9qypqsqp2h6a5xeytuc3fad2ed4gxvhd593lwjdna3dxsyeem0qkzjx6guk44jend0xq4zzvp6f3fy07wnmxezazzsxgmvqee8shxjuqu2eu0qpnvc95x",

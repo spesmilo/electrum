@@ -320,7 +320,7 @@ class PaymentIdentifier(Logger):
                             'security check, DNSSEC, and thus may not be correct.').format(key)
                     try:
                         assert bitcoin.is_address(address)
-                        scriptpubkey = bytes.fromhex(bitcoin.address_to_script(address))
+                        scriptpubkey = bitcoin.address_to_script(address)
                         self._type = PaymentIdentifierType.OPENALIAS
                         self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)
@@ -518,20 +518,20 @@ class PaymentIdentifier(Logger):
     def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
         try:
             address = self.parse_address(x)
-            return bytes.fromhex(bitcoin.address_to_script(address)), True
+            return bitcoin.address_to_script(address), True
         except Exception as e:
             pass
         try:
             m = re.match('^' + RE_SCRIPT_FN + '$', x)
             script = self.parse_script(str(m.group(1)))
-            return bytes.fromhex(script), False
+            return script, False
         except Exception as e:
             pass
 
         return None, False
 
-    def parse_script(self, x: str) -> str:
-        script = ''
+    def parse_script(self, x: str) -> bytes:
+        script = bytearray()
         for word in x.split():
             if word[0:3] == 'OP_':
                 opcode_int = opcodes[word]
@@ -539,7 +539,7 @@ class PaymentIdentifier(Logger):
             else:
                 bytes.fromhex(word)  # to test it is hex data
                 script += construct_script([word])
-        return script
+        return bytes(script)
 
     def parse_amount(self, x: str) -> Union[str, int]:
         x = x.strip()
@@ -662,7 +662,7 @@ class PaymentIdentifier(Logger):
             return None
 
     def has_expired(self):
-        if self.bip70:
+        if self.bip70 and self.bip70_data:
             return self.bip70_data.has_expired()
         elif self.bolt11:
             return self.bolt11.has_expired()

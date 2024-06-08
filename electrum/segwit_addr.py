@@ -22,10 +22,10 @@
 """Reference implementation for Bech32/Bech32m and segwit addresses."""
 
 from enum import Enum
-from typing import Tuple, Optional, Sequence, NamedTuple, List
+from typing import Tuple, Optional, Sequence, NamedTuple, List, Mapping, Iterable
 
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-_CHARSET_INVERSE = {c: i for (i, c) in enumerate(CHARSET)}
+CHARSET_INVERSE = {c: i for (i, c) in enumerate(CHARSET)}  # type: Mapping[str, int]
 
 BECH32_CONST = 1
 BECH32M_CONST = 0x2bc830a3
@@ -99,7 +99,7 @@ def bech32_decode(bech: str, *, ignore_long_length=False) -> DecodedBech32:
     bech = bech_lower
     hrp = bech[:pos]
     try:
-        data = [_CHARSET_INVERSE[x] for x in bech[pos+1:]]
+        data = [CHARSET_INVERSE[x] for x in bech[pos + 1:]]
     except KeyError:
         return DecodedBech32(None, None, None)
     encoding = bech32_verify_checksum(hrp, data)
@@ -108,7 +108,7 @@ def bech32_decode(bech: str, *, ignore_long_length=False) -> DecodedBech32:
     return DecodedBech32(encoding=encoding, hrp=hrp, data=data[:-6])
 
 
-def convertbits(data, frombits, tobits, pad=True):
+def convertbits(data: Iterable[int], frombits: int, tobits: int, pad: bool = True) -> Optional[Sequence[int]]:
     """General power-of-2 base conversion."""
     acc = 0
     bits = 0

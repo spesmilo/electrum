@@ -127,7 +127,8 @@ class QEAddressDetails(AuthMixin, QObject):
     def retrieve_private_key(self):
         try:
             self._privkey = self._wallet.wallet.export_private_key(self._address, self._wallet.password)
-        except Exception:
+        except Exception as e:
+            self._logger.error(f'problem retrieving privkey: {str(e)}')
             self._privkey = ''
 
         self.detailsChanged.emit()

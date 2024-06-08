@@ -107,13 +107,13 @@ class KeyStore(Logger, ABC):
         """Returns whether the keystore can be encrypted with a password."""
         pass
 
-    def _get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
+    def _get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[bytes, Union[Sequence[int], str]]:
         keypairs = {}
         for txin in tx.inputs():
             keypairs.update(self._get_txin_derivations(txin))
         return keypairs
 
-    def _get_txin_derivations(self, txin: 'PartialTxInput') -> Dict[str, Union[Sequence[int], str]]:
+    def _get_txin_derivations(self, txin: 'PartialTxInput') -> Dict[bytes, Union[Sequence[int], str]]:
         if txin.is_complete():
             return {}
         keypairs = {}
@@ -124,7 +124,7 @@ class KeyStore(Logger, ABC):
             derivation = self.get_pubkey_derivation(pubkey, txin)
             if not derivation:
                 continue
-            keypairs[pubkey.hex()] = derivation
+            keypairs[pubkey] = derivation
         return keypairs
 
     def can_sign(self, tx: 'Transaction', *, ignore_watching_only=False) -> bool:
@@ -223,7 +223,7 @@ class Software_KeyStore(KeyStore):
     def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
-        return key.sign_message(message, compressed)
+        return key.ecdsa_sign_usermessage(message, is_compressed=compressed)
 
     def decrypt_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
@@ -237,9 +237,11 @@ class Software_KeyStore(KeyStore):
         # Raise if password is not correct.
         self.check_password(password)
         # Add private keys
-        keypairs = self._get_tx_derivations(tx)
-        for k, v in keypairs.items():
-            keypairs[k] = self.get_private_key(v, password)
+        keypairs = {}
+        pubkey_to_deriv_map = self._get_tx_derivations(tx)
+        for pubkey, deriv in pubkey_to_deriv_map.items():
+            privkey, is_compressed = self.get_private_key(deriv, password)
+            keypairs[pubkey] = privkey
         # Sign
         if keypairs:
             tx.sign(keypairs)

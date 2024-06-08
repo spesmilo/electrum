@@ -227,6 +227,8 @@ class Plugin(TrustedCoinPlugin):
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
         wizard.trustedcoin_qhelper = TrustedcoinPluginQObject(self, wizard, None)
         self.extend_wizard(wizard)
+        if wizard.start_viewstate and wizard.start_viewstate.view.startswith('trustedcoin_'):
+            wizard.start_viewstate.params.update({'icon': icon_path('trustedcoin-wizard.png')})
 
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
@@ -487,7 +489,7 @@ class WCShowConfirmOTP(WizardComponent):
         if self.wizard.trustedcoin_qhelper.otpSecret:
             self.secretlabel.setText(self.wizard.trustedcoin_qhelper.otpSecret)
             uri = 'otpauth://totp/Electrum 2FA %s?secret=%s&digits=6' % (
-                self.wizard_data['wallet_name'], self.wizard.trustedcoin_qhelper.otpSecret)
+                os.path.basename(self.wizard_data['wallet_name']), self.wizard.trustedcoin_qhelper.otpSecret)
             self.qr.setData(uri)
 
     def on_busy_changed(self):

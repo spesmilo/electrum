@@ -7,8 +7,7 @@ is_local = not is_bundle and os.path.exists(os.path.join(os.path.dirname(os.path
 
 # when running from source, on Windows, also search for DLLs in inner 'electrum' folder
 if is_local and os.name == 'nt':
-    if hasattr(os, 'add_dll_directory'):  # requires python 3.8+
-        os.add_dll_directory(os.path.dirname(__file__))
+    os.add_dll_directory(os.path.dirname(__file__))
 
 
 class GuiImportError(ImportError):

@@ -443,10 +443,14 @@ class Interface(Logger):
             await self.open_session(ca_ssl_context, exit_early=True)
         except ConnectError as e:
             cause = e.__cause__
-            if isinstance(cause, ssl.SSLError) and cause.reason == 'CERTIFICATE_VERIFY_FAILED':
-                # failures due to self-signed certs are normal
+            if (isinstance(cause, ssl.SSLCertVerificationError)
+                    and cause.reason == 'CERTIFICATE_VERIFY_FAILED'
+                    and cause.verify_code == 18):  # "self signed certificate"
+                # Good. We will use this server as self-signed.
                 return False
+            # Not good. Cannot use this server.
             raise
+        # Good. We will use this server as CA-signed.
         return True
 
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
@@ -801,6 +805,7 @@ class Interface(Logger):
                         raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
+                util.trigger_callback('blockchain_updated')
                 util.trigger_callback('network_updated')
                 height = (height // 2016 * 2016) + num_headers
                 assert height <= next_height+1, (height, self.tip)

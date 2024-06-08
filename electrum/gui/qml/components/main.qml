@@ -413,7 +413,7 @@ ApplicationWindow
     Component {
         id: _scanDialog
         QRScanner {
-            //onClosed: destroy()
+            onFinished: destroy()
         }
     }
     Component {
@@ -629,6 +629,17 @@ ApplicationWindow
 
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
+
+        if (method == 'wallet_else_pin') {
+            // if there is a loaded wallet and all wallets use the same password, use that
+            // else delegate to pin auth
+            if (Daemon.currentWallet && Daemon.singlePasswordEnabled) {
+                method = 'wallet'
+            } else {
+                method = 'pin'
+            }
+        }
+
         if (method == 'wallet') {
             if (Daemon.currentWallet.verifyPassword('')) {
                 // wallet has no password
