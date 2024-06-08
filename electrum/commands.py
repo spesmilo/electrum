@@ -246,16 +246,13 @@ class Commands:
         ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, unlock=False, password=None):
+    async def load_wallet(self, wallet_path=None, password=None):
         """
         Load the wallet in memory
         """
         wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
         if wallet is None:
             raise UserFacingException('could not load wallet')
-        if unlock:
-            # FIXME if this raises, load_wallet() above still succeeded...
-            wallet.unlock(password)
         run_hook('load_wallet', wallet, None)
 
     @command('n')
@@ -367,6 +364,11 @@ class Commands:
         """
         sh = bitcoin.address_to_scripthash(address)
         return await self.network.get_history_for_scripthash(sh)
+
+    @command('wp')
+    async def unlock(self, wallet: Abstract_Wallet = None, password=None):
+        """Unlock the wallet (store the password in memory)."""
+        wallet.unlock(password)
 
     @command('w')
     async def listunspent(self, wallet: Abstract_Wallet = None):
@@ -1470,7 +1472,6 @@ command_options = {
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
-    'unlock':      (None, "Unlock the wallet (store the password in memory)."),
     'public':      (None, 'Channel will be announced'),
 }
 

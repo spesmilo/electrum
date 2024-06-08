@@ -38,6 +38,11 @@ class SwapServer(Logger, EventListener):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
+
+        while self.wallet.has_password() and self.wallet.get_unlocked_password() is None:
+            self.logger.info("This wallet is password-protected. Please unlock it to start the swapserver plugin")
+            await asyncio.sleep(10)
+
         app = web.Application()
         app.add_routes([web.get('/getpairs', self.get_pairs)])
         app.add_routes([web.post('/createswap', self.create_swap)])
