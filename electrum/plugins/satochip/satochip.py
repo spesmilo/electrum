@@ -6,16 +6,16 @@ import time
 from electrum import mnemonic
 from electrum import constants
 from electrum import descriptor
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum.bitcoin import TYPE_ADDRESS, var_int
 from electrum.i18n import _
 from electrum.plugin import Device, DeviceInfo
 from electrum.keystore import Hardware_KeyStore, bip39_to_seed, bip39_is_checksum_valid, ScriptTypeNotSupported
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, Sighash
 from electrum.wallet import Standard_Wallet
 from electrum.wizard import NewWalletWizard
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.crypto import hash_160, sha256d
-from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
+from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig, ECPubkey
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
@@ -341,17 +341,18 @@ class Satochip_KeyStore(Hardware_KeyStore):
         is_ok = client.verify_PIN()
         segwitTransaction = False
 
-        # outputs
-        txOutputs = var_int(len(tx.outputs()))
+        # outputs (bytes format)
+        txOutputs = bytearray()
+        txOutputs += var_int(len(tx.outputs()))
         for o in tx.outputs():
-            txOutputs += int_to_hex(o.value, 8)
-            script = o.scriptpubkey.hex()
-            txOutputs += var_int(len(script)//2)
+            txOutputs += int.to_bytes(o.value, length=8, byteorder="little", signed=False)
+            script = o.scriptpubkey
+            txOutputs += var_int(len(script))
             txOutputs += script
-        #txOutputs = bfh(txOutputs)
-        hashOutputs = sha256d(bfh(txOutputs)).hex()
+        txOutputs = bytes(txOutputs)
+        hashOutputs = sha256d(txOutputs).hex()
         _logger.info(f"In sign_transaction(): hashOutputs= {hashOutputs}")
-        _logger.info(f"In sign_transaction(): outputs= {txOutputs}")
+        _logger.info(f"In sign_transaction(): outputs= {txOutputs.hex()}")
 
         # Fetch inputs of the transaction to sign
         for i,txin in enumerate(tx.inputs()):
@@ -377,23 +378,21 @@ class Satochip_KeyStore(Hardware_KeyStore):
             if not inputPath:
                 self.give_error("No matching pubkey for sign_transaction")  # should never happen
             inputPath = convert_bip32_intpath_to_strpath(inputPath) #[2:]
-            inputHash = sha256d(bfh(tx.serialize_preimage(i)))
+            inputHash = sha256d(tx.serialize_preimage(i))
 
             # get corresponing extended key
             (depth, bytepath)= bip32path2bytes(inputPath)
             (key, chaincode)=client.cc.card_bip32_get_extendedkey(bytepath)
 
-            # parse tx
-            pre_tx_hex= tx.serialize_preimage(i)
-            pre_tx= bytes.fromhex(pre_tx_hex)# hex representation => converted to bytes
-            pre_hash = sha256d(bfh(pre_tx_hex))
-            pre_hash_hex= pre_hash.hex()
-            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_tx_hex= {pre_tx_hex}")
-            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash_hex}")
-            (response, sw1, sw2, tx_hash, needs_2fa) = client.cc.card_parse_transaction(pre_tx, segwitTransaction)
-            tx_hash_hex= bytearray(tx_hash).hex()
-            if pre_hash_hex!= tx_hash_hex:
-                raise RuntimeError("[Satochip_KeyStore] Tx preimage mismatch: {pre_hash_hex} vs {tx_hash_hex}")
+            # parse tx (bytes format)
+            pre_tx= tx.serialize_preimage(i)
+            pre_hash = sha256d(pre_tx)
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_tx= {pre_tx.hex()}")
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash.hex()}")
+            (response, sw1, sw2, tx_hash_list, needs_2fa) = client.cc.card_parse_transaction(pre_tx, segwitTransaction)
+            tx_hash= bytearray(tx_hash_list)
+            if pre_hash!= tx_hash:
+                raise RuntimeError(f"[Satochip_KeyStore] Tx preimage mismatch: {pre_hash.hex()} vs {tx_hash.hex()}")
 
             #2FA
             keynbr= 0xFF #for extended key
@@ -402,9 +401,9 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 import json
                 coin_type= 1 if constants.net.TESTNET else 0
                 if segwitTransaction:
-                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs, 'ty':script_type}
+                    msg= {'tx':pre_tx.hex(), 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs.hex(), 'ty':script_type}
                 else:
-                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction}
+                    msg= {'tx':pre_tx.hex(), 'ct':coin_type, 'sw':segwitTransaction}
                 msg=  json.dumps(msg)
 
                 #do challenge-response with 2FA device...
@@ -414,24 +413,22 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 hmac= None
 
             # sign tx
-            (tx_sig, sw1, sw2) = client.cc.card_sign_transaction(keynbr, tx_hash, hmac)
+            (tx_sig, sw1, sw2) = client.cc.card_sign_transaction(keynbr, tx_hash_list, hmac)
             # check sw1sw2 for error (0x9c0b if wrong challenge-response)
             if sw1 != 0x90 or sw2 != 0x00:
                 self.give_error(f"Satochip failed to sign transaction with code {hex(256*sw1+sw2)}")
 
             # enforce low-S signature (BIP 62)
             tx_sig = bytes(tx_sig) #bytearray(tx_sig)
-            r,s= get_r_and_s_from_der_sig(tx_sig)
+            r,s= get_r_and_s_from_ecdsa_der_sig(tx_sig)
             if s > CURVE_ORDER//2:
                 s = CURVE_ORDER - s
-            tx_sig=der_sig_from_r_and_s(r, s)
+            tx_sig = ecdsa_der_sig_from_r_and_s(r, s)
             #update tx with signature
-            tx_sig = tx_sig.hex()+'01'
-            #tx.add_signature_to_txin(i,j,tx_sig)
-            tx.add_signature_to_txin(txin_idx=i,
-                         signing_pubkey=my_pubkey.hex(),
-                         sig=tx_sig)
+            tx_sig = tx_sig + Sighash.to_sigbytes(Sighash.ALL)
+            tx.add_signature_to_txin(txin_idx=i, signing_pubkey=my_pubkey, sig=tx_sig)
             # end of for loop
+
 
         _logger.info(f"Tx is complete: {str(tx.is_complete())}")
         tx.raw = tx.serialize()
