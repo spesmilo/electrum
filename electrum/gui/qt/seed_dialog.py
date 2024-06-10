@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QScrollArea, QWidget, QPushButton)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
+from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum import old_mnemonic
 from electrum import slip39
 
@@ -292,7 +292,7 @@ class SeedLayout(QVBoxLayout):
             b = self.slip39_seed is not None
             self.update_share_buttons()
         else:
-            t = seed_type(s)
+            t = calc_seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
             if t and not b:  # electrum seed, but does not conform to dialog rules
                 # FIXME we should just accept any electrum seed and "redirect" the wizard automatically.

@@ -46,7 +46,7 @@ from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATE
                      CiphertextFormatError)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bfh, inv_dict, is_hex_str)
-from .mnemonic import Mnemonic, Wordlist, seed_type, is_seed
+from .mnemonic import Mnemonic, Wordlist, calc_seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
 
@@ -380,7 +380,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
-        self._seed_type = seed_type(seed) or None
+        self._seed_type = calc_seed_type(seed) or None
 
     def get_seed(self, password):
         if not self.has_seed():
@@ -1167,7 +1167,7 @@ def purpose48_derivation(account_id: int, xtype: str) -> str:
 
 def from_seed(seed: str, *, passphrase: Optional[str], for_multisig: bool = False):
     passphrase = passphrase or ""
-    t = seed_type(seed)
+    t = calc_seed_type(seed)
     if t == 'old':
         if passphrase:
             raise Exception("'old'-type electrum seed cannot have passphrase")

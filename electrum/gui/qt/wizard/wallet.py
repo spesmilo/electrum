@@ -630,7 +630,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         self.layout().addStretch(1)
 
     def is_seed(self, x):
-        t = mnemonic.seed_type(x)
+        t = mnemonic.calc_seed_type(x)
         if self.wizard_data['wallet_type'] == 'standard':
             return mnemonic.is_seed(x) and not mnemonic.is_any_2fa_seed_type(t)
         elif self.wizard_data['wallet_type'] == '2fa':
@@ -665,7 +665,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         cosigner_data['seed'] = self.slayout.get_seed()
         cosigner_data['seed_variant'] = self.slayout.seed_type
         if self.slayout.seed_type == 'electrum':
-            cosigner_data['seed_type'] = mnemonic.seed_type(self.slayout.get_seed())
+            cosigner_data['seed_type'] = mnemonic.calc_seed_type(self.slayout.get_seed())
         else:
             cosigner_data['seed_type'] = self.slayout.seed_type
         cosigner_data['seed_extend'] = self.slayout.is_ext if self.can_passphrase else False

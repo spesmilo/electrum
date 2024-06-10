@@ -7,7 +7,7 @@ from electrum import mnemonic
 from electrum import slip39
 from electrum import old_mnemonic
 from electrum.util import bfh
-from electrum.mnemonic import is_new_seed, is_old_seed, seed_type, is_matching_seed, can_seed_have_passphrase
+from electrum.mnemonic import is_new_seed, is_old_seed, calc_seed_type, is_matching_seed, can_seed_have_passphrase
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
 from . import ElectrumTestCase
@@ -219,10 +219,10 @@ class Test_seeds(ElectrumTestCase):
         self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
         self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
 
-    def test_seed_type(self):
+    def test_calc_seed_type(self):
         for idx, (seed_words, _type) in enumerate(self.mnemonics):
             with self.subTest(msg=f"seed_type_subcase_{idx}", seed_words=seed_words):
-                self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
+                self.assertEqual(_type, calc_seed_type(seed_words), msg=seed_words)
 
     def test_is_matching_seed(self):
         self.assertTrue(is_matching_seed(seed="9dk", seed_again="9dk "))
