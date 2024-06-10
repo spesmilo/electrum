@@ -276,6 +276,23 @@ def seed_type(x: str) -> str:
     return ''
 
 
+def can_seed_have_passphrase(seed: str) -> bool:
+    stype = seed_type(seed)
+    if not stype:
+        raise Exception(f'unexpected seed type: {stype!r}')
+    if stype == 'old':
+        return False
+    if stype == '2fa':
+        # post-version-2.7 2fa seeds can have passphrase, but older ones cannot
+        num_words = len(seed.split())
+        if num_words == 12:
+            return True
+        else:
+            return False
+    # all other types can have a seed extension/passphrase
+    return True
+
+
 def is_seed(x: str) -> bool:
     return bool(seed_type(x))
 

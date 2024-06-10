@@ -7,7 +7,7 @@ from electrum import mnemonic
 from electrum import slip39
 from electrum import old_mnemonic
 from electrum.util import bfh
-from electrum.mnemonic import is_new_seed, is_old_seed, seed_type, is_matching_seed
+from electrum.mnemonic import is_new_seed, is_old_seed, seed_type, is_matching_seed, can_seed_have_passphrase
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
 from . import ElectrumTestCase
@@ -243,6 +243,25 @@ class Test_seeds(ElectrumTestCase):
         self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when blAde focus"))
         self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when bl4de focus"))
         self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when bla4de focus"))
+
+    def test_can_seed_have_passphrase(self):
+        seed_invalid = 'xxx'
+        with self.assertRaises(Exception):
+            self.assertFalse(can_seed_have_passphrase(seed_invalid))
+        seed_old = 'cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze'
+        self.assertFalse(can_seed_have_passphrase(seed_old))
+        seed_standard = 'cram swing cover prefer miss modify ritual silly deliver chunk behind inform able'
+        self.assertTrue(can_seed_have_passphrase(seed_standard))
+        seed_segwit = 'frost pig brisk excite novel report camera enlist axis nation novel desert'
+        self.assertTrue(can_seed_have_passphrase(seed_segwit))
+        seed_2fa_12 = 'science dawn member doll dutch real can brick knife deny drive list'
+        self.assertTrue(can_seed_have_passphrase(seed_2fa_12))
+        seed_2fa_24 = 'sibling leg cable timber patient foot occur plate travel finger chef scale radio citizen promote immune must chef fluid sea sphere common acid lab'
+        self.assertFalse(can_seed_have_passphrase(seed_2fa_24))
+        seed_2fa_25 = 'bind clever room kidney crucial sausage spy edit canvas soul liquid ribbon slam open alpha suffer gate relax voice carpet law hill woman tonight abstract'
+        self.assertFalse(can_seed_have_passphrase(seed_2fa_25))
+        seed_2fa_segwit = 'agree install'
+        self.assertTrue(can_seed_have_passphrase(seed_2fa_segwit))
 
 
 class Test_slip39(ElectrumTestCase):
