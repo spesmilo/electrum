@@ -258,7 +258,7 @@ def is_old_seed(seed: str) -> bool:
     return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
 
-def seed_type(x: str) -> str:
+def calc_seed_type(x: str) -> str:
     num_words = len(x.split())
     if is_old_seed(x):
         return 'old'
@@ -277,7 +277,7 @@ def seed_type(x: str) -> str:
 
 
 def can_seed_have_passphrase(seed: str) -> bool:
-    stype = seed_type(seed)
+    stype = calc_seed_type(seed)
     if not stype:
         raise Exception(f'unexpected seed type: {stype!r}')
     if stype == 'old':
@@ -294,7 +294,7 @@ def can_seed_have_passphrase(seed: str) -> bool:
 
 
 def is_seed(x: str) -> bool:
-    return bool(seed_type(x))
+    return bool(calc_seed_type(x))
 
 
 def is_any_2fa_seed_type(seed_type: str) -> bool:

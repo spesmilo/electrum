@@ -489,7 +489,7 @@ class NewWalletWizard(AbstractWizard):
         can_passphrase = True
 
         if seed_variant == 'electrum':
-            seed_type = mnemonic.seed_type(seed)
+            seed_type = mnemonic.calc_seed_type(seed)
             if seed_type != '':
                 seed_valid = True
                 can_passphrase = can_seed_have_passphrase(seed)
