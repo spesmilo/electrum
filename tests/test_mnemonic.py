@@ -246,8 +246,9 @@ class Test_seeds(ElectrumTestCase):
 
     def test_can_seed_have_passphrase(self):
         seed_invalid = 'xxx'
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception) as ctx:
             self.assertFalse(can_seed_have_passphrase(seed_invalid))
+        self.assertTrue("unexpected seed type" in ctx.exception.args[0])
         seed_old = 'cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze'
         self.assertFalse(can_seed_have_passphrase(seed_old))
         seed_standard = 'cram swing cover prefer miss modify ritual silly deliver chunk behind inform able'
