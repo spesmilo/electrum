@@ -230,7 +230,11 @@ class Mnemonic(Logger):
                 continue
             if is_new_seed(seed, prefix):
                 break
-        self.logger.info(f'{len(seed.split())} words')
+        num_words = len(seed.split())
+        self.logger.info(f'{num_words} words')
+        if (final_seed_type := calc_seed_type(seed)) != seed_type:
+            # note: I guess this can probabilistically happen for old "2fa" seeds that depend on the word count
+            raise Exception(f"{final_seed_type=!r} does not match requested {seed_type=!r}. have {num_words=!r}")
         return seed
 
 
