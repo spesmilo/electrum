@@ -444,11 +444,6 @@ class TrustedCoinPlugin(BasePlugin):
         self.wallet_class.plugin = self
         self.requesting = False
 
-    @staticmethod
-    def is_valid_seed(seed):
-        t = seed_type(seed)
-        return is_any_2fa_seed_type(t)
-
     def is_available(self):
         return True
 
