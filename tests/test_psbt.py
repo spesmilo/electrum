@@ -58,7 +58,7 @@ class TestValidPSBT(ElectrumTestCase):
             self.assertTrue(tx.inputs()[0].redeem_script is not None)
             self.assertTrue(tx.inputs()[0].witness_script is not None)
             self.assertEqual(2, len(tx.inputs()[0].bip32_paths))
-            self.assertEqual(1, len(tx.inputs()[0].part_sigs))
+            self.assertEqual(1, len(tx.inputs()[0].sigs_ecdsa))
 
     def test_valid_psbt_006(self):
         # Case: PSBT with one P2WSH input of a 2-of-2 multisig. witnessScript, keypaths, and global xpubs are available. Contains no signatures. Outputs filled.
@@ -70,7 +70,7 @@ class TestValidPSBT(ElectrumTestCase):
             self.assertTrue(tx.inputs()[0].witness_script is not None)
             self.assertEqual(2, len(tx.inputs()[0].bip32_paths))
             self.assertEqual(2, len(tx.xpubs))
-            self.assertEqual(0, len(tx.inputs()[0].part_sigs))
+            self.assertEqual(0, len(tx.inputs()[0].sigs_ecdsa))
 
     def test_valid_psbt_007(self):
         # Case: PSBT with unknown types in the inputs.

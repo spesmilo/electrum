@@ -1,7 +1,10 @@
 import asyncio
 import base64
+import json
+import os
 import sys
 
+from electrum import bitcoin
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_address, is_private_key,
                               var_int, _op_push, address_to_script, OnchainOutputType, address_to_payload,
@@ -9,7 +12,9 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
                               script_num_to_bytes, push_script, add_number_to_script,
-                              opcodes, base_encode, base_decode, BitcoinException)
+                              opcodes, base_encode, base_decode, BitcoinException,
+                              taproot_tweak_pubkey, taproot_tweak_seckey, taproot_output_script,
+                              control_block_for_taproot_script_spend)
 from electrum import bip32
 from electrum import segwit_addr
 from electrum.segwit_addr import DecodedBech32
@@ -1229,3 +1234,47 @@ class TestBaseEncode(ElectrumTestCase):
                          data_base58check)
         self.assertEqual(data_bytes,
                          DecodeBase58Check(data_base58check))
+
+
+class TestTaprootHelpers(ElectrumTestCase):
+
+    def test_taproot_tweak_homomorphism(self):
+        # For any byte string h it holds that
+        # taproot_tweak_pubkey(pubkey_gen(seckey), h)[1] == pubkey_gen(taproot_tweak_seckey(seckey, h)).
+        for secret_scalar in (8, 11, 99999):
+            privkey = ecc.ECPrivkey.from_secret_scalar(secret_scalar)
+            pubkey32 = privkey.get_public_key_bytes(compressed=True)[1:]
+            for tree_hash in (b"", b"satoshi", b"1234"*8, bytes(range(100)), ):
+                tweaked_pubkey = taproot_tweak_pubkey(pubkey32, tree_hash)[1]
+                tweaked_seckey = taproot_tweak_seckey(privkey.get_secret_bytes(), tree_hash)
+                self.assertEqual(tweaked_pubkey, ecc.ECPrivkey(tweaked_seckey).get_public_key_bytes(compressed=True)[1:])
+
+    def test_taproot_output_script(self):
+        # test vectors from https://github.com/bitcoin/bips/blob/70d9b07ab80ab3c267ece48f74e4e2250226d0cc/bip-0341/wallet-test-vectors.json
+        test_vector_file = os.path.join(os.path.dirname(__file__), "bip-0341", "wallet-test-vectors.json")
+        with open(test_vector_file, "r") as f:
+            vectors = json.load(f)
+        def transform_tree(tree_node):
+            if isinstance(tree_node, dict):
+                return (tree_node["leafVersion"], bfh(tree_node["script"]))
+            assert len(tree_node) == 2, len(tree_node)
+            return [transform_tree(tree_node[0]), transform_tree(tree_node[1])]
+        def flatten_tree(tree_node):
+            if isinstance(tree_node, tuple):
+                return [tree_node]
+            assert len(tree_node) == 2, len(tree_node)
+            return flatten_tree(tree_node[0]) + flatten_tree(tree_node[1])
+        assert len(vectors["scriptPubKey"]) > 0, "test vectors missing"
+        for tcase in vectors["scriptPubKey"]:
+            script_tree = transform_tree(tcase["given"]["scriptTree"]) if tcase["given"]["scriptTree"] else None
+            internal_pubkey = bfh(tcase["given"]["internalPubkey"])
+            spk = taproot_output_script(internal_pubkey, script_tree=script_tree)
+            self.assertEqual(bfh(tcase["expected"]["scriptPubKey"]), spk)
+            self.assertEqual(tcase["expected"]["bip350Address"], bitcoin.script_to_address(spk))
+            if script_tree:
+                flat_tree = flatten_tree(script_tree)
+                for script_num, jcontrol_block in enumerate(tcase["expected"]["scriptPathControlBlocks"]):
+                    leaf_script, control_block = control_block_for_taproot_script_spend(
+                        internal_pubkey=internal_pubkey, script_tree=script_tree, script_num=script_num)
+                    self.assertEqual(jcontrol_block, control_block.hex())
+                    self.assertEqual(flat_tree[script_num][1].hex(), leaf_script.hex())

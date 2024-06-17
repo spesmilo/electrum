@@ -118,7 +118,7 @@ class KeyStore(Logger, ABC):
             return {}
         keypairs = {}
         for pubkey in txin.pubkeys:
-            if pubkey in txin.part_sigs:
+            if pubkey in txin.sigs_ecdsa:
                 # this pubkey already signed
                 continue
             derivation = self.get_pubkey_derivation(pubkey, txin)

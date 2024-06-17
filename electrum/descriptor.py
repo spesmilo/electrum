@@ -25,18 +25,19 @@ from typing import (
     Sequence,
     Mapping,
     Set,
+    Union,
 )
 
 from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
 from . import bitcoin
-from .bitcoin import construct_script, opcodes, construct_witness
+from .bitcoin import construct_script, opcodes, construct_witness, taproot_output_script
 from . import constants
 from .crypto import hash_160, sha256
 from . import ecc
 from . import segwit_addr
 
 
-MAX_TAPROOT_NODES = 128
+MAX_TAPROOT_DEPTH = 128
 
 # we guess that signatures will be 72 bytes long
 # note: DER-encoded ECDSA signatures are 71 or 72 bytes in practice
@@ -413,6 +414,9 @@ class Descriptor(object):
     def is_segwit(self) -> bool:
         return any([desc.is_segwit() for desc in self.subdescriptors])
 
+    def is_taproot(self) -> bool:
+        return False
+
     def get_all_pubkeys(self) -> Set[bytes]:
         """Returns set of pubkeys that appear at any level in this descriptor."""
         assert not self.is_range()
@@ -752,42 +756,77 @@ class TRDescriptor(Descriptor):
     def __init__(
         self,
         internal_key: 'PubkeyProvider',
-        subdescriptors: List['Descriptor'] = None,
-        depths: List[int] = None,
+        desc_tree: List[Union['Descriptor', List]] = None,
     ) -> None:
         r"""
         :param internal_key: The :class:`PubkeyProvider` that is the internal key for this descriptor
-        :param subdescriptors: The :class:`Descriptor`\ s that are the leaf scripts for this descriptor
-        :param depths: The depths of the leaf scripts in the same order as `subdescriptors`
+        :param desc_tree: Taproot script binary tree, as a nested list of Descriptors
         """
-        if subdescriptors is None:
-            subdescriptors = []
-        if depths is None:
-            depths = []
-        super().__init__([internal_key], subdescriptors, "tr")
-        self.depths = depths
+        if desc_tree is None:
+            desc_tree = []
+        self.desc_tree = desc_tree
+        desc_list = []
+        if desc_tree:
+            if self.get_max_tree_depth() > MAX_TAPROOT_DEPTH:
+                raise ValueError(f"tr() supports at most {MAX_TAPROOT_DEPTH} nesting levels")
+            def flatten(tree_node):
+                if isinstance(tree_node, Descriptor):
+                    return [tree_node]
+                assert len(tree_node) == 2, len(tree_node)
+                return flatten(tree_node[0]) + flatten(tree_node[1])
+            desc_list = flatten(desc_tree)
+        super().__init__(
+            pubkeys=[internal_key],
+            subdescriptors=desc_list,  # FIXME we could do without the flattened list (dupl)
+            name="tr",
+        )
 
     def to_string_no_checksum(self) -> str:
-        r = f"{self.name}({self.pubkeys[0].to_string()}"
-        path: List[bool] = [] # Track left or right for each depth
-        for p, depth in enumerate(self.depths):
-            r += ","
-            while len(path) <= depth:
-                if len(path) > 0:
-                    r += "{"
-                path.append(False)
-            r += self.subdescriptors[p].to_string_no_checksum()
-            while len(path) > 0 and path[-1]:
-                if len(path) > 0:
-                    r += "}"
-                path.pop()
-            if len(path) > 0:
-                path[-1] = True
-        r += ")"
-        return r
+        ret = f"{self.name}({self.pubkeys[0].to_string()}"
+        if self.desc_tree:
+            ret += ","
+            def tree_to_str(tree_node):
+                if isinstance(tree_node, Descriptor):
+                    return tree_node.to_string_no_checksum()
+                assert len(tree_node) == 2, len(tree_node)
+                return "{" + tree_to_str(tree_node[0]) + "," + tree_to_str(tree_node[1]) + "}"
+            ret += tree_to_str(self.desc_tree)
+        ret += ")"
+        return ret
 
     def is_segwit(self) -> bool:
         return True
+
+    def is_taproot(self) -> bool:
+        return True
+
+    # TODO add more test vectors from BIP-0386
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
+        internal_pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
+        script_tree = None
+        if self.desc_tree:
+            def transform(tree_node):
+                if isinstance(tree_node, Descriptor):
+                    leaf_version = 0xc0
+                    leaf_script = tree_node.expand(pos=pos).scriptcode_for_sighash  # FIXME maybe rename scriptcode_for_sighash
+                    return (leaf_version, leaf_script)
+                assert len(tree_node) == 2, len(tree_node)
+                return [transform(tree_node[0]), transform(tree_node[1])]
+            script_tree = transform(self.desc_tree)
+        output_script = taproot_output_script(internal_pubkey, script_tree=script_tree)
+        return ExpandedScripts(
+            output_script=output_script,
+        )
+
+    def get_max_tree_depth(self) -> Optional[int]:
+        if not self.desc_tree:
+            return None
+        def depth(tree_node) -> int:
+            if isinstance(tree_node, Descriptor):
+                return 0
+            assert len(tree_node) == 2, len(tree_node)
+            return 1 + max(depth(tree_node[0]), depth(tree_node[1]))
+        return depth(self.desc_tree)
 
 
 def _get_func_expr(s: str) -> Tuple[str, str]:
@@ -798,9 +837,12 @@ def _get_func_expr(s: str) -> Tuple[str, str]:
     :return: The function name as the first element of the tuple, and the expression contained within the function as the second element
     :raises: ValueError: if a matching pair of parentheses cannot be found
     """
-    start = s.index("(")
-    end = s.rindex(")")
-    return s[0:start], s[start + 1:end]
+    try:
+        start = s.index("(")
+        end = s.rindex(")")
+        return s[0:start], s[start + 1:end]
+    except ValueError:
+        raise ValueError("A matching pair of parentheses cannot be found")
 
 
 def _get_const(s: str, const: str) -> str:
@@ -836,6 +878,8 @@ def _get_expr(s: str) -> Tuple[str, str]:
             level -= 1
         elif level == 0 and c in [")", "}", ","]:
             break
+    else:
+        return s, ""
     return s[0:i], s[i:]
 
 def parse_pubkey(expr: str, *, ctx: '_ParseDescriptorContext') -> Tuple['PubkeyProvider', str]:
@@ -939,39 +983,24 @@ def _parse_descriptor(desc: str, *, ctx: '_ParseDescriptorContext') -> 'Descript
         if ctx != _ParseDescriptorContext.TOP:
             raise ValueError("Can only have tr at top level")
         internal_key, expr = parse_pubkey(expr, ctx=ctx)
-        subscripts = []
-        depths = []
+        desc_tree = []
         if expr:
-            # Path from top of the tree to what we're currently processing.
-            # branches[i] == False: left branch in the i'th step from the top
-            # branches[i] == true: right branch
-            branches = []
-            while True:
-                # Process open braces
-                while True:
-                    try:
-                        expr = _get_const(expr, "{")
-                        branches.append(False)
-                    except ValueError:
-                        break
-                    if len(branches) > MAX_TAPROOT_NODES:
-                        raise ValueError(f"tr() supports at most {MAX_TAPROOT_NODES} nesting levels")  # TODO xxxx fixed upstream bug here
-                # Process script expression
-                sarg, expr = _get_expr(expr)
-                subscripts.append(_parse_descriptor(sarg, ctx=_ParseDescriptorContext.P2TR))
-                depths.append(len(branches))
-                # Process closing braces
-                while len(branches) > 0 and branches[-1]:
-                    expr = _get_const(expr, "}")
-                    branches.pop()
-                # If we're at the end of a left branch, expect a comma
-                if len(branches) > 0 and not branches[-1]:
-                    expr = _get_const(expr, ",")
-                    branches[-1] = True
-
-                if len(branches) == 0:
-                    break
-        return TRDescriptor(internal_key, subscripts, depths)
+            def parse_tree(tree_str):
+                if len(tree_str) == 0:
+                    raise ValueError("Invalid Taproot tree expression")
+                if tree_str[0] != "{":  # leaf
+                    sarg, remaining = _get_expr(tree_str)
+                    return _parse_descriptor(sarg, ctx=_ParseDescriptorContext.P2TR), remaining
+                if len(tree_str) < len("{x,y}") or tree_str[-1] != "}":
+                    raise ValueError("Invalid Taproot tree expression")
+                left, remaining = parse_tree(tree_str[1:])
+                if remaining[0] != ",": raise ValueError
+                right, remaining = parse_tree(remaining[1:])
+                if remaining[0] != "}": raise ValueError
+                return [left, right], remaining[1:]
+            desc_tree, _remaining = parse_tree(expr)
+            if len(_remaining) != 0: raise ValueError
+        return TRDescriptor(internal_key, desc_tree)
     if ctx == _ParseDescriptorContext.P2SH:
         raise ValueError("A function is needed within P2SH")
     elif ctx == _ParseDescriptorContext.P2WSH:

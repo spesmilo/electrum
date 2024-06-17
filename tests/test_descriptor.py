@@ -227,18 +227,35 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h")
         self.assertEqual(desc.pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
         self.assertEqual(desc.pubkeys[0].deriv_path, "/0/0")
+        self.assertEqual(desc.get_max_tree_depth(), None)
         self.assertEqual(desc.to_string_no_checksum(), d)
 
         d = "tr([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0,{pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B),{{pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B),pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)},pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)}})"
         desc = parse_descriptor(d)
         self.assertTrue(isinstance(desc, TRDescriptor))
         self.assertEqual(len(desc.subdescriptors), 4)
+        self.assertEqual(len(desc.desc_tree), 2)
+        self.assertEqual(len(desc.pubkeys), 1)
         self.assertEqual(desc.pubkeys[0].origin.fingerprint.hex(), "00000001")
         self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h")
         self.assertEqual(desc.pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
         self.assertEqual(desc.pubkeys[0].deriv_path, "/0/0")
-        self.assertEqual(desc.depths, [1, 3, 3, 2])
+        self.assertEqual(desc.desc_tree[0].to_string_no_checksum(), "pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)")
+        self.assertEqual(desc.desc_tree[1][0][0].to_string_no_checksum(), "pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)")
+        self.assertEqual(desc.desc_tree[1][0][1].to_string_no_checksum(), "pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)")
+        self.assertEqual(desc.desc_tree[1][1].to_string_no_checksum(), "pk(tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B)")
+        self.assertEqual(desc.get_max_tree_depth(), 3)
         self.assertEqual(desc.to_string_no_checksum(), d)
+
+    def test_tr_descriptor_bip386(self):
+        # test vectors from https://github.com/bitcoin/bips/blob/e2f7481a132e1c5863f5ffcbff009964d7c2af20/bip-0386.mediawiki#test-vectors
+        # TODO add missing tests
+        self.assertEqual(
+            "512077aab6e066f8a7419c5ab714c12c67d25007ed55a43cadcacb4d7a970a093f11",
+            parse_descriptor("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd)").expand().output_script.hex())
+        self.assertEqual(
+            "512017cf18db381d836d8923b1bdb246cfcd818da1a9f0e6e7907f187f0b2f937754",
+            parse_descriptor("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,pk(669b8afcec803a0d323e9a17f3ea8e68e8abe5a278020a929adbec52421adbd0))").expand().output_script.hex())
 
     @as_testnet
     def test_parse_descriptor_with_range(self):
