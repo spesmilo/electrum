@@ -27,9 +27,9 @@ import json
 import time
 import hashlib
 from typing import Dict, Union, Sequence, List, TYPE_CHECKING
-
 from urllib.parse import urljoin
 from urllib.parse import quote
+
 from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32, bitcoin
@@ -40,7 +40,7 @@ from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds, UserFacingException
+from electrum.util import NotEnoughFunds, UserFacingException, error_text_str_to_safe_str
 from electrum.network import Network
 from electrum.logging import Logger
 
@@ -103,8 +103,14 @@ RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
 
 class TrustedCoinException(Exception):
-    def __init__(self, message, status_code=0):
-        Exception.__init__(self, message)
+    def __init__(self, message, *, status_code=0):
+        # note: 'message' is arbitrary text coming from the server
+        safer_message = (
+            f"Received error from 2FA server\n"
+            f"[DO NOT TRUST THIS MESSAGE]:\n\n"
+            f"status_code={status_code}\n\n"
+            f"{error_text_str_to_safe_str(message)}")
+        Exception.__init__(self, safer_message)
         self.status_code = status_code
 
 
@@ -134,7 +140,7 @@ class TrustedCoinCosignerClient(Logger):
                 message = r['message']
             except Exception:
                 message = await resp.text()
-            raise TrustedCoinException(message, resp.status)
+            raise TrustedCoinException(message, status_code=resp.status)
         try:
             return await resp.json()
         except Exception:
@@ -325,7 +331,7 @@ class Wallet_2fa(Multisig_Wallet):
             fee=None,
             change_addr: str = None,
             is_sweep=False,
-            rbf=False) -> PartialTransaction:
+            rbf=False) -> PartialTransaction:  # FIXME method signature
 
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
             self, coins=coins, outputs=o, fee=fee, change_addr=change_addr, rbf=rbf)

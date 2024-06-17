@@ -52,6 +52,8 @@ ElDialog {
             Layout.topMargin: constants.paddingMedium
             Layout.bottomMargin: constants.paddingMedium
             Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
 
             text: _otpError
             color: constants.colorError
