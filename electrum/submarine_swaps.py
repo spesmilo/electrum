@@ -8,10 +8,10 @@ import time
 
 import attr
 import aiohttp
+from electrum_ecc import ECPrivkey
 
 from . import lnutil
 from .crypto import sha256, hash_160
-from .ecc import ECPrivkey
 from .bitcoin import (script_to_p2wsh, opcodes,
                       construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint

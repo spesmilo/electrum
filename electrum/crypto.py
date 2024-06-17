@@ -31,10 +31,11 @@ import hashlib
 import hmac
 from typing import Union, Mapping, Optional
 
+import electrum_ecc as ecc
+
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
 from .logging import get_logger
-from . import ecc
 
 _logger = get_logger(__name__)
 

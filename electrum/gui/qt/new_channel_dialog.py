@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING, Optional
-
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout
+
+import electrum_ecc as ecc
 
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
-from electrum import ecc
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 
 from electrum.gui import messages

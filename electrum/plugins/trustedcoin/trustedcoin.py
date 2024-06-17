@@ -32,7 +32,9 @@ from urllib.parse import quote
 
 from aiohttp import ClientResponse
 
-from electrum import ecc, constants, keystore, version, bip32, bitcoin
+import electrum_ecc as ecc
+
+from electrum import constants, keystore, version, bip32, bitcoin
 from electrum.bip32 import BIP32Node, xpub_type
 from electrum.crypto import sha256
 from electrum.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
