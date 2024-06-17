@@ -1811,8 +1811,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             outputs: List[PartialTxOutput],
             fee=None,
             change_addr: str = None,
-            is_sweep=False,
-            rbf=True,
+            is_sweep: bool = False,  # used by Wallet_2fa subclass
+            rbf: bool = True,
             batch_rbf: Optional[bool] = None,
             send_change_to_lightning: Optional[bool] = None,
     ) -> PartialTransaction:
