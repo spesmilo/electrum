@@ -234,27 +234,6 @@ class TrustedCoinCosignerClient(Logger):
         return self.send_request('post', 'cosigner/%s/sign' % quote(id), payload,
                                  timeout=60)
 
-    def transfer_credit(self, id, recipient, otp, signature_callback):
-        """
-        Transfer a cosigner's credits to another cosigner.
-        :param id: the id of the sending cosigner
-        :param recipient: the id of the recipient cosigner
-        :param otp: the one time password (of the sender)
-        :param signature_callback: a callback that signs a text message using xpubkey1/0/0 returning a compact sig
-        """
-        payload = {
-            'otp': otp,
-            'recipient': recipient,
-            'timestamp': int(time.time()),
-
-        }
-        relative_url = 'cosigner/%s/transfer' % quote(id)
-        full_url = urljoin(self.base_url, relative_url)
-        headers = {
-            'x-signature': signature_callback(full_url + '\n' + json.dumps(payload))
-        }
-        return self.send_request('post', relative_url, payload, headers)
-
 
 server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
 
