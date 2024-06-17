@@ -2309,7 +2309,7 @@ class PartialTransaction(Transaction):
             merkle_root = txin.tap_merkle_root or bytes()
             output_privkey_bytes = taproot_tweak_seckey(privkey_bytes, merkle_root)
             output_privkey = ecc.ECPrivkey(output_privkey_bytes)
-            msg_hash = ecc.bip340_tagged_hash(b"TapSighash", pre_hash)
+            msg_hash = bitcoin.bip340_tagged_hash(b"TapSighash", pre_hash)
             sig = output_privkey.schnorr_sign(msg_hash)
             sighash = txin.sighash if txin.sighash is not None else Sighash.DEFAULT
         else:

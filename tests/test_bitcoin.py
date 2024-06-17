@@ -23,12 +23,12 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             is_xpub, convert_bip32_strpath_to_intpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
-from electrum import ecc, crypto, constants
+from electrum import ecc, crypto, constants, bitcoin
 from electrum.util import bfh, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
 
-from electrum import ecc_fast
+from electrum import ecc_fast, crypto
 
 from . import ElectrumTestCase
 from . import FAST_TESTS
@@ -182,16 +182,16 @@ class Test_bitcoin(ElectrumTestCase):
         eck = ecc.ECPrivkey.from_secret_scalar(pvk)
 
         #print "Compressed public key  ", pubkey_c.encode('hex')
-        enc = ecc.ECPubkey(pubkey_c).encrypt_message(message)
-        dec = eck.decrypt_message(enc)
+        enc = crypto.ecies_encrypt_message(ecc.ECPubkey(pubkey_c), message)
+        dec = crypto.ecies_decrypt_message(eck, enc)
         self.assertEqual(message, dec)
 
         #print "Uncompressed public key", pubkey_u.encode('hex')
         #enc2 = EC_KEY.encrypt_message(message, pubkey_u)
-        dec2 = eck.decrypt_message(enc)
+        dec2 = crypto.ecies_decrypt_message(eck, enc)
         self.assertEqual(message, dec2)
 
-        msg32 = sha256d(ecc.usermessage_magic(message))
+        msg32 = sha256d(bitcoin.usermessage_magic(message))
         sig65 = eck.ecdsa_sign_recoverable(msg32, is_compressed=True)
         self.assertTrue(eck.ecdsa_verify_recoverable(sig65, msg32))
 
@@ -226,7 +226,7 @@ class Test_bitcoin(ElectrumTestCase):
     def sign_message_with_wif_privkey(wif_privkey: str, msg: bytes) -> bytes:
         txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
         key = ecc.ECPrivkey(privkey)
-        return key.ecdsa_sign_usermessage(msg, is_compressed=compressed)
+        return bitcoin.ecdsa_sign_usermessage(key, msg, is_compressed=compressed)
 
     def test_signmessage_legacy_address(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
@@ -245,11 +245,11 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(sig1_b64, b'Hzsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5aKfmX4Db7ExLGa7FGn0m6Mf43KsbEOWpvUUUBTM3Uusw=')
         self.assertEqual(sig2_b64, b'HBQdYfv7kOrxmRewLJnG7sV6KlU71O04hUnE4tai97p7Pg+D+yKaWXsdGgHTrKw90caQMo/D6b//qX50ge9P9iI=')
 
-        self.assertTrue(ecc.verify_usermessage_with_address(addr1, sig1, msg1))
-        self.assertTrue(ecc.verify_usermessage_with_address(addr2, sig2, msg2))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(addr1, sig1, msg1))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(addr2, sig2, msg2))
 
-        self.assertFalse(ecc.verify_usermessage_with_address(addr1, b'wrong', msg1))
-        self.assertFalse(ecc.verify_usermessage_with_address(addr1, sig2, msg1))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(addr1, b'wrong', msg1))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(addr1, sig2, msg1))
 
     def test_signmessage_low_s(self):
         """`$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs. This tests we do the same."""
@@ -257,8 +257,8 @@ class Test_bitcoin(ElectrumTestCase):
         sig_low_s = b'Hzsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5aKfmX4Db7ExLGa7FGn0m6Mf43KsbEOWpvUUUBTM3Uusw='
         sig_high_s = b'IDsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5a1gZoH8kE7O05lE65YLZFzLx3sh/rDzXMbo1dQAJhhnU='
         msg = b'Chancellor on brink of second bailout for banks'
-        self.assertTrue(ecc.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_low_s), message=msg))
-        self.assertTrue(ecc.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_high_s), message=msg))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_low_s), message=msg))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(address=addr, sig65=base64.b64decode(sig_high_s), message=msg))
 
     def test_signmessage_segwit_witness_v0_address(self):
         msg = b'Electrum'
@@ -266,14 +266,14 @@ class Test_bitcoin(ElectrumTestCase):
         sig1 = self.sign_message_with_wif_privkey("p2wpkh-p2sh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
         addr1 = "3DYoBqQ5N6dADzyQjy9FT1Ls4amiYVaqTG"
         self.assertEqual(base64.b64encode(sig1), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
-        self.assertTrue(ecc.verify_usermessage_with_address(addr1, sig1, msg))
-        self.assertFalse(ecc.verify_usermessage_with_address(addr1, sig1, b'heyheyhey'))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(addr1, sig1, msg))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(addr1, sig1, b'heyheyhey'))
         # p2wpkh
         sig2 = self.sign_message_with_wif_privkey("p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
         addr2 = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
         self.assertEqual(base64.b64encode(sig2), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
-        self.assertTrue(ecc.verify_usermessage_with_address(addr2, sig2, msg))
-        self.assertFalse(ecc.verify_usermessage_with_address(addr2, sig2, b'heyheyhey'))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(addr2, sig2, msg))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(addr2, sig2, b'heyheyhey'))
 
     def test_signmessage_segwit_witness_v0_address_test_we_also_accept_sigs_from_trezor(self):
         """Trezor and some other projects use a slightly different scheme for message-signing
@@ -286,20 +286,23 @@ class Test_bitcoin(ElectrumTestCase):
         addr2 = "bc1qannfxke2tfd4l7vhepehpvt05y83v3qsf6nfkk"
         sig1 = bytes.fromhex("23744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
         sig2 = bytes.fromhex("28b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
-        self.assertTrue(ecc.verify_usermessage_with_address(address=addr1, sig65=sig1, message=msg))
-        self.assertTrue(ecc.verify_usermessage_with_address(address=addr2, sig65=sig2, message=msg))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(address=addr1, sig65=sig1, message=msg))
+        self.assertTrue(bitcoin.verify_usermessage_with_address(address=addr2, sig65=sig2, message=msg))
         # if there is type information in the header of the sig (first byte), enforce that:
         sig1_wrongtype = bytes.fromhex("27744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
         sig2_wrongtype = bytes.fromhex("24b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
-        self.assertFalse(ecc.verify_usermessage_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
-        self.assertFalse(ecc.verify_usermessage_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
+        self.assertFalse(bitcoin.verify_usermessage_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
         key = WalletStorage.get_eckey_from_password('pw123')
-        self.assertEqual(b'me<(s_s)>age', key.decrypt_message(b'QklFMQMDFtgT3zWSQsa+Uie8H/WvfUjlu9UN9OJtTt3KlgKeSTi6SQfuhcg1uIz9hp3WIUOFGTLr4RNQBdjPNqzXwhkcPi2Xsbiw6UCNJncVPJ6QBg=='))
-        self.assertEqual(b'me<(s_s)>age', key.decrypt_message(b'QklFMQKXOXbylOQTSMGfo4MFRwivAxeEEkewWQrpdYTzjPhqjHcGBJwdIhB7DyRfRQihuXx1y0ZLLv7XxLzrILzkl/H4YUtZB4uWjuOAcmxQH4i/Og=='))
-        self.assertEqual(b'hey_there' * 100, key.decrypt_message(b'QklFMQLOOsabsXtGQH8edAa6VOUa5wX8/DXmxX9NyHoAx1a5bWgllayGRVPeI2bf0ZdWK0tfal0ap0ZIVKbd2eOJybqQkILqT6E1/Syzq0Zicyb/AA1eZNkcX5y4gzloxinw00ubCA8M7gcUjJpOqbnksATcJ5y2YYXcHMGGfGurWu6uJ/UyrNobRidWppRMW5yR9/6utyNvT6OHIolCMEf7qLcmtneoXEiz51hkRdZS7weNf9mGqSbz9a2NL3sdh1A0feHIjAZgcCKcAvksNUSauf0/FnIjzTyPRpjRDMeDC8Ci3sGiuO3cvpWJwhZfbjcS26KmBv2CHWXfRRNFYOInHZNIXWNAoBB47Il5bGSMd+uXiGr+SQ9tNvcu+BiJNmFbxYqg+oQ8dGAl1DtvY2wJVY8k7vO9BIWSpyIxfGw7EDifhc5vnOmGe016p6a01C3eVGxgl23UYMrP7+fpjOcPmTSF4rk5U5ljEN3MSYqlf1QEv0OqlI9q1TwTK02VBCjMTYxDHsnt04OjNBkNO8v5uJ4NR+UUDBEp433z53I59uawZ+dbk4v4ZExcl8EGmKm3Gzbal/iJ/F7KQuX2b/ySEhLOFVYFWxK73X1nBvCSK2mC2/8fCw8oI5pmvzJwQhcCKTdEIrz3MMvAHqtPScDUOjzhXxInQOCb3+UBj1PPIdqkYLvZss1TEaBwYZjLkVnK2MBj7BaqT6Rp6+5A/fippUKHsnB6eYMEPR2YgDmCHL+4twxHJG6UWdP3ybaKiiAPy2OHNP6PTZ0HrqHOSJzBSDD+Z8YpaRg29QX3UEWlqnSKaan0VYAsV1VeaN0XFX46/TWO0L5tjhYVXJJYGqo6tIQJymxATLFRF6AZaD1Mwd27IAL04WkmoQoXfO6OFfwdp/shudY/1gBkDBvGPICBPtnqkvhGF+ZF3IRkuPwiFWeXmwBxKHsRx/3+aJu32Ml9+za41zVk2viaxcGqwTc5KMexQFLAUwqhv+aIik7U+5qk/gEVSuRoVkihoweFzKolNF+BknH2oB4rZdPixag5Zje3DvgjsSFlOl69W/67t/Gs8htfSAaHlsB8vWRQr9+v/lxTbrAw+O0E+sYGoObQ4qQMyQshNZEHbpPg63eWiHtJJnrVBvOeIbIHzoLDnMDsWVWZSMzAQ1vhX1H5QLgSEbRlKSliVY03kDkh/Nk/KOn+B2q37Ialq4JcRoIYFGJ8AoYEAD0tRuTqFddIclE75HzwaNG7NyKW1plsa72ciOPwsPJsdd5F0qdSQ3OSKtooTn7uf6dXOc4lDkfrVYRlZ0PX'))
+        self.assertEqual(b'me<(s_s)>age', crypto.ecies_decrypt_message(
+            key, b'QklFMQMDFtgT3zWSQsa+Uie8H/WvfUjlu9UN9OJtTt3KlgKeSTi6SQfuhcg1uIz9hp3WIUOFGTLr4RNQBdjPNqzXwhkcPi2Xsbiw6UCNJncVPJ6QBg=='))
+        self.assertEqual(b'me<(s_s)>age', crypto.ecies_decrypt_message(
+            key, b'QklFMQKXOXbylOQTSMGfo4MFRwivAxeEEkewWQrpdYTzjPhqjHcGBJwdIhB7DyRfRQihuXx1y0ZLLv7XxLzrILzkl/H4YUtZB4uWjuOAcmxQH4i/Og=='))
+        self.assertEqual(b'hey_there' * 100, crypto.ecies_decrypt_message(
+            key, b'QklFMQLOOsabsXtGQH8edAa6VOUa5wX8/DXmxX9NyHoAx1a5bWgllayGRVPeI2bf0ZdWK0tfal0ap0ZIVKbd2eOJybqQkILqT6E1/Syzq0Zicyb/AA1eZNkcX5y4gzloxinw00ubCA8M7gcUjJpOqbnksATcJ5y2YYXcHMGGfGurWu6uJ/UyrNobRidWppRMW5yR9/6utyNvT6OHIolCMEf7qLcmtneoXEiz51hkRdZS7weNf9mGqSbz9a2NL3sdh1A0feHIjAZgcCKcAvksNUSauf0/FnIjzTyPRpjRDMeDC8Ci3sGiuO3cvpWJwhZfbjcS26KmBv2CHWXfRRNFYOInHZNIXWNAoBB47Il5bGSMd+uXiGr+SQ9tNvcu+BiJNmFbxYqg+oQ8dGAl1DtvY2wJVY8k7vO9BIWSpyIxfGw7EDifhc5vnOmGe016p6a01C3eVGxgl23UYMrP7+fpjOcPmTSF4rk5U5ljEN3MSYqlf1QEv0OqlI9q1TwTK02VBCjMTYxDHsnt04OjNBkNO8v5uJ4NR+UUDBEp433z53I59uawZ+dbk4v4ZExcl8EGmKm3Gzbal/iJ/F7KQuX2b/ySEhLOFVYFWxK73X1nBvCSK2mC2/8fCw8oI5pmvzJwQhcCKTdEIrz3MMvAHqtPScDUOjzhXxInQOCb3+UBj1PPIdqkYLvZss1TEaBwYZjLkVnK2MBj7BaqT6Rp6+5A/fippUKHsnB6eYMEPR2YgDmCHL+4twxHJG6UWdP3ybaKiiAPy2OHNP6PTZ0HrqHOSJzBSDD+Z8YpaRg29QX3UEWlqnSKaan0VYAsV1VeaN0XFX46/TWO0L5tjhYVXJJYGqo6tIQJymxATLFRF6AZaD1Mwd27IAL04WkmoQoXfO6OFfwdp/shudY/1gBkDBvGPICBPtnqkvhGF+ZF3IRkuPwiFWeXmwBxKHsRx/3+aJu32Ml9+za41zVk2viaxcGqwTc5KMexQFLAUwqhv+aIik7U+5qk/gEVSuRoVkihoweFzKolNF+BknH2oB4rZdPixag5Zje3DvgjsSFlOl69W/67t/Gs8htfSAaHlsB8vWRQr9+v/lxTbrAw+O0E+sYGoObQ4qQMyQshNZEHbpPg63eWiHtJJnrVBvOeIbIHzoLDnMDsWVWZSMzAQ1vhX1H5QLgSEbRlKSliVY03kDkh/Nk/KOn+B2q37Ialq4JcRoIYFGJ8AoYEAD0tRuTqFddIclE75HzwaNG7NyKW1plsa72ciOPwsPJsdd5F0qdSQ3OSKtooTn7uf6dXOc4lDkfrVYRlZ0PX'))
 
     @needs_test_with_all_aes_implementations
     def test_encrypt_message(self):
@@ -309,10 +312,10 @@ class Test_bitcoin(ElectrumTestCase):
             b'cannot think of anything funny'
         ]
         for plaintext in msgs:
-            ciphertext1 = key.encrypt_message(plaintext)
-            ciphertext2 = key.encrypt_message(plaintext)
-            self.assertEqual(plaintext, key.decrypt_message(ciphertext1))
-            self.assertEqual(plaintext, key.decrypt_message(ciphertext2))
+            ciphertext1 = crypto.ecies_encrypt_message(key, plaintext)
+            ciphertext2 = crypto.ecies_encrypt_message(key, plaintext)
+            self.assertEqual(plaintext, crypto.ecies_decrypt_message(key, ciphertext1))
+            self.assertEqual(plaintext, crypto.ecies_decrypt_message(key, ciphertext2))
             self.assertNotEqual(ciphertext1, ciphertext2)
 
     def test_sign_transaction(self):

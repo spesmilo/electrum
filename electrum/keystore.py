@@ -41,6 +41,7 @@ from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
                     KeyOriginInfo)
 from .descriptor import PubkeyProvider
 from .ecc import string_to_number
+from . import crypto
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
                      CiphertextFormatError)
@@ -223,12 +224,12 @@ class Software_KeyStore(KeyStore):
     def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
-        return key.ecdsa_sign_usermessage(message, is_compressed=compressed)
+        return bitcoin.ecdsa_sign_usermessage(key, message, is_compressed=compressed)
 
     def decrypt_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         ec = ecc.ECPrivkey(privkey)
-        decrypted = ec.decrypt_message(message)
+        decrypted = crypto.ecies_decrypt_message(ec, message)
         return decrypted
 
     def sign_transaction(self, tx, password):

@@ -769,7 +769,7 @@ def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
     assert len(pubkey32) == 32, len(pubkey32)
     int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
 
-    tweak = int_from_bytes(ecc.bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
     if tweak >= ecc.CURVE_ORDER:
         raise ValueError
     P = ecc.ECPubkey(b"\x02" + pubkey32)
@@ -786,7 +786,7 @@ def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
     P = ecc.ECPrivkey(seckey0)
     seckey = P.secret_scalar if P.has_even_y() else ecc.CURVE_ORDER - P.secret_scalar
     pubkey32 = P.get_public_key_bytes(compressed=True)[1:]
-    tweak = int_from_bytes(ecc.bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
     if tweak >= ecc.CURVE_ORDER:
         raise ValueError
     return int.to_bytes((seckey + tweak) % ecc.CURVE_ORDER, length=32, byteorder="big", signed=False)
@@ -798,18 +798,21 @@ def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
 TapTreeLeaf = Tuple[int, bytes]
 TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
 
+def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
+    # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
+    return sha256(sha256(tag) + sha256(tag) + msg)
 
 def taproot_tree_helper(script_tree: TapTree):
     if isinstance(script_tree, tuple):
         leaf_version, script = script_tree
-        h = ecc.bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
+        h = bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
         return ([((leaf_version, script), bytes())], h)
     left, left_h = taproot_tree_helper(script_tree[0])
     right, right_h = taproot_tree_helper(script_tree[1])
     ret = [(l, c + right_h) for l, c in left] + [(l, c + left_h) for l, c in right]
     if right_h < left_h:
         left_h, right_h = right_h, left_h
-    return (ret, ecc.bip340_tagged_hash(b"TapBranch", left_h + right_h))
+    return (ret, bip340_tagged_hash(b"TapBranch", left_h + right_h))
 
 
 def taproot_output_script(internal_pubkey: bytes, *, script_tree: Optional[TapTree]) -> bytes:
@@ -838,3 +841,38 @@ def control_block_for_taproot_script_spend(
     pubkey_data = bytes([output_pubkey_y_parity + leaf_version]) + internal_pubkey
     control_block = pubkey_data + merkle_path
     return (leaf_script, control_block)
+
+
+# user message signing
+def usermessage_magic(message: bytes) -> bytes:
+    from .bitcoin import var_int
+    length = var_int(len(message))
+    return b"\x18Bitcoin Signed Message:\n" + length + message
+
+def ecdsa_sign_usermessage(ec_privkey, message: Union[bytes, str], *, is_compressed: bool) -> bytes:
+    message = to_bytes(message, 'utf8')
+    msg32 = sha256d(usermessage_magic(message))
+    return ec_privkey.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
+
+def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
+    from .bitcoin import pubkey_to_address
+    from .ecc import ECPubkey
+    assert_bytes(sig65, message)
+    if net is None: net = constants.net
+    h = sha256d(usermessage_magic(message))
+    try:
+        public_key, compressed, txin_type_guess = ECPubkey.from_ecdsa_sig65(sig65, h)
+    except Exception as e:
+        return False
+    # check public key using the address
+    pubkey_hex = public_key.get_public_key_hex(compressed)
+    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
+    for txin_type in txin_types:
+        addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
+        if address == addr:
+            break
+    else:
+        return False
+    # check message
+    # note: `$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs
+    return public_key.ecdsa_verify(sig65[1:], h, enforce_low_s=False)

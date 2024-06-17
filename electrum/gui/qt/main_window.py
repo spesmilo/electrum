@@ -1993,7 +1993,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
-            verified = ecc.verify_usermessage_with_address(address, sig, message)
+            verified = bitcoin.verify_usermessage_with_address(address, sig, message)
         except Exception as e:
             verified = False
         if verified:
@@ -2057,6 +2057,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.thread.add(task, on_success=setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
+        from electrum import crypto
         message = message_e.toPlainText()
         message = message.encode('utf-8')
         try:
@@ -2065,7 +2066,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.logger.exception('Invalid Public key')
             self.show_warning(_('Invalid Public key'))
             return
-        encrypted = public_key.encrypt_message(message)
+        encrypted = crypto.ecies_encrypt_message(public_key, message)
         encrypted_e.setText(encrypted.decode('ascii'))
 
     def encrypt_message(self, address=''):

@@ -31,7 +31,7 @@ import zlib
 from enum import IntEnum
 from typing import Optional
 
-from . import ecc
+from . import ecc, crypto
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
@@ -192,7 +192,7 @@ class WalletStorage(Logger):
         ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
-            s = zlib.decompress(ec_key.decrypt_message(self.raw, magic=enc_magic))
+            s = zlib.decompress(crypto.ecies_decrypt_message(ec_key, self.raw, magic=enc_magic))
             s = s.decode('utf8')
         else:
             s = ''
@@ -207,7 +207,7 @@ class WalletStorage(Logger):
             c = zlib.compress(s, level=zlib.Z_BEST_SPEED)
             enc_magic = self._get_encryption_magic()
             public_key = ecc.ECPubkey(bfh(self.pubkey))
-            s = public_key.encrypt_message(c, magic=enc_magic)
+            s = crypto.ecies_encrypt_message(public_key, c, magic=enc_magic)
             s = s.decode('utf8')
         return s
 
