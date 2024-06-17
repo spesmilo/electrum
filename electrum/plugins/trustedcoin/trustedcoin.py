@@ -326,15 +326,13 @@ class Wallet_2fa(Multisig_Wallet):
 
     def make_unsigned_transaction(
             self, *,
-            coins: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput],
-            fee=None,
-            change_addr: str = None,
             is_sweep=False,
-            rbf=False) -> PartialTransaction:  # FIXME method signature
+            **kwargs,
+    ) -> PartialTransaction:
 
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr, rbf=rbf)
+            self, outputs=o, **kwargs)
         extra_fee = self.extra_fee() if not is_sweep else 0
         if extra_fee:
             address = self.billing_info['billing_address_segwit']
