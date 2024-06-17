@@ -6,7 +6,7 @@ import io
 
 from electrum import ecc, bitcoin
 from electrum.ecc import ECPubkey, ECPrivkey
-from electrum.ecc_fast import _libsecp256k1
+from electrum.ecc import _libsecp256k1
 from electrum import crypto
 from electrum.crypto import sha256
 

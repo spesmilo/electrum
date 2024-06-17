@@ -28,7 +28,7 @@ from electrum.util import bfh, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
 
-from electrum import ecc_fast, crypto
+from electrum import ecc, crypto
 
 from . import ElectrumTestCase
 from . import FAST_TESTS
@@ -149,7 +149,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_libsecp256k1_is_available(self):
         # we want the unit testing framework to test with libsecp256k1 available.
-        self.assertTrue(bool(ecc_fast._libsecp256k1))
+        self.assertTrue(bool(ecc._libsecp256k1))
 
     def test_pycryptodomex_is_available(self):
         # we want the unit testing framework to test with pycryptodomex available.

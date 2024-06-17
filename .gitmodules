@@ -4,3 +4,10 @@
 [submodule "electrum/www"]
 	path = electrum/plugins/payserver/www
 	url = https://github.com/spesmilo/electrum-http.git
+[submodule "electrum/ecc"]
+	path = electrum/ecc
+	url = https://github.com/spesmilo/electrum-ecc.git
+[submodule "electrum/aionostr"]
+	path = electrum/aionostr
+	url = https://github.com/ecdsa/aionostr
+	branch = electrum_ecc_submodule
