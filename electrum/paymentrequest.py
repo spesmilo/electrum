@@ -32,13 +32,15 @@ import urllib.parse
 import certifi
 import aiohttp
 
+import electrum_ecc as ecc
+
 
 try:
     from . import paymentrequest_pb2 as pb2
 except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
-from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
+from . import bitcoin, constants, util, transaction, x509, rsakey
 from .util import bfh, make_aiohttp_session, error_text_bytes_to_safe_str, get_running_loop
 from .invoices import Invoice, get_id_from_onchain_outputs
 from .crypto import sha256

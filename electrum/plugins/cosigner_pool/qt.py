@@ -32,7 +32,9 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QPushButton
 import certifi
 
-from electrum import util, keystore, ecc, crypto
+import electrum_ecc as ecc
+
+from electrum import util, keystore, crypto
 from electrum.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
 from electrum.bip32 import BIP32Node
 from electrum.plugin import BasePlugin, hook

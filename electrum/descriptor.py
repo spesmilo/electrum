@@ -27,13 +27,13 @@ from typing import (
     Set,
     Union,
 )
+import electrum_ecc as ecc
 
 from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
 from . import bitcoin
 from .bitcoin import construct_script, opcodes, construct_witness, taproot_output_script
 from . import constants
 from .crypto import hash_160, sha256
-from . import ecc
 from . import segwit_addr
 
 

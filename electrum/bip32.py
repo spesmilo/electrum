@@ -6,10 +6,10 @@ import binascii
 import hashlib
 import struct
 from typing import List, Tuple, NamedTuple, Union, Iterable, Sequence, Optional
+import electrum_ecc as ecc
 
 from .util import bfh, BitcoinException
 from . import constants
-from . import ecc
 from .crypto import hash_160, hmac_oneshot
 from .bitcoin import EncodeBase58Check, DecodeBase58Check
 from .logging import get_logger

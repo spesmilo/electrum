@@ -39,8 +39,9 @@ from enum import IntEnum
 import itertools
 import binascii
 import copy
+import electrum_ecc as ecc
 
-from . import ecc, bitcoin, constants, segwit_addr, bip32
+from . import bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
 from .i18n import _
 from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend

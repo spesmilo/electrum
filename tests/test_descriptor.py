@@ -18,7 +18,7 @@ from electrum.descriptor import (
     WSHDescriptor,
     PubkeyProvider,
 )
-from electrum import ecc
+import electrum_ecc as ecc
 from electrum.util import bfh
 
 from . import ElectrumTestCase, as_testnet

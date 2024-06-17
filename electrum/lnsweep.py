@@ -4,12 +4,12 @@
 
 from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Callable
 from enum import Enum, auto
+import electrum_ecc as ecc
 
 from .util import bfh
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from .invoices import PR_PAID
 from . import descriptor
-from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel, UpdateAddHtlc,

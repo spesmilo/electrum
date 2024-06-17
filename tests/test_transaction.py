@@ -2,6 +2,8 @@ import json
 import os
 from typing import NamedTuple, Union
 
+from electrum_ecc import ECPrivkey
+
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
@@ -10,7 +12,6 @@ from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transactio
 from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
-from electrum.ecc import ECPrivkey
 from electrum import descriptor
 
 from .test_bitcoin import disable_ecdsa_r_value_grinding

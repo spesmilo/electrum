@@ -1,7 +1,7 @@
 import time
 from struct import pack
+import electrum_ecc as ecc
 
-from electrum import ecc
 from electrum.i18n import _
 from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase

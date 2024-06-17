@@ -10,11 +10,11 @@ import asyncio
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
 from functools import cached_property
+import electrum_ecc as ecc
 
 from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
                      HandshakeFailed, LNPeerAddr)
-from . import ecc
 from .util import MySocksProxy
 
 

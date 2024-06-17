@@ -47,9 +47,10 @@ from PyQt6.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
                              QWidget, QSizePolicy, QStatusBar, QToolTip,
                              QMenu, QToolButton)
 
+import electrum_ecc as ecc
 import electrum
 from electrum.gui import messages
-from electrum import (keystore, ecc, constants, util, bitcoin, commands,
+from electrum import (keystore, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook, BasePlugin

@@ -12,14 +12,14 @@ import time
 from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable
 from datetime import datetime
 import functools
+import electrum_ecc as ecc
+from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
 
 import aiorpcx
 from aiorpcx import ignore_after
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
-from . import ecc
-from .ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector)

@@ -5,8 +5,9 @@ from abc import ABC, abstractmethod
 import base64
 import hashlib
 from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
+import electrum_ecc as ecc
 
-from electrum import bip32, constants, ecc
+from electrum import bip32, constants
 from electrum import descriptor
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
 from electrum.bitcoin import EncodeBase58Check, is_b58_address, is_segwit_script_type, var_int

@@ -1,8 +1,8 @@
 import unittest
 import json
 
+import electrum_ecc as ecc
 from electrum import bitcoin
-from electrum import ecc
 from electrum.json_db import StoredDict
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,

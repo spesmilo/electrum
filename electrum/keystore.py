@@ -31,8 +31,10 @@ import copy
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple
 from functools import lru_cache, wraps
 from abc import ABC, abstractmethod
+import electrum_ecc as ecc
+from electrum_ecc import string_to_number
 
-from . import bitcoin, ecc, constants, bip32
+from . import bitcoin, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey, BaseDecodeError
 from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
@@ -40,7 +42,6 @@ from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
                     convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info,
                     KeyOriginInfo)
 from .descriptor import PubkeyProvider
-from .ecc import string_to_number
 from . import crypto
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,

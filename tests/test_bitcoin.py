@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import sys
+import electrum_ecc as ecc
 
 from electrum import bitcoin
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
@@ -23,12 +24,10 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             is_xpub, convert_bip32_strpath_to_intpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
-from electrum import ecc, crypto, constants, bitcoin
+from electrum import crypto, constants, bitcoin
 from electrum.util import bfh, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
-
-from electrum import ecc_fast, crypto
 
 from . import ElectrumTestCase
 from . import FAST_TESTS
@@ -149,7 +148,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_libsecp256k1_is_available(self):
         # we want the unit testing framework to test with libsecp256k1 available.
-        self.assertTrue(bool(ecc_fast._libsecp256k1))
+        self.assertTrue(bool(ecc._libsecp256k1))
 
     def test_pycryptodomex_is_available(self):
         # we want the unit testing framework to test with pycryptodomex available.

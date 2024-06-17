@@ -28,10 +28,10 @@ import threading
 from typing import TYPE_CHECKING, Dict, Set
 
 import aiorpcx
+import electrum_ecc as ecc
+from electrum_ecc import ECPubkey
 
 from . import bitcoin
-from . import ecc
-from .ecc import ECPubkey
 from . import constants
 from .util import bfh, NetworkJobOnDefaultServer
 from .lnutil import funding_output_script_from_keys, ShortChannelID

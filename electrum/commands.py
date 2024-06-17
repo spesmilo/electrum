@@ -39,8 +39,9 @@ from itertools import repeat
 from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Dict, List
 import os
+import electrum_ecc as ecc
 
-from .import util, ecc
+from .import util
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
                    is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
                    UserFacingException)
@@ -621,7 +622,7 @@ class Commands:
         # Add shared libs (.so/.dll), and non-pure-python dependencies.
         # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
         # instead of using pip, hence it is useful to list them for debugging.
-        from . import ecc_fast
+        from electrum_ecc import ecc_fast
         ret.update(ecc_fast.version_info())
         from . import qrscanner
         ret.update(qrscanner.version_info())

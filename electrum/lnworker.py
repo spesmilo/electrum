@@ -27,6 +27,7 @@ import aiohttp
 import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
+from electrum_ecc import ecdsa_der_sig_from_ecdsa_sig64
 
 from . import constants, util
 from . import keystore
@@ -51,7 +52,6 @@ from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
-from .ecc import ecdsa_der_sig_from_ecdsa_sig64
 from .lnchannel import Channel, AbstractChannel
 from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater

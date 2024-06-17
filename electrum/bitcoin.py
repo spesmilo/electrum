@@ -27,12 +27,12 @@ import hashlib
 from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence, Any
 import enum
 from enum import IntEnum, Enum
+import electrum_ecc as ecc
 
 from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str, classproperty
 from . import version
 from . import segwit_addr
 from . import constants
-from . import ecc
 from .crypto import sha256d, sha256, hash_160, hmac_oneshot
 
 if TYPE_CHECKING:
@@ -854,7 +854,7 @@ def ecdsa_sign_usermessage(ec_privkey, message: Union[bytes, str], *, is_compres
     return ec_privkey.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
 
 def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
-    from .ecc import ECPubkey
+    from electrum_ecc import ECPubkey
     assert_bytes(sig65, message)
     if net is None: net = constants.net
     h = sha256d(usermessage_magic(message))

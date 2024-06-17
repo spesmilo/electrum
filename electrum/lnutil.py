@@ -9,6 +9,8 @@ from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
 import sys
+import electrum_ecc as ecc
+from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig, ECPubkey, string_to_number
 
 import attr
 from aiorpcx import NetAddress
@@ -21,8 +23,7 @@ from .util import format_short_id as format_short_channel_id
 from .crypto import sha256, pw_decode_with_version_and_mac
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
-from .ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig, ECPubkey, string_to_number
-from . import ecc, bitcoin, crypto, transaction
+from . import bitcoin, crypto, transaction
 from . import descriptor
 from .bitcoin import (redeem_script_to_address, address_to_script,
                       construct_witness, construct_script)

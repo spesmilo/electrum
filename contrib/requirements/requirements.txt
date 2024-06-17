@@ -7,6 +7,7 @@ aiohttp_socks>=0.8.4
 certifi
 attrs>=20.1.0
 jsonpatch
+electrum_ecc
 
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!
