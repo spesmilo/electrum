@@ -3,37 +3,29 @@ import hashlib
 import time
 
 # electrum
-from electrum import mnemonic
 from electrum import constants
-from electrum import descriptor
-from electrum.bitcoin import TYPE_ADDRESS, var_int
+from electrum.bitcoin import var_int
 from electrum.i18n import _
 from electrum.plugin import Device, DeviceInfo
 from electrum.keystore import Hardware_KeyStore, bip39_to_seed, bip39_is_checksum_valid, ScriptTypeNotSupported
-from electrum.transaction import Transaction, Sighash
+from electrum.transaction import Sighash
 from electrum.wallet import Standard_Wallet
 from electrum.wizard import NewWalletWizard
-from electrum.util import bfh, versiontuple, UserFacingException
+from electrum.util import UserFacingException
 from electrum.crypto import hash_160, sha256d
-from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig, ECPubkey
+from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
-from electrum.simple_config import SimpleConfig
-from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 # pysatochip
 from pysatochip.CardConnector import CardConnector
-from pysatochip.CardConnector import UninitializedSeedError, CardNotPresentError, UnexpectedSW12Error, WrongPinError, PinBlockedError, PinRequiredError
-from pysatochip.JCconstants import JCconstants
-from pysatochip.TxParser import TxParser
+from pysatochip.CardConnector import CardNotPresentError, UnexpectedSW12Error, WrongPinError, PinBlockedError, PinRequiredError
 from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
-from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION, SATOCHIP_PROTOCOL_VERSION
 
 # pyscard
-from smartcard.sw.SWExceptions import SWException
-from smartcard.Exceptions import CardConnectionException, CardRequestTimeoutException
+from smartcard.Exceptions import CardRequestTimeoutException
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
 
@@ -138,7 +130,7 @@ class SatochipClient(HardwareClientBase):
                 (is_PIN, pin) = self.PIN_dialog(msg)
                 if is_PIN is False:
                     return False
-            except PinRequiredError as ex:
+            except PinRequiredError:
                 # no pin value cached in pysatochip
                 msg = f'Enter the PIN for your card:'
                 (is_PIN, pin) = self.PIN_dialog(msg)
@@ -152,7 +144,7 @@ class SatochipClient(HardwareClientBase):
                     return False
 
             # unrecoverable errors
-            except PinBlockedError as ex:
+            except PinBlockedError:
                 raise UserFacingException(
                     f"Too many failed attempts! Your device has been blocked! \n\nYou need to factory reset your card (error code 0x9C0C)")
             except UnexpectedSW12Error as ex:
@@ -166,7 +158,7 @@ class SatochipClient(HardwareClientBase):
         assert xtype in SatochipPlugin.SUPPORTED_XTYPES
 
         # needs PIN
-        is_ok = self.verify_PIN()
+        self.verify_PIN()
 
         # bip32_path is of the form 44'/0'/1'
         _logger.info(f"[SatochipClient] get_xpub(): bip32_path={bip32_path}")
@@ -189,15 +181,6 @@ class SatochipClient(HardwareClientBase):
                          child_number=child_number).to_xpub()
         _logger.info(f"[SatochipClient] get_xpub(): xpub={str(xpub)}")
         return xpub
-
-    def ping_check(self):
-        # check connection is working
-        try:
-            _logger.info('[SatochipClient] ping_check()')  # debug
-            # atr= self.cc.card_get_ATR()
-        except Exception as e:
-            _logger.exception(f"Exception: {str(e)}")
-            raise RuntimeError("Communication issue with Satochip")
 
     def request(self, request_type, *args):
         _logger.info('[SatochipClient] client request: ' + str(request_type))
@@ -290,9 +273,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
         d = Hardware_KeyStore.dump(self)
         return d
 
-    def get_derivation(self):
-        return self.derivation
-
     def give_error(self, message, clear_client=False):
         _logger.error(f"[Satochip_KeyStore] give_error() {message}")
         if not self.ux_busy:
@@ -315,7 +295,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
         if not is_ok:
             return b''
 
-        # self.get_derivation()[2:] + "/%d/%d"%sequence
         address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
         _logger.info(f"[Satochip_KeyStore] sign_message: path: {address_path}")
         self.handler.show_message(
@@ -356,7 +335,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
     def sign_transaction(self, tx, password):
         _logger.info(f"In sign_transaction(): tx: {str(tx)}")
         client = self.get_client()
-        is_ok = client.verify_PIN()
+        client.verify_PIN()
         segwitTransaction = False
 
         # outputs (bytes format)
@@ -389,9 +368,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 # should never happen
                 self.give_error("Coinbase not supported")
 
-            if script_type in ['p2sh']:
-                p2shTransaction = True
-
             if script_type in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
                 segwitTransaction = True
 
@@ -400,7 +376,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 # should never happen
                 self.give_error("No matching pubkey for sign_transaction")
             inputPath = convert_bip32_intpath_to_strpath(inputPath)  # [2:]
-            inputHash = sha256d(tx.serialize_preimage(i))
 
             # get corresponing extended key
             (depth, bytepath) = bip32path2bytes(inputPath)
@@ -489,7 +464,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
             Satochip2FA.do_challenge_response(d, server_name=server_2FA)
             # decrypt and parse reply to extract challenge response
             reply_encrypt = d['reply_encrypt']
-        except Exception as e:
+        except Exception:
             status_msg += f"\nFailed to contact cosigner! \n=> Select another 2FA server in Satochip settings\n\n"
             self.handler.show_message(status_msg)
         if reply_encrypt is not None:
@@ -537,7 +512,6 @@ class SatochipPlugin(HW_PluginBase):
         except Exception as exc:
             _logger.info(f"Error during connection:{str(exc)}")
             return []
-        return []
 
     def create_client(self, device, handler):
         _logger.info(f"[SatochipPlugin] create_client()")
@@ -563,7 +537,6 @@ class SatochipPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
-        client.ping_check()
 
         xpub = client.get_xpub(derivation, xtype)
         return xpub
@@ -576,8 +549,6 @@ class SatochipPlugin(HW_PluginBase):
                                             devices=devices,
                                             allow_user_interaction=allow_user_interaction)
         # returns the client for a given keystore. can use xpub
-        if client is not None:
-            client.ping_check()
         return client
 
     def _setup_device(self, settings, device_id, handler):
@@ -665,7 +636,7 @@ class SatochipPlugin(HW_PluginBase):
             raise Exception('Wrong BIP39 mnemonic format!')
 
         # verify pin:
-        is_ok = client.verify_PIN()
+        client.verify_PIN()
 
         # import seed
         try:

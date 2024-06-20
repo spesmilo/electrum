@@ -4,11 +4,10 @@ from electrum.keystore import bip39_is_checksum_valid
 from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton,
                                   OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
-from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub, WalletWizardComponent, QENewWalletWizard
+from electrum.gui.qt.qrcodewidget import QRDialog
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard
 from electrum.plugin import hook
 from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
-from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
                              QWidget, QGridLayout, QComboBox, QLineEdit, QTextEdit, QTabWidget)
 
@@ -22,7 +21,7 @@ from .satochip import SatochipPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 # pysatochip
-from pysatochip.CardConnector import CardConnector, UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError
+from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError
 from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION
 
@@ -103,10 +102,10 @@ class Satochip_Handler(QtHandlerBase):
 
 
 class SatochipSettingsDialog(WindowModalDialog):
-    '''This dialog doesn't require a device be paired with a wallet.
+    """This dialog doesn't require a device be paired with a wallet.
 
     We want users to be able to wipe a device even if they've forgotten
-    their PIN.'''
+    their PIN."""
 
     def __init__(self, window, plugin, keystore, device_id):
         title = _("{} Settings").format(plugin.device)
@@ -360,7 +359,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             # decrypt and parse reply to extract challenge response
             try:
                 reply_encrypt = d['reply_encrypt']
-            except Exception as e:
+            except Exception:
                 self.give_error("No response received from 2FA", True)
             reply_decrypt = client.cc.card_crypt_transaction_2FA(
                 reply_encrypt, False)
@@ -473,7 +472,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             # decrypt and parse reply to extract challenge response
             try:
                 reply_encrypt = d['reply_encrypt']
-            except Exception as e:
+            except Exception:
                 self.give_error("No response received from 2FA!", True)
             reply_decrypt = client.cc.card_crypt_transaction_2FA(
                 reply_encrypt, False)
@@ -559,10 +558,10 @@ class SatochipSettingsDialog(WindowModalDialog):
         try:
             cert_pem = client.cc.card_export_perso_certificate()
             _logger.info('Cert PEM: ' + str(cert_pem))
-        except CardError as ex:
+        except CardError:
             txt_error = ''.join(["Unable to get device certificate: feature unsupported! \n",
                                 "Authenticity validation is only available starting with Satochip v0.12 and higher"])
-        except CardNotPresentError as ex:
+        except CardNotPresentError:
             txt_error = "No card found! Please insert card."
         except UnexpectedSW12Error as ex:
             txt_error = "Exception during device certificate export: " + \
@@ -782,16 +781,12 @@ class SatochipSetupLayout(QVBoxLayout):
 
         self.pw = PasswordLineEdit()
         self.pw.setMinimumWidth(32)
-        # self.pw.setMaximumWidth(32)
-        # self.pw.setValidator(QRegExpValidator(QRegExp('[1-9]{4,16}')))
         vbox.addWidget(WWLabel("Enter new PIN:"))
         vbox.addWidget(self.pw)
         self.addLayout(vbox)
 
         self.pw2 = PasswordLineEdit()
         self.pw2.setMinimumWidth(32)
-        # self.pw2.setMaximumWidth(32)
-        # self.pw2.setValidator(QRegExpValidator(QRegExp('[1-9]{4,16}')))
         vbox2 = QVBoxLayout()
         vbox2.addWidget(WWLabel("Confirm new PIN:"))
         vbox2.addWidget(self.pw2)
