@@ -145,6 +145,10 @@ else
 fi
 
 # android
+apk1="Electrum-$APK_VERSION-armeabi-v7a-release.apk"
+apk2="Electrum-$APK_VERSION-arm64-v8a-release.apk"
+apk3="Electrum-$APK_VERSION-x86_64-release.apk"
+
 for arch in armeabi-v7a arm64-v8a x86_64
 do
     apk="Electrum-$VERSION.0-$arch-release.apk"

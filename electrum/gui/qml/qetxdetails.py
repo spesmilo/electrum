@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import format_time, TxMinedInfo
-from electrum.transaction import tx_from_any, Transaction, PartialTxInput, Sighash, PartialTransaction
+from electrum.transaction import tx_from_any, Transaction, PartialTxInput, Sighash, PartialTransaction, TxOutpoint
 from electrum.network import Network
 from electrum.address_synchronizer import TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 
@@ -265,10 +265,17 @@ class QETxDetails(QObject, QtEventListener):
             Network.run_from_another_thread(
                 self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
-        self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
+        self._inputs = list(map(lambda x: {
+            'short_id': x.prevout.short_name(),
+            'value': x.value_sats(),
+            'address': x.address,
+            'is_mine': self._wallet.wallet.is_mine(x.address),
+            'is_change': self._wallet.wallet.is_change(x.address)
+        }, self._tx.inputs()))
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
             'value': QEAmount(amount_sat=x.value),
+            'short_id': '',  # TODO
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
             'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
             'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str())
@@ -432,9 +439,10 @@ class QETxDetails(QObject, QtEventListener):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def removeLocalTx(self, confirm = False):
-        assert self._can_remove
+    def removeLocalTx(self, confirm=False):
+        assert self._can_remove, 'cannot remove'
         txid = self._txid
+        assert txid, 'txid unset'
 
         if not confirm:
             num_child_txs = len(self._wallet.wallet.adb.get_depending_transactions(txid))

@@ -134,7 +134,7 @@ def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int)
 
     _delete_old_logs(log_directory, num_files_keep=num_files_keep)
 
-    timestamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
     _logfile_path = log_directory / f"electrum_log_{timestamp}_{PID}.log"
 

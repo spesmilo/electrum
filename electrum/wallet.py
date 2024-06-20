@@ -3110,12 +3110,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         short_warning = None
         allow_send = True
         if feerate < self.relayfee() / 1000:
+            '''
             long_warning = ' '.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server."),
                 _("Try to raise your transaction fee, or use a server with a lower relay fee.")
             ])
             short_warning = _("below relay fee") + "!"
-            allow_send = False
+            '''
+            allow_send = True
         elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
             long_warning = ' '.join([
                 _("The fee for this transaction seems unusually high."),

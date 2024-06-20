@@ -188,20 +188,51 @@ ElDialog {
                     text: rbffeebumper.warning
                 }
 
-                Label {
+                ToggleLabel {
+                    id: inputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
                     visible: rbffeebumper.valid
-                    text: qsTr('Outputs')
+                    labelText: qsTr('Inputs (%1)').arg(rbffeebumper.inputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: inputs_label.collapsed || !inputs_label.visible
+                        ? undefined
+                        : rbffeebumper.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingMedium
+
+                    visible: rbffeebumper.valid
+                    labelText: qsTr('Outputs (%1)').arg(rbffeebumper.outputs.length)
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
                     Layout.columnSpan: 2
                     color: Material.accentColor
                 }
 
                 Repeater {
-                    model: rbffeebumper.valid ? rbffeebumper.outputs : []
-                    delegate:  TxOutput {
+                    model: outputs_label.collapsed || !outputs_label.visible
+                        ? undefined
+                        : rbffeebumper.outputs
+                    delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
                         allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
                         model: modelData
                     }
                 }

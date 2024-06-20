@@ -27,12 +27,12 @@ FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
 FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
 
 # satoshi per kbyte
-FEERATE_MAX_DYNAMIC = 1500000
+FEERATE_MAX_DYNAMIC = 1000000
 FEERATE_WARNING_HIGH_FEE = 600000
-FEERATE_FALLBACK_STATIC_FEE = 150000
-FEERATE_DEFAULT_RELAY = 1000
+FEERATE_FALLBACK_STATIC_FEE = 100000
+FEERATE_DEFAULT_RELAY = 10000
 FEERATE_MAX_RELAY = 50000
-FEERATE_STATIC_VALUES = [100000, 150000, 200000, 300000, 435000, 500000]
+FEERATE_STATIC_VALUES = [0, 50000, 100000, 200000, 300000, 400000, 500000]
 
 # The min feerate_per_kw that can be used in lightning so that
 # the resulting onchain tx pays the min relay fee.
@@ -41,8 +41,6 @@ FEERATE_STATIC_VALUES = [100000, 150000, 200000, 300000, 435000, 500000]
 FEERATE_PER_KW_MIN_RELAY_LIGHTNING = 253
 
 FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
-
-
 
 _logger = get_logger(__name__)
 
@@ -965,7 +963,7 @@ class SimpleConfig(Logger):
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
     WALLET_BIP21_LIGHTNING = ConfigVar(
         'bip21_lightning', default=False, type_=bool,
-        short_desc=lambda: _('Add lightning requests to bitcoin URIs'),
+        short_desc=lambda: _('Add lightning requests to goldcoin URIs'),
         long_desc=lambda: _('This may result in large QR codes'),
     )
     WALLET_BOLT11_FALLBACK = ConfigVar(
@@ -1117,7 +1115,7 @@ This will result in longer routes; it might increase your fees and decrease the 
     )
 
     BLOCK_EXPLORER = ConfigVar(
-        'block_explorer', default='Blockstream.info', type_=str,
+        'block_explorer', default='cryptoID', type_=str,
         short_desc=lambda: _('Online Block Explorer'),
         long_desc=lambda: _('Choose which online block explorer to use for functions that open a web browser'),
     )

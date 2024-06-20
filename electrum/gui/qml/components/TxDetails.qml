@@ -71,9 +71,9 @@ Pane {
                                 ? txdetails.lockDelay
                                     ? qsTr('This transaction is local to your wallet and locked for the next %1 blocks.').arg(txdetails.lockDelay)
                                     : qsTr('This transaction is local to your wallet. It has not been published yet.')
-                                : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                                    ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
-                                    : qsTr('You can bump its fee to speed up its confirmation'))
+                                    : qsTr('This transaction is still unconfirmed.') + (txdetails.canCancel
+                                    ? '\n' + qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
+                                    : '\n' + qsTr('You can bump its fee to speed up its confirmation'))
                         iconStyle: txdetails.isUnrelated
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
@@ -289,19 +289,46 @@ Pane {
                         }
                     }
 
-                    Label {
+                    ToggleLabel {
+                        id: inputs_label
                         Layout.columnSpan: 2
-                        Layout.topMargin: constants.paddingSmall
-                        text: qsTr('Outputs')
+                        Layout.topMargin: constants.paddingMedium
+
+                        labelText: qsTr('Inputs (%1)').arg(txdetails.inputs.length)
                         color: Material.accentColor
                     }
 
                     Repeater {
-                        model: txdetails.outputs
+                        model: inputs_label.collapsed
+                            ? undefined
+                            : txdetails.inputs
+                        delegate: TxInput {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+
+                            idx: index
+                            model: modelData
+                        }
+                    }
+
+                    ToggleLabel {
+                        id: outputs_label
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingMedium
+
+                        labelText: qsTr('Outputs (%1)').arg(txdetails.outputs.length)
+                        color: Material.accentColor
+                    }
+
+                    Repeater {
+                        model: outputs_label.collapsed
+                            ? undefined
+                            : txdetails.outputs
                         delegate: TxOutput {
                             Layout.columnSpan: 2
                             Layout.fillWidth: true
 
+                            idx: index
                             model: modelData
                         }
                     }

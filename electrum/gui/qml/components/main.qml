@@ -475,6 +475,7 @@ ApplicationWindow
             // without completed serverConnectWizard we can't start
             dialog.rejected.connect(function() {
                 app.visible = false
+                AppController.wantClose = true
                 Qt.callLater(Qt.quit)
             })
             dialog.accepted.connect(function() {
