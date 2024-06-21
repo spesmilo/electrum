@@ -297,8 +297,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
 
         address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
         _logger.info(f"[Satochip_KeyStore] sign_message: path: {address_path}")
-        self.handler.show_message(
-            "Signing message ...\r\nMessage hash: " + message_hash)
+
         # check if 2FA is required
         hmac = b''
         if (client.cc.needs_2FA is None):
@@ -312,6 +311,10 @@ class Satochip_KeyStore(Hardware_KeyStore):
             # do challenge-response with 2FA device...
             hmac = self.do_challenge_response(msg)
             hmac = bytes.fromhex(hmac)
+        else:
+            self.handler.show_message(
+            "Signing message ...\r\nMessage hash: " + message_hash)
+
         try:
             keynbr = 0xFF  # for extended key
             (depth, bytepath) = bip32path2bytes(address_path)
@@ -324,9 +327,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
             return compsig
 
         except Exception as e:
-            # self.give_error(e, True)
             _logger.info(f"[Satochip_KeyStore] sign_message: Exception {e}")
-            # self.handler.show_error(e)
             return b''
         finally:
             _logger.info(f"[Satochip_KeyStore] sign_message: finally")
@@ -459,20 +460,27 @@ class Satochip_KeyStore(Hardware_KeyStore):
         server_2FA = self.plugin.config.get(
             "satochip_2FA_server", default=SERVER_LIST[0])
         status_msg += f"2FA request sent to '{server_2FA}' \nApprove or reject request on your second device."
-        self.handler.show_message(status_msg)
         try:
-            Satochip2FA.do_challenge_response(d, server_name=server_2FA)
-            # decrypt and parse reply to extract challenge response
-            reply_encrypt = d['reply_encrypt']
-        except Exception:
-            status_msg += f"\nFailed to contact cosigner! \n=> Select another 2FA server in Satochip settings\n\n"
             self.handler.show_message(status_msg)
-        if reply_encrypt is not None:
-            reply_decrypt = client.cc.card_crypt_transaction_2FA(
-                reply_encrypt, False)
-            _logger.info("challenge:response= " + reply_decrypt)
-            reply_decrypt = reply_decrypt.split(":")
-            hmac = reply_decrypt[1]
+            try:
+                Satochip2FA.do_challenge_response(d, server_name=server_2FA)
+                # decrypt and parse reply to extract challenge response
+                reply_encrypt = d['reply_encrypt']
+            except Exception:
+                status_msg += f"\nFailed to contact cosigner! \n=> Select another 2FA server in Satochip settings\n\n"
+                self.handler.show_message(status_msg)
+            if reply_encrypt is not None:
+                reply_decrypt = client.cc.card_crypt_transaction_2FA(
+                    reply_encrypt, False)
+                _logger.info("challenge:response= " + reply_decrypt)
+                reply_decrypt = reply_decrypt.split(":")
+                hmac = reply_decrypt[1]
+        except Exception as ex:
+            _logger.info(f"do_challenge_response: exception with handler: {ex}")
+        finally:
+            _logger.info(f"[Satochip_KeyStore] do_challenge_response: finally")
+            self.handler.finished()
+
         return hmac  # return a hexstring
 
 
