@@ -2,11 +2,13 @@ from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.keystore import bip39_is_checksum_valid
 from electrum.simple_config import SimpleConfig
-from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton,
+from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, icon_path,
                                   OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
 from electrum.gui.qt.qrcodewidget import QRDialog
-from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard
+from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
+                                            WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
 from electrum.plugin import hook
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
 from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
                              QWidget, QGridLayout, QComboBox, QLineEdit, QTextEdit, QTabWidget)
@@ -25,19 +27,27 @@ from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPres
 from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION
 
-# Seed import wizard msg
-PASSPHRASE_HELP_SHORT = _(
-    "A passphrase is an optional feature that allows you to extend your seed with additional entropy. "
-    "A passphrase is not a PIN.")
-PASSPHRASE_NOT_PIN = _(
-    "If set, you will need your passphrase "
-    "along with your BIP39 seed to restore your wallet from a backup. "
-    "If you are not sure, leave this field empty!")
-
 _logger = get_logger(__name__)
 
-MSG_USE_2FA = _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. First you have to install the Satochip-2FA android app on google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. \n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!")
+MSG_USE_2FA = _(
+    "Do you want to use 2-Factor-Authentication (2FA)?"
+    "\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. "
+    "First you have to install the Satochip-2FA android app on google play. "
+    "Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. "
+    "\n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!"
+)
 
+MSG_SEED_IMPORT = [
+    _("Your Satochip is currently unseeded. "),
+    _("To use it, you need to import a BIP39 Seed. "),
+    _("To do so, select BIP39 in the options in the next screen. "),
+    _("Note that Electrum seeds are not supported by hardware wallets. "),
+    " ",
+    _("Optionally, you can also enable a passphrase in the options. "),
+    _("A passphrase is an optional feature that allows you to extend your seed with additional entropy. "),
+    _("A passphrase is not a PIN. "),
+    _("If set, you will need your passphrase along with your BIP39 seed to restore your wallet from a backup. "),
+]
 
 class Plugin(SatochipPlugin, QtPluginBase):
     icon_unpaired = "satochip_unpaired.png"
@@ -88,8 +98,25 @@ class Plugin(SatochipPlugin, QtPluginBase):
             'satochip_xpub': {'gui': WCHWXPub},
             'satochip_not_setup': {'gui': WCSatochipSetupParams},
             'satochip_do_setup': {'gui': WCSatochipSetup},
-            'satochip_not_seeded': {'gui': WCSatochipImportSeedParams},
-            'satochip_import_seed': {'gui': WCSatochipImportSeed},
+            'satochip_not_seeded': {
+                'gui': WCSeedMessage,
+                'next': 'satochip_have_seed'
+            },
+            'satochip_have_seed': {
+                'gui': WCHaveSeed,
+                'next': lambda d: 'satochip_have_ext' if wizard.wants_ext(d) else 'satochip_import_seed'
+            },
+            'satochip_have_ext': {
+                'gui': WCEnterExt,
+                'next': 'satochip_import_seed',
+            },
+            'satochip_import_seed': {
+                'gui': WCSatochipImportSeed,
+                'next': 'satochip_success_seed',
+            },
+            'satochip_success_seed': {
+                'gui': WCSeedSuccess,
+            },
             'satochip_unlock': {'gui': WCHWUnlock}
         }
         wizard.navmap_merge(views)
@@ -907,84 +934,39 @@ class WCSatochipSetup(WalletWizardComponent):
 #   Import seed wizard   #
 ##########################
 
-
-class SatochipSeedLayout(QVBoxLayout):
-    validChanged = pyqtSignal([bool], arguments=['valid'])
-
-    def __init__(self, device):
-        QVBoxLayout.__init__(self)
-
-        label = QLabel(_("Enter a label to name your device:"))
-        self.label_e = QLineEdit()
-        hl = QHBoxLayout()
-        hl.addWidget(label)
-        hl.addWidget(self.label_e)
-        hl.addStretch(1)
-        self.addLayout(hl)
-
-        self.text_e = QTextEdit()
-        self.text_e.setMaximumHeight(60)
-        msg = _("Enter your BIP39 mnemonic:")
-
-        # TODO: validation?
-        def set_enabled():
-            item = ' '.join(str(clean_text(self.text_e)).split())
-            (is_checksum_valid, is_wordlist_valid) = bip39_is_checksum_valid(item)
-            self.validChanged.emit(is_checksum_valid and is_wordlist_valid)
-        self.text_e.textChanged.connect(set_enabled)
-
-        self.addWidget(QLabel(msg))
-        self.addWidget(self.text_e)
-
-        passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
-        passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
-        passphrase_warning.setStyleSheet("color: red")
-        self.addWidget(passphrase_msg)
-        self.addWidget(passphrase_warning)
-        # self.cb_phrase = QCheckBox(_('Enable passphrases'))
-        # self.cb_phrase.setChecked(False)
-        # self.addWidget(self.cb_phrase)
-
-        self.passphrase_e = QLineEdit()
-        self.passphrase_e.setMinimumWidth(100)
-        passphrase_label = _("Enter your BIP39 passphrase (optional):")
-        # TODO: validation?
-
-        self.addWidget(QLabel(passphrase_label))
-        self.addWidget(self.passphrase_e)
-
-    def get_settings(self):
-        item = ' '.join(str(clean_text(self.text_e)).split())
-        return self.label_e.text(), item, self.passphrase_e.text()
-
-
-class WCSatochipImportSeedParams(WalletWizardComponent):
+class WCSeedMessage(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WalletWizardComponent.__init__(
-            self, parent, wizard, title=_('Satochip Setup'))
-        self.plugins = wizard.plugins
-        self._busy = True
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Satochip needs a seed'))
 
-    def on_ready(self):
-        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
-        _name, _info = current_cosigner['hardware_device']
-        self.settings_layout = SatochipSeedLayout(_info.device.id_)
-        self.settings_layout.validChanged.connect(
-            self.on_settings_valid_changed)
-        self.layout().addLayout(self.settings_layout)
+        self.layout().addWidget(WWLabel('\n'.join(MSG_SEED_IMPORT)))
         self.layout().addStretch(1)
 
-        # TODO #current_cosigner['satochip_init'] != TIM_PRIVKEY  # TODO: only privkey is validated
-        self.valid = True
-        self.busy = False
-
-    def on_settings_valid_changed(self, is_valid: bool):
-        self.valid = is_valid
+        self._valid = True
 
     def apply(self):
-        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
-        current_cosigner['satochip_seed_settings'] = self.settings_layout.get_settings(
-        )
+        pass
+
+
+class WCSeedSuccess(WalletWizardComponent):
+    def __init__(self, parent, wizard):
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Success!'))
+
+    def on_ready(self):
+        w_icon = QLabel()
+        w_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
+        w_icon.setAlignment(Qt.AlignCenter)
+        label = WWLabel(_("Seed imported successfully!"))
+        label.setAlignment(Qt.AlignCenter)
+        self.layout().addStretch(1)
+        self.layout().addWidget(w_icon)
+        self.layout().addWidget(label)
+        self.layout().addStretch(1)
+        # self.layout().addWidget(WWLabel("Seed imported successfully!")
+        # self.layout().addStretch(1)
+        self._valid = True
+
+    def apply(self):
+        pass
 
 
 class WCSatochipImportSeed(WalletWizardComponent):
@@ -1000,8 +982,9 @@ class WCSatochipImportSeed(WalletWizardComponent):
 
     def on_ready(self):
         current_cosigner = self.wizard.current_cosigner(self.wizard_data)
-        settings = current_cosigner['satochip_seed_settings']
-        # method = current_cosigner['satochip_init']
+
+        settings = current_cosigner['seed_type'], current_cosigner['seed'], current_cosigner['seed_extra_words']
+
         _name, _info = current_cosigner['hardware_device']
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(

@@ -629,7 +629,13 @@ class SatochipPlugin(HW_PluginBase):
         if not client:
             raise Exception(_("The device was disconnected."))
 
-        label, seed, passphrase = settings
+        seed_type, seed, passphrase = settings
+
+        # check seed type:
+        if seed_type !=  'bip39':
+            _logger.error(
+                f"[SatochipPlugin] _import_seed() wrong seed type!")
+            raise Exception(f'Wrong seed type {seed_type}: only BIP39 is supported!')
 
         # check seed validity
         (is_checksum_valid, is_wordlist_valid) = bip39_is_checksum_valid(seed)
@@ -651,31 +657,13 @@ class SatochipPlugin(HW_PluginBase):
             authentikey = client.cc.card_bip32_import_seed(masterseed_list)
             _logger.info(
                 f"[SatochipPlugin] _import_seed(): seed imported successfully!")
-            client.handler.show_message(f"seed imported successfully!")
             hex_authentikey = authentikey.get_public_key_hex(compressed=True)
             _logger.info(
                 f"[SatochipPlugin] _import_seed(): authentikey={hex_authentikey}")
         except Exception as ex:
             _logger.error(
                 f"[SatochipPlugin] _import_seed(): exception during seed import: {ex}")
-            client.handler.show_error(f"Exception during seed import: {ex}")
-
-        # import label
-        (response, sw1, sw2) = client.cc.card_set_label(label)
-        if (sw1 == 0x90 and sw2 == 0x00):
-            _logger.info(
-                f"[SatochipPlugin] _import_seed(): card label changed successfully")
-            # client.handler.show_message(_("Card label changed successfully!"))
-        elif (sw1 == 0x6D and sw2 == 0x00):
-            _logger.info(
-                f"[SatochipPlugin] _import_seed(): failed to set label: card does not support label (code {hex(sw1*256+sw2)})")
-            # starts with satochip v0.12
-            client.handler.show_error(_("Error: card does not support label!"))
-        else:
-            _logger.info(
-                f"[SatochipPlugin] _import_seed(): unknown error while setting label (code {hex(sw1*256+sw2)})")
-            client.handler.show_error(
-                f"Error while setting card label (code {hex(sw1*256+sw2)})")
+            raise ex
 
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
         _logger.info(f"[SatochipPlugin] wizard_entry_for_device()")
@@ -722,9 +710,12 @@ class SatochipPlugin(HW_PluginBase):
                 'next': 'satochip_not_seeded',
             },
             'satochip_not_seeded': {
-                'next': 'satochip_import_seed',
+                'next': 'satochip_have_seed',
             },
             'satochip_import_seed': {
+                'next': 'satochip_success_seed',
+            },
+            'satochip_success_seed': {
                 'next': 'satochip_start',
             },
             'satochip_unlock': {
