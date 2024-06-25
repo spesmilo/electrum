@@ -29,11 +29,11 @@ from typing import TYPE_CHECKING, Optional, List
 
 from electrum import ecc
 from electrum.logging import get_logger, Logger
-from electrum.crypto import chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
+from electrum.crypto import chacha20_poly1305_encrypt, chacha20_poly1305_decrypt, sha256
 from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, new_onion_packet2)
-from electrum.lnutil import get_ecdh
+from electrum.lnutil import get_ecdh, LnFeatures
 from electrum.util import OldTaskGroup, now, trigger_callback
 
 if TYPE_CHECKING:
@@ -109,12 +109,8 @@ def blinding_privkey(privkey, blinding):
     return our_privkey
 
 
-def on_onion_message_forward(recipient_data, onion_packet):
-    if recipient_data.get('path_id'):
-        raise Exception('cannot forward onion_message, path_id in encrypted_data_tlv')
-    if not recipient_data.get('next_node_id'):
-        raise Exception('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
-    raise Exception('onion_message forwarding not implemented')
+def is_onion_message_node(node_info: 'NodeInfo'):
+    return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
 
 
 class OnionMessageManager(Logger):
@@ -224,6 +220,41 @@ class OnionMessageManager(Logger):
 
         trigger_callback('onion_message_textmessage', text)
 
+    def on_onion_message_forward(self, recipient_data, onion_packet, blinding, shared_secret):
+        if recipient_data.get('path_id'):
+            raise Exception('cannot forward onion_message, path_id in encrypted_data_tlv')
+
+        next_node_id = recipient_data.get('next_node_id')
+        if not next_node_id:
+            raise Exception('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
+        next_node_id = next_node_id['node_id']
+
+        # is next_node one of our peers?
+        next_peer = self.lnwallet.peers.get(next_node_id)
+        if not next_peer:
+            self.logger.debug(f'next node {next_node_id.hex()} not a peer, dropping message')
+            return
+
+        # blinding override?
+        next_blinding_override = recipient_data.get('next_blinding_override')
+        if next_blinding_override:
+            next_blinding = next_blinding_override.get('blinding')
+        else:
+            # E_i+1=SHA256(E_i||ss_i) * E_i
+            blinding_factor = sha256(blinding + shared_secret)
+            blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+            next_public_key_int = ecc.ECPubkey(blinding) * blinding_factor_int
+            next_blinding = next_public_key_int.get_public_key_bytes()
+
+        onion_packet_b = onion_packet.to_bytes()
+        # construct onion message
+        next_peer.send_message(
+            "onion_message",
+            blinding=next_blinding,
+            len=len(onion_packet_b),
+            onion_message_packet=onion_packet_b
+        )
+
     def on_onion_message(self, payload):
         blinding = payload.get('blinding')
         if not blinding:
@@ -245,7 +276,7 @@ class OnionMessageManager(Logger):
         logger.debug(f'onion peeled: {processed_onion_packet!r}')
 
         if not processed_onion_packet.are_we_final:
-            if any(lambda x: x not in ['encrypted_recipient_data'] for x in payload.keys()):
+            if any([x not in ['encrypted_recipient_data'] for x in payload.keys()]):
                 raise Exception('unexpected data in payload')  # non-final nodes only encrypted_recipient_data
 
         # decrypt
@@ -263,7 +294,7 @@ class OnionMessageManager(Logger):
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
         else:
-            on_onion_message_forward(recipient_data, processed_onion_packet.next_packet)
+            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
 
     def submit_onion_message(self, *, payload: dict, session_key: bytes, peer):
         self.logger.debug('submit_onion_message')
