@@ -61,7 +61,7 @@ class FeeSlider(QSlider):
         if self.dyn:
             return _('Target') + ': ' + target + '\n' + _('Current rate') + ': ' + estimate
         else:
-            return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
+            return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + _('In the next block')
 
     def get_dynfee_target(self):
         if not self.dyn:
