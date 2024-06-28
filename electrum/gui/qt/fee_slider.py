@@ -14,7 +14,7 @@ class FeeComboBox(QComboBox):
         self.fee_slider = fee_slider
         
         self.addItems([_('Static')])
-        self.setCurrentIndex(0)
+        self.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
         self.currentIndexChanged.connect(self.on_fee_type)
         self.help_msg = '\n'.join([
            _('Static: the fee slider uses static values')
