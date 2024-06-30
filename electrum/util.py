@@ -858,6 +858,10 @@ def format_time(timestamp: Union[int, float, None]) -> str:
     return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
 
 
+def now():
+    return int(time.time())
+
+
 def age(
     from_date: Union[int, float, None],  # POSIX timestamp
     *,
