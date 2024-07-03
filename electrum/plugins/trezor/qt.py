@@ -21,7 +21,8 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent
 
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
-                     PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
+                     PASSPHRASE_ON_DEVICE, Capability, BackupType)
+from .compat import RECOVERY_TYPE_MATRIX, RECOVERY_TYPE_SCRAMBLED_WORDS
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -409,14 +410,14 @@ class InitSettingsLayout(QVBoxLayout):
             rb1 = QRadioButton(gb_rectype)
             rb1.setText(_('Scrambled words'))
             self.bg_rectype.addButton(rb1)
-            self.bg_rectype.setId(rb1, RecoveryDeviceType.ScrambledWords)
+            self.bg_rectype.setId(rb1, RECOVERY_TYPE_SCRAMBLED_WORDS)
             hbox_rectype.addWidget(rb1)
             rb1.setChecked(True)
 
             rb2 = QRadioButton(gb_rectype)
             rb2.setText(_('Matrix'))
             self.bg_rectype.addButton(rb2)
-            self.bg_rectype.setId(rb2, RecoveryDeviceType.Matrix)
+            self.bg_rectype.setId(rb2, RECOVERY_TYPE_MATRIX)
             hbox_rectype.addWidget(rb2)
 
         # no backup

@@ -12,9 +12,10 @@ from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, Hardw
 
 from trezorlib.client import TrezorClient, PASSPHRASE_ON_DEVICE
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType, ButtonRequestType
+from trezorlib.messages import WordRequestType, ButtonRequestType
 import trezorlib.btc
 import trezorlib.device
+from .compat import RECOVERY_TYPE_MATRIX
 
 MESSAGES = {
     ButtonRequestType.ConfirmOutput:
@@ -346,7 +347,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         if recovery_type is None:
             return None
 
-        if recovery_type == RecoveryDeviceType.Matrix:
+        if recovery_type == RECOVERY_TYPE_MATRIX:
             return self._matrix_char
 
         step = 0
