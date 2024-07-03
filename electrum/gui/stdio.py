@@ -2,6 +2,7 @@ from decimal import Decimal
 import getpass
 import datetime
 import logging
+import os
 from typing import Optional
 
 from electrum.gui import BaseElectrumGui
@@ -14,6 +15,9 @@ from electrum.bitcoin import is_address, COIN
 from electrum.transaction import PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 
+from electrum.wizard import NewWalletWizard
+from electrum import mnemonic
+
 _ = lambda x:x  # i18n
 
 # minimal fdisk like gui for console usage
@@ -24,6 +28,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
+        self.daemon = daemon
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
         if not storage.file_exists():
@@ -84,6 +89,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         elif c == "b" : self.print_banner()
         elif c == "n" : self.network_dialog()
         elif c == "e" : self.settings_dialog()
+        elif c == "w" : self.wallet_wizard()
         elif c == "q" : self.done = 1
         else: self.print_commands()
 
@@ -248,6 +254,67 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
     def password_dialog(self):
         return getpass.getpass()
+
+
+    def wallet_wizard(self):
+        self._new_wallet = NewWalletWizard(self.daemon)
+        self._new_wallet.navmap_merge({
+            'wallet_name': { 'gui': 'wizard_wallet_name' },
+            'wallet_type': { 'gui': 'wizard_wallet_type' },
+            'keystore_type': { 'gui': 'wizard_keystore_type' },
+            'create_seed': { 'gui': 'wizard_create_seed',
+                'next': self._new_wallet.on_have_or_confirm_seed,
+            },
+            'wallet_password': { 'gui': 'wizard_password' },
+        })
+        self.wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
+        print('Start wallet wizard')
+        current = self._new_wallet.start()
+        self._wdata = current.wizard_data
+        self.call_view(current.view)
+
+    def wizard_submit(self):
+        self._new_wallet.log_state(self._wdata)
+        if self._new_wallet.is_last_view(self._new_wallet._current.view,  self._wdata):
+            self._new_wallet.create_storage(os.path.join(self.wallet_folder, self._wdata['wallet_name']), self._wdata)
+            return
+        view = self._new_wallet.resolve_next(self._new_wallet._current.view, self._wdata)
+        self._wdata = view.wizard_data
+        print(f'next view: {view.view}')
+        self.call_view(view.view)
+
+    def wizard_wallet_name(self):
+        self._wdata['wallet_name'] = input('Wallet Name: ')
+        self.wizard_submit()
+
+    def wizard_wallet_type(self):
+        print('enter one of standard|2fa|multisig|imported')
+        self._wdata['wallet_type'] = input('Wallet Type: ')
+        self._wdata['seed_type'] = 'segwit'
+        self._wdata['seed_extend'] = False
+        self._wdata['seed_extra_words'] = ''
+        self.wizard_submit()
+
+    def wizard_keystore_type(self):
+        print('[1] create seed')
+        print('[2] have seed')
+        self._wdata['keystore_type'] = {'1': 'createseed', '2': 'haveseed' }[input('Keystore Type: ')]
+        self.wizard_submit()
+
+    def wizard_create_seed(self):
+        m = mnemonic.Mnemonic('en').make_seed(seed_type='segwit')
+        print(f'Seed: {m}')
+        self._wdata['seed'] = m
+        self._wdata['seed_variant'] = 'electrum'
+        self.wizard_submit()
+
+    def wizard_password(self):
+        self._wdata['password'] = input('Enter password: ')
+        self._wdata['encrypt'] = self._wdata['password'] != ''
+        self.wizard_submit()
+
+    def call_view(self, view):
+        getattr(self, self._new_wallet.navmap[view]['gui'])()
 
 
 #   XXX unused
