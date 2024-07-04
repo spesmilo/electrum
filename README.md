@@ -18,20 +18,61 @@ _(If you've come here looking to simply run Electrum,
 [you may download it here](https://electrum.org/#download).)_
 
 Electrum itself is pure Python, and so are most of the required dependencies,
-but not everything. The following sections describe how to run from source, but here
-is a TL;DR:
+but not everything. The following sections describe how to run from tar.gz or from source.
 
-```
-$ sudo apt-get install libsecp256k1-dev
-$ python3 -m pip install --user ".[gui,crypto]"
-```
+### Running from tar.gz
 
-### Not pure-python dependencies
+If you downloaded the official package (tar.gz), you can run
+Electrum from its root directory without installing it on your
+system; all the pure python dependencies are included in the 'packages'
+directory. You will need to install a few system dependencies:
 
-If you want to use the Qt interface, install the Qt dependencies:
+To use the desktop GUI (Qt5):
+
 ```
 $ sudo apt-get install python3-pyqt5
 ```
+
+Due to the need for fast symmetric ciphers,
+[cryptography](https://github.com/pyca/cryptography) is required.
+Install from your package manager:
+```
+$ sudo apt-get install python3-cryptography
+```
+
+To run Electrum from its root directory, just do:
+```
+$ ./run_electrum
+```
+
+This method currently lacks hardware wallet support.
+If you need hardware wallet support, you should install as [described below](#install-to-a-python-virtualenv)
+
+
+### Install to a python virtualenv
+
+#### Create a python virtualenv
+
+```commandline
+$ python3 -m venv $HOME/electrum
+```
+
+When the `virtualenv` is created or already exists, activate it:
+
+```commandline
+$ . $HOME/electrum/bin/activate
+```
+
+#### Install electrum and dependencies
+
+```commandline
+$ pip install .[gui,crypto,hardware]
+```
+
+This will install Electrum and all required dependencies,
+including for Qt desktop GUI and hardware wallets.
+
+#### Not pure-python dependencies
 
 For elliptic curve operations,
 [libsecp256k1](https://github.com/bitcoin-core/secp256k1)
@@ -47,54 +88,42 @@ $ sudo apt-get install automake libtool
 $ ./contrib/make_libsecp256k1.sh
 ```
 
-Due to the need for fast symmetric ciphers,
-[cryptography](https://github.com/pyca/cryptography) is required.
-Install from your package manager (or from pip):
-```
-$ sudo apt-get install python3-cryptography
-```
-
-If you would like hardware wallet support,
+For more information about hardware wallet dependencies,
 [see this](https://github.com/spesmilo/electrum-docs/blob/master/hardware-linux.rst).
 
-
-### Running from tar.gz
-
-If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory without installing it on your
-system; all the pure python dependencies are included in the 'packages'
-directory. To run Electrum from its root directory, just do:
+To run Electrum, just do:
 ```
-$ ./run_electrum
+$ electrum
 ```
 
-You can also install Electrum on your system, by running this command:
-```
-$ sudo apt-get install python3-setuptools python3-pip
-$ python3 -m pip install --user .
-```
+Or, without first activating the `virtualenv`:
 
-This will download and install the Python dependencies used by
-Electrum instead of using the 'packages' directory.
-It will also place an executable named `electrum` in `~/.local/bin`,
-so make sure that is on your `PATH` variable.
-
+```commandline
+$ $HOME/electrum/bin/electrum
+```
 
 ### Development version (git clone)
 
 _(For OS-specific instructions, see [here for Windows](contrib/build-wine/README_windows.md),
 and [for macOS](contrib/osx/README_macos.md))_
 
-Check out the code from GitHub:
+#### Check out the code from GitHub:
 ```
 $ git clone https://github.com/spesmilo/electrum.git
 $ cd electrum
 $ git submodule update --init
 ```
 
-Run install (this should install dependencies):
+#### create and activate virtualenv
+
+```commandline
+$ python3 -m venv $HOME/electrum
+$ . $HOME/electrum/bin/activate
 ```
-$ python3 -m pip install --user -e .
+
+#### Run install (this should install dependencies):
+```
+$ pip install -e .[gui,crypto,hardware]
 ```
 
 Create translations (optional):
