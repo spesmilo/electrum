@@ -25,12 +25,13 @@
 
 import io
 import hashlib
+from copy import deepcopy
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
 from enum import IntEnum
 
 import electrum_ecc as ecc
 
-from .crypto import sha256, hmac_oneshot, chacha20_encrypt, get_ecdh
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt, get_ecdh, chacha20_poly1305_encrypt
 from .util import profiler, xor_bytes, bfh
 from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
@@ -53,11 +54,15 @@ class InvalidOnionPubkey(Exception): pass
 
 class OnionHopsDataSingle:  # called HopData in lnd
 
-    def __init__(self, *, payload: dict = None):
+    def __init__(self, *, payload: dict = None, tlv_stream_name: str = 'payload', blind_fields: dict = None):
         if payload is None:
             payload = {}
         self.payload = payload
         self.hmac = None
+        self.tlv_stream_name = tlv_stream_name
+        if blind_fields is None:
+            blind_fields = {}
+        self.blind_fields = blind_fields
         self._raw_bytes_payload = None  # used in unit tests
 
     def to_bytes(self) -> bytes:
@@ -69,7 +74,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
         # adding TLV payload. note: legacy hop data format no longer supported.
         payload_fd = io.BytesIO()
         OnionWireSerializer.write_tlv_stream(fd=payload_fd,
-                                             tlv_stream_name="payload",
+                                             tlv_stream_name=self.tlv_stream_name,
                                              **self.payload)
         payload_bytes = payload_fd.getvalue()
         with io.BytesIO() as fd:
@@ -79,7 +84,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
             return fd.getvalue()
 
     @classmethod
-    def from_fd(cls, fd: io.BytesIO) -> 'OnionHopsDataSingle':
+    def from_fd(cls, fd: io.BytesIO, *, tlv_stream_name: str = 'payload') -> 'OnionHopsDataSingle':
         first_byte = fd.read(1)
         if len(first_byte) == 0:
             raise Exception(f"unexpected EOF")
@@ -95,9 +100,9 @@ class OnionHopsDataSingle:  # called HopData in lnd
             hop_payload = fd.read(hop_payload_length)
             if hop_payload_length != len(hop_payload):
                 raise Exception(f"unexpected EOF")
-            ret = OnionHopsDataSingle()
+            ret = OnionHopsDataSingle(tlv_stream_name=tlv_stream_name)
             ret.payload = OnionWireSerializer.read_tlv_stream(fd=io.BytesIO(hop_payload),
-                                                              tlv_stream_name="payload")
+                                                              tlv_stream_name=tlv_stream_name)
             ret.hmac = fd.read(PER_HOP_HMAC_SIZE)
             assert len(ret.hmac) == PER_HOP_HMAC_SIZE
             return ret
@@ -146,7 +151,7 @@ class OnionPacket:
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
-    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad'):
+    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad', b'blinded_node_id'):
         raise Exception('invalid key_type {}'.format(key_type))
     key = hmac_oneshot(key_type, msg=secret, digest=hashlib.sha256)
     return key
@@ -169,12 +174,46 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
     return hop_shared_secrets
 
 
+def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
+                                    session_key: bytes) -> tuple[Sequence[bytes], Sequence[bytes]]:
+    num_hops = len(payment_path_pubkeys_plus)
+    hop_shared_secrets = num_hops * [b'']
+    hop_blinded_node_ids = num_hops * [b'']
+    ephemeral_key = session_key
+    payment_path_pubkeys = deepcopy(payment_path_pubkeys_plus)
+    # compute shared key for each hop
+    for i in range(0, num_hops):
+        if isinstance(payment_path_pubkeys[i], tuple):
+            ephemeral_key = payment_path_pubkeys[i][1]
+            payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
+        hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
+
+        hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
+
+        ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
+        blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
+        blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+        ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
+        ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
+        ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
+    return hop_shared_secrets, hop_blinded_node_ids
+
+
+def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
+    # blinded node id
+    # B(i) = HMAC256("blinded_node_id", ss(i)) * N(i)
+    ss_bni_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
+    ss_bni_hmac_int = int.from_bytes(ss_bni_hmac, byteorder="big")
+    blinded_node_id = ecc.ECPubkey(node_id) * ss_bni_hmac_int
+    return blinded_node_id.get_public_key_bytes()
+
+
 def new_onion_packet(
     payment_path_pubkeys: Sequence[bytes],
     session_key: bytes,
     hops_data: Sequence[OnionHopsDataSingle],
     *,
-    associated_data: bytes,
+    associated_data: bytes = b'',
     trampoline: bool = False,
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
@@ -209,6 +248,40 @@ def new_onion_packet(
         public_key=ecc.ECPrivkey(session_key).get_public_key_bytes(),
         hops_data=mix_header,
         hmac=next_hmac)
+
+
+def new_onion_packet2(
+    payment_path_pubkeys: Sequence[Union[bytes, tuple]],
+    session_key: bytes,
+    hops_data: Sequence[OnionHopsDataSingle],
+    *,
+    associated_data: bytes = b'',
+    trampoline: bool = False,
+) -> OnionPacket:
+    num_hops = len(payment_path_pubkeys)
+    assert num_hops == len(hops_data)
+    hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+    # compute routing info and MAC for each hop
+    for i in range(num_hops):
+        if hops_data[i].tlv_stream_name == 'onionmsg_tlv':  # route blinding?
+            rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
+            with io.BytesIO() as encrypted_data_tlv_fd:
+                OnionWireSerializer.write_tlv_stream(
+                    fd=encrypted_data_tlv_fd,
+                    tlv_stream_name='encrypted_data_tlv',
+                    **hops_data[i].blind_fields)
+                encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
+                encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12), data=encrypted_data_tlv_bytes)
+                payload = hops_data[i].payload
+                payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
+
+    return new_onion_packet(
+        payment_path_pubkeys=blinded_node_ids,
+        session_key=session_key,
+        hops_data=hops_data,
+        associated_data=associated_data,
+        trampoline=trampoline,
+    )
 
 
 def calc_hops_data_for_payment(
@@ -299,9 +372,11 @@ class ProcessedOnionPacket(NamedTuple):
 # TODO replay protection
 def process_onion_packet(
         onion_packet: OnionPacket,
-        associated_data: bytes,
         our_onion_private_key: bytes,
-        is_trampoline=False) -> ProcessedOnionPacket:
+        *,
+        associated_data: bytes = bytes(),
+        is_trampoline=False,
+        tlv_stream_name='payload') -> ProcessedOnionPacket:
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
@@ -319,7 +394,7 @@ def process_onion_packet(
     padded_header = onion_packet.hops_data + bytes(data_size)
     next_hops_data = xor_bytes(padded_header, stream_bytes)
     next_hops_data_fd = io.BytesIO(next_hops_data)
-    hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd)
+    hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd, tlv_stream_name=tlv_stream_name)
     # trampoline
     trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
     if trampoline_onion_packet:
