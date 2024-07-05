@@ -2807,8 +2807,8 @@ class Peer(Logger, EventListener):
         try:
             processed_onion = process_onion_packet(
                 onion_packet,
-                associated_data=payment_hash,
                 our_onion_private_key=self.privkey,
+                associated_data=payment_hash,
                 is_trampoline=is_trampoline)
         except UnsupportedOnionPacketVersion:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
