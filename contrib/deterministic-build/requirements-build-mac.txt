@@ -4,8 +4,9 @@ Cython==0.29.32 \
     --hash=sha256:8733cf4758b79304f2a4e39ebfac5e92341bce47bcceb26c1254398b2f8c1af7
 macholib==1.16.2 \
     --hash=sha256:557bbfa1bb255c20e9abafe7ed6cd8046b48d9525db2f9b77d3122a63a2a8bf8
-pip==22.3.1 \
-    --hash=sha256:65fd48317359f3af8e593943e6ae1506b66325085ea64b706a998c6e83eeaf38
+pip==23.3 \
+    --hash=sha256:bb7d4f69f488432e4e96394612f43ab43dd478d073ef7422604a570f7157561e \
+    --hash=sha256:bc38bb52bc286514f8f7cb3a1ba5ed100b76aaef29b521d48574329331c5ae7b
 pyinstaller-hooks-contrib==2022.13 \
     --hash=sha256:e06d0881e599d94dc39c6ed1917f0ad9b1858a2478b9892faac18bd48bcdc2de
 setuptools==65.5.1 \
