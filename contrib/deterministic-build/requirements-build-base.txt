@@ -28,3 +28,4 @@ typing-extensions==4.4.0 \
 wheel==0.38.4 \
     --hash=sha256:965f5259b566725405b05e7cf774052044b1ed30119b5d586b2703aafe8719ac \
     --hash=sha256:b60533f3f5d530e971d6737ca6d58681ee434818fab630c83a734bb10c083ce8
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
