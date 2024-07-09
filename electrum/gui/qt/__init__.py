@@ -240,6 +240,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
         self._cleaned_up = True
         self.app.new_window_signal.disconnect()
+        self.app.removeEventFilter(self.efilter)
         self.efilter = None
         # If there are still some open windows, try to clean them up.
         for window in list(self.windows):
