@@ -12,3 +12,4 @@ jsonpatch
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!
 dnspython>=2.0
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
