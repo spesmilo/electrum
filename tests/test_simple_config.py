@@ -254,6 +254,25 @@ class Test_SimpleConfig(ElectrumTestCase):
         self.assertEqual(495000, config.fee_to_depth(5.5))
         self.assertEqual(36495000, config.fee_to_depth(0.5))
 
+    def test_wallet_path(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(
+            os.path.join(self.electrum_dir, "wallets", "default_wallet"),
+            config.get_wallet_path(),
+        )
+
+        read_user_config = lambda _: {"wallet_path": "/electrum/wallet"}
+        config = SimpleConfig(self.options, read_user_config_function=read_user_config)
+        self.assertEqual("/electrum/wallet", config.get_wallet_path())
+
+        options = dict(self.options, wallet_path="/wallet/from/cmdline")
+        config = SimpleConfig(options, read_user_config_function=read_user_config)
+        self.assertEqual("/wallet/from/cmdline", config.get_wallet_path())
+
+        config = SimpleConfig(self.options)
+        config.cv.from_key("wallet_path").set("/custom/wallet")
+        self.assertEqual("/custom/wallet", config.get_wallet_path())
+
 
 class TestUserConfig(ElectrumTestCase):
 
