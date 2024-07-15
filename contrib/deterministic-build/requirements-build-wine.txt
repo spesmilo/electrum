@@ -10,7 +10,7 @@ pyinstaller-hooks-contrib==2022.13 \
     --hash=sha256:e06d0881e599d94dc39c6ed1917f0ad9b1858a2478b9892faac18bd48bcdc2de
 pywin32-ctypes==0.2.0 \
     --hash=sha256:24ffc3b341d457d48e8922352130cf2644024a4ff09762a2261fd34c36ee5942
-setuptools==65.5.1 \
+setuptools==70.0.0 \
     --hash=sha256:e197a19aa8ec9722928f2206f8de752def0e4c9fc6953527360d1c36d94ddb2f
 wheel==0.38.4 \
     --hash=sha256:965f5259b566725405b05e7cf774052044b1ed30119b5d586b2703aafe8719ac
