@@ -16,7 +16,7 @@ pip==22.3.1 \
     --hash=sha256:65fd48317359f3af8e593943e6ae1506b66325085ea64b706a998c6e83eeaf38
 ptyprocess==0.7.0 \
     --hash=sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220
-setuptools==65.5.1 \
+setuptools==70.0.0 \
     --hash=sha256:e197a19aa8ec9722928f2206f8de752def0e4c9fc6953527360d1c36d94ddb2f
 sh==1.14.3 \
     --hash=sha256:e4045b6c732d9ce75d571c79f5ac2234edd9ae4f5fa9d59b09705082bdca18c7
