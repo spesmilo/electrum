@@ -2825,5 +2825,5 @@ class Peer(Logger, EventListener):
         return processed_onion
 
     def on_onion_message(self, payload):
-        if getattr(self.lnworker, 'onion_message_manager'):  # only on LNWallet
+        if hasattr(self.lnworker, 'onion_message_manager'):  # only on LNWallet
             self.lnworker.onion_message_manager.on_onion_message(payload)
