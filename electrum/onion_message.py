@@ -180,8 +180,8 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                     blinding = blinded_path['blinding']
                 else:
                     # route to introduction point
-                    path = wallet.lnworker.network.path_finder.find_path_for_payment(
-                        nodeA=wallet.lnworker.node_keypair.pubkey,
+                    path = lnwallet.network.path_finder.find_path_for_payment(
+                        nodeA=lnwallet.node_keypair.pubkey,
                         nodeB=introduction_point,
                         invoice_amount_msat=10000,  # TODO: do this without amount constraints
                         node_filter=is_onion_message_node
