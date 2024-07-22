@@ -17,7 +17,7 @@ import aiorpcx
 from aiorpcx import ignore_after
 
 from .crypto import sha256, sha256d
-from . import bitcoin, util
+from . import bitcoin, util, onion_message
 from . import ecc
 from .ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
 from . import constants
@@ -28,8 +28,8 @@ from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
 from .lnrouter import RouteEdge
-from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
-                      process_onion_packet, OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
+from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
+                      OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
@@ -2778,8 +2778,8 @@ class Peer(Logger):
         try:
             processed_onion = process_onion_packet(
                 onion_packet,
-                associated_data=payment_hash,
                 our_onion_private_key=self.privkey,
+                associated_data=payment_hash,
                 is_trampoline=is_trampoline)
         except UnsupportedOnionPacketVersion:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
@@ -2795,3 +2795,7 @@ class Peer(Logger):
         if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion
+
+    def on_onion_message(self, payload):
+        if hasattr(self.lnworker, 'onion_message_manager'):  # only on LNWallet
+            self.lnworker.onion_message_manager.on_onion_message(payload)

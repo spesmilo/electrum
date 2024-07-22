@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import io
 import sys
 import datetime
 import copy
@@ -41,9 +41,11 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
 from .import util, ecc
-from .util import (bfh, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-                   UserFacingException)
+from .lnmsg import OnionWireSerializer
+from .logging import Logger
+from .onion_message import create_blinded_path, send_onion_message_to
+from .util import (bfh, format_satoshis, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
+                   parse_max_spend, to_decimal, UserFacingException)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -165,11 +167,12 @@ def command(s):
     return decorator
 
 
-class Commands:
+class Commands(Logger):
 
     def __init__(self, *, config: 'SimpleConfig',
                  network: 'Network' = None,
                  daemon: 'Daemon' = None, callback=None):
+        Logger.__init__(self)
         self.config = config
         self.daemon = daemon
         self.network = network
@@ -1392,6 +1395,60 @@ class Commands:
             "source": self.daemon.fx.exchange.name(),
         }
 
+    @command('wnl')
+    async def send_onion_message(self, node_id_or_blinded_path_hex: str, message: str, wallet: Abstract_Wallet = None):
+        """
+        Send an onion message with onionmsg_tlv.message payload to node_id.
+        """
+        assert wallet
+        assert node_id_or_blinded_path_hex
+        assert message
+
+        node_id_or_blinded_path = bfh(node_id_or_blinded_path_hex)
+        assert len(node_id_or_blinded_path) >= 33
+
+        destination_payload = {
+            'message': {'text': message.encode('utf-8')}
+        }
+
+        try:
+            send_onion_message_to(wallet, node_id_or_blinded_path, destination_payload)
+            return {'success': True}
+        except Exception as e:
+            msg = str(e)
+
+        return {
+            'success': False,
+            'msg': msg
+        }
+
+    @command('wnl')
+    async def get_blinded_path_via(self, node_id: str, wallet: Abstract_Wallet = None):
+        """
+        Create a blinded path with node_id as introduction point. Introduction point must be direct peer of me.
+        """
+        assert wallet
+        assert node_id
+
+        pubkey = bfh(node_id)
+        assert len(pubkey) == 33, 'invalid node_id'
+
+        peer = wallet.lnworker.peers[pubkey]
+        assert peer, 'node_id not a peer'
+
+        path = [pubkey, wallet.lnworker.node_keypair.pubkey]
+        session_key = os.urandom(32)
+        blinded_path = create_blinded_path(session_key, final_recipient_data={}, path=path)
+
+        with io.BytesIO() as blinded_path_fd:
+            OnionWireSerializer._write_complex_field(fd=blinded_path_fd,
+                                                     field_type='blinded_path',
+                                                     count=1,
+                                                     value=blinded_path)
+            encoded_blinded_path = blinded_path_fd.getvalue()
+
+        return encoded_blinded_path.hex()
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1419,6 +1476,7 @@ param_descriptions = {
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
     'onchain_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
+    'node_id': "Node pubkey in hex format"
 }
 
 command_options = {
