@@ -597,16 +597,18 @@ class NewWalletWizard(AbstractWizard):
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
-        if data['encrypt']:
+        if data['password']:
             if k and k.may_have_password():
                 k.update_password(None, data['password'])
+
+        if data['encrypt']:
             enc_version = StorageEncryptionVersion.USER_PASSWORD
             if data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard':
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
         db = WalletDB('', storage=storage, upgrade=True)
-        db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
+        db.set_keystore_encryption(bool(data['password']))
 
         db.put('wallet_type', data['wallet_type'])
 
@@ -645,7 +647,7 @@ class NewWalletWizard(AbstractWizard):
             db.put('addresses', addresses)
 
         if k and k.can_have_deterministic_lightning_xprv():
-            db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
+            db.put('lightning_xprv', k.get_lightning_xprv(data['password']))
 
         db.load_plugins()
         db.write()
