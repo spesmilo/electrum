@@ -117,7 +117,7 @@ class Jade_Client(HardwareClientBase):
         self.efusemac = verinfo['EFUSEMAC']
         self.jade.disconnect()
 
-        # Reconnect with a the default timeout for all subsequent calls
+        # Reconnect with the default timeout for all subsequent calls
         self.jade = JadeAPI.create_serial(device)
         self.jade.connect()
 
