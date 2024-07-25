@@ -33,6 +33,10 @@ task:
     - $ELECTRUM_PYTHON_NAME --version
   tag_script:
     - git tag
+    - git submodule update --init
+    - pushd electrum/aionostr
+    - git submodule update --init
+    - popd
   install_script:
     - apt-get update
     # qml test reqs:
@@ -45,9 +49,9 @@ task:
       - apt-get -y install automake libtool
       - ./contrib/make_libsecp256k1.sh
       - mkdir contrib/_saved_secp256k1_build
-      - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
+      - cp electrum/ecc/libsecp256k1.so.* contrib/_saved_secp256k1_build/
   libsecp_install_script:
-    - cp contrib/_saved_secp256k1_build/* electrum/
+    - cp contrib/_saved_secp256k1_build/* electrum/ecc/
   tox_script:
     - export PYTHONASYNCIODEBUG
     - export PYTHONDEVMODE
@@ -110,6 +114,10 @@ task:
     - apt-get update
     - apt-get -y install curl jq bc
     # install electrum
+    - git submodule update --init
+    - pushd electrum/aionostr
+    - git submodule update --init
+    - popd
     - pip3 install .[tests]
     # install e-x some commits after 1.16.0 tag
     - pip3 install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
@@ -126,9 +134,9 @@ task:
       - apt-get -y install automake libtool
       - ./contrib/make_libsecp256k1.sh
       - mkdir contrib/_saved_secp256k1_build
-      - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
+      - cp electrum/ecc/libsecp256k1.so.* contrib/_saved_secp256k1_build/
   libsecp_install_script:
-    - cp contrib/_saved_secp256k1_build/* electrum/
+    - cp contrib/_saved_secp256k1_build/* electrum/ecc/
   bitcoind_service_background_script:
     - tests/regtest/run_bitcoind.sh
   electrumx_service_background_script:
