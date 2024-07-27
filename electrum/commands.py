@@ -351,6 +351,17 @@ class Commands:
             cv.set(value)
 
     @command('')
+    async def listconfig(self):
+        """Returns the list of all configuration variables. """
+        return self.config.list_config_vars()
+
+    @command('')
+    async def helpconfig(self, key, more=False):
+        """Returns help about a configuration variable. """
+        cv = self.config.cv.from_key(key)
+        return cv.get_long_desc() if more else cv.get_short_desc()
+
+    @command('')
     async def make_seed(self, nbits=None, language=None, seed_type=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
@@ -1473,6 +1484,7 @@ command_options = {
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
     'public':      (None, 'Channel will be announced'),
+    'more':        (None, 'Return detailed description'),
 }
 
 
