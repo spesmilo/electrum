@@ -133,6 +133,29 @@ class Test_NewMnemonic(ElectrumTestCase):
                 self.assertTrue(12 <= len(seed.split()) <= 13)
         self.assertEqual(iters, len(pool))
 
+    def test_extra_entropy(self):
+        pool = set()
+        num_pool = 0
+        extra_entropies = (
+            b"asd",
+            UNICODE_HORROR.encode("utf-8"),
+            (2**4096-1).to_bytes(length=512, byteorder="big"),
+        )
+        m = mnemonic.Mnemonic(lang='en')
+        for ee in extra_entropies:
+            seed = m.make_seed(seed_type="standard", extra_entropy=ee, num_bits=128)
+            pool.add(seed)
+            num_pool += 1
+            with self.subTest(seed=seed, msg="num-words"):
+                self.assertTrue(12 <= len(seed.split()) <= 13)
+        for ee in extra_entropies:
+            seed = m.make_seed(seed_type="standard", extra_entropy=ee, num_bits=256)
+            pool.add(seed)
+            num_pool += 1
+            with self.subTest(seed=seed, msg="num-words"):
+                self.assertTrue(24 <= len(seed.split()) <= 25)
+        self.assertEqual(num_pool, len(pool))
+
 
 class Test_OldMnemonic(ElectrumTestCase):
 
