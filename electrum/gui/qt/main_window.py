@@ -2044,8 +2044,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))
             return
-        cyphertext = encrypted_e.toPlainText()
-        task = partial(self.wallet.decrypt_message, pubkey_e.text(), cyphertext, password)
+        ciphertext = encrypted_e.toPlainText()
+        task = partial(self.wallet.decrypt_message, pubkey_e.text(), ciphertext, password)
 
         def setText(text):
             try:
