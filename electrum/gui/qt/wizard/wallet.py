@@ -381,7 +381,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                 pw_label.show()
                 self.pw_e.show()
                 if not self.name_e.hasFocus():
-                    self.pw_e.setFocus(True)
+                    self.pw_e.setFocus()
             else:
                 pw_label.hide()
                 self.pw_e.hide()

@@ -47,10 +47,13 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.back_button = QPushButton(_("Back"), self)
         self.back_button.clicked.connect(self.on_back_button_clicked)
         self.back_button.setEnabled(False)
+        self.back_button.setDefault(False)
+        self.back_button.setAutoDefault(False)
         self.next_button = QPushButton(_("Next"), self)
         self.next_button.clicked.connect(self.on_next_button_clicked)
         self.next_button.setEnabled(False)
         self.next_button.setDefault(True)
+        self.next_button.setAutoDefault(True)
         self.requestPrev.connect(self.on_back_button_clicked)
         self.requestNext.connect(self.on_next_button_clicked)
         self.logo = QLabel()
@@ -126,7 +129,6 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
         # TODO: re-test if needed on macOS
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
-        self.next_button.setFocus() # setDefault() is not enough
 
     def refresh_gui(self):
         # For some reason, to refresh the GUI this needs to be called twice
