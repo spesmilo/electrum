@@ -1645,7 +1645,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         with self.lock:
             return copy.copy(self._labels)
 
-    def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
+    def get_tx_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
         extra = []
         height = tx_mined_info.height
         conf = tx_mined_info.conf
@@ -1658,6 +1658,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = self.db.get_transaction(tx_hash)
             if not tx:
                 return 2, _("unknown")
+            if not tx.is_complete():
+                tx.add_info_from_wallet(self)  # needed for estimated_size(), for txin size calc
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
