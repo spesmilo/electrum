@@ -21,3 +21,4 @@ poetry-core
 # typing-extensions also needs:
 # https://github.com/python/typing/blob/a2371460d184c96aab7a69acc47fd059f875e3b4/typing_extensions/pyproject.toml#L3
 flit_core>=3.4,<4
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
