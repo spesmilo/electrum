@@ -35,3 +35,4 @@ protobuf>=3.20,<4
 # (pulled in via trezor -> click -> colorama)
 # (pulled in via safet -> click -> colorama)
 colorama<0.4.6
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
