@@ -7,3 +7,4 @@ pefile>=2017.8.1
 altgraph
 pywin32-ctypes>=0.2.0
 pyinstaller-hooks-contrib>=2020.11
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
