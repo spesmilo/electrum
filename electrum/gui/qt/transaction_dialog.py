@@ -388,6 +388,9 @@ class TxInOutWidget(QWidget):
             if self.wallet.is_mine(addr):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
             copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
+        else:
+            spk = self.tx.outputs()[txout_idx].scriptpubkey
+            copy_list += [(_("Copy scriptPubKey"), lambda: self.main_window.do_copy(spk.hex()))]
         txout_value = self.tx.outputs()[txout_idx].value
         value_str = self.main_window.format_amount(txout_value, add_thousands_sep=False)
         copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
