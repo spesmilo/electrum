@@ -24,7 +24,7 @@ Item {
         source: qrdata && render ? 'image://qrgen/' + qrdata : ''
         visible: !isTextState
 
-        Rectangle {
+        Rectangle {  // container for logo inside qr code
             visible: root.render && _qrprops.valid
             color: 'white'
             x: (parent.width - width) / 2
@@ -72,6 +72,15 @@ Item {
             if (enableToggleText) {
                 root.isTextState = !root.isTextState
             }
+        }
+    }
+
+    onVisibleChanged: {
+        if (root.visible) {
+            // set max brightness to make qr code easier to scan
+            AppController.setMaxScreenBrightness()
+        } else {
+            AppController.resetScreenBrightness()
         }
     }
 
