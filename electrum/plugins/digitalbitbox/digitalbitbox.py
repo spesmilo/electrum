@@ -18,7 +18,7 @@ import copy
 from typing import TYPE_CHECKING, Optional
 
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-from electrum.bitcoin import public_key_to_p2pkh, usermessage_magic
+from electrum.bitcoin import public_key_to_p2pkh, usermessage_magic, verify_usermessage_with_address
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum.bip32 import normalize_bip32_derivation
 from electrum import descriptor
@@ -497,7 +497,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 sig = ecc.construct_ecdsa_sig65(sig_string, recid, is_compressed=True)
                 pubkey, compressed, txin_type_guess = ecc.ECPubkey.from_ecdsa_sig65(sig, msg_hash)
                 addr = public_key_to_p2pkh(pubkey.get_public_key_bytes(compressed=compressed))
-                if ecc.verify_usermessage_with_address(addr, sig, message) is False:
+                if verify_usermessage_with_address(addr, sig, message) is False:
                     raise Exception(_("Could not sign message"))
             elif 'pubkey' in reply['sign'][0]:
                 # firmware <= v2.1.1
@@ -506,7 +506,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig = ecc.construct_ecdsa_sig65(sig_string, recid, is_compressed=True)
                     try:
                         addr = public_key_to_p2pkh(binascii.unhexlify(reply['sign'][0]['pubkey']))
-                        if ecc.verify_usermessage_with_address(addr, sig, message):
+                        if verify_usermessage_with_address(addr, sig, message):
                             break
                     except Exception:
                         continue

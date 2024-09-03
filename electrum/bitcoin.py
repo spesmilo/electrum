@@ -845,7 +845,6 @@ def control_block_for_taproot_script_spend(
 
 # user message signing
 def usermessage_magic(message: bytes) -> bytes:
-    from .bitcoin import var_int
     length = var_int(len(message))
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
@@ -855,7 +854,6 @@ def ecdsa_sign_usermessage(ec_privkey, message: Union[bytes, str], *, is_compres
     return ec_privkey.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
 
 def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
-    from .bitcoin import pubkey_to_address
     from .ecc import ECPubkey
     assert_bytes(sig65, message)
     if net is None: net = constants.net
