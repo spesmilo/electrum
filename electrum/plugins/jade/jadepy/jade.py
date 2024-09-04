@@ -7,6 +7,7 @@ import collections
 import collections.abc
 import traceback
 import random
+import socket
 import sys
 
 # JadeError
@@ -24,7 +25,7 @@ device_logger = logging.getLogger(f'{__name__}-device')
 # It relies on the BLE dependencies being available
 try:
     from .jade_ble import JadeBleImpl
-except ImportError as e:
+except (ImportError, FileNotFoundError) as e:
     logger.warning(e)
     logger.warning('BLE scanning/connectivity will not be available')
 
@@ -122,6 +123,32 @@ def _hexlify(data):
 # except ImportError as e:
 #     logger.info(e)
 #     logger.info('Default _http_requests() function will not be available')
+
+def generate_dump():
+    while True:
+        try:
+            with socket.create_connection(("localhost", 4444)) as s:
+                output = b""
+                while b"Open On-Chip Debugger" not in output:
+                    data = s.recv(1024)
+                    if not data:
+                        continue
+                    output += data
+
+                s.sendall(b"esp gcov dump\n")
+
+                output = b""
+                while b"Targets disconnected." not in output:
+                    data = s.recv(1024)
+                    if not data:
+                        continue
+                    output += data
+                s.sendall(b"resume\n")
+                time.sleep(1)
+            return
+        except ConnectionRefusedError:
+            pass
+
 
 class JadeAPI:
     """
@@ -431,7 +458,8 @@ class JadeAPI:
         """
         return self._jadeRpc('logout')
 
-    def ota_update(self, fwcmp, fwlen, chunksize, fwhash=None, patchlen=None, cb=None):
+    def ota_update(self, fwcmp, fwlen, chunksize, fwhash=None, patchlen=None, cb=None,
+                   gcov_dump=False):
         """
         RPC call to attempt to update the unit's firmware.
 
@@ -507,6 +535,9 @@ class JadeAPI:
             if (cb):
                 cb(written, cmplen)
 
+        if gcov_dump:
+            self.run_remote_gcov_dump()
+
         # All binary data uploaded
         return self._jadeRpc('ota_complete')
 
@@ -522,6 +553,22 @@ class JadeAPI:
             ie. excluding any messaging overhead
         """
         return self._jadeRpc('debug_selfcheck', long_timeout=True)
+
+    def run_remote_gcov_dump(self):
+        """
+        RPC call to run in-built gcov-dump.
+        NOTE: Only available in a DEBUG build of the firmware.
+
+        Returns
+        -------
+        bool
+            Always True.
+        """
+        result = self._jadeRpc('debug_gcov_dump', long_timeout=True)
+        time.sleep(0.5)
+        generate_dump()
+        time.sleep(2)
+        return result
 
     def capture_image_data(self, check_qr=False):
         """
@@ -951,6 +998,42 @@ class JadeAPI:
         params = {'multisig_file': multisig_file}
         return self._jadeRpc('register_multisig', params)
 
+    def get_registered_descriptors(self):
+        """
+        RPC call to fetch brief summaries of any descriptor wallets registered to this signer.
+
+        Returns
+        -------
+        dict
+            Brief description of registered descriptor, keyed by registration name.
+            Each entry contains keys:
+                descriptor_len - int, length of descriptor output script
+                num_datavalues - int, total number of substitution placeholders passed with script
+                master_blinding_key - 32-bytes, any liquid master blinding key for this wallet
+        """
+        return self._jadeRpc('get_registered_descriptors')
+
+    def get_registered_descriptor(self, descriptor_name):
+        """
+        RPC call to fetch details of a named descriptor wallet registered to this signer.
+
+        Parameters
+        ----------
+        descriptor_name : string
+            Name of descriptor registration record to return.
+
+        Returns
+        -------
+        dict
+            Description of registered descriptor wallet identified by registration name.
+            Contains keys:
+                descriptor_name - str, name of descritpor registration
+                descriptor - str, descriptor output script, may contain substitution placeholders
+                datavalues - dict containing placeholders for substitution into script
+        """
+        params = {'descriptor_name': descriptor_name}
+        return self._jadeRpc('get_registered_descriptor', params)
+
     def register_descriptor(self, network, descriptor_name, descriptor_script, datavalues=None):
         """
         RPC call to register a new descriptor wallet, which must contain the hw signer.
@@ -959,7 +1042,7 @@ class JadeAPI:
         Parameters
         ----------
         network : string
-            Network to which the multisig should apply - eg. 'mainnet', 'liquid', 'testnet', etc.
+            Network to which the descriptor should apply - eg. 'mainnet', 'liquid', 'testnet', etc.
 
         descriptor_name : string
             Name to use to identify this descriptor wallet registration record.
@@ -1220,6 +1303,35 @@ class JadeAPI:
         """
         params = {'identity': identity, 'curve': curve, 'index': index, 'challenge': challenge}
         return self._jadeRpc('sign_identity', params)
+
+    def sign_attestation(self, challenge):
+        """
+        RPC call to sign passed challenge with embedded hw RSA-4096 key, such that the caller
+        can check the authenticity of the hardware unit.  eg. whether it is a genuine
+        Blockstream production Jade unit.
+        Caller must have the public key of the external verifying authority they wish to validate
+        against (eg. Blockstream's Jade verification public key).
+        NOTE: only supported by ESP32S3-based hardware units.
+
+        Parameters
+        ----------
+        challenge : bytes
+            Challenge bytes to sign
+
+        Returns
+        -------
+        dict
+            Contains keys:
+            signature - 512-bytes, hardware RSA signature of the SHA256 hash of the passed
+                        challenge bytes.
+            pubkey_pem - str, PEM export of RSA pubkey of the hardware unit, to verify the returned
+            RSA signature.
+            ext_signature - bytes, RSA signature of the verifying authority over the returned
+            pubkey_pem data.
+            (Caller can verify this signature with the public key of the verifying authority.)
+        """
+        params = {'challenge': challenge}
+        return self._jadeRpc('sign_attestation', params)
 
     def get_master_blinding_key(self, only_if_silent=False):
         """

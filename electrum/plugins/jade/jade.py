@@ -26,14 +26,15 @@ _logger = get_logger(__name__)
 #import logging
 #LOGGING = logging.INFO
 #if LOGGING:
-#    logger = logging.getLogger('jade')
+#    logger = logging.getLogger('electrum.plugins.jade.jadepy.jade')
 #    logger.setLevel(LOGGING)
-#    device_logger = logging.getLogger('jade-device')
+#    device_logger = logging.getLogger('electrum.plugins.jade.jadepy.jade-device')
 #    device_logger.setLevel(LOGGING)
 
 try:
     # Do imports
     from .jadepy.jade import JadeAPI
+    from .jadepy.jade_serial import JadeSerialImpl
     from serial.tools import list_ports
 except ImportError as e:
     _logger.exception('error importing Jade plugin deps')
@@ -352,12 +353,9 @@ class Jade_KeyStore(Hardware_KeyStore):
 class JadePlugin(HW_PluginBase):
     keystore_class = Jade_KeyStore
     minimum_library = (0, 0, 1)
-    DEVICE_IDS = [(0x10c4, 0xea60), # Development Jade device
-                  (0x1a86, 0x55d4), # Retail Blockstream Jade (And some DIY devices)
-                  (0x0403, 0x6001), # DIY FTDI Based Devices (Eg: M5StickC-Plus)
-                  (0x1a86, 0x7523)] # DIY CH340 Based devices (Eg: ESP32-Wrover)
+    DEVICE_IDS = JadeSerialImpl.JADE_DEVICE_IDS
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    MIN_SUPPORTED_FW_VERSION = (0, 1, 32)
+    MIN_SUPPORTED_FW_VERSION = (0, 1, 47)
 
     # For testing with qemu simulator (experimental)
     SIMULATOR_PATH = None  # 'tcp:127.0.0.1:2222'
