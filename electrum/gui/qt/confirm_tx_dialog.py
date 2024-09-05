@@ -27,10 +27,10 @@ from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union, Callable
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit, QToolButton, QMenu
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit, QToolButton, QMenu
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -151,18 +151,18 @@ class TxEditor(WindowModalDialog):
     def create_fee_controls(self):
 
         self.fee_label = QLabel('')
-        self.fee_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.fee_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.size_label = TxSizeLabel()
-        self.size_label.setAlignment(Qt.AlignCenter)
+        self.size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.size_label.setAmount(0)
         self.size_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_label = QLabel('')
-        self.feerate_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.feerate_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         self.fiat_fee_label = TxFiatLabel()
-        self.fiat_fee_label.setAlignment(Qt.AlignCenter)
+        self.fiat_fee_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fiat_fee_label.setAmount(0)
         self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
@@ -185,7 +185,7 @@ class TxEditor(WindowModalDialog):
         self.fee_target = QLabel('')
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
         self.fee_combo = FeeComboBox(self.fee_slider)
-        self.fee_combo.setFocusPolicy(Qt.NoFocus)
+        self.fee_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         def feerounding_onclick():
             text = (self.feerounding_text() + '\n\n' +
@@ -417,8 +417,8 @@ class TxEditor(WindowModalDialog):
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
-        self.pref_button.setPopupMode(QToolButton.InstantPopup)
-        self.pref_button.setFocusPolicy(Qt.NoFocus)
+        self.pref_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.pref_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(text))
         hbox.addStretch()
@@ -504,7 +504,7 @@ class TxEditor(WindowModalDialog):
             w.setVisible(b)
 
     def run(self):
-        cancelled = not self.exec_()
+        cancelled = not self.exec()
         self.stop_editor_updates()
         self.deleteLater()  # see #3956
         return self.tx if not cancelled else None
@@ -681,7 +681,7 @@ class ConfirmTxDialog(TxEditor):
         msg = (_('The amount to be received by the recipient.') + ' '
                + _('Fees are paid by the sender.'))
         self.amount_label = QLabel('')
-        self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.amount_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         grid.addWidget(HelpLabel(_("Amount to be sent") + ": ", msg), 0, 0)
         grid.addWidget(self.amount_label, 0, 1)
@@ -702,7 +702,7 @@ class ConfirmTxDialog(TxEditor):
         self.extra_fee_label = QLabel(_("Additional fees") + ": ")
         self.extra_fee_label.setVisible(False)
         self.extra_fee_value = QLabel('')
-        self.extra_fee_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.extra_fee_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.extra_fee_value.setVisible(False)
         grid.addWidget(self.extra_fee_label, 5, 0)
         grid.addWidget(self.extra_fee_value, 5, 1)

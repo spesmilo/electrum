@@ -7,7 +7,7 @@ import threading
 import time
 import weakref
 
-from PyQt5.QtCore import QObject, QTimer
+from PyQt6.QtCore import QObject, QTimer
 
 from electrum.logging import Logger, get_logger
 

@@ -60,6 +60,7 @@ RUN apt-get update -q && \
         libxcb-util0 \
         #libxcb-util1 \
         libxcb-render-util0 \
+        libxcb-cursor0 \
         libx11-xcb1 \
         libc6-dev \
         libc6 \

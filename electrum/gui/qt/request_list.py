@@ -26,9 +26,9 @@
 import enum
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu, QAbstractItemView
-from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
+from PyQt6.QtGui import QStandardItemModel, QStandardItem
+from PyQt6.QtWidgets import QMenu, QAbstractItemView
+from PyQt6.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum.i18n import _
 from electrum.util import format_time
@@ -43,9 +43,9 @@ if TYPE_CHECKING:
     from .receive_tab import ReceiveTab
 
 
-ROLE_REQUEST_TYPE = Qt.UserRole
-ROLE_KEY = Qt.UserRole + 1
-ROLE_SORT_ORDER = Qt.UserRole + 2
+ROLE_REQUEST_TYPE = Qt.ItemDataRole.UserRole
+ROLE_KEY = Qt.ItemDataRole.UserRole + 1
+ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 2
 
 
 class RequestList(MyTreeView):
@@ -86,14 +86,15 @@ class RequestList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     def set_current_key(self, key):
         for i in range(self.model().rowCount()):
             item = self.model().index(i, self.Columns.DATE)
             row_key = item.data(ROLE_KEY)
             if key == row_key:
-                self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
+                self.selectionModel().setCurrentIndex(
+                    item, QItemSelectionModel.SelectionFlag.SelectCurrent | QItemSelectionModel.SelectionFlag.Rows)
                 break
 
     def get_current_key(self):
@@ -164,7 +165,7 @@ class RequestList(MyTreeView):
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         # sort requests by date
-        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
+        self.sortByColumn(self.Columns.DATE, Qt.SortOrder.DescendingOrder)
         self.hide_if_empty()
         if current_key is not None:
             self.set_current_key(current_key)
@@ -183,7 +184,7 @@ class RequestList(MyTreeView):
             keys = [item.data(ROLE_KEY)  for item in items]
             menu = QMenu(self)
             menu.addAction(_("Delete requests"), lambda: self.delete_requests(keys))
-            menu.exec_(self.viewport().mapToGlobal(position))
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
         # TODO use siblingAtColumn when min Qt version is >=5.11
@@ -207,7 +208,7 @@ class RequestList(MyTreeView):
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
         run_hook('receive_list_menu', self.main_window, menu, key)
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):
         self.wallet.delete_requests(keys)

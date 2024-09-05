@@ -25,9 +25,9 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
                              QScrollArea, QWidget, QPushButton)
 
@@ -124,7 +124,7 @@ class SeedLayout(QVBoxLayout):
             vbox.addWidget(seed_type_choice)
 
         vbox.addLayout(Buttons(OkButton(dialog)))
-        if not dialog.exec_():
+        if not dialog.exec():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.seed_type = seed_type_choice.selected_key if len(seed_types) >= 2 else 'electrum'
@@ -172,7 +172,7 @@ class SeedLayout(QVBoxLayout):
         if icon:
             logo = QLabel()
             logo.setPixmap(QPixmap(icon_path("seed.png"))
-                           .scaledToWidth(64, mode=Qt.SmoothTransformation))
+                           .scaledToWidth(64, mode=Qt.TransformationMode.SmoothTransformation))
             logo.setMaximumWidth(60)
             hbox.addWidget(logo)
         hbox.addWidget(self.seed_e)

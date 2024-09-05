@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Electron Cash - lightweight Bitcoin client
 # Copyright (C) 2019 Axel Gembe <derago@gmail.com>
+# Copyright (c) 2024 The Electrum developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -26,7 +26,7 @@
 from typing import Mapping
 
 from .camera_dialog import (QrReaderCameraDialog, CameraError, NoCamerasFound,
-                            NoCameraResolutionsFound)
+                            get_camera_path)
 from .validator import (QrReaderValidatorResult, AbstractQrReaderValidator,
                         QrReaderValidatorCounting, QrReaderValidatorColorizing,
                         QrReaderValidatorStrong, QrReaderValidatorCounted)
@@ -34,6 +34,6 @@ from .validator import (QrReaderValidatorResult, AbstractQrReaderValidator,
 
 def find_system_cameras() -> Mapping[str, str]:
     """Returns a camera_description -> camera_path map."""
-    from PyQt5.QtMultimedia import QCameraInfo
-    system_cameras = QCameraInfo.availableCameras()
-    return {cam.description(): cam.deviceName() for cam in system_cameras}
+    from PyQt6.QtMultimedia import QMediaDevices
+    system_cameras = QMediaDevices.videoInputs()
+    return {cam.description(): get_camera_path(cam) for cam in system_cameras}

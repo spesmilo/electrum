@@ -4,10 +4,11 @@
 
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Union, Mapping
-from PyQt5.QtCore import pyqtSignal, QPoint, QSize, Qt
-from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
+
+from PyQt6.QtCore import pyqtSignal, QPoint, QSize, Qt
+from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
-from PyQt5.QtGui import QMovie, QColor
+from PyQt6.QtGui import QMovie, QColor
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -131,7 +132,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.paste_button.setIcon(read_QIcon('copy.png'))
         self.paste_button.setToolTip(_('Paste invoice from clipboard'))
         self.paste_button.setMaximumWidth(35)
-        self.paste_button.setFocusPolicy(Qt.NoFocus)
+        self.paste_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         grid.addWidget(self.paste_button, 0, 5)
 
         self.spinner = QMovie(icon_path('spinner.gif'))
@@ -141,7 +142,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.spinner_l.setMargin(5)
         self.spinner_l.setVisible(False)
         self.spinner_l.setMovie(self.spinner)
-        grid.addWidget(self.spinner_l, 0, 1, 1, 4, Qt.AlignRight)
+        grid.addWidget(self.spinner_l, 0, 1, 1, 4, Qt.AlignmentFlag.AlignRight)
 
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
         self.save_button.setEnabled(False)

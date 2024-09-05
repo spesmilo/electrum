@@ -33,10 +33,10 @@ import threading
 import enum
 from decimal import Decimal
 
-from PyQt5.QtGui import QFont, QBrush, QColor
-from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
+from PyQt6.QtGui import QFont, QBrush, QColor
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
-from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
+from PyQt6.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
                              QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
@@ -77,7 +77,7 @@ TX_ICONS = [
 ]
 
 
-ROLE_SORT_ORDER = Qt.UserRole + 1000
+ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 1000
 
 
 class HistorySortModel(QSortFilterProxyModel):
@@ -155,11 +155,11 @@ class HistoryNode(CustomNode):
             return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
             return QVariant(get_item_key(tx_item))
-        if role not in (Qt.DisplayRole, Qt.EditRole, MyTreeView.ROLE_CLIPBOARD_DATA):
-            if col == HistoryColumns.STATUS and role == Qt.DecorationRole:
+        if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, MyTreeView.ROLE_CLIPBOARD_DATA):
+            if col == HistoryColumns.STATUS and role == Qt.ItemDataRole.DecorationRole:
                 icon = "lightning" if is_lightning else TX_ICONS[status]
                 return QVariant(read_QIcon(icon))
-            elif col == HistoryColumns.STATUS and role == Qt.ToolTipRole:
+            elif col == HistoryColumns.STATUS and role == Qt.ItemDataRole.ToolTipRole:
                 if is_lightning:
                     msg = 'lightning transaction'
                 else:  # on-chain
@@ -171,19 +171,19 @@ class HistoryNode(CustomNode):
                     else:
                         msg = str(conf) + _(" confirmation" + ("s" if conf != 1 else ""))
                 return QVariant(msg)
-            elif col > HistoryColumns.DESCRIPTION and role == Qt.TextAlignmentRole:
-                return QVariant(int(Qt.AlignRight | Qt.AlignVCenter))
-            elif col > HistoryColumns.DESCRIPTION and role == Qt.FontRole:
+            elif col > HistoryColumns.DESCRIPTION and role == Qt.ItemDataRole.TextAlignmentRole:
+                return QVariant(int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter))
+            elif col > HistoryColumns.DESCRIPTION and role == Qt.ItemDataRole.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
-            #elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
+            #elif col == HistoryColumns.DESCRIPTION and role == Qt.ItemDataRole.DecorationRole and not is_lightning\
             #        and self.parent.wallet.invoices.paid.get(tx_hash):
             #    return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
-                    and role == Qt.ForegroundRole and tx_item['value'].value < 0:
+                    and role == Qt.ItemDataRole.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
-            elif col == HistoryColumns.FIAT_VALUE and role == Qt.ForegroundRole \
+            elif col == HistoryColumns.FIAT_VALUE and role == Qt.ItemDataRole.ForegroundRole \
                     and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
                 blue_brush = QBrush(QColor("#1E1EFF"))
                 return QVariant(blue_brush)
@@ -247,7 +247,7 @@ class HistoryModel(CustomModel, Logger):
         tx_item = index.internalPointer().get_data()
         tx_item['label'] = self.window.wallet.get_label_for_txid(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
-        self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
+        self.dataChanged.emit(topLeft, bottomRight, [Qt.ItemDataRole.DisplayRole])
         self.window.utxo_list.update()
 
     def get_domain(self):
@@ -319,7 +319,9 @@ class HistoryModel(CustomModel, Logger):
         self.endInsertRows()
 
         if selected_row:
-            self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
+            self.view.selectionModel().select(
+                self.createIndex(selected_row, 0),
+                QItemSelectionModel.SelectionFlag.Rows | QItemSelectionModel.SelectionFlag.SelectCurrent)
         self.view.filter()
         # update time filter
         if not self.view.years and self.transactions:
@@ -362,7 +364,7 @@ class HistoryModel(CustomModel, Logger):
         fiat_fields = self.window.wallet.get_tx_item_fiat(
             tx_hash=txid, amount_sat=value, fx=self.window.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
-        self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
+        self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ForegroundRole])
 
     def update_tx_mined_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
         try:
@@ -392,8 +394,8 @@ class HistoryModel(CustomModel, Logger):
             self.update_tx_mined_status(tx_hash, tx_mined_info)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
-        assert orientation == Qt.Horizontal
-        if role != Qt.DisplayRole:
+        assert orientation == Qt.Orientation.Horizontal
+        if role != Qt.ItemDataRole.DisplayRole:
             return None
         fx = self.window.fx
         fiat_title = 'n/a fiat value'
@@ -415,11 +417,11 @@ class HistoryModel(CustomModel, Logger):
             HistoryColumns.SHORT_ID: 'Short ID',
         }[section]
 
-    def flags(self, idx: QModelIndex) -> int:
-        extra_flags = Qt.NoItemFlags  # type: Qt.ItemFlag
+    def flags(self, idx: QModelIndex) -> Qt.ItemFlag:
+        extra_flags = Qt.ItemFlag.NoItemFlags  # type: Qt.ItemFlag
         if idx.column() in self.view.editable_columns:
-            extra_flags |= Qt.ItemIsEditable
-        return super().flags(idx) | int(extra_flags)
+            extra_flags |= Qt.ItemFlag.ItemIsEditable
+        return super().flags(idx) | extra_flags
 
     @staticmethod
     def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
@@ -493,11 +495,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.period_combo.addItems([_('All'), _('Custom')])
         self.period_combo.activated.connect(self.on_combo)
         self.wallet = self.main_window.wallet  # type: Abstract_Wallet
-        self.sortByColumn(HistoryColumns.STATUS, Qt.AscendingOrder)
+        self.sortByColumn(HistoryColumns.STATUS, Qt.SortOrder.AscendingOrder)
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
         for col in HistoryColumns:
-            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
+            sm = QHeaderView.ResizeMode.Stretch if col == self.stretch_column else QHeaderView.ResizeMode.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
         if self.config:
             self.configvar_show_toolbar = self.config.cv.GUI_QT_HISTORY_TAB_SHOW_TOOLBAR
@@ -580,7 +582,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         vbox.addWidget(cal)
         vbox.addLayout(Buttons(OkButton(d), CancelButton(d)))
         d.setLayout(vbox)
-        if d.exec_():
+        if d.exec():
             if d.date is None:
                 return None
             date = d.date.toPyDate()
@@ -658,7 +660,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         vbox.addLayout(grid2)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
-        d.exec_()
+        d.exec()
 
     def plot_history_dialog(self):
         try:
@@ -711,11 +713,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         for column in HistoryColumns:
             if self.isColumnHidden(column):
                 continue
-            column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
+            column_title = self.hm.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
             clipboard_data = self.hm.data(idx2, self.ROLE_CLIPBOARD_DATA).value()
             if clipboard_data is None:
-                clipboard_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
+                clipboard_data = (self.hm.data(idx2, Qt.ItemDataRole.DisplayRole).value() or '').strip()
             cc.addAction(
                 column_title,
                 lambda text=clipboard_data, title=column_title:
@@ -739,7 +741,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             log = self.wallet.lnworker.logs.get(key)
             if log:
                 menu.addAction(_("View log"), lambda: self.main_window.send_tab.invoice_list.show_log(key, log))
-            menu.exec_(self.viewport().mapToGlobal(position))
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
         tx = self.wallet.adb.get_transaction(tx_hash)
@@ -757,7 +759,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
-            label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
+            label = self.hm.headerData(c, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
@@ -781,7 +783,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 menu_invs.addAction(_("View invoice"), lambda inv=inv: self.main_window.show_onchain_invoice(inv))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, tx_hash: str):
         num_child_txs = len(self.wallet.adb.get_depending_transactions(tx_hash))
@@ -821,7 +823,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         vbox.addLayout(hbox)
         #run_hook('export_history_dialog', self, hbox)
         self.update()
-        if not d.exec_():
+        if not d.exec():
             return
         filename = filename_e.text()
         if not filename:
@@ -867,7 +869,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 f.write(json_encode(txns))
 
     def get_text_from_coordinate(self, row, col):
-        return self.get_role_data_from_coordinate(row, col, role=Qt.DisplayRole)
+        return self.get_role_data_from_coordinate(row, col, role=Qt.ItemDataRole.DisplayRole)
 
     def get_role_data_from_coordinate(self, row, col, *, role):
         idx = self.model().mapToSource(self.model().index(row, col))

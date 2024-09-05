@@ -26,8 +26,8 @@
 import ast
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QWidget, QHBoxLayout, QSlider)
@@ -122,7 +122,7 @@ class SettingsDialog(QDialog, QtEventListener):
                         _("Without this option, Electrum will need to sync with the Lightning network on every start."),
                         _("This may impact the reliability of your payments."),
                 ])):
-                    trampoline_cb.setCheckState(Qt.Checked)
+                    trampoline_cb.setCheckState(Qt.CheckState.Checked)
                     return
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
             if not use_trampoline:
@@ -167,7 +167,7 @@ class SettingsDialog(QDialog, QtEventListener):
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
-        lnfee_slider = QSlider(Qt.Horizontal)
+        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
         lnfee_slider.setRange(0, len(lnfee_map)-1)
         lnfee_slider.setTracking(True)
         try:
@@ -195,7 +195,7 @@ class SettingsDialog(QDialog, QtEventListener):
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
         def on_msat_checked(v):
-            prec = 3 if v == Qt.Checked else 0
+            prec = 3 if v == Qt.CheckState.Checked else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.BTC_AMOUNTS_PREC_POST_SAT = prec
@@ -225,7 +225,7 @@ class SettingsDialog(QDialog, QtEventListener):
         thousandsep_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         def on_set_thousandsep(v):
-            checked = v == Qt.Checked
+            checked = v == Qt.CheckState.Checked
             if self.config.amt_add_thousands_sep != checked:
                 self.config.amt_add_thousands_sep = checked
                 self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP = checked
@@ -259,13 +259,13 @@ class SettingsDialog(QDialog, QtEventListener):
         updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         def on_set_updatecheck(v):
-            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = (v == Qt.Checked)
+            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = (v == Qt.CheckState.Checked)
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
         filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
         filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
         def on_set_filelogging(v):
-            self.config.WRITE_LOGS_TO_DISK = (v == Qt.Checked)
+            self.config.WRITE_LOGS_TO_DISK = (v == Qt.CheckState.Checked)
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
 

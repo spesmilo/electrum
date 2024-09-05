@@ -5,8 +5,8 @@
 import os
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QPushButton, QWidget, QStackedWidget)
 
 from electrum.plugin import run_hook
@@ -140,7 +140,7 @@ class WalletInfoDialog(WindowModalDialog):
                 der_path_hbox.setContentsMargins(0, 0, 0, 0)
                 der_path_hbox.addWidget(WWLabel(_("Derivation path") + ':'))
                 der_path_text = WWLabel(ks.get_derivation_prefix() or _("unknown"))
-                der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                der_path_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 der_path_hbox.addWidget(der_path_text)
                 der_path_hbox.addStretch()
                 ks_vbox.addLayout(der_path_hbox)
@@ -149,7 +149,7 @@ class WalletInfoDialog(WindowModalDialog):
                 bip32fp_hbox.setContentsMargins(0, 0, 0, 0)
                 bip32fp_hbox.addWidget(QLabel("BIP32 root fingerprint:"))
                 bip32fp_text = WWLabel(ks.get_root_fingerprint() or _("unknown"))
-                bip32fp_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                bip32fp_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 bip32fp_hbox.addWidget(bip32fp_text)
                 bip32fp_hbox.addStretch()
                 ks_vbox.addLayout(bip32fp_hbox)

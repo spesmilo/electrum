@@ -1,7 +1,7 @@
 import copy
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
                              QWidget, QHBoxLayout, QComboBox)
 
 from btchip.btchip import BTChipException

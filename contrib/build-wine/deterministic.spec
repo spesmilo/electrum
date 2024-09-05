@@ -22,7 +22,7 @@ hiddenimports += collect_submodules(f"{PYPKG}.plugins")
 
 binaries = []
 # Workaround for "Retro Look":
-binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
+binaries += [b for b in collect_dynamic_libs('PyQt6') if 'qwindowsvista' in b[0]]
 # add libsecp256k1, libusb, etc:
 binaries += [(f"{PROJECT_ROOT}/{PYPKG}/*.dll", '.')]
 
@@ -69,8 +69,19 @@ for d in a.datas:
         break
 
 # Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
-qt_bins2remove=('qt5web', 'qt53d', 'qt5game', 'qt5designer', 'qt5quick',
-                'qt5location', 'qt5test', 'qt5xml', r'pyqt5\qt\qml\qtquick')
+qt_bins2remove=(
+    r'pyqt6\qt6\qml',
+    r'pyqt6\qt6\bin\qt6quick',
+    r'pyqt6\qt6\bin\qt6qml',
+    r'pyqt6\qt6\bin\qt6multimediaquick',
+    r'pyqt6\qt6\bin\qt6pdfquick',
+    r'pyqt6\qt6\bin\qt6positioning',
+    r'pyqt6\qt6\bin\qt6spatialaudio',
+    r'pyqt6\qt6\bin\qt6shadertools',
+    r'pyqt6\qt6\bin\qt6sensors',
+    r'pyqt6\qt6\bin\qt6web',
+    r'pyqt6\qt6\bin\qt6test',
+)
 print("Removing Qt binaries:", *qt_bins2remove)
 for x in a.binaries.copy():
     for r in qt_bins2remove:
@@ -78,7 +89,10 @@ for x in a.binaries.copy():
             a.binaries.remove(x)
             print('----> Removed x =', x)
 
-qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales',)
+qt_data2remove=(
+    r'pyqt6\qt6\translations\qtwebengine_locales',
+    r'pyqt6\qt6\qml',
+)
 print("Removing Qt datas:", *qt_data2remove)
 for x in a.datas.copy():
     for r in qt_data2remove:

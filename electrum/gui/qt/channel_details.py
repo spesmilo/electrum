@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING, Sequence
 
-import PyQt5.QtGui as QtGui
-import PyQt5.QtWidgets as QtWidgets
-import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
+import PyQt6.QtGui as QtGui
+import PyQt6.QtWidgets as QtWidgets
+import PyQt6.QtCore as QtCore
+from PyQt6.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
 
 from electrum.util import EventListener, ShortID
 from electrum.i18n import _
@@ -28,7 +28,7 @@ class HTLCItem(QtGui.QStandardItem):
 class SelectableLabel(QtWidgets.QLabel):
     def __init__(self, text=''):
         super().__init__(text)
-        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
 
 class LinkedLabel(QtWidgets.QLabel):
     def __init__(self, text, on_clicked):
@@ -269,7 +269,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
             for htlc_with_status in plist:
                 htlc_list.append(htlc_with_status)
         w.setModel(self.make_model(htlc_list))
-        w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         return w
 
     def closeEvent(self, event):

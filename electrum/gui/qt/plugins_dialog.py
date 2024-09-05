@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout, QScrollArea, QCheckBox
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout, QScrollArea, QCheckBox
 
 from electrum.i18n import _
 from electrum.gui import messages

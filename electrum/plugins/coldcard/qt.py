@@ -1,8 +1,8 @@
 from functools import partial
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
 from electrum.gui.qt.util import WindowModalDialog, CloseButton, getOpenFileName, getSaveFileName
 from electrum.gui.qt.main_window import ElectrumWindow
@@ -81,7 +81,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
         # - doesn't matter if device not connected, continue
-        CKCCSettingsDialog(window, self, keystore).exec_()
+        CKCCSettingsDialog(window, self, keystore).exec()
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
@@ -143,9 +143,9 @@ class CKCCSettingsDialog(WindowModalDialog):
 <span style="font-size: x-large">Coldcard Wallet</span>
 <br><span style="font-size: medium">from Coinkite Inc.</span>
 <br><a href="https://coldcardwallet.com">coldcardwallet.com</a>''')
-        title.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        title.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
 
-        grid.addWidget(title, 0,0, 1,2, Qt.AlignHCenter)
+        grid.addWidget(title, 0,0, 1,2, Qt.AlignmentFlag.AlignHCenter)
         y = 3
 
         rows = [
@@ -158,10 +158,10 @@ class CKCCSettingsDialog(WindowModalDialog):
         for row_num, (member_name, label) in enumerate(rows):
             # XXX we know xfp already, even if not connected
             widget = QLabel('<tt>000000000000')
-            widget.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
+            widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
-            grid.addWidget(QLabel(label), y, 0, 1,1, Qt.AlignRight)
-            grid.addWidget(widget, y, 1, 1, 1, Qt.AlignLeft)
+            grid.addWidget(QLabel(label), y, 0, 1,1, Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(widget, y, 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
             setattr(self, member_name, widget)
             y += 1
         body_layout.addLayout(grid)

@@ -6,7 +6,7 @@ import sys
 import platform
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
+from PyQt6.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
 
 from electrum.plugin import BasePlugin, hook
 from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
@@ -72,7 +72,7 @@ class Plugin(BasePlugin):
         ok_button.clicked.connect(d.accept)
         layout.addWidget(ok_button, 1, 1)
 
-        return bool(d.exec_())
+        return bool(d.exec())
 
     @hook
     def transaction_dialog(self, dialog: 'TxDialog'):

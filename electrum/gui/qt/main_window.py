@@ -37,15 +37,15 @@ import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping
 import concurrent.futures
 
-from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics
-from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
-from PyQt5.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
+from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
+from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt6.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
                              QMenuBar, QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
-                             QShortcut, QMainWindow, QInputDialog,
+                             QMainWindow, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip,
-                             QMenu, QAction, QToolButton)
+                             QMenu, QToolButton)
 
 import electrum
 from electrum.gui import messages
@@ -113,21 +113,21 @@ class StatusBarButton(QToolButton):
         self.setText('')
         self.setIcon(icon)
         self.setToolTip(tooltip)
-        self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.setAutoRaise(True)
         size = max(25, round(0.9 * sb_height))
         self.setMaximumWidth(size)
         self.clicked.connect(self.onPress)
         self.func = func
         self.setIconSize(QSize(size, size))
-        self.setCursor(QCursor(Qt.PointingHandCursor))
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
     def onPress(self, checked=False):
-        '''Drops the unwanted PyQt5 "checked" argument'''
+        '''Drops the unwanted PyQt "checked" argument'''
         self.func()
 
     def keyPressEvent(self, e):
-        if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
+        if e.key() in [Qt.Key.Key_Return, Qt.Key.Key_Enter]:
             self.func()
 
 
@@ -229,7 +229,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"))
         add_optional_tab(tabs, self.notes_tab, read_QIcon("pen.png"), _("&Notes"))
 
-        tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         central_widget = QScrollArea()
         vbox = QVBoxLayout(central_widget)
@@ -596,7 +596,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         cb_checked = False
         def on_cb(x):
             nonlocal cb_checked
-            cb_checked = x == Qt.Checked
+            cb_checked = x == Qt.CheckState.Checked
         cb.stateChanged.connect(on_cb)
         self.show_warning(msg, title=_('Testnet'), checkbox=cb)
         if cb_checked:
@@ -641,7 +641,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         vbox.addLayout(grid)
         vbox.addWidget(WWLabel(msg))
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_():
+        if not d.exec():
             return False
         backup_dir = self.config.get_backup_dir()
         if backup_dir is None:
@@ -700,9 +700,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
-        file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
-        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save backup"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.StandardKey.Open)
+        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.StandardKey.New)
+        file_menu.addAction(_("&Save backup"), self.backup_wallet).setShortcut(QKeySequence.StandardKey.SaveAs)
         file_menu.addAction(_("Delete"), self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
@@ -747,7 +747,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # preferences_action will get picked up based on name (and put into a standardized location,
             # and given a standard reserved hotkey)
             # Hence, this menu item will be at a "uniform location re macOS processes"
-            preferences_action.setMenuRole(QAction.PreferencesRole)  # make sure OS recognizes it as preferences
+            preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)  # make sure OS recognizes it as preferences
             # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
@@ -773,7 +773,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         help_menu.addAction(_("&Check for updates"), self.show_update_check)
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.StandardKey.HelpContents)
         if not constants.net.TESTNET:
             help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
@@ -861,11 +861,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def notify(self, message):
         if self.tray:
-            try:
-                # this requires Qt 5.9
-                self.tray.showMessage("Electrum", message, read_QIcon("electrum_dark_icon"), 20000)
-            except TypeError:
-                self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
+            self.tray.showMessage("Electrum", message, read_QIcon("electrum_dark_icon"), 20000)
 
     def timer_actions(self):
         # refresh invoices and requests because they show ETA
@@ -1088,12 +1084,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def show_address(self, addr: str, *, parent: QWidget = None):
         from . import address_dialog
         d = address_dialog.AddressDialog(self, addr, parent=parent)
-        d.exec_()
+        d.exec()
 
     def show_utxo(self, utxo):
         from . import utxo_dialog
         d = utxo_dialog.UTXODialog(self, utxo)
-        d.exec_()
+        d.exec()
 
     def show_channel_details(self, chan):
         from .channel_details import ChannelDetailsDialog
@@ -1508,7 +1504,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             buttons = Buttons(CloseButton(d))
         vbox.addLayout(grid)
         vbox.addLayout(buttons)
-        d.exec_()
+        d.exec()
 
     def show_lightning_invoice(self, invoice: Invoice):
         from electrum.util import format_short_id
@@ -1554,7 +1550,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(routing_e, 9, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d),))
-        d.exec_()
+        d.exec()
 
     def create_console_tab(self):
         from .console import Console
@@ -1563,10 +1559,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         return console
 
     def create_notes_tab(self):
-        from PyQt5 import QtGui, QtWidgets
+        from PyQt6 import QtGui, QtWidgets
         notes_tab = QtWidgets.QPlainTextEdit()
-        notes_tab.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
-        notes_tab.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        notes_tab.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAnywhere)
+        notes_tab.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Weight.Normal))
         notes_tab.setPlainText(self.wallet.db.get('notes_text', ''))
         notes_tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_NOTES
         notes_tab.textChanged.connect(self.maybe_save_notes_text)
@@ -1646,7 +1642,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         self.update_check_button = QPushButton("")
         self.update_check_button.setFlat(True)
-        self.update_check_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.update_check_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.update_check_button.setIcon(read_QIcon("update.png"))
         self.update_check_button.hide()
         sb.addPermanentWidget(self.update_check_button)
@@ -1694,8 +1690,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                          + ColorScheme.GREEN.as_stylesheet(True))
 
         self.coincontrol_label = QLabel()
-        self.coincontrol_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        self.coincontrol_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.coincontrol_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.coincontrol_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
         clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.clear_coincontrol())
@@ -1830,7 +1826,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(line2, 2, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if d.exec_():
+        if d.exec():
             self.set_contact(line2.text(), line1.text())
 
     def init_lightning_dialog(self, dialog):
@@ -1857,7 +1853,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def show_wallet_info(self):
         from .wallet_info_dialog import WalletInfoDialog
         d = WalletInfoDialog(self, window=self)
-        d.exec_()
+        d.exec()
 
     def remove_wallet(self):
         if self.question('\n'.join([
@@ -1891,7 +1887,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         from .seed_dialog import SeedDialog
         d = SeedDialog(self, seed, passphrase, config=self.config)
-        d.exec_()
+        d.exec()
 
     def show_qrcode(self, data, title=None, parent=None, *,
                     help_text=None, show_copy_text_btn=False):
@@ -1907,7 +1903,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             show_copy_text_btn=show_copy_text_btn,
             config=self.config,
         )
-        d.exec_()
+        d.exec()
 
     @protected
     def show_private_key(self, address, password):
@@ -1931,7 +1927,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         vbox.addWidget(keys_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
-        d.exec_()
+        d.exec()
 
     msg_sign = _("Signing with an address actually means signing with the corresponding "
                 "private key, and verifying with the corresponding public key. The "
@@ -2021,7 +2017,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         b.clicked.connect(d.accept)
         hbox.addWidget(b)
         layout.addLayout(hbox, 4, 1)
-        d.exec_()
+        d.exec()
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
@@ -2092,7 +2088,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         hbox.addWidget(b)
 
         layout.addLayout(hbox, 4, 1)
-        d.exec_()
+        d.exec()
 
     def password_dialog(self, msg=None, parent=None):
         from .password_dialog import PasswordDialog
@@ -2303,7 +2299,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.finished.connect(on_dialog_closed)
         threading.Thread(target=privkeys_thread).start()
 
-        if not d.exec_():
+        if not d.exec():
             done = True
             return
 
@@ -2373,7 +2369,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         vbox = QVBoxLayout(d)
         hbox_top = QHBoxLayout()
         hbox_top.addWidget(QLabel(_("Enter private keys to sweep coins from:")))
-        hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignmentFlag.AlignRight)
         vbox.addLayout(hbox_top)
         keys_e = ScanQRTextEdit(allow_multi=True, config=self.config)
         keys_e.setTabChangesFocus(True)
@@ -2417,7 +2413,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         address_e.textChanged.connect(on_edit)
         address_e.textChanged.connect(on_address)
         on_address(str(address_e.text()))
-        if not d.exec_():
+        if not d.exec():
             return
         # user pressed "sweep"
         addr = get_address()
@@ -2480,7 +2476,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         title = _('Import private keys')
         header_layout = QHBoxLayout()
         header_layout.addWidget(QLabel(_("Enter private keys")+':'))
-        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignmentFlag.AlignRight)
         self._do_import(title, header_layout, lambda x: self.wallet.import_private_keys(x, password))
 
     def refresh_amount_edits(self):
@@ -2502,7 +2498,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def settings_dialog(self):
         from .settings_dialog import SettingsDialog
         d = SettingsDialog(self, self.config)
-        d.exec_()
+        d.exec()
         if self.fx:
             self.fx.trigger_update()
         run_hook('close_settings_dialog')
@@ -2547,7 +2543,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def plugins_dialog(self):
         from .plugins_dialog import PluginsDialog
         d = PluginsDialog(self)
-        d.exec_()
+        d.exec()
 
     def cpfp_dialog(self, parent_tx: Transaction) -> None:
         new_tx = self.wallet.cpfp(parent_tx, 0)
@@ -2624,7 +2620,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(combined_feerate, 6, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_():
+        if not d.exec():
             return
         fee = fee_e.get_amount()
         if fee is None:

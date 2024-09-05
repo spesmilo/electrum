@@ -10,7 +10,7 @@ def get_qt_major_version() -> int:
     _GUI_QT_VERSION = getattr(sys, '_GUI_QT_VERSION', None)
     if _GUI_QT_VERSION is None:
         # used by pyinstaller when building (analysis phase)
-        _GUI_QT_VERSION = 5
+        _GUI_QT_VERSION = 6
     if _GUI_QT_VERSION in (5, 6):
         return _GUI_QT_VERSION
     raise Exception(f"unexpected {_GUI_QT_VERSION=}")

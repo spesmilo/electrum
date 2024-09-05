@@ -5,9 +5,9 @@ import threading
 
 from typing import TYPE_CHECKING, Optional
 
-from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal
-from PyQt5.QtGui import QPen, QPainter, QPalette, QPixmap
-from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
+from PyQt6.QtCore import Qt, QTimer, QRect, pyqtSignal
+from PyQt6.QtGui import QPen, QPainter, QPalette, QPixmap
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout, QDialog, QApplication)
 
 from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
@@ -203,7 +203,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         vbox = QVBoxLayout()
         vbox.addSpacing(100)
         label.setMinimumWidth(300)
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vbox.addWidget(label)
         vbox.addSpacing(100)
         dialog.setLayout(vbox)
@@ -281,10 +281,10 @@ class WCWalletName(WalletWizardComponent, Logger):
 
         self.layout().addSpacing(50)
         vbox_create_new = QVBoxLayout()
-        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignLeft)
+        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignmentFlag.AlignLeft)
         button_create_new = QPushButton(_('Create New Wallet'))
         button_create_new.setMinimumWidth(120)
-        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignLeft)
+        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignmentFlag.AlignLeft)
         widget_create_new = QWidget()
         widget_create_new.setLayout(vbox_create_new)
         vbox_create_new.setContentsMargins(0, 0, 0, 0)
@@ -718,7 +718,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
                 self.derivation_path_edit.setText(account["derivation_path"])
 
             button.clicked.connect(lambda: Bip39RecoveryDialog(self, get_account_xpub, on_account_select))
-            self.layout().addWidget(button, alignment=Qt.AlignLeft)
+            self.layout().addWidget(button, alignment=Qt.AlignmentFlag.AlignLeft)
             self.layout().addWidget(QLabel(_("Or")))
 
         def on_choice_click(index):
@@ -893,14 +893,14 @@ class WCMultisig(WalletWizardComponent):
         m_label = QLabel()
         n_label = QLabel()
 
-        m_edit = QSlider(Qt.Horizontal, self)
+        m_edit = QSlider(Qt.Orientation.Horizontal, self)
         m_edit.setMinimum(1)
         m_edit.setMaximum(2)
         m_edit.setValue(2)
         m_edit.valueChanged.connect(on_m)
         on_m(m_edit.value())
 
-        n_edit = QSlider(Qt.Horizontal, self)
+        n_edit = QSlider(Qt.Orientation.Horizontal, self)
         n_edit.setMinimum(2)
         n_edit.setMaximum(15)
         n_edit.setValue(2)
@@ -940,7 +940,7 @@ class WCImport(WalletWizardComponent):
         label = WWLabel(message)
         label.setMinimumWidth(400)
         header_layout.addWidget(label)
-        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignmentFlag.AlignRight)
 
         # TODO: KeysLayout assumes too much in parent, refactor KeysLayout
         # for now, fake parent.next_button.setEnabled
@@ -1046,17 +1046,17 @@ class CosignWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        bgcolor = self.palette().color(QPalette.Background)
-        pen = QPen(bgcolor, 7, Qt.SolidLine)
+        bgcolor = self.palette().color(QPalette.ColorRole.Window)
+        pen = QPen(bgcolor, 7, Qt.PenStyle.SolidLine)
         qp = QPainter()
         qp.begin(self)
         qp.setPen(pen)
-        qp.setRenderHint(QPainter.Antialiasing)
-        qp.setBrush(Qt.gray)
+        qp.setRenderHint(QPainter.RenderHint.Antialiasing)
+        qp.setBrush(Qt.GlobalColor.gray)
         for i in range(self.n):
             alpha = int(16 * 360 * i/self.n)
             alpha2 = int(16 * 360 * 1/self.n)
-            qp.setBrush(Qt.green if i < self.m else Qt.gray)
+            qp.setBrush(Qt.GlobalColor.green if i < self.m else Qt.GlobalColor.gray)
             qp.drawPie(self.R, alpha, alpha2)
         qp.end()
 
@@ -1256,10 +1256,10 @@ class WCHWUnlock(WalletWizardComponent, Logger):
         self.password = None
 
         ok_icon = QLabel()
-        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
-        ok_icon.setAlignment(Qt.AlignCenter)
+        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.TransformationMode.SmoothTransformation))
+        ok_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ok_l = WWLabel(_('Hardware successfully unlocked'))
-        self.ok_l.setAlignment(Qt.AlignCenter)
+        self.ok_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout().addStretch(1)
         self.layout().addWidget(ok_icon)
         self.layout().addWidget(self.ok_l)
@@ -1335,10 +1335,10 @@ class WCHWXPub(WalletWizardComponent, Logger):
         self.soft_device_id = None
 
         ok_icon = QLabel()
-        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
-        ok_icon.setAlignment(Qt.AlignCenter)
+        ok_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.TransformationMode.SmoothTransformation))
+        ok_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ok_l = WWLabel(_('Hardware keystore added to wallet'))
-        self.ok_l.setAlignment(Qt.AlignCenter)
+        self.ok_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout().addStretch(1)
         self.layout().addWidget(ok_icon)
         self.layout().addWidget(self.ok_l)
@@ -1423,10 +1423,10 @@ class WCHWUninitialized(WalletWizardComponent):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         _name, _info = cosigner_data['hardware_device']
         w_icon = QLabel()
-        w_icon.setPixmap(QPixmap(icon_path('warning.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
-        w_icon.setAlignment(Qt.AlignCenter)
+        w_icon.setPixmap(QPixmap(icon_path('warning.png')).scaledToWidth(48, mode=Qt.TransformationMode.SmoothTransformation))
+        w_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label = WWLabel(_('This {} is not initialized. Use manufacturer tooling to initialize the device.').format(_info.model_name))
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout().addStretch(1)
         self.layout().addWidget(w_icon)
         self.layout().addWidget(label)

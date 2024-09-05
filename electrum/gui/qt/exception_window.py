@@ -25,9 +25,9 @@ import sys
 import html
 from typing import TYPE_CHECKING, Optional, Set
 
-from PyQt5.QtCore import QObject
-import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
+from PyQt6.QtCore import QObject
+import PyQt6.QtCore as QtCore
+from PyQt6.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
                              QMessageBox, QHBoxLayout, QVBoxLayout)
 
 from electrum.i18n import _
@@ -67,7 +67,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         collapse_info = QPushButton(_("Show report contents"))
         collapse_info.clicked.connect(
-            lambda: self.msg_box(QMessageBox.NoIcon,
+            lambda: self.msg_box(QMessageBox.Icon.NoIcon,
                                  self, _("Report contents"), self.get_report_string(),
                                  rich_text=True))
 

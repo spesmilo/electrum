@@ -26,8 +26,8 @@
 from typing import List, Dict, Callable, Any
 from abc import ABC, abstractmethod
 
-from PyQt5.QtGui import QColor
-from PyQt5.QtCore import Qt
+from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt
 
 from electrum.i18n import _
 from electrum.qrreader import QrCodeResult
@@ -101,8 +101,8 @@ class QrReaderValidatorColorizing(QrReaderValidatorCounting):
     based on the counts maintained by `QrReaderValidatorCounting`.
     """
 
-    WEAK_COLOR: QColor = QColor(Qt.red)
-    STRONG_COLOR: QColor = QColor(Qt.green)
+    WEAK_COLOR: QColor = QColor(Qt.GlobalColor.red)
+    STRONG_COLOR: QColor = QColor(Qt.GlobalColor.green)
 
     strong_count: int = 10
 
