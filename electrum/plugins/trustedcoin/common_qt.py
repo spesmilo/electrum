@@ -15,6 +15,7 @@ else:
 
 from electrum.i18n import _
 from electrum.bip32 import BIP32Node
+from electrum import bitcoin
 
 from .trustedcoin import (server, ErrorConnectingServer, MOBILE_DISCLAIMER, TrustedCoinException)
 from electrum.gui.common_qt.plugins import PluginQObject
@@ -208,7 +209,7 @@ class TrustedcoinPluginQObject(PluginQObject):
                 def f(xprv):
                     rootnode = BIP32Node.from_xkey(xprv)
                     key = rootnode.subkey_at_private_derivation((0, 0)).eckey
-                    sig = key.ecdsa_sign_usermessage(message, is_compressed=True)
+                    sig = bitcoin.ecdsa_sign_usermessage(key, message, is_compressed=True)
                     return base64.b64encode(sig).decode()
 
                 signatures = [f(x) for x in [xprv1, xprv2]]
