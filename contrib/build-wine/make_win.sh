@@ -6,7 +6,7 @@ here="$(dirname "$(readlink -e "$0")")"
 test -n "$here" -a -d "$here" || exit
 
 if [ -z "$WIN_ARCH" ] ; then
-    export WIN_ARCH="win32"  # default
+    export WIN_ARCH="win64"  # default
 fi
 if [ "$WIN_ARCH" = "win32" ] ; then
     export GCC_TRIPLET_HOST="i686-w64-mingw32"
