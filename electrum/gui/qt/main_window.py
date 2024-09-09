@@ -769,7 +769,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         run_hook('init_menubar_tools', self, tools_menu)
 
         help_menu = menubar.addMenu(_("&Help"))
-        help_menu.addAction(_("&About"), self.show_about)
+        if sys.platform != 'darwin':
+            help_menu.addAction(_("&About"), self.show_about)
+        else:
+            # macOS reserves the "About" menu item name, similarly to "Preferences" (see above).
+            # The "About" keyword seems even more strictly locked down:
+            # not allowed as either a prefix or a suffix.
+            about_action = QAction(self)
+            about_action.triggered.connect(self.show_about)
+            about_action.setMenuRole(QAction.MenuRole.AboutRole)  # make sure OS recognizes it as "About"
+            help_menu.addAction(about_action)
         help_menu.addAction(_("&Check for updates"), self.show_update_check)
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
         help_menu.addSeparator()
