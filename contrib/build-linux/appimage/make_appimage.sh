@@ -97,9 +97,9 @@ cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy 
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
 #       This pkg is needed on some distros for Qt to launch. (see #8011)
+download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
+verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
 info "building libxcb-util1."
-XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
-# ^ git tag 0.4.0
 (
     if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
         info "libxcb-util1 already built, skipping"
@@ -108,18 +108,9 @@ XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
     cd "$CACHEDIR"
     mkdir "libxcb-util1"
     cd "libxcb-util1"
-    if [ ! -d util ]; then
-        git clone --recursive "https://anongit.freedesktop.org/git/xcb/util"
-    fi
+    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
+    mv "xcb-util-0.4.0" util
     cd util
-    if ! $(git cat-file -e ${XCB_UTIL_VERSION}) ; then
-        info "Could not find requested version $XCB_UTIL_VERSION in local clone; fetching..."
-        git fetch --all
-        git submodule update
-    fi
-    git reset --hard
-    git clean -dfxq
-    git checkout "${XCB_UTIL_VERSION}^{commit}"
     ./autogen.sh
     ./configure --enable-shared
     make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
