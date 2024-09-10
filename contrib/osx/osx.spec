@@ -134,7 +134,7 @@ app = BUNDLE(
                 'CFBundleURLName': 'bitcoin',
                 'CFBundleURLSchemes': ['bitcoin', 'lightning', ],
             }],
-        'LSMinimumSystemVersion': '10.13.0',
+        'LSMinimumSystemVersion': '11',
         'NSCameraUsageDescription': 'Electrum would like to access the camera to scan for QR codes',
     },
 )
