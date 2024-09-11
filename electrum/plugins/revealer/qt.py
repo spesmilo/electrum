@@ -6,7 +6,7 @@ Secret backup plug-in for the electrum wallet.
 
 Copyright:
     2017 Tiago Romagnani Silveira
-    2023 Soren Stoutner <soren@debian.org>
+    2023-2024 Soren Stoutner <soren@debian.org>
 
 Distributed under the MIT software license, see the accompanying
 file LICENCE or http://www.opensource.org/licenses/mit-license.php
@@ -402,7 +402,7 @@ class Plugin(RevealerPlugin):
         bitmap.fill(Qt.white)
         painter = QPainter()
         painter.begin(bitmap)
-        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSansPro-Bold.otf'))
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSans3-Bold.otf'))
         if len(txt) < 102 :
             fontsize = 15
             linespace = 15
@@ -416,7 +416,7 @@ class Plugin(RevealerPlugin):
             max_lines = 9
             max_words = int(max_letters/4)
 
-        font = QFont('Source Sans Pro', fontsize, QFont.Bold)
+        font = QFont('Source Sans 3', fontsize, QFont.Bold)
         font.setLetterSpacing(QFont.PercentageSpacing, 100)
         font.setPixelSize(fontsize)
         painter.setFont(font)
