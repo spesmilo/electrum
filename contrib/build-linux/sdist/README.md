@@ -1,6 +1,6 @@
 # Source tarballs
 
-✓ _This file should be reproducible, meaning you should be able to generate
+✓ _These tarballs should be reproducible, meaning you should be able to generate
    distributables that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
@@ -36,3 +36,22 @@ the source-only one, also includes:
     ```
 
 3. The generated distributables are in `./dist`.
+
+
+## Differences between the `sourceonly` vs "normal" tar.gz
+
+These scripts can either build a source-only or a "normal" tarball.
+The official release process builds both.
+
+The source-only tarball is aimed at Linux distro packagers.
+Users wanting to run from source should typically use the normal tarball.
+
+The differences are as follows:
+- the normal tarball bundles all the pure-python dependencies of Electrum.
+  These are placed into the `packages/` folder, and they are automatically
+  found and used at runtime.
+- the normal tarball includes compiled (.mo) locale files, the source-only tarball does not.
+  Both tarballs contain (.po) source locale files. If you are packaging for a Linux distro,
+  you probably want to compile the .mo locale files yourself (see `contrib/build_locale.sh`).
+- the normal tarball includes generated `*_pb2.py` files. These are created
+  using `protobuf-compiler` from `.proto` files (see `contrib/generate_payreqpb2.sh`)
