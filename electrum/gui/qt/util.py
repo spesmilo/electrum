@@ -422,40 +422,6 @@ def text_dialog(
         return txt.toPlainText()
 
 
-class ChoicesLayout(object):
-    def __init__(self, msg, choices, on_clicked=None, checked_index=0):
-        vbox = QVBoxLayout()
-        if len(msg) > 50:
-            vbox.addWidget(WWLabel(msg))
-            msg = ""
-        gb2 = QGroupBox(msg)
-        vbox.addWidget(gb2)
-        vbox2 = QVBoxLayout()
-        gb2.setLayout(vbox2)
-        self.group = group = QButtonGroup(gb2)
-        if isinstance(choices, list):
-            iterator = enumerate(choices)
-        else:
-            iterator = choices.items()
-        for i, c in iterator:
-            button = QRadioButton(gb2)
-            button.setText(c)
-            vbox2.addWidget(button)
-            group.addButton(button)
-            group.setId(button, i)
-            if i == checked_index:
-                button.setChecked(True)
-        if on_clicked:
-            group.buttonClicked.connect(partial(on_clicked, self))
-        self.vbox = vbox
-
-    def layout(self):
-        return self.vbox
-
-    def selected_index(self):
-        return self.group.checkedId()
-
-
 class ChoiceWidget(QWidget):
     itemSelected = pyqtSignal([int], arguments=['index'])
 

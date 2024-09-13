@@ -82,13 +82,13 @@ from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit, ScanShowQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
-                   WindowModalDialog, ChoicesLayout, HelpLabel, Buttons,
+                   WindowModalDialog, HelpLabel, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, BlockingWaitingDialog, font_height)
+                   getOpenFileName, getSaveFileName, BlockingWaitingDialog, font_height, ChoiceWidget)
 from .util import ButtonsLineEdit, ShowQRLineEdit
 from .util import QtEventListener, qt_event_listener, event_listener
 from .wizard.wallet import WIF_HELP_TEXT
@@ -1376,15 +1376,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             title = _('Question')
         dialog = WindowModalDialog(self.top_level_window(), title=title)
         dialog.setMinimumWidth(400)
-        clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
+        choice_widget = ChoiceWidget(message=msg, choices=choices, selected=default_choice)
         vbox = QVBoxLayout(dialog)
-        vbox.addLayout(clayout.layout())
+        vbox.addWidget(choice_widget)
         cancel_button = CancelButton(dialog)
         vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
         cancel_button.setFocus()
         if not dialog.exec_():
             return None
-        return clayout.selected_index()
+        return choice_widget.selected_key
 
     def handle_payment_identifier(self, text: str):
         pi = PaymentIdentifier(self.wallet, text)

@@ -37,8 +37,7 @@ from electrum import old_mnemonic
 from electrum import slip39
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
-                   EnterButton, CloseButton, WindowModalDialog, ColorScheme,
-                   ChoicesLayout, font_height)
+                   EnterButton, CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -87,15 +86,15 @@ class SeedLayout(QVBoxLayout):
             )
             if value in self.options or value == 'electrum'
         ]
-        seed_type_values = [t[0] for t in seed_types]
 
         if 'ext' in self.options:
             cb_ext = QCheckBox(_('Extend this seed with custom words'))
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
+
         if len(seed_types) >= 2:
-            def f(choices_layout):
-                self.seed_type = seed_type_values[choices_layout.selected_index()]
+            def on_selected(idx):
+                self.seed_type = seed_type_choice.selected_key
                 self.is_seed = (lambda x: bool(x)) if self.seed_type != 'electrum' else self.saved_is_seed
                 self.slip39_current_mnemonic_invalid = None
                 self.seed_status.setText('')
@@ -120,16 +119,15 @@ class SeedLayout(QVBoxLayout):
                 self.initialize_completer()
                 self.seed_warning.setText(msg)
 
-            checked_index = seed_type_values.index(self.seed_type)
-            titles = [t[1] for t in seed_types]
-            clayout = ChoicesLayout(_('Seed type'), titles, on_clicked=f, checked_index=checked_index)
-            vbox.addLayout(clayout.layout())
+            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=seed_types, selected=self.seed_type)
+            seed_type_choice.itemSelected.connect(on_selected)
+            vbox.addWidget(seed_type_choice)
 
         vbox.addLayout(Buttons(OkButton(dialog)))
         if not dialog.exec_():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
-        self.seed_type = seed_type_values[clayout.selected_index()] if len(seed_types) >= 2 else 'electrum'
+        self.seed_type = seed_type_choice.selected_key if len(seed_types) >= 2 else 'electrum'
         self.updated.emit()
 
     def __init__(

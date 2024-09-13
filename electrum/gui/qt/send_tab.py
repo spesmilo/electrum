@@ -672,31 +672,31 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
                 can_rebalance = bool(rebalance_suggestion) and self.window.num_tasks() == 0
-            choices = {}
+            choices = []
             if can_rebalance:
                 msg = ''.join([
                     _('Rebalance existing channels'), '\n',
                     _('Move funds between your channels in order to increase your sending capacity.')
                 ])
-                choices[0] = msg
+                choices.append(('rebalance', msg))
             if can_pay_with_new_channel:
                 msg = ''.join([
                     _('Open a new channel'), '\n',
                     _('You will be able to pay once the channel is open.')
                 ])
-                choices[1] = msg
+                choices.append(('new_channel', msg))
             if can_pay_with_swap:
                 msg = ''.join([
                     _('Swap onchain funds for lightning funds'), '\n',
                     _('You will be able to pay once the swap is confirmed.')
                 ])
-                choices[2] = msg
+                choices.append(('swap', msg))
             if can_pay_onchain:
                 msg = ''.join([
                     _('Pay onchain'), '\n',
                     _('Funds will be sent to the invoice fallback address.')
                 ])
-                choices[3] = msg
+                choices.append(('onchain', msg))
             msg = _('You cannot pay that invoice using Lightning.')
             if lnworker and lnworker.channels:
                 num_sats_can_send = int(lnworker.num_sats_can_send())
@@ -709,16 +709,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             r = self.window.query_choice(msg, choices)
             if r is not None:
                 self.save_pending_invoice()
-                if r == 0:
+                if r == 'rebalance':
                     chan1, chan2, delta = rebalance_suggestion
                     self.window.rebalance_dialog(chan1, chan2, amount_sat=delta)
-                elif r == 1:
+                elif r == 'new_channel':
                     amount_sat, min_amount_sat = can_pay_with_new_channel
                     self.window.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
-                elif r == 2:
+                elif r == 'swap':
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
-                elif r == 3:
+                elif r == 'onchain':
                     self.pay_onchain_dialog(invoice.get_outputs(), nonlocal_only=True)
             return
 
