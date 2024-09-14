@@ -1,3 +1,9 @@
+# Release 4.5.6 (unreleased)
+ * QML GUI (Android):
+   - fix: crash due to ConcurrentModificationException (450b9a0)
+   - fix: issue deactivating PIN when no wallet loaded (#8366)
+   - fix: only allow Channel Backup import on Lightning-enabled wallets (8d9bcda)
+
 # Release 4.5.5 (May 30, 2024)
  * General:
    - fix: timeout error shadowed by aiorpcx cancellation bug (#8954)
