@@ -237,22 +237,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         if on_finished:
             on_finished()
 
-    def query_choice(self, msg, choices, title=None, default_choice=None):
-        # Needed by QtHandler for hardware wallets
-        if title is None:
-            title = _('Question')
-        dialog = WindowModalDialog(self.top_level_window(), title=title)
-        dialog.setMinimumWidth(400)
-        choice_widget = ChoiceWidget(message=msg, choices=choices, selected=default_choice)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(choice_widget)
-        cancel_button = CancelButton(dialog)
-        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
-        cancel_button.setFocus()
-        if not dialog.exec_():
-            return None
-        return choice_widget.selected_key
-
 
 class WalletWizardComponent(WizardComponent, ABC):
     # ^ this class only exists to help with typing
