@@ -158,8 +158,6 @@ class BitcoinTestnet(AbstractNet):
 class BitcoinTestnet4(BitcoinTestnet):
 
     NET_NAME = "testnet4"
-    SEGWIT_HRP = "tb"
-    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043"
     DEFAULT_SERVERS = read_json('servers_testnet4.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet4.json', [])

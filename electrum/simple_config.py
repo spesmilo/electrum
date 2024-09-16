@@ -254,7 +254,7 @@ class SimpleConfig(Logger):
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
             make_dir(path, allow_symlink=False)
-        if self.get('testnet4'):
+        elif self.get('testnet4'):
             path = os.path.join(path, 'testnet4')
             make_dir(path, allow_symlink=False)
         elif self.get('regtest'):
