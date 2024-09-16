@@ -32,8 +32,8 @@ protobuf==3.20.3 \
     --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2
 python-socks==2.4.4 \
     --hash=sha256:e5a8e4f78203612c813946feacd87b98943965a04389fe221fa1e9ab263ad22e
-QDarkStyle==3.1 \
-    --hash=sha256:600584d625343e0ddd128de08393d3c35637786a49827f174d29aa7caa8279c1
+QDarkStyle==3.2.3 \
+    --hash=sha256:0c0b7f74a6e92121008992b369bab60468157db1c02cd30d64a5e9a3b402f1ae
 qrcode==7.3.1 \
     --hash=sha256:375a6ff240ca9bd41adc070428b5dfc1dcfbb0f2507f1ac848f6cded38956578
 QtPy==2.4.1 \
