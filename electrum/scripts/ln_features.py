@@ -39,7 +39,7 @@ loop, stopping_fut, loop_thread = create_and_start_event_loop()
 time.sleep(2)
 
 if IS_TESTNET:
-    constants.set_testnet()
+    constants.BitcoinTestnet.set_as_network()
 daemon = Daemon(config, listen_jsonrpc=False)
 network = daemon.network
 assert network.asyncio_loop.is_running()

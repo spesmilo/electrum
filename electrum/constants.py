@@ -76,6 +76,11 @@ class AbstractNet:
     def rev_genesis_bytes(cls) -> bytes:
         return bytes.fromhex(cls.GENESIS)[::-1]
 
+    @classmethod
+    def set_as_network(cls) -> None:
+        global net
+        net = cls
+
 
 class BitcoinMainnet(AbstractNet):
 
@@ -203,27 +208,3 @@ NETS_LIST = tuple(all_subclasses(AbstractNet))
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet  # type: Type[AbstractNet]
-
-def set_signet():
-    global net
-    net = BitcoinSignet
-
-def set_simnet():
-    global net
-    net = BitcoinSimnet
-
-def set_mainnet():
-    global net
-    net = BitcoinMainnet
-
-def set_testnet():
-    global net
-    net = BitcoinTestnet
-
-def set_testnet4():
-    global net
-    net = BitcoinTestnet4
-
-def set_regtest():
-    global net
-    net = BitcoinRegtest

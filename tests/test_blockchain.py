@@ -48,12 +48,12 @@ class TestBlockchain(ElectrumTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        constants.set_regtest()
+        constants.BitcoinRegtest.set_as_network()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        constants.set_mainnet()
+        constants.BitcoinMainnet.set_as_network()
 
     def setUp(self):
         super().setUp()
