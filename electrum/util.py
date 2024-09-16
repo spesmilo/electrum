@@ -987,6 +987,11 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+testnet4_block_explorers = {
+    'mempool.space': ('https://mempool.space/testnet4/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+}
+
 signet_block_explorers = {
     'bc-2.jp': ('https://explorer.bc-2.jp/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -1009,6 +1014,8 @@ def block_explorer_info():
     from . import constants
     if constants.net.NET_NAME == "testnet":
         return testnet_block_explorers
+    elif constants.net.NET_NAME == "testnet4":
+        return testnet4_block_explorers
     elif constants.net.NET_NAME == "signet":
         return signet_block_explorers
     return mainnet_block_explorers

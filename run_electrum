@@ -383,6 +383,8 @@ def main():
 
     if config.get('testnet'):
         constants.set_testnet()
+    elif config.get('testnet4'):
+        constants.set_testnet4()
     elif config.get('regtest'):
         constants.set_regtest()
     elif config.get('simnet'):

@@ -108,9 +108,6 @@ def parse_fallback_addr(data5: Sequence[int], net: Type[AbstractNet]) -> Optiona
     return addr
 
 
-BOLT11_HRP_INV_DICT = {net.BOLT11_HRP: net for net in constants.NETS_LIST}
-
-
 def tagged5(char: str, data5: Sequence[int]) -> Sequence[int]:
     assert len(data5) < (1 << 10)
     return [CHARSET_INVERSE[char], len(data5) >> 5, len(data5) & 31] + data5
@@ -420,18 +417,16 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
 
     addr = LnAddr()
     addr.pubkey = None
+    addr.net = net
 
-    m = re.search("[^\\d]+", hrp[2:])
-    if m:
-        addr.net = BOLT11_HRP_INV_DICT[m.group(0)]
-        amountstr = hrp[2+m.end():]
-        # BOLT #11:
-        #
-        # A reader SHOULD indicate if amount is unspecified, otherwise it MUST
-        # multiply `amount` by the `multiplier` value (if any) to derive the
-        # amount required for payment.
-        if amountstr != '':
-            addr.amount = unshorten_amount(amountstr)
+    amountstr = hrp[2+len(net.BOLT11_HRP):]
+    # BOLT #11:
+    #
+    # A reader SHOULD indicate if amount is unspecified, otherwise it MUST
+    # multiply `amount` by the `multiplier` value (if any) to derive the
+    # amount required for payment.
+    if amountstr != '':
+        addr.amount = unshorten_amount(amountstr)
 
     addr.date = int_from_data5(data5_remaining[:7])
     data5_remaining = data5_remaining[7:]

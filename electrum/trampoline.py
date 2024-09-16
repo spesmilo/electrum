@@ -26,6 +26,8 @@ TRAMPOLINE_NODES_TESTNET = {
     'Electrum trampoline': LNPeerAddr(host='lightning.electrum.org', port=9739, pubkey=bytes.fromhex('02bf82e22f99dcd7ac1de4aad5152ce48f0694c46ec582567f379e0adbf81e2d0f')),
 }
 
+TRAMPOLINE_NODES_TESTNET4 = {}
+
 TRAMPOLINE_NODES_SIGNET = {
     'lnd wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
     'eclair wakiyamap.dev': LNPeerAddr(host='signet-eclair.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('0271cf3881e6eadad960f47125434342e57e65b98a78afa99f9b4191c02dd7ab3b')),
@@ -40,6 +42,8 @@ def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
         return TRAMPOLINE_NODES_MAINNET
     elif constants.net.NET_NAME == "testnet":
         return TRAMPOLINE_NODES_TESTNET
+    elif constants.net.NET_NAME == "testnet4":
+        return TRAMPOLINE_NODES_TESTNET4
     elif constants.net.NET_NAME == "signet":
         return TRAMPOLINE_NODES_SIGNET
     else:
