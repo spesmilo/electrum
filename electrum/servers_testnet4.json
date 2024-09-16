@@ -1,10 +1,4 @@
 {
-    "127.0.0.1": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.4"
-    },
     "testnet4-electrumx.wakiyamap.dev": {
         "pruning": "-",
         "s": "51002",
