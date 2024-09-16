@@ -42,7 +42,6 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt6.QtCore as QtCore
-sys._GUI_QT_VERSION = 6  # used by gui/common_qt
 
 try:
     # Preload QtMultimedia at app start, if available.
@@ -176,7 +175,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if use_dark_theme:
             try:
                 import qdarkstyle
-                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt6())
             except BaseException as e:
                 use_dark_theme = False
                 self.logger.warning(f'Error setting dark theme: {repr(e)}')

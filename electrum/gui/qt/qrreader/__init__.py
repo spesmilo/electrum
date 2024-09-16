@@ -12,7 +12,7 @@
 # - zbar fails to access the camera on macOS
 # - qtmultimedia seems to support more cameras on Windows than zbar
 # - qtmultimedia is often not packaged with PyQt
-#   in particular, on debian, you need both "python3-pyqt5" and "python3-pyqt5.qtmultimedia"
+#   in particular, on debian, you need both "python3-pyqt6" and "python3-pyqt6.qtmultimedia"
 # - older versions of qtmultimedia don't seem to work reliably
 #
 # Considering the above, we use QtMultimedia for Windows and macOS, as there
