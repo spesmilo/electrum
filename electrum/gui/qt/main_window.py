@@ -34,7 +34,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set, Mapping
+from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping
 import concurrent.futures
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics
@@ -45,7 +45,7 @@ from PyQt5.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip,
-                             QMenu, QAction, QStackedWidget, QToolButton)
+                             QMenu, QAction, QToolButton)
 
 import electrum
 from electrum.gui import messages
@@ -82,7 +82,7 @@ from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit, ScanShowQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
-                   WindowModalDialog, ChoicesLayout, HelpLabel, Buttons,
+                   WindowModalDialog, HelpLabel, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
@@ -1369,22 +1369,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_transaction(funding_tx)
         else:
             self.show_message(message)
-
-    def query_choice(self, msg, choices, title=None, default_choice=None):
-        # Needed by QtHandler for hardware wallets
-        if title is None:
-            title = _('Question')
-        dialog = WindowModalDialog(self.top_level_window(), title=title)
-        dialog.setMinimumWidth(400)
-        clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
-        vbox = QVBoxLayout(dialog)
-        vbox.addLayout(clayout.layout())
-        cancel_button = CancelButton(dialog)
-        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
-        cancel_button.setFocus()
-        if not dialog.exec_():
-            return None
-        return clayout.selected_index()
 
     def handle_payment_identifier(self, text: str):
         pi = PaymentIdentifier(self.wallet, text)

@@ -283,6 +283,26 @@ class MessageBoxMixin(object):
                                   rich_text=rich_text,
                                   checkbox=checkbox)
 
+    def query_choice(self,
+                     msg: Optional[str],
+                     choices: Sequence[Tuple],
+                     title: Optional[str] = None,
+                     default_choice: Optional[Any] = None) -> Optional[Any]:
+        # Needed by QtHandler for hardware wallets
+        if title is None:
+            title = _('Question')
+        dialog = WindowModalDialog(self.top_level_window(), title=title)
+        dialog.setMinimumWidth(400)
+        choice_widget = ChoiceWidget(message=msg, choices=choices, selected=default_choice)
+        vbox = QVBoxLayout(dialog)
+        vbox.addWidget(choice_widget)
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
+        cancel_button.setFocus()
+        if not dialog.exec_():
+            return None
+        return choice_widget.selected_key
+
 
 def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.Ok,
                        defaultButton=QMessageBox.NoButton, rich_text=False,
@@ -422,44 +442,19 @@ def text_dialog(
         return txt.toPlainText()
 
 
-class ChoicesLayout(object):
-    def __init__(self, msg, choices, on_clicked=None, checked_index=0):
-        vbox = QVBoxLayout()
-        if len(msg) > 50:
-            vbox.addWidget(WWLabel(msg))
-            msg = ""
-        gb2 = QGroupBox(msg)
-        vbox.addWidget(gb2)
-        vbox2 = QVBoxLayout()
-        gb2.setLayout(vbox2)
-        self.group = group = QButtonGroup(gb2)
-        if isinstance(choices, list):
-            iterator = enumerate(choices)
-        else:
-            iterator = choices.items()
-        for i, c in iterator:
-            button = QRadioButton(gb2)
-            button.setText(c)
-            vbox2.addWidget(button)
-            group.addButton(button)
-            group.setId(button, i)
-            if i == checked_index:
-                button.setChecked(True)
-        if on_clicked:
-            group.buttonClicked.connect(partial(on_clicked, self))
-        self.vbox = vbox
-
-    def layout(self):
-        return self.vbox
-
-    def selected_index(self):
-        return self.group.checkedId()
-
-
 class ChoiceWidget(QWidget):
+    """Renders a list of tuples as a radiobuttons group.
+    The first element of each tuple is used as a key.
+    The second element of each tuple is used as user facing string.
+    The remainder of the tuple can be any additional data.
+    Callers can pre-select an item by key, through the 'selected' parameter.
+    The selected item is made available by index (selected_index),
+    by key (selected_key) and by whole tuple (selected_item).
+    """
+
     itemSelected = pyqtSignal([int], arguments=['index'])
 
-    def __init__(self, *, message=None, choices=None, selected=None):
+    def __init__(self, *, message: Optional[str] = None, choices: Sequence[Tuple] = None, selected: Optional[Any] = None):
         QWidget.__init__(self)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -467,9 +462,9 @@ class ChoiceWidget(QWidget):
         if choices is None:
             choices = []
 
-        self.selected_index = -1
-        self.selected_item = None
-        self.selected_key = None
+        self.selected_index = -1   # int
+        self.selected_item = None  # Optional[Tuple]
+        self.selected_key = None   # Optional[Any]
 
         self.choices = choices
 

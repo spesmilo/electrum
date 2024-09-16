@@ -194,7 +194,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        v = self.window.query_choice(msg, pr_expiration_values(), title=_('Expiry'), default_choice=expiry)
+        choices = list(pr_expiration_values().items())
+        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_choice=expiry)
         if v is None:
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v

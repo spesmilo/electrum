@@ -26,7 +26,7 @@
 
 import threading
 from functools import partial
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Sequence, Tuple
 
 from PyQt5.QtCore import QObject, pyqtSignal, Qt
 from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
@@ -95,7 +95,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             icon_name = button.icon_paired if paired else button.icon_unpaired
             button.setIcon(read_QIcon(icon_name))
 
-    def query_choice(self, msg, labels):
+    def query_choice(self, msg: str, labels: Sequence[Tuple]):
         self.done.clear()
         self.query_signal.emit(msg, labels)
         self.done.wait()
@@ -194,7 +194,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             self.dialog.accept()
             self.dialog = None
 
-    def win_query_choice(self, msg, labels):
+    def win_query_choice(self, msg: str, labels: Sequence[Tuple]):
         try:
             self.choice = self.win.query_choice(msg, labels)
         except UserCancelled:
