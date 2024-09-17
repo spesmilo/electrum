@@ -23,7 +23,7 @@ import sys
 import qrcode
 from PyQt5.QtPrintSupport import QPrinter
 from PyQt5.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize
-from PyQt5.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont,
+from PyQt5.QtGui import (QPixmap, QImage, QBitmap, QPainter, QPen, QFont,
                          QColor, QDesktopServices, qRgba, QPainterPath)
 from PyQt5.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit)
@@ -402,7 +402,6 @@ class Plugin(RevealerPlugin):
         bitmap.fill(Qt.white)
         painter = QPainter()
         painter.begin(bitmap)
-        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSans3-Bold.otf'))
         if len(txt) < 102 :
             fontsize = 15
             linespace = 15
@@ -548,13 +547,13 @@ class Plugin(RevealerPlugin):
         painter = QPainter()
         painter.begin(printer)
         painter.drawImage(553,533, image)
-        font = QFont('Source Sans Pro', 10, QFont.Bold)
+        font = QFont('Source Sans 3', 10, QFont.Bold)
         painter.setFont(font)
         painter.drawText(254,277, _("Calibration sheet"))
-        font = QFont('Source Sans Pro', 7, QFont.Bold)
+        font = QFont('Source Sans 3', 7, QFont.Bold)
         painter.setFont(font)
         painter.drawText(600,2077, _("Instructions:"))
-        font = QFont('Source Sans Pro', 7, QFont.Normal)
+        font = QFont("", 7, QFont.Normal)
         painter.setFont(font)
         painter.drawText(700, 2177, _("1. Place this paper on a flat and well illuminated surface."))
         painter.drawText(700, 2277, _("2. Align your Revealer borderlines to the dashed lines on the top and left."))
@@ -644,7 +643,6 @@ class Plugin(RevealerPlugin):
 
         #print code
         f_size = 37
-        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
         font = QFont("DejaVu Sans Mono", f_size-11, QFont.Bold)
         font.setPixelSize(35)
         painter.setFont(font)
