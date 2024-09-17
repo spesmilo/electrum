@@ -51,6 +51,14 @@ try:
 except ImportError as e:
     pass  # failure is ok; it is an optional dependency.
 
+if sys.platform == "linux" and os.environ.get("APPIMAGE"):
+    # For AppImage, we default to xcb qt backend, for better support of older system.
+    # qt6 normally defaults to QT_QPA_PLATFORM=wayland instead of QT_QPA_PLATFORM=xcb.
+    # However, the wayland QPA plugin requires libwayland-client0>=1.19, which is too new
+    # for debian 11 or ubuntu 20.04. So instead, we default to the X11 integration (and not wayland).
+    # see https://bugreports.qt.io/browse/QTBUG-114635
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
