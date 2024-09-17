@@ -30,9 +30,11 @@ ElDialog {
 
         ColumnLayout {
             id: rootLayout
-            width: dialog.parent.width * 2/3
+            width: dialog.parent.width * 3/4
+            spacing: constants.paddingLarge
 
             RowLayout {
+                Layout.fillWidth: true
                 Image {
                     source: Qt.resolvedUrl('../../../icons/info.png')
                     Layout.preferredWidth: constants.iconSizeSmall
@@ -40,15 +42,16 @@ ElDialog {
                 }
                 Label {
                     text: dialog.heading
+                    font.pixelSize: constants.fontSizeMedium
                     font.underline: true
                     font.italic: true
                 }
             }
-            TextArea {
+            Label {
                 id: message
                 Layout.fillWidth: true
-                readOnly: true
                 text: dialog.text
+                font.pixelSize: constants.fontSizeSmall
                 wrapMode: TextInput.WordWrap
                 textFormat: TextEdit.RichText
                 background: Rectangle {
