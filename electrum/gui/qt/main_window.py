@@ -594,9 +594,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         ])
         cb = QCheckBox(_("Don't show this again."))
         cb_checked = False
-        def on_cb(x):
+        def on_cb(_x):
             nonlocal cb_checked
-            cb_checked = x == Qt.CheckState.Checked
+            cb_checked = cb.isChecked()
         cb.stateChanged.connect(on_cb)
         self.show_warning(msg, title=_('Testnet'), checkbox=cb)
         if cb_checked:

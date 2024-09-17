@@ -139,8 +139,8 @@ class ChannelsList(MyTreeView):
     def force_close(self, channel_id):
         self.save_backup = True
         backup_cb = QCheckBox('Create a backup now', checked=True)
-        def on_checked(b):
-            self.save_backup = bool(b)
+        def on_checked(_x):
+            self.save_backup = backup_cb.isChecked()
         backup_cb.stateChanged.connect(on_checked)
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
