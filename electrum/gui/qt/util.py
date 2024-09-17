@@ -685,14 +685,21 @@ class GenericInputHandler:
                 return
             if not data:
                 data = ''
-            if allow_multi:
-                new_text = self.text() + data + '\n'  # TODO: unused?
-            else:
-                new_text = data
-                try:
+            try:
+                if allow_multi:
+                    text = self.text()
+                    if data in text:
+                        return
+                    if text and not text.endswith('\n'):
+                        text += '\n'
+                    text += data
+                    text += '\n'
+                    setText(text)
+                else:
+                    new_text = data
                     setText(new_text)
-                except Exception as e:
-                    show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
+            except Exception as e:
+                show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
         from .qrreader import scan_qrcode
         if parent is None:
@@ -730,14 +737,21 @@ class GenericInputHandler:
             show_error(_("No QR code was found on the screen."))
             return
         data = scanned_qr[0].data
-        if allow_multi:
-            new_text = self.text() + data + '\n'  # TODO: unused?
-        else:
-            new_text = data
-            try:
+        try:
+            if allow_multi:
+                text = self.text()
+                if data in text:
+                    return
+                if text and not text.endswith('\n'):
+                    text += '\n'
+                text += data
+                text += '\n'
+                setText(text)
+            else:
+                new_text = data
                 setText(new_text)
-            except Exception as e:
-                show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
+        except Exception as e:
+            show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
     def input_file(
             self,
