@@ -14,6 +14,7 @@ ElDialog {
     required property Amount satoshis
     property string address
     property string message
+    property bool showOptions: true
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
@@ -142,12 +143,13 @@ ElDialog {
                     Layout.columnSpan: 2
                     labelText: qsTr('Options')
                     color: Material.accentColor
+                    visible: showOptions
                 }
 
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    visible: !optionstoggle.collapsed
+                    visible: optionstoggle.visible && !optionstoggle.collapsed
                     height: optionslayout.height
 
                     GridLayout {

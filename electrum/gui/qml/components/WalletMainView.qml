@@ -131,6 +131,25 @@ Item {
         Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
     }
 
+    function startSweep() {
+        var dialog = sweepDialog.createObject(app)
+        dialog.accepted.connect(function() {
+            var finalizerDialog = confirmSweepDialog.createObject(mainView, {
+                privateKeys: dialog.privateKeys,
+                message: qsTr('Sweep transaction'),
+                showOptions: false,
+                amountLabelText: qsTr('Total sweep amount'),
+                sendButtonText: qsTr('Sweep')
+            })
+            finalizerDialog.accepted.connect(function() {
+                console.log("Sending sweep transaction")
+                finalizerDialog.finalizer.send()
+            })
+            finalizerDialog.open()
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
         id: menu
 
@@ -182,6 +201,19 @@ Item {
                 onTriggered: {
                     var dialog = app.signVerifyMessageDialog.createObject(app)
                     dialog.open()
+                    menu.deselect()
+                }
+            }
+        }
+
+        MenuItem {
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/add.png'
+            action: Action {
+                text: qsTr('Sweep key')
+                enabled: !Daemon.currentWallet.isWatchOnly  // watchonly might be acceptable
+                onTriggered: {
+                    startSweep()
                     menu.deselect()
                 }
             }
@@ -609,6 +641,22 @@ Item {
     }
 
     Component {
+        id: confirmSweepDialog
+        ConfirmTxDialog {
+            id: _confirmSweepDialog
+
+            property string privateKeys
+            title: qsTr('Confirm Sweep')
+            satoshis: MAX
+            finalizer: SweepFinalizer {
+                wallet: Daemon.currentWallet
+                canRbf: true
+                privateKeys: _confirmSweepDialog.privateKeys
+            }
+        }
+    }
+
+    Component {
         id: lnurlPayDialog
         LnurlPayRequestDialog {
             width: parent.width * 0.9
@@ -631,6 +679,13 @@ Item {
     Component {
         id: exportTxDialog
         ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: sweepDialog
+        SweepDialog {
             onClosed: destroy()
         }
     }
