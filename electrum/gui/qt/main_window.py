@@ -1794,7 +1794,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def toggle_search(self):
         self.search_box.setHidden(not self.search_box.isHidden())
         if not self.search_box.isHidden():
-            self.search_box.setFocus(1)
+            self.search_box.setFocus()
         else:
             self.do_search('')
 

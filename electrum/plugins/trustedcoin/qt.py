@@ -449,7 +449,7 @@ class WCShowConfirmOTP(WizardComponent):
         hbox.addStretch(1)
         hbox.addWidget(self.spinner_l)
         self.otp_e = AmountEdit(None, is_int=True)
-        self.otp_e.setFocus(True)
+        self.otp_e.setFocus()
         self.otp_e.setMaximumWidth(150)
         self.otp_e.textEdited.connect(self.on_otp_edited)
         hbox.addWidget(self.otp_e)
