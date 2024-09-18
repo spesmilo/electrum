@@ -29,11 +29,11 @@ from enum import IntEnum
 from typing import Tuple, TYPE_CHECKING
 import threading
 
-from PyQt5.QtCore import Qt, pyqtSignal, QThread
-from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
+from PyQt6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
                              QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
                              QTabWidget, QWidget, QLabel)
-from PyQt5.QtGui import QIntValidator
+from PyQt6.QtGui import QIntValidator
 
 from electrum.i18n import _
 from electrum import constants, blockchain, util
@@ -86,9 +86,9 @@ class NetworkDialog(QDialog, QtEventListener):
 class NodesListWidget(QTreeWidget):
     """List of connected servers."""
 
-    SERVER_ADDR_ROLE = Qt.UserRole + 100
-    CHAIN_ID_ROLE = Qt.UserRole + 101
-    ITEMTYPE_ROLE = Qt.UserRole + 102
+    SERVER_ADDR_ROLE = Qt.ItemDataRole.UserRole + 100
+    CHAIN_ID_ROLE = Qt.ItemDataRole.UserRole + 101
+    ITEMTYPE_ROLE = Qt.ItemDataRole.UserRole + 102
 
     class ItemType(IntEnum):
         CHAIN = 0
@@ -103,7 +103,7 @@ class NodesListWidget(QTreeWidget):
     def __init__(self, *, network: Network):
         QTreeWidget.__init__(self)
         self.setHeaderLabels([_('Server'), _('Height')])
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
         self.network = network
 
@@ -137,10 +137,10 @@ class NodesListWidget(QTreeWidget):
             menu.addAction(_("Follow this branch"), do_follow_chain)
         else:
             return
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
-        if event.key() in [Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter]:
+        if event.key() in [Qt.Key.Key_F2, Qt.Key.Key_Return, Qt.Key.Key_Enter]:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)
@@ -220,8 +220,8 @@ class NodesListWidget(QTreeWidget):
         # headers
         h = self.header()
         h.setStretchLastSection(False)
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
 
         super().update()
 

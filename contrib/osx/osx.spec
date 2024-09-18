@@ -25,7 +25,7 @@ hiddenimports += collect_submodules(f"{PYPKG}.plugins")
 
 binaries = []
 # Workaround for "Retro Look":
-binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
+binaries += [b for b in collect_dynamic_libs('PyQt6') if 'macstyle' in b[0]]
 # add libsecp256k1, libusb, etc:
 binaries += [(f"{PROJECT_ROOT}/{PYPKG}/*.dylib", ".")]
 
@@ -72,12 +72,34 @@ for d in a.datas:
         break
 
 # Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
-qt_bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation', 'qttest', 'qtxml')
+qt_bins2remove=(
+    'pyqt6/qt6/qml',
+    'pyqt6/qt6/lib/qtqml',
+    'pyqt6/qt6/lib/qtquick',
+    'pyqt6/qt6/lib/qtshadertools',
+    'pyqt6/qt6/lib/qtspatialaudio',
+    'pyqt6/qt6/lib/qtmultimediaquick',
+    'pyqt6/qt6/lib/qtweb',
+    'pyqt6/qt6/lib/qtpositioning',
+    'pyqt6/qt6/lib/qtsensors',
+    'pyqt6/qt6/lib/qtpdfquick',
+    'pyqt6/qt6/lib/qttest',
+)
 print("Removing Qt binaries:", *qt_bins2remove)
 for x in a.binaries.copy():
     for r in qt_bins2remove:
         if x[0].lower().startswith(r):
             a.binaries.remove(x)
+            print('----> Removed x =', x)
+
+qt_data2remove=(
+    'pyqt6/qt6/qml',
+)
+print("Removing Qt datas:", *qt_data2remove)
+for x in a.datas.copy():
+    for r in qt_data2remove:
+        if x[0].lower().startswith(r):
+            a.datas.remove(x)
             print('----> Removed x =', x)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -112,7 +134,7 @@ app = BUNDLE(
                 'CFBundleURLName': 'bitcoin',
                 'CFBundleURLSchemes': ['bitcoin', 'lightning', ],
             }],
-        'LSMinimumSystemVersion': '10.13.0',
+        'LSMinimumSystemVersion': '11',
         'NSCameraUsageDescription': 'Electrum would like to access the camera to scan for QR codes',
     },
 )

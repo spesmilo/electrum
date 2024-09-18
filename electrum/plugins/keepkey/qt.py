@@ -2,9 +2,9 @@ import threading
 from functools import partial
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal, QRegExp
-from PyQt5.QtGui import QRegExpValidator
-from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+from PyQt6.QtCore import Qt, QEventLoop, pyqtSignal, QRegularExpression
+from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
                              QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
                              QMessageBox, QSlider, QTabWidget)
@@ -88,7 +88,7 @@ class CharacterDialog(WindowModalDialog):
         self.finished_button = QPushButton(_("Seed Entered"))
         self.cancel_button = QPushButton(_("Cancel"))
         self.finished_button.clicked.connect(partial(self.process_key,
-                                                     Qt.Key_Return))
+                                                     Qt.Key.Key_Return))
         self.cancel_button.clicked.connect(self.rejected)
         buttons = Buttons(self.finished_button, self.cancel_button)
         vbox.addSpacing(40)
@@ -118,9 +118,9 @@ class CharacterDialog(WindowModalDialog):
 
     def process_key(self, key):
         self.data = None
-        if key == Qt.Key_Return and self.finished_button.isEnabled():
+        if key == Qt.Key.Key_Return and self.finished_button.isEnabled():
             self.data = {'done': True}
-        elif key == Qt.Key_Backspace and (self.word_pos or self.character_pos):
+        elif key == Qt.Key.Key_Backspace and (self.word_pos or self.character_pos):
             self.data = {'delete': True}
         elif self.is_valid_alpha_space(key):
             self.data = {'character': chr(key).lower()}
@@ -136,7 +136,7 @@ class CharacterDialog(WindowModalDialog):
         self.word_pos = word_pos
         self.character_pos = character_pos
         self.refresh()
-        if self.loop.exec_():
+        if self.loop.exec():
             self.data = None  # User cancelled
 
 
@@ -183,7 +183,7 @@ class QtHandler(QtHandlerBase):
         vbox.addWidget(matrix)
         vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         dialog.setLayout(vbox)
-        dialog.exec_()
+        dialog.exec()
         self.response = str(matrix.get_value())
         self.done.set()
 
@@ -217,7 +217,7 @@ class QtPlugin(QtPluginBase):
             return device_id
         def show_dialog(device_id):
             if device_id:
-                SettingsDialog(window, self, keystore, device_id).exec_()
+                SettingsDialog(window, self, keystore, device_id).exec()
         keystore.thread.add(connect, on_success=show_dialog)
 
 
@@ -276,7 +276,7 @@ class KeepkeyInitLayout(QVBoxLayout):
             self.addWidget(QLabel(msg))
             self.addWidget(self.text_e)
             self.pin = QLineEdit()
-            self.pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
+            self.pin.setValidator(QRegularExpressionValidator(QRegularExpression('[1-9]{0,9}')))
             self.pin.setMaximumWidth(100)
             hbox_pin = QHBoxLayout()
             hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
@@ -439,7 +439,7 @@ class SettingsDialog(WindowModalDialog):
                 msg = _("Are you SURE you want to wipe the device?\n"
                         "Your wallet still has bitcoins in it!")
                 if not self.question(msg, title=title,
-                                     icon=QMessageBox.Critical):
+                                     icon=QMessageBox.Icon.Critical):
                     return
             invoke_client('wipe_device', unpair_after=True)
 
@@ -521,11 +521,11 @@ class SettingsDialog(WindowModalDialog):
         # Settings tab - Session Timeout
         timeout_label = QLabel(_("Session Timeout"))
         timeout_minutes = QLabel()
-        timeout_slider = QSlider(Qt.Horizontal)
+        timeout_slider = QSlider(Qt.Orientation.Horizontal)
         timeout_slider.setRange(1, 60)
         timeout_slider.setSingleStep(1)
         timeout_slider.setTickInterval(5)
-        timeout_slider.setTickPosition(QSlider.TicksBelow)
+        timeout_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         timeout_slider.setTracking(True)
         timeout_msg = QLabel(
             _("Clear the session after the specified period "

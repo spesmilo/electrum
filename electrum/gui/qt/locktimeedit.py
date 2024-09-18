@@ -6,9 +6,9 @@ import time
 from datetime import datetime
 from typing import Optional, Any
 
-from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
-from PyQt5.QtGui import QPalette, QPainter
-from PyQt5.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
+from PyQt6.QtCore import Qt, QDateTime, pyqtSignal
+from PyQt6.QtGui import QPalette, QPainter
+from PyQt6.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
                              QHBoxLayout, QDateTimeEdit)
 
 from electrum.i18n import _
@@ -145,11 +145,11 @@ class LockTimeHeightEdit(LockTimeRawEdit):
         super().paintEvent(event)
         panel = QStyleOptionFrame()
         self.initStyleOption(panel)
-        textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
+        textRect = self.style().subElementRect(QStyle.SubElement.SE_LineEditContents, panel, self)
         textRect.adjust(2, 0, -10, 0)
         painter = QPainter(self)
         painter.setPen(ColorScheme.GRAY.as_color())
-        painter.drawText(textRect, int(Qt.AlignRight | Qt.AlignVCenter), "height")
+        painter.drawText(textRect, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), "height")
 
 
 def get_max_allowed_timestamp() -> int:

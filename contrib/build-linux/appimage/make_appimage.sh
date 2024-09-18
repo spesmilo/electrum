@@ -150,7 +150,7 @@ info "Installing build dependencies."
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,
 #       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
+#       - PyQt6, as it's harder to build from source
 #       - cryptography, as it's harder to build from source
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
@@ -163,7 +163,7 @@ info "Installing build dependencies."
 info "installing electrum and its dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography --no-warn-script-location \
+"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
@@ -240,19 +240,23 @@ rm -rf "$PYDIR"/config-3.*-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
-# rm lots of unused parts of Qt/PyQt. (assuming PyQt 5.15.3+ layout)
+# rm lots of unused parts of Qt/PyQt. (assuming PyQt 6 layout)
 for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/translations/qt${component}_*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/resources/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/translations/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/resources/qt${component}_*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/{qml,libexec}
-rm -rf "$PYDIR"/site-packages/PyQt5/{pyrcc*.so,pylupdate*.so,uic}
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
-for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/lib/libQt5${component}*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt${component}*
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/{qml,libexec}
+rm -rf "$PYDIR"/site-packages/PyQt6/{pyrcc*.so,pylupdate*.so,uic}
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
+for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml Labs ShaderTools SpatialAudio ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
+for component in Qml Quick ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6*${component}.so*
+done
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete

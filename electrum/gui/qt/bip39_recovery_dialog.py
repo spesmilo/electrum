@@ -5,8 +5,8 @@
 import asyncio
 import concurrent.futures
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QGridLayout, QLabel, QListWidget, QListWidgetItem
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGridLayout, QLabel, QListWidget, QListWidgetItem
 
 from electrum.i18n import _
 from electrum.network import Network
@@ -22,7 +22,7 @@ _logger = get_logger(__name__)
 
 class Bip39RecoveryDialog(WindowModalDialog):
 
-    ROLE_ACCOUNT = Qt.UserRole
+    ROLE_ACCOUNT = Qt.ItemDataRole.UserRole
 
     def __init__(self, parent: QWidget, get_account_xpub, on_account_select):
         self.get_account_xpub = get_account_xpub

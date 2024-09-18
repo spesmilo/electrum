@@ -4,8 +4,8 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QCheckBox, QLabel, QVBoxLayout, QGridLayout, QWidget,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QCheckBox, QLabel, QVBoxLayout, QGridLayout, QWidget,
                              QPushButton, QHBoxLayout, QComboBox)
 
 from .amountedit import FeerateEdit
@@ -59,9 +59,9 @@ class _BaseRBFDialog(TxEditor):
         self.method_combo.addItems([strat.text() for strat in self._strategies])
         self.method_combo.setCurrentIndex(def_strat_idx)
         self.method_combo.currentIndexChanged.connect(self.trigger_update)
-        self.method_combo.setFocusPolicy(Qt.NoFocus)
+        self.method_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         old_size_label = TxSizeLabel()
-        old_size_label.setAlignment(Qt.AlignCenter)
+        old_size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         old_size_label.setAmount(self.old_tx_size)
         old_size_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         current_fee_hbox = QHBoxLayout()
@@ -85,7 +85,7 @@ class _BaseRBFDialog(TxEditor):
         return grid
 
     def run(self) -> None:
-        if not self.exec_():
+        if not self.exec():
             return
         if self.is_preview:
             self.main_window.show_transaction(self.tx)

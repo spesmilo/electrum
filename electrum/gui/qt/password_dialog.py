@@ -27,9 +27,9 @@ import re
 import math
 from functools import partial
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
@@ -93,7 +93,7 @@ class PasswordLayout(object):
             logo_grid.setColumnStretch(1,1)
 
             logo = QLabel()
-            logo.setAlignment(Qt.AlignCenter)
+            logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             logo_grid.addWidget(logo,  0, 0)
             logo_grid.addWidget(label, 0, 1, 1, 2)
@@ -108,7 +108,7 @@ class PasswordLayout(object):
             else:
                 lockfile = "unlock.png"
             logo.setPixmap(QPixmap(icon_path(lockfile))
-                           .scaledToWidth(36, mode=Qt.SmoothTransformation))
+                           .scaledToWidth(36, mode=Qt.TransformationMode.SmoothTransformation))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -196,7 +196,7 @@ class PasswordLayoutForHW(object):
         logo_grid.setColumnStretch(1,1)
 
         logo = QLabel()
-        logo.setAlignment(Qt.AlignCenter)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo_grid.addWidget(logo,  0, 0)
         logo_grid.addWidget(label, 0, 1, 1, 2)
@@ -207,7 +207,7 @@ class PasswordLayoutForHW(object):
         else:
             lockfile = "unlock.png"
         logo.setPixmap(QPixmap(icon_path(lockfile))
-                       .scaledToWidth(36, mode=Qt.SmoothTransformation))
+                       .scaledToWidth(36, mode=Qt.TransformationMode.SmoothTransformation))
 
         vbox.addLayout(grid)
 
@@ -268,7 +268,7 @@ class ChangePasswordDialogForSW(ChangePasswordDialogBase):
 
     def run(self):
         try:
-            if not self.exec_():
+            if not self.exec():
                 return False, None, None, None
             return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
         finally:
@@ -290,7 +290,7 @@ class ChangePasswordDialogForHW(ChangePasswordDialogBase):
         self.playout = PasswordLayoutForHW(msg)
 
     def run(self):
-        if not self.exec_():
+        if not self.exec():
             return False, None
         return True, self.playout.encrypt_cb.isChecked()
 
@@ -314,7 +314,7 @@ class PasswordDialog(WindowModalDialog):
 
     def run(self):
         try:
-            if not self.exec_():
+            if not self.exec():
                 return
             return self.pw.text()
         finally:

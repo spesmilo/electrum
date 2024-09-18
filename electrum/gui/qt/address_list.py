@@ -27,9 +27,9 @@ import enum
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
+from PyQt6.QtCore import Qt, QPersistentModelIndex, QModelIndex
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
 
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler
@@ -88,8 +88,8 @@ class AddressList(MyTreeView):
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
-    ROLE_SORT_ORDER = Qt.UserRole + 1000
-    ROLE_ADDRESS_STR = Qt.UserRole + 1001
+    ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 1000
+    ROLE_ADDRESS_STR = Qt.ItemDataRole.UserRole + 1001
     key_role = ROLE_ADDRESS_STR
 
     def __init__(self, main_window: 'ElectrumWindow'):
@@ -99,7 +99,7 @@ class AddressList(MyTreeView):
             editable_columns=[self.Columns.LABEL],
         )
         self.wallet = self.main_window.wallet
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
         self.show_used = AddressUsageStateFilter.ALL  # type: AddressUsageStateFilter
@@ -116,7 +116,7 @@ class AddressList(MyTreeView):
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
         self.update()
-        self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
+        self.sortByColumn(self.Columns.TYPE, Qt.SortOrder.AscendingOrder)
         if self.config:
             self.configvar_show_toolbar = self.config.cv.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR
 
@@ -207,11 +207,11 @@ class AddressList(MyTreeView):
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):
-                item.setTextAlignment(Qt.AlignVCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter)
                 if i not in (self.Columns.TYPE, self.Columns.LABEL):
                     item.setFont(QFont(MONOSPACE_FONT))
             self.set_editability(address_item)
-            address_item[self.Columns.FIAT_BALANCE].setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            address_item[self.Columns.FIAT_BALANCE].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             # setup column 0
             if self.wallet.is_change(address):
                 address_item[self.Columns.TYPE].setText(_('change'))
@@ -333,7 +333,7 @@ class AddressList(MyTreeView):
                 menu.addAction(_("Add to coin control"), lambda: self.main_window.utxo_list.add_to_coincontrol(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         if is_address(text):

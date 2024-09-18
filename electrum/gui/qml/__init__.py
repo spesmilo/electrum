@@ -22,7 +22,6 @@ except Exception as e:
 
 from PyQt6.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt6.QtGui import QGuiApplication
-sys._GUI_QT_VERSION = 6  # used by gui/common_qt
 
 from electrum.i18n import _
 from electrum.plugin import run_hook

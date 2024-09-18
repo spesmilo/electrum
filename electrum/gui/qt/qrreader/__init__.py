@@ -11,8 +11,8 @@
 #   to access the camera
 # - zbar fails to access the camera on macOS
 # - qtmultimedia seems to support more cameras on Windows than zbar
-# - qtmultimedia is often not packaged with PyQt5
-#   in particular, on debian, you need both "python3-pyqt5" and "python3-pyqt5.qtmultimedia"
+# - qtmultimedia is often not packaged with PyQt
+#   in particular, on debian, you need both "python3-pyqt6" and "python3-pyqt6.qtmultimedia"
 # - older versions of qtmultimedia don't seem to work reliably
 #
 # Considering the above, we use QtMultimedia for Windows and macOS, as there
@@ -24,8 +24,8 @@
 import sys
 from typing import Callable, Optional, TYPE_CHECKING, Mapping, Sequence
 
-from PyQt5.QtWidgets import QMessageBox, QWidget
-from PyQt5.QtGui import QImage
+from PyQt6.QtWidgets import QMessageBox, QWidget
+from PyQt6.QtGui import QImage
 
 from electrum.i18n import _
 from electrum.util import UserFacingException
@@ -59,12 +59,13 @@ def scan_qrcode(
 def scan_qr_from_image(image: QImage) -> Sequence[QrCodeResult]:
     """Might raise exception: MissingQrDetectionLib."""
     qr_reader = get_qr_reader()
-    image_y800 = image.convertToFormat(QImage.Format_Grayscale8)
+    image_y800 = image.convertToFormat(QImage.Format.Format_Grayscale8)
     res = qr_reader.read_qr_code(
-        image_y800.constBits().__int__(), image_y800.byteCount(),
+        image_y800.constBits().__int__(),
+        image_y800.sizeInBytes(),
         image_y800.bytesPerLine(),
         image_y800.width(),
-        image_y800.height()
+        image_y800.height(),
     )
     return res
 
@@ -124,10 +125,11 @@ def _scan_qrcode_using_qtmultimedia(
     try:
         from .qtmultimedia import QrReaderCameraDialog, CameraError
     except ImportError as e:
-        icon = QMessageBox.Warning
+        icon = QMessageBox.Icon.Warning
         title = _("QR Reader Error")
         message = _("QR reader failed to load. This may happen if "
-                    "you are using an older version of PyQt5.") + "\n\n" + str(e)
+                    "you are using an older version of PyQt.") + "\n\n" + str(e)
+        _logger.exception(message)
         if isinstance(parent, MessageBoxMixin):
             parent.msg_box(title=title, text=message, icon=icon, parent=None)
         else:

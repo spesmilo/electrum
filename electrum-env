@@ -5,7 +5,7 @@
 # If 'env' already exists, it is activated and Electrum is started
 # without any installations. Additionally, the PYTHONPATH environment
 # variable is set so that system packages such as e.g. apt installed
-# PyQt5 will also be visible.
+# PyQt will also be visible.
 #
 # By default, only pure python dependencies are installed.
 # If you would like more extras to be installed, do e.g.:

@@ -1,13 +1,6 @@
 import sys
 
-from . import get_qt_major_version
-
-if (qt_ver := get_qt_major_version()) == 5:
-    from PyQt5.QtCore import pyqtSignal, pyqtProperty, QObject
-elif qt_ver == 6:
-    from PyQt6.QtCore import pyqtSignal, pyqtProperty, QObject
-else:
-    raise Exception(f"unexpected {qt_ver=}")
+from PyQt6.QtCore import pyqtSignal, pyqtProperty, QObject
 
 from electrum.logging import get_logger
 

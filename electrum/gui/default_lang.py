@@ -20,7 +20,7 @@ if "ANDROID_DATA" in os.environ:
 
 def get_default_language(*, gui_name: Optional[str] = None) -> str:
     if gui_name == "qt":
-        from PyQt5.QtCore import QLocale
+        from PyQt6.QtCore import QLocale
         name = QLocale.system().name()
         return name if name in languages else "en_UK"
     elif gui_name == "qml":

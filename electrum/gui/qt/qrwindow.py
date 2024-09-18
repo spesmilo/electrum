@@ -23,8 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QHBoxLayout, QWidget
 
 from .qrcodewidget import QRCodeWidget
 
@@ -38,7 +38,7 @@ class QR_Window(QWidget):
         self.main_window = win
         self.setWindowTitle('Electrum - '+_('Payment Request'))
         self.setMinimumSize(800, 800)
-        self.setFocusPolicy(Qt.NoFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         main_box = QHBoxLayout()
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)

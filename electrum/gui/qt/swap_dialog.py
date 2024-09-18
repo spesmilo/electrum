@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Optional, Union
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -244,7 +244,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
     def run(self):
         """Can raise InvalidSwapParameters."""
-        if not self.exec_():
+        if not self.exec():
             return
         if self.is_reverse:
             lightning_amount = self.send_amount_e.get_amount()

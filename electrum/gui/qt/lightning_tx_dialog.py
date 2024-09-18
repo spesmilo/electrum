@@ -27,8 +27,8 @@ from typing import TYPE_CHECKING
 from decimal import Decimal
 import datetime
 
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
 from electrum.i18n import _
 from electrum.lnworker import PaymentDirection

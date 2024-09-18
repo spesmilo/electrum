@@ -26,8 +26,8 @@
 import ast
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QWidget, QHBoxLayout, QSlider)
@@ -114,15 +114,15 @@ class SettingsDialog(QDialog, QtEventListener):
         # lightning
         trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_USE_GOSSIP)
         trampoline_cb.setChecked(not self.config.LIGHTNING_USE_GOSSIP)
-        def on_trampoline_checked(use_trampoline):
-            use_trampoline = bool(use_trampoline)
+        def on_trampoline_checked(_x):
+            use_trampoline = trampoline_cb.isChecked()
             if not use_trampoline:
                 if not window.question('\n'.join([
                         _("Are you sure you want to disable trampoline?"),
                         _("Without this option, Electrum will need to sync with the Lightning network on every start."),
                         _("This may impact the reliability of your payments."),
                 ])):
-                    trampoline_cb.setCheckState(Qt.Checked)
+                    trampoline_cb.setCheckState(Qt.CheckState.Checked)
                     return
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
             if not use_trampoline:
@@ -137,15 +137,15 @@ class SettingsDialog(QDialog, QtEventListener):
 
         legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
         legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
-        def on_legacy_add_trampoline_checked(b):
-            self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = bool(b)
+        def on_legacy_add_trampoline_checked(_x):
+            self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
         legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
 
         remote_wt_cb = checkbox_from_configvar(self.config.cv.WATCHTOWER_CLIENT_ENABLED)
         remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
-        def on_remote_wt_checked(x):
-            self.config.WATCHTOWER_CLIENT_ENABLED = bool(x)
-            self.watchtower_url_e.setEnabled(bool(x))
+        def on_remote_wt_checked(_x):
+            self.config.WATCHTOWER_CLIENT_ENABLED = remote_wt_cb.isChecked()
+            self.watchtower_url_e.setEnabled(remote_wt_cb.isChecked())
         remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
         watchtower_url = self.config.WATCHTOWER_CLIENT_URL
         self.watchtower_url_e = QLineEdit(watchtower_url)
@@ -167,7 +167,7 @@ class SettingsDialog(QDialog, QtEventListener):
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
-        lnfee_slider = QSlider(Qt.Horizontal)
+        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
         lnfee_slider.setRange(0, len(lnfee_map)-1)
         lnfee_slider.setTracking(True)
         try:
@@ -194,8 +194,8 @@ class SettingsDialog(QDialog, QtEventListener):
 
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
-        def on_msat_checked(v):
-            prec = 3 if v == Qt.Checked else 0
+        def on_msat_checked(_x):
+            prec = 3 if msat_cb.isChecked() else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.BTC_AMOUNTS_PREC_POST_SAT = prec
@@ -224,8 +224,8 @@ class SettingsDialog(QDialog, QtEventListener):
 
         thousandsep_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
-        def on_set_thousandsep(v):
-            checked = v == Qt.Checked
+        def on_set_thousandsep(_x):
+            checked = thousandsep_cb.isChecked()
             if self.config.amt_add_thousands_sep != checked:
                 self.config.amt_add_thousands_sep = checked
                 self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP = checked
@@ -258,14 +258,14 @@ class SettingsDialog(QDialog, QtEventListener):
 
         updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
-        def on_set_updatecheck(v):
-            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = (v == Qt.Checked)
+        def on_set_updatecheck(_x):
+            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = updatecheck_cb.isChecked()
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
         filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
         filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
-        def on_set_filelogging(v):
-            self.config.WRITE_LOGS_TO_DISK = (v == Qt.Checked)
+        def on_set_filelogging(_x):
+            self.config.WRITE_LOGS_TO_DISK = filelogging_cb.isChecked()
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
 
@@ -355,8 +355,8 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.fx.set_exchange(exchange)
             self.app.update_fiat_signal.emit()
 
-        def on_history_rates(checked):
-            self.config.FX_HISTORY_RATES = bool(checked)
+        def on_history_rates(_x):
+            self.config.FX_HISTORY_RATES = self.history_rates_cb.isChecked()
             if not self.fx:
                 return
             update_exchanges()

@@ -26,10 +26,10 @@
 from functools import partial
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QTimer, QSize
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QFontMetrics, QFont
-from PyQt5.QtWidgets import QApplication, QTextEdit, QWidget, QLineEdit, QStackedLayout, QSizePolicy
+from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QFontMetrics, QFont
+from PyQt6.QtWidgets import QApplication, QTextEdit, QWidget, QLineEdit, QStackedLayout, QSizePolicy
 
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger
@@ -85,7 +85,7 @@ class ResizingTextEdit(QTextEdit):
         h = min(max(h, self.heightMin), self.heightMax)
         self.setMinimumHeight(int(h))
         self.setMaximumHeight(int(h))
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.verticalScrollBar().setHidden(docHeight + self.verticalMargins < self.heightMax)
         self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self.resized.emit()
@@ -199,7 +199,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
             self.line_edit.setText(text)
             self.text_edit.setText(text)
 
-    def setFocus(self, reason=Qt.OtherFocusReason) -> None:
+    def setFocus(self, reason=Qt.FocusReason.OtherFocusReason) -> None:
         if self.multiline:
             self.text_edit.setFocus(reason)
         else:

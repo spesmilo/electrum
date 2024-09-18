@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Electron Cash - lightweight Bitcoin client
 # Copyright (C) 2019 Axel Gembe <derago@gmail.com>
+# Copyright (c) 2024 The Electrum developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -29,10 +29,10 @@ import sys
 import os
 from typing import List, Optional
 
-from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
+from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
 
 from electrum.simple_config import SimpleConfig
 from electrum.i18n import _
@@ -55,8 +55,10 @@ class NoCamerasFound(CameraError):
     ''' Raised by start_scan if no usable cameras were found. Interested
     code can catch this specific exception.'''
 
-class NoCameraResolutionsFound(CameraError):
-    ''' Raised internally if no usable camera resolutions were found. '''
+
+def get_camera_path(cam: 'QCameraDevice') -> str:
+    return bytes(cam.id()).decode('ascii')
+
 
 class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
     """
@@ -84,6 +86,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.qr_frame_counter: int = 0
         self.last_qr_scan_ts: float = 0.0
         self.camera: QCamera = None
+        self.media_capture_session: QMediaCaptureSession = None
         self._error_message: str = None
         self._ok_done: bool = False
         self.camera_sc_conn = None
@@ -96,10 +99,10 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         # Set up the window, add the maximize button
         flags = self.windowFlags()
-        flags = flags | Qt.WindowMaximizeButtonHint
+        flags = flags | Qt.WindowType.WindowMaximizeButtonHint
         self.setWindowFlags(flags)
         self.setWindowTitle(_("Scan QR Code"))
-        self.setWindowModality(Qt.WindowModal if parent else Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.WindowModal if parent else Qt.WindowModality.ApplicationModal)
 
         # Create video widget and fixed aspect ratio layout to contain it
         self.video_widget = QrReaderVideoWidget()
@@ -113,12 +116,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.setLayout(vbox)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addLayout(self.video_layout)
-
-        self.lowres_label = QLabel(_("Note: This camera generates frames of relatively low resolution; QR scanning accuracy may be affected"))
-        self.lowres_label.setWordWrap(True)
-        self.lowres_label.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
-        vbox.addWidget(self.lowres_label)
-        self.lowres_label.setHidden(True)
 
         # Create a layout for the controls
         controls_layout = QHBoxLayout()
@@ -151,56 +148,11 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         # self.reject() and self.accept() in this class to kill the scan --
         # and we do it from within callback functions. If you don't use
         # queued connections here, bad things can happen.
-        self.finished.connect(self._boilerplate_cleanup, Qt.QueuedConnection)
-        self.finished.connect(self._on_finished, Qt.QueuedConnection)
+        self.finished.connect(self._boilerplate_cleanup, Qt.ConnectionType.QueuedConnection)
+        self.finished.connect(self._on_finished, Qt.ConnectionType.QueuedConnection)
 
     def _on_flip_x_changed(self, _state: int):
         self.config.QR_READER_FLIP_X = self.flip_x.isChecked()
-
-    def _get_resolution(self, resolutions: List[QSize], min_size: int) -> QSize:
-        """
-        Given a list of resolutions that the camera supports this function picks the
-        lowest resolution that is at least min_size in both width and height.
-        If no resolution is found, NoCameraResolutionsFound is raised.
-        """
-        def res_list_to_str(res_list: List[QSize]) -> str:
-            return ', '.join(['{}x{}'.format(r.width(), r.height()) for r in res_list])
-
-        def check_res(res: QSize):
-            return res.width() >= min_size and res.height() >= min_size
-
-        self.logger.info('searching for at least {0}x{0}'.format(min_size))
-
-        # Query and display all resolutions the camera supports
-        format_str = 'camera resolutions: {}'
-        self.logger.info(format_str.format(res_list_to_str(resolutions)))
-
-        # Filter to those that are at least min_size in both width and height
-        candidate_resolutions = []
-        ideal_resolutions = [r for r in resolutions if check_res(r)]
-        less_than_ideal_resolutions = [r for r in resolutions if r not in ideal_resolutions]
-        format_str = 'ideal resolutions: {}, less-than-ideal resolutions: {}'
-        self.logger.info(format_str.format(res_list_to_str(ideal_resolutions), res_list_to_str(less_than_ideal_resolutions)))
-
-        # Raise an error if we have no usable resolutions
-        if not ideal_resolutions and not less_than_ideal_resolutions:
-            raise NoCameraResolutionsFound(_("Cannot start QR scanner, no usable camera resolution found.") + self._linux_pyqt5bug_msg())
-
-        if not ideal_resolutions:
-            self.logger.warning('No ideal resolutions found, falling back to less-than-ideal resolutions -- QR recognition may fail!')
-            candidate_resolutions = less_than_ideal_resolutions
-            is_ideal = False
-        else:
-            candidate_resolutions = ideal_resolutions
-            is_ideal = True
-
-
-        # Sort the usable resolutions, least number of pixels first, get the first element
-        resolution = sorted(candidate_resolutions, key=lambda r: r.width() * r.height(), reverse=not is_ideal)[0]
-        format_str = 'chosen resolution is {}x{}'
-        self.logger.info(format_str.format(resolution.width(), resolution.height()))
-
-        return resolution, is_ideal
 
     @staticmethod
     def _get_crop(resolution: QSize, scan_size: int) -> QRect:
@@ -210,20 +162,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         scan_pos_x = (resolution.width() - scan_size) // 2
         scan_pos_y = (resolution.height() - scan_size) // 2
         return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
-
-    @staticmethod
-    def _linux_pyqt5bug_msg():
-        ''' Returns a string that may be appended to an exception error message
-        only if on Linux and PyQt5 < 5.12.2, otherwise returns an empty string. '''
-        if (sys.platform == 'linux' and PYQT_VERSION < 0x050c02 # Check if PyQt5 < 5.12.2 on linux
-                # Also: this warning is not relevant to APPIMAGE; so make sure
-                # we are not running from APPIMAGE.
-                and not os.environ.get('APPIMAGE')):
-            # In this case it's possible we couldn't detect a camera because
-            # of that missing libQt5MultimediaGstTools.so problem.
-            return ("\n\n" + _('If you indeed do have a usable camera connected, then this error may be caused by bugs in previous PyQt5 versions on Linux. Try installing the latest PyQt5:')
-                    + "\n\n" + "python3 -m pip install --user -I pyqt5")
-        return ''
 
     def start_scan(self, device: str = ''):
         """
@@ -237,17 +175,17 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         device_info = None
 
-        for camera in QCameraInfo.availableCameras():
-            if camera.deviceName() == device:
+        for camera in QMediaDevices.videoInputs():
+            if get_camera_path(camera) == device:
                 device_info = camera
                 break
 
         if not device_info:
             self.logger.info('Failed to open selected camera, trying to use default camera')
-            device_info = QCameraInfo.defaultCamera()
+            device_info = QMediaDevices.defaultVideoInput()
 
         if not device_info or device_info.isNull():
-            raise NoCamerasFound(_("Cannot start QR scanner, no usable camera found.") + self._linux_pyqt5bug_msg())
+            raise NoCamerasFound(_("Cannot start QR scanner, no usable camera found."))
 
         self._init_stats()
         self.qrreader_res = []
@@ -259,29 +197,14 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             self.logger.info("Warning: start_scan already called for this instance.")
 
         self.camera = QCamera(device_info)
-        self.camera.setViewfinder(self.video_surface)
-        self.camera.setCaptureMode(QCamera.CaptureViewfinder)
+        self.camera.start()
+        self.camera.errorOccurred.connect(self._on_camera_error)  # log the errors we get, if any, for debugging
 
-        # this operates on camera from within the signal handler, so should be a queued connection
-        self.camera_sc_conn = self.camera.statusChanged.connect(self._on_camera_status_changed, Qt.QueuedConnection)
-        self.camera.error.connect(self._on_camera_error)  # log the errors we get, if any, for debugging
-        # Camera needs to be loaded to query resolutions, this tries to open the camera
-        self.camera.load()
+        self.media_capture_session = QMediaCaptureSession()
+        self.media_capture_session.setCamera(self.camera)
+        self.media_capture_session.setVideoSink(self.video_surface)
 
-    _camera_status_names = {
-        QCamera.UnavailableStatus: _('unavailable'),
-        QCamera.UnloadedStatus: _('unloaded'),
-        QCamera.UnloadingStatus: _('unloading'),
-        QCamera.LoadingStatus: _('loading'),
-        QCamera.LoadedStatus: _('loaded'),
-        QCamera.StandbyStatus: _('standby'),
-        QCamera.StartingStatus: _('starting'),
-        QCamera.StoppingStatus: _('stopping'),
-        QCamera.ActiveStatus: _('active')
-    }
-
-    def _get_camera_status_name(self, status: QCamera.Status):
-        return self._camera_status_names.get(status, _('unknown'))
+        self.open()
 
     def _set_resolution(self, resolution: QSize):
         self.resolution = resolution
@@ -297,50 +220,8 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         # Set up the crop blur effect
         self.crop_blur_effect.setCrop(self.qr_crop)
 
-    def _on_camera_status_changed(self, status: QCamera.Status):
-        if self._ok_done:
-            # camera/scan is quitting, abort.
-            return
-
-        self.logger.info('camera status changed to {}'.format(self._get_camera_status_name(status)))
-
-        if status == QCamera.LoadedStatus:
-            # Determine the optimal resolution and compute the crop rect
-            camera_resolutions = self.camera.supportedViewfinderResolutions()
-            try:
-                resolution, was_ideal = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
-            except RuntimeError as e:
-                self._error_message = str(e)
-                self.reject()
-                return
-            self._set_resolution(resolution)
-
-            # Set the camera resolution
-            viewfinder_settings = QCameraViewfinderSettings()
-            viewfinder_settings.setResolution(resolution)
-            self.camera.setViewfinderSettings(viewfinder_settings)
-
-            # Counter for the QR scanner frame number
-            self.frame_id = 0
-
-            self.camera.start()
-            self.lowres_label.setVisible(not was_ideal)  # if they have a low res camera, show the warning label.
-        elif status == QCamera.UnloadedStatus or status == QCamera.UnavailableStatus:
-            self._error_message = _("Cannot start QR scanner, camera is unavailable.")
-            self.reject()
-        elif status == QCamera.ActiveStatus:
-            self.open()
-
-    CameraErrorStrings = {
-        QCamera.NoError : "No Error",
-        QCamera.CameraError : "Camera Error",
-        QCamera.InvalidRequestError : "Invalid Request Error",
-        QCamera.ServiceMissingError : "Service Missing Error",
-        QCamera.NotSupportedFeatureError : "Unsupported Feature Error"
-    }
-    def _on_camera_error(self, errorCode):
-        errStr = self.CameraErrorStrings.get(errorCode, "Unknown Error")
-        self.logger.info(f"QCamera error: {errStr}")
+    def _on_camera_error(self, error: QCamera.Error, error_str: str):
+        self.logger.info(f"QCamera error: {error}. {error_str}")
 
     def accept(self):
         self._ok_done = True  # immediately blocks further processing
@@ -357,15 +238,11 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
     def _close_camera(self):
         if self.camera:
-            self.camera.setViewfinder(None)
-            if self.camera_sc_conn:
-                self.camera.statusChanged.disconnect(self.camera_sc_conn)
-                self.camera_sc_conn = None
-            self.camera.unload()
+            self.camera.stop()
             self.camera = None
 
     def _on_finished(self, code):
-        res = ( (code == QDialog.Accepted
+        res = ( (code == QDialog.DialogCode.Accepted
                     and self.validator_res and self.validator_res.accepted
                     and self.validator_res.simple_result)
                 or '' )
@@ -374,7 +251,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         self.logger.info(f'closed {res}')
 
-        self.qr_finished.emit(code == QDialog.Accepted, self._error_message, res)
+        self.qr_finished.emit(code == QDialog.DialogCode.Accepted, self._error_message, res)
 
     def _on_frame_available(self, frame: QImage):
         if self._ok_done:
@@ -382,12 +259,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         self.frame_id += 1
 
-        if frame.size() != self.resolution:
-            self.logger.info('Getting video data at {}x{} instead of the requested {}x{}, switching resolution.'.format(
-                frame.size().width(), frame.size().height(),
-                self.resolution.width(), self.resolution.height()
-                ))
-            self._set_resolution(frame.size())
+        self._set_resolution(frame.size())
 
         flip_x = self.flip_x.isChecked()
 
@@ -400,14 +272,16 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
             # Convert to Y800 / GREY FourCC (single 8-bit channel)
             # This creates a copy, so we don't need to keep the frame around anymore
-            frame_y800 = frame_cropped.convertToFormat(QImage.Format_Grayscale8)
+            frame_y800 = frame_cropped.convertToFormat(QImage.Format.Format_Grayscale8)
 
             # Read the QR codes from the frame
             self.qrreader_res = self.qrreader.read_qr_code(
-                frame_y800.constBits().__int__(), frame_y800.byteCount(),
+                frame_y800.constBits().__int__(),
+                frame_y800.sizeInBytes(),
                 frame_y800.bytesPerLine(),
                 frame_y800.width(),
-                frame_y800.height(), self.frame_id
+                frame_y800.height(),
+                self.frame_id,
                 )
 
             # Call the validator to see if the scanned results are acceptable
