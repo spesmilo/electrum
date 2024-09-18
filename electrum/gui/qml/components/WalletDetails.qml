@@ -176,6 +176,28 @@ Pane {
                         }
 
                         Label {
+                            id: seed_extension_label
+                            Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
+                            visible: seedText.visible && Daemon.currentWallet.seedPassphrase
+                            text: qsTr('Seed Extension')
+                            color: Material.accentColor
+                        }
+
+                        TextHighlightPane {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            visible: seed_extension_label.visible
+                            Label {
+                                Layout.fillWidth: true
+                                text: Daemon.currentWallet.seedPassphrase
+                                wrapMode: Text.Wrap
+                                font.family: FixedFont
+                                font.pixelSize: constants.fontSizeMedium
+                            }
+                        }
+
+                        Label {
                             Layout.columnSpan: 2
                             Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.isLightning

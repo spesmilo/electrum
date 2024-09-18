@@ -105,6 +105,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._lightningbalancefrozen = QEAmount()
 
         self._seed = ''
+        self._seed_passphrase = ''
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -373,6 +374,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=dataChanged)
     def seed(self):
         return self._seed
+
+    @pyqtProperty(str, notify=dataChanged)
+    def seedPassphrase(self):
+        return self._seed_passphrase
 
     @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
@@ -770,9 +775,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def retrieve_seed(self):
         try:
             self._seed = self.wallet.get_seed(self.password)
+            self._seed_passphrase = self.wallet.keystore.get_passphrase(self.password)
             self.seedRetrieved.emit()
         except Exception:
             self._seed = ''
+            self._seed_passphrase = ''
 
         self.dataChanged.emit()
 
