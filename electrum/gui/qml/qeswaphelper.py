@@ -386,11 +386,15 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 self.canCancel = True
                 txid = fut.result()
                 try:  # swaphelper might be destroyed at this point
-                    self.userinfo = ' '.join([
-                        _('Success!'),
-                        messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL,
-                    ])
-                    self.state = QESwapHelper.State.Success
+                    if txid:
+                        self.userinfo = ' '.join([
+                            _('Success!'),
+                            messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL,
+                        ])
+                        self.state = QESwapHelper.State.Success
+                    else:
+                        self.userinfo = _('Swap failed!')
+                        self.state = QESwapHelper.State.Failed
                 except RuntimeError:
                     pass
             except concurrent.futures.CancelledError:
