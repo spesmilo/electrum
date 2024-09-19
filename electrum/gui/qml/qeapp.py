@@ -146,6 +146,9 @@ class QEAppController(BaseCrashReporter, QObject):
             pass
 
     def doNotify(self, wallet_name, message):
+        self.logger.debug(f'sending push notification to OS: {message=!r}')
+        # FIXME: this does not work on Android 13+. We would need to declare (in manifest)
+        #        and also request-at-runtime android.permission.POST_NOTIFICATIONS.
         try:
             # TODO: lazy load not in UI thread please
             global notification
