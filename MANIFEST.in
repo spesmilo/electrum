@@ -12,7 +12,7 @@ include contrib/deterministic-build/requirements*.txt
 include contrib/*.sh
 
 graft electrum
-prune tests
+graft tests
 graft contrib/udev
 
 exclude electrum/*.so
