@@ -1,0 +1,16 @@
+Electrum Bitcoin wallet for Android.
+
+Secure, feature rich and trusted by the Bitcoin community since 2011.
+• Website: https://electrum.org
+• Email: electrumdev@gmail.com
+• GitHub: https://github.com/spesmilo/electrum
+• Support: Please use GitHub or email to report bugs rather than the app rating system.
+
+Features:
+• Safe: Your private keys are encrypted and never leave your device.
+• Forgiving: Your wallet can be recovered from a secret phrase.
+• Instant On: Electrum uses servers that index the Bitcoin blockchain making it fast.
+• No Lock-In: You can export your private keys and use them in other Bitcoin clients.
+• No Downtimes: Electrum servers are decentralized and redundant. Your wallet is never down.
+• Proof Checking: Electrum Wallet verifies all the transactions in your history using SPV.
+• Cold Storage: Keep your private keys offline and go online with a watching-only wallet.
