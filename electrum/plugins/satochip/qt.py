@@ -8,9 +8,9 @@ from electrum.gui.qt.qrcodewidget import QRDialog
 from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
                                             WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
 from electrum.plugin import hook
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
-from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
                              QWidget, QGridLayout, QComboBox, QLineEdit, QTextEdit, QTabWidget)
 
 from functools import partial
@@ -83,7 +83,7 @@ class Plugin(SatochipPlugin, QtPluginBase):
         def show_dialog(device_id):
             if device_id:
                 SatochipSettingsDialog(
-                    window, self, keystore, device_id).exec_()
+                    window, self, keystore, device_id).exec()
         keystore.thread.add(connect, on_success=show_dialog)
 
     @hook
@@ -160,9 +160,9 @@ class SatochipSettingsDialog(WindowModalDialog):
         title = QLabel('''<center>
 <span style="font-size: x-large">Satochip Wallet</span>
 <br><a href="https://satochip.io">satochip.io</a>''')
-        title.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        title.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
 
-        grid.addWidget(title, 0, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(title, 0, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y = 3
 
         rows = [
@@ -176,10 +176,10 @@ class SatochipSettingsDialog(WindowModalDialog):
         for row_num, (member_name, label) in enumerate(rows):
             widget = QLabel('<tt>')
             widget.setTextInteractionFlags(
-                Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
+                Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
-            grid.addWidget(QLabel(label), y, 0, 1, 1, Qt.AlignRight)
-            grid.addWidget(widget, y, 1, 1, 1, Qt.AlignLeft)
+            grid.addWidget(QLabel(label), y, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(widget, y, 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
             setattr(self, member_name, widget)
             y += 1
 
@@ -231,21 +231,21 @@ class SatochipSettingsDialog(WindowModalDialog):
         change_card_label_btn.clicked.connect(_change_card_label)
 
         y += 3
-        grid.addWidget(pin_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(pin_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(seed_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(seed_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(set_2FA_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(set_2FA_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(reset_2FA_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(reset_2FA_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(change_2FA_server_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(change_2FA_server_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(verify_card_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(verify_card_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(change_card_label_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(change_card_label_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
-        grid.addWidget(CloseButton(self), y, 0, 1, 2, Qt.AlignHCenter)
+        grid.addWidget(CloseButton(self), y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
 
         dialog_vbox = QVBoxLayout(self)
         dialog_vbox.addWidget(body)
@@ -421,7 +421,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         d.setLayout(vbox)
 
-        passphrase = pw.text() if d.exec_() else None
+        passphrase = pw.text() if d.exec() else None
         return passphrase
 
     def set_2FA(self, client):
@@ -442,7 +442,7 @@ class SatochipSettingsDialog(WindowModalDialog):
                     help_txt = "Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: " + secret_2FA_hex
                     d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False,
                                  help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=self.config)
-                    result = d.exec_()  # result should be 0 or 1
+                    result = d.exec()  # result should be 0 or 1
                     if result == 1:
                         # further communications will require an id and an encryption key (for privacy).
                         # Both are derived from the secret_2FA using a one-way function inside the Satochip
@@ -529,7 +529,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         title = "Select 2FA server"
         d = SelectOptionsDialog(option_name=option_name, options=options,
                                 parent=None, title=title, help_text=help_txt, config=self.config)
-        result = d.exec_()  # result should be 0 or 1
+        result = d.exec()  # result should be 0 or 1
 
     def verify_card(self, client):
         # verify pin
@@ -571,7 +571,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             txt_subca=txt_subca,
             txt_device=txt_device,
         )
-        result = d.exec_()
+        result = d.exec()
 
     # todo: add this function in pysatochip
     def card_verify_authenticity(self, client):
@@ -654,7 +654,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
             d.setLayout(vbox)
 
-            label = pw.text() if d.exec_() else None
+            label = pw.text() if d.exec() else None
             if label is None or len(label.encode('utf-8')) <= 64:
                 return label
             else:
@@ -948,10 +948,10 @@ class WCSeedSuccess(WalletWizardComponent):
 
     def on_ready(self):
         w_icon = QLabel()
-        w_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.SmoothTransformation))
-        w_icon.setAlignment(Qt.AlignCenter)
+        w_icon.setPixmap(QPixmap(icon_path('confirmed.png')).scaledToWidth(48, mode=Qt.TransformationMode.SmoothTransformation))
+        w_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label = WWLabel(_("Seed imported successfully!"))
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout().addStretch(1)
         self.layout().addWidget(w_icon)
         self.layout().addWidget(label)
