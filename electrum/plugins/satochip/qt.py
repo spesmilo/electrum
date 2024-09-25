@@ -266,7 +266,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         self.sw_version.setText('<tt>%s' % sw_rel)
 
         (response, sw1, sw2, d) = client.cc.card_get_status()
-        if (sw1 == 0x90 and sw2 == 0x00):
+        if sw1 == 0x90 and sw2 == 0x00:
             # fw_rel= 'v' + str(d["protocol_major_version"]) + '.' + str(d["protocol_minor_version"])
             fw_rel = 'v' + str(d["protocol_major_version"]) + '.' + str(d["protocol_minor_version"]) + \
                 '-' + str(d["applet_major_version"]) + '.' + \
@@ -298,7 +298,7 @@ class SatochipSettingsDialog(WindowModalDialog):
 
             # card label
             (response, sw1, sw2, label) = client.cc.card_get_label()
-            if (label == ""):
+            if label == "":
                 label = "(none)"
             self.card_label.setText('<tt>%s' % label)
 
@@ -319,14 +319,14 @@ class SatochipSettingsDialog(WindowModalDialog):
         msg_cancel = _("PIN Change cancelled!")
         (is_pin, oldpin, newpin) = client.PIN_change_dialog(
             msg_oldpin, msg_newpin, msg_confirm, msg_error, msg_cancel)
-        if (not is_pin):
+        if not is_pin:
             return
 
         oldpin = list(oldpin)
         newpin = list(newpin)
         try:
             (response, sw1, sw2) = client.cc.card_change_PIN(0, oldpin, newpin)
-            if (sw1 == 0x90 and sw2 == 0x00):
+            if sw1 == 0x90 and sw2 == 0x00:
                 msg = _("PIN changed successfully!")
                 self.window.show_message(msg)
             else:
@@ -341,11 +341,6 @@ class SatochipSettingsDialog(WindowModalDialog):
 
     def reset_seed(self, client):
         _logger.info("In reset_seed")
-        # is_ok= client.verify_PIN()
-        # if not is_ok:
-        #     msg= f"action cancelled by user"
-        #     self.window.show_error(msg)
-        #     return
 
         # pin
         msg = ''.join([
@@ -355,14 +350,14 @@ class SatochipSettingsDialog(WindowModalDialog):
             _("To proceed, enter the PIN for your Satochip:")
         ])
         password = self.reset_seed_dialog(msg)
-        if (password is None):
+        if password is None:
             return
         pin = password.encode('utf8')
         pin = list(pin)
 
         # if 2FA is enabled, get challenge-response
         hmac = []
-        if (client.cc.needs_2FA is None):
+        if client.cc.needs_2FA is None:
             (response, sw1, sw2, d) = client.cc.card_get_status()
         if client.cc.needs_2FA:
             # challenge based on authentikey
@@ -397,12 +392,12 @@ class SatochipSettingsDialog(WindowModalDialog):
 
         # send request
         (response, sw1, sw2) = client.cc.card_reset_seed(pin, hmac)
-        if (sw1 == 0x90 and sw2 == 0x00):
+        if sw1 == 0x90 and sw2 == 0x00:
             msg = _(
                 "Seed reset successfully!\nYou should close this wallet and launch the wizard to generate a new wallet.")
             self.window.show_message(msg)
             # to do: close client?
-        elif (sw1 == 0x9c and sw2 == 0x0b):
+        elif sw1 == 0x9c and sw2 == 0x0b:
             msg = _(
                 f"Failed to reset seed: request rejected by 2FA device (error code: {hex(256*sw1+sw2)})")
             self.window.show_message(msg)
@@ -432,7 +427,7 @@ class SatochipSettingsDialog(WindowModalDialog):
     def set_2FA(self, client):
         if not client.cc.needs_2FA:
             use_2FA = client.handler.yes_no_question(MSG_USE_2FA)
-            if (use_2FA):
+            if use_2FA:
                 # verify PIN
                 is_ok = client.verify_PIN()
                 if not is_ok:
@@ -448,7 +443,7 @@ class SatochipSettingsDialog(WindowModalDialog):
                     d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False,
                                  help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=self.config)
                     result = d.exec_()  # result should be 0 or 1
-                    if (result == 1):
+                    if result == 1:
                         # further communications will require an id and an encryption key (for privacy).
                         # Both are derived from the secret_2FA using a one-way function inside the Satochip
                         amount_limit = 0  # i.e. always use
@@ -510,11 +505,11 @@ class SatochipSettingsDialog(WindowModalDialog):
 
             # send request
             (response, sw1, sw2) = client.cc.card_reset_2FA_key(hmac)
-            if (sw1 == 0x90 and sw2 == 0x00):
+            if sw1 == 0x90 and sw2 == 0x00:
                 msg = _("2FA reset successfully!")
                 client.cc.needs_2FA = False
                 self.window.show_message(msg)
-            elif (sw1 == 0x9c and sw2 == 0x17):
+            elif sw1 == 0x9c and sw2 == 0x17:
                 msg = _(
                     f"Failed to reset 2FA: \nyou must reset the seed first (error code {hex(256*sw1+sw2)})")
                 self.window.show_error(msg)
@@ -635,9 +630,9 @@ class SatochipSettingsDialog(WindowModalDialog):
 
         # set new label
         (response, sw1, sw2) = client.cc.card_set_label(label)
-        if (sw1 == 0x90 and sw2 == 0x00):
+        if sw1 == 0x90 and sw2 == 0x00:
             self.window.show_message(_("Card label changed successfully!"))
-        elif (sw1 == 0x6D and sw2 == 0x00):
+        elif sw1 == 0x6D and sw2 == 0x00:
             # starts with satochip v0.12
             self.window.show_error(_("Error: card does not support label!"))
         else:
@@ -820,7 +815,7 @@ class SatochipSetupLayout(QVBoxLayout):
         self.addLayout(vbox2)
 
         # PIN validation
-        if (self.pw.text() == "" or self.pw.text() is None):
+        if self.pw.text() == "" or self.pw.text() is None:
             self.validChanged.emit(False)
 
         def set_enabled():

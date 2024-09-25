@@ -81,16 +81,16 @@ class SatochipClient(HardwareClientBase):
         (response, sw1, sw2, d) = self.cc.card_get_status()
 
         # if setup is not done, we return None
-        if (not self.cc.setup_done):
+        if not self.cc.setup_done:
             _logger.info(f"SATOCHIP is_initialized() None (no setup)")
             return None
         # if not seeded, return False
-        if (self.cc.setup_done and not self.cc.is_seeded):
+        if self.cc.setup_done and not self.cc.is_seeded:
             _logger.info(
                 f"SATOCHIP is_initialized() False (PIN set but card not seeded)")
             return False
         # initialized if pin is set and device is seeded
-        if (self.cc.setup_done and self.cc.is_seeded):
+        if self.cc.setup_done and self.cc.is_seeded:
             _logger.info(
                 f"SATOCHIP is_initialized() True (PIN set and card seeded)")
             return True
@@ -186,13 +186,13 @@ class SatochipClient(HardwareClientBase):
         _logger.info('[SatochipClient] client request: ' + str(request_type))
 
         if self.handler is not None:
-            if (request_type == 'update_status'):
+            if request_type == 'update_status':
                 reply = self.handler.update_status(*args)
                 return reply
-            elif (request_type == 'show_error'):
+            elif request_type == 'show_error':
                 reply = self.handler.show_error(*args)
                 return reply
-            elif (request_type == 'show_message'):
+            elif request_type == 'show_message':
                 reply = self.handler.show_message(*args)
                 return reply
             else:
@@ -230,7 +230,7 @@ class SatochipClient(HardwareClientBase):
                 # return (False, None)
                 raise RuntimeError(
                     ('A PIN confirmation is required to initialize the Satochip!'))
-            if (pin != pin_confirm):
+            if pin != pin_confirm:
                 self.request('show_error', msg_error)
             else:
                 return (is_PIN, pin)
@@ -238,21 +238,21 @@ class SatochipClient(HardwareClientBase):
     def PIN_change_dialog(self, msg_oldpin, msg_newpin, msg_confirm, msg_error, msg_cancel):
         # old pin
         (is_PIN, oldpin) = self.PIN_dialog(msg_oldpin)
-        if (not is_PIN):
+        if not is_PIN:
             self.request('show_message', msg_cancel)
             return (False, None, None)
 
         # new pin
         while (True):
             (is_PIN, newpin) = self.PIN_dialog(msg_newpin)
-            if (not is_PIN):
+            if not is_PIN:
                 self.request('show_message', msg_cancel)
                 return (False, None, None)
             (is_PIN, pin_confirm) = self.PIN_dialog(msg_confirm)
-            if (not is_PIN):
+            if not is_PIN:
                 self.request('show_message', msg_cancel)
                 return (False, None, None)
-            if (newpin != pin_confirm):
+            if newpin != pin_confirm:
                 self.request('show_error', msg_error)
             else:
                 return (True, oldpin, newpin)
@@ -300,7 +300,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
 
         # check if 2FA is required
         hmac = b''
-        if (client.cc.needs_2FA is None):
+        if client.cc.needs_2FA is None:
             (response, sw1, sw2, d) = client.cc.card_get_status()
         if client.cc.needs_2FA:
             # challenge based on sha256(btcheader+msg)
@@ -321,7 +321,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
             (pubkey, chaincode) = client.cc.card_bip32_get_extendedkey(bytepath)
             (response2, sw1, sw2, compsig) = client.cc.card_sign_message(
                 keynbr, pubkey, message_byte, hmac)
-            if (compsig == b''):
+            if compsig == b'':
                 self.handler.show_error(
                     _("Wrong signature!\nThe 2FA device may have rejected the action."))
             return compsig
@@ -568,7 +568,7 @@ class SatochipPlugin(HW_PluginBase):
             raise Exception(_("The device was disconnected."))
 
         # check that card is indeed a Satochip
-        if (client.cc.card_type != "Satochip"):
+        if client.cc.card_type != "Satochip":
             raise Exception(_('Failed to create a client for this device.') + '\n' +
                             _('Inserted card is not a Satochip!'))
 
