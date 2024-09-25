@@ -97,9 +97,9 @@ cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy 
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
 #       This pkg is needed on some distros for Qt to launch. (see #8011)
+download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
+verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
 info "building libxcb-util1."
-XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
-# ^ git tag 0.4.0
 (
     if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
         info "libxcb-util1 already built, skipping"
@@ -108,18 +108,9 @@ XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
     cd "$CACHEDIR"
     mkdir "libxcb-util1"
     cd "libxcb-util1"
-    if [ ! -d util ]; then
-        git clone --recursive "https://anongit.freedesktop.org/git/xcb/util"
-    fi
+    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
+    mv "xcb-util-0.4.0" util
     cd util
-    if ! $(git cat-file -e ${XCB_UTIL_VERSION}) ; then
-        info "Could not find requested version $XCB_UTIL_VERSION in local clone; fetching..."
-        git fetch --all
-        git submodule update
-    fi
-    git reset --hard
-    git clean -dfxq
-    git checkout "${XCB_UTIL_VERSION}^{commit}"
     ./autogen.sh
     ./configure --enable-shared
     make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
@@ -159,7 +150,7 @@ info "Installing build dependencies."
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,
 #       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
+#       - PyQt6, as it's harder to build from source
 #       - cryptography, as it's harder to build from source
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
@@ -172,7 +163,7 @@ info "Installing build dependencies."
 info "installing electrum and its dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography --no-warn-script-location \
+"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
@@ -249,19 +240,23 @@ rm -rf "$PYDIR"/config-3.*-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
-# rm lots of unused parts of Qt/PyQt. (assuming PyQt 5.15.3+ layout)
+# rm lots of unused parts of Qt/PyQt. (assuming PyQt 6 layout)
 for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/translations/qt${component}_*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/resources/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/translations/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/resources/qt${component}_*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/{qml,libexec}
-rm -rf "$PYDIR"/site-packages/PyQt5/{pyrcc*.so,pylupdate*.so,uic}
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
-for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/lib/libQt5${component}*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt${component}*
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/{qml,libexec}
+rm -rf "$PYDIR"/site-packages/PyQt6/{pyrcc*.so,pylupdate*.so,uic}
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
+for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml Labs ShaderTools SpatialAudio ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
+for component in Qml Quick ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6*${component}.so*
+done
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete

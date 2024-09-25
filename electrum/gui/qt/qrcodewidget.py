@@ -3,10 +3,10 @@ from typing import Optional
 import qrcode
 import qrcode.exceptions
 
-from PyQt5.QtGui import QColor, QPen
-import PyQt5.QtGui as QtGui
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtWidgets import (
+from PyQt6.QtGui import QColor, QPen
+import PyQt6.QtGui as QtGui
+from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
     QFileDialog,
 )
@@ -63,7 +63,7 @@ class QRCodeWidget(QWidget):
         grey  = QColor(196, 196, 196, 255)
         white = QColor(255, 255, 255, 255)
         black_pen = QPen(black) if self.isEnabled() else QPen(grey)
-        black_pen.setJoinStyle(Qt.MiterJoin)
+        black_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
 
         if not self.qr:
             qp = QtGui.QPainter()

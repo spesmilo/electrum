@@ -2,6 +2,7 @@ import serial
 import logging
 
 from serial.tools import list_ports
+from .jade_error import JadeError
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,10 @@ class JadeSerialImpl:
         assert self.ser is not None
 
         if not self.ser.is_open:
-            self.ser.open()
+            try:
+                self.ser.open()
+            except serial.serialutil.SerialException:
+                raise JadeError(1, "Unable to open port", self.device)
 
         # Ensure RTS and DTR are not set (as this can cause the hw to reboot)
         self.ser.setRTS(False)

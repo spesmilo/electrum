@@ -382,13 +382,15 @@ def main():
         set_language(lang)
 
     if config.get('testnet'):
-        constants.set_testnet()
+        constants.BitcoinTestnet.set_as_network()
+    elif config.get('testnet4'):
+        constants.BitcoinTestnet4.set_as_network()
     elif config.get('regtest'):
-        constants.set_regtest()
+        constants.BitcoinRegtest.set_as_network()
     elif config.get('simnet'):
-        constants.set_simnet()
+        constants.BitcoinSimnet.set_as_network()
     elif config.get('signet'):
-        constants.set_signet()
+        constants.BitcoinSignet.set_as_network()
 
     # check if we received a valid payment identifier
     uri = config_options.get('url')

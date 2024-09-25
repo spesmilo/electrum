@@ -28,8 +28,8 @@ from xmlrpc.client import ServerProxy, Transport
 from typing import TYPE_CHECKING, Union, List, Tuple, Dict
 import ssl
 
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import QPushButton
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QPushButton
 import certifi
 
 from electrum import util, keystore, ecc, crypto

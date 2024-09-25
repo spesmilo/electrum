@@ -30,7 +30,7 @@ $ python3 -m pip install --user ".[gui,crypto]"
 
 If you want to use the Qt interface, install the Qt dependencies:
 ```
-$ sudo apt-get install python3-pyqt5
+$ sudo apt-get install python3-pyqt6
 ```
 
 For elliptic curve operations,

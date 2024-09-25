@@ -1089,7 +1089,7 @@ def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> st
 
 def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
     tx.sign({local_config.multisig_key.pubkey: local_config.multisig_key.privkey})
-    sig = tx.inputs()[0].part_sigs[local_config.multisig_key.pubkey]
+    sig = tx.inputs()[0].sigs_ecdsa[local_config.multisig_key.pubkey]
     sig_64 = ecdsa_sig64_from_der_sig(sig[:-1])
     return sig_64
 

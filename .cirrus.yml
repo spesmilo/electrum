@@ -188,13 +188,17 @@ task:
     cpu: 1
     memory: 2G
   pip_cache:
-    folder: contrib/build-wine/.cache/win32/wine_pip_cache
+    folders:
+      - contrib/build-wine/.cache/win32/wine_pip_cache
+      - contrib/build-wine/.cache/win64/wine_pip_cache
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - git ls-files -s contrib/deterministic-build/*.txt
       - git ls-files -s contrib/build-wine/
   build2_cache:
-    folder: contrib/build-wine/.cache/win32/build
+    folders:
+      - contrib/build-wine/.cache/win32/build
+      - contrib/build-wine/.cache/win64/build
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - cat contrib/make_libsecp256k1.sh | sha256sum

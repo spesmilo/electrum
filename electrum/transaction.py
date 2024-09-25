@@ -48,8 +48,9 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       opcodes, base_decode,
-                      base_encode, construct_witness, construct_script)
-from .crypto import sha256d
+                      base_encode, construct_witness, construct_script,
+                      taproot_tweak_seckey)
+from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
 from .bitcoin import DummyAddress
@@ -107,21 +108,26 @@ class TxinDataFetchProgress(NamedTuple):
 class Sighash(IntEnum):
     # note: this is not an IntFlag, as ALL|NONE != SINGLE
 
+    DEFAULT = 0  # taproot only (bip-0341)
     ALL = 1
     NONE = 2
     SINGLE = 3
     ANYONECANPAY = 0x80
 
     @classmethod
-    def is_valid(cls, sighash: int) -> bool:
-        for flag in Sighash:
-            for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
-                if (flag & ~0x1f | base_flag) == sighash:
-                    return True
-        return False
+    def is_valid(cls, sighash: int, *, is_taproot: bool = False) -> bool:
+        valid_flags = {
+            0x01, 0x02, 0x03,
+            0x81, 0x82, 0x83,
+        }
+        if is_taproot:
+            valid_flags.add(0x00)
+        return sighash in valid_flags
 
     @classmethod
     def to_sigbytes(cls, sighash: int) -> bytes:
+        if sighash == Sighash.DEFAULT:
+            return b""
         return sighash.to_bytes(length=1, byteorder="big")
 
 
@@ -210,10 +216,73 @@ class TxOutput:
         return d
 
 
-class BIP143SharedTxDigestFields(NamedTuple):
+class BIP143SharedTxDigestFields(NamedTuple):  # witness v0
     hashPrevouts: bytes
     hashSequence: bytes
     hashOutputs: bytes
+
+    @classmethod
+    def from_tx(cls, tx: 'PartialTransaction') -> 'BIP143SharedTxDigestFields':
+        inputs = tx.inputs()
+        outputs = tx.outputs()
+        hashPrevouts = sha256d(b''.join(txin.prevout.serialize_to_network() for txin in inputs))
+        hashSequence = sha256d(b''.join(
+            int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+            for txin in inputs))
+        hashOutputs = sha256d(b''.join(o.serialize_to_network() for o in outputs))
+        return BIP143SharedTxDigestFields(
+            hashPrevouts=hashPrevouts,
+            hashSequence=hashSequence,
+            hashOutputs=hashOutputs,
+        )
+
+
+class BIP341SharedTxDigestFields(NamedTuple):  # witness v1
+    sha_prevouts: bytes
+    sha_amounts: bytes
+    sha_scriptpubkeys: bytes
+    sha_sequences: bytes
+    sha_outputs: bytes
+
+    @classmethod
+    def from_tx(cls, tx: 'PartialTransaction') -> 'BIP341SharedTxDigestFields':
+        inputs = tx.inputs()
+        outputs = tx.outputs()
+        sha_prevouts = sha256(b''.join(txin.prevout.serialize_to_network() for txin in inputs))
+        sha_amounts = sha256(b''.join(
+            int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
+            for txin in inputs))
+        sha_scriptpubkeys = sha256(b''.join(
+            var_int(len(txin.scriptpubkey)) + txin.scriptpubkey
+            for txin in inputs))
+        sha_sequences = sha256(b''.join(
+            int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+            for txin in inputs))
+        sha_outputs = sha256(b''.join(o.serialize_to_network() for o in outputs))
+        return BIP341SharedTxDigestFields(
+            sha_prevouts=sha_prevouts,
+            sha_amounts=sha_amounts,
+            sha_scriptpubkeys=sha_scriptpubkeys,
+            sha_sequences=sha_sequences,
+            sha_outputs=sha_outputs,
+        )
+
+
+class SighashCache:
+
+    def __init__(self):
+        self._witver0 = None  # type: Optional[BIP143SharedTxDigestFields]
+        self._witver1 = None  # type: Optional[BIP341SharedTxDigestFields]
+
+    def get_witver0_data_for_tx(self, tx: 'PartialTransaction') -> BIP143SharedTxDigestFields:
+        if self._witver0 is None:
+            self._witver0 = BIP143SharedTxDigestFields.from_tx(tx)
+        return self._witver0
+
+    def get_witver1_data_for_tx(self, tx: 'PartialTransaction') -> BIP341SharedTxDigestFields:
+        if self._witver1 is None:
+            self._witver1 = BIP341SharedTxDigestFields.from_tx(tx)
+        return self._witver1
 
 
 class TxOutpoint(NamedTuple):
@@ -849,7 +918,7 @@ class Transaction:
         if estimate_size:
             dummy_desc = create_dummy_descriptor_from_address(txin.address)
         if desc := (txin.script_descriptor or dummy_desc):
-            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.part_sigs)
+            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.sigs_ecdsa)
             if sol.witness is not None:
                 return sol.witness
             return construct_witness([])
@@ -876,7 +945,7 @@ class Transaction:
                 if redeem_script := desc.expand().redeem_script:
                     return construct_script([redeem_script])
                 return b""
-            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.part_sigs)
+            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.sigs_ecdsa)
             if sol.script_sig is not None:
                 return sol.script_sig
             return b""
@@ -899,18 +968,6 @@ class Transaction:
                 return script
             raise Exception(f"don't know scriptcode for descriptor: {desc.to_string()}")
         raise UnknownTxinType(f'cannot construct preimage_script')
-
-    def _calc_bip143_shared_txdigest_fields(self) -> BIP143SharedTxDigestFields:
-        inputs = self.inputs()
-        outputs = self.outputs()
-        hashPrevouts = sha256d(b''.join(txin.prevout.serialize_to_network() for txin in inputs))
-        hashSequence = sha256d(b''.join(
-            int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
-            for txin in inputs))
-        hashOutputs = sha256d(b''.join(o.serialize_to_network() for o in outputs))
-        return BIP143SharedTxDigestFields(hashPrevouts=hashPrevouts,
-                                          hashSequence=hashSequence,
-                                          hashOutputs=hashOutputs)
 
     def is_segwit(self, *, guess_for_address=False):
         return any(txin.is_segwit(guess_for_address=guess_for_address)
@@ -1290,6 +1347,8 @@ class PSBTInputType(IntEnum):
     BIP32_DERIVATION = 6
     FINAL_SCRIPTSIG = 7
     FINAL_SCRIPTWITNESS = 8
+    TAP_KEY_SIG = 0x13
+    TAP_MERKLE_ROOT = 0x18
     SLIP19_OWNERSHIP_PROOF = 0x19
 
 
@@ -1301,6 +1360,7 @@ class PSBTOutputType(IntEnum):
 
 # Serialization/deserialization tools
 def deser_compact_size(f) -> Optional[int]:
+    # note: ~inverse of bitcoin.var_int
     try:
         nit = f.read(1)[0]
     except IndexError:
@@ -1383,11 +1443,13 @@ class PartialTxInput(TxInput, PSBTSection):
     def __init__(self, *args, **kwargs):
         TxInput.__init__(self, *args, **kwargs)
         self._witness_utxo = None  # type: Optional[TxOutput]
-        self.part_sigs = {}  # type: Dict[bytes, bytes]  # pubkey -> sig
+        self.sigs_ecdsa = {}  # type: Dict[bytes, bytes]  # pubkey -> sig
+        self.tap_key_sig = None  # type: Optional[bytes]  # sig for taproot key-path-spending
         self.sighash = None  # type: Optional[int]
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
         self.redeem_script = None  # type: Optional[bytes]
         self.witness_script = None  # type: Optional[bytes]
+        self.tap_merkle_root = None  # type: Optional[bytes]
         self.slip_19_ownership_proof = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
@@ -1397,6 +1459,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self._trusted_address = None  # type: Optional[str]
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
+        self._is_taproot = None  # type: Optional[bool]  # None means unknown
         self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
 
     @property
@@ -1439,7 +1502,9 @@ class PartialTxInput(TxInput, PSBTSection):
             'sighash': self.sighash,
             'redeem_script': self.redeem_script.hex() if self.redeem_script else None,
             'witness_script': self.witness_script.hex() if self.witness_script else None,
-            'part_sigs': {pubkey.hex(): sig.hex() for pubkey, sig in self.part_sigs.items()},
+            'sigs_ecdsa': {pubkey.hex(): sig.hex() for pubkey, sig in self.sigs_ecdsa.items()},
+            'tap_key_sig': self.tap_key_sig.hex() if self.tap_key_sig else None,
+            'tap_merkle_root': self.tap_merkle_root.hex() if self.tap_merkle_root else None,
             'bip32_paths': {pubkey.hex(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))
                             for pubkey, (xfp, path) in self.bip32_paths.items()},
             'slip_19_ownership_proof': self.slip_19_ownership_proof.hex() if self.slip_19_ownership_proof else None,
@@ -1519,11 +1584,25 @@ class PartialTxInput(TxInput, PSBTSection):
             self.witness_utxo = TxOutput.from_network_bytes(val)
             if key: raise SerializationError(f"key for {repr(kt)} must be empty")
         elif kt == PSBTInputType.PARTIAL_SIG:
-            if key in self.part_sigs:
+            if key in self.sigs_ecdsa:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
-            if len(key) not in (33, 65):  # TODO also allow 32? one of the tests in the BIP is "supposed to" fail with len==32...
+            if len(key) not in (33, 65):
                 raise SerializationError(f"key for {repr(kt)} has unexpected length: {len(key)}")
-            self.part_sigs[key] = val
+            self.sigs_ecdsa[key] = val
+        elif kt == PSBTInputType.TAP_KEY_SIG:
+            if self.tap_key_sig is not None:
+                raise SerializationError(f"duplicate key: {repr(kt)}")
+            if len(val) not in (64, 65):
+                raise SerializationError(f"value for {repr(kt)} has unexpected length: {len(val)}")
+            self.tap_key_sig = val
+            if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+        elif kt == PSBTInputType.TAP_MERKLE_ROOT:
+            if self.tap_merkle_root is not None:
+                raise SerializationError(f"duplicate key: {repr(kt)}")
+            if len(val) != 32:
+                raise SerializationError(f"value for {repr(kt)} has unexpected length: {len(val)}")
+            self.tap_merkle_root = val
+            if key: raise SerializationError(f"key for {repr(kt)} must be empty")
         elif kt == PSBTInputType.SIGHASH_TYPE:
             if self.sighash is not None:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
@@ -1534,7 +1613,7 @@ class PartialTxInput(TxInput, PSBTSection):
         elif kt == PSBTInputType.BIP32_DERIVATION:
             if key in self.bip32_paths:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
-            if len(key) not in (33, 65):  # TODO also allow 32? one of the tests in the BIP is "supposed to" fail with len==32...
+            if len(key) not in (33, 65):
                 raise SerializationError(f"key for {repr(kt)} has unexpected length: {len(key)}")
             self.bip32_paths[key] = unpack_bip32_root_fingerprint_and_int_path(val)
         elif kt == PSBTInputType.REDEEM_SCRIPT:
@@ -1573,8 +1652,12 @@ class PartialTxInput(TxInput, PSBTSection):
             wr(PSBTInputType.WITNESS_UTXO, self.witness_utxo.serialize_to_network())
         if self.utxo:
             wr(PSBTInputType.NON_WITNESS_UTXO, bfh(self.utxo.serialize_to_network(include_sigs=True)))
-        for pk, val in sorted(self.part_sigs.items()):
+        for pk, val in sorted(self.sigs_ecdsa.items()):
             wr(PSBTInputType.PARTIAL_SIG, val, pk)
+        if self.tap_key_sig is not None:
+            wr(PSBTInputType.TAP_KEY_SIG, self.tap_key_sig)
+        if self.tap_merkle_root is not None:
+            wr(PSBTInputType.TAP_MERKLE_ROOT, self.tap_merkle_root)
         if self.sighash is not None:
             wr(PSBTInputType.SIGHASH_TYPE, struct.pack('<I', self.sighash))
         if self.redeem_script is not None:
@@ -1632,7 +1715,7 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if desc := self.script_descriptor:
             try:
-                desc.satisfy(allow_dummy=False, sigdata=self.part_sigs)
+                desc.satisfy(allow_dummy=False, sigdata=self.sigs_ecdsa)
             except MissingSolutionPiece:
                 pass
             else:
@@ -1641,14 +1724,16 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def get_satisfaction_progress(self) -> Tuple[int, int]:
         if desc := self.script_descriptor:
-            return desc.get_satisfaction_progress(sigdata=self.part_sigs)
+            return desc.get_satisfaction_progress(sigdata=self.sigs_ecdsa)
         return 0, 0
 
     def finalize(self) -> None:
         def clear_fields_when_finalized():
             # BIP-174: "All other data except the UTXO and unknown fields in the
             #           input key-value map should be cleared from the PSBT"
-            self.part_sigs = {}
+            self.sigs_ecdsa = {}
+            self.tap_key_sig = None
+            self.tap_merkle_root = None
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
@@ -1673,9 +1758,13 @@ class PartialTxInput(TxInput, PSBTSection):
                 self.witness_utxo = other_txin.witness_utxo
             if other_txin.utxo:
                 self.utxo = other_txin.utxo
-            self.part_sigs.update(other_txin.part_sigs)
+            self.sigs_ecdsa.update(other_txin.sigs_ecdsa)
             if other_txin.sighash is not None:
                 self.sighash = other_txin.sighash
+            if other_txin.tap_key_sig is not None:
+                self.tap_key_sig = other_txin.tap_key_sig
+            if other_txin.tap_merkle_root is not None:
+                self.tap_merkle_root = other_txin.tap_merkle_root
             self.bip32_paths.update(other_txin.bip32_paths)
             if other_txin.redeem_script is not None:
                 self.redeem_script = other_txin.redeem_script
@@ -1692,7 +1781,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self._utxo = None  # type: Optional[Transaction]
 
     def is_native_segwit(self) -> Optional[bool]:
-        """Whether this input is native segwit. None means inconclusive."""
+        """Whether this input is native segwit (any witness version). None means inconclusive."""
         if self._is_native_segwit is None:
             if self.address:
                 self._is_native_segwit = bitcoin.is_segwit_address(self.address)
@@ -1726,6 +1815,7 @@ class PartialTxInput(TxInput, PSBTSection):
         return self._is_p2sh_segwit
 
     def is_segwit(self, *, guess_for_address=False) -> bool:
+        """Whether this input is segwit (any witness version)."""
         if super().is_segwit():
             return True
         if self.is_native_segwit() or self.is_p2sh_segwit():
@@ -1741,9 +1831,18 @@ class PartialTxInput(TxInput, PSBTSection):
             return dummy_desc.is_segwit()
         return False  # can be false-negative
 
+    def is_taproot(self) -> bool:
+        if self._is_taproot is None:
+            if self.address:
+                self._is_taproot = bitcoin.is_taproot_address(self.address)
+        if desc := self.script_descriptor:
+            return desc.is_taproot()
+        return self._is_taproot
+
     def already_has_some_signatures(self) -> bool:
         """Returns whether progress has been made towards completing this input."""
-        return (self.part_sigs
+        return (self.sigs_ecdsa
+                or self.tap_key_sig is not None
                 or self.script_sig is not None
                 or self.witness is not None)
 
@@ -1816,7 +1915,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
         elif kt == PSBTOutputType.BIP32_DERIVATION:
             if key in self.bip32_paths:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
-            if len(key) not in (33, 65):  # TODO also allow 32? one of the tests in the BIP is "supposed to" fail with len==32...
+            if len(key) not in (33, 65):
                 raise SerializationError(f"key for {repr(kt)} has unexpected length: {len(key)}")
             self.bip32_paths[key] = unpack_bip32_root_fingerprint_and_int_path(val)
         else:
@@ -2086,53 +2185,101 @@ class PartialTransaction(Transaction):
             self._outputs.sort(key = lambda o: (o.value, o.scriptpubkey))
         self.invalidate_ser_cache()
 
-    def serialize_preimage(self, txin_index: int, *,
-                           bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> bytes:
+    def serialize_preimage(
+        self,
+        txin_index: int,
+        *,
+        sighash_cache: SighashCache = None,
+    ) -> bytes:
         nVersion = int.to_bytes(self.version, length=4, byteorder="little", signed=True)
         nLocktime = int.to_bytes(self.locktime, length=4, byteorder="little", signed=False)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        if not Sighash.is_valid(sighash):
+        sighash = txin.sighash
+        if sighash is None:
+            sighash = Sighash.DEFAULT if txin.is_taproot() else Sighash.ALL
+        if not Sighash.is_valid(sighash, is_taproot=txin.is_taproot()):
             raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
-        nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
-        preimage_script = self.get_preimage_script(txin)
+        if sighash_cache is None:
+            sighash_cache = SighashCache()
         if txin.is_segwit():
-            if bip143_shared_txdigest_fields is None:
-                bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            if not (sighash & Sighash.ANYONECANPAY):
-                hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
-            else:
-                hashPrevouts = bytes(32)
-            if not (sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
-                hashSequence = bip143_shared_txdigest_fields.hashSequence
-            else:
-                hashSequence = bytes(32)
-            if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
-                hashOutputs = bip143_shared_txdigest_fields.hashOutputs
-            elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
-                hashOutputs = sha256d(outputs[txin_index].serialize_to_network())
-            else:
-                hashOutputs = bytes(32)
-            outpoint = txin.prevout.serialize_to_network()
-            scriptCode = var_int(len(preimage_script)) + preimage_script
-            amount = int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
-            nSequence = int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
-        else:
+            if txin.is_taproot():
+                scache = sighash_cache.get_witver1_data_for_tx(self)
+                sighash_epoch = b"\x00"
+                hash_type = int.to_bytes(sighash, length=1, byteorder="little", signed=False)
+                # txdata
+                preimage_txdata = bytearray()
+                preimage_txdata += nVersion
+                preimage_txdata += nLocktime
+                if sighash & 0x80 != Sighash.ANYONECANPAY:
+                    preimage_txdata += scache.sha_prevouts
+                    preimage_txdata += scache.sha_amounts
+                    preimage_txdata += scache.sha_scriptpubkeys
+                    preimage_txdata += scache.sha_sequences
+                if sighash & 3 not in (Sighash.NONE, Sighash.SINGLE):
+                    preimage_txdata += scache.sha_outputs
+                # inputdata
+                preimage_inputdata = bytearray()
+                spend_type = bytes([0])  # (ext_flag * 2) + annex_present
+                preimage_inputdata += spend_type
+                if sighash & 0x80 == Sighash.ANYONECANPAY:
+                    preimage_inputdata += txin.prevout.serialize_to_network()
+                    preimage_inputdata += int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
+                    preimage_inputdata += var_int(len(txin.scriptpubkey)) + txin.scriptpubkey
+                    preimage_inputdata += int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+                else:
+                    preimage_inputdata += int.to_bytes(txin_index, length=4, byteorder="little", signed=False)
+                # TODO sha_annex
+                # outputdata
+                preimage_outputdata = bytearray()
+                if sighash & 3 == Sighash.SINGLE:
+                    try:
+                        txout = outputs[txin_index]
+                    except IndexError:
+                        raise Exception("Using SIGHASH_SINGLE without a corresponding output") from None
+                    preimage_outputdata += sha256(txout.serialize_to_network())
+                return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata + preimage_outputdata)
+            else:  # segwit (witness v0)
+                scache = sighash_cache.get_witver0_data_for_tx(self)
+                if not (sighash & Sighash.ANYONECANPAY):
+                    hashPrevouts = scache.hashPrevouts
+                else:
+                    hashPrevouts = bytes(32)
+                if not (sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
+                    hashSequence = scache.hashSequence
+                else:
+                    hashSequence = bytes(32)
+                if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
+                    hashOutputs = scache.hashOutputs
+                elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
+                    hashOutputs = sha256d(outputs[txin_index].serialize_to_network())
+                else:
+                    hashOutputs = bytes(32)
+                outpoint = txin.prevout.serialize_to_network()
+                preimage_script = self.get_preimage_script(txin)
+                scriptCode = var_int(len(preimage_script)) + preimage_script
+                amount = int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
+                nSequence = int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+                nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
+                preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+                return preimage
+        else:  # legacy sighash (pre-segwit)
             if sighash != Sighash.ALL:
                 raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
+            preimage_script = self.get_preimage_script(txin)
             txins = var_int(len(inputs)) + b"".join(
                 txin.serialize_to_network(script_sig=preimage_script if txin_index==k else b"")
                 for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + b"".join(o.serialize_to_network() for o in outputs)
+            nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
-        return preimage
+            return preimage
+        raise Exception("should not reach this")
 
     def sign(self, keypairs: Mapping[bytes, bytes]) -> None:
         # keypairs:  pubkey_bytes -> secret_bytes
-        bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
+        sighash_cache = SighashCache()
         for i, txin in enumerate(self.inputs()):
             for pubkey in txin.pubkeys:
                 if txin.is_complete():
@@ -2141,7 +2288,7 @@ class PartialTransaction(Transaction):
                     continue
                 _logger.info(f"adding signature for {pubkey}. spending utxo {txin.prevout.to_str()}")
                 sec = keypairs[pubkey]
-                sig = self.sign_txin(i, sec, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)
+                sig = self.sign_txin(i, sec, sighash_cache=sighash_cache)
                 self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey, sig=sig)
 
         _logger.debug(f"tx.sign() finished. is_complete={self.is_complete()}")
@@ -2152,17 +2299,25 @@ class PartialTransaction(Transaction):
         txin_index: int,
         privkey_bytes: bytes,
         *,
-        bip143_shared_txdigest_fields=None,
+        sighash_cache: SighashCache = None,
     ) -> bytes:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        pre_hash = self.serialize_preimage(txin_index, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)
-        msg_hash = sha256d(pre_hash)
-        privkey = ecc.ECPrivkey(privkey_bytes)
-        sig = privkey.ecdsa_sign(msg_hash, sigencode=ecc.ecdsa_der_sig_from_r_and_s)
-        sig = sig + Sighash.to_sigbytes(sighash)
-        return sig
+        pre_hash = self.serialize_preimage(txin_index, sighash_cache=sighash_cache)
+        if txin.is_taproot():
+            # note: privkey_bytes is the internal key
+            merkle_root = txin.tap_merkle_root or bytes()
+            output_privkey_bytes = taproot_tweak_seckey(privkey_bytes, merkle_root)
+            output_privkey = ecc.ECPrivkey(output_privkey_bytes)
+            msg_hash = bitcoin.bip340_tagged_hash(b"TapSighash", pre_hash)
+            sig = output_privkey.schnorr_sign(msg_hash)
+            sighash = txin.sighash if txin.sighash is not None else Sighash.DEFAULT
+        else:
+            privkey = ecc.ECPrivkey(privkey_bytes)
+            msg_hash = sha256d(pre_hash)
+            sig = privkey.ecdsa_sign(msg_hash, sigencode=ecc.ecdsa_der_sig_from_r_and_s)
+            sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        return sig + Sighash.to_sigbytes(sighash)
 
     def is_complete(self) -> bool:
         return all([txin.is_complete() for txin in self.inputs()])
@@ -2211,7 +2366,7 @@ class PartialTransaction(Transaction):
             sig = signatures[i]
             if sig is None:
                 continue
-            if sig in list(txin.part_sigs.values()):
+            if sig in list(txin.sigs_ecdsa.values()):
                 continue
             msg_hash = sha256d(self.serialize_preimage(i))
             sig64 = ecc.ecdsa_sig64_from_der_sig(sig[:-1])
@@ -2233,7 +2388,7 @@ class PartialTransaction(Transaction):
 
     def add_signature_to_txin(self, *, txin_idx: int, signing_pubkey: bytes, sig: bytes) -> None:
         txin = self._inputs[txin_idx]
-        txin.part_sigs[signing_pubkey] = sig
+        txin.sigs_ecdsa[signing_pubkey] = sig
         # force re-serialization
         txin.script_sig = None
         txin.witness = None
@@ -2316,7 +2471,8 @@ class PartialTransaction(Transaction):
 
     def remove_signatures(self):
         for txin in self.inputs():
-            txin.part_sigs = {}
+            txin.sigs_ecdsa = {}
+            txin.tap_key_sig = None
             txin.script_sig = None
             txin.witness = None
         assert not self.is_complete()

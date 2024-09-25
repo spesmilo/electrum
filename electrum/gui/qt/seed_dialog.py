@@ -25,20 +25,19 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
                              QScrollArea, QWidget, QPushButton)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
+from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum import old_mnemonic
 from electrum import slip39
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
-                   EnterButton, CloseButton, WindowModalDialog, ColorScheme,
-                   ChoicesLayout, font_height)
+                   EnterButton, CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -87,15 +86,15 @@ class SeedLayout(QVBoxLayout):
             )
             if value in self.options or value == 'electrum'
         ]
-        seed_type_values = [t[0] for t in seed_types]
 
         if 'ext' in self.options:
             cb_ext = QCheckBox(_('Extend this seed with custom words'))
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
+
         if len(seed_types) >= 2:
-            def f(choices_layout):
-                self.seed_type = seed_type_values[choices_layout.selected_index()]
+            def on_selected(idx):
+                self.seed_type = seed_type_choice.selected_key
                 self.is_seed = (lambda x: bool(x)) if self.seed_type != 'electrum' else self.saved_is_seed
                 self.slip39_current_mnemonic_invalid = None
                 self.seed_status.setText('')
@@ -120,16 +119,15 @@ class SeedLayout(QVBoxLayout):
                 self.initialize_completer()
                 self.seed_warning.setText(msg)
 
-            checked_index = seed_type_values.index(self.seed_type)
-            titles = [t[1] for t in seed_types]
-            clayout = ChoicesLayout(_('Seed type'), titles, on_clicked=f, checked_index=checked_index)
-            vbox.addLayout(clayout.layout())
+            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=seed_types, selected=self.seed_type)
+            seed_type_choice.itemSelected.connect(on_selected)
+            vbox.addWidget(seed_type_choice)
 
         vbox.addLayout(Buttons(OkButton(dialog)))
-        if not dialog.exec_():
+        if not dialog.exec():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
-        self.seed_type = seed_type_values[clayout.selected_index()] if len(seed_types) >= 2 else 'electrum'
+        self.seed_type = seed_type_choice.selected_key if len(seed_types) >= 2 else 'electrum'
         self.updated.emit()
 
     def __init__(
@@ -174,7 +172,7 @@ class SeedLayout(QVBoxLayout):
         if icon:
             logo = QLabel()
             logo.setPixmap(QPixmap(icon_path("seed.png"))
-                           .scaledToWidth(64, mode=Qt.SmoothTransformation))
+                           .scaledToWidth(64, mode=Qt.TransformationMode.SmoothTransformation))
             logo.setMaximumWidth(60)
             hbox.addWidget(logo)
         hbox.addWidget(self.seed_e)
@@ -292,7 +290,7 @@ class SeedLayout(QVBoxLayout):
             b = self.slip39_seed is not None
             self.update_share_buttons()
         else:
-            t = seed_type(s)
+            t = calc_seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
             if t and not b:  # electrum seed, but does not conform to dialog rules
                 # FIXME we should just accept any electrum seed and "redirect" the wizard automatically.

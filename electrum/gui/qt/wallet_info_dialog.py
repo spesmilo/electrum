@@ -5,18 +5,17 @@
 import os
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QPushButton, QWidget, QStackedWidget)
 
-from electrum import keystore
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
 
 from .qrtextedit import ShowQRTextEdit
-from .util import (read_QIcon, WindowModalDialog, ChoicesLayout, Buttons,
-                   WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit)
+from .util import (read_QIcon, WindowModalDialog, Buttons,
+                   WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit, ChoiceWidget)
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -118,11 +117,11 @@ class WalletInfoDialog(WindowModalDialog):
                     else:
                         return _("keystore") + f' {idx+1}'
 
-                labels = [label(idx, ks) for idx, ks in enumerate(wallet.get_keystores())]
+                labels = [(idx, label(idx, ks)) for idx, ks in enumerate(wallet.get_keystores())]
 
-                on_click = lambda clayout: select_ks(clayout.selected_index())
-                labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
-                vbox.addLayout(labels_clayout.layout())
+                keystore_choice = ChoiceWidget(message=_("Select keystore"), choices=labels)
+                keystore_choice.itemSelected.connect(lambda x: select_ks(x))
+                vbox.addWidget(keystore_choice)
 
             for ks in keystores:
                 ks_w = QWidget()
@@ -141,7 +140,7 @@ class WalletInfoDialog(WindowModalDialog):
                 der_path_hbox.setContentsMargins(0, 0, 0, 0)
                 der_path_hbox.addWidget(WWLabel(_("Derivation path") + ':'))
                 der_path_text = WWLabel(ks.get_derivation_prefix() or _("unknown"))
-                der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                der_path_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 der_path_hbox.addWidget(der_path_text)
                 der_path_hbox.addStretch()
                 ks_vbox.addLayout(der_path_hbox)
@@ -150,7 +149,7 @@ class WalletInfoDialog(WindowModalDialog):
                 bip32fp_hbox.setContentsMargins(0, 0, 0, 0)
                 bip32fp_hbox.addWidget(QLabel("BIP32 root fingerprint:"))
                 bip32fp_text = WWLabel(ks.get_root_fingerprint() or _("unknown"))
-                bip32fp_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                bip32fp_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 bip32fp_hbox.addWidget(bip32fp_text)
                 bip32fp_hbox.addStretch()
                 ks_vbox.addLayout(bip32fp_hbox)

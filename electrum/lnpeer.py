@@ -263,7 +263,7 @@ class Peer(Logger):
         err_bytes = payload['data']
         is_known_chan_id = (chan_id in self.channels) or (chan_id in self.temp_id_to_id)
         self.logger.info(f"remote peer sent warning [DO NOT TRUST THIS MESSAGE]: "
-                         f"{error_text_bytes_to_safe_str(err_bytes)}. chan_id={chan_id.hex()}. "
+                         f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
 
     def on_error(self, payload):
@@ -271,7 +271,7 @@ class Peer(Logger):
         err_bytes = payload['data']
         is_known_chan_id = (chan_id in self.channels) or (chan_id in self.temp_id_to_id)
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: "
-                         f"{error_text_bytes_to_safe_str(err_bytes)}. chan_id={chan_id.hex()}. "
+                         f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
         if chan_id in self.channels:
             self.schedule_force_closing(chan_id)

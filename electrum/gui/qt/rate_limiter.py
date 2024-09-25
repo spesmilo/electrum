@@ -7,7 +7,7 @@ import threading
 import time
 import weakref
 
-from PyQt5.QtCore import QObject, QTimer
+from PyQt6.QtCore import QObject, QTimer
 
 from electrum.logging import Logger, get_logger
 
@@ -98,7 +98,7 @@ class RateLimiter(Logger):
                 self.timer.start(int(diff*1e3))
                 #self.logger.debug("deferring")
         else:
-            # We had a timer active, which means as future call will occur. So return early and let that call happenin the future.
+            # We had a timer active, which means as future call will occur. So return early and let that call happen in the future.
             # Note that a side-effect of this aborted invocation was to update self.saved_args.
             pass
             #self.logger.debug("ignoring (already scheduled)")

@@ -3,8 +3,8 @@ import traceback
 import sys
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 
 from electrum.plugin import hook
 from electrum.i18n import _
@@ -60,7 +60,7 @@ class Plugin(LabelsPlugin):
         vbox.addLayout(hbox)
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(OkButton(d)))
-        return bool(d.exec_())
+        return bool(d.exec())
 
     def on_pulled(self, wallet):
         self.obj.labels_changed_signal.emit(wallet)

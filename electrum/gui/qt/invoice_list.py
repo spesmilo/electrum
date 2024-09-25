@@ -26,10 +26,10 @@
 import enum
 from typing import Sequence, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QItemSelectionModel
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QAbstractItemView
-from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
+from PyQt6.QtCore import Qt, QItemSelectionModel
+from PyQt6.QtGui import QStandardItemModel, QStandardItem
+from PyQt6.QtWidgets import QAbstractItemView
+from PyQt6.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
 
 from electrum.i18n import _
 from electrum.util import format_time
@@ -47,9 +47,9 @@ if TYPE_CHECKING:
     from .send_tab import SendTab
 
 
-ROLE_REQUEST_TYPE = Qt.UserRole
-ROLE_REQUEST_ID = Qt.UserRole + 1
-ROLE_SORT_ORDER = Qt.UserRole + 2
+ROLE_REQUEST_TYPE = Qt.ItemDataRole.UserRole
+ROLE_REQUEST_ID = Qt.ItemDataRole.UserRole + 1
+ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 2
 
 
 class InvoiceList(MyTreeView):
@@ -82,7 +82,7 @@ class InvoiceList(MyTreeView):
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     def on_double_click(self, idx):
         key = idx.sibling(idx.row(), self.Columns.DATE).data(ROLE_REQUEST_ID)
@@ -139,7 +139,7 @@ class InvoiceList(MyTreeView):
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         # sort requests by date
-        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
+        self.sortByColumn(self.Columns.DATE, Qt.SortOrder.DescendingOrder)
         self.hide_if_empty()
 
     def show_invoice(self, key):
@@ -165,7 +165,7 @@ class InvoiceList(MyTreeView):
             if can_batch_pay:
                 menu.addAction(_("Batch pay invoices") + "...", lambda: self.send_tab.pay_multiple_invoices(invoices))
             menu.addAction(_("Delete invoices"), lambda: self.delete_invoices(keys))
-            menu.exec_(self.viewport().mapToGlobal(position))
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
         item = self.item_from_index(idx)
@@ -193,7 +193,7 @@ class InvoiceList(MyTreeView):
             if log:
                 menu.addAction(_("View log"), lambda: self.show_log(key, log))
         menu.addAction(_("Delete"), lambda: self.delete_invoices([key]))
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def show_log(self, key, log: Sequence[HtlcLog]):
         d = WindowModalDialog(self, _("Payment log"))
@@ -201,15 +201,15 @@ class InvoiceList(MyTreeView):
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()
         log_w.setHeaderLabels([_('Hops'), _('Channel ID'), _('Message')])
-        log_w.header().setSectionResizeMode(2, QHeaderView.Stretch)
-        log_w.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        log_w.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        log_w.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         for payment_attempt_log in log:
             route_str, chan_str, message = payment_attempt_log.formatted_tuple()
             x = QTreeWidgetItem([route_str, chan_str, message])
             log_w.addTopLevelItem(x)
         vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))
-        d.exec_()
+        d.exec()
 
     def delete_invoices(self, keys):
         for key in keys:

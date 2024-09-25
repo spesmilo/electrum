@@ -41,12 +41,13 @@ from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
                     KeyOriginInfo)
 from .descriptor import PubkeyProvider
 from .ecc import string_to_number
+from . import crypto
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
                      CiphertextFormatError)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bfh, inv_dict, is_hex_str)
-from .mnemonic import Mnemonic, Wordlist, seed_type, is_seed
+from .mnemonic import Mnemonic, Wordlist, calc_seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
 
@@ -118,7 +119,7 @@ class KeyStore(Logger, ABC):
             return {}
         keypairs = {}
         for pubkey in txin.pubkeys:
-            if pubkey in txin.part_sigs:
+            if pubkey in txin.sigs_ecdsa:
                 # this pubkey already signed
                 continue
             derivation = self.get_pubkey_derivation(pubkey, txin)
@@ -223,12 +224,12 @@ class Software_KeyStore(KeyStore):
     def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
-        return key.ecdsa_sign_usermessage(message, is_compressed=compressed)
+        return bitcoin.ecdsa_sign_usermessage(key, message, is_compressed=compressed)
 
     def decrypt_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         ec = ecc.ECPrivkey(privkey)
-        decrypted = ec.decrypt_message(message)
+        decrypted = crypto.ecies_decrypt_message(ec, message)
         return decrypted
 
     def sign_transaction(self, tx, password):
@@ -380,7 +381,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
-        self._seed_type = seed_type(seed) or None
+        self._seed_type = calc_seed_type(seed) or None
 
     def get_seed(self, password):
         if not self.has_seed():
@@ -1167,7 +1168,7 @@ def purpose48_derivation(account_id: int, xtype: str) -> str:
 
 def from_seed(seed: str, *, passphrase: Optional[str], for_multisig: bool = False):
     passphrase = passphrase or ""
-    t = seed_type(seed)
+    t = calc_seed_type(seed)
     if t == 'old':
         if passphrase:
             raise Exception("'old'-type electrum seed cannot have passphrase")

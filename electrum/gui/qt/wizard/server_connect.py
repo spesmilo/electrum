@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QCheckBox, QLabel, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QCheckBox, QLabel, QHBoxLayout, QVBoxLayout, QWidget
 
 from electrum.i18n import _
 from electrum.wizard import ServerConnectWizard
@@ -70,8 +70,8 @@ class WCWelcome(WizardComponent):
 
         self.layout().addLayout(hbox_img)
         self.layout().addSpacing(50)
-        self.layout().addWidget(self.use_advanced_w, False, Qt.AlignHCenter)
-        self.layout().addWidget(options_w, False, Qt.AlignHCenter)
+        self.layout().addWidget(self.use_advanced_w, False, Qt.AlignmentFlag.AlignHCenter)
+        self.layout().addWidget(options_w, False, Qt.AlignmentFlag.AlignHCenter)
         self._valid = True
 
     def on_advanced_changed(self):

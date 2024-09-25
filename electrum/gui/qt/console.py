@@ -6,9 +6,10 @@ import os
 import re
 import traceback
 
-from PyQt5 import QtCore
-from PyQt5 import QtGui
-from PyQt5 import QtWidgets
+from PyQt6 import QtCore
+from PyQt6.QtCore import Qt
+from PyQt6 import QtGui
+from PyQt6 import QtWidgets
 
 from electrum import util
 from electrum.i18n import _
@@ -36,7 +37,7 @@ class OverlayLabel(QtWidgets.QLabel):
         self.setGeometry(0, 0, self.width(), self.height())
         self.setStyleSheet(self.STYLESHEET)
         self.setMargin(0)
-        parent.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        parent.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWordWrap(True)
 
     def mousePressEvent(self, e):
@@ -56,9 +57,9 @@ class Console(QtWidgets.QPlainTextEdit):
         self.construct = []
 
         self.setGeometry(50, 75, 600, 400)
-        self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
+        self.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAnywhere)
         self.setUndoRedoEnabled(False)
-        self.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        self.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Weight.Normal))
         self.newPrompt("")  # make sure there is always a prompt, even before first server.banner
 
         self.updateNamespace({'run':self.run_script})
@@ -114,7 +115,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.completions_visible = False
 
         self.appendPlainText(prompt)
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.End)
 
     def getCommand(self, *, strip=True):
         doc = self.document()
@@ -130,13 +131,13 @@ class Console(QtWidgets.QPlainTextEdit):
 
         doc = self.document()
         curr_line = doc.findBlockByLineNumber(doc.lineCount() - 1).text()
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.End)
         for i in range(len(curr_line) - len(sys.ps1)):
-            self.moveCursor(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor)
+            self.moveCursor(QtGui.QTextCursor.MoveOperation.Left, QtGui.QTextCursor.MoveMode.KeepAnchor)
 
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.End)
 
     def show_completions(self, completions):
         if self.completions_visible:
@@ -152,7 +153,7 @@ class Console(QtWidgets.QPlainTextEdit):
         c.insertText(t)
         self.completions_end = c.position()
 
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.End)
         self.completions_visible = True
 
     def hide_completions(self):
@@ -163,7 +164,7 @@ class Console(QtWidgets.QPlainTextEdit):
         l = self.completions_end - self.completions_pos
         for x in range(l): c.deleteChar()
 
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.End)
         self.completions_visible = False
 
     def getConstruct(self, command):
@@ -211,9 +212,9 @@ class Console(QtWidgets.QPlainTextEdit):
         return c.position() - c.block().position() - len(sys.ps1)
 
     def setCursorPosition(self, position):
-        self.moveCursor(QtGui.QTextCursor.StartOfLine)
+        self.moveCursor(QtGui.QTextCursor.MoveOperation.StartOfLine)
         for i in range(len(sys.ps1) + position):
-            self.moveCursor(QtGui.QTextCursor.Right)
+            self.moveCursor(QtGui.QTextCursor.MoveOperation.Right)
 
     def run_command(self):
         command = self.getCommand()
@@ -279,32 +280,32 @@ class Console(QtWidgets.QPlainTextEdit):
         sys.stdout = tmp_stdout
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Tab:
+        if event.key() == Qt.Key.Key_Tab:
             self.completions()
             return
 
         self.hide_completions()
 
-        if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
+        if event.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return):
             self.run_command()
             return
-        if event.key() == QtCore.Qt.Key_Home:
+        if event.key() == Qt.Key.Key_Home:
             self.setCursorPosition(0)
             return
-        if event.key() == QtCore.Qt.Key_PageUp:
+        if event.key() == Qt.Key.Key_PageUp:
             return
-        elif event.key() in (QtCore.Qt.Key_Left, QtCore.Qt.Key_Backspace):
+        elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Backspace):
             if self.getCursorPosition() == 0:
                 return
-        elif event.key() == QtCore.Qt.Key_Up:
+        elif event.key() == Qt.Key.Key_Up:
             self.setCommand(self.getPrevHistoryEntry())
             return
-        elif event.key() == QtCore.Qt.Key_Down:
+        elif event.key() == Qt.Key.Key_Down:
             self.setCommand(self.getNextHistoryEntry())
             return
-        elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
+        elif event.key() == Qt.Key.Key_L and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             self.clear()
-        elif event.key() == QtCore.Qt.Key_C and event.modifiers() == QtCore.Qt.ControlModifier:
+        elif event.key() == Qt.Key.Key_C and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             if not self.textCursor().selectedText():
                 self.keyboard_interrupt()
 

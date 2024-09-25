@@ -109,7 +109,7 @@ class Plugin(TrustedCoinPlugin):
             else:
                 self.on_failure(_('Service Error') + ':\n' + str(e))
         except Exception as e:
-                self.on_failure(_('Error') + ':\n' + str(e))
+            self.on_failure(_('Error') + ':\n' + str(e))
         else:
             self.on_success(self.tx)
 

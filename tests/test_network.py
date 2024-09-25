@@ -49,12 +49,12 @@ class TestNetwork(ElectrumTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        constants.set_regtest()
+        constants.BitcoinRegtest.set_as_network()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        constants.set_mainnet()
+        constants.BitcoinMainnet.set_as_network()
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -127,6 +127,6 @@ class TestNetwork(ElectrumTestCase):
         self.assertEqual(self.interface.q.qsize(), 0)
 
 
-if __name__=="__main__":
-    constants.set_regtest()
+if __name__ == "__main__":
+    constants.BitcoinRegtest.set_as_network()
     unittest.main()

@@ -26,9 +26,9 @@
 from typing import TYPE_CHECKING
 import copy
 
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QTextCharFormat, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QTextCharFormat, QFont
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser
 
 from electrum.i18n import _
 
@@ -57,7 +57,7 @@ class UTXODialog(WindowModalDialog):
         self.parents_list.anchorClicked.connect(self.open_tx)  # send links to our handler
         self.parents_list.setFont(QFont(MONOSPACE_FONT))
         self.parents_list.setReadOnly(True)
-        self.parents_list.setTextInteractionFlags(self.parents_list.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        self.parents_list.setTextInteractionFlags(self.parents_list.textInteractionFlags() | Qt.TextInteractionFlag.LinksAccessibleByMouse | Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
         self.txo_color_parent = TxOutputColoring(
             legend=_("Direct parent"), color=ColorScheme.BLUE, tooltip=_("Direct parent"))
         self.txo_color_uncle = TxOutputColoring(
@@ -123,7 +123,7 @@ class UTXODialog(WindowModalDialog):
             lnk.setAnchorHref(_txid)
             #lnk.setAnchorNames([a_name])
             lnk.setAnchor(True)
-            lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+            lnk.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SingleUnderline)
             cursor.insertText(key, lnk)
             cursor.insertText(" ", ext)
             cursor.insertText(label, ext)
@@ -149,7 +149,7 @@ class UTXODialog(WindowModalDialog):
 
     def open_tx(self, txid):
         if isinstance(txid, QUrl):
-            txid = txid.toString(QUrl.None_)
+            txid = txid.toString(QUrl.UrlFormattingOption.None_)
         tx = self.wallet.adb.get_transaction(txid)
         if not tx:
             return

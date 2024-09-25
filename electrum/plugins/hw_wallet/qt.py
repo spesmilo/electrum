@@ -26,10 +26,10 @@
 
 import threading
 from functools import partial
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Sequence, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, Qt
-from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
+from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
@@ -95,7 +95,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             icon_name = button.icon_paired if paired else button.icon_unpaired
             button.setIcon(read_QIcon(icon_name))
 
-    def query_choice(self, msg, labels):
+    def query_choice(self, msg: str, labels: Sequence[Tuple]):
         self.done.clear()
         self.query_signal.emit(msg, labels)
         self.done.wait()
@@ -142,7 +142,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             vbox.addLayout(playout.layout())
             vbox.addLayout(Buttons(CancelButton(d), OK_button))
             d.setLayout(vbox)
-            passphrase = playout.new_password() if d.exec_() else None
+            passphrase = playout.new_password() if d.exec() else None
         else:
             pw = PasswordLineEdit()
             pw.setMinimumWidth(200)
@@ -151,7 +151,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             vbox.addWidget(pw)
             vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
             d.setLayout(vbox)
-            passphrase = pw.text() if d.exec_() else None
+            passphrase = pw.text() if d.exec() else None
         self.passphrase = passphrase
         self.done.set()
 
@@ -164,7 +164,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
-        dialog.exec_()  # Firmware cannot handle cancellation
+        dialog.exec()  # Firmware cannot handle cancellation
         self.word = text.text()
         self.done.set()
 
@@ -176,7 +176,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             title = _('Please check your {} device').format(self.device)
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
         label = QLabel(msg)
-        label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(label)
         if on_cancel:
@@ -194,7 +194,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             self.dialog.accept()
             self.dialog = None
 
-    def win_query_choice(self, msg, labels):
+    def win_query_choice(self, msg: str, labels: Sequence[Tuple]):
         try:
             self.choice = self.win.query_choice(msg, labels)
         except UserCancelled:

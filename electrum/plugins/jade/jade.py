@@ -7,7 +7,7 @@ from electrum import bip32, constants
 from electrum.crypto import sha256
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import Transaction
+from electrum.transaction import PartialTransaction, Transaction
 from electrum.wallet import Multisig_Wallet
 from electrum.util import UserFacingException
 from electrum.logging import get_logger
@@ -26,14 +26,15 @@ _logger = get_logger(__name__)
 #import logging
 #LOGGING = logging.INFO
 #if LOGGING:
-#    logger = logging.getLogger('jade')
+#    logger = logging.getLogger('electrum.plugins.jade.jadepy.jade')
 #    logger.setLevel(LOGGING)
-#    device_logger = logging.getLogger('jade-device')
+#    device_logger = logging.getLogger('electrum.plugins.jade.jadepy.jade-device')
 #    device_logger.setLevel(LOGGING)
 
 try:
     # Do imports
     from .jadepy.jade import JadeAPI
+    from .jadepy.jade_serial import JadeSerialImpl
     from serial.tools import list_ports
 except ImportError as e:
     _logger.exception('error importing Jade plugin deps')
@@ -117,7 +118,7 @@ class Jade_Client(HardwareClientBase):
         self.efusemac = verinfo['EFUSEMAC']
         self.jade.disconnect()
 
-        # Reconnect with a the default timeout for all subsequent calls
+        # Reconnect with the default timeout for all subsequent calls
         self.jade = JadeAPI.create_serial(device)
         self.jade.connect()
 
@@ -193,25 +194,11 @@ class Jade_Client(HardwareClientBase):
         return base64.b64decode(sig)
 
     @runs_in_hwd_thread
-    def sign_tx(self, txn_bytes, inputs, change):
+    def sign_psbt(self, psbt_bytes):
         self.authenticate()
 
-        # Add some host entropy for AE sigs (although we won't verify)
-        for input in inputs:
-            if input['path'] is not None:
-                input['ae_host_entropy'] = os.urandom(32)
-                input['ae_host_commitment'] = os.urandom(32)
-
-        # Map change script type
-        for output in change:
-            if output and output.get('variant') is not None:
-                output['variant'] = self._convertAddrType(output['variant'], False)
-
-        # Pass to Jade to generate signatures
-        sig_data = self.jade.sign_tx(self._network(), txn_bytes, inputs, change, use_ae_signatures=True)
-
-        # Extract signatures from returned data (sig[0] is the AE signer-commitment)
-        return [sig[1] for sig in sig_data]
+        # Pass as PSBT to Jade for signing.  As of fw v0.1.47 Jade should handle PSBT natively.
+        return self.jade.sign_psbt(self._network(), psbt_bytes)
 
     @runs_in_hwd_thread
     def show_address(self, bip32_path_prefix, sequence, txin_type):
@@ -260,64 +247,24 @@ class Jade_KeyStore(Hardware_KeyStore):
         self.handler.show_message(_("Preparing to sign transaction ..."))
         try:
             wallet = self.handler.get_wallet()
-            is_multisig = _is_multisig(wallet)
-
-            # Fetch inputs of the transaction to sign
-            jade_inputs = []
-            for txin in tx.inputs():
-                pubkey, path = self.find_my_pubkey_in_txinout(txin)
-                witness_input = txin.is_segwit()
-                redeem_script = Transaction.get_preimage_script(txin)
-                input_tx = txin.utxo
-                input_tx = bytes.fromhex(input_tx.serialize()) if input_tx is not None else None
-
-                # Build the input and add to the list - include some host entropy for AE sigs (although we won't verify)
-                jade_inputs.append({'is_witness': witness_input,
-                                    'input_tx': input_tx,
-                                    'script': redeem_script,
-                                    'path': path})
-
-            # Change detection
-            change = [None] * len(tx.outputs())
-            for index, txout in enumerate(tx.outputs()):
-                if txout.is_mine and txout.is_change:
-                    desc = txout.script_descriptor
-                    assert desc
-                    if is_multisig:
+            if _is_multisig(wallet):
+                # Register multisig on Jade using any change addresses
+                for txout in tx.outputs():
+                    if txout.is_mine and txout.is_change:
                         # Multisig - wallet details must be registered on Jade hw
-                        multisig_name = _register_multisig_wallet(wallet, self, txout.address)
+                        _register_multisig_wallet(wallet, self, txout.address)
 
-                        # Jade only needs the path suffix(es) and the multisig registration
-                        # name to generate the address, as the fixed derivation part is
-                        # embedded in the multisig wallet registration record
-                        # NOTE: all cosigners have same path suffix
-                        path_suffix = wallet.get_address_index(txout.address)
-                        paths = [path_suffix] * wallet.n
-                        change[index] = {'multisig_name': multisig_name, 'paths': paths}
-                    else:
-                        # Pass entire path
-                        pubkey, path = self.find_my_pubkey_in_txinout(txout)
-                        change[index] = {'path':path, 'variant': desc.to_legacy_electrum_script_type()}
-
-            # The txn itself
-            txn_bytes = bytes.fromhex(tx.serialize_to_network(include_sigs=False))
-
-            # Request Jade generate the signatures for our inputs.
-            # Change details are passed to be validated on the hw (user does not confirm)
+            # NOTE: sign_psbt() does not use AE signatures, so sticks with default (rfc6979)
             self.handler.show_message(_("Please confirm the transaction details on your Jade device..."))
             client = self.get_client()
-            signatures = client.sign_tx(txn_bytes, jade_inputs, change)
-            assert len(signatures) == len(tx.inputs())
 
-            # Inject signatures into tx
-            for index, (txin, signature) in enumerate(zip(tx.inputs(), signatures)):
-                pubkey, path = self.find_my_pubkey_in_txinout(txin)
-                if pubkey is not None and signature is not None:
-                    tx.add_signature_to_txin(
-                        txin_idx=index,
-                        signing_pubkey=pubkey,
-                        sig=signature,
-                    )
+            psbt_bytes = tx.serialize_as_bytes()
+            psbt_bytes = client.sign_psbt(psbt_bytes)
+            signed_tx = PartialTransaction.from_raw_psbt(psbt_bytes)
+
+            # Copy signatures into original tx
+            tx.combine_with_other_psbt(signed_tx)
+
         finally:
             self.handler.finished()
 
@@ -353,12 +300,9 @@ class Jade_KeyStore(Hardware_KeyStore):
 class JadePlugin(HW_PluginBase):
     keystore_class = Jade_KeyStore
     minimum_library = (0, 0, 1)
-    DEVICE_IDS = [(0x10c4, 0xea60), # Development Jade device
-                  (0x1a86, 0x55d4), # Retail Blockstream Jade (And some DIY devices)
-                  (0x0403, 0x6001), # DIY FTDI Based Devices (Eg: M5StickC-Plus)
-                  (0x1a86, 0x7523)] # DIY CH340 Based devices (Eg: ESP32-Wrover)
+    DEVICE_IDS = JadeSerialImpl.JADE_DEVICE_IDS
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    MIN_SUPPORTED_FW_VERSION = (0, 1, 32)
+    MIN_SUPPORTED_FW_VERSION = (0, 1, 47)
 
     # For testing with qemu simulator (experimental)
     SIMULATOR_PATH = None  # 'tcp:127.0.0.1:2222'

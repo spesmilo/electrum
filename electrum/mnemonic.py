@@ -230,7 +230,11 @@ class Mnemonic(Logger):
                 continue
             if is_new_seed(seed, prefix):
                 break
-        self.logger.info(f'{len(seed.split())} words')
+        num_words = len(seed.split())
+        self.logger.info(f'{num_words} words')
+        if (final_seed_type := calc_seed_type(seed)) != seed_type:
+            # note: I guess this can probabilistically happen for old "2fa" seeds that depend on the word count
+            raise Exception(f"{final_seed_type=!r} does not match requested {seed_type=!r}. have {num_words=!r}")
         return seed
 
 
@@ -258,7 +262,7 @@ def is_old_seed(seed: str) -> bool:
     return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
 
-def seed_type(x: str) -> str:
+def calc_seed_type(x: str) -> str:
     num_words = len(x.split())
     if is_old_seed(x):
         return 'old'
@@ -276,8 +280,25 @@ def seed_type(x: str) -> str:
     return ''
 
 
+def can_seed_have_passphrase(seed: str) -> bool:
+    stype = calc_seed_type(seed)
+    if not stype:
+        raise Exception(f'unexpected seed type: {stype!r}')
+    if stype == 'old':
+        return False
+    if stype == '2fa':
+        # post-version-2.7 2fa seeds can have passphrase, but older ones cannot
+        num_words = len(seed.split())
+        if num_words == 12:
+            return True
+        else:
+            return False
+    # all other types can have a seed extension/passphrase
+    return True
+
+
 def is_seed(x: str) -> bool:
-    return bool(seed_type(x))
+    return bool(calc_seed_type(x))
 
 
 def is_any_2fa_seed_type(seed_type: str) -> bool:

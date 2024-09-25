@@ -42,7 +42,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 
 extras_require = {
     'hardware': requirements_hw,
-    'gui': ['pyqt5'],
+    'gui': ['pyqt6'],
     'crypto': ['cryptography>=2.6'],
     'tests': ['pycryptodomex>=3.7', 'cryptography>=2.6', 'pyaes>=0.1a1'],
     'qml_gui': ['pyqt6', 'Pillow>=8.4.0']

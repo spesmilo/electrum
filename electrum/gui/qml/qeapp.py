@@ -146,6 +146,9 @@ class QEAppController(BaseCrashReporter, QObject):
             pass
 
     def doNotify(self, wallet_name, message):
+        self.logger.debug(f'sending push notification to OS: {message=!r}')
+        # FIXME: this does not work on Android 13+. We would need to declare (in manifest)
+        #        and also request-at-runtime android.permission.POST_NOTIFICATIONS.
         try:
             # TODO: lazy load not in UI thread please
             global notification
@@ -205,6 +208,30 @@ class QEAppController(BaseCrashReporter, QObject):
         sendIntent.putExtra(jIntent.EXTRA_TEXT, jString(data))
         it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
         jpythonActivity.startActivity(it)
+
+    @pyqtSlot()
+    def setMaxScreenBrightness(self):
+        self._set_screen_brightness(1.0)
+
+    @pyqtSlot()
+    def resetScreenBrightness(self):
+        self._set_screen_brightness(-1.0)
+
+    def _set_screen_brightness(self, br: float) -> None:
+        """br is the desired screen brightness, a value in the [0, 1] interval.
+        A negative value, e.g. -1.0, means a "reset" back to the system preferred value.
+        """
+        if not self.isAndroid():
+            return
+        from android.runnable import run_on_ui_thread
+
+        @run_on_ui_thread
+        def set_br():
+            window = jpythonActivity.getWindow()
+            attrs = window.getAttributes()
+            attrs.screenBrightness = br
+            window.setAttributes(attrs)
+        set_br()
 
     @pyqtSlot('QString')
     def textToClipboard(self, text):

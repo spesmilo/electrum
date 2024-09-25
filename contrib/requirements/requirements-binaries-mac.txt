@@ -1,2 +1,2 @@
-PyQt5>=5.15.2
+PyQt6
 cryptography>=2.6

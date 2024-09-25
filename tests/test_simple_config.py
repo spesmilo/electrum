@@ -158,11 +158,11 @@ class Test_SimpleConfig(ElectrumTestCase):
         config.SWAPSERVER_URL = None
         self.assertEqual("https://swaps.electrum.org/api", config.SWAPSERVER_URL)
 
-        constants.set_testnet()
+        constants.BitcoinTestnet.set_as_network()
         try:
             self.assertEqual("https://swaps.electrum.org/testnet", config.SWAPSERVER_URL)
         finally:
-            constants.set_mainnet()
+            constants.BitcoinMainnet.set_as_network()
 
     def test_configvars_convert_getter(self):
         config = SimpleConfig(self.options)

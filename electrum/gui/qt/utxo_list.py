@@ -27,9 +27,9 @@ from typing import Optional, List, Dict, Sequence, Set, TYPE_CHECKING
 import enum
 import copy
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt5.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt6.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -67,8 +67,8 @@ class UTXOList(MyTreeView):
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
     stretch_column = Columns.LABEL
 
-    ROLE_PREVOUT_STR = Qt.UserRole + 1000
-    ROLE_SORT_ORDER = Qt.UserRole + 1001
+    ROLE_PREVOUT_STR = Qt.ItemDataRole.UserRole + 1000
+    ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 1001
     key_role = ROLE_PREVOUT_STR
 
     def __init__(self, main_window: 'ElectrumWindow'):
@@ -83,7 +83,7 @@ class UTXOList(MyTreeView):
         self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSortingEnabled(True)
 
     def create_toolbar(self, config):
@@ -124,7 +124,7 @@ class UTXOList(MyTreeView):
             self.refresh_row(name, idx)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
-        self.sortByColumn(self.Columns.OUTPOINT, Qt.DescendingOrder)
+        self.sortByColumn(self.Columns.OUTPOINT, Qt.SortOrder.DescendingOrder)
         self.update_coincontrol_bar()
         self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
 
@@ -359,7 +359,7 @@ class UTXOList(MyTreeView):
                 act = menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
                 act.setToolTip(MSG_FREEZE_ADDRESS)
 
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def get_filter_data_from_coordinate(self, row, col):
         if col == self.Columns.OUTPOINT:

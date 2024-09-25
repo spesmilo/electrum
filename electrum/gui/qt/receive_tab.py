@@ -4,9 +4,9 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QFont, QCursor
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QTextEdit,
+from PyQt6.QtGui import QFont, QCursor, QMouseEvent
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QTextEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum.bitcoin import is_address
@@ -61,7 +61,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_receive_e.setVisible(False)
-        grid.addWidget(self.fiat_receive_e, 1, 2, Qt.AlignLeft)
+        grid.addWidget(self.fiat_receive_e, 1, 2, Qt.AlignmentFlag.AlignLeft)
 
         self.window.connect_fields(self.receive_amount_e, self.fiat_receive_e)
 
@@ -83,8 +83,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_e = QTextEdit()
         self.receive_e.setFont(QFont(MONOSPACE_FONT))
         self.receive_e.setReadOnly(True)
-        self.receive_e.setContextMenuPolicy(Qt.NoContextMenu)
-        self.receive_e.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.receive_e.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        self.receive_e.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.receive_e.textChanged.connect(self.update_receive_widgets)
 
         self.receive_qr = QRCodeWidget(manual_size=True)
@@ -120,7 +120,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_widget = ReceiveWidget(
             self, self.receive_e, self.receive_qr, self.receive_help_widget)
 
-        receive_widget_sp = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        receive_widget_sp = QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
         receive_widget_sp.setRetainSizeWhenHidden(True)
         self.receive_widget.setSizePolicy(receive_widget_sp)
         self.receive_widget.setVisible(False)
@@ -194,7 +194,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        v = self.window.query_choice(msg, pr_expiration_values(), title=_('Expiry'), default_choice=expiry)
+        choices = list(pr_expiration_values().items())
+        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_choice=expiry)
         if v is None:
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v
@@ -229,8 +230,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.window.do_copy(text, title=title)
         self.update_receive_qr_window()
 
-    def do_copy(self, e):
-        if e.button() != Qt.LeftButton:
+    def do_copy(self, e: 'QMouseEvent'):
+        if e.button() != Qt.MouseButton.LeftButton:
             return
         text, data, help_text, title = self.get_tab_data()
         self.window.do_copy(text, title=title)
@@ -378,11 +379,11 @@ class ReceiveWidget(QWidget):
 
         for w in [textedit, qr]:
             w.mousePressEvent = receive_tab.do_copy
-            w.setCursor(QCursor(Qt.PointingHandCursor))
+            w.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        textedit.setFocusPolicy(Qt.NoFocus)
+        textedit.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         if isinstance(help_widget, QLabel):
-            help_widget.setFrameStyle(QFrame.StyledPanel)
+            help_widget.setFrameStyle(QFrame.Shape.StyledPanel)
             help_widget.setStyleSheet("QLabel {border:1px solid gray; border-radius:2px; }")
 
         hbox = QHBoxLayout()
@@ -421,5 +422,5 @@ class ReceiveWidget(QWidget):
 class FramedWidget(QFrame):
     def __init__(self):
         QFrame.__init__(self)
-        self.setFrameStyle(QFrame.StyledPanel)
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setStyleSheet("FramedWidget {border:1px solid gray; border-radius:2px; }")

@@ -179,9 +179,12 @@ def init_qt_clipboard():
         from qtpy.QtWidgets import QApplication
     except:
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PyQt6.QtWidgets import QApplication
         except:
-            from PyQt4.QtGui import QApplication
+            try:
+                from PyQt5.QtWidgets import QApplication
+            except:
+                from PyQt4.QtGui import QApplication
 
     app = QApplication.instance()
     if app is None:
@@ -530,7 +533,7 @@ def determine_clipboard():
     accordingly.
     '''
 
-    global Foundation, AppKit, gtk, qtpy, PyQt4, PyQt5
+    global Foundation, AppKit, gtk, qtpy, PyQt4, PyQt5, PyQt6
 
     # Setup for the CYGWIN platform:
     if 'cygwin' in platform.system().lower(): # Cygwin has a variety of values returned by platform.system(), such as 'CYGWIN_NT-6.1'
@@ -587,12 +590,17 @@ def determine_clipboard():
         except ImportError:
             # If qtpy isn't installed, fall back on importing PyQt4.
             try:
-                import PyQt5  # check if PyQt5 is installed
+                import PyQt6  # check if PyQt6 is installed
             except ImportError:
                 try:
-                    import PyQt4  # check if PyQt4 is installed
+                    import PyQt5  # check if PyQt5 is installed
                 except ImportError:
-                    pass # We want to fail fast for all non-ImportError exceptions.
+                    try:
+                        import PyQt4  # check if PyQt4 is installed
+                    except ImportError:
+                        pass # We want to fail fast for all non-ImportError exceptions.
+                    else:
+                        return init_qt_clipboard()
                 else:
                     return init_qt_clipboard()
             else:

@@ -2,7 +2,7 @@ import threading
 from functools import partial
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -68,6 +68,10 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
 class DigitalBitbox_Handler(QtHandlerBase):
     def __init__(self, win):
         super(DigitalBitbox_Handler, self).__init__(win, 'Digital Bitbox')
+
+    def query_choice(self, msg, labels):
+        choices = [(i, v) for i, v in enumerate(labels)]
+        return QtHandlerBase.query_choice(self, msg, choices)
 
 
 class WCDigitalBitboxScriptAndDerivation(WCScriptAndDerivation):

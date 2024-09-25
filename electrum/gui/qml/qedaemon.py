@@ -12,7 +12,7 @@ from electrum.util import WalletFileException, standardize_path, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
-from electrum.ecc import verify_usermessage_with_address
+from electrum.bitcoin import verify_usermessage_with_address
 from electrum.storage import StorageReadWriteError
 
 from .auth import AuthMixin, auth_protect

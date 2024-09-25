@@ -26,10 +26,10 @@ try:
     import trezorlib.transport
     from trezorlib.transport.bridge import BridgeTransport, call_bridge
 
-    from .clientbase import TrezorClientBase
+    from .clientbase import TrezorClientBase, RecoveryDeviceInputMethod
 
     from trezorlib.messages import (
-        Capability, BackupType, RecoveryDeviceType, HDNodeType, HDNodePathType,
+        Capability, BackupType, HDNodeType, HDNodePathType,
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
 
@@ -56,7 +56,7 @@ except Exception as e:
 
     Capability = _EnumMissing()
     BackupType = _EnumMissing()
-    RecoveryDeviceType = _EnumMissing()
+    RecoveryDeviceInputMethod = _EnumMissing()
     AmountUnit = _EnumMissing()
 
     PASSPHRASE_ON_DEVICE = object()
@@ -251,7 +251,7 @@ class TrezorPlugin(HW_PluginBase):
 
     @runs_in_hwd_thread
     def _initialize_device(self, settings: TrezorInitSettings, method, device_id, handler):
-        if method == TIM_RECOVER and settings.recovery_type == RecoveryDeviceType.ScrambledWords:
+        if method == TIM_RECOVER and settings.recovery_type == RecoveryDeviceInputMethod.ScrambledWords:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -281,7 +281,7 @@ class TrezorPlugin(HW_PluginBase):
                 passphrase_protection=settings.passphrase_enabled,
                 pin_protection=settings.pin_enabled,
                 label=settings.label)
-            if settings.recovery_type == RecoveryDeviceType.Matrix:
+            if settings.recovery_type == RecoveryDeviceInputMethod.Matrix:
                 handler.close_matrix_dialog()
         else:
             raise RuntimeError("Unsupported recovery method")

@@ -39,20 +39,20 @@ from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
                     Sequence, Iterable, Tuple, Type)
 
-from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent)
-from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
+from PyQt6 import QtWidgets, QtCore
+from PyQt6.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage, QStandardItemModel,
+                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent, QAction)
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
                           QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
                           QEvent, QRect, QPoint, QObject)
-from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
+from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
                              QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy, QAction)
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -117,8 +117,8 @@ def create_toolbar_with_menu(config: 'SimpleConfig', title):
     toolbar_button = QToolButton()
     toolbar_button.setIcon(read_QIcon("preferences.png"))
     toolbar_button.setMenu(menu)
-    toolbar_button.setPopupMode(QToolButton.InstantPopup)
-    toolbar_button.setFocusPolicy(Qt.NoFocus)
+    toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    toolbar_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     toolbar = QHBoxLayout()
     toolbar.addWidget(QLabel(title))
     toolbar.addStretch()
@@ -133,8 +133,9 @@ class MySortModel(QSortFilterProxyModel):
         self._sort_role = sort_role
 
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
-        item1 = self.sourceModel().itemFromIndex(source_left)
-        item2 = self.sourceModel().itemFromIndex(source_right)
+        parent_model = self.sourceModel()  # type: QStandardItemModel
+        item1 = parent_model.itemFromIndex(source_left)
+        item2 = parent_model.itemFromIndex(source_right)
         data1 = item1.data(self._sort_role)
         data2 = item2.data(self._sort_role)
         if data1 is not None and data2 is not None:
@@ -186,7 +187,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         if custom_data is None:
             return super().helpEvent(evt, view, option, idx)
         else:
-            if evt.type() == QEvent.ToolTip:
+            if evt.type() == QEvent.Type.ToolTip:
                 if custom_data.show_tooltip(evt):
                     return True
         return super().helpEvent(evt, view, option, idx)
@@ -201,10 +202,10 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 
 class MyTreeView(QTreeView):
 
-    ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
-    ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
-    ROLE_EDIT_KEY       = Qt.UserRole + 102
-    ROLE_FILTER_DATA    = Qt.UserRole + 103
+    ROLE_CLIPBOARD_DATA = Qt.ItemDataRole.UserRole + 100
+    ROLE_CUSTOM_PAINT   = Qt.ItemDataRole.UserRole + 101
+    ROLE_EDIT_KEY       = Qt.ItemDataRole.UserRole + 102
+    ROLE_FILTER_DATA    = Qt.ItemDataRole.UserRole + 103
 
     filter_columns: Iterable[int]
 
@@ -229,7 +230,7 @@ class MyTreeView(QTreeView):
         self.main_window = main_window
         self.config = self.main_window.config if self.main_window else None
         self.stretch_column = stretch_column
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
         self.setUniformRowHeights(True)
 
@@ -294,7 +295,7 @@ class MyTreeView(QTreeView):
         if set_current:
             assert isinstance(set_current, QPersistentModelIndex)
             assert set_current.isValid()
-            self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
+            self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectionFlag.SelectCurrent)
 
     def update_headers(self, headers: Union[List[str], Dict[int, str]]):
         # headers is either a list of column names, or a dict: (col_idx->col_name)
@@ -304,13 +305,13 @@ class MyTreeView(QTreeView):
         self.original_model().setHorizontalHeaderLabels(col_names)
         self.header().setStretchLastSection(False)
         for col_idx in headers:
-            sm = QHeaderView.Stretch if col_idx == self.stretch_column else QHeaderView.ResizeToContents
+            sm = QHeaderView.ResizeMode.Stretch if col_idx == self.stretch_column else QHeaderView.ResizeMode.ResizeToContents
             self.header().setSectionResizeMode(col_idx, sm)
 
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:
             return
-        if event.key() in [Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter]:
+        if event.key() in [Qt.Key.Key_F2, Qt.Key.Key_Return, Qt.Key.Key_Enter]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)
@@ -333,7 +334,7 @@ class MyTreeView(QTreeView):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def edit(self, idx, trigger=QAbstractItemView.AllEditTriggers, event=None):
+    def edit(self, idx, trigger=QAbstractItemView.EditTrigger.AllEditTriggers, event=None):
         """
         this is to prevent:
            edit: editing failed

@@ -28,9 +28,9 @@ import threading
 import os
 from typing import TYPE_CHECKING
 
-from PyQt5.QtGui import QPixmap, QMovie, QColor
-from PyQt5.QtCore import QObject, pyqtSignal, QSize, Qt
-from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
+from PyQt6.QtGui import QPixmap, QMovie, QColor
+from PyQt6.QtCore import QObject, pyqtSignal, QSize, Qt
+from PyQt6.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
                              QRadioButton, QCheckBox, QLineEdit, QPushButton, QWidget)
 
 from electrum.i18n import _
@@ -128,7 +128,7 @@ class Plugin(TrustedCoinPlugin):
         label.setWordWrap(1)
         vbox.addWidget(label)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_():
+        if not d.exec():
             return
         return pw.get_amount()
 
@@ -221,7 +221,7 @@ class Plugin(TrustedCoinPlugin):
         n = wallet.billing_info.get('tx_remaining', 0)
         grid.addWidget(QLabel(_("Your wallet has {} prepaid transactions.").format(n)), i, 0)
         vbox.addLayout(Buttons(CloseButton(d)))
-        d.exec_()
+        d.exec()
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
@@ -436,7 +436,7 @@ class WCShowConfirmOTP(WizardComponent):
         self.spinner_l.setMovie(self.spinner)
 
         self.otp_status_l = QLabel()
-        self.otp_status_l.setAlignment(Qt.AlignHCenter)
+        self.otp_status_l.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self.otp_status_l.setVisible(False)
 
         self.resetlabel = WWLabel(_('If you have lost your OTP secret, click the button below to request a new secret from the server.'))
@@ -449,7 +449,7 @@ class WCShowConfirmOTP(WizardComponent):
         hbox.addStretch(1)
         hbox.addWidget(self.spinner_l)
         self.otp_e = AmountEdit(None, is_int=True)
-        self.otp_e.setFocus(True)
+        self.otp_e.setFocus()
         self.otp_e.setMaximumWidth(150)
         self.otp_e.textEdited.connect(self.on_otp_edited)
         hbox.addWidget(self.otp_e)
@@ -593,7 +593,7 @@ class WCContinueOnline(WizardComponent):
         self.cb_online.stateChanged.connect(self.on_updated)
         # self.cb_online.setToolTip(_("Check this box to request a new secret. You will need to retype your seed."))
         self.layout().addWidget(self.cb_online)
-        self.layout().setAlignment(self.cb_online, Qt.AlignHCenter)
+        self.layout().setAlignment(self.cb_online, Qt.AlignmentFlag.AlignHCenter)
         self.layout().addStretch(1)
 
         self._valid = True

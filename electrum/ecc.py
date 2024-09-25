@@ -26,20 +26,17 @@
 import base64
 import hashlib
 import functools
+import secrets
 from typing import Union, Tuple, Optional
 from ctypes import (
     byref, c_char_p, c_size_t, create_string_buffer, cast,
 )
 
-from .util import bfh, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
-from .crypto import (sha256, sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
-from . import constants
-from .logging import get_logger
 from . import ecc_fast
 from .ecc_fast import _libsecp256k1, SECP256K1_EC_UNCOMPRESSED, LibModuleMissing
 
-_logger = get_logger(__name__)
-
+def assert_bytes(x):
+    assert isinstance(x, (bytes, bytearray))
 
 # Some unit tests need to create ECDSA sigs without grinding the R value (and just use RFC6979).
 # see https://github.com/bitcoin/bitcoin/pull/13666
@@ -382,23 +379,6 @@ class ECPubkey(object):
             return False
         return True
 
-    def encrypt_message(self, message: bytes, *, magic: bytes = b'BIE1') -> bytes:
-        """
-        ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
-        """
-        assert_bytes(message)
-
-        ephemeral = ECPrivkey.generate_random_key()
-        ecdh_key = (self * ephemeral.secret_scalar).get_public_key_bytes(compressed=True)
-        key = hashlib.sha512(ecdh_key).digest()
-        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
-        ciphertext = aes_encrypt_with_iv(key_e, iv, message)
-        ephemeral_pubkey = ephemeral.get_public_key_bytes(compressed=True)
-        encrypted = magic + ephemeral_pubkey + ciphertext
-        mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
-
-        return base64.b64encode(encrypted + mac)
-
     @classmethod
     def order(cls) -> int:
         return CURVE_ORDER
@@ -414,40 +394,15 @@ class ECPubkey(object):
         except Exception:
             return False
 
+    def has_even_y(self) -> bool:
+        return self.y() % 2 == 0
+
 
 GENERATOR = ECPubkey(bytes.fromhex('0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
                                    '483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8'))
 CURVE_ORDER = 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
 POINT_AT_INFINITY = ECPubkey(None)
 
-
-def usermessage_magic(message: bytes) -> bytes:
-    from .bitcoin import var_int
-    length = var_int(len(message))
-    return b"\x18Bitcoin Signed Message:\n" + length + message
-
-
-def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
-    from .bitcoin import pubkey_to_address
-    assert_bytes(sig65, message)
-    if net is None: net = constants.net
-    h = sha256d(usermessage_magic(message))
-    try:
-        public_key, compressed, txin_type_guess = ECPubkey.from_ecdsa_sig65(sig65, h)
-    except Exception as e:
-        return False
-    # check public key using the address
-    pubkey_hex = public_key.get_public_key_hex(compressed)
-    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
-    for txin_type in txin_types:
-        addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
-        if address == addr:
-            break
-    else:
-        return False
-    # check message
-    # note: `$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs
-    return public_key.ecdsa_verify(sig65[1:], h, enforce_low_s=False)
 
 
 def is_secret_within_curve_range(secret: Union[int, bytes]) -> bool:
@@ -496,7 +451,7 @@ class ECPrivkey(ECPubkey):
 
     @classmethod
     def generate_random_key(cls) -> 'ECPrivkey':
-        randint = randrange(CURVE_ORDER)
+        randint = secrets.randbelow(CURVE_ORDER - 1) + 1
         ephemeral_exponent = int.to_bytes(randint, length=32, byteorder='big', signed=False)
         return ECPrivkey(ephemeral_exponent)
 
@@ -589,31 +544,6 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig64)
         return sig65
 
-    def ecdsa_sign_usermessage(self, message: Union[bytes, str], *, is_compressed: bool) -> bytes:
-        message = to_bytes(message, 'utf8')
-        msg32 = sha256d(usermessage_magic(message))
-        return self.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
-
-    def decrypt_message(self, encrypted: Union[str, bytes], *, magic: bytes=b'BIE1') -> bytes:
-        encrypted = base64.b64decode(encrypted)  # type: bytes
-        if len(encrypted) < 85:
-            raise Exception('invalid ciphertext: length')
-        magic_found = encrypted[:4]
-        ephemeral_pubkey_bytes = encrypted[4:37]
-        ciphertext = encrypted[37:-32]
-        mac = encrypted[-32:]
-        if magic_found != magic:
-            raise Exception('invalid ciphertext: invalid magic bytes')
-        try:
-            ephemeral_pubkey = ECPubkey(ephemeral_pubkey_bytes)
-        except InvalidECPointException as e:
-            raise Exception('invalid ciphertext: invalid ephemeral pubkey') from e
-        ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
-        key = hashlib.sha512(ecdh_key).digest()
-        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
-        if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
-            raise InvalidPassword()
-        return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 
 def construct_ecdsa_sig65(sig64: bytes, recid: int, *, is_compressed: bool) -> bytes:
@@ -621,6 +551,3 @@ def construct_ecdsa_sig65(sig64: bytes, recid: int, *, is_compressed: bool) -> b
     return bytes([27 + recid + comp]) + sig64
 
 
-def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
-    # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
-    return sha256(sha256(tag) + sha256(tag) + msg)

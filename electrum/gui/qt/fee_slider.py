@@ -1,8 +1,8 @@
 import threading
 
-from PyQt5.QtGui import QCursor
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QToolTip, QComboBox
+from PyQt6.QtGui import QCursor
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox
 
 from electrum.i18n import _
 
@@ -31,7 +31,7 @@ class FeeComboBox(QComboBox):
 class FeeSlider(QSlider):
 
     def __init__(self, window, config, callback):
-        QSlider.__init__(self, Qt.Horizontal)
+        QSlider.__init__(self, Qt.Orientation.Horizontal)
         self.config = config
         self.window = window
         self.callback = callback

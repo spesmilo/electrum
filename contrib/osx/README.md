@@ -33,7 +33,7 @@ Notes about compatibility with different macOS versions:
     `notarytool` requires Xcode 13+, and that in turn requires macOS 11.3+.
 
 We currently build the release binaries on macOS 11.7.10, and these seem to run on
-10.14 or newer. (note: 10.13 might also work, haven't tested)
+11 or newer.
 
 
 #### Notes about reproducibility

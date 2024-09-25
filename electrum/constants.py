@@ -76,6 +76,11 @@ class AbstractNet:
     def rev_genesis_bytes(cls) -> bytes:
         return bytes.fromhex(cls.GENESIS)[::-1]
 
+    @classmethod
+    def set_as_network(cls) -> None:
+        global net
+        net = cls
+
 
 class BitcoinMainnet(AbstractNet):
 
@@ -155,6 +160,15 @@ class BitcoinTestnet(AbstractNet):
     ]
 
 
+class BitcoinTestnet4(BitcoinTestnet):
+
+    NET_NAME = "testnet4"
+    GENESIS = "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043"
+    DEFAULT_SERVERS = read_json('servers_testnet4.json', {})
+    CHECKPOINTS = read_json('checkpoints_testnet4.json', [])
+    LN_DNS_SEEDS = []
+
+
 class BitcoinRegtest(BitcoinTestnet):
 
     NET_NAME = "regtest"
@@ -194,23 +208,3 @@ NETS_LIST = tuple(all_subclasses(AbstractNet))
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet  # type: Type[AbstractNet]
-
-def set_signet():
-    global net
-    net = BitcoinSignet
-
-def set_simnet():
-    global net
-    net = BitcoinSimnet
-
-def set_mainnet():
-    global net
-    net = BitcoinMainnet
-
-def set_testnet():
-    global net
-    net = BitcoinTestnet
-
-def set_regtest():
-    global net
-    net = BitcoinRegtest

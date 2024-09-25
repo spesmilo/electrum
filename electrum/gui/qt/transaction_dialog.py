@@ -34,10 +34,10 @@ from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple, Mappin
 from functools import partial
 from decimal import Decimal
 
-from PyQt5.QtCore import QSize, Qt, QUrl, QPoint, pyqtSignal
-from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QCursor
-from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
-                             QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
+from PyQt6.QtCore import QSize, Qt, QUrl, QPoint, pyqtSignal
+from PyQt6.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QTextCursor, QAction
+from PyQt6.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
+                             QTextEdit, QFrame, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
                              QApplication, QSizePolicy)
 import qrcode
 from qrcode import exceptions
@@ -95,7 +95,7 @@ class QTextBrowserWithDefaultSize(QTextBrowser):
         self._width = width
         self._height = height
         QTextBrowser.__init__(self)
-        self.setLineWrapMode(QTextBrowser.NoWrap)
+        self.setLineWrapMode(QTextBrowser.LineWrapMode.NoWrap)
 
     def sizeHint(self):
         return QSize(self._width, self._height)
@@ -113,8 +113,8 @@ class TxInOutWidget(QWidget):
         self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.inputs_textedit.setTextInteractionFlags(
-            self.inputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
-        self.inputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.inputs_textedit.textInteractionFlags() | Qt.TextInteractionFlag.LinksAccessibleByMouse | Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
+        self.inputs_textedit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.inputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
 
         self.sighash_label = QLabel()
@@ -123,7 +123,7 @@ class TxInOutWidget(QWidget):
         self.inputs_warning_icon = QLabel()
         pixmap = QPixmap(icon_path("warning"))
         pixmap_size = round(2 * char_width_in_lineedit())
-        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.inputs_warning_icon.setPixmap(pixmap)
         self.inputs_warning_icon.setVisible(False)
 
@@ -147,8 +147,8 @@ class TxInOutWidget(QWidget):
         self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.outputs_textedit.setTextInteractionFlags(
-            self.outputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
-        self.outputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.outputs_textedit.textInteractionFlags() | Qt.TextInteractionFlag.LinksAccessibleByMouse | Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
+        self.outputs_textedit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.outputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
 
         outheader_hbox = QHBoxLayout()
@@ -166,7 +166,7 @@ class TxInOutWidget(QWidget):
         vbox.addLayout(outheader_hbox)
         vbox.addWidget(self.outputs_textedit)
         self.setLayout(vbox)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def update(self, tx: Optional[Transaction]):
         self.tx = tx
@@ -183,7 +183,7 @@ class TxInOutWidget(QWidget):
         lnk = QTextCharFormat()
         lnk.setToolTip(_('Click to open, right-click for menu'))
         lnk.setAnchor(True)
-        lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+        lnk.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
         def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
@@ -198,7 +198,7 @@ class TxInOutWidget(QWidget):
                 fmt.setAnchorHref(addr)
                 fmt.setToolTip(_('Click to open, right-click for menu'))
                 fmt.setAnchor(True)
-                fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+                fmt.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SingleUnderline)
                 return fmt
             elif sm and sm.is_lockup_address_for_a_swap(addr) or addr == DummyAddress.SWAP:
                 tf_used_swap = True
@@ -210,7 +210,7 @@ class TxInOutWidget(QWidget):
 
         def insert_tx_io(
             *,
-            cursor: QCursor,
+            cursor: QTextCursor,
             txio_idx: int,
             is_coinbase: bool,
             tcf_shortid: QTextCharFormat = None,
@@ -305,7 +305,7 @@ class TxInOutWidget(QWidget):
         of the bare form "txid" and/or "address" -- used by the clickable
         links in the inputs/outputs QTextBrowsers"""
         if isinstance(target, QUrl):
-            target = target.toString(QUrl.None_)
+            target = target.toString(QUrl.UrlFormattingOption.None_)
         assert target
         if bitcoin.is_address(target):
             # target was an address, open address dialog
@@ -323,7 +323,7 @@ class TxInOutWidget(QWidget):
         name = charFormat.anchorNames() and charFormat.anchorNames()[0]
         if not name:
             menu = i_text.createStandardContextMenu()
-            menu.exec_(global_pos)
+            menu.exec(global_pos)
             return
 
         menu = QMenu()
@@ -360,7 +360,7 @@ class TxInOutWidget(QWidget):
         menu.addSeparator()
         std_menu = i_text.createStandardContextMenu()
         menu.addActions(std_menu.actions())
-        menu.exec_(global_pos)
+        menu.exec(global_pos)
 
     def on_context_menu_for_outputs(self, pos: QPoint):
         o_text = self.outputs_textedit
@@ -371,7 +371,7 @@ class TxInOutWidget(QWidget):
         name = charFormat.anchorNames() and charFormat.anchorNames()[0]
         if not name:
             menu = o_text.createStandardContextMenu()
-            menu.exec_(global_pos)
+            menu.exec(global_pos)
             return
 
         menu = QMenu()
@@ -388,6 +388,9 @@ class TxInOutWidget(QWidget):
             if self.wallet.is_mine(addr):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
             copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
+        else:
+            spk = self.tx.outputs()[txout_idx].scriptpubkey
+            copy_list += [(_("Copy scriptPubKey"), lambda: self.main_window.do_copy(spk.hex()))]
         txout_value = self.tx.outputs()[txout_idx].value
         value_str = self.main_window.format_amount(txout_value, add_thousands_sep=False)
         copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
@@ -402,7 +405,7 @@ class TxInOutWidget(QWidget):
         menu.addSeparator()
         std_menu = o_text.createStandardContextMenu()
         menu.addActions(std_menu.actions())
-        menu.exec_(global_pos)
+        menu.exec(global_pos)
 
 
 def show_transaction(
@@ -527,7 +530,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Share"))
         self.export_actions_button.setMenu(export_actions_menu)
-        self.export_actions_button.setPopupMode(QToolButton.InstantPopup)
+        self.export_actions_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
         partial_tx_actions_menu = QMenu()
         ptx_merge_sigs_action = QAction(_("Merge signatures from"), self)
@@ -539,7 +542,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.partial_tx_actions_button = QToolButton()
         self.partial_tx_actions_button.setText(_("Combine"))
         self.partial_tx_actions_button.setMenu(partial_tx_actions_menu)
-        self.partial_tx_actions_button.setPopupMode(QToolButton.InstantPopup)
+        self.partial_tx_actions_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.psbt_only_widgets.append(self.partial_tx_actions_button)
 
         # Action buttons
@@ -556,7 +559,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self._fetch_txin_data_fut = None  # type: Optional[concurrent.futures.Future]
         self._fetch_txin_data_progress = None  # type: Optional[TxinDataFetchProgress]
-        self.throttled_update_sig.connect(self._throttled_update, Qt.QueuedConnection)
+        self.throttled_update_sig.connect(self._throttled_update, Qt.ConnectionType.QueuedConnection)
 
         self.set_tx(tx)
         self.update()
@@ -951,7 +954,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox_stats.setContentsMargins(0, 0, 0, 0)
         hbox_stats_w = QWidget()
         hbox_stats_w.setLayout(hbox_stats)
-        hbox_stats_w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        hbox_stats_w.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
 
         # left column
         vbox_left = QVBoxLayout()
@@ -970,7 +973,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.fee_warning_icon = QLabel()
         pixmap = QPixmap(icon_path("warning"))
         pixmap_size = round(2 * char_width_in_lineedit())
-        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.fee_warning_icon.setPixmap(pixmap)
         self.fee_warning_icon.setVisible(False)
         fee_hbox.addWidget(self.fee_warning_icon)
@@ -1038,7 +1041,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 class TxDetailLabel(QLabel):
     def __init__(self, *, word_wrap=None):
         super().__init__()
-        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         if word_wrap is not None:
             self.setWordWrap(word_wrap)
 

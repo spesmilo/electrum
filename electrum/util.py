@@ -987,6 +987,11 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+testnet4_block_explorers = {
+    'mempool.space': ('https://mempool.space/testnet4/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+}
+
 signet_block_explorers = {
     'bc-2.jp': ('https://explorer.bc-2.jp/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -1009,6 +1014,8 @@ def block_explorer_info():
     from . import constants
     if constants.net.NET_NAME == "testnet":
         return testnet_block_explorers
+    elif constants.net.NET_NAME == "testnet4":
+        return testnet4_block_explorers
     elif constants.net.NET_NAME == "signet":
         return signet_block_explorers
     return mainnet_block_explorers
@@ -2087,14 +2094,17 @@ def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
         return None
 
 
-def error_text_str_to_safe_str(err: str) -> str:
+def error_text_str_to_safe_str(err: str, *, max_len: Optional[int] = 500) -> str:
     """Converts an untrusted error string to a sane printable ascii str.
     Never raises.
     """
-    return error_text_bytes_to_safe_str(err.encode("ascii", errors='backslashreplace'))
+    text = error_text_bytes_to_safe_str(
+        err.encode("ascii", errors='backslashreplace'),
+        max_len=None)
+    return truncate_text(text, max_len=max_len)
 
 
-def error_text_bytes_to_safe_str(err: bytes) -> str:
+def error_text_bytes_to_safe_str(err: bytes, *, max_len: Optional[int] = 500) -> str:
     """Converts an untrusted error bytes text to a sane printable ascii str.
     Never raises.
 
@@ -2107,4 +2117,12 @@ def error_text_bytes_to_safe_str(err: bytes) -> str:
     # convert to ascii, to get rid of unicode stuff
     ascii_text = err.decode("ascii", errors='backslashreplace')
     # do repr to handle ascii special chars (especially when printing/logging the str)
-    return repr(ascii_text)
+    text = repr(ascii_text)
+    return truncate_text(text, max_len=max_len)
+
+
+def truncate_text(text: str, *, max_len: Optional[int]) -> str:
+    if max_len is None or len(text) <= max_len:
+        return text
+    else:
+        return text[:max_len] + f"... (truncated. orig_len={len(text)})"

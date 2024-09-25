@@ -71,7 +71,7 @@ info "Installing build dependencies"
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,
 #       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
+#       - PyQt6, as it's harder to build from source
 #       - cryptography, as it's harder to build from source
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
@@ -181,7 +181,7 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
-python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography \
     --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
