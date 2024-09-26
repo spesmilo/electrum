@@ -2286,7 +2286,7 @@ class PartialTransaction(Transaction):
                     break
                 if pubkey not in keypairs:
                     continue
-                _logger.info(f"adding signature for {pubkey}. spending utxo {txin.prevout.to_str()}")
+                _logger.info(f"adding signature for {pubkey.hex()}. spending utxo {txin.prevout.to_str()}")
                 sec = keypairs[pubkey]
                 sig = self.sign_txin(i, sec, sighash_cache=sighash_cache)
                 self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey, sig=sig)
