@@ -1,7 +1,1 @@
-Electrum Bitcoin wallet for Android.
-
-Secure, feature rich and trusted by the Bitcoin community since 2011.
-• Website: https://electrum.org
-• Email: electrumdev@gmail.com
-• GitHub: https://github.com/spesmilo/electrum
-• Support: Please use GitHub or email to report bugs rather than the app rating system.
+Fast and self-custodial wallet for Bitcoin and the Lightning Network
