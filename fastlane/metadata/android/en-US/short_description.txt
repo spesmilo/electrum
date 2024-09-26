@@ -1,0 +1,1 @@
+Fast and self-custodial wallet for Bitcoin and the Lightning Network
