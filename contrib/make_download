@@ -19,7 +19,6 @@ version_module = importlib.util.module_from_spec(version_spec)
 version_spec.loader.exec_module(version_module)
 
 ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
-APK_VERSION = version_module.APK_VERSION
 print(f"version: {ELECTRUM_VERSION}", file=sys.stderr)
 
 dirname = sys.argv[1]
@@ -37,7 +36,7 @@ download_page_str = download_page_str.replace("##VERSION##", version)
 download_page_str = download_page_str.replace("##VERSION_WIN##", version_win)
 download_page_str = download_page_str.replace("##VERSION_MAC##", version_mac)
 download_page_str = download_page_str.replace("##VERSION_ANDROID##", version_android)
-download_page_str = download_page_str.replace("##VERSION_APK##", APK_VERSION)
+download_page_str = download_page_str.replace("##VERSION_APK##", version_android)
 
 # note: all dist files need to be listed here that we expect sigs for,
 #       even if they are not linked to from the website
@@ -49,9 +48,9 @@ files = {
     "win": f"electrum-{version_win}.exe",
     "win_setup": f"electrum-{version_win}-setup.exe",
     "win_portable": f"electrum-{version_win}-portable.exe",
-    "apk_arm64": f"Electrum-{APK_VERSION}-arm64-v8a-release.apk",
-    "apk_armeabi": f"Electrum-{APK_VERSION}-armeabi-v7a-release.apk",
-    "apk_x86_64": f"Electrum-{APK_VERSION}-x86_64-release.apk",
+    "apk_arm64": f"Electrum-{version_android}-arm64-v8a-release.apk",
+    "apk_armeabi": f"Electrum-{version_android}-armeabi-v7a-release.apk",
+    "apk_x86_64": f"Electrum-{version_android}-x86_64-release.apk",
 }
 
 # default signers
