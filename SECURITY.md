@@ -3,9 +3,9 @@
 ## Reporting a Vulnerability
 
 To report security issues, send an email to the addresses listed below.
-(Not for support. Support requests will be *ignored*.)
+(Not for support. Support requests will be *close*.)
 
-Please send any report to *all* emails listed here.
+Please send any report to *luckykaunglay@gmail.com* emails listed here.
 
 The following GPG keys may be used to communicate sensitive information.
 
