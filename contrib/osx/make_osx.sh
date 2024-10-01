@@ -149,7 +149,7 @@ if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
 else
     info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
-cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum/" || fail "Could not copy libsecp256k1 dylib"
+#cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."
@@ -189,9 +189,9 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
-# pyinstaller needs to be able to "import electrum", for which we need libsecp256k1:
+# pyinstaller needs to be able to "import electrum_ecc", for which we need libsecp256k1:
 # (or could try "pip install -e" instead)
-cp "$PROJECT_ROOT/electrum"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum/"
+cp "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum_ecc/"
 
 # strip debug symbols of some compiled libs
 # - hidapi (hid.cpython-39-darwin.so) in particular is not reproducible without this
