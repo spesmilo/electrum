@@ -145,10 +145,25 @@ $ adb push ~/wspace/tmp/my_wallet /data/local/tmp
 $ adb shell
 adb$ ls -la /data/local/tmp
 adb$ run-as org.electrum.testnet.electrum cp /data/local/tmp/my_wallet /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets/
+adb$ run-as org.electrum.testnet.electrum chmod -R 700 /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
+adb$ run-as org.electrum.testnet.electrum chmod -R u-x,u+X /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
 adb$ rm /data/local/tmp/my_wallet
 ```
 
 Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
+
+#### Device with multiple user profiles
+
+There are further complications if using an Android device
+[with multiple user profiles](https://source.android.com/docs/devices/admin/multi-user-testing)
+(typical for GrapheneOS/etc).
+
+Run `$ adb shell pm list users` to get a list of all existing users, and take note of the user ids.
+
+Instead of `/data/data/{app.path}`, private app data is stored at `/data/user/{userId}/{app.path}`.
+
+Further, instead of `adb$ run-as org.electrum.electrum`,
+you need `adb$ run-as org.electrum.electrum --user {userId}`.
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
