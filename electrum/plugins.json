@@ -1,6 +1,6 @@
 {
     "virtualkeyboard": {
-        "hash": "4ab551ec5226e7bb26e21991b33c75387e8de66bd9c5bc402e940e6f8a17050b",
+        "hash": "6c9478657abc7765c067aba7a1d8905a67dad7860b6b5d53f5d4e376fa43eef7",
         "description": "Add an optional virtual keyboard to the password dialog.\nWarning: do not use this if it makes you pick a weaker password.",
         "display_name": "Virtual Keyboard",
         "available_for": [
