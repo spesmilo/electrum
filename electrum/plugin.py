@@ -178,6 +178,10 @@ class Plugins(DaemonThread):
             os.unlink(filename)
             raise Exception(f"wrong plugin hash {name}")
 
+    def remove_external_plugin(self, name):
+        filename = self.external_plugin_path(name)
+        os.unlink(filename)
+
     def load_external_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
