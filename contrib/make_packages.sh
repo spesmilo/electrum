@@ -51,3 +51,5 @@ export BUILD_TIME="$(LC_ALL=C TZ=UTC date +'%H:%M:%S' -d @$SOURCE_DATE_EPOCH)"
 #       instead of downloading the latest ones
 python3 -m pip install --no-build-isolation --no-compile --no-dependencies --no-binary :all: \
     -r "$CONTRIB"/deterministic-build/requirements.txt -t "$PACKAGES"
+
+echo "Pure-python dependencies have been placed into $PACKAGES"
