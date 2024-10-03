@@ -1062,14 +1062,7 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
-            # add group_id to swap transactions
-            swap = self.swap_manager.get_swap(payment_hash)
-            if swap:
-                if swap.is_reverse:
-                    item['group_id'] = swap.spending_txid
-                else:
-                    item['group_id'] = swap.funding_txid
-            # done
+            item['group_id'] = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
             out[payment_hash] = item
         return out
 
@@ -1077,7 +1070,6 @@ class LNWallet(LNWorker):
         return self._labels_cache.get(txid)
 
     def get_onchain_history(self):
-        current_height = self.wallet.adb.get_local_height()
         out = {}
         # add funding events
         for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
@@ -1127,49 +1119,14 @@ class LNWallet(LNWorker):
                 'txpos_in_block': tx_height.txpos,
             }  # FIXME this data structure needs to be kept in ~sync with wallet.get_onchain_history
             out[closing_txid] = item
-        # add info about submarine swaps
-        settled_payments = self.get_payments(status='settled')
-        for payment_hash_hex, swap in self.swap_manager.swaps.items():
-            txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
-            if txid is None:
-                continue
-            payment_hash = bytes.fromhex(payment_hash_hex)
-            if payment_hash in settled_payments:
-                plist = settled_payments[payment_hash]
-                info = self.get_payment_info(payment_hash)
-                direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
-            else:
-                amount_msat = 0
 
-            if swap.is_reverse:
-                group_label = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
-            else:
-                group_label = 'Forward swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
-            self._labels_cache[txid] = group_label
-
-            label = _('Claim transaction') if swap.is_reverse else _('Funding transaction')
-            delta = current_height - swap.locktime
-            if self.wallet.adb.is_mine(swap.lockup_address):
-                tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
-                if swap.is_reverse and tx_height.height <= 0:
-                    label += ' (%s)' % _('waiting for funding tx confirmation')
-                if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
-                    label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
-            out[txid] = {
-                'group_id': txid,
-                'amount_msat': 0, # must be zero for onchain tx
-                'type': 'swap',
-                'label': label,
-            }
-            if not swap.is_reverse:
-                # if the spending_tx is in the wallet, this will add it
-                # to the group (see wallet.get_full_history)
-                out[swap.spending_txid] = {
-                    'group_id': txid,
-                    'amount_msat': 0, # must be zero for onchain tx
-                    'type': 'swap',
-                    'label': _('Refund transaction'),
-                }
+        d = self.swap_manager.get_groups_for_onchain_history()
+        for k,v in d.items():
+            group_id = v.get('group_id')
+            group_label = v.get('group_label')
+            if group_id and group_label:
+                self._labels_cache[group_id] = group_label
+        out.update(d)
         return out
 
     def get_history(self):

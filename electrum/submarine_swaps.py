@@ -172,8 +172,10 @@ class SwapManager(Logger):
         self.percentage = 0
         self._min_amount = None
         self._max_amount = None
+
         self.wallet = wallet
         self.lnworker = lnworker
+        self.config = wallet.config
         self.taskgroup = None
         self.dummy_address = DummyAddress.SWAP
 
@@ -1157,6 +1159,62 @@ class SwapManager(Logger):
             raise Exception('unsupported request type:' + req_type)
         return response
 
+    def get_groups_for_onchain_history(self):
+        current_height = self.wallet.adb.get_local_height()
+        d = {}
+        # add info about submarine swaps
+        settled_payments = self.lnworker.get_payments(status='settled')
+        for payment_hash_hex, swap in self.swaps.items():
+            txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
+            if txid is None:
+                continue
+            payment_hash = bytes.fromhex(payment_hash_hex)
+            if payment_hash in settled_payments:
+                plist = settled_payments[payment_hash]
+                info = self.lnworker.get_payment_info(payment_hash)
+                direction, amount_msat, fee_msat, timestamp = self.lnworker.get_payment_value(info, plist)
+            else:
+                amount_msat = 0
+
+            if swap.is_reverse:
+                group_label = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
+            else:
+                group_label = 'Forward swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
+
+            label = _('Claim transaction') if swap.is_reverse else _('Funding transaction')
+            delta = current_height - swap.locktime
+            if self.wallet.adb.is_mine(swap.lockup_address):
+                tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
+                if swap.is_reverse and tx_height.height <= 0:
+                    label += ' (%s)' % _('waiting for funding tx confirmation')
+                if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
+                    label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
+            d[txid] = {
+                'group_id': txid,
+                'amount_msat': 0, # must be zero for onchain tx
+                'type': 'swap',
+                'label': label,
+                'group_label': group_label,
+            }
+            if not swap.is_reverse:
+                # if the spending_tx is in the wallet, this will add it
+                # to the group (see wallet.get_full_history)
+                d[swap.spending_txid] = {
+                    'group_id': txid,
+                    'amount_msat': 0, # must be zero for onchain tx
+                    'type': 'swap',
+                    'label': _('Refund transaction'),
+                }
+        return d
+
+    def get_group_id_for_payment_hash(self, payment_hash):
+        # add group_id to swap transactions
+        swap = self.get_swap(payment_hash)
+        if swap:
+            if swap.is_reverse:
+                return swap.spending_txid
+            else:
+                return swap.funding_txid
 
 class HttpSwapManager(SwapManager):
     async def send_request_to_server(self, method, request_data):
