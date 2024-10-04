@@ -130,6 +130,7 @@ class SettingsDialog(QDialog, QtEventListener):
             else:
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
+            legacy_add_trampoline_cb.setEnabled(use_trampoline)
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
@@ -137,6 +138,7 @@ class SettingsDialog(QDialog, QtEventListener):
 
         legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
         legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
+        legacy_add_trampoline_cb.setEnabled(trampoline_cb.isChecked())
         def on_legacy_add_trampoline_checked(_x):
             self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
         legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
