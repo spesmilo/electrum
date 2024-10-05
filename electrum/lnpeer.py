@@ -2747,6 +2747,7 @@ class Peer(Logger):
                 # return payment_key so this branch will not be executed again
                 return None, payment_key, None
             elif preimage:
+                self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
                 return preimage, None, None
             else:
                 # we are waiting for mpp consolidation or preimage
@@ -2758,7 +2759,10 @@ class Peer(Logger):
             preimage = self.lnworker.get_preimage(payment_hash)
             error_bytes, error_reason = self.lnworker.get_forwarding_failure(payment_key)
             if error_bytes or error_reason or preimage:
-                self.lnworker.maybe_cleanup_forwarding(payment_key, chan.get_scid_or_local_alias(), htlc)
+                cleanup_keys = self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
+                is_htlc_key = ':' in payment_key
+                if is_htlc_key or payment_key in cleanup_keys:
+                    self.lnworker.maybe_cleanup_forwarding(payment_key)
             if error_bytes:
                 return None, None, error_bytes
             if error_reason:
