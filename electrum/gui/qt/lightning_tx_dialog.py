@@ -41,7 +41,6 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-
 class LightningTxDialog(WindowModalDialog):
 
     def __init__(self, parent: 'ElectrumWindow', tx_item: dict):
@@ -68,12 +67,13 @@ class LightningTxDialog(WindowModalDialog):
             fee_msat = tx_item['fee_msat']
             fee_sat = Decimal(fee_msat) / 1000 if fee_msat is not None else None
             fee_str = self.main_window.format_amount_and_units(fee_sat, timestamp=self.timestamp)
-            vbox.addWidget(QLabel(_("Fee") + f": {fee_str}"))
+            vbox.addWidget(QLabel(_("Fee: {}").format(fee_str)))
         time_str = datetime.datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
         self.tx_desc_label = QLabel(_("Description:"))
         vbox.addWidget(self.tx_desc_label)
         self.tx_desc = ButtonsLineEdit(self.label)
+
         def on_edited():
             text = self.tx_desc.text()
             if self.main_window.wallet.set_label(self.payment_hash, text):
