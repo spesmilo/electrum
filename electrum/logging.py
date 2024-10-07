@@ -128,15 +128,20 @@ def _delete_old_logs(path, *, num_files_keep: int):
 
 _logfile_path = None
 def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int):
+    from .util import os_chmod
+
     global _logfile_path
     assert _logfile_path is None, 'file logging already initialized'
-    log_directory.mkdir(exist_ok=True)
+    log_directory.mkdir(exist_ok=True, mode=0o700)
 
     _delete_old_logs(log_directory, num_files_keep=num_files_keep)
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
     _logfile_path = log_directory / f"electrum_log_{timestamp}_{PID}.log"
+    # we create the file with restrictive perms, instead of letting FileHandler create it
+    with open(_logfile_path, "w+") as f:
+        os_chmod(_logfile_path, 0o600)
 
     file_handler = logging.FileHandler(_logfile_path, encoding='utf-8')
     file_handler.setFormatter(file_formatter)
