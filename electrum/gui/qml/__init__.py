@@ -20,14 +20,15 @@ except Exception as e:
         "Error: Could not import PyQt6.QtQml. On Linux systems, "
         "you may try 'sudo apt-get install python3-pyqt6.qtquick'") from e
 
-from PyQt6.QtCore import (Qt, QCoreApplication, QLocale, QTranslator, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
+from PyQt6.QtCore import (Qt, QCoreApplication, QLocale, QTimer, QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt6.QtGui import QGuiApplication
 
-from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
+from electrum.gui.common_qt.i18n import ElectrumTranslator
+
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -35,14 +36,6 @@ if TYPE_CHECKING:
     from electrum.plugin import Plugins
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
-
-
-class ElectrumTranslator(QTranslator):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-    def translate(self, context, source_text, disambiguation, n):
-        return _(source_text, context=context)
 
 
 class ElectrumGui(BaseElectrumGui, Logger):
