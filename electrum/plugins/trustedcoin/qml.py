@@ -75,6 +75,9 @@ class Plugin(TrustedCoinPlugin):
             'trustedcoin_tos': {
                 'gui': '../../../../plugins/trustedcoin/qml/Terms',
             },
+            'trustedcoin_keystore_unlock': {
+                # TODO when QML can import external wallet files
+            },
             'trustedcoin_show_confirm_otp': {
                 'gui': '../../../../plugins/trustedcoin/qml/ShowConfirmOTP',
             }

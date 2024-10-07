@@ -72,6 +72,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.storage import WalletStorage
 from electrum.wizard import WizardViewState
 from electrum.keystore import load_keystore
+from electrum.bip32 import is_xprv
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
 
@@ -468,6 +469,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 xprv = k1.get_master_private_key(d['password'])
             else:
                 xprv = db.get('x1')['xprv']
+                if not is_xprv(xprv):
+                    xprv = k1
             _wiz_data_updates = {
                 'wallet_name': wallet_file,
                 'xprv1': xprv,
