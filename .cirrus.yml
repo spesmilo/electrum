@@ -186,7 +186,7 @@ task:
   container:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
-    memory: 2G
+    memory: 3G
   pip_cache:
     folders:
       - contrib/build-wine/.cache/win*/wine_pip_cache
