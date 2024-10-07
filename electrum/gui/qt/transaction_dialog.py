@@ -333,13 +333,13 @@ class TxInOutWidget(QWidget):
         txin_idx = int(name.split()[1])  # split "txio_idx N", translate N -> int
         txin = self.tx.inputs()[txin_idx]
 
-        menu.addAction(f"Tx Input #{txin_idx}").setDisabled(True)
+        menu.addAction(_("Tx Input #{}").format(txin_idx)).setDisabled(True)
         menu.addSeparator()
         if txin.is_coinbase_input():
             menu.addAction(_("Coinbase Input")).setDisabled(True)
         else:
             show_list += [(_("Show Prev Tx"), lambda: self._open_internal_link(txin.prevout.txid.hex()))]
-            copy_list += [(_("Copy") + " " + _("Outpoint"), lambda: self.main_window.do_copy(txin.prevout.to_str()))]
+            copy_list += [(_("Copy Outpoint"), lambda: self.main_window.do_copy(txin.prevout.to_str()))]
             addr = self.wallet.adb.get_txin_address(txin)
             if addr:
                 if self.wallet.is_mine(addr):
@@ -379,11 +379,11 @@ class TxInOutWidget(QWidget):
         copy_list = []
         # figure out which output they right-clicked on. output lines have an anchor named "txio_idx N"
         txout_idx = int(name.split()[1])  # split "txio_idx N", translate N -> int
-        menu.addAction(f"Tx Output #{txout_idx}").setDisabled(True)
+        menu.addAction(_("Tx Output #{}").format(txout_idx)).setDisabled(True)
         menu.addSeparator()
         if tx_hash := self.tx.txid():
             outpoint = TxOutpoint(bytes.fromhex(tx_hash), txout_idx)
-            copy_list += [(_("Copy") + " " + _("Outpoint"), lambda: self.main_window.do_copy(outpoint.to_str()))]
+            copy_list += [(_("Copy Outpoint"), lambda: self.main_window.do_copy(outpoint.to_str()))]
         if addr := self.tx.outputs()[txout_idx].address:
             if self.wallet.is_mine(addr):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
@@ -810,7 +810,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         txid = self.tx.txid()
         fx = self.main_window.fx
         tx_item_fiat = None
-        if (txid is not None and fx.is_enabled() and amount is not None):
+        if txid is not None and fx.is_enabled() and amount is not None:
             tx_item_fiat = self.wallet.get_tx_item_fiat(
                 tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
         lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
@@ -840,31 +840,29 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.tx_desc.setText(desc)
             self.tx_desc.show()
             self.tx_desc_label.show()
-        self.status_label.setText(_('Status:') + ' ' + tx_details.status)
+        self.status_label.setText(_('Status: {}').format(tx_details.status))
 
         if tx_mined_status.timestamp:
             time_str = datetime.datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
         elif exp_n is not None:
-            text = "{}: {}".format(
-                _('Position in mempool'),
-                self.config.depth_tooltip(exp_n))
-            self.date_label.setText(text)
+            self.date_label.setText(_('Position in mempool: {}').format(self.config.depth_tooltip(exp_n)))
             self.date_label.show()
         else:
             self.date_label.hide()
         if self.tx.locktime <= NLOCKTIME_BLOCKHEIGHT_MAX:
-            locktime_final_str = f"LockTime: {self.tx.locktime} (height)"
+            locktime_str = _('height')
         else:
-            locktime_final_str = f"LockTime: {self.tx.locktime} ({datetime.datetime.fromtimestamp(self.tx.locktime)})"
+            locktime_str = datetime.datetime.fromtimestamp(self.tx.locktime)
+        locktime_final_str = _("LockTime: {} ({})").format(self.tx.locktime, locktime_str)
         self.locktime_final_label.setText(locktime_final_str)
 
-        self.rbf_label.setText(_('Replace by fee') + f": {self.tx.is_rbf_enabled()}")
+        # TODO: 'Yes'/'No' might be better translatable than 'True'/'False'?
+        self.rbf_label.setText(_('Replace by fee: {}').format(_('True') if self.tx.is_rbf_enabled() else _('False')))
 
         if tx_mined_status.header_hash:
-            self.block_height_label.setText(_("At block height: {}")
-                                            .format(tx_mined_status.height))
+            self.block_height_label.setText(_("At block height: {}").format(tx_mined_status.height))
         else:
             self.block_height_label.hide()
         if amount is None and ln_amount is None:
@@ -872,36 +870,38 @@ class TxDialog(QDialog, MessageBoxMixin):
         elif amount is None:
             amount_str = ''
         else:
-            if amount > 0:
-                amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
-            else:
-                amount_str = _("Amount sent:") + ' %s' % format_amount(-amount) + ' ' + base_unit
+            amount_str = ''
             if fx.is_enabled():
                 if tx_item_fiat:  # historical tx -> using historical price
                     amount_str += ' ({})'.format(tx_item_fiat['fiat_value'].to_ui_string())
                 elif tx_details.is_related_to_wallet:  # probably "tx preview" -> using current price
                     amount_str += ' ({})'.format(format_fiat_and_units(abs(amount)))
+            amount_str = format_amount(abs(amount)) + ' ' + base_unit + amount_str
+            if amount > 0:
+                amount_str = _("Amount received: {}").format(amount_str)
+            else:
+                amount_str = _("Amount sent: {}").format(amount_str)
         if amount_str:
             self.amount_label.setText(amount_str)
         else:
             self.amount_label.hide()
-        size_str = _("Size:") + f" {size} {UI_UNIT_NAME_TXSIZE_VBYTES}"
+        size_str = _("Size: {} {}").format(size, UI_UNIT_NAME_TXSIZE_VBYTES)
         if fee is None:
             if prog := self._fetch_txin_data_progress:
                 if not prog.has_errored:
-                    fee_str = _("Downloading input data...") + f" ({prog.num_tasks_done}/{prog.num_tasks_total})"
+                    fee_str = _("Downloading input data... {}").format(f"({prog.num_tasks_done}/{prog.num_tasks_total})")
                 else:
-                    fee_str = _("Downloading input data...") + f" error."
+                    fee_str = _("Downloading input data... {}").format(_("error"))
             else:
-                fee_str = _("Fee") + ': ' + _("unknown")
+                fee_str = _("Fee: {}").format(_("unknown"))
         else:
-            fee_str = _("Fee") + f': {format_amount(fee)} {base_unit}'
+            fee_str = _("Fee: {}").format(f'{format_amount(fee)} {base_unit}')
             if fx.is_enabled():
                 if tx_item_fiat:  # historical tx -> using historical price
                     fee_str += ' ({})'.format(tx_item_fiat['fiat_fee'].to_ui_string())
                 elif tx_details.is_related_to_wallet:  # probably "tx preview" -> using current price
                     fee_str += ' ({})'.format(format_fiat_and_units(fee))
-        if fee is not None:
+
             fee_rate = Decimal(fee) / size  # sat/byte
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
             if isinstance(self.tx, PartialTransaction):
@@ -924,10 +924,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         if ln_amount is None or ln_amount == 0:
             ln_amount_str = ''
         elif ln_amount > 0:
-            ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit
+            ln_amount_str = _('Amount received in channels: {}').format(format_amount(ln_amount) + ' ' + base_unit)
         else:
             assert ln_amount < 0, f"{ln_amount!r}"
-            ln_amount_str = _('Amount withdrawn from channels') + ': ' + format_amount(-ln_amount) + ' ' + base_unit
+            ln_amount_str = _('Amount withdrawn from channels: {}').format(format_amount(-ln_amount) + ' ' + base_unit)
         if ln_amount_str:
             self.ln_amount_label.setText(ln_amount_str)
         else:
