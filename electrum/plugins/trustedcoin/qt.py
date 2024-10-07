@@ -35,13 +35,13 @@ from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxL
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.util import is_valid_email
+from electrum.util import is_valid_email, InvalidPassword
 from electrum.logging import Logger, get_logger
 from electrum import keystore
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
                                   CancelButton, Buttons, icon_path, WWLabel, CloseButton, ColorScheme,
-                                  ChoiceWidget)
+                                  ChoiceWidget, PasswordLineEdit, char_width_in_lineedit)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -259,6 +259,10 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_tos': {
                 'gui': WCTerms,
+                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+            },
+            'trustedcoin_keystore_unlock': {
+                'gui': WCKeystorePassword,
                 'params': {'icon': icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_show_confirm_otp': {
@@ -600,3 +604,41 @@ class WCContinueOnline(WizardComponent):
 
     def apply(self):
         self.wizard_data['trustedcoin_go_online'] = self.cb_online.isChecked()
+
+
+class WCKeystorePassword(WizardComponent):
+    def __init__(self, parent, wizard):
+        WizardComponent.__init__(self, parent, wizard, title=_('Unlock Keystore'))
+
+    def on_ready(self):
+        self.layout().addStretch(1)
+
+        hbox2 = QHBoxLayout()
+        hbox2.addStretch(1)
+        self.pw_e = PasswordLineEdit('', self)
+        self.pw_e.setFixedWidth(17 * char_width_in_lineedit())
+        self.pw_e.textEdited.connect(self.on_text)
+        pw_label = QLabel(_('Password') + ':')
+        hbox2.addWidget(pw_label)
+        hbox2.addWidget(self.pw_e)
+        hbox2.addStretch(1)
+        self.layout().addLayout(hbox2)
+
+        self.layout().addStretch(1)
+
+        self._valid = False
+
+        self.ks = self.wizard_data['xprv1']
+
+    def on_text(self):
+        try:
+            self.ks.check_password(self.pw_e.text())
+        except InvalidPassword:
+            self.valid = False
+            return
+        self.valid = True
+
+    def apply(self):
+        if self.valid:
+            self.wizard_data['xprv1'] = self.ks.get_master_private_key(self.pw_e.text())
+            self.wizard_data['password'] = self.pw_e.text()
