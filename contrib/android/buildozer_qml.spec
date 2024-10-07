@@ -19,8 +19,14 @@ source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so,svg
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib, env,
+source.exclude_dirs =
+    bin,
+    build,
+    dist,
+    contrib,
+    env,
     tests,
+    fastlane,
     electrum/www,
     electrum/scripts,
     electrum/utils,
