@@ -43,7 +43,12 @@ info "updating www repo"
 ./contrib/make_download "$WWW_DIR"
 info "signing the version announcement file"
 sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
-echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > "$WWW_DIR"/version
+cat <<EOF > "$WWW_DIR"/version
+{
+    "version": "$VERSION",
+    "signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$sig"}
+}
+EOF
 
 # push changes to website repo
 pushd "$WWW_DIR"
