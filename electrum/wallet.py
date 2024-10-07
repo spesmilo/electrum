@@ -394,7 +394,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = db.storage  # type: Optional[WalletStorage]
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -448,6 +447,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         self.register_callbacks()
 
+    @property
+    def storage(self):
+        return self.db.storage
+
     def _init_lnworker(self):
         self.lnworker = None
 
@@ -495,6 +498,33 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             new_db.put('lightning_privkey2', None)
         new_db.set_modified(True)
         new_db.write()
+        return new_path
+
+    def rename_wallet(self, new_basename) -> str:
+        old_storage = self.storage
+        if not old_storage:
+            return
+
+        # new storage path
+        dirname = os.path.dirname(old_storage.path)
+        new_path = os.path.join(dirname, new_basename)
+        assert not os.path.exists(new_path)
+
+        # new storage
+        new_storage = WalletStorage(new_path)
+        new_storage._encryption_version = old_storage._encryption_version
+        new_storage.pubkey = old_storage.pubkey
+
+        with self.db.lock:
+            # keep existing WalletDB instance, as the initialization normally
+            # happens in the wallet constructor, which we don't want to replicate,
+            self.db.storage = new_storage
+            self.db.set_modified(True)
+            self.db.write_and_force_consolidation()
+
+        assert os.path.exists(new_path)
+        os.unlink(old_storage.path)
+
         return new_path
 
     def has_lightning(self) -> bool:

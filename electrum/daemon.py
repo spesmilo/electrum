@@ -538,6 +538,21 @@ class Daemon(Logger):
     def get_wallets(self) -> Dict[str, Abstract_Wallet]:
         return dict(self._wallets)  # copy
 
+    @with_wallet_lock
+    def rename_wallet(self, wallet: 'Abstract_Wallet', new_basename):
+        if not wallet.db.storage:
+            return
+
+        path = wallet.db.storage.path
+        wallet_key = self._wallet_key_from_path(path)
+        wallet = self._wallets.get(wallet_key)
+        assert wallet
+
+        new_path = wallet.rename_wallet(new_basename)
+        new_wallet_key = self._wallet_key_from_path(new_path)
+        self._wallets.pop(wallet_key)
+        self._wallets[new_wallet_key] = wallet
+
     def delete_wallet(self, path: str) -> bool:
         self.stop_wallet(path)
         if os.path.exists(path):

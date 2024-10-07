@@ -13,7 +13,7 @@ from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
 from electrum.bitcoin import verify_usermessage_with_address
-from electrum.storage import StorageReadWriteError
+from electrum.storage import StorageReadWriteError, WalletStorage
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -382,3 +382,41 @@ class QEDaemon(AuthMixin, QObject):
         if len(password) == 0:
             return 0
         return check_password_strength(password)[0]
+
+    def wallet_path_from_wallet_name(self, wallet_name: str) -> str:
+        return os.path.join(self.daemon.config.get_datadir_wallet_path(), wallet_name)
+
+    @pyqtSlot(str, result=bool)
+    def isValidNewWalletName(self, wallet_name: str) -> bool:
+        if not wallet_name:
+            return False
+        if self.availableWallets.wallet_name_exists(wallet_name):
+            return False
+        wallet_path = self.wallet_path_from_wallet_name(wallet_name)
+        # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
+        #       wallet_name might contain ".." (etc) and hence sketchy path traversals are possible.
+        #       Anyway, this at least validates that the path looks sane to the filesystem:
+        try:
+            temp_storage = WalletStorage(wallet_path)
+        except (StorageReadWriteError, WalletFileException) as e:
+            return False
+        except Exception as e:
+            self._logger.exception("")
+            return False
+        if temp_storage.file_exists():
+            return False
+        return True
+
+    @pyqtSlot(QEWallet, str, result=bool)
+    def renameWallet(self, wallet, new_name):
+        self._logger.debug(f'renaming wallet to: {new_name}')
+        try:
+            self.daemon.rename_wallet(wallet.wallet, new_name)
+            self.daemon.config.save_last_wallet(wallet.wallet)
+            wallet.nameChanged.emit()
+            if self._available_wallets:
+                self._available_wallets.reload()
+            return True
+        except Exception as e:
+            self._logger.debug(f'renaming err: {str(e)}')
+            return False
