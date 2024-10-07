@@ -49,6 +49,7 @@ task:
   tox_script:
     - export PYTHONASYNCIODEBUG
     - export PYTHONDEVMODE
+    - export ELECTRUM_ECC_DONT_COMPILE=1
     - tox
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
@@ -109,6 +110,7 @@ task:
     - apt-get update
     - apt-get -y install curl jq bc
     # install electrum
+    - export ELECTRUM_ECC_DONT_COMPILE=1  # we build manually to make caching it easier
     - pip3 install .[tests]
     # install e-x some commits after 1.16.0 tag
     - pip3 install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
