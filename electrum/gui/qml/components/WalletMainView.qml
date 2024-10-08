@@ -208,7 +208,7 @@ Item {
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
-            icon.source: '../../icons/add.png'
+            icon.source: '../../icons/sweep.png'
             action: Action {
                 text: qsTr('Sweep key')
                 enabled: !Daemon.currentWallet.isWatchOnly  // watchonly might be acceptable

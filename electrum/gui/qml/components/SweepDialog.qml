@@ -10,7 +10,7 @@ ElDialog {
     id: root
 
     title: qsTr('Sweep private keys')
-    iconSource: Qt.resolvedUrl('../../icons/add.png')
+    iconSource: Qt.resolvedUrl('../../icons/sweep.png')
 
     property bool valid: false
     property string privateKeys
