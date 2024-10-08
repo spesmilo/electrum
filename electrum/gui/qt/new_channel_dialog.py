@@ -114,6 +114,7 @@ class NewChannelDialog(WindowModalDialog):
 
     def spend_min(self):
         self.max_button.setChecked(False)
+        self.amount_e.setFrozen(False)
         self.amount_e.setAmount(self.min_amount_sat)
 
     def spend_max(self):
