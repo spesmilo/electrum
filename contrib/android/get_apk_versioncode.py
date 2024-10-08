@@ -9,6 +9,7 @@ ARCH_DICT = {
     "arm64-v8a": "3",
     "armeabi-v7a": "2",
     "x86": "1",
+    "null": "0",
 }
 
 
@@ -58,4 +59,5 @@ if __name__ == '__main__':
         print(f"       should be one of: {list(ARCH_DICT.keys())}", file=sys.stderr)
         sys.exit(1)
     version_code = get_android_versioncode(arch_name=android_arch)
+    assert isinstance(version_code, int), f"{version_code=!r} must be an int."
     print(version_code, file=sys.stdout)
