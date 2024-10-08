@@ -148,6 +148,8 @@ class Contacts(dict, Logger):
             return None
         prefix = 'btc'
         for record in records:
+            if record.rdtype != dns.rdatatype.TXT:
+                continue
             string = to_string(record.strings[0], 'utf8')
             if string.startswith('oa1:' + prefix):
                 address = cls.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
