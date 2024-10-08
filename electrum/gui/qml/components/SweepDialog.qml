@@ -146,7 +146,6 @@ ElDialog {
             onClicked: {
                 console.log('sweeping')
                 root.privateKeys = sweepkeys.text
-                console.log(root.privateKeys)
                 root.accept()
             }
         }

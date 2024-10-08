@@ -917,7 +917,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         def fetch_privkeys_info():
             try:
                 self._txins = self._wallet.wallet.network.run_from_another_thread(sweep_preparations(privkeys, self._wallet.wallet.network))
-                self._logger.info(f'txins {self._txins!r}')
+                self._logger.debug(f'txins {self._txins!r}')
             except UserFacingException as e:
                 self.warning = str(e)
                 return
