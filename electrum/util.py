@@ -1148,7 +1148,7 @@ def write_json_file(path, data):
         raise FileExportFailed(e)
 
 
-def os_chmod(path, mode):
+def os_chmod(path, mode, critical=False):
     """os.chmod aware of tmpfs"""
     try:
         os.chmod(path, mode)
@@ -1157,7 +1157,9 @@ def os_chmod(path, mode):
         if xdg_runtime_dir and is_subpath(path, xdg_runtime_dir):
             _logger.info(f"Tried to chmod in tmpfs. Skipping... {e!r}")
         else:
-            raise
+            if critical:
+                raise
+            _logger.info(f"Best-effort chmod failed: {e!r}")
 
 
 def make_dir(path, allow_symlink=True):
