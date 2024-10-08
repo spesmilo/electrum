@@ -43,10 +43,7 @@ class PluginDialog(WindowModalDialog):
             msg = '\n'.join(map(lambda x: x[1], requires))
             form.addRow(QLabel(_('Requires') + ':'), WWLabel(msg))
         vbox.addLayout(form)
-        if name in self.plugins.internal_plugin_metadata:
-            text = _('Disable') if p else _('Enable')
-        else:
-            text = _('Remove') if p else _('Install')
+        text = _('Disable') if p else _('Enable')
         toggle_button = QPushButton(text)
         toggle_button.clicked.connect(partial(self.do_toggle, toggle_button, name))
         close_button = CloseButton(self)
@@ -56,27 +53,8 @@ class PluginDialog(WindowModalDialog):
 
     def do_toggle(self, button, name):
         button.setEnabled(False)
-        if name in self.plugins.internal_plugin_metadata:
-            p = self.plugins.toggle(name)
-            self.cb.setChecked(bool(p))
-        else:
-            p = self.plugins.get(name)
-            if not p:
-                #if not self.window.window.question("Install plugin '%s'?"%name):
-                #    return
-                coro = self.plugins.download_external_plugin(name)
-                def on_success(x):
-                    self.plugins.enable(name)
-                    p = self.plugins.get(name)
-                    self.cb.setChecked(bool(p))
-                self.window.window.run_coroutine_from_thread(coro, "Downloading '%s' "%name, on_result=on_success)
-            else:
-                #if not self.window.window.question("Remove plugin '%s'?"%name):
-                #    return
-                self.plugins.disable(name)
-                self.cb.setChecked(False)
-                self.plugins.remove_external_plugin(name)
-
+        p = self.plugins.toggle(name)
+        self.cb.setChecked(bool(p))
         self.close()
         self.window.enable_settings_widget(name, self.index)
         # note: all enabled plugins will receive this hook:
@@ -141,12 +119,13 @@ class PluginsDialog(WindowModalDialog):
             cb.setChecked(plugin_is_loaded and p.is_enabled())
             grid.addWidget(cb, i, 0)
             self.enable_settings_widget(name, i)
-            cb.clicked.connect(partial(self.show_plugin_dialog, name, metadata, cb, i))
+            cb.clicked.connect(partial(self.show_plugin_dialog, name, cb, i))
 
         #grid.setRowStretch(len(descriptions), 1)
 
-    def show_plugin_dialog(self, name, metadata, cb, i):
+    def show_plugin_dialog(self, name, cb, i):
         p = self.plugins.get(name)
+        metadata = self.plugins.descriptions[name]
         cb.setChecked(p is not None and p.is_enabled())
         d = PluginDialog(name, metadata, cb, self, i)
         d.exec()
