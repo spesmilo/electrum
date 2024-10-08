@@ -43,7 +43,7 @@ import os
 from .import util, ecc
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
                    is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-                   UserFacingException)
+                   UserFacingException, InvalidPassword)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -156,8 +156,13 @@ def command(s):
             wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
             if cmd.requires_wallet and not wallet:
                 raise UserFacingException('wallet not loaded')
-            if cmd.requires_password and password is None and wallet.has_password():
-                raise UserFacingException('Password required')
+            if cmd.requires_password and wallet.has_password():
+                if password is None:
+                    raise UserFacingException('Password required')
+                try:
+                    wallet.check_password(password)
+                except InvalidPassword as e:
+                    raise UserFacingException(str(e)) from None
             if cmd.requires_lightning and (not wallet or not wallet.has_lightning()):
                 raise UserFacingException('Lightning not enabled in this wallet')
             return await func(*args, **kwargs)
