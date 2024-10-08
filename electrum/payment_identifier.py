@@ -266,6 +266,10 @@ class PaymentIdentifier(Logger):
                             self.bolt11.outputs = [PartialTxOutput.from_address_and_value(bip21_address, amount)]
                     except InvoiceError as e:
                         self.logger.debug(self._get_error_from_invoiceerror(e))
+                elif not self.bip21.get('address'):
+                    # no address and no bolt11, invalid
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.parse_output(text)[0]:
             scriptpubkey, is_address = self.parse_output(text)
