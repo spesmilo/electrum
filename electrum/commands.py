@@ -1161,8 +1161,8 @@ class Commands:
         invoice = Invoice.from_bech32(invoice)
         return invoice.to_debug_json()
 
-    @command('wnl')
-    async def lnpay(self, invoice, timeout=120, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
@@ -1257,8 +1257,8 @@ class Commands:
     async def import_channel_backup(self, encrypted, wallet: Abstract_Wallet = None):
         return wallet.lnworker.import_channel_backup(encrypted)
 
-    @command('wnl')
-    async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def get_channel_ctx(self, channel_point, password=None, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """ return the current commitment transaction of a channel """
         if not iknowwhatimdoing:
             raise UserFacingException(
