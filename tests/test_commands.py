@@ -357,3 +357,41 @@ class TestCommandsTestnet(ElectrumTestCase):
         # test "from_coins" arg
         self.assertEqual("02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff02a00f00000000000016001429e1fd187f0cac845946ae1b11dc136c536bfc0f84b2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa0247304402203aa63539b673a3bd70a76482b17f35f8843974fab28f84143a00450789010bc40220779c2ce2d0217f973f1f6c9f718e19fc7ebd14dd8821a962f002437cda3082ec012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee000000000",
                          await cmds.bumpfee(tx=orig_rawtx, new_fee_rate='1.6', from_coins="9a8cba08b79d73d8b602e8748a2c8a09cdd200a0393561f68e05af69fc3d72b9:1", wallet=wallet))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_importprivkey(self, mock_save_db):
+        wallet = restore_wallet_from_text('p2wpkh:cQUdWZehnGDwGn7CSc911cJBcWTAcnyzpLoJYTsFNYW1w6iaq7Nw p2wpkh:cNHsDLo137ngrr2wGf3mwqpwTUvpuDVAZrqzan9heHcMTK4rP5JB',
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        self.assertEqual(2, len(wallet.get_addresses()))
+        # try importing a single bad privkey
+        out = await cmds.importprivkey("asdasd", wallet=wallet)  # type: str
+        self.assertTrue(out.startswith("Error: "))
+        self.assertTrue("cannot deserialize privkey" in out)
+        # try importing empty string
+        self.assertEqual("Error: no keys given",
+                         await cmds.importprivkey("", wallet=wallet))
+        # try importing a single good privkey
+        self.assertEqual("Keypair imported: mfgn4NuNberN5D9gvXaYwkqA6Q6WmF7wtD",
+                         await cmds.importprivkey("cVam1duhd5wSxPPFJFKHNoDA2ZjRq7okvnBWyajsnAEcfPjC6Wbm", wallet=wallet))
+        # try importing a list of good privkeys
+        privkeys1_str = " ".join([
+            "p2pkh:cR1C6p34Gt9gxNJ57rUy96jgN3HQcZCgQzDWtCDNCnx4iLXM2S6g",
+            "p2pkh:cR1xqAf2hhhfxwAzquDss7ALrMeUN5gR82qp1nRWjqSQppnCNa27",
+            "cMnMgCvkELEmmnpK8MbcdE8aWRMSCxFMCJU61YReXVXiqjgjhee8",
+            "p2wpkh:cUfjuZDxEoATQwPmWCBH9kGArALfPij5JruQNfM6NTtYF12fds8Y",
+            "p2wpkh:cP2U7f2jgaQf1zBAWzNUrhs6mGRCg3uyTvNFUUQ9Q8eyXnpkXSqo",
+            "p2wpkh:cThVmpx3VgZRhbKQqK1FmLzaFTiUsN1Kp1CBwZVL6VfR33mNMxok",
+        ])
+        self.assertEqual({"good_keys": 6, "bad_keys": 0},
+                         await cmds.importprivkey(privkeys1_str, wallet=wallet))
+        # try importing a list of mixed good/bad privkeys
+        privkeys2_str = " ".join([
+            "qweqwe",
+            "p2wpkh:cRFfD1EqocayY3xsw343inJ47LVsZHLbUgPzLmUbXhE6XNJ46Swn",
+            "p2pkh:cThVmpx3VgZRhbKQqK1FmLzaBAAADDDDkeeeeeeeeeeeeeeeeeeeey",
+        ])
+        self.assertEqual({"good_keys": 1, "bad_keys": 2},
+                         await cmds.importprivkey(privkeys2_str, wallet=wallet))
+        self.assertEqual(10, len(wallet.get_addresses()))
