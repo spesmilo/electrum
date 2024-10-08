@@ -819,6 +819,7 @@ def format_satoshis(
         # add leading whitespaces
         target_total_len = target_integer_len + 1 + target_fract_len
         result = " " * (target_total_len - len(result)) + result
+    result = result.removesuffix('.')
     return result
 
 
