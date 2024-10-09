@@ -1229,15 +1229,15 @@ class Commands:
             self.network.path_finder.liquidity_hints.reset_liquidity_hints()
             self.network.path_finder.clear_blacklist()
 
-    @command('wnl')
-    async def close_channel(self, channel_point, force=False, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def close_channel(self, channel_point, force=False, password=None, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
 
-    @command('wnl')
-    async def request_force_close(self, channel_point, connection_string=None, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def request_force_close(self, channel_point, connection_string=None, password=None, wallet: Abstract_Wallet = None):
         """
         Requests the remote to force close a channel.
         If a connection string is passed, can be used without having state or any backup for the channel.
@@ -1247,8 +1247,8 @@ class Commands:
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         await wallet.lnworker.request_force_close(chan_id, connect_str=connection_string)
 
-    @command('wl')
-    async def export_channel_backup(self, channel_point, wallet: Abstract_Wallet = None):
+    @command('wpl')
+    async def export_channel_backup(self, channel_point, password=None, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         return wallet.lnworker.export_channel_backup(chan_id)
@@ -1275,8 +1275,8 @@ class Commands:
         """ return the local watchtower's ctn of channel. used in regtests """
         return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
 
-    @command('wnl')
-    async def rebalance_channels(self, from_scid, dest_scid, amount, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def rebalance_channels(self, from_scid, dest_scid, amount, password=None, wallet: Abstract_Wallet = None):
         """
         Rebalance channels.
         If trampoline is used, channels must be with different trampolines.
@@ -1328,8 +1328,8 @@ class Commands:
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }
 
-    @command('wnl')
-    async def reverse_swap(self, lightning_amount, onchain_amount, wallet: Abstract_Wallet = None):
+    @command('wnpl')
+    async def reverse_swap(self, lightning_amount, onchain_amount, password=None, wallet: Abstract_Wallet = None):
         """Reverse submarine swap: send on Lightning, receive on-chain
         """
         sm = wallet.lnworker.swap_manager
