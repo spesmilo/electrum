@@ -142,6 +142,19 @@ Item {
                 sendButtonText: qsTr('Sweep')
             })
             finalizerDialog.accepted.connect(function() {
+                if (Daemon.currentWallet.isWatchOnly) {
+                    var confirmdialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Confirm Sweep'),
+                        text: qsTr('Current wallet is watch-only. You might not be able to spend from these addresses.\n\nAre you sure?'),
+                        yesno: true
+                    })
+                    confirmdialog.accepted.connect(function() {
+                        finalizerDialog.finalizer.send()
+                        close()
+                    })
+                    confirmdialog.open()
+                    return
+                }
                 console.log("Sending sweep transaction")
                 finalizerDialog.finalizer.send()
             })
@@ -211,7 +224,6 @@ Item {
             icon.source: '../../icons/sweep.png'
             action: Action {
                 text: qsTr('Sweep key')
-                enabled: !Daemon.currentWallet.isWatchOnly  // watchonly might be acceptable
                 onTriggered: {
                     startSweep()
                     menu.deselect()
