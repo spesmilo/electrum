@@ -2387,10 +2387,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         addresses = self.wallet.get_unused_addresses()
         if not addresses:
-            try:
-                addresses = self.wallet.get_receiving_addresses()
-            except AttributeError:
-                addresses = self.wallet.get_addresses()
+            addresses = self.wallet.get_receiving_addresses()
         h, address_e = address_field(addresses)
         vbox.addLayout(h)
 

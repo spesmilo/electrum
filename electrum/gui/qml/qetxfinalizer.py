@@ -901,7 +901,7 @@ class QETxSweepFinalizer(QETxFinalizer):
 
     def make_sweep_tx(self):
         address = self._wallet.wallet.get_receiving_address()
-        assert self._wallet.wallet.adb.is_mine(address)
+        assert self._wallet.wallet.is_mine(address)
 
         coins, keypairs = copy.deepcopy(self._txins)
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
