@@ -900,7 +900,16 @@ class QETxSweepFinalizer(QETxFinalizer):
             self.privateKeysChanged.emit()
 
     def make_sweep_tx(self):
-        address = self._wallet.wallet.get_unused_address()  # TODO: dont fail
+        addresses = self._wallet.wallet.get_unused_addresses()
+        if not addresses:
+            try:
+                addresses = self._wallet.wallet.get_receiving_addresses()
+            except AttributeError:
+                addresses = self._wallet.wallet.get_addresses()
+
+        assert len(addresses) > 0, 'no address in wallet to send to'
+        address = addresses[0]
+        assert self._wallet.wallet.adb.is_mine(address)
 
         coins, keypairs = copy.deepcopy(self._txins)
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
