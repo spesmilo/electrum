@@ -1,3 +1,5 @@
+import copy
+import threading
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 from functools import partial
@@ -7,8 +9,9 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
-from electrum.util import NotEnoughFunds, profiler, quantize_feerate
-from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy
+from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException
+from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
+from electrum import keystore
 from electrum.plugin import run_hook
 
 from .qewallet import QEWallet
@@ -868,3 +871,110 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     @pyqtSlot(result=str)
     def getNewTx(self):
         return str(self._new_tx)
+
+
+class QETxSweepFinalizer(QETxFinalizer):
+    _logger = get_logger(__name__)
+
+    txinsRetrieved = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self._private_keys = ''
+        self._txins = None
+        self._amount = QEAmount(is_max=True)
+
+        self.txinsRetrieved.connect(self.update)
+
+    privateKeysChanged = pyqtSignal()
+    @pyqtProperty(str, notify=privateKeysChanged)
+    def privateKeys(self):
+        return self._private_keys
+
+    @privateKeys.setter
+    def privateKeys(self, private_keys):
+        if self._private_keys != private_keys:
+            self._private_keys = private_keys
+            self.update_privkeys()
+            self.privateKeysChanged.emit()
+
+    def make_sweep_tx(self):
+        addresses = self._wallet.wallet.get_unused_addresses()
+        if not addresses:
+            try:
+                addresses = self._wallet.wallet.get_receiving_addresses()
+            except AttributeError:
+                addresses = self._wallet.wallet.get_addresses()
+
+        assert len(addresses) > 0, 'no address in wallet to send to'
+        address = addresses[0]
+        assert self._wallet.wallet.adb.is_mine(address)
+
+        coins, keypairs = copy.deepcopy(self._txins)
+        outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
+
+        tx = self._wallet.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=None, rbf=self._rbf, is_sweep=True)
+        self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
+
+        tx.sign(keypairs)
+        return tx
+
+    def update_privkeys(self):
+        privkeys = keystore.get_private_keys(self._private_keys)
+
+        def fetch_privkeys_info():
+            try:
+                self._txins = self._wallet.wallet.network.run_from_another_thread(sweep_preparations(privkeys, self._wallet.wallet.network))
+                self._logger.debug(f'txins {self._txins!r}')
+            except UserFacingException as e:
+                self.warning = str(e)
+                return
+            self.txinsRetrieved.emit()
+
+        threading.Thread(target=fetch_privkeys_info, daemon=True).start()
+
+    def update(self):
+        if not self._wallet:
+            self._logger.debug('wallet not set, ignoring update()')
+            return
+        if not self._private_keys:
+            self._logger.debug('private keys not set, ignoring update()')
+            return
+
+        try:
+            # make unsigned transaction
+            tx = self.make_sweep_tx()
+        except Exception as e:
+            self._logger.error(str(e))
+            self.warning = repr(e)
+            self._valid = False
+            self.validChanged.emit()
+            return
+
+        self._tx = tx
+
+        amount = tx.output_value()
+
+        self._effectiveAmount.satsInt = amount
+        self.effectiveAmountChanged.emit()
+
+        self.update_from_tx(tx)
+
+        fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
+            invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
+        if fee_warning_tuple:
+            allow_send, long_warning, short_warning = fee_warning_tuple
+            self.warning = _('Warning') + ': ' + long_warning
+        else:
+            self.warning = ''
+
+        self._valid = True
+        self.validChanged.emit()
+
+        self.on_signed_tx(False, tx)
+
+    @pyqtSlot()
+    def send(self):
+        self._wallet.broadcast(self._tx)
+        self._wallet.wallet.set_label(self._tx.txid(), _('Sweep transaction'))
