@@ -190,7 +190,7 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="7197c1c28409fbeebd8494093349a2bfd770526a"
+ENV P4A_CHECKOUT_COMMIT="d4432ec8d07b8521465d6daddd55046fc0413599"
 # ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
