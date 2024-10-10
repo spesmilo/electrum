@@ -922,15 +922,6 @@ class SimpleConfig(Logger):
                     f"Either use config.cv.{name}.set() or assign to config.{name} instead.")
         return CVLookupHelper()
 
-    def _default_swapserver_url(self) -> str:
-        if constants.net == constants.BitcoinMainnet:
-            default = 'https://swaps.electrum.org/api'
-        elif constants.net == constants.BitcoinTestnet:
-            default = 'https://swaps.electrum.org/testnet'
-        else:
-            default = 'http://localhost:5455'
-        return default
-
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
@@ -1201,16 +1192,17 @@ Warning: setting this to too low will result in lots of payment failures."""),
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
     # connect to remote submarine swap server
-    SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
+    SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
     # run submarine swap server locally
-    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
+    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=None, type_=int)
     SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
+    SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
 
     # nostr
     NOSTR_RELAYS = ConfigVar(
         'nostr_relays',
-        default='wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
+        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
         type_=str,
         short_desc=lambda: _("Nostr relays"),
         long_desc=lambda: ' '.join([
