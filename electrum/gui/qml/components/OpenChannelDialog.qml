@@ -37,11 +37,11 @@ ElDialog {
                 id: rootLayout
                 width: parent.width
 
-                columns: 4
+                columns: 3
 
                 InfoTextArea {
                     Layout.fillWidth: true
-                    Layout.columnSpan: 4
+                    Layout.columnSpan: 3
                     visible: !Daemon.currentWallet.lightningHasDeterministicNodeId
                     iconStyle: InfoTextArea.IconStyle.Warn
                     text: Daemon.currentWallet.seedType == 'segwit'
@@ -59,7 +59,7 @@ ElDialog {
 
                 InfoTextArea {
                     Layout.fillWidth: true
-                    Layout.columnSpan: 4
+                    Layout.columnSpan: 3
                     visible: Daemon.currentWallet.lightningHasDeterministicNodeId && !Config.useRecoverableChannels
                     iconStyle: InfoTextArea.IconStyle.Warn
                     text: [ qsTr('You currently have recoverable channels setting disabled.'),
@@ -69,6 +69,7 @@ ElDialog {
 
                 Label {
                     text: qsTr('Node')
+                    Layout.columnSpan: 3
                     color: Material.accentColor
                 }
 
@@ -143,6 +144,7 @@ ElDialog {
 
                 Label {
                     text: qsTr('Amount')
+                    Layout.columnSpan: 3
                     color: Material.accentColor
                 }
 
@@ -155,7 +157,6 @@ ElDialog {
                 }
 
                 RowLayout {
-                    Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Label {
                         text: Config.baseUnit
