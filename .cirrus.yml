@@ -46,15 +46,15 @@ task:
       - ./contrib/make_libsecp256k1.sh
       - mkdir contrib/_saved_secp256k1_build
       - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
-  libsecp_install_script:
-    - cp contrib/_saved_secp256k1_build/* electrum/
   tox_script:
     - export PYTHONASYNCIODEBUG
     - export PYTHONDEVMODE
+    - export ELECTRUM_ECC_DONT_COMPILE=1
     - tox
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
   env:
+    LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # following CI_* env vars are set up for coveralls
@@ -110,6 +110,7 @@ task:
     - apt-get update
     - apt-get -y install curl jq bc
     # install electrum
+    - export ELECTRUM_ECC_DONT_COMPILE=1  # we build manually to make caching it easier
     - pip3 install .[tests]
     # install e-x some commits after 1.16.0 tag
     - pip3 install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
@@ -127,8 +128,6 @@ task:
       - ./contrib/make_libsecp256k1.sh
       - mkdir contrib/_saved_secp256k1_build
       - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
-  libsecp_install_script:
-    - cp contrib/_saved_secp256k1_build/* electrum/
   bitcoind_service_background_script:
     - tests/regtest/run_bitcoind.sh
   electrumx_service_background_script:
@@ -137,6 +136,7 @@ task:
     - sleep 10s
     - python3 -m unittest tests/regtest.py
   env:
+    LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1

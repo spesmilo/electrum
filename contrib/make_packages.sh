@@ -32,6 +32,8 @@ export YARL_NO_EXTENSIONS=1
 export MULTIDICT_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
 
+export ELECTRUM_ECC_DONT_COMPILE=1
+
 # if we end up having to compile something, at least give reproducibility a fighting chance
 export LC_ALL=C
 export TZ=UTC

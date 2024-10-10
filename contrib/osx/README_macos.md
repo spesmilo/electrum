@@ -15,18 +15,23 @@ $ cd electrum
 $ git submodule update --init
 ```
 
-Run install (this should install most dependencies):
+### 2. Prepare for compiling libsecp256k1
+
+To be able to build the `electrum-ecc` package from source
+(which is pulled in when installing Electrum in the next step),
+you need:
+```
+$ brew install autoconf automake libtool coreutils
+```
+
+### 3. Install Electrum
+
+Run install (this should install the dependencies):
 ```
 $ python3 -m pip install --user -e ".[gui,crypto]"
 ```
 
-### 2. Install libsecp256k1
-```
-$ brew install autoconf automake libtool coreutils
-$ contrib/make_libsecp256k1.sh
-```
-
-### 3. Run electrum:
+### 4. Run electrum:
 ```
 $ ./run_electrum
 ```

@@ -33,8 +33,9 @@ import itertools
 from aiorpcx import NetAddress
 import attr
 
-from . import ecc
-from .ecc import ECPubkey
+import electrum_ecc as ecc
+from electrum_ecc import ECPubkey
+
 from . import constants, util
 from .util import bfh, chunks, TxMinedInfo
 from .invoices import PR_PAID
