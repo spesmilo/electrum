@@ -1316,7 +1316,6 @@ class Commands:
     async def normal_swap(self, onchain_amount, lightning_amount, password=None, wallet: Abstract_Wallet = None):
         """
         Normal submarine swap: send on-chain BTC, receive on Lightning
-        Note that your funds will be locked for 24h if you do not have enough incoming capacity.
         """
         sm = wallet.lnworker.swap_manager
         if lightning_amount == 'dryrun':
