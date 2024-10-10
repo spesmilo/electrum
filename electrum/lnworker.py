@@ -955,8 +955,7 @@ class LNWallet(LNWorker):
     def start_network(self, network: 'Network'):
         super().start_network(network)
         self.lnwatcher = LNWalletWatcher(self, network)
-        #if (not self.swap_manager.use_nostr) or self.config.NOSTR_SWAPSERVER_PUBKEY or
-        if self.swap_manager.is_server:
+        if not self.swap_manager.use_nostr or self.swap_manager.is_server:
             self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
         self.lnrater = LNRater(self, network)
 
