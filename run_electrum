@@ -209,6 +209,7 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devmgr = plugins.device_manager
     try:
         client = devmgr.client_by_id(device_info.device.id_)
+        client.handler = client.plugin.create_handler(None)
         return client.get_password_for_storage_encryption()
     except UserCancelled:
         sys.exit(0)
