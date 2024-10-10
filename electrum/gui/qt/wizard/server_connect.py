@@ -96,3 +96,4 @@ class WCServerConfig(WizardComponent):
     def apply(self):
         self.wizard_data['autoconnect'] = self.sw.server_e.text().strip() == ''
         self.wizard_data['server'] = self.sw.server_e.text()
+        self.wizard_data['one_server'] = False
