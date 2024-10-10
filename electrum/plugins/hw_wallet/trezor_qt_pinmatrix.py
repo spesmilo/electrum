@@ -17,37 +17,21 @@
 # If not, see <https://www.gnu.org/licenses/lgpl-3.0.html>.
 
 import math
-import sys
 from typing import Any
 
-try:
-    from PyQt5.QtCore import QT_VERSION_STR, QRegExp, Qt
-    from PyQt5.QtGui import QRegExpValidator
-    from PyQt5.QtWidgets import (
-        QApplication,
-        QGridLayout,
-        QHBoxLayout,
-        QLabel,
-        QLineEdit,
-        QPushButton,
-        QSizePolicy,
-        QVBoxLayout,
-        QWidget,
-    )
-except Exception:
-    from PyQt4.QtCore import QT_VERSION_STR, SIGNAL, QObject, QRegExp, Qt  # noqa: I
-    from PyQt4.QtGui import (  # noqa: I
-        QApplication,
-        QGridLayout,
-        QHBoxLayout,
-        QLabel,
-        QLineEdit,
-        QPushButton,
-        QRegExpValidator,
-        QSizePolicy,
-        QVBoxLayout,
-        QWidget,
-    )
+from PyQt6.QtCore import QRegularExpression, Qt
+from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 
 class PinButton(QPushButton):
@@ -56,12 +40,7 @@ class PinButton(QPushButton):
         self.password = password
         self.encoded_value = encoded_value
 
-        if QT_VERSION_STR >= "5":
-            self.clicked.connect(self._pressed)
-        elif QT_VERSION_STR >= "4":
-            QObject.connect(self, SIGNAL("clicked()"), self._pressed)
-        else:
-            raise RuntimeError("Unsupported Qt version")
+        self.clicked.connect(self._pressed)
 
     def _pressed(self) -> None:
         self.password.setText(self.password.text() + str(self.encoded_value))
@@ -81,21 +60,14 @@ class PinMatrixWidget(QWidget):
         super(PinMatrixWidget, self).__init__(parent)
 
         self.password = QLineEdit()
-        self.password.setValidator(QRegExpValidator(QRegExp("[1-9]+"), None))
-        self.password.setEchoMode(QLineEdit.Password)
+        self.password.setValidator(QRegularExpressionValidator(QRegularExpression("[1-9]+"), None))
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
 
-        if QT_VERSION_STR >= "5":
-            self.password.textChanged.connect(self._password_changed)
-        elif QT_VERSION_STR >= "4":
-            QObject.connect(
-                self.password, SIGNAL("textChanged(QString)"), self._password_changed
-            )
-        else:
-            raise RuntimeError("Unsupported Qt version")
+        self.password.textChanged.connect(self._password_changed)
 
         self.strength = QLabel()
         self.strength.setMinimumWidth(75)
-        self.strength.setAlignment(Qt.AlignCenter)
+        self.strength.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._set_strength(0)
 
         grid = QGridLayout()
@@ -103,8 +75,8 @@ class PinMatrixWidget(QWidget):
         for y in range(3)[::-1]:
             for x in range(3):
                 button = PinButton(self.password, x + y * 3 + 1)
-                button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                button.setFocusPolicy(Qt.NoFocus)
+                button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+                button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                 grid.addWidget(button, 3 - y, x)
 
         hbox = QHBoxLayout()
@@ -141,36 +113,3 @@ class PinMatrixWidget(QWidget):
 
     def get_value(self) -> str:
         return self.password.text()
-
-
-if __name__ == "__main__":
-    """
-    Demo application showing PinMatrix widget in action
-    """
-    app = QApplication(sys.argv)
-
-    matrix = PinMatrixWidget()
-
-    def clicked() -> None:
-        print("PinMatrix value is", matrix.get_value())
-        print("Possible button combinations:", matrix.get_strength())
-        sys.exit()
-
-    ok = QPushButton("OK")
-    if QT_VERSION_STR >= "5":
-        ok.clicked.connect(clicked)
-    elif QT_VERSION_STR >= "4":
-        QObject.connect(ok, SIGNAL("clicked()"), clicked)
-    else:
-        raise RuntimeError("Unsupported Qt version")
-
-    vbox = QVBoxLayout()
-    vbox.addWidget(matrix)
-    vbox.addWidget(ok)
-
-    w = QWidget()
-    w.setLayout(vbox)
-    w.move(100, 100)
-    w.show()
-
-    app.exec_()
