@@ -12,6 +12,7 @@ WizardComponent {
     function apply() {
         wizard_data['autoconnect'] = sc.address.trim() == ""
         wizard_data['server'] = sc.address
+        wizard_data['one_server'] = sc.one_server
     }
 
     ColumnLayout {
