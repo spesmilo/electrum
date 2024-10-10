@@ -251,12 +251,16 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             onchain_amount = self.recv_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
                 return
-            coro = self.swap_manager.reverse_swap(
-                lightning_amount_sat=lightning_amount,
-                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
-            )
+            sm = self.swap_manager
+            async def coro():
+                result = await sm.reverse_swap(
+                    lightning_amount_sat=lightning_amount,
+                    expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+                )
+                await sm.stop_transport()
+                return result
             self.window.run_coroutine_from_thread(
-                coro, _('Swapping funds'),
+                coro(), _('Swapping funds'),
                 on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=True),
             )
             return True
@@ -331,6 +335,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self._current_swap = swap
         tx = sm.create_funding_tx(swap, dummy_tx, password=password)
         txid = await sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
+        await sm.stop_transport()
         return txid
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):

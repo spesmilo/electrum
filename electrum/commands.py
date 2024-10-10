@@ -1320,13 +1320,13 @@ class Commands:
         Normal submarine swap: send on-chain BTC, receive on Lightning
         """
         sm = wallet.lnworker.swap_manager
+        sm.start_transport()
+        await sm.is_initialized.wait()
         if lightning_amount == 'dryrun':
-            await sm.get_pairs()
             onchain_amount_sat = satoshis(onchain_amount)
             lightning_amount_sat = sm.get_recv_amount(onchain_amount_sat, is_reverse=False)
             txid = None
         elif onchain_amount == 'dryrun':
-            await sm.get_pairs()
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = sm.get_send_amount(lightning_amount_sat, is_reverse=False)
             txid = None
@@ -1338,6 +1338,7 @@ class Commands:
                 expected_onchain_amount_sat=onchain_amount_sat,
                 password=password,
             )
+        await sm.stop_transport()
         return {
             'txid': txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
@@ -1349,13 +1350,13 @@ class Commands:
         """Reverse submarine swap: send on Lightning, receive on-chain
         """
         sm = wallet.lnworker.swap_manager
+        sm.start_transport()
+        await sm.is_initialized.wait()
         if onchain_amount == 'dryrun':
-            await sm.get_pairs()
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
             funding_txid = None
         elif lightning_amount == 'dryrun':
-            await sm.get_pairs()
             onchain_amount_sat = satoshis(onchain_amount)
             lightning_amount_sat = sm.get_send_amount(onchain_amount_sat, is_reverse=True)
             funding_txid = None
@@ -1367,6 +1368,7 @@ class Commands:
                 lightning_amount_sat=lightning_amount_sat,
                 expected_onchain_amount_sat=onchain_amount_sat,
             )
+        await sm.stop_transport()
         return {
             'funding_txid': funding_txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),

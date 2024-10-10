@@ -26,7 +26,6 @@ from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
                    get_iconname_camera, read_QIcon, ColorScheme, icon_path)
-from .confirm_tx_dialog import ConfirmTxDialog
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -321,19 +320,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
         output_value = '!' if is_max else sum(output_values)
-        conf_dlg = ConfirmTxDialog(window=self.window, make_tx=make_tx, output_value=output_value)
-        if conf_dlg.not_enough_funds:
-            # note: use confirmed_only=False here, regardless of config setting,
-            #       as the user needs to get to ConfirmTxDialog to change the config setting
-            if not conf_dlg.can_pay_assuming_zero_fees(confirmed_only=False):
-                text = self.get_text_not_enough_funds_mentioning_frozen()
-                self.show_message(text)
-                return
-        tx = conf_dlg.run()
+
+        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value)
         if tx is None:
             # user cancelled
             return
-        is_preview = conf_dlg.is_preview
 
         if tx.has_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager

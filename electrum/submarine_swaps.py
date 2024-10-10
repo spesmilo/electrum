@@ -8,6 +8,8 @@ import time
 
 import attr
 import aiohttp
+
+import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
 from . import lnutil
@@ -116,6 +118,15 @@ class SwapServerError(Exception):
 def now():
     return int(time.time())
 
+@attr.s
+class SwapFees:
+    percentage = attr.ib(type=int)
+    normal_fee = attr.ib(type=int)
+    lockup_fee = attr.ib(type=int)
+    claim_fee = attr.ib(type=int)
+    min_amount = attr.ib(type=int)
+    max_amount = attr.ib(type=int)
+
 @stored_in('submarine_swaps')
 @attr.s
 class SwapData(StoredObject):
@@ -166,17 +177,18 @@ class SwapManager(Logger):
 
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
-        self.normal_fee = 0
-        self.lockup_fee = 0
-        self.claim_fee = 0 # part of the boltz prococol, not used by Electrum
-        self.percentage = 0
+        self.normal_fee = None
+        self.lockup_fee = None
+        self.claim_fee = None # part of the boltz prococol, not used by Electrum
+        self.percentage = None
         self._min_amount = None
         self._max_amount = None
 
         self.wallet = wallet
+        self.config = wallet.config
         self.lnworker = lnworker
         self.config = wallet.config
-        self.taskgroup = None
+        self.taskgroup = OldTaskGroup()
         self.dummy_address = DummyAddress.SWAP
 
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
@@ -193,37 +205,54 @@ class SwapManager(Logger):
         for k, swap in self.swaps.items():
             if swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
-        # api url
-        self.api_url = wallet.config.SWAPSERVER_URL
-        # init default min & max
-        self.init_min_max_values()
+        self.is_server = self.config.get('enable_plugin_swapserver', False)
+        self.is_initialized = asyncio.Event()
+        self.transport = None
 
-    def start_network(self, *, network: 'Network', lnwatcher: 'LNWalletWatcher'):
+    def start_network(self, network: 'Network'):
         assert network
-        assert lnwatcher
-        assert self.network is None, "already started"
+        if self.network is not None:
+            self.logger.info('start_network: already started')
+            return
+        self.logger.info('start_network: starting main loop')
         self.network = network
-        self.lnwatcher = lnwatcher
+        self.lnwatcher = self.lnworker.lnwatcher
         for k, swap in self.swaps.items():
             if swap.is_redeemed:
                 continue
             self.add_lnwatcher_callback(swap)
-
-        self.taskgroup = OldTaskGroup()
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+        if self.is_server:
+            self.start_transport()
 
+    @log_exceptions
     async def main_loop(self):
-        self.logger.info("starting taskgroup.")
-        try:
-            async with self.taskgroup as group:
-                await group.spawn(self.pay_pending_invoices())
-        except Exception as e:
-            self.logger.exception("taskgroup died.")
-        finally:
-            self.logger.info("taskgroup stopped.")
+        tasks = [self.pay_pending_invoices()]
+        if self.is_server and self.config.SWAPSERVER_PORT:
+            tasks.append(self.http_server.run())
+
+        async with self.taskgroup as group:
+            for task in tasks:
+                await group.spawn(task)
 
     async def stop(self):
         await self.taskgroup.cancel_remaining()
+
+    async def publish_offers(self):
+        # todo: publish everytime fees have changed
+        while True:
+            self.server_update_pairs()
+            await self.transport.publish_offer(self)
+            await asyncio.sleep(600)
+
+    def start_transport(self):
+        self.transport = HttpTransport(self.config, self)
+        self.transport.start()
+
+    async def stop_transport(self):
+        await self.transport.stop()
+        self.transport = None
+        self.is_initialized.clear()
 
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
@@ -597,9 +626,7 @@ class SwapManager(Logger):
         assert sha256(swap.preimage) == payment_hash
         assert swap.spending_txid is None
         self.invoices_to_pay[key] = 0
-
-    async def send_request_to_server(self, method, request_data):
-        raise NotImplementedError()
+        return {}
 
     async def normal_swap(
             self,
@@ -654,7 +681,7 @@ class SwapManager(Logger):
             "invoiceAmount": lightning_amount_sat,
             "refundPublicKey": refund_pubkey.hex()
         }
-        data = await self.send_request_to_server('createnormalswap', request_data)
+        data = await self.transport.send_request_to_server('createnormalswap', request_data)
         payment_hash = bytes.fromhex(data["preimageHash"])
 
         zeroconf = data["acceptZeroConf"]
@@ -720,7 +747,7 @@ class SwapManager(Logger):
             "invoice": invoice,
             "refundPublicKey": refund_pubkey.hex(),
         }
-        data = await self.send_request_to_server('addswapinvoice', request_data)
+        data = await self.transport.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
         lnaddr = lndecode(invoice)
         while swap.funding_txid is None and not lnaddr.is_expired():
@@ -760,7 +787,7 @@ class SwapManager(Logger):
                 break
         else:
             return
-        await self.get_pairs()
+        await self.is_initialized.wait()
         lightning_amount_sat = self.get_recv_amount(change_amount, is_reverse=False)
         swap, invoice = await self.request_normal_swap(
             lightning_amount_sat = lightning_amount_sat,
@@ -809,7 +836,7 @@ class SwapManager(Logger):
             "preimageHash": payment_hash.hex(),
             "claimPublicKey": our_pubkey.hex()
         }
-        data = await self.send_request_to_server('createswap', request_data)
+        data = await self.transport.send_request_to_server('createswap', request_data)
         invoice = data['invoice']
         fee_invoice = data.get('minerFeeInvoice')
         lockup_address = data['lockupAddress']
@@ -877,7 +904,7 @@ class SwapManager(Logger):
             self._swaps_by_funding_outpoint[swap._funding_prevout] = swap
         self._swaps_by_lockup_address[swap.lockup_address] = swap
 
-    def init_pairs(self) -> None:
+    def server_update_pairs(self) -> None:
         """ for server """
         self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000
         self._min_amount = 20000
@@ -886,41 +913,15 @@ class SwapManager(Logger):
         self.lockup_fee = self.get_fee(LOCKUP_FEE_SIZE)
         self.claim_fee = self.get_fee(CLAIM_FEE_SIZE)
 
-    async def get_pairs(self) -> None:
-        """Might raise SwapServerError."""
-        from .network import Network
-        try:
-            pairs = await self.send_request_to_server('getpairs', None)
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Swap server errored: {e!r}")
-            raise SwapServerError() from e
-        # cache data to disk
-        with open(self.pairs_filename(), 'w', encoding='utf-8') as f:
-            f.write(json.dumps(pairs))
-        fees = pairs['pairs']['BTC/BTC']['fees']
-        self.percentage = fees['percentage']
-        self.normal_fee = fees['minerFees']['baseAsset']['normal']
-        self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
-        self.claim_fee = fees['minerFees']['baseAsset']['reverse']['claim']
-        limits = pairs['pairs']['BTC/BTC']['limits']
-        self._min_amount = limits['minimal']
-        self._max_amount = limits['maximal']
-        assert pairs.get('htlcFirst') is True
-
-    def pairs_filename(self):
-        return os.path.join(self.wallet.config.path, 'swap_pairs')
-
-    def init_min_max_values(self):
-        # use default values if we never requested pairs
-        try:
-            with open(self.pairs_filename(), 'r', encoding='utf-8') as f:
-                pairs = json.loads(f.read())
-            limits = pairs['pairs']['BTC/BTC']['limits']
-            self._min_amount = limits['minimal']
-            self._max_amount = limits['maximal']
-        except Exception:
-            self._min_amount = 10000
-            self._max_amount = 10000000
+    def update_pairs(self, pairs):
+        self.logger.info(f'updating fees {pairs}')
+        self.normal_fee = pairs.normal_fee
+        self.lockup_fee = pairs.lockup_fee
+        self.claim_fee = pairs.claim_fee
+        self.percentage = pairs.percentage
+        self._min_amount = pairs.min_amount
+        self._max_amount = pairs.max_amount
+        self.is_initialized.set()
 
     def get_max_amount(self):
         return self._max_amount
@@ -1131,7 +1132,6 @@ class SwapManager(Logger):
     def server_create_swap(self, request):
         # reverse for client, forward for server
         # requesting a normal swap (old protocol) will raise an exception
-        self.init_pairs()
         #request = await r.json()
         req_type = request['type']
         assert request['pairId'] == 'BTC/BTC'
@@ -1218,7 +1218,17 @@ class SwapManager(Logger):
             else:
                 return swap.funding_txid
 
-class HttpSwapManager(SwapManager):
+
+
+class HttpTransport(Logger):
+
+    def __init__(self, config, sm):
+        Logger.__init__(self)
+        self.sm = sm
+        self.network = sm.network
+        self.api_url = config.SWAPSERVER_URL
+        self.config = config
+
     async def send_request_to_server(self, method, request_data):
         response = await self.network.async_send_http_on_proxy(
             'post' if request_data else 'get',
@@ -1226,3 +1236,33 @@ class HttpSwapManager(SwapManager):
             json=request_data,
             timeout=30)
         return json.loads(response)
+
+    async def get_pairs(self) -> None:
+        """Might raise SwapServerError."""
+        try:
+            response = await self.send_request_to_server('getpairs', None)
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Swap server errored: {e!r}")
+            raise SwapServerError() from e
+        assert response.get('htlcFirst') is True
+        fees = response['pairs']['BTC/BTC']['fees']
+        limits = response['pairs']['BTC/BTC']['limits']
+        pairs = SwapFees(
+            percentage = fees['percentage'],
+            normal_fee = fees['minerFees']['baseAsset']['normal'],
+            lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup'],
+            claim_fee = fees['minerFees']['baseAsset']['reverse']['claim'],
+            min_amount = limits['minimal'],
+            max_amount = limits['maximal'],
+        )
+        return pairs
+
+    def start(self):
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+
+    async def main_loop(self):
+        pairs = await self.get_pairs()
+        self.sm.update_pairs(pairs)
+
+    async def stop(self):
+        pass
