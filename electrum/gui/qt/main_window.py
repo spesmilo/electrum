@@ -1180,12 +1180,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        def get_pairs_thread():
-            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
-        try:
-            BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
-        except SwapServerError as e:
-            self.show_error(str(e))
+        if not self.initialize_swap_manager():
             return
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
         try:
@@ -1193,6 +1188,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         except InvalidSwapParameters as e:
             self.show_error(str(e))
             return
+
+    def initialize_swap_manager(self):
+        sm = self.wallet.lnworker.swap_manager
+        if sm.is_server:
+            self.show_error(_('Swap server is active'))
+            return False
+
+        if self.network is None:
+            return False
+
+        if sm.transport is None:
+            sm.start_transport()
+
+        if not sm.is_initialized.is_set():
+            async def wait_until_initialized():
+                try:
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    return
+            BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(wait_until_initialized()))
+
+        assert sm.is_initialized.is_set()
+        return True
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
@@ -1330,11 +1348,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, allow_preview=False)
-        funding_tx = d.run()
+        funding_tx, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
         if not funding_tx:
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
+
+    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True):
+        if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            self.initialize_swap_manager()
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview)
+        if d.not_enough_funds:
+            # note: use confirmed_only=False here, regardless of config setting,
+            #       as the user needs to get to ConfirmTxDialog to change the config setting
+            if not d.can_pay_assuming_zero_fees(confirmed_only=False):
+                text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
+                self.show_message(text)
+                return
+        return d.run(), d.is_preview
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):

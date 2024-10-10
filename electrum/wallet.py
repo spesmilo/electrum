@@ -1901,7 +1901,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())
-            if self.lnworker and send_change_to_lightning:
+            if self.lnworker and self.lnworker.swap_manager.is_initialized.is_set() and send_change_to_lightning:
                 change = tx.get_change_outputs()
                 # do not use multiple change addresses
                 if len(change) == 1:

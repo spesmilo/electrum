@@ -251,12 +251,16 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             onchain_amount = self.recv_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
                 return
-            coro = self.swap_manager.reverse_swap(
-                lightning_amount_sat=lightning_amount,
-                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
-            )
+            sm = self.swap_manager
+            async def coro():
+                result = await sm.reverse_swap(
+                    lightning_amount_sat=lightning_amount,
+                    expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+                )
+                await sm.stop_transport()
+                return result
             self.window.run_coroutine_from_thread(
-                coro, _('Swapping funds'),
+                coro(), _('Swapping funds'),
                 on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=True),
             )
             return True
@@ -319,25 +323,28 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         recv_amount = self.recv_amount_e.get_amount()
         self.ok_button.setEnabled(bool(send_amount) and bool(recv_amount))
 
-    def do_normal_swap(self, lightning_amount, onchain_amount, password):
+    async def _do_normal_swap(self, lightning_amount, onchain_amount, password):
+        sm = self.swap_manager
         dummy_tx = self._create_tx(onchain_amount)
         assert dummy_tx
-        sm = self.swap_manager
+        swap, invoice = await sm.request_normal_swap(
+            lightning_amount_sat=lightning_amount,
+            expected_onchain_amount_sat=onchain_amount,
+            channels=self.channels,
+        )
+        self._current_swap = swap
+        tx = sm.create_funding_tx(swap, dummy_tx, password=password)
+        txid = await sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
+        await sm.stop_transport()
+        return txid
+
+    def do_normal_swap(self, lightning_amount, onchain_amount, password):
         self._current_swap = None
-        async def coro():
-            swap, invoice = await sm.request_normal_swap(
-                lightning_amount_sat=lightning_amount,
-                expected_onchain_amount_sat=onchain_amount,
-                channels=self.channels,
-            )
-            self._current_swap = swap
-            tx = sm.create_funding_tx(swap, dummy_tx, password=password)
-            txid = await sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
-            return txid
+        coro = self._do_normal_swap(lightning_amount, onchain_amount, password)
         self.window.run_coroutine_dialog(
-            coro(), _('Awaiting swap payment...'),
+            coro, _('Awaiting swap payment...'),
             on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
-            on_cancelled=lambda: sm.cancel_normal_swap(self._current_swap))
+            on_cancelled=lambda: self.swap_manager.cancel_normal_swap(self._current_swap))
 
     def get_description(self):
         onchain_funds = "onchain funds"
