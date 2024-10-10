@@ -1206,7 +1206,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             _('Nostr relays are used to send and receive submarine swap offers'),
         ]),
     )
-    NOSTR_SWAPSERVER_PUBKEY = ConfigVar('nostr_swapserver_pubkey', default=None, type_=str)
+    SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
 
     # zeroconf channels
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)

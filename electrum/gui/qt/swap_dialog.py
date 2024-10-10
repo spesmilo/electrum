@@ -47,7 +47,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         menu.addConfig(
             self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
-        menu.addAction(_('Choose swap server'), self.window.swap_server_dialog)
+        menu.addAction(_('Choose swap server'), self.window.choose_swapserver_dialog)
         vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)

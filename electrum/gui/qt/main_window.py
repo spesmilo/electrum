@@ -1179,15 +1179,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        if self.config.NOSTR_SWAPSERVER_PUBKEY is None:
-            if not self.question('\n'.join([
-                    _('Swap providers use Nostr to announce their liquidity.'),
-                    _('Do you want to enable Nostr now?'),
-            ])):
-                return
-            # should open popup too if server offer cannot be found on nostr
-            if not self.swap_server_dialog():
-                return
+        if not self.initialize_swap_manager():
+            return
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
         try:
             return d.run()
@@ -1195,15 +1188,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(str(e))
             return
 
-    async def start_sm(self):
+    def initialize_swap_manager(self):
         sm = self.wallet.lnworker.swap_manager
-        sm.start_network(network=self.network, lnwatcher=self.wallet.lnworker.lnwatcher)
-        await asyncio.sleep(3)
+        if sm.is_server:
+            self.show_error(_('Swap server is active'))
+            return False
 
-    def swap_server_dialog(self):
+        if self.config.SWAPSERVER_NPUB is None:
+            if not self.question('\n'.join([
+                    _('Swap providers use Nostr to announce their liquidity.'),
+                    _('Do you want to enable Nostr now?'),
+            ])):
+                return False
+
+        if sm.network is None:
+            sm.start_network(network=self.network, lnwatcher=self.wallet.lnworker.lnwatcher)
+
+        if not sm.is_initialized.is_set():
+            async def wait_until_initialized():
+                try:
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    self.config.SWAPSERVER_NPUB = None
+            # if npub is not set, the above will timeout
+            BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(wait_until_initialized()))
+
+        if self.config.SWAPSERVER_NPUB is None:
+            if not self.choose_swapserver_dialog():
+                return False
+
+        assert sm.is_initialized.is_set()
+        return True
+
+    def choose_swapserver_dialog(self):
         sm = self.wallet.lnworker.swap_manager
-        if sm.network_started is False:
-            BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(self.start_sm()))
         def descr(x):
             last_seen = util.age(x['timestamp'])
             return f"{x['pubkey'][0:10]}, fee={x['percentage_fee']} {last_seen}"
@@ -1212,11 +1230,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg = _("Please choose a server"),
             choices = server_keys,
             title = _("Choose swap server"),
-            default_choice = self.config.NOSTR_SWAPSERVER_PUBKEY
+            default_choice = self.config.SWAPSERVER_NPUB
         )
         if choice not in sm.transport.offers:
             return False
-        self.config.NOSTR_SWAPSERVER_PUBKEY = choice
+        self.config.SWAPSERVER_NPUB = choice
         pairs = sm.transport.get_offer(choice)
         sm.update_pairs(pairs)
         return True

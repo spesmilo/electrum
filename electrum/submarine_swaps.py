@@ -182,10 +182,10 @@ class SwapManager(Logger):
 
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
-        self.normal_fee = 0
-        self.lockup_fee = 0
-        self.claim_fee = 0 # part of the boltz prococol, not used by Electrum
-        self.percentage = 0
+        self.normal_fee = None
+        self.lockup_fee = None
+        self.claim_fee = None # part of the boltz prococol, not used by Electrum
+        self.percentage = None
         self._min_amount = None
         self._max_amount = None
 
@@ -215,6 +215,7 @@ class SwapManager(Logger):
         self.use_nostr = not bool(self.config.SWAPSERVER_URL)
         self.is_server = self.config.get('enable_plugin_swapserver', False)
         self.network_started = False
+        self.is_initialized = asyncio.Event()
 
     def start_network(self, *, network: 'Network', lnwatcher: 'LNWalletWatcher'):
         assert network
@@ -946,6 +947,7 @@ class SwapManager(Logger):
         self.percentage = pairs.percentage
         self._min_amount = pairs.min_amount
         self._max_amount = pairs.max_amount
+        self.is_initialized.set()
 
     def pairs_filename(self):
         return os.path.join(self.config.path, 'swap_pairs')
@@ -1382,7 +1384,7 @@ class NostrTransport(Logger):
     async def send_request_to_server(self, method: str, request: dict) -> dict:
         request['method'] = method
         request['relays'] = self.config.NOSTR_RELAYS
-        server_pubkey = self.config.NOSTR_SWAPSERVER_PUBKEY
+        server_pubkey = self.config.SWAPSERVER_NPUB
         server_relays = self.offers[server_pubkey]['relays'].split(',')
         event_id = await self.send_direct_message(server_pubkey, server_relays, json.dumps(request))
         response = await self.dm_replies[event_id]
@@ -1412,7 +1414,7 @@ class NostrTransport(Logger):
             # mirror event to other relays
             #await man.add_event(event, check_response=False)
             # update fees if this is our server
-            if event.pubkey == self.config.NOSTR_SWAPSERVER_PUBKEY:
+            if event.pubkey == self.config.SWAPSERVER_NPUB:
                 print('received offer', event.id)
                 pairs = self._parse_offer(content)
                 self.sm.update_pairs(pairs)
