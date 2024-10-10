@@ -17,12 +17,13 @@ import time
 import copy
 from typing import TYPE_CHECKING, Optional
 
+import electrum_ecc as ecc
+
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh, usermessage_magic, verify_usermessage_with_address
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum.bip32 import normalize_bip32_derivation
 from electrum import descriptor
-from electrum import ecc
 from electrum.wallet import Standard_Wallet
 from electrum import constants
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
