@@ -1329,7 +1329,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
     minimum_library = (0, 2, 0)
-    maximum_library = (0, 3, 0)
+    maximum_library = (0, 4, 0)
     DEVICE_IDS = [(0x2581, 0x1807),  # HW.1 legacy btchip
                   (0x2581, 0x2b7c),  # HW.1 transitional production
                   (0x2581, 0x3b7c),  # HW.1 ledger production
