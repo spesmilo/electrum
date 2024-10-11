@@ -11,10 +11,8 @@ keepkey>=6.3.1
 
 # device plugin: ledger
 # note: btchip-python only needed for "legacy" protocol and HW.1 support
-# note: ledger-bitcoin==0.2.2 added new deps we don't want to bundle. otherwise it should be ok to use.
-#       see https://github.com/LedgerHQ/app-bitcoin-new/issues/192
 btchip-python>=0.1.32
-ledger-bitcoin>=0.2.0,<0.2.2
+ledger-bitcoin>=0.2.0
 hidapi
 
 # device plugin: coldcard
