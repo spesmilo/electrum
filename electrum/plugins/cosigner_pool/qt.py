@@ -34,6 +34,7 @@ import certifi
 import electrum_ecc as ecc
 
 from electrum import util, keystore, crypto
+from electrum.crypto import ecies_encrypt_message, ecies_decrypt_message
 from electrum.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
 from electrum.bip32 import BIP32Node
 from electrum.plugin import BasePlugin, hook
@@ -239,7 +240,7 @@ class CosignerWallet(Logger):
                 continue
             raw_tx_bytes = tx.serialize_as_bytes()
             public_key = ecc.ECPubkey(K)
-            message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
+            message = ecies_encrypt_message(public_key, raw_tx_bytes).decode('ascii')
             buffer.append((_hash, message))
         if not buffer:
             return
@@ -284,7 +285,7 @@ class CosignerWallet(Logger):
             return
         try:
             privkey = BIP32Node.from_xkey(xprv).eckey
-            message = privkey.decrypt_message(message)
+            message = ecies_decrypt_message(privkey, message)
         except Exception as e:
             self.logger.exception('')
             window.show_error(_('Error decrypting message') + ':\n' + repr(e))
