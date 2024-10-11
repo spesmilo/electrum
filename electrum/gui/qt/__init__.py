@@ -211,7 +211,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
             m = self.tray.contextMenu()
             m.clear()
         network = self.daemon.network
-        m.addAction(_("Network"), self.show_network_dialog)
+        if network:
+            m.addAction(_("Network"), self.show_network_dialog)
         if network and network.lngossip:
             m.addAction(_("Lightning Network"), self.show_lightning_dialog)
         if network and network.local_watchtower:
