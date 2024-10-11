@@ -195,33 +195,6 @@ class Test_bitcoin(ElectrumTestCase):
         sig65 = eck.ecdsa_sign_recoverable(msg32, is_compressed=True)
         self.assertTrue(eck.ecdsa_verify_recoverable(sig65, msg32))
 
-    def test_ecc_sanity(self):
-        G = ecc.GENERATOR
-        n = G.order()
-        self.assertEqual(ecc.CURVE_ORDER, n)
-        inf = n * G
-        self.assertEqual(ecc.POINT_AT_INFINITY, inf)
-        self.assertTrue(inf.is_at_infinity())
-        self.assertFalse(G.is_at_infinity())
-        self.assertEqual(11 * G, 7 * G + 4 * G)
-        self.assertEqual((n + 2) * G, 2 * G)
-        self.assertEqual((n - 2) * G, -2 * G)
-        A = (n - 2) * G
-        B = (n - 1) * G
-        C = n * G
-        D = (n + 1) * G
-        self.assertFalse(A.is_at_infinity())
-        self.assertFalse(B.is_at_infinity())
-        self.assertTrue(C.is_at_infinity())
-        self.assertTrue((C * 5).is_at_infinity())
-        self.assertFalse(D.is_at_infinity())
-        self.assertEqual(inf, C)
-        self.assertEqual(inf, A + 2 * G)
-        self.assertEqual(inf, D + (-1) * G)
-        self.assertNotEqual(A, B)
-        self.assertEqual(2 * G, inf + 2 * G)
-        self.assertEqual(inf, 3 * G + (-3 * G))
-
     @staticmethod
     def sign_message_with_wif_privkey(wif_privkey: str, msg: bytes) -> bytes:
         txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
@@ -317,24 +290,6 @@ class Test_bitcoin(ElectrumTestCase):
             self.assertEqual(plaintext, crypto.ecies_decrypt_message(key, ciphertext1))
             self.assertEqual(plaintext, crypto.ecies_decrypt_message(key, ciphertext2))
             self.assertNotEqual(ciphertext1, ciphertext2)
-
-    def test_sign_transaction(self):
-        eckey1 = ecc.ECPrivkey(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
-        sig1 = eckey1.ecdsa_sign(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'),
-                                 sigencode=ecc.ecdsa_der_sig_from_r_and_s)
-        self.assertEqual('3044022066e7d6a954006cce78a223f5edece8aaedcf3607142e9677acef1cfcb91cfdde022065cb0b5401bf16959ce7b785ea7fd408be5e4cb7d8f1b1a32c78eac6f73678d9', sig1.hex())
-
-        eckey2 = ecc.ECPrivkey(bfh('c7ce8c1462c311eec24dff9e2532ac6241e50ae57e7d1833af21942136972f23'))
-        sig2 = eckey2.ecdsa_sign(bfh('642a2e66332f507c92bda910158dfe46fc10afbf72218764899d3af99a043fac'),
-                                 sigencode=ecc.ecdsa_der_sig_from_r_and_s)
-        self.assertEqual('30440220618513f4cfc87dde798ce5febae7634c23e7b9254a1eabf486be820f6a7c2c4702204fef459393a2b931f949e63ced06888f35e286e446dc46feb24b5b5f81c6ed52', sig2.hex())
-
-    @disable_ecdsa_r_value_grinding
-    def test_sign_transaction_without_ecdsa_r_value_grinding(self):
-        eckey1 = ecc.ECPrivkey(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
-        sig1 = eckey1.ecdsa_sign(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'),
-                                 sigencode=ecc.ecdsa_der_sig_from_r_and_s)
-        self.assertEqual('3045022100902a288b98392254cd23c0e9a49ac6d7920f171b8249a48e484b998f1874a2010220723d844826828f092cf400cb210c4fa0b8cd1b9d1a7f21590e78e022ff6476b9', sig1.hex())
 
     @needs_test_with_all_aes_implementations
     def test_aes_homomorphic(self):

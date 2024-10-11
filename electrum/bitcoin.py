@@ -799,6 +799,7 @@ def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
 TapTreeLeaf = Tuple[int, bytes]
 TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
 
+# FIXME just use electrum_ecc.util.bip340_tagged_hash instead
 def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
     # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
     return sha256(sha256(tag) + sha256(tag) + msg)
