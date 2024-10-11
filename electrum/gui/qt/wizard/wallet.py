@@ -27,10 +27,9 @@ from electrum.wizard import NewWalletWizard
 
 from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
-from electrum.gui.qt.seed_dialog import SeedLayout, MSG_PASSPHRASE_WARN_ISSUE4566, KeysLayout
+from electrum.gui.qt.seed_dialog import SeedWidget, MSG_PASSPHRASE_WARN_ISSUE4566, KeysWidget
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
-                                  ChoiceWidget, MessageBoxMixin, WindowModalDialog, CancelButton,
-                                  Buttons, OkButton, icon_path)
+                                  ChoiceWidget, MessageBoxMixin, icon_path)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -437,7 +436,7 @@ class WCCreateSeed(WalletWizardComponent):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Wallet Seed'))
         self._busy = True
         self.seed_type = 'standard' if self.wizard.config.WIZARD_DONT_CREATE_SEGWIT else 'segwit'
-        self.slayout = None
+        self.seed_widget = None
         self.seed = None
 
     def on_ready(self):
@@ -446,10 +445,10 @@ class WCCreateSeed(WalletWizardComponent):
         QTimer.singleShot(1, self.create_seed)
 
     def apply(self):
-        if self.slayout:
+        if self.seed_widget:
             self.wizard_data['seed'] = self.seed
             self.wizard_data['seed_type'] = self.seed_type
-            self.wizard_data['seed_extend'] = self.slayout.is_ext
+            self.wizard_data['seed_extend'] = self.seed_widget.is_ext
             self.wizard_data['seed_variant'] = 'electrum'
             self.wizard_data['seed_extra_words'] = ''  # empty default
 
@@ -457,15 +456,15 @@ class WCCreateSeed(WalletWizardComponent):
         self.busy = True
         self.seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
 
-        self.slayout = SeedLayout(
+        self.seed_widget = SeedWidget(
             title=_('Your wallet generation seed is:'),
             seed=self.seed,
-            options=['ext'],
+            options=['ext', 'electrum'],
             msg=True,
             parent=self,
             config=self.wizard.config,
         )
-        self.layout().addLayout(self.slayout)
+        self.layout().addWidget(self.seed_widget)
         self.layout().addStretch(1)
         self.busy = False
         self.valid = True
@@ -482,19 +481,16 @@ class WCConfirmSeed(WalletWizardComponent):
 
         self.layout().addWidget(WWLabel(message))
 
-        # TODO: SeedLayout assumes too much in parent, refactor SeedLayout
-        # for now, fake parent.next_button.setEnabled
-        class Hack:
-            def setEnabled(self2, b):
-                self.valid = b
-        self.next_button = Hack()
-
-        self.slayout = SeedLayout(
+        self.seed_widget = SeedWidget(
             is_seed=lambda x: x == self.wizard_data['seed'],
-            parent=self,
             config=self.wizard.config,
         )
-        self.layout().addLayout(self.slayout)
+
+        def seed_valid_changed(valid):
+            self.valid = valid
+
+        self.seed_widget.validChanged.connect(seed_valid_changed)
+        self.layout().addWidget(self.seed_widget)
 
         wizard.app.clipboard().clear()
 
@@ -583,37 +579,39 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Enter Seed'))
         Logger.__init__(self)
 
-        self.slayout = None
-
         self.layout().addWidget(WWLabel(_('Please enter your seed phrase in order to restore your wallet.')))
 
-        # TODO: SeedLayout assumes too much in parent, refactor SeedLayout
-        # for now, fake parent.next_button.setEnabled
-        class Hack:
-            def setEnabled(self2, b):
-                if not b:
-                    self.valid = b
-                else:
-                    self.validate()
-
-        self.next_button = Hack()
-
+        self.seed_widget = None
         self.can_passphrase = True
 
     def on_ready(self):
-        options = ['ext'] if self.wizard_data['wallet_type'] == '2fa' else ['ext', 'bip39', 'slip39']
-        self.slayout = SeedLayout(
+        options = ['ext', 'electrum', 'bip39', 'slip39']
+        if self.wizard_data['wallet_type'] == '2fa':
+            options = ['ext', 'electrum']
+        else:
+            if self.params and 'seed_options' in self.params:
+                options = self.params['seed_options']
+
+        self.seed_widget = SeedWidget(
             is_seed=self.is_seed,
             options=options,
-            parent=self,
             config=self.wizard.config,
         )
-        self.slayout.updated.connect(self.validate)
 
-        self.layout().addLayout(self.slayout)
+        def seed_valid_changed(valid):
+            if not valid:
+                self.valid = valid
+            else:
+                self.validate()
+
+        self.seed_widget.validChanged.connect(seed_valid_changed)
+        self.seed_widget.updated.connect(self.validate)
+
+        self.layout().addWidget(self.seed_widget)
         self.layout().addStretch(1)
 
     def is_seed(self, x):
+        # really only used for electrum seeds. bip39 and slip39 are validated in SeedWidget
         t = mnemonic.calc_seed_type(x)
         if self.wizard_data['wallet_type'] == 'standard':
             return mnemonic.is_seed(x) and not mnemonic.is_any_2fa_seed_type(t)
@@ -624,9 +622,9 @@ class WCHaveSeed(WalletWizardComponent, Logger):
             return t in ['standard', 'segwit']
 
     def validate(self):
-        # precond: only call when SeedLayout deems seed a valid seed
-        seed = self.slayout.get_seed()
-        seed_variant = self.slayout.seed_type
+        # precond: only call when SeedWidget deems seed a valid seed
+        seed = self.seed_widget.get_seed()
+        seed_variant = self.seed_widget.seed_type
         wallet_type = self.wizard_data['wallet_type']
         seed_valid, seed_type, validation_message, self.can_passphrase = self.wizard.validate_seed(seed, seed_variant, wallet_type)
 
@@ -646,13 +644,13 @@ class WCHaveSeed(WalletWizardComponent, Logger):
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
 
-        cosigner_data['seed'] = self.slayout.get_seed()
-        cosigner_data['seed_variant'] = self.slayout.seed_type
-        if self.slayout.seed_type == 'electrum':
-            cosigner_data['seed_type'] = mnemonic.calc_seed_type(self.slayout.get_seed())
+        cosigner_data['seed'] = self.seed_widget.get_seed()
+        cosigner_data['seed_variant'] = self.seed_widget.seed_type
+        if self.seed_widget.seed_type == 'electrum':
+            cosigner_data['seed_type'] = mnemonic.calc_seed_type(self.seed_widget.get_seed())
         else:
-            cosigner_data['seed_type'] = self.slayout.seed_type
-        cosigner_data['seed_extend'] = self.slayout.is_ext if self.can_passphrase else False
+            cosigner_data['seed_type'] = self.seed_widget.seed_type
+        cosigner_data['seed_extend'] = self.seed_widget.is_ext if self.can_passphrase else False
         cosigner_data['seed_extra_words'] = ''  # empty default
 
 
@@ -790,13 +788,13 @@ class WCCosignerKeystore(WalletWizardComponent):
         # different from old wizard: master public key for sharing is now shown on this page
         self.layout().addSpacing(20)
         self.layout().addWidget(WWLabel(_('Below is your master public key. Please share it with your cosigners')))
-        slayout = SeedLayout(
+        seed_widget = SeedWidget(
             self.wizard_data['multisig_master_pubkey'],
             icon=False,
             for_seed_words=False,
             config=self.wizard.config,
         )
-        self.layout().addLayout(slayout)
+        self.layout().addWidget(seed_widget)
         self.layout().addStretch(1)
 
     def apply(self):
@@ -811,7 +809,7 @@ class WCHaveMasterKey(WalletWizardComponent):
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Create keystore from a master key'))
 
-        self.slayout = None
+        self.keys_widget = None
 
         self.message_create = ' '.join([
             _("To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."),
@@ -826,16 +824,6 @@ class WCHaveMasterKey(WalletWizardComponent):
         self.label = WWLabel()
         self.label.setMinimumWidth(400)
         self.header_layout.addWidget(self.label)
-
-        # TODO: KeysLayout assumes too much in parent, refactor KeysLayout
-        # for now, fake parent.next_button.setEnabled
-        class Hack:
-            def setEnabled(self2, b):
-                self.valid = b
-
-            def setToolTip(self2, b):
-                pass
-        self.next_button = Hack()
 
     def on_ready(self):
         if self.wizard_data['wallet_type'] == 'standard':
@@ -860,12 +848,19 @@ class WCHaveMasterKey(WalletWizardComponent):
                 return True
         else:
             raise Exception(f"unexpected wallet type: {self.wizard_data['wallet_type']}")
-        self.slayout = KeysLayout(parent=self, header_layout=self.header_layout, is_valid=is_valid,
-                                  allow_multi=False, config=self.wizard.config)
-        self.layout().addLayout(self.slayout)
+
+        self.keys_widget = KeysWidget(parent=self, header_layout=self.header_layout, is_valid=is_valid,
+                                      allow_multi=False, config=self.wizard.config)
+
+        def key_valid_changed(valid):
+            self.valid = valid
+
+        self.keys_widget.validChanged.connect(key_valid_changed)
+
+        self.layout().addWidget(self.keys_widget)
 
     def apply(self):
-        text = self.slayout.get_text()
+        text = self.keys_widget.get_text()
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
         cosigner_data['master_key'] = text
 
@@ -942,25 +937,20 @@ class WCImport(WalletWizardComponent):
         header_layout.addWidget(label)
         header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignmentFlag.AlignRight)
 
-        # TODO: KeysLayout assumes too much in parent, refactor KeysLayout
-        # for now, fake parent.next_button.setEnabled
-        class Hack:
-            def setEnabled(self2, b):
-                self.valid = b
-
-            def setToolTip(self2, b):
-                pass
-        self.next_button = Hack()
-
         def is_valid(x) -> bool:
             return keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
 
-        self.slayout = KeysLayout(parent=self, header_layout=header_layout, is_valid=is_valid,
-                                  allow_multi=True, config=self.wizard.config)
-        self.layout().addLayout(self.slayout)
+        self.keys_widget = KeysWidget(header_layout=header_layout, is_valid=is_valid,
+                                      allow_multi=True, config=self.wizard.config)
+
+        def key_valid_changed(valid):
+            self.valid = valid
+
+        self.keys_widget.validChanged.connect(key_valid_changed)
+        self.layout().addWidget(self.keys_widget)
 
     def apply(self):
-        text = self.slayout.get_text()
+        text = self.keys_widget.get_text()
         if keystore.is_address_list(text):
             self.wizard_data['address_list'] = text
         elif keystore.is_private_key_list(text):
