@@ -207,8 +207,13 @@ class Plugins(DaemonThread):
                     raise Exception(f"duplicate plugins for name={name}")
                 if name in self.external_plugin_metadata:
                     raise Exception(f"duplicate plugins for name={name}")
-                spec = zipfile.find_spec(name)
-                module = self.exec_module_from_spec(spec, f'electrum_external_plugins.{name}')
+                module_path = f'electrum_external_plugins.{name}'
+                if sys.version_info >= (3, 10):
+                    spec = zipfile.find_spec(name)
+                    module = self.exec_module_from_spec(spec, module_path)
+                else:
+                    module = zipfile.load_module(name)
+                    sys.modules[module_path] = module
                 d = module.__dict__
                 gui_good = self.gui_name in d.get('available_for', [])
                 if not gui_good:
