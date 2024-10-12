@@ -446,7 +446,12 @@ def chacha20_decrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
     raise Exception("no chacha20 backend found")
 
 
-def ecies_encrypt_message(ec_pubkey, message: bytes, *, magic: bytes = b'BIE1') -> bytes:
+def ecies_encrypt_message(
+    ec_pubkey: 'ecc.ECPubkey',
+    message: bytes,
+    *,
+    magic: bytes = b'BIE1',
+) -> bytes:
     """
         ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
     """
@@ -462,7 +467,12 @@ def ecies_encrypt_message(ec_pubkey, message: bytes, *, magic: bytes = b'BIE1') 
     return base64.b64encode(encrypted + mac)
 
 
-def ecies_decrypt_message(ec_privkey, encrypted: Union[str, bytes], *, magic: bytes=b'BIE1') -> bytes:
+def ecies_decrypt_message(
+    ec_privkey: 'ecc.ECPrivkey',
+    encrypted: Union[str, bytes],
+    *,
+    magic: bytes = b'BIE1',
+) -> bytes:
     encrypted = base64.b64decode(encrypted)  # type: bytes
     if len(encrypted) < 85:
         raise Exception('invalid ciphertext: length')
