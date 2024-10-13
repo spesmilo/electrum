@@ -879,7 +879,7 @@ class SwapManager(Logger):
 
     def init_pairs(self) -> None:
         """ for server """
-        self.percentage = 0.5
+        self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000
         self._min_amount = 20000
         self._max_amount = 10000000
         self.normal_fee = self.get_fee(CLAIM_FEE_SIZE)

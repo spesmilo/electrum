@@ -1204,6 +1204,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
     # run submarine swap server locally
     SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
+    SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
 
     # zeroconf channels
