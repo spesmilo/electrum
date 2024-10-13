@@ -253,6 +253,8 @@ class SwapManager(Logger):
 
     def cancel_normal_swap(self, swap: SwapData):
         """ we must not have broadcast the funding tx """
+        if swap is None:
+            return
         if swap.funding_txid is not None:
             self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
             return

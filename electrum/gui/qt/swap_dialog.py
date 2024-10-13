@@ -323,22 +323,21 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         dummy_tx = self._create_tx(onchain_amount)
         assert dummy_tx
         sm = self.swap_manager
-        coro = sm.request_normal_swap(
-            lightning_amount_sat=lightning_amount,
-            expected_onchain_amount_sat=onchain_amount,
-            channels=self.channels,
-        )
-        try:
-            swap, invoice = self.network.run_from_another_thread(coro)
-        except Exception as e:
-            self.window.show_error(str(e))
-            return
-        tx = sm.create_funding_tx(swap, dummy_tx, password=password)
-        coro2 = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
+        self._current_swap = None
+        async def coro():
+            swap, invoice = await sm.request_normal_swap(
+                lightning_amount_sat=lightning_amount,
+                expected_onchain_amount_sat=onchain_amount,
+                channels=self.channels,
+            )
+            self._current_swap = swap
+            tx = sm.create_funding_tx(swap, dummy_tx, password=password)
+            txid = await sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
+            return txid
         self.window.run_coroutine_dialog(
-            coro2, _('Awaiting swap payment...'),
+            coro(), _('Awaiting swap payment...'),
             on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
-            on_cancelled=lambda: sm.cancel_normal_swap(swap))
+            on_cancelled=lambda: sm.cancel_normal_swap(self._current_swap))
 
     def get_description(self):
         onchain_funds = "onchain funds"
