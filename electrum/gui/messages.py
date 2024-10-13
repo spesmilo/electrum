@@ -51,13 +51,13 @@ MSG_FREEZE_COIN = _("When you freeze a coin, it will not be used for sending bit
 
 MSG_FORWARD_SWAP_FUNDING_MEMPOOL = (
     _('Your funding transaction has been broadcast.') + " " +
+    _("Please remain online until the funding transaction is confirmed.") + "\n\n" +
     _('The swap will be finalized once your transaction is confirmed.') + " " +
     _("After the funding transaction is mined, the server will reveal the preimage needed to "
       "fulfill the pending received lightning HTLCs. The HTLCs expire in {} blocks. "
       "You will need to be online after the funding transaction is confirmed but before the HTLCs expire, "
       "to claim your money. If you go offline for several days while the swap is pending, "
-      "you risk losing the swap amount!").format(MIN_FINAL_CLTV_DELTA_FOR_CLIENT) + " " +
-    _("Please remain online until the funding transaction is confirmed.")
+      "you risk losing the swap amount!").format(MIN_FINAL_CLTV_DELTA_FOR_CLIENT)
 )
 
 MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
