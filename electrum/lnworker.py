@@ -866,8 +866,9 @@ class LNWallet(LNWorker):
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
-        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
+        self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
+        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))

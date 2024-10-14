@@ -1198,6 +1198,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if self.network is None:
             return False
 
+        if sm.use_nostr and self.config.SWAPSERVER_NPUB is None:
+            if not self.question('\n'.join([
+                    _('Electrum uses Nostr in order to find liquidity providers.'),
+                    _('Do you want to enable Nostr?'),
+            ])):
+                return False
+
         if sm.transport is None:
             sm.start_transport()
 
@@ -1206,10 +1213,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 try:
                     await asyncio.wait_for(sm.is_initialized.wait(), timeout=3)
                 except asyncio.TimeoutError:
-                    return
+                    self.config.SWAPSERVER_NPUB = None
+            # if npub is not set, the above will timeout
             BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(wait_until_initialized()))
 
+        if sm.use_nostr and self.config.SWAPSERVER_NPUB is None:
+            if not self.choose_swapserver_dialog():
+                return False
+
         assert sm.is_initialized.is_set()
+        return True
+
+    def choose_swapserver_dialog(self):
+        sm = self.wallet.lnworker.swap_manager
+        def descr(x):
+            last_seen = util.age(x['timestamp'])
+            return f"{x['pubkey'][0:10]}, fee={x['percentage_fee']} {last_seen}"
+        server_keys = [(k, descr(v)) for k, v in sm.transport.offers.items()]
+        choice = self.query_choice(
+            msg = _("Please choose a server"),
+            choices = server_keys,
+            title = _("Choose swap server"),
+            default_choice = self.config.SWAPSERVER_NPUB
+        )
+        if choice not in sm.transport.offers:
+            return False
+        self.config.SWAPSERVER_NPUB = choice
+        pairs = sm.transport.get_offer(choice)
+        sm.update_pairs(pairs)
         return True
 
     @qt_event_listener

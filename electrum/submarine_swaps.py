@@ -12,6 +12,12 @@ import aiohttp
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
+import electrum_aionostr as aionostr
+from electrum_aionostr.util import to_nip19
+
+from collections import defaultdict
+
+
 from . import lnutil
 from .crypto import sha256, hash_160
 from .bitcoin import (script_to_p2wsh, opcodes,
@@ -206,6 +212,7 @@ class SwapManager(Logger):
             if swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
         self.is_server = self.config.get('enable_plugin_swapserver', False)
+        self.use_nostr = bool(self.config.NOSTR_RELAYS)
         self.is_initialized = asyncio.Event()
         self.transport = None
 
@@ -246,7 +253,10 @@ class SwapManager(Logger):
             await asyncio.sleep(600)
 
     def start_transport(self):
-        self.transport = HttpTransport(self.config, self)
+        if self.use_nostr:
+            self.transport = NostrTransport(self.config, self, self.lnworker.nostr_keypair)
+        else:
+            self.transport = HttpTransport(self.config, self)
         self.transport.start()
 
     async def stop_transport(self):
@@ -1266,3 +1276,187 @@ class HttpTransport(Logger):
 
     async def stop(self):
         pass
+
+
+class NostrTransport(Logger):
+    # uses nostr:
+    #  - to advertise servers
+    #  - for client-server RPCs (using DMs)
+    #     (todo: we should use onion messages for that)
+
+    NOSTR_DM = 4
+    NOSTR_SWAP_OFFER = 10943
+    NOSTR_EVENT_TIMEOUT = 60*60*24
+    NOSTR_EVENT_VERSION = 1
+
+    def __init__(self, config, sm, keypair):
+        Logger.__init__(self)
+        self.config = config
+        self.network = sm.network
+        self.sm = sm
+        self.offers = {}
+        self.private_key = keypair.privkey
+        self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
+        self.nostr_pubkey = keypair.pubkey.hex()[2:]
+        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
+        self.nostr_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key)
+        self.taskgroup = OldTaskGroup()
+
+    def start(self):
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+
+    @log_exceptions
+    async def main_loop(self):
+        self.logger.info(f'starting nostr transport with pubkey: {self.nostr_pubkey}')
+        self.logger.info(f'nostr relays: {self.relays}')
+        await self.nostr_manager.connect()
+        if self.sm.is_server:
+            tasks = [
+                self.check_direct_messages(),
+                self.sm.publish_offers(),
+            ]
+        else:
+            tasks = [
+                self.check_direct_messages(),
+                self.receive_offers(),
+            ]
+        try:
+            async with self.taskgroup as group:
+                for task in tasks:
+                    await group.spawn(task)
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
+
+    async def stop(self):
+        self.logger.info("shutting down nostr transport")
+        await self.taskgroup.cancel_remaining()
+
+    @property
+    def relays(self):
+        return self.network.config.NOSTR_RELAYS.split(',')
+
+    def get_offer(self, pubkey):
+        offer = self.offers.get(pubkey)
+        return self._parse_offer(offer)
+
+    def _parse_offer(self, offer):
+        return SwapFees(
+            percentage = offer['percentage_fee'],
+            normal_fee = offer['normal_mining_fee'],
+            lockup_fee = offer['reverse_mining_fee'],
+            claim_fee = offer['claim_mining_fee'],
+            min_amount = offer['min_amount'],
+            max_amount = offer['max_amount'],
+        )
+
+    @log_exceptions
+    async def publish_offer(self, sm):
+        assert self.sm.is_server
+        offer = {
+            "type": "electrum-swap",
+            "version": self.NOSTR_EVENT_VERSION,
+            'network': constants.net.NET_NAME,
+            'percentage_fee': sm.percentage,
+            'normal_mining_fee': sm.normal_fee,
+            'reverse_mining_fee': sm.lockup_fee,
+            'claim_mining_fee': sm.claim_fee,
+            'min_amount': sm._min_amount,
+            'max_amount': sm._max_amount,
+            'relays': sm.config.NOSTR_RELAYS,
+        }
+        self.logger.info(f'publishing swap offer..')
+        event_id = await aionostr._add_event(
+            self.nostr_manager,
+            kind=self.NOSTR_SWAP_OFFER,
+            content=json.dumps(offer),
+            private_key=self.nostr_private_key)
+
+    async def send_direct_message(self, pubkey: str, relays, content: str) -> str:
+        event_id = await aionostr._add_event(
+            self.nostr_manager,
+            kind=self.NOSTR_DM,
+            content=content,
+            private_key=self.nostr_private_key,
+            direct_message=pubkey)
+        return event_id
+
+    @log_exceptions
+    async def send_request_to_server(self, method: str, request: dict) -> dict:
+        request['method'] = method
+        request['relays'] = self.config.NOSTR_RELAYS
+        server_pubkey = self.config.SWAPSERVER_NPUB
+        server_relays = self.offers[server_pubkey]['relays'].split(',')
+        event_id = await self.send_direct_message(server_pubkey, server_relays, json.dumps(request))
+        response = await self.dm_replies[event_id]
+        return response
+
+    async def receive_offers(self):
+        query = {"kinds": [self.NOSTR_SWAP_OFFER], "limit":10}
+        async for event in self.nostr_manager.get_events(query, single_event=False, only_stored=False):
+            try:
+                content = json.loads(event.content)
+            except Exception as e:
+                continue
+            if content.get('version') != self.NOSTR_EVENT_VERSION:
+                continue
+            if content.get('network') != constants.net.NET_NAME:
+                continue
+            # check if this is the most recent event for this pubkey
+            pubkey = event.pubkey
+            ts = self.offers.get(pubkey, {}).get('timestamp', 0)
+            if event.created_at <= ts:
+                #print('skipping old event', pubkey[0:10], event.id)
+                continue
+            content['pubkey'] = pubkey
+            content['timestamp'] = event.created_at
+            self.offers[pubkey] = content
+            #print('received event', pubkey[0:10], event.id)
+            # mirror event to other relays
+            #await man.add_event(event, check_response=False)
+            # update fees if this is our server
+            if event.pubkey == self.config.SWAPSERVER_NPUB:
+                self.logger.info(f'received offer {event.id}')
+                pairs = self._parse_offer(content)
+                self.sm.update_pairs(pairs)
+
+    @log_exceptions
+    async def check_direct_messages(self):
+        privkey = aionostr.key.PrivateKey(self.private_key)
+        query = {"kinds": [self.NOSTR_DM], "limit":0, "#p": [self.nostr_pubkey]}
+        async for event in self.nostr_manager.get_events(query, single_event=False, only_stored=False):
+            try:
+                content = privkey.decrypt_message(event.content, event.pubkey)
+                content = json.loads(content)
+            except Exception:
+                continue
+            content['event_id'] = event.id
+            content['event_pubkey'] = event.pubkey
+            if 'reply_to' in content:
+                self.dm_replies[content['reply_to']].set_result(content)
+            elif self.sm.is_server and 'method' in content:
+                await self.handle_request(content)
+            else:
+                print('unknown message', content)
+
+    @log_exceptions
+    async def handle_request(self, request):
+        assert self.sm.is_server
+        # todo: remember event_id of already processed requests
+        method = request.pop('method')
+        event_id = request.pop('event_id')
+        event_pubkey = request.pop('event_pubkey')
+        print(f'handle_request: id={event_id} {method} {request}')
+        relays = request.pop('relays').split(',')
+        if method == 'addswapinvoice':
+            r = self.sm.server_add_swap_invoice(request)
+        elif method == 'createswap':
+            r = self.sm.server_create_swap(request)
+        elif method == 'createnormalswap':
+            r = self.sm.server_create_normal_swap(request)
+        else:
+            raise Exception(method)
+        r['reply_to'] = event_id
+        self.logger.info(f'sending response id={event_id}')
+        await self.send_direct_message(event_pubkey, relays, json.dumps(r))

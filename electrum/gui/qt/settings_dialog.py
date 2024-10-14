@@ -194,6 +194,13 @@ class SettingsDialog(QDialog, QtEventListener):
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
+        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
+        nostr_relays = self.config.NOSTR_RELAYS
+        self.nostr_relays_e = QLineEdit(nostr_relays)
+        def on_nostr_edit(x):
+            self.config.NOSTR_RELAYS = x
+        self.nostr_relays_e.editingFinished.connect(on_nostr_edit)
+
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
         def on_msat_checked(_x):
@@ -392,6 +399,7 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
+        misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 
