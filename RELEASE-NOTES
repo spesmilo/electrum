@@ -1,8 +1,15 @@
 # Release 4.5.6 (unreleased)
+ * General:
+   - fix: trustedcoin wallet continuation with wallet fiel having keystore-only encryption (#9237)
  * QML GUI (Android):
+   - new: show seed passphrase in WalletDetails (#9204)
    - fix: crash due to ConcurrentModificationException (450b9a0)
    - fix: issue deactivating PIN when no wallet loaded (#8366)
    - fix: only allow Channel Backup import on Lightning-enabled wallets (8d9bcda)
+ * Qt Desktop GUI:
+   - fix: scanning multi (privkeys, addresses) from QR (4dc64e4)
+ * Hardware wallets:
+   - ColdCard: new: export multisig wallet to coldcard over USB (#7682)
 
 # Release 4.5.5 (May 30, 2024)
  * General:
