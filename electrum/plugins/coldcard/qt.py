@@ -29,8 +29,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def create_handler(self, window):
         return Coldcard_Handler(window)
 
-    @staticmethod
-    def trim_file_suffix(path):
+    def trim_file_suffix(self, path):
         return path.rsplit('.', 1)[0]
 
     @only_hook_if_libraries_available
