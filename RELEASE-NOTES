@@ -1,4 +1,4 @@
-# Release 4.5.6 (unreleased)
+# Release 4.5.6 (Oct 16, 2024)
  * General:
    - new: add support for testnet4 (#9197)
    - fix: wizard: allow passphrase for some '2fa' seeds (#9088)
