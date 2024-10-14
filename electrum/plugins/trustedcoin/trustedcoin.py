@@ -35,7 +35,7 @@ from aiohttp import ClientResponse
 import electrum_ecc as ecc
 
 from electrum import constants, keystore, version, bip32, bitcoin
-from electrum.bip32 import BIP32Node, xpub_type
+from electrum.bip32 import BIP32Node, xpub_type, is_xprv
 from electrum.crypto import sha256
 from electrum.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
@@ -598,6 +598,10 @@ class TrustedCoinPlugin(BasePlugin):
                 'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
             'trustedcoin_tos': {
+                'next': lambda d: 'trustedcoin_show_confirm_otp' if is_xprv(d['xprv1'])
+                        else 'trustedcoin_keystore_unlock'
+            },
+            'trustedcoin_keystore_unlock': {
                 'next': 'trustedcoin_show_confirm_otp'
             },
             'trustedcoin_show_confirm_otp': {
