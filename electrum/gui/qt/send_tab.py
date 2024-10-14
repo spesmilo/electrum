@@ -19,6 +19,7 @@ from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier, invoice_from_payment_identifier,
                                          payment_identifier_from_invoice)
+from electrum.submarine_swaps import SwapServerError
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -336,7 +337,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if tx.has_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
             coro = sm.request_swap_for_tx(tx)
-            swap, invoice, tx = self.network.run_from_another_thread(coro)
+            try:
+                swap, invoice, tx = self.network.run_from_another_thread(coro)
+            except SwapServerError as e:
+                self.show_error(str(e))
+                return
             assert not tx.has_dummy_output(DummyAddress.SWAP)
             tx.swap_invoice = invoice
             tx.swap_payment_hash = swap.payment_hash
