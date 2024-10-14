@@ -74,7 +74,7 @@ class SwapServer(Logger, EventListener):
                         }
                     },
                     "fees": {
-                        "percentage": 0.5,
+                        "percentage": sm.percentage,
                         "minerFees": {
                             "baseAsset": {
                                 "normal": sm.normal_fee,
