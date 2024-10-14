@@ -1,6 +1,6 @@
 # Release 4.5.6 (unreleased)
  * General:
-   - fix: trustedcoin wallet continuation with wallet fiel having keystore-only encryption (#9237)
+   - fix: trustedcoin wallet continuation with wallet file having keystore-only encryption (#9237)
  * QML GUI (Android):
    - new: show seed passphrase in WalletDetails (#9204)
    - fix: crash due to ConcurrentModificationException (450b9a0)
