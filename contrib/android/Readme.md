@@ -173,12 +173,22 @@ cd dist/
 unzip Electrum-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
 tar -xzvf apk1/assets/private.tar --directory apk1/assets/private_mp3/
+mkdir apk1/lib/_libpybundle/
+tar -xzvf apk1/lib/*/libpybundle.so --directory apk1/lib/_libpybundle/
 
 unzip Electrum-*.apk2 -d apk2
 mkdir apk2/assets/private_mp3/
 tar -xzvf apk2/assets/private.tar --directory apk2/assets/private_mp3/
+mkdir apk2/lib/_libpybundle/
+tar -xzvf apk2/lib/*/libpybundle.so --directory apk2/lib/_libpybundle/
 
-sudo chown --recursive "$(id -u -n)" apk1/ apk2/
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
+chmod -R +Xr  apk1/ apk2/
+
+unzip apk1/lib/_libpybundle/_python_bundle/stdlib.zip -d apk1/lib/_libpybundle/_python_bundle/stdlib
+unzip apk2/lib/_libpybundle/_python_bundle/stdlib.zip -d apk2/lib/_libpybundle/_python_bundle/stdlib
+
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
 chmod -R +Xr  apk1/ apk2/
 $(cd apk1; find -type f -exec sha256sum '{}' \; > ./../sha256sum1)
 $(cd apk2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)
