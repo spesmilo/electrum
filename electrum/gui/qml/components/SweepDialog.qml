@@ -62,6 +62,7 @@ ElDialog {
                         Layout.fillWidth: true
                         Label {
                             text: qsTr('Enter the list of private keys to sweep into this wallet')
+                            width: parent.width
                             wrapMode: Text.Wrap
                         }
                     }
