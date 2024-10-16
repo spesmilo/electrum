@@ -1901,13 +1901,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())
-            if self.lnworker and self.lnworker.swap_manager.is_initialized.is_set() and send_change_to_lightning:
+            if self.lnworker and send_change_to_lightning:
                 change = tx.get_change_outputs()
                 # do not use multiple change addresses
                 if len(change) == 1:
                     amount = change[0].value
-                    ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
-                    if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
+                    if amount <= self.lnworker.num_sats_can_receive():
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
         else:
             # "spend max" branch
