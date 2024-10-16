@@ -617,7 +617,7 @@ class TrustedCoinPlugin(BasePlugin):
                 'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
             'trustedcoin_tos': {
-                'next': lambda d: 'trustedcoin_show_confirm_otp' if is_xprv(d['xprv1'])
+                'next': lambda d: 'trustedcoin_show_confirm_otp' if 'xprv1' not in d or is_xprv(d['xprv1'])
                         else 'trustedcoin_keystore_unlock'
             },
             'trustedcoin_keystore_unlock': {
