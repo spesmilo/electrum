@@ -45,11 +45,12 @@ if TYPE_CHECKING:
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
 TRAMPOLINE_HOPS_DATA_SIZE = 400
 PER_HOP_HMAC_SIZE = 32
-
+ONION_MESSAGE_LARGE_SIZE = 32768
 
 class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
 class InvalidOnionPubkey(Exception): pass
+class InvalidPayloadSize(Exception): pass
 
 
 class OnionHopsDataSingle:  # called HopData in lnd
@@ -115,7 +116,7 @@ class OnionPacket:
 
     def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes):
         assert len(public_key) == 33
-        assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]
+        assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]
         assert len(hmac) == PER_HOP_HMAC_SIZE
         self.version = 0
         self.public_key = public_key
@@ -132,13 +133,13 @@ class OnionPacket:
         ret += self.public_key
         ret += self.hops_data
         ret += self.hmac
-        if len(ret) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
+        if len(ret) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
             raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
     @classmethod
     def from_bytes(cls, b: bytes):
-        if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
+        if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
             raise Exception('unexpected length {}'.format(len(b)))
         version = b[0]
         if version != 0:
@@ -215,12 +216,29 @@ def new_onion_packet(
     *,
     associated_data: bytes = b'',
     trampoline: bool = False,
+    onion_message: bool = False
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
     assert num_hops == len(hops_data)
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
 
-    data_size = TRAMPOLINE_HOPS_DATA_SIZE if trampoline else HOPS_DATA_SIZE
+    payload_size = 0
+    for i in range(num_hops):
+        # FIXME: serializing here and again below. cache bytes in OnionHopsDataSingle? _raw_bytes_payload?
+        payload_size += PER_HOP_HMAC_SIZE + len(hops_data[i].to_bytes())
+    if trampoline:
+        data_size = TRAMPOLINE_HOPS_DATA_SIZE
+    elif onion_message:
+        if payload_size <= HOPS_DATA_SIZE:
+            data_size = HOPS_DATA_SIZE
+        else:
+            data_size = ONION_MESSAGE_LARGE_SIZE
+    else:
+        data_size = HOPS_DATA_SIZE
+
+    if payload_size > data_size:
+        raise InvalidPayloadSize(f'payload too big for onion packet (max={data_size}, required={payload_size})')
+
     filler = _generate_filler(b'rho', hops_data, hop_shared_secrets, data_size)
     next_hmac = bytes(PER_HOP_HMAC_SIZE)
 
