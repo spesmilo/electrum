@@ -301,23 +301,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
-    def run_coroutine_dialog(self, coro, text, on_result, on_cancelled):
+    def run_coroutine_dialog(self, coro, text):
         """ run coroutine in a waiting dialog, with a Cancel button that cancels the coroutine """
         from electrum import util
         loop = util.get_asyncio_loop()
         assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
         future = asyncio.run_coroutine_threadsafe(coro, loop)
-        def task():
-            try:
-                return future.result()
-            except concurrent.futures.CancelledError:
-                on_cancelled()
         try:
-            WaitingDialog(
-                self, text, task,
-                on_success=on_result,
-                on_error=self.on_error,
-                on_cancel=future.cancel)
+            d = BlockingWaitingDialog(self, text, future.result, on_cancel=future.cancel)
+            return d.run()
+        except concurrent.futures.CancelledError:
+            raise UserCancelled
         except Exception as e:
             self.show_error(str(e))
             raise
@@ -1180,16 +1174,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        if not self.initialize_swap_manager():
-            return
-        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
-        try:
-            return d.run()
-        except InvalidSwapParameters as e:
-            self.show_error(str(e))
+
+        transport = self.create_sm_transport()
+        if not transport:
             return
 
-    def initialize_swap_manager(self):
+        with transport:
+            if not self.initialize_swap_manager(transport):
+                return
+            d = SwapDialog(self, transport, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
+            try:
+                return d.run(transport)
+            except InvalidSwapParameters as e:
+                self.show_error(str(e))
+                return
+
+    def create_sm_transport(self):
         sm = self.wallet.lnworker.swap_manager
         if sm.is_server:
             self.show_error(_('Swap server is active'))
@@ -1205,41 +1205,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             ])):
                 return False
 
-        if sm.transport is None:
-            sm.start_transport()
+        return sm.create_transport()
 
+    def initialize_swap_manager(self, transport):
+        sm = self.wallet.lnworker.swap_manager
         if not sm.is_initialized.is_set():
             async def wait_until_initialized():
+                timeout = 5
                 try:
-                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=3)
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=timeout)
                 except asyncio.TimeoutError:
-                    self.config.SWAPSERVER_NPUB = None
-            # if npub is not set, the above will timeout
-            BlockingWaitingDialog(self, _('Please wait...'), lambda: self.network.run_from_another_thread(wait_until_initialized()))
+                    pass
+            self.run_coroutine_dialog(wait_until_initialized(), _('Please wait...'))
 
-        if sm.use_nostr and self.config.SWAPSERVER_NPUB is None:
-            if not self.choose_swapserver_dialog():
+        if sm.use_nostr and not sm.is_initialized.is_set():
+            if not self.choose_swapserver_dialog(transport):
                 return False
 
         assert sm.is_initialized.is_set()
         return True
 
-    def choose_swapserver_dialog(self):
+    def choose_swapserver_dialog(self, transport):
         sm = self.wallet.lnworker.swap_manager
         def descr(x):
             last_seen = util.age(x['timestamp'])
             return f"{x['pubkey'][0:10]}, fee={x['percentage_fee']} {last_seen}"
-        server_keys = [(k, descr(v)) for k, v in sm.transport.offers.items()]
+        server_keys = [(k, descr(v)) for k, v in transport.offers.items()]
         choice = self.query_choice(
             msg = _("Please choose a server"),
             choices = server_keys,
             title = _("Choose swap server"),
             default_choice = self.config.SWAPSERVER_NPUB
         )
-        if choice not in sm.transport.offers:
+        if choice not in transport.offers:
             return False
         self.config.SWAPSERVER_NPUB = choice
-        pairs = sm.transport.get_offer(choice)
+        pairs = transport.get_offer(choice)
         sm.update_pairs(pairs)
         return True
 
@@ -1385,8 +1386,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
 
     def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True):
-        if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
-            self.initialize_swap_manager()
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview)
         if d.not_enough_funds:
             # note: use confirmed_only=False here, regardless of config setting,

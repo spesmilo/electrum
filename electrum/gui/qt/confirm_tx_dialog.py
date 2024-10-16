@@ -619,7 +619,8 @@ class ConfirmTxDialog(TxEditor):
             title=_("New Transaction"), # todo: adapt title for channel funding tx, swaps
             allow_preview=allow_preview)
 
-        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update)
+        d = BlockingWaitingDialog(window, _("Preparing transaction..."), self.update)
+        d.run()
 
     def _update_amount_label(self):
         tx = self.tx

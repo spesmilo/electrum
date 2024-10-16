@@ -587,7 +587,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 _("Adding info to tx, from network..."),
                 lambda: Network.run_from_another_thread(
                     tx.add_info_from_network(self.wallet.network, timeout=10)),
-            )
+            ).run()
         else:
             self.maybe_fetch_txin_data()
 

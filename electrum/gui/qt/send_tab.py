@@ -14,7 +14,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
@@ -328,15 +328,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         if tx.has_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
-            coro = sm.request_swap_for_tx(tx)
-            try:
-                swap, invoice, tx = self.network.run_from_another_thread(coro)
-            except SwapServerError as e:
-                self.show_error(str(e))
-                return
-            assert not tx.has_dummy_output(DummyAddress.SWAP)
-            tx.swap_invoice = invoice
-            tx.swap_payment_hash = swap.payment_hash
+            with self.window.create_sm_transport() as transport:
+                if not self.window.initialize_swap_manager(transport):
+                    return
+                coro = sm.request_swap_for_tx(transport, tx)
+                try:
+                    swap, invoice, tx = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+                except SwapServerError as e:
+                    self.show_error(str(e))
+                    return
+                assert not tx.has_dummy_output(DummyAddress.SWAP)
+                tx.swap_invoice = invoice
+                tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
             self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
@@ -735,12 +738,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if hasattr(tx, 'swap_payment_hash'):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
-            coro = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=tx.swap_invoice, tx=tx)
-            self.window.run_coroutine_dialog(
-                coro, _('Awaiting swap payment...'),
-                on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
-                on_cancelled=lambda: sm.cancel_normal_swap(swap))
-            return
+            with sm.create_transport() as transport:
+                coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
+                try:
+                    funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
+                except UserCancelled:
+                    sm.cancel_normal_swap(swap)
+                    return
+                self.window.on_swap_result(funding_txid, is_reverse=False)
 
         def broadcast_thread():
             # non-GUI thread

@@ -377,15 +377,22 @@ class BlockingWaitingDialog(WindowModalDialog):
     the task is running; the point of the dialog is to provide feedback
     to the user regarding what is going on.
     """
-    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any]):
+    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any], on_cancel=None):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
         self.message_label = QLabel(message)
+        self.task = task
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.message_label)
+        if on_cancel:
+            self.cancel_button = CancelButton(self)
+            self.cancel_button.clicked.connect(on_cancel)
+            vbox.addLayout(Buttons(self.cancel_button))
         self.finished.connect(self.deleteLater)  # see #3956
+
+    def run(self):
         # show popup
         self.show()
         # refresh GUI; needed for popup to appear and for message_label to get drawn
@@ -393,7 +400,7 @@ class BlockingWaitingDialog(WindowModalDialog):
         QCoreApplication.processEvents()
         try:
             # block and run given task
-            task()
+            return self.task()
         finally:
             # close popup
             self.accept()
