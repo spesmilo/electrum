@@ -183,7 +183,8 @@
     ],
     "BitStamp": [
         "USD",
-        "EUR"
+        "EUR",
+        "GBP"
     ],
     "Bitbank": [
         "JPY"
