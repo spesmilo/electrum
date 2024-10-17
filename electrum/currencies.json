@@ -2,6 +2,14 @@
     "Bit2C": [
         "ILS"
     ],
+    "BitFinex": [
+        "EUR",
+        "GBP",
+        "JPY",
+        "TRY",
+        "USD",
+        "UST"
+    ],
     "BitFlyer": [
         "JPY"
     ],
