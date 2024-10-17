@@ -259,6 +259,35 @@ class Bitbank(ExchangeBase):
         return {'JPY': to_decimal(json['data']['last'])}
 
 
+class BitFinex(ExchangeBase):
+
+    async def get_currencies(self):
+        json = await self.get_json(
+            'api-pub.bitfinex.com',
+            f"/v2/conf/pub:list:pair:exchange")
+        pairs = [pair for pair in json[0]
+                 if len(pair) == 6 and pair[:3] == "BTC"]
+        return [pair[3:] for pair in pairs]
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def get_rates(self, ccy):
+        # ref https://docs.bitfinex.com/reference/rest-public-ticker
+        json = await self.get_json(
+            'api-pub.bitfinex.com',
+            f"/v2/ticker/tBTC{ccy}")
+        return {ccy: to_decimal(json[6])}
+
+    async def request_history(self, ccy):
+        # ref https://docs.bitfinex.com/reference/rest-public-candles
+        history = await self.get_json(
+            'api.bitfinex.com',
+            f"/v2/candles/trade:1D:tBTC{ccy}/hist?limit=10000")
+        return dict([(timestamp_to_datetime(h[0] // 1000, utc=True).strftime('%Y-%m-%d'), str(h[2]))
+                     for h in history])
+
+
 class BitFlyer(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -380,6 +409,7 @@ class CoinGecko(ExchangeBase):
         return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
+        # ref https://docs.coingecko.com/v3.0.1/reference/coins-id-market-chart
         num_days = 365
         # Setting `num_days = "max"` started erroring (around 2024-04) with:
         # > Your request exceeds the allowed time range. Public API users are limited to querying

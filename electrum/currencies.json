@@ -1,4 +1,12 @@
 {
+    "BitFinex": [
+        "EUR",
+        "GBP",
+        "JPY",
+        "TRY",
+        "USD",
+        "UST"
+    ],
     "BitFlyer": [
         "JPY"
     ],
