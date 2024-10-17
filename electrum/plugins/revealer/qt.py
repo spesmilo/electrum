@@ -25,7 +25,7 @@ import qrcode
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
 from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont,
-                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize)
+                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize, QPageLayout)
 from PyQt6.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit)
 
@@ -495,7 +495,7 @@ class Plugin(RevealerPlugin):
         img = img.convertToFormat(QImage.Format.Format_Mono)
         p = QPainter()
         p.begin(img)
-        p.setCompositionMode(26) #xor
+        p.setCompositionMode(QPainter.CompositionMode.RasterOp_SourceXorDestination) #xor
         p.drawImage(0, 0, rawnoise)
         p.end()
         cypherseed = self.pixelcode_2x2(img)
@@ -531,11 +531,11 @@ class Plugin(RevealerPlugin):
 
     def toPdf(self, image):
         printer = QPrinter()
-        printer.setPageSize(QPageSize(QSizeF(210, 297), QPrinter.Unit.Millimeter))
+        printer.setPageSize(QPageSize(QSizeF(210, 297), QPageSize.Unit.Millimeter))
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(self.get_path_to_revealer_file('.pdf'))
-        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPrinter.Unit.DevicePixel)
+        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
         painter = QPainter()
         painter.begin(printer)
 
@@ -556,11 +556,11 @@ class Plugin(RevealerPlugin):
 
     def calibration_pdf(self, image):
         printer = QPrinter()
-        printer.setPageSize(QPageSize(QSizeF(210, 297), QPrinter.Unit.Millimeter))
+        printer.setPageSize(QPageSize(QSizeF(210, 297), QPageSize.Unit.Millimeter))
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(self.get_path_to_calibration_file())
-        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPrinter.Unit.DevicePixel)
+        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
 
         painter = QPainter()
         painter.begin(printer)
@@ -609,6 +609,7 @@ class Plugin(RevealerPlugin):
         img = QImage(img)
 
         painter = QPainter()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.begin(base_img)
 
         total_distance_h = round(base_img.width() / self.abstand_v)
@@ -701,7 +702,7 @@ class Plugin(RevealerPlugin):
                 painter.drawLine(0, base_img.height()-dist_v, base_img.width(), base_img.height()-(dist_v))
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
                 logo = QImage(internal_plugin_icon_path(self.name, 'revealer_c.png')).scaledToWidth(round(1.3*(total_distance_h)))
-                painter.drawImage(int(total_distance_h+border_thick), int(total_distance_h+border_thick), logo, Qt.TransformationMode.SmoothTransformation)
+                painter.drawImage(int(total_distance_h+border_thick), int(total_distance_h+border_thick), logo)
 
                 #frame around logo
                 painter.setPen(QPen(Qt.GlobalColor.black, border_thick))
