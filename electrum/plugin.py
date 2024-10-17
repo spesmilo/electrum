@@ -441,13 +441,16 @@ class BasePlugin(Logger):
         raise NotImplementedError()
 
     def read_file(self, filename: str) -> bytes:
-        """ note: only for external plugins """
         import zipfile
-        plugin_filename = self.parent.external_plugin_path(self.name)
-        with zipfile.ZipFile(plugin_filename) as myzip:
-            with myzip.open(os.path.join(self.name, filename)) as myfile:
-                s = myfile.read()
-                return s
+        if self.name in self.parent.external_plugin_metadata:
+            plugin_filename = self.parent.external_plugin_path(self.name)
+            with zipfile.ZipFile(plugin_filename) as myzip:
+                with myzip.open(os.path.join(self.name, filename)) as myfile:
+                    return myfile.read()
+        else:
+            path = os.path.join(os.path.dirname(__file__), 'plugins', self.name, filename)
+            with open(path, 'rb') as myfile:
+                return myfile.read()
 
 
 class DeviceUnpairableError(UserFacingException): pass

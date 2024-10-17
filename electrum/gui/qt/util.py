@@ -1242,14 +1242,21 @@ def getSaveFileName(
 def icon_path(icon_basename: str):
     return resource_path('gui', 'icons', icon_basename)
 
+def internal_plugin_icon_path(plugin_name, icon_basename: str):
+    return resource_path('plugins', plugin_name, icon_basename)
+
 
 @lru_cache(maxsize=1000)
 def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
-def read_QIcon_from_bytes(b: bytes) -> QIcon:
+def read_QPixmap_from_bytes(b: bytes) -> QPixmap:
     qp = QPixmap()
     qp.loadFromData(b)
+    return qp
+
+def read_QIcon_from_bytes(b: bytes) -> QIcon:
+    qp = read_QPixmap_from_bytes(b)
     return QIcon(qp)
 
 class IconLabel(QWidget):

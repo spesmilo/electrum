@@ -40,13 +40,14 @@ from electrum.logging import Logger, get_logger
 from electrum import keystore
 
 from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
-                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton, ColorScheme,
+                                  CancelButton, Buttons, icon_path, internal_plugin_icon_path, WWLabel, CloseButton, ColorScheme,
                                   ChoiceWidget, PasswordLineEdit, char_width_in_lineedit)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
 from electrum.gui.qt.wizard.wizard import WizardComponent
+from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from .common_qt import TrustedcoinPluginQObject
 from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
@@ -103,10 +104,10 @@ class Plugin(TrustedCoinPlugin):
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
-            icon = read_QIcon("trustedcoin-status-disabled.png")
+            icon = read_QIcon_from_bytes(self.read_file("trustedcoin-status-disabled.png"))
         else:
             action = partial(self.settings_dialog, window)
-            icon = read_QIcon("trustedcoin-status.png")
+            icon = read_QIcon_from_bytes(self.read_file("trustedcoin-status.png"))
         sb = window.statusBar()
         button = StatusBarButton(icon, _("TrustedCoin"), action, sb.height())
         sb.addPermanentWidget(button)
@@ -166,6 +167,9 @@ class Plugin(TrustedCoinPlugin):
         self.waiting_dialog_for_billing_info(window,
                                              on_finished=partial(self.show_settings_dialog, window))
 
+    def icon_path(self, name):
+        return internal_plugin_icon_path(self.name, name)
+
     def show_settings_dialog(self, window, success):
         if not success:
             window.show_message(_('Server not reachable.'))
@@ -178,7 +182,7 @@ class Plugin(TrustedCoinPlugin):
         hbox = QHBoxLayout()
 
         logo = QLabel()
-        logo.setPixmap(QPixmap(icon_path("trustedcoin-status.png")))
+        logo.setPixmap(QPixmap(self.icon_path("trustedcoin-status.png")))
         msg = _('This wallet is protected by TrustedCoin\'s two-factor authentication.') + '<br/>'\
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)
@@ -228,46 +232,46 @@ class Plugin(TrustedCoinPlugin):
         wizard.trustedcoin_qhelper = TrustedcoinPluginQObject(self, wizard, None)
         self.extend_wizard(wizard)
         if wizard.start_viewstate and wizard.start_viewstate.view.startswith('trustedcoin_'):
-            wizard.start_viewstate.params.update({'icon': icon_path('trustedcoin-wizard.png')})
+            wizard.start_viewstate.params.update({'icon': self.icon_path('trustedcoin-wizard.png')})
 
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'trustedcoin_start': {
                 'gui': WCDisclaimer,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_choose_seed': {
                 'gui': WCChooseSeed,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_create_seed': {
                 'gui': WCCreateSeed,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_confirm_seed': {
                 'gui': WCConfirmSeed,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_have_seed': {
                 'gui': WCHaveSeed,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_keep_disable': {
                 'gui': WCKeepDisable,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_tos': {
                 'gui': WCTerms,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_keystore_unlock': {
                 'gui': WCKeystorePassword,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_show_confirm_otp': {
                 'gui': WCShowConfirmOTP,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             }
         }
         wizard.navmap_merge(views)
@@ -279,7 +283,7 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_create_ext': {
                 'gui': WCEnterExt,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
                 'next': 'trustedcoin_confirm_seed',
             },
             'trustedcoin_confirm_seed': {
@@ -287,7 +291,7 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_confirm_ext': {
                 'gui': WCConfirmExt,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
                 'next': 'trustedcoin_tos',
             },
             'trustedcoin_have_seed': {
@@ -295,7 +299,7 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_have_ext': {
                 'gui': WCEnterExt,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
                 'next': 'trustedcoin_keep_disable',
             },
         }
@@ -305,7 +309,7 @@ class Plugin(TrustedCoinPlugin):
         ext_online = {
             'trustedcoin_continue_online': {
                 'gui': WCContinueOnline,
-                'params': {'icon': icon_path('trustedcoin-wizard.png')},
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
                 'next': lambda d: 'trustedcoin_tos' if d['trustedcoin_go_online'] else 'wallet_password',
                 'accept': self.on_continue_online,
                 'last': lambda d: not d['trustedcoin_go_online'] and wizard.is_single_password()
