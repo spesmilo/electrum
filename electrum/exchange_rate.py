@@ -312,13 +312,49 @@ class Bitso(ExchangeBase):
 class BitStamp(ExchangeBase):
 
     async def get_currencies(self):
-        return ['USD', 'EUR']
+        # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetCurrencyPairTickers
+        json = await self.get_json(
+            'www.bitstamp.net',
+            f"/api/v2/ticker/")
+        pairs = [ticker["pair"] for ticker in json]
+        pairs = [pair for pair in pairs
+                 if len(pair) == 7 and pair[:4] == "BTC/"]
+        return [pair[4:] for pair in pairs]
 
     async def get_rates(self, ccy):
+        # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetMarketTicker
         if ccy in CURRENCIES[self.name()]:
             json = await self.get_json('www.bitstamp.net', f'/api/v2/ticker/btc{ccy.lower()}/')
             return {ccy: to_decimal(json['last'])}
         return {}
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        # ref https://www.bitstamp.net/api/#tag/Market-info/operation/GetOHLCData
+        merged_history = {}
+        history_starts = 1313625600  # for BTCUSD pair (probably earliest)
+        items_per_request = 1000
+        step = 86400
+
+        async def populate_history(endtime: int):
+            history = await self.get_json(
+                'www.bitstamp.net',
+                f"/api/v2/ohlc/btc{ccy.lower()}/?step={step}&limit={items_per_request}&end={endtime}")
+            history = dict([
+                (timestamp_to_datetime(int(h["timestamp"]), utc=True).strftime('%Y-%m-%d'), str(h["close"]))
+                for h in history["data"]["ohlc"]])
+            merged_history.update(history)
+
+        async with OldTaskGroup() as group:
+            endtime = int(time.time())
+            while True:
+                if endtime < history_starts:
+                    break
+                await group.spawn(populate_history(endtime=endtime))
+                endtime = endtime - items_per_request * step
+        return merged_history
 
 
 class Bitvalor(ExchangeBase):
