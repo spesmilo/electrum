@@ -1394,6 +1394,7 @@ class Peer(Logger):
                 self.send_channel_ready(chan)
 
         self.maybe_send_announcement_signatures(chan)
+        self.maybe_update_fee(chan)  # if needed, update fee ASAP, to avoid force-closures from this
         # checks done
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
@@ -2262,6 +2263,8 @@ class Peer(Logger):
         called when our fee estimates change
         """
         if not chan.can_send_ctx_updates():
+            return
+        if chan.get_state() != ChannelState.OPEN:
             return
         feerate_per_kw = self.lnworker.current_target_feerate_per_kw()
         def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> bool:
