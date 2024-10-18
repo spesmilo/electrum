@@ -312,6 +312,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     save_forwarding_failure = LNWallet.save_forwarding_failure
     get_forwarding_failure = LNWallet.get_forwarding_failure
     maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
+    current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
+    current_low_feerate_per_kw = LNWallet.current_low_feerate_per_kw
 
 
 class MockTransport:
