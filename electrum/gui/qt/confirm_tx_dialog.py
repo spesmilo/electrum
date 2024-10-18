@@ -42,7 +42,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.bitcoin import DummyAddress
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
-                   BlockingWaitingDialog, PasswordLineEdit, WWLabel, read_QIcon)
+                   PasswordLineEdit, WWLabel, read_QIcon)
 
 from .fee_slider import FeeSlider, FeeComboBox
 
@@ -532,7 +532,7 @@ class TxEditor(WindowModalDialog):
             if self.not_enough_funds:
                 self.io_widget.update(None)
             self.set_feerounding_visibility(False)
-            self.messages = []
+            self.messages = [_('Preparing transaction...')]
         else:
             self.messages = self.get_messages()
             self.update_fee_fields()
@@ -619,7 +619,7 @@ class ConfirmTxDialog(TxEditor):
             title=_("New Transaction"), # todo: adapt title for channel funding tx, swaps
             allow_preview=allow_preview)
 
-        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update)
+        self.trigger_update()
 
     def _update_amount_label(self):
         tx = self.tx
