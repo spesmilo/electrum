@@ -62,7 +62,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
+                   getSaveFileName, ColorSchemeItem,
                    get_iconname_qrcode, VLine, WaitingDialog)
 from .rate_limiter import rate_limited
 from .my_treeview import create_toolbar_with_menu, QMenuWithConfig
@@ -582,11 +582,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         # FIXME for PSBTs, we do a blocking fetch, as the missing data might be needed for e.g. signing
         # - otherwise, the missing data is for display-completeness only, e.g. fee, input addresses (we do it async)
         if not tx.is_complete() and tx.is_missing_info_from_network():
-            BlockingWaitingDialog(
-                self,
+            self.main_window.run_coroutine_dialog(
+                tx.add_info_from_network(self.wallet.network, timeout=10),
                 _("Adding info to tx, from network..."),
-                lambda: Network.run_from_another_thread(
-                    tx.add_info_from_network(self.wallet.network, timeout=10)),
             )
         else:
             self.maybe_fetch_txin_data()

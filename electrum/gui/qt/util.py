@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
 
 from electrum.i18n import _
 from electrum.util import FileImportFailed, FileExportFailed, resource_path
-from electrum.util import EventListener, event_listener, get_logger
+from electrum.util import EventListener, event_listener, get_logger, UserCancelled
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import Logger
 from electrum.qrreader import MissingQrDetectionLib
@@ -371,32 +371,32 @@ class WaitingDialog(WindowModalDialog):
         self.message_label.setText(msg)
 
 
-class BlockingWaitingDialog(WindowModalDialog):
-    """Shows a waiting dialog whilst running a task.
-    Should be called from the GUI thread. The GUI thread will be blocked while
-    the task is running; the point of the dialog is to provide feedback
-    to the user regarding what is going on.
-    """
-    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any]):
-        assert parent
-        if isinstance(parent, MessageBoxMixin):
-            parent = parent.top_level_window()
-        WindowModalDialog.__init__(self, parent, _("Please wait"))
-        self.message_label = QLabel(message)
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(self.message_label)
-        self.finished.connect(self.deleteLater)  # see #3956
-        # show popup
-        self.show()
-        # refresh GUI; needed for popup to appear and for message_label to get drawn
-        QCoreApplication.processEvents()
-        QCoreApplication.processEvents()
-        try:
-            # block and run given task
-            task()
-        finally:
-            # close popup
-            self.accept()
+class RunCoroutineDialog(WaitingDialog):
+
+    def __init__(self, parent: QWidget, message: str, coroutine):
+        from electrum import util
+        import asyncio
+        import concurrent.futures
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
+        self._exception = None
+        self._result = None
+        self._future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+        def task():
+            try:
+                self._result = self._future.result()
+            except concurrent.futures.CancelledError:
+                self._exception = UserCancelled
+            except Exception as e:
+                self._exception = e
+        WaitingDialog.__init__(self, parent, message, task, on_cancel=self._future.cancel)
+
+    def run(self):
+        self.exec()
+        if self._exception:
+            raise self._exception
+        else:
+            return self._result
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
