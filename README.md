@@ -10,6 +10,7 @@ Homepage: https://electrum.org/
 [![Build Status](https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master)](https://cirrus-ci.com/github/spesmilo/electrum)
 [![Test coverage statistics](https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master)](https://coveralls.io/github/spesmilo/electrum?branch=master)
 [![Help translate Electrum online](https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg)](https://crowdin.com/project/electrum)
+[![](https://img.shields.io/badge/Gurubase-Ask%20Electrum%20Guru-006BFF)](https://gurubase.io/g/electrum)
 
 
 ## Getting started
