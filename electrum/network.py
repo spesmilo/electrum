@@ -885,7 +885,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self._set_status(ConnectionState.CONNECTING)
         self._trying_addr_now(server)
 
-        interface = Interface(network=self, server=server, proxy=self.proxy)
+        interface = Interface(network=self, server=server)
         # note: using longer timeouts here as DNS can sometimes be slow!
         timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
@@ -1479,7 +1479,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         responses = dict()
         async def get_response(server: ServerAddr):
-            interface = Interface(network=self, server=server, proxy=self.proxy)
+            interface = Interface(network=self, server=server)
             try:
                 await util.wait_for2(interface.ready, timeout)
             except BaseException as e:

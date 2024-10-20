@@ -79,7 +79,7 @@ class TestLNTransport(ElectrumTestCase):
             responder_shaked.set()
         async def connect(port: int):
             peer_addr = LNPeerAddr('127.0.0.1', port, responder_key.get_public_key_bytes())
-            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, proxy=None)
+            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, network=None)
             await t.handshake()
             async with OldTaskGroup() as group:
                 await group.spawn(read_messages(t, messages_sent_by_server))

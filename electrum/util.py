@@ -1952,12 +1952,16 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return reader, writer
 
     @classmethod
-    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
-        if not proxy:
+    def from_network_settings(cls, network: Optional['Network']) -> Optional['MySocksProxy']:
+        if not network or not network.proxy:
             return None
+        proxy = network.proxy
         username, pw = proxy.get('user'), proxy.get('password')
         if not username or not pw:
-            auth = None
+            if network.is_proxy_tor:
+                auth = aiorpcx.socks.SOCKSRandomAuth
+            else:
+                auth = None
         else:
             auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
         addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])

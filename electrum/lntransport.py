@@ -8,7 +8,7 @@
 import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from functools import cached_property
 
 import electrum_ecc as ecc
@@ -17,6 +17,9 @@ from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_po
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
                      HandshakeFailed, LNPeerAddr)
 from .util import MySocksProxy
+
+if TYPE_CHECKING:
+    from electrum.network import Network
 
 
 class HandshakeState(object):
@@ -245,12 +248,12 @@ class LNTransport(LNTransportBase):
     """Transport initiated by local party."""
 
     def __init__(self, privkey: bytes, peer_addr: LNPeerAddr, *,
-                 proxy: Optional[dict]):
+                 network: Optional['Network']):
         LNTransportBase.__init__(self)
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
         self.peer_addr = peer_addr
-        self.proxy = MySocksProxy.from_proxy_dict(proxy)
+        self.proxy = MySocksProxy.from_network_settings(network)
 
     async def handshake(self):
         if not self.proxy:

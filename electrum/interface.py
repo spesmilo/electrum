@@ -375,7 +375,7 @@ class Interface(Logger):
 
     LOGGING_SHORTCUT = 'i'
 
-    def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
+    def __init__(self, *, network: 'Network', server: ServerAddr):
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
         self.server = server
@@ -394,8 +394,9 @@ class Interface(Logger):
         #         addresses...? e.g. 192.168.x.x
         if util.is_localhost(server.host):
             self.logger.info(f"looks like localhost: not using proxy for this server")
-            proxy = None
-        self.proxy = MySocksProxy.from_proxy_dict(proxy)
+            self.proxy = None
+        else:
+            self.proxy = MySocksProxy.from_network_settings(network)
 
         # Latest block header and corresponding height, as claimed by the server.
         # Note that these values are updated before they are verified.

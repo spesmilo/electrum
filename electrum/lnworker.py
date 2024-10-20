@@ -346,7 +346,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         if node_id == self.node_keypair.pubkey:
             raise ErrorAddingPeer("cannot connect to self")
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
-                                proxy=self.network.proxy)
+                                network=self.network)
         peer = await self._add_peer_from_transport(node_id=node_id, transport=transport)
         assert peer
         return peer
@@ -3040,7 +3040,7 @@ class LNWallet(LNWorker):
         async def _request_fclose(addresses):
             for host, port, timestamp in addresses:
                 peer_addr = LNPeerAddr(host, port, node_id)
-                transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
+                transport = LNTransport(privkey, peer_addr, network=self.network)
                 peer = Peer(self, node_id, transport, is_channel_backup=True)
                 try:
                     async with OldTaskGroup(wait=any) as group:
