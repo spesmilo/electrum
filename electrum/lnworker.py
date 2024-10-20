@@ -840,14 +840,16 @@ class LNWallet(LNWorker):
         self._channels = {}  # type: Dict[bytes, Channel]
         channels = self.db.get_dict("channels")
         for channel_id, c in random_shuffled_copy(channels.items()):
-            self._channels[bfh(channel_id)] = Channel(c, lnworker=self)
+            self._channels[bfh(channel_id)] = chan = Channel(c, lnworker=self)
+            self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
 
         self._channel_backups = {}  # type: Dict[bytes, ChannelBackup]
         # order is important: imported should overwrite onchain
         for name in ["onchain_channel_backups", "imported_channel_backups"]:
             channel_backups = self.db.get_dict(name)
             for channel_id, storage in channel_backups.items():
-                self._channel_backups[bfh(channel_id)] = ChannelBackup(storage, lnworker=self)
+                self._channel_backups[bfh(channel_id)] = cb = ChannelBackup(storage, lnworker=self)
+                self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
 
         self._paysessions = dict()                      # type: Dict[bytes, PaySession]
         self.sent_htlcs_info = dict()                   # type: Dict[SentHtlcKey, SentHtlcInfo]
@@ -1330,8 +1332,7 @@ class LNWallet(LNWorker):
         self.add_channel(chan)
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
-        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
-            self.wallet.set_reserved_state_of_address(addr, reserved=True)
+        self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
         try:
             self.save_channel(chan)
         except Exception:
@@ -2850,8 +2851,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
-        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
-            self.wallet.set_reserved_state_of_address(addr, reserved=False)
+        self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
 
         util.trigger_callback('channels_updated', self.wallet)
         util.trigger_callback('wallet_updated', self.wallet)
@@ -2984,6 +2984,7 @@ class LNWallet(LNWorker):
         with self.lock:
             cb = ChannelBackup(cb_storage, lnworker=self)
             self._channel_backups[channel_id] = cb
+        self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
@@ -3011,6 +3012,7 @@ class LNWallet(LNWorker):
             raise Exception('Channel not found')
         with self.lock:
             self._channel_backups.pop(channel_id)
+        self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
 
@@ -3097,6 +3099,7 @@ class LNWallet(LNWorker):
         d = self.db.get_dict("onchain_channel_backups")
         d[channel_id] = cb_storage
         cb = ChannelBackup(cb_storage, lnworker=self)
+        self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
         self.wallet.save_db()
         with self.lock:
             self._channel_backups[bfh(channel_id)] = cb
