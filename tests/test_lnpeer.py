@@ -1231,7 +1231,7 @@ class TestPeerDirect(TestPeer):
                 await util.wait_for2(p2.initialized, 1)
                 # bob closes channel with different shutdown script
                 await p1.close_channel(alice_channel.channel_id)
-                assert False, "p1.close_channel should have raised above!"
+                self.fail("p1.close_channel should have raised above!")
 
             async def main_loop(peer):
                     async with peer.taskgroup as group:
