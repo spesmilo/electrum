@@ -495,12 +495,17 @@ class itBit(ExchangeBase):
 class Kraken(ExchangeBase):
 
     async def get_rates(self, ccy):
+        # ref https://docs.kraken.com/api/docs/rest-api/get-ticker-information
         ccys = ['EUR', 'USD', 'CAD', 'GBP', 'JPY']
         pairs = ['XBT%s' % c for c in ccys]
         json = await self.get_json('api.kraken.com',
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
         return dict((k[-3:], to_decimal(v['c'][0]))
                      for k, v in json['result'].items())
+
+    # async def request_history(self, ccy):
+    #     # ref https://docs.kraken.com/api/docs/rest-api/get-ohlc-data
+    #     pass  # limited to last 720 steps (step can by 1 day / 7 days / 15 days)
 
 
 class MercadoBitcoin(ExchangeBase):
