@@ -513,6 +513,9 @@ class Interface(Logger):
         else:
             # pinned self-signed cert
             sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
+            # note: Flag "ssl.VERIFY_X509_STRICT" is enabled by default in python 3.13+ (disabled in older versions).
+            #       We explicitly disable it as it breaks lots of servers.
+            sslc.verify_flags &= ~ssl.VERIFY_X509_STRICT
             sslc.check_hostname = False
         return sslc
 
