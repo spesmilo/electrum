@@ -1207,6 +1207,18 @@ Warning: setting this to too low will result in lots of payment failures."""),
     SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
 
+    # nostr
+    NOSTR_RELAYS = ConfigVar(
+        'nostr_relays',
+        default='wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
+        type_=str,
+        short_desc=lambda: _("Nostr relays"),
+        long_desc=lambda: ' '.join([
+            _('Nostr relays are used to send and receive submarine swap offers'),
+            _('If this list is empty, Electrum will use http instead'),
+        ]),
+    )
+
     # zeroconf channels
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)

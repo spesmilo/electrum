@@ -8,6 +8,7 @@ certifi
 attrs>=20.1.0
 jsonpatch
 electrum_ecc
+electrum_aionostr
 
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!
