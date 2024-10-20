@@ -376,7 +376,7 @@ def create_sweeptxs_for_their_ctx(
     chan.logger.debug(f'(lnsweep) found their ctx: {to_local_address} {to_remote_address}')
     if is_revocation:
         our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
-        gen_tx = create_sweeptx_for_their_revoked_ctx(chan, ctx, per_commitment_secret, chan.sweep_address)
+        gen_tx = create_sweeptx_for_their_revoked_ctx(chan, ctx, per_commitment_secret, sweep_address)
         if gen_tx:
             tx = gen_tx()
             txs[tx.inputs()[0].prevout.to_str()] = SweepInfo(

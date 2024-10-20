@@ -2377,7 +2377,7 @@ class Peer(Logger):
         if chan.config[LOCAL].upfront_shutdown_script:
             scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
         else:
-            scriptpubkey = bitcoin.address_to_script(chan.sweep_address)
+            scriptpubkey = bitcoin.address_to_script(chan.get_sweep_address())
         assert scriptpubkey
         # wait until no more pending updates (bolt2)
         chan.set_can_send_ctx_updates(False)
@@ -2430,7 +2430,7 @@ class Peer(Logger):
         if chan.config[LOCAL].upfront_shutdown_script:
             our_scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
         else:
-            our_scriptpubkey = bitcoin.address_to_script(chan.sweep_address)
+            our_scriptpubkey = bitcoin.address_to_script(chan.get_sweep_address())
         assert our_scriptpubkey
         # estimate fee of closing tx
         dummy_sig, dummy_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)

@@ -947,7 +947,7 @@ class LNWallet(LNWorker):
         current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
         for ctn in range(watchtower_ctn + 1, current_ctn):
-            sweeptxs = chan.create_sweeptxs(ctn)
+            sweeptxs = chan.create_sweeptxs_for_watchtower(ctn)
             for tx in sweeptxs:
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
