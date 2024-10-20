@@ -1,3 +1,17 @@
+# Release 4.5.7 (Oct 21, 2024)
+ * General:
+   - new: add new historical exchange rate providers: Bitfinex and Bitstamp
+   - fix: wizard regression: 2fa wallet setup erroring (#9253)
+   - fix: python 3.13 compat: could not connect to some self-signed electrum
+     servers with weird TLS certs. As workaround, set pre-3.13 behaviour (#9258)
+ * Lightning:
+   - fix: send update_fee right away after channel_reestablish (3a465593)
+     This fixes a race that can result in a force-closure if we try sending
+     a payment very soon after reestablishing the channel.
+ * Qt Desktop GUI:
+   - fix: show fee warnings also in the transaction dialog (c4fe2796)
+
+
 # Release 4.5.6 (Oct 16, 2024)
  * General:
    - new: add support for testnet4 (#9197)
