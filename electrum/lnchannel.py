@@ -224,17 +224,17 @@ class AbstractChannel(Logger, ABC):
     def get_state(self) -> ChannelState:
         return self._state
 
-    def is_funded(self):
+    def is_funded(self) -> bool:
         return self.get_state() >= ChannelState.FUNDED
 
-    def is_open(self):
+    def is_open(self) -> bool:
         return self.get_state() == ChannelState.OPEN
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         # the closing txid has been saved
         return self.get_state() >= ChannelState.CLOSING
 
-    def is_redeemed(self):
+    def is_redeemed(self) -> bool:
         return self.get_state() == ChannelState.REDEEMED
 
     def need_to_subscribe(self) -> bool:
@@ -267,7 +267,7 @@ class AbstractChannel(Logger, ABC):
     def save_funding_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
         self.storage['funding_height'] = txid, height, timestamp
 
-    def get_funding_height(self):
+    def get_funding_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('funding_height')
 
     def delete_funding_height(self):
@@ -276,19 +276,19 @@ class AbstractChannel(Logger, ABC):
     def save_closing_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
         self.storage['closing_height'] = txid, height, timestamp
 
-    def get_closing_height(self):
+    def get_closing_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('closing_height')
 
     def delete_closing_height(self):
         self.storage.pop('closing_height', None)
 
-    def create_sweeptxs_for_our_ctx(self, ctx):
+    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
         return create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
 
-    def create_sweeptxs_for_their_ctx(self, ctx):
+    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
         return create_sweeptxs_for_their_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
 
-    def is_backup(self):
+    def is_backup(self) -> bool:
         return False
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
@@ -337,7 +337,7 @@ class AbstractChannel(Logger, ABC):
                 closing_height=closing_height,
                 keep_watching=keep_watching)
 
-    def update_unfunded_state(self):
+    def update_unfunded_state(self) -> None:
         self.delete_funding_height()
         self.delete_closing_height()
         if self.get_state() in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING] and self.lnworker:
@@ -818,7 +818,7 @@ class Channel(AbstractChannel):
         self._outgoing_channel_update = chan_upd
         return chan_upd
 
-    def construct_channel_announcement_without_sigs(self) -> bytes:
+    def construct_channel_announcement_without_sigs(self) -> Tuple[bytes, bool]:
         bitcoin_keys = [
             self.config[REMOTE].multisig_key.pubkey,
             self.config[LOCAL].multisig_key.pubkey]

@@ -344,7 +344,7 @@ def analyze_ctx(chan: 'Channel', ctx: Transaction):
 def create_sweeptxs_for_their_ctx(
         *, chan: 'Channel',
         ctx: Transaction,
-        sweep_address: str) -> Optional[Dict[str,SweepInfo]]:
+        sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
     """Handle the case when the remote force-closes with their ctx.
     Sweep outputs that do not have a CSV delay ('to_remote' and first-stage HTLCs).
     Outputs with CSV delay ('to_local' and second-stage HTLCs) are redeemed by LNWatcher.
