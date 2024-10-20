@@ -24,6 +24,7 @@ from electrum.network import Network
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
+from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
@@ -1230,7 +1231,7 @@ class TestPeerDirect(TestPeer):
                 await util.wait_for2(p2.initialized, 1)
                 # bob closes channel with different shutdown script
                 await p1.close_channel(alice_channel.channel_id)
-                gath.cancel()
+                assert False, "p1.close_channel should have raised above!"
 
             async def main_loop(peer):
                     async with peer.taskgroup as group:
@@ -1243,7 +1244,11 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(GracefulDisconnect):
             await test()
+        # check that neither party broadcast a closing tx (as it was not even signed)
+        self.assertEqual(0, q1.qsize())
+        self.assertEqual(0, q2.qsize())
 
+        # -- new scenario:
         # bob sends the same upfront_shutdown_script has he announced
         alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
@@ -1272,6 +1277,12 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(asyncio.CancelledError):
             await test()
+
+        # check if p1 has broadcast the closing tx, and if it pays to Bob's uss
+        self.assertEqual(1, q1.qsize())
+        closing_tx = q1.get_nowait()  # type: Transaction
+        self.assertEqual(2, len(closing_tx.outputs()))
+        self.assertEqual(1, len(closing_tx.get_output_idxs_from_address(bob_uss_addr)))
 
     async def test_channel_usage_after_closing(self):
         alice_channel, bob_channel = create_test_channels()
