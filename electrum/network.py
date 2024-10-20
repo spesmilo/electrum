@@ -517,6 +517,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _init_parameters_from_config(self) -> None:
         dns_hacks.configure_dns_resolver()
         self.auto_connect = self.config.NETWORK_AUTO_CONNECT
+        if self.auto_connect and self.config.NETWORK_ONESERVER:
+            # enabling both oneserver and auto_connect doesn't really make sense
+            # assume oneserver is enabled for privacy reasons, disable auto_connect and assume server is unpredictable
+            self.logger.warning(f'both "oneserver" and "auto_connect" options enabled, disabling "auto_connect" and resetting "server".')
+            self.config.NETWORK_SERVER = ""  # let _set_default_server set harmless default (localhost)
+            self.auto_connect = False
+
         self._set_default_server()
         self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY, self.config.NETWORK_PROXY_USER,
                                           self.config.NETWORK_PROXY_PASSWORD))
@@ -639,7 +646,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 self.logger.warning(f'failed to parse server-string ({server!r}); falling back to localhost:1:s.')
                 self.default_server = ServerAddr.from_str("localhost:1:s")
         else:
-            self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
+            # if oneserver is enabled but no server specified then don't pick a random server
+            if self.config.NETWORK_ONESERVER:
+                self.logger.warning(f'"oneserver" option enabled, but no "server" defined; falling back to localhost:1:s.')
+                self.default_server = ServerAddr.from_str("localhost:1:s")
+            else:
+                self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
     def _set_proxy(self, proxy: Optional[dict]):
@@ -684,6 +696,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 int(proxy['port'])
         except Exception:
             return
+
         self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
         self.config.NETWORK_ONESERVER = net_params.oneserver
         self.config.NETWORK_PROXY = proxy_str
