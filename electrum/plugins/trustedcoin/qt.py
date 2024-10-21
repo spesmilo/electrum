@@ -24,23 +24,22 @@
 # SOFTWARE.
 
 from functools import partial
-import threading
 import os
 from typing import TYPE_CHECKING
 
 from PyQt6.QtGui import QPixmap, QMovie, QColor
 from PyQt6.QtCore import QObject, pyqtSignal, QSize, Qt
 from PyQt6.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
-                             QRadioButton, QCheckBox, QLineEdit, QPushButton, QWidget)
+                             QRadioButton, QCheckBox, QPushButton, QWidget)
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.util import is_valid_email, InvalidPassword
+from electrum.util import InvalidPassword
 from electrum.logging import Logger, get_logger
 from electrum import keystore
 
-from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
-                                  CancelButton, Buttons, icon_path, internal_plugin_icon_path, WWLabel, CloseButton, ColorScheme,
+from electrum.gui.qt.util import (WindowModalDialog, WaitingDialog, OkButton, CancelButton, Buttons, icon_path,
+                                  internal_plugin_icon_path, WWLabel, CloseButton, ColorScheme,
                                   ChoiceWidget, PasswordLineEdit, char_width_in_lineedit)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
@@ -50,7 +49,7 @@ from electrum.gui.qt.wizard.wizard import WizardComponent
 from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from .common_qt import TrustedcoinPluginQObject
-from .trustedcoin import TrustedCoinPlugin, server, DISCLAIMER
+from .trustedcoin import TrustedCoinPlugin, DISCLAIMER
 
 if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
@@ -116,7 +115,7 @@ class Plugin(TrustedCoinPlugin):
     def auth_dialog(self, window):
         d = WindowModalDialog(window, _("Authorization"))
         vbox = QVBoxLayout(d)
-        pw = AmountEdit(None, is_int = True)
+        pw = AmountEdit(None, is_int=True)
         msg = _('Please enter your Google Authenticator code')
         vbox.addWidget(QLabel(msg))
         grid = QGridLayout()
@@ -139,6 +138,7 @@ class Plugin(TrustedCoinPlugin):
     def waiting_dialog_for_billing_info(self, window, *, on_finished=None):
         def task():
             return self.request_billing_info(window.wallet, suppress_connection_error=False)
+
         def on_error(exc_info):
             e = exc_info[1]
             window.show_error("{header}\n{exc}\n\n{tor}"
@@ -216,6 +216,7 @@ class Plugin(TrustedCoinPlugin):
             grid.addWidget(QLabel(window.format_amount(v/k) + ' ' + window.base_unit() + "/tx"), i, 1)
             b = QRadioButton()
             b.setChecked(k == n_prepay)
+
             def on_click(b, k):
                 self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY = k
             b.clicked.connect(partial(on_click, k=k))
@@ -374,12 +375,11 @@ class WCTerms(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Terms and conditions'))
         self._has_tos = False
-
-    def on_ready(self):
         self.tos_e = TOS()
         self.tos_e.setReadOnly(True)
         self.layout().addWidget(self.tos_e)
 
+    def on_ready(self):
         self.fetch_terms_and_conditions()
 
     def fetch_terms_and_conditions(self):
@@ -580,6 +580,7 @@ class WCKeepDisable(WizardComponent):
 class WCContinueOnline(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Continue Online'))
+        self.cb_online = QCheckBox(_('Go online to complete wallet creation'))
 
     def on_ready(self):
         path = os.path.join(os.path.dirname(self.wizard._daemon.config.get_wallet_path()), self.wizard_data['wallet_name'])
@@ -596,7 +597,6 @@ class WCContinueOnline(WizardComponent):
         self.layout().addWidget(WWLabel('\n\n'.join(msg)))
         self.layout().addStretch(1)
 
-        self.cb_online = QCheckBox(_('Go online to complete wallet creation'))
         self.cb_online.setChecked(True)
         self.cb_online.stateChanged.connect(self.on_updated)
         # self.cb_online.setToolTip(_("Check this box to request a new secret. You will need to retype your seed."))
@@ -613,8 +613,6 @@ class WCContinueOnline(WizardComponent):
 class WCKeystorePassword(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Unlock Keystore'))
-
-    def on_ready(self):
         self.layout().addStretch(1)
 
         hbox2 = QHBoxLayout()
@@ -627,11 +625,11 @@ class WCKeystorePassword(WizardComponent):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch(1)
         self.layout().addLayout(hbox2)
-
         self.layout().addStretch(1)
 
-        self._valid = False
+        self.ks = None
 
+    def on_ready(self):
         self.ks = self.wizard_data['xprv1']
 
     def on_text(self):

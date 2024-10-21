@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 class Plugin(TrustedCoinPlugin):
     def __init__(self, *args):
         super().__init__(*args)
+        self._app = None
+        self.so = None
+        self.on_success = None
+        self.on_failure = None
+        self.tx = None
 
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet'):

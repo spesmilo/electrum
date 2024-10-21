@@ -1,7 +1,6 @@
 import threading
 import socket
 import base64
-import sys
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
@@ -83,7 +82,7 @@ class TrustedcoinPluginQObject(PluginQObject):
         return self._billingModel
 
     def updateBillingInfo(self, wallet):
-        billingModel = []
+        billing_model = []
 
         price_per_tx = wallet.price_per_tx
         for k, v in sorted(price_per_tx.items()):
@@ -94,9 +93,9 @@ class TrustedcoinPluginQObject(PluginQObject):
                 'value': k,
                 'sats_per_tx': v / k
             }
-            billingModel.append(item)
+            billing_model.append(item)
 
-        self._billingModel = billingModel
+        self._billingModel = billing_model
         self.billingModelChanged.emit()
 
     @pyqtSlot()
