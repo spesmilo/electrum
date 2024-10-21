@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
 
 
-class SwapServer(Logger, EventListener):
+class HttpSwapServer(Logger, EventListener):
     """
     public API:
     - getpairs
@@ -57,7 +57,7 @@ class SwapServer(Logger, EventListener):
 
     async def get_pairs(self, r):
         sm = self.sm
-        sm.init_pairs()
+        sm.server_update_pairs()
         pairs = {
             "info": [],
             "warnings": [],

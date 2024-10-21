@@ -1627,6 +1627,7 @@ class LnKeyFamily(IntEnum):
     NODE_KEY = 6
     BACKUP_CIPHER = 7 | BIP32_PRIME
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
+    NOSTR_KEY = 9 | BIP32_PRIME
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
@@ -1635,6 +1636,11 @@ def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
     cK = ecc.ECPrivkey(k).get_public_key_bytes()
     return Keypair(cK, k)
 
+def generate_random_keypair() -> Keypair:
+    import secrets
+    k = secrets.token_bytes(32)
+    cK = ecc.ECPrivkey(k).get_public_key_bytes()
+    return Keypair(cK, k)
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20

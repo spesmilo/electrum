@@ -83,7 +83,7 @@ from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
-from .submarine_swaps import HttpSwapManager
+from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
 from .trampoline import create_trampoline_route_and_onion, is_legacy_relay
@@ -866,8 +866,9 @@ class LNWallet(LNWorker):
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
         self.payment_bundles = []                       # lists of hashes. todo:persist
-        self.swap_manager = HttpSwapManager(wallet=self.wallet, lnworker=self)
 
+        self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
+        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -954,7 +955,7 @@ class LNWallet(LNWorker):
     def start_network(self, network: 'Network'):
         super().start_network(network)
         self.lnwatcher = LNWalletWatcher(self, network)
-        self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
+        self.swap_manager.start_network(network)
         self.lnrater = LNRater(self, network)
 
         for chan in self.channels.values():
@@ -984,7 +985,7 @@ class LNWallet(LNWorker):
         if self.lnwatcher:
             await self.lnwatcher.stop()
             self.lnwatcher = None
-        if self.swap_manager:  # may not be present in tests
+        if self.swap_manager and self.swap_manager.network:  # may not be present in tests
             await self.swap_manager.stop()
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):

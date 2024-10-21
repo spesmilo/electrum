@@ -1906,8 +1906,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # do not use multiple change addresses
                 if len(change) == 1:
                     amount = change[0].value
-                    ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
-                    if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
+                    if amount <= self.lnworker.num_sats_can_receive():
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
         else:
             # "spend max" branch
