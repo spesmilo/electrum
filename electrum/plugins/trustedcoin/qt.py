@@ -44,8 +44,8 @@ from electrum.gui.qt.util import (WindowModalDialog, WaitingDialog, OkButton, Ca
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
-from electrum.gui.qt.wizard.wallet import WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt
-from electrum.gui.qt.wizard.wizard import WizardComponent
+from electrum.gui.qt.wizard.wallet import (WCCreateSeed, WCConfirmSeed, WCHaveSeed, WCEnterExt, WCConfirmExt,
+                                           WalletWizardComponent)
 from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from .common_qt import TrustedcoinPluginQObject
@@ -339,9 +339,9 @@ class Plugin(TrustedCoinPlugin):
             wizard_data['x2'] = k2.dump()
 
 
-class WCDisclaimer(WizardComponent):
+class WCDisclaimer(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Disclaimer'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Disclaimer'))
 
         self.layout().addWidget(WWLabel('\n\n'.join(DISCLAIMER)))
         self.layout().addStretch(1)
@@ -352,9 +352,9 @@ class WCDisclaimer(WizardComponent):
         pass
 
 
-class WCChooseSeed(WizardComponent):
+class WCChooseSeed(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Create or restore'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Create or restore'))
         message = _('Do you want to create a new seed, or restore a wallet using an existing seed?')
         choices = [
             ('createseed',  _('Create a new seed')),
@@ -371,9 +371,9 @@ class WCChooseSeed(WizardComponent):
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
 
 
-class WCTerms(WizardComponent):
+class WCTerms(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Terms and conditions'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Terms and conditions'))
         self._has_tos = False
         self.tos_e = TOS()
         self.tos_e.setReadOnly(True)
@@ -406,11 +406,11 @@ class WCTerms(WizardComponent):
         pass
 
 
-class WCShowConfirmOTP(WizardComponent):
+class WCShowConfirmOTP(WalletWizardComponent):
     _logger = get_logger(__name__)
 
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Authenticator secret'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Authenticator secret'))
         self._otp_verified = False
         self._is_online_continuation = False
 
@@ -554,9 +554,9 @@ class WCShowConfirmOTP(WizardComponent):
         pass
 
 
-class WCKeepDisable(WizardComponent):
+class WCKeepDisable(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Restore 2FA wallet'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Restore 2FA wallet'))
         message = ' '.join([
             'You are going to restore a wallet protected with two-factor authentication.',
             'Do you want to keep using two-factor authentication with this wallet,',
@@ -577,9 +577,9 @@ class WCKeepDisable(WizardComponent):
         self.wizard_data['trustedcoin_keepordisable'] = self.choice_w.selected_key
 
 
-class WCContinueOnline(WizardComponent):
+class WCContinueOnline(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Continue Online'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Continue Online'))
         self.cb_online = QCheckBox(_('Go online to complete wallet creation'))
 
     def on_ready(self):
@@ -610,9 +610,9 @@ class WCContinueOnline(WizardComponent):
         self.wizard_data['trustedcoin_go_online'] = self.cb_online.isChecked()
 
 
-class WCKeystorePassword(WizardComponent):
+class WCKeystorePassword(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title=_('Unlock Keystore'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Unlock Keystore'))
         self.layout().addStretch(1)
 
         hbox2 = QHBoxLayout()
