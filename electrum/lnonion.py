@@ -30,9 +30,9 @@ from enum import IntEnum
 
 import electrum_ecc as ecc
 
-from .crypto import sha256, hmac_oneshot, chacha20_encrypt
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt, get_ecdh
 from .util import profiler, xor_bytes, bfh
-from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
+from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg

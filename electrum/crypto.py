@@ -492,3 +492,11 @@ def ecies_decrypt_message(
     if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
         raise InvalidPassword()
     return aes_decrypt_with_iv(key_e, iv, ciphertext)
+
+
+def get_ecdh(priv: bytes, pub: bytes) -> bytes:
+    pt = ecc.ECPubkey(pub) * ecc.string_to_number(priv)
+    return sha256(pt.get_public_key_bytes())
+
+def privkey_to_pubkey(priv: bytes) -> bytes:
+    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()

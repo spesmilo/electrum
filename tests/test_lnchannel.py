@@ -33,6 +33,7 @@ from electrum import lnpeer
 from electrum import lnchannel
 from electrum import lnutil
 from electrum import bip32 as bip32_utils
+from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState
@@ -134,8 +135,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
     remote_amount = remote_msat if remote_msat is not None else (funding_sat * 1000 // 2)
     alice_raw = [bip32("m/" + str(i)) for i in range(5)]
     bob_raw = [bip32("m/" + str(i)) for i in range(5,11)]
-    alice_privkeys = [lnutil.Keypair(lnutil.privkey_to_pubkey(x), x) for x in alice_raw]
-    bob_privkeys = [lnutil.Keypair(lnutil.privkey_to_pubkey(x), x) for x in bob_raw]
+    alice_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in alice_raw]
+    bob_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in bob_raw]
     alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
     bob_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
 

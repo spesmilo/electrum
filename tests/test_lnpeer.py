@@ -27,8 +27,9 @@ from electrum.bitcoin import COIN, sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
 from electrum.lnpeer import Peer
-from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget
+from electrum.lntransport import LNPeerAddr
+from electrum.crypto import privkey_to_pubkey
+from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB
@@ -1209,7 +1210,7 @@ class TestPeerDirect(TestPeer):
 
         # create upfront shutdown script for bob, alice doesn't use upfront
         # shutdown script
-        bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
+        bob_uss_pub = privkey_to_pubkey(os.urandom(32))
         bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bob_uss_pub.hex())
         bob_uss = bitcoin.address_to_script(bob_uss_addr)
 

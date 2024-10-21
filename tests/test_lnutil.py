@@ -9,8 +9,8 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
-                             get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
-                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
+                             get_compressed_pubkey_from_bech32,
+                             ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
                              ln_compare_features, IncompatibleLightningFeatures, ChannelType,
                              ImportedChannelBackupStorage)
 from electrum.util import bfh, MyEncoder
@@ -741,45 +741,6 @@ class TestLNUtil(ElectrumTestCase):
     def test_get_compressed_pubkey_from_bech32(self):
         self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',
                          get_compressed_pubkey_from_bech32('ln1qwzwlp7evj325cfh8hlm3l3awsu9klf78v9p82r93ehn4a2ddx65s66awg5'))
-
-    def test_split_host_port(self):
-        self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
-        self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
-        self.assertEqual(split_host_port("[2601:602:8800:9a:dc59:a4ff:fede:24a9]:9735"), ("2601:602:8800:9a:dc59:a4ff:fede:24a9", "9735"))
-        self.assertEqual(split_host_port("[2601:602:8800::a4ff:fede:24a9]:9735"), ("2601:602:8800::a4ff:fede:24a9", "9735"))
-        self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
-        self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
-        self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))
-        self.assertEqual(split_host_port("127.0.0.1"), ("127.0.0.1", "9735"))
-        # accepted by getaddrinfo but not ipaddress.ip_address
-        self.assertEqual(split_host_port("127.0.0:8000"), ("127.0.0", "8000"))
-        self.assertEqual(split_host_port("127.0.0"), ("127.0.0", "9735"))
-        self.assertEqual(split_host_port("electrum.org:8000"), ("electrum.org", "8000"))
-        self.assertEqual(split_host_port("electrum.org"), ("electrum.org", "9735"))
-
-        with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.org:8000:")
-        with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.org:")
-
-    def test_extract_nodeid(self):
-        pubkey1 = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-        with self.assertRaises(ConnStringFormatError):
-            extract_nodeid("00" * 32 + "@localhost")
-        with self.assertRaises(ConnStringFormatError):
-            extract_nodeid("00" * 33 + "@")
-        # pubkey + host
-        self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
-        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44"), (pubkey1, "11.22.33.44"))
-        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]"), (pubkey1, "[2001:41d0:e:734::1]"))
-        # pubkey + host + port
-        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44:5555"), (pubkey1, "11.22.33.44:5555"))
-        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]:8888"), (pubkey1, "[2001:41d0:e:734::1]:8888"))
-        # just pubkey
-        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}"), (pubkey1, None))
-        # bolt11 invoice
-        self.assertEqual(extract_nodeid("lnbc241ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qypqszrwfgrl5k3rt4q4mclc8t00p2tcjsf9pmpcq6lu5zhmampyvk43fk30eqpdm8t5qmdpzan25aqxqaqdzmy0smrtduazjcxx975vz78ccpx0qhev"),
-                         (bfh("03e7156ae33b0a208d0744199163177e909e80176e55d97a2f221ede0f934dd9ad"), None))
 
     def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
