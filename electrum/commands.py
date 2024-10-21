@@ -61,7 +61,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
-from .lnutil import extract_nodeid
+from .lntransport import extract_nodeid
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION

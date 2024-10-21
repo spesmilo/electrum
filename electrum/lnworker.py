@@ -49,7 +49,7 @@ from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress, UnrelatedTransactionException
 from .logging import Logger
-from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
+from .lntransport import LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid, ConnStringFormatError
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .lnchannel import Channel, AbstractChannel
@@ -59,9 +59,9 @@ from . import lnutil
 from .lnutil import funding_output_script
 from .lnutil import serialize_htlc_key, deserialize_htlc_key
 from .bitcoin import DummyAddress
-from .lnutil import (Outpoint, LNPeerAddr,
-                     get_compressed_pubkey_from_bech32, extract_nodeid,
-                     PaymentFailure, split_host_port, ConnStringFormatError,
+from .lnutil import (Outpoint,
+                     get_compressed_pubkey_from_bech32,
+                     PaymentFailure,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,

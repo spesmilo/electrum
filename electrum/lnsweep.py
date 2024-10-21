@@ -8,6 +8,7 @@ from enum import Enum, auto
 import electrum_ecc as ecc
 
 from .util import bfh
+from .crypto import privkey_to_pubkey
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from .invoices import PR_PAID
 from . import descriptor
@@ -15,7 +16,7 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel, UpdateAddHtlc,
                      LOCAL, REMOTE, make_htlc_output_witness_script,
-                     get_ordered_channel_configs, privkey_to_pubkey, get_per_commitment_secret_from_seed,
+                     get_ordered_channel_configs, get_per_commitment_secret_from_seed,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction)
 from .transaction import (Transaction, TxOutput, PartialTransaction, PartialTxInput,

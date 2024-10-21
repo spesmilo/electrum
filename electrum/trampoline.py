@@ -6,7 +6,8 @@ from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, 
 from .lnutil import LnFeatures, PaymentFeeBudget
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
-from .lnutil import NoPathFound, LNPeerAddr
+from .lnutil import NoPathFound
+from .lntransport import LNPeerAddr
 from . import constants
 from .logging import get_logger
 

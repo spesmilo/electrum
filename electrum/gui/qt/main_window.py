@@ -72,7 +72,7 @@ from electrum.network import Network, UntrustedServerReturnedError, NetworkExcep
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.lnutil import extract_nodeid, ConnStringFormatError
+from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
 from electrum.submarine_swaps import SwapServerError
 

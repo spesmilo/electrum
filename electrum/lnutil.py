@@ -13,7 +13,6 @@ import sys
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig, ECPubkey, string_to_number
 import attr
-from aiorpcx import NetAddress
 
 from .util import bfh, inv_dict, UserFacingException
 from .util import list_enabled_bits
@@ -414,10 +413,7 @@ class HtlcLog(NamedTuple):
 
 
 class LightningError(Exception): pass
-class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
-class HandshakeFailed(LightningError): pass
-class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
@@ -564,8 +560,6 @@ def secret_to_pubkey(secret: int) -> bytes:
     assert type(secret) is int
     return ecc.ECPrivkey.from_secret_scalar(secret).get_public_key_bytes(compressed=True)
 
-def privkey_to_pubkey(priv: bytes) -> bytes:
-    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
 
 def derive_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
     p = ecc.ECPubkey(basepoint) + ecc.GENERATOR * ecc.string_to_number(sha256(per_commitment_point + basepoint))
@@ -1121,10 +1115,6 @@ def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'AbstractChannel') -> in
                                funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
                                fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)
 
-def get_ecdh(priv: bytes, pub: bytes) -> bytes:
-    pt = ECPubkey(pub) * string_to_number(priv)
-    return sha256(pt.get_public_key_bytes())
-
 
 class LnFeatureContexts(enum.Flag):
     INIT = enum.auto()
@@ -1480,54 +1470,6 @@ def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> byte
     return sha256(bytes(modified))
 
 
-class LNPeerAddr:
-    # note: while not programmatically enforced, this class is meant to be *immutable*
-
-    def __init__(self, host: str, port: int, pubkey: bytes):
-        assert isinstance(host, str), repr(host)
-        assert isinstance(port, int), repr(port)
-        assert isinstance(pubkey, bytes), repr(pubkey)
-        try:
-            net_addr = NetAddress(host, port)  # this validates host and port
-        except Exception as e:
-            raise ValueError(f"cannot construct LNPeerAddr: invalid host or port (host={host}, port={port})") from e
-        # note: not validating pubkey as it would be too expensive:
-        # if not ECPubkey.is_pubkey_bytes(pubkey): raise ValueError()
-        self.host = host
-        self.port = port
-        self.pubkey = pubkey
-        self._net_addr = net_addr
-
-    def __str__(self):
-        return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
-
-    @classmethod
-    def from_str(cls, s):
-        node_id, rest = extract_nodeid(s)
-        host, port = split_host_port(rest)
-        return LNPeerAddr(host, int(port), node_id)
-
-    def __repr__(self):
-        return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'
-
-    def net_addr(self) -> NetAddress:
-        return self._net_addr
-
-    def net_addr_str(self) -> str:
-        return str(self._net_addr)
-
-    def __eq__(self, other):
-        if not isinstance(other, LNPeerAddr):
-            return False
-        return (self.host == other.host
-                and self.port == other.port
-                and self.pubkey == other.pubkey)
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __hash__(self):
-        return hash((self.host, self.port, self.pubkey))
 
 
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
@@ -1557,57 +1499,8 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
     return tx
 
 
-def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as string
-    ipv6  = re.compile(r'\[(?P<host>[:0-9a-f]+)\](?P<port>:\d+)?$')
-    other = re.compile(r'(?P<host>[^:]+)(?P<port>:\d+)?$')
-    m = ipv6.match(host_port)
-    if not m:
-        m = other.match(host_port)
-    if not m:
-        raise ConnStringFormatError(_('Connection strings must be in <node_pubkey>@<host>:<port> format'))
-    host = m.group('host')
-    if m.group('port'):
-        port = m.group('port')[1:]
-    else:
-        port = '9735'
-    try:
-        int(port)
-    except ValueError:
-        raise ConnStringFormatError(_('Port number must be decimal'))
-    return host, port
 
 
-def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
-    """Takes a connection-string-like str, and returns a tuple (node_id, rest),
-    where rest is typically a host (with maybe port). Examples:
-    - extract_nodeid(pubkey@host:port) == (pubkey, host:port)
-    - extract_nodeid(pubkey@host) == (pubkey, host)
-    - extract_nodeid(pubkey) == (pubkey, None)
-    - extract_nodeid(bolt11_invoice) == (pubkey, None)
-    Can raise ConnStringFormatError.
-    """
-    rest = None
-    try:
-        # connection string?
-        nodeid_hex, rest = connect_contents.split("@", 1)
-    except ValueError:
-        try:
-            # invoice?
-            invoice = lndecode(connect_contents)
-            nodeid_bytes = invoice.pubkey.serialize()
-            nodeid_hex = nodeid_bytes.hex()
-        except Exception:
-            # node id as hex?
-            nodeid_hex = connect_contents
-    if rest == '':
-        raise ConnStringFormatError(_('At least a hostname must be supplied after the at symbol.'))
-    try:
-        node_id = bfh(nodeid_hex)
-        if len(node_id) != 33:
-            raise Exception()
-    except Exception:
-        raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
-    return node_id, rest
 
 
 # key derivation

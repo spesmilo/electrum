@@ -43,7 +43,8 @@ from .sql_db import SqlDB, sql
 from . import constants, util
 from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException
 from .logging import Logger
-from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
+from .lntransport import LNPeerAddr
+from .lnutil import (format_short_channel_id, ShortChannelID,
                      validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
