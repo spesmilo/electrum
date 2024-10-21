@@ -46,9 +46,9 @@ class WizardTestCase(ElectrumTestCase):
         self.plugins.load_internal_plugin('trustedcoin')
 
     def tearDown(self):
-        super().tearDown()
         self.plugins.stop()
         self.plugins.stopped_event.wait()
+        super().tearDown()
 
 
 class ServerConnectWizardTestCase(WizardTestCase):
