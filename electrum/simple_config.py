@@ -991,6 +991,11 @@ class SimpleConfig(Logger):
         short_desc=lambda: _('Send change to Lightning'),
         long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
     )
+    WALLET_SORT_TX_OUTPUTS = ConfigVar(
+        'sort_tx_outputs', default=True, type_=bool,
+        short_desc=lambda: _('Sort transaction outputs'),
+        long_desc=lambda: _('Provides protection against client fingerprinting, but smart-contract like protocols can depend on UTXO ordering'),
+    )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
     FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)

@@ -1933,7 +1933,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
             (x,i) = i_max[-1]
             outputs[i].value += (amount - distr_amount)
-            tx = PartialTransaction.from_io(list(coins), list(outputs))
+            tx = PartialTransaction.from_io(list(coins), list(outputs), BIP69_sort = self.config.WALLET_SORT_TX_OUTPUTS)
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
