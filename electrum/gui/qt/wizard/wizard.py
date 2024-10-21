@@ -217,8 +217,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
             else:
                 self.prev()  # rollback the submit above
         else:
-            next = self.submit(wd)
-            self.load_next_component(next.view, next.wizard_data, next.params)
+            view = self.submit(wd)
+            self.load_next_component(view.view, view.wizard_data, view.params)
 
     def start_wizard(self) -> 'WizardViewState':
         self.start()
@@ -227,7 +227,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
     def view_to_component(self, view) -> QWidget:
         return self.navmap[view]['gui']
 
-    def submit(self, wizard_data) -> dict:
+    def submit(self, wizard_data) -> 'WizardViewState':
         wdata = wizard_data.copy()
         view = self.resolve_next(self._current.view, wdata)
         return view
