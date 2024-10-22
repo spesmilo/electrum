@@ -518,7 +518,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.isLightningChanged.emit()
         self.dataChanged.emit()
 
-    @auth_protect()
+    @auth_protect(message=_('Sign on-chain transaction?'))  # FIXME auth msg cannot be explicit due to "broadcast" param
     def sign(self, tx, *, broadcast: bool = False, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[], None] = None):
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast, on_success), partial(self.on_sign_failed, on_failure))
         if sign_hook:
