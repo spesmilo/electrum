@@ -267,6 +267,19 @@ class TxFeeSlider(FeeSlider):
             })
         self.outputs = outputs
 
+    def update_fee_warning_from_tx(self, *, tx: PartialTransaction, invoice_amt: Optional[int]):
+        if invoice_amt is None:
+            invoice_amt = sum([txo.value for txo in tx.outputs() if not txo.is_mine])
+            if invoice_amt == 0:
+                invoice_amt = tx.output_value()
+        fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
+            invoice_amt=invoice_amt, tx_size=tx.estimated_size(), fee=tx.get_fee())
+        if fee_warning_tuple:
+            allow_send, long_warning, short_warning = fee_warning_tuple
+            self.warning = _('Warning') + ': ' + long_warning
+        else:
+            self.warning = ''
+
 
 class QETxFinalizer(TxFeeSlider):
     _logger = get_logger(__name__)
@@ -385,13 +398,7 @@ class QETxFinalizer(TxFeeSlider):
             x_fee_address, x_fee_amount = x_fee
             self.extraFee = QEAmount(amount_sat=x_fee_amount)
 
-        fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
-            invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
-        if fee_warning_tuple:
-            allow_send, long_warning, short_warning = fee_warning_tuple
-            self.warning = _('Warning') + ': ' + long_warning
-        else:
-            self.warning = ''
+        self.update_fee_warning_from_tx(tx=tx, invoice_amt=amount)
 
         self._valid = True
         self.validChanged.emit()
@@ -603,16 +610,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._tx.set_rbf(self.rbf)
 
         self.update_from_tx(self._tx)
-
-        # TODO: deduce amount sent?
-        # TODO: we don't handle send-max txs correctly yet
-        # fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
-        #     invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
-        # if fee_warning_tuple:
-        #     allow_send, long_warning, short_warning = fee_warning_tuple
-        #     self.warning = long_warning
-        # else:
-        #     self.warning = ''
+        self.update_fee_warning_from_tx(tx=self._tx, invoice_amt=None)
 
         self._valid = True
         self.validChanged.emit()
@@ -709,6 +707,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         self._tx.set_rbf(self.rbf)
 
         self.update_from_tx(self._tx)
+        self.update_fee_warning_from_tx(tx=self._tx, invoice_amt=None)
 
         self._valid = True
         self.validChanged.emit()
@@ -952,14 +951,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         self.effectiveAmountChanged.emit()
 
         self.update_from_tx(tx)
-
-        fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
-            invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
-        if fee_warning_tuple:
-            allow_send, long_warning, short_warning = fee_warning_tuple
-            self.warning = _('Warning') + ': ' + long_warning
-        else:
-            self.warning = ''
+        self.update_fee_warning_from_tx(tx=self._tx, invoice_amt=amount)
 
         self._valid = True
         self.validChanged.emit()
