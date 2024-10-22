@@ -1,3 +1,8 @@
+# Release 4.5.8 (Oct 23, 2024)
+ * Qt Desktop GUI:
+   - fix: regression: bump_fee and dscancel dialogs erroring (#9273)
+
+
 # Release 4.5.7 (Oct 21, 2024)
  * General:
    - new: add new historical exchange rate providers: Bitfinex and Bitstamp
