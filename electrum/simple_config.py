@@ -991,10 +991,17 @@ class SimpleConfig(Logger):
         short_desc=lambda: _('Send change to Lightning'),
         long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
     )
+    # TODO: once randomizing transaction outputs is implemented, replace the language here to randomize
     WALLET_SORT_TX_OUTPUTS = ConfigVar(
         'sort_tx_outputs', default=True, type_=bool,
-        short_desc=lambda: _('Sort transaction outputs'),
-        long_desc=lambda: _('Provides protection against client fingerprinting, but smart-contract like protocols can depend on UTXO ordering'),
+        short_desc=lambda: _('Sort transaction outputs (BIP-69)'),
+        long_desc=lambda: _("""Transaction outputs can be arbitrarily sorted, and transfers are still going to work.
+
+This means that from the ordering, one could deduce the client that was used to generate the transaction.
+
+By having a normalized order for the outputs of a transaction, the BIP-69 standard makes this fingerprinting impossible.
+
+This option is enabled by default, as it increases privacy, and it only should be turned off, if the generated transaction has to have a specific output ordering."""),
     )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
