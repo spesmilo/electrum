@@ -61,7 +61,7 @@ class TxEditor(WindowModalDialog):
     def __init__(self, *, title='',
                  window: 'ElectrumWindow',
                  make_tx,
-                 output_value: Union[int, str] = None,
+                 output_value: Union[int, str],
                  allow_preview=True):
 
         WindowModalDialog.__init__(self, window, title=title)
