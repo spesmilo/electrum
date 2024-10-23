@@ -82,6 +82,11 @@ ElDialog {
                     font.family: FixedFont
                     wrapMode: Text.Wrap
                     placeholderText: qsTr('Paste or scan node uri/pubkey')
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    onTextChanged: {
+                        if (activeFocus)
+                            channelopener.connectStr = text
+                    }
                     onActiveFocusChanged: {
                         if (!activeFocus)
                             channelopener.connectStr = text
@@ -96,9 +101,17 @@ ElDialog {
                         icon.height: constants.iconSizeMedium
                         icon.width: constants.iconSizeMedium
                         onClicked: {
-                            if (channelopener.validateConnectString(AppController.clipboardToText())) {
-                                channelopener.connectStr = AppController.clipboardToText()
+                            var cliptext = AppController.clipboardToText()
+                            if (!cliptext)
+                                return
+                            if (channelopener.validateConnectString(cliptext)) {
+                                channelopener.connectStr = cliptext
                                 node.text = channelopener.connectStr
+                            } else {
+                                var dialog = app.messageDialog.createObject(app, {
+                                    text: qsTr('Invalid node-id or connect string')
+                                })
+                                dialog.open()
                             }
                         }
                     }
@@ -109,12 +122,17 @@ ElDialog {
                         scale: 1.2
                         onClicked: {
                             var dialog = app.scanDialog.createObject(app, {
-                                hint: qsTr('Scan a channel connect string')
+                                hint: qsTr('Scan a node-id or a connect string')
                             })
                             dialog.onFound.connect(function() {
                                 if (channelopener.validateConnectString(dialog.scanData)) {
                                     channelopener.connectStr = dialog.scanData
                                     node.text = channelopener.connectStr
+                                } else {
+                                    var errdialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Invalid node-id or connect string')
+                                    })
+                                    errdialog.open()
                                 }
                                 dialog.close()
                             })

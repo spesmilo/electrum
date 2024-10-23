@@ -240,7 +240,8 @@ class QEAppController(BaseCrashReporter, QObject):
 
     @pyqtSlot(result='QString')
     def clipboardToText(self):
-        return QGuiApplication.clipboard().text()
+        clip = QGuiApplication.clipboard()
+        return clip.text() if clip.mimeData().hasText() else ''
 
     @pyqtSlot(str, result=QObject)
     def plugin(self, plugin_name):
