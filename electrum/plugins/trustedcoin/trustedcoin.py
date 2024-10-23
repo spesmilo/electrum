@@ -458,9 +458,11 @@ class TrustedCoinPlugin(BasePlugin):
         if not wallet.keystores['x3'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
+
         def wrapper(tx):
             assert tx
             self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
+
         return wrapper
 
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure) -> None:
