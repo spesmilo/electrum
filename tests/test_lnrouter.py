@@ -6,8 +6,10 @@ import asyncio
 from typing import Optional
 
 from electrum import util
+from electrum.channel_db import NodeInfo
+from electrum.onion_message import is_onion_message_node
 from electrum.util import bfh
-from electrum.lnutil import ShortChannelID
+from electrum.lnutil import ShortChannelID, LnFeatures
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode, OnionPacket)
@@ -26,6 +28,17 @@ def channel(number: int) -> ShortChannelID:
 
 def node(character: str) -> bytes:
     return b'\x02' + f'{character}'.encode() * 32
+
+
+def alias(character: str) -> bytes:
+    return (character * 8).encode('utf-8')
+
+
+def node_features(extra: LnFeatures = None) -> bytes:
+    lnf = LnFeatures(0) | LnFeatures.VAR_ONION_OPT
+    if extra:
+        lnf |= extra
+    return lnf.to_bytes(8, 'big')
 
 
 class Test_LNRouter(ElectrumTestCase):
@@ -63,12 +76,14 @@ class Test_LNRouter(ElectrumTestCase):
         A -6-> D -4-> C -1-> B -2-> E
         A -3-> B -1-> C -4-> D -5-> E
         """
+
         class fake_network:
             config = self.config
             asyncio_loop = util.get_asyncio_loop()
             trigger_callback = lambda *args: None
             register_callback = lambda *args: None
             interface = None
+
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         fake_network.channel_db.data_loaded.set()
         self.cdb = fake_network.channel_db
@@ -124,8 +139,46 @@ class Test_LNRouter(ElectrumTestCase):
             'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
             'len': 0, 'features': b''
         }, trusted=True)
+
+        self.cdb.add_node_announcements({
+            'node_id': node('a'),
+            'alias': alias('a'),
+            'addresses': [],
+            'features': node_features(LnFeatures.OPTION_ONION_MESSAGE_OPT),
+            'timestamp': 0
+        })
+        self.cdb.add_node_announcements({
+            'node_id': node('b'),
+            'alias': alias('b'),
+            'addresses': [],
+            'features': node_features(),
+            'timestamp': 0
+        })
+        self.cdb.add_node_announcements({
+            'node_id': node('c'),
+            'alias': alias('c'),
+            'addresses': [],
+            'features': node_features(LnFeatures.OPTION_ONION_MESSAGE_OPT),
+            'timestamp': 0
+        })
+        self.cdb.add_node_announcements({
+            'node_id': node('d'),
+            'alias': alias('d'),
+            'addresses': [],
+            'features': node_features(LnFeatures.OPTION_ONION_MESSAGE_OPT),
+            'timestamp': 0
+        })
+        self.cdb.add_node_announcements({
+            'node_id': node('e'),
+            'alias': alias('e'),
+            'addresses': [],
+            'features': node_features(),
+            'timestamp': 0
+        })
+
         def add_chan_upd(payload):
             self.cdb.add_channel_update(payload, verify=False)
+
         add_chan_upd({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(2), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 99, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
@@ -157,6 +210,27 @@ class Test_LNRouter(ElectrumTestCase):
         route = self.path_finder.create_route_from_path(path)
         self.assertEqual(node('b'), route[0].node_id)
         self.assertEqual(channel(3), route[0].short_channel_id)
+
+    async def test_find_path_for_payment_with_node_filter(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        def node_filter(node_info: 'NodeInfo'):
+            return node_info.node_id != node('b')
+
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send,
+            node_filter=node_filter)
+        self.assertEqual([
+            PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
+            PathEdge(start_node=node('d'), end_node=node('e'), short_channel_id=channel(5)),
+        ], path)
+
+        route = self.path_finder.create_route_from_path(path)
+        self.assertEqual(node('d'), route[0].node_id)
+        self.assertEqual(channel(6), route[0].short_channel_id)
 
     async def test_find_path_liquidity_hints(self):
         self.prepare_graph()
@@ -372,7 +446,7 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619f7f3416a5aa36dc7eeb3ec6d421e9615471ab858ba970cd3cceb768b44e692be2f390c0b7fe70122abae84d7801db070dfb1638cd8d263072206dbed0234f6505e21e282abd8587124c572aad8de04610a136d6c71a7648c0ef66f1b3655d8a9eea1f92349132c93befbd6c37dbfc55615814ae09e4cbef721c01b487007811bbbfdc1fc7bd869aeb70eb08b4140ff5f501394b3653ada2a3b36a263535ea421d26818afb278df46abcec093305b715cac22b0b03645f8f4797cf2987b1bf4bfdd9ed8648ed42ed1a831fc36ccd45416a132580281ddac4e7470e4d2afd675baad9282ec6335403a73e1391427e330996c834db93848b4ae29dd975f678b2f5155ad6865ca23190725d4b7238fb44f0e3762dd59091b45c97d45df8164a15d9ca0329ec76f957b0a0e49ae372154620708df5c0fa991f0dd12b6bff1ebaf9e2376bb64bc24713f7c57da569bcd9c43a50c088416564b786a87d1f40936a051a3dbfe023bd867a5e66148b61cdd24a79f8c18682150e55aa6969ce9becf51f7c69e72deafcd0659f6be4f78463eaef8716e56615c77b3fbea8190806359909dcbec13c1592523b3d2985ec3e83d42cb7286a66a22f58704ddf6979ceb6883ab4ad8ac99d30251035189ffd514e03ce1576844513d66965d4adfc2523f4eee0dede229ab96303e31348c72bc0c8c816c666a904e5ccbabadf5a919720438f4a14dbd4a802f8d4b942f0ca8572f59644c9ac1912c8c8efefc4afa7f19e27411d46b7541c55985e28ce5cd7620b335fea51de55fa00ef977e8522181ad19e5e04f93bcfc83a36edd7e96fe48e846f2e54fe7a7090fe8e46ba72123e1cdee0667777c38c4930e50401074d8ab31a9717457fcefaa46323003af553bee2b49ea7f907eb2ff3301463e64a8c53975c853bbdd2956b9001b5ce1562264963fce84201daaf752de6df7ca31291226969c9851d1fc4ea88ca67d38c38587c2cdd8bc4d3f7bdf705497a1e054246f684554b3b8dfac43194f1eadec7f83b711e663b5645bde6d7f8cefb59758303599fed25c3b4d2e4499d439c915910dd283b3e7118320f1c6e7385009fbcb9ae79bab72a85e644182b4dafc0a173241f2ae68ae6a504f17f102da1e91de4548c7f5bc1c107354519077a4e83407f0d6a8f0975b4ac0c2c7b30637a998dda27b56b56245371296b816876b859677bcf3473a07e0f300e788fdd60c51b1626b46050b182457c6d716994847aaef667ca45b2cede550c92d336ff29ce6effd933b875f81381cda6e59e9727e728a58c0b3e74035beeeb639ab7463744322bf40138b81895e9a8e8850c9513782dc7a79f04380c216cb177951d8940d576486b887a232fcd382adcbd639e70af0c1a08bcf1405496606fce4645aef10d769dc0c010a8a433d8cd24d5943843a89cdbc8d16531db027b312ab2c03a7f1fdb7f2bcb128639c49e86705c948137fd42d0080fda4be4e9ee812057c7974acbf0162730d3b647b355ac1a5adbb2993832eba443b7c9b5a0ae1fc00a6c0c2b0b65b9019690565739d6439bf602066a3a9bd9c67b83606de51792d25ae517cbbdf6e1827fa0e8b2b5c6023cbb1e9f0e10b786dc6fa154e282fd9c90b8d46ca685d0f4434760035073c92d131564b6845ef57457488add4f709073bbb41f5f31f8226904875a9fd9e1b7a2901e71426104d7a298a05af0d4ab549fbd69c539ebe64949a9b6088f16e2e4bc827c305cb8d64536b8364dc3d5f7519c3b431faa38b47a958cf0c6dcabf205280693abf747c262f44cd6ffa11b32fc38d4f9c3631d554d8b57389f1390ac65c06357843ee6d9f289bb054ef25de45c5149c090fe6ddcd4095696dcc9a5cfc09c8bdfd5b83a153'),
                          packet.to_bytes())
         for i, privkey in enumerate(payment_path_privkeys):
-            processed_packet = process_onion_packet(packet, associated_data, privkey)
+            processed_packet = process_onion_packet(packet, privkey, associated_data=associated_data)
             self.assertEqual(hops_data[i].to_bytes(), processed_packet.hop_data.to_bytes())
             packet = processed_packet.next_packet
 
@@ -398,3 +472,32 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(4, index_of_sender)
         self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, failure_msg.code)
         self.assertEqual(b'', failure_msg.data)
+
+    async def test_find_path_for_onion_message(self):
+        self.prepare_graph()
+        amount_to_send = 1000  # we route along channels, and we use find_path_for_payment, so dummy this.
+
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('c'),
+            invoice_amount_msat=amount_to_send,
+            node_filter=is_onion_message_node)
+        self.assertEqual([
+            PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
+            PathEdge(start_node=node('d'), end_node=node('c'), short_channel_id=channel(4)),
+        ], path)
+
+        # impossible routes
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('e'),
+            nodeB=node('a'),
+            invoice_amount_msat=amount_to_send,
+            node_filter=is_onion_message_node)
+        self.assertIsNone(path)
+
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send,
+            node_filter=is_onion_message_node)
+        self.assertIsNone(path)
