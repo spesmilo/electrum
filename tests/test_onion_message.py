@@ -1,12 +1,12 @@
 import io
 
-from electrum import ecc
+import electrum_ecc as ecc
 from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, OnionHopsDataSingle, OnionPacket,
                               process_onion_packet, get_bolt04_onion_key, encrypt_encrypted_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE,
                               HOPS_DATA_SIZE, InvalidPayloadSize)
-from electrum.lnutil import get_ecdh
+from electrum.crypto import get_ecdh
 from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data
 from electrum.util import bfh
 

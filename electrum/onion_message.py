@@ -29,15 +29,16 @@ import threading
 
 from typing import TYPE_CHECKING, Optional, List, Sequence
 
-from electrum import ecc
+import electrum_ecc as ecc
+
 from electrum.lnrouter import PathEdge
 from electrum.logging import get_logger, Logger
-from electrum.crypto import sha256
+from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, decrypt_encrypted_data_tlv, encrypt_encrypted_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet)
-from electrum.lnutil import get_ecdh, LnFeatures
+from electrum.lnutil import LnFeatures
 from electrum.util import OldTaskGroup, now
 
 if TYPE_CHECKING:
