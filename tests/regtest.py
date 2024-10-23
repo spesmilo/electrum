@@ -89,6 +89,9 @@ class TestLightningSwapserver(TestLightning):
     def test_swapserver_success(self):
         self.run_shell(['swapserver_success'])
 
+    def test_swapserver_forceclose(self):
+        self.run_shell(['swapserver_forceclose'])
+
     def test_swapserver_refund(self):
         self.run_shell(['swapserver_refund'])
 

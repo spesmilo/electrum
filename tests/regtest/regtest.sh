@@ -229,6 +229,27 @@ if [[ $1 == "swapserver_success" ]]; then
 fi
 
 
+if [[ $1 == "swapserver_forceclose" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='')
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates swap"
+    dryrun=$($alice reverse_swap 0.02 dryrun)
+    onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
+    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    echo $swap | jq
+    funding_txid=$(echo $swap| jq -r ".funding_txid")
+    $bob close_channel --force $channel
+    new_blocks 1
+    wait_until_spent $funding_txid 0 # alice reveals preimage
+    new_blocks 1
+    wait_for_balance bob 0.999
+fi
+
+
 if [[ $1 == "swapserver_refund" ]]; then
     $alice setconfig test_swapserver_refund true
     wait_for_balance alice 1

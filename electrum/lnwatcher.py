@@ -414,6 +414,16 @@ class LNWalletWatcher(LNWatcher):
         self.lnworker = lnworker
         LNWatcher.__init__(self, lnworker.wallet.adb, network)
 
+    @event_listener
+    async def on_event_blockchain_updated(self, *args):
+        # overload parent method with cache invalidation
+        # we invalidate the cache on each new block because
+        # some processes affect the list of sweep transactions
+        # (hold invoice preimage revealed, MPP completed, etc)
+        for chan in self.lnworker.channels.values():
+            chan._sweep_info.clear()
+        await self.trigger_callbacks()
+
     def diagnostic_name(self):
         return f"{self.lnworker.wallet.diagnostic_name()}-LNW"
 
@@ -441,6 +451,7 @@ class LNWalletWatcher(LNWatcher):
         chan_id_for_log = chan.get_id_for_log()
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
+        self.logger.info(f"do_breach_remedy: {[x.name for x in sweep_info_dict.values()]}")
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
