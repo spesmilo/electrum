@@ -488,6 +488,14 @@ class AbstractChannel(Logger, ABC):
     def can_be_deleted(self) -> bool:
         pass
 
+    @abstractmethod
+    def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
+        """Returns a list of addrs that the wallet should not use, to avoid address-reuse.
+        Typically, these addresses are wallet.is_mine, but that is not guaranteed,
+        in which case the wallet can just ignore those.
+        """
+        pass
+
 
 class ChannelBackup(AbstractChannel):
     """
@@ -638,6 +646,19 @@ class ChannelBackup(AbstractChannel):
         if self.get_state() == ChannelState.FUNDED:
             ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
         return ret
+
+    def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
+        if self.is_imported:
+            # For v1 imported cbs, we have the local_payment_pubkey, which is
+            # directly used as p2wpkh() of static_remotekey channels.
+            # (for v0 imported cbs, the correct local_payment_pubkey is missing, and so
+            #  we might calculate a different address here, which might not be wallet.is_mine,
+            #  but that should be harmless)
+            our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+            return [to_remote_address]
+        else:  # on-chain backup
+            return []
 
 
 class Channel(AbstractChannel):
