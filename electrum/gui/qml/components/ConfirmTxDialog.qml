@@ -264,7 +264,7 @@ ElDialog {
             Layout.fillWidth: true
             text: (Daemon.currentWallet.isWatchOnly || !Daemon.currentWallet.canSignWithoutCosigner)
                     ? qsTr('Finalize')
-                    : qsTr('Pay')
+                    : qsTr('Pay...')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid
             onClicked: doAccept()
