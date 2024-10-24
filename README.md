@@ -27,10 +27,10 @@ Electrum from its root directory without installing it on your
 system; all the pure python dependencies are included in the 'packages'
 directory. You will need to install a few system dependencies:
 
-To use the desktop GUI (Qt5):
+To use the desktop GUI (Qt6):
 
 ```
-$ sudo apt-get install python3-pyqt5
+$ sudo apt-get install python3-pyqt6
 ```
 
 Due to the need for fast symmetric ciphers,
@@ -128,7 +128,7 @@ $ pip install -e .[gui,crypto,hardware]
 
 Create translations (optional):
 ```
-$ sudo apt-get install python3-requests gettext qttools5-dev-tools
+$ sudo apt-get install python3-requests gettext qt6-l10n-tools
 $ ./contrib/pull_locale
 ```
 
