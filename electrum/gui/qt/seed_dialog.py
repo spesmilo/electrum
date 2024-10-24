@@ -94,6 +94,7 @@ class SeedWidget(QWidget):
 
         self.options = options
         self.config = config
+        self.msg = msg
 
         if options:
             self.seed_types = [
@@ -223,7 +224,7 @@ class SeedWidget(QWidget):
 
     def update_seed_warning(self):
         if self.seed_type == 'bip39':
-            msg = ' '.join([
+            message = ' '.join([
                 '<b>' + _('Warning') + ':</b>  ',
                 _('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
                 _('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
@@ -231,15 +232,18 @@ class SeedWidget(QWidget):
                 _('We do not guarantee that BIP39 imports will always be supported in Electrum.'),
             ])
         elif self.seed_type == 'slip39':
-            msg = ' '.join([
+            message = ' '.join([
                 '<b>' + _('Warning') + ':</b>  ',
                 _('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
                 _('However, we do not generate SLIP39 seeds.'),
             ])
         else:
-            msg = ''
+            message = ''
 
-        self.seed_warning.setText(msg)
+        if self.msg:
+            self.seed_warning.setText(seed_warning_msg(self.seed_e.text()))
+        else:
+            self.seed_warning.setText(message)
 
     def initialize_completer(self):
         if self.seed_type != 'slip39':
