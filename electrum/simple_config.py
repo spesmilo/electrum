@@ -1195,6 +1195,11 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RECENTLY_OPEN_WALLET_FILES = ConfigVar('recently_open', default=None)
     IO_DIRECTORY = ConfigVar('io_dir', default=os.path.expanduser('~'), type_=str)
     WALLET_BACKUP_DIRECTORY = ConfigVar('backup_dir', default=None, type_=str)
+    WALLET_PATH = ConfigVar(
+        'wallet_path', default=None, type_=str,
+        short_desc=lambda: _('Default wallet location'),
+        long_desc=lambda: _('Location of the default wallet when no explicit wallet is selected'),
+    )
     CONFIG_PIN_CODE = ConfigVar('pin_code', default=None, type_=str)
     QR_READER_FLIP_X = ConfigVar('qrreader_flip_x', default=True, type_=bool)
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
