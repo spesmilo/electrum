@@ -87,10 +87,10 @@ WizardComponent {
             if (seed_variant_cb.currentValue == 'electrum') {
                 apply()
                 if (wiz.hasDuplicateMasterKeys(wizard_data)) {
-                    validationtext.text = qsTr('Error: duplicate master public key')
+                    _validationMessage = qsTr('Error: duplicate master public key')
                     return
                 } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
-                    validationtext.text = qsTr('Error: master public key types do not match')
+                    _validationMessage = qsTr('Error: master public key types do not match')
                     return
                 } else {
                     _seedValid = true
