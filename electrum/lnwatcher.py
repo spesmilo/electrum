@@ -176,14 +176,6 @@ class LNWatcher(Logger, EventListener):
         self.callbacks[address] = callback
 
     @event_listener
-    async def on_event_fee(self, *args):
-        await self.trigger_callbacks()
-
-    @event_listener
-    async def on_event_network_updated(self, *args):
-        await self.trigger_callbacks()
-
-    @event_listener
     async def on_event_blockchain_updated(self, *args):
         await self.trigger_callbacks()
 
