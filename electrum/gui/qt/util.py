@@ -1259,10 +1259,12 @@ def read_QIcon_from_bytes(b: bytes) -> QIcon:
     qp = read_QPixmap_from_bytes(b)
     return QIcon(qp)
 
+
 class IconLabel(QWidget):
     HorizontalSpacing = 2
-    def __init__(self, *, text='', final_stretch=True):
+    def __init__(self, *, text='', final_stretch=True, reverse=False, hide_if_empty=False):
         super(QWidget, self).__init__()
+        self.hide_if_empty = hide_if_empty
         size = max(16, font_height())
         self.icon_size = QSize(size, size)
         layout = QHBoxLayout()
@@ -1271,13 +1273,18 @@ class IconLabel(QWidget):
         self.icon = QLabel()
         self.label = QLabel(text)
         self.label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.label)
+        layout.addWidget(self.icon if reverse else self.label)
         layout.addSpacing(self.HorizontalSpacing)
-        layout.addWidget(self.icon)
+        layout.addWidget(self.label if reverse else self.icon)
         if final_stretch:
             layout.addStretch()
+        self.setText(text)
+
     def setText(self, text):
         self.label.setText(text)
+        if self.hide_if_empty:
+            self.setVisible(bool(text))
+
     def setIcon(self, icon):
         self.icon.setPixmap(icon.pixmap(self.icon_size))
         self.icon.repaint()  # macOS hack for #6269
