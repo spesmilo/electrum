@@ -223,6 +223,9 @@ class SeedWidget(QWidget):
         self.updated.emit()
 
     def update_seed_warning(self):
+        if self.msg:
+            return
+
         if self.seed_type == 'bip39':
             message = ' '.join([
                 '<b>' + _('Warning') + ':</b>  ',
@@ -240,10 +243,7 @@ class SeedWidget(QWidget):
         else:
             message = ''
 
-        if self.msg:
-            self.seed_warning.setText(seed_warning_msg(self.seed_e.text()))
-        else:
-            self.seed_warning.setText(message)
+        self.seed_warning.setText(message)
 
     def initialize_completer(self):
         if self.seed_type != 'slip39':
