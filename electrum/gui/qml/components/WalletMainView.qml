@@ -644,6 +644,14 @@ Item {
                     }
                     _confirmPaymentDialog.destroy()
                 }
+                onSignError: (message) => {
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Error'),
+                        text: [qsTr('Could not sign tx'), message].join('\n\n'),
+                        iconSource: '../../../icons/warning.png'
+                    })
+                    dialog.open()
+                }
             }
             // TODO: lingering confirmPaymentDialogs can raise exceptions in
             // the child finalizer when currentWallet disappears, but we need

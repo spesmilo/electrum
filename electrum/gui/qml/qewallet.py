@@ -3,7 +3,7 @@ import base64
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Optional, Any
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -518,41 +518,48 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.isLightningChanged.emit()
         self.dataChanged.emit()
 
-    @auth_protect(message=_('Sign on-chain transaction?'))  # FIXME auth msg cannot be explicit due to "broadcast" param
-    def sign(self, tx, *, broadcast: bool = False, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[], None] = None):
-        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast, on_success), partial(self.on_sign_failed, on_failure))
-        if sign_hook:
-            success = self.do_sign(tx, False)
-            if success:
-                self._logger.debug('plugin needs to sign tx too')
-                sign_hook(tx)
-                return
-        else:
-            success = self.do_sign(tx, broadcast)
+    @auth_protect(message=_('Sign and send on-chain transaction?'))
+    def sign_and_broadcast(self, tx, *,
+                           on_success: Callable[[Transaction], None] = None,
+                           on_failure: Callable[[Optional[Any]], None] = None) -> None:
+        self.do_sign(tx, True, on_success, on_failure)
 
-        if success:
-            if on_success:
-                on_success(tx)
-        else:
-            if on_failure:
-                on_failure()
+    @auth_protect(message=_('Sign on-chain transaction?'))
+    def sign(self, tx, *,
+             on_success: Callable[[Transaction], None] = None,
+             on_failure: Callable[[Optional[Any]], None] = None) -> None:
+        self.do_sign(tx, False, on_success, on_failure)
 
-    def do_sign(self, tx, broadcast):
+    def do_sign(self, tx, broadcast, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[Optional[Any]], None] = None):
+        # tc_sign_wrapper is only used by 2fa. don't pass on_failure handler, it is handled via otpFailed signal
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx,
+                             partial(self.on_sign_complete, broadcast, on_success),
+                             partial(self.on_sign_failed, None))
         try:
             # ignore_warnings=True, because UI checks and asks user confirmation itself
             tx = self.wallet.sign_transaction(tx, self.password, ignore_warnings=True)
         except BaseException as e:
             self._logger.error(f'{e!r}')
-            self.signFailed.emit(str(e))
+            self.signFailed.emit(str(e))  # TODO: remove, signal never used?
+            if on_failure:
+                on_failure(str(e))
+            return
 
         if tx is None:
             self._logger.info('did not sign')
-            return False
+            if on_failure:
+                on_failure()
+            return
+
+        if sign_hook:
+            self._logger.debug('plugin needs to sign tx too')
+            sign_hook(tx)
+            return
 
         txid = tx.txid()
         self._logger.debug(f'do_sign(), txid={txid}')
 
-        self.signSucceeded.emit(txid)
+        self.signSucceeded.emit(txid)  # TODO: remove, signal never used?
 
         if not tx.is_complete():
             self._logger.debug('tx not complete')
@@ -564,7 +571,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             # not broadcasted, so refresh history here
             self.historyModel.initModel(True)
 
-        return True
+        if on_success:
+            on_success(tx)
 
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
     def on_sign_complete(self, broadcast, cb: Callable[[Transaction], None] = None, tx: Transaction = None):

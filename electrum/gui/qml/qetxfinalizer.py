@@ -285,6 +285,7 @@ class QETxFinalizer(TxFeeSlider):
     _logger = get_logger(__name__)
 
     finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
+    signError = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None, *, make_tx=None, accept=None):
         super().__init__(parent)
@@ -426,7 +427,7 @@ class QETxFinalizer(TxFeeSlider):
             self.f_accept(self._tx)
             return
 
-        self._wallet.sign(self._tx, broadcast=True, on_success=partial(self.on_signed_tx, False))
+        self._wallet.sign_and_broadcast(self._tx, on_success=partial(self.on_signed_tx, False), on_failure=self.on_sign_failed)
 
     @pyqtSlot()
     def sign(self):
@@ -434,7 +435,7 @@ class QETxFinalizer(TxFeeSlider):
             self._logger.error('no valid tx')
             return
 
-        self._wallet.sign(self._tx, broadcast=False, on_success=partial(self.on_signed_tx, True))
+        self._wallet.sign(self._tx, on_success=partial(self.on_signed_tx, True), on_failure=self.on_sign_failed)
 
     def on_signed_tx(self, save: bool, tx: Transaction):
         self._logger.debug('on_signed_tx')
@@ -445,6 +446,10 @@ class QETxFinalizer(TxFeeSlider):
             else:
                 self._logger.error('Could not save tx')
         self.finished.emit(True, saved, tx.is_complete())
+
+    def on_sign_failed(self, msg: str = None):
+        self._logger.debug('on_sign_failed')
+        self.signError.emit(msg)
 
     @pyqtSlot(result='QVariantList')
     def getSerializedTx(self):

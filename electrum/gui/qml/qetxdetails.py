@@ -395,8 +395,10 @@ class QETxDetails(QObject, QtEventListener):
         if broadcast:
             self._wallet.broadcastSucceeded.connect(self.onBroadcastSucceeded)
             self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
+            self._wallet.sign_and_broadcast(self._tx, on_success=self.on_signed_tx)
+        else:
+            self._wallet.sign(self._tx, on_success=self.on_signed_tx)
 
-        self._wallet.sign(self._tx, broadcast=broadcast, on_success=self.on_signed_tx)
         # side-effect: signing updates self._tx
         # we rely on this for broadcast
 
