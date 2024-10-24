@@ -107,6 +107,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
 
+        self.setTabOrder(self.back_button, self.next_button)
+
         self.icon_filename = None
         self.set_icon('electrum.png')
 
@@ -127,6 +129,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         else:
             viewstate = self.start_wizard()
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
+        self.next_button.setFocus()
         # TODO: re-test if needed on macOS
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
