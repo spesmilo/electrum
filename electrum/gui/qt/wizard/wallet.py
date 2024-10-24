@@ -450,7 +450,6 @@ class WCCreateSeed(WalletWizardComponent):
             self.wizard_data['seed_type'] = self.seed_type
             self.wizard_data['seed_extend'] = self.seed_widget.is_ext
             self.wizard_data['seed_variant'] = 'electrum'
-            self.wizard_data['seed_extra_words'] = ''  # empty default
 
     def create_seed(self):
         self.busy = True
@@ -648,7 +647,6 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         else:
             cosigner_data['seed_type'] = self.seed_widget.seed_type
         cosigner_data['seed_extend'] = self.seed_widget.is_ext if self.can_passphrase else False
-        cosigner_data['seed_extra_words'] = ''  # empty default
 
 
 class WCScriptAndDerivation(WalletWizardComponent, Logger):
