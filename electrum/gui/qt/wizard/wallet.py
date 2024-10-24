@@ -29,7 +29,7 @@ from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
 from electrum.gui.qt.seed_dialog import SeedWidget, MSG_PASSPHRASE_WARN_ISSUE4566, KeysWidget
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
-                                  ChoiceWidget, MessageBoxMixin, icon_path)
+                                  ChoiceWidget, MessageBoxMixin, icon_path, IconLabel, read_QIcon)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -516,6 +516,12 @@ class WCEnterExt(WalletWizardComponent, Logger):
         self.ext_edit.textEdited.connect(self.on_text_edited)
         self.layout().addWidget(self.ext_edit)
         self.layout().addStretch(1)
+        self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
+        self.warn_label.setIcon(read_QIcon('warning.png'))
+        self.layout().addWidget(self.warn_label)
+
+    def on_ready(self):
+        self.validate()
 
     def on_text_edited(self, text):
         # TODO also for cosigners?
@@ -525,30 +531,10 @@ class WCEnterExt(WalletWizardComponent, Logger):
 
     def validate(self):
         self.apply()
-        text = self.ext_edit.text()
-        if len(text) == 0:
-            self.valid = False
-            return
 
-        cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-
-        if self.wizard_data['wallet_type'] == 'multisig':
-            if 'seed_variant' in cosigner_data and cosigner_data['seed_variant'] in ['bip39', 'slip39']:
-                # defer validation to when derivation path is known
-                self.valid = True
-            else:
-                if self.wizard.has_duplicate_masterkeys(self.wizard_data):
-                    self.logger.debug('Duplicate master keys!')
-                    # TODO: user feedback
-                    self.valid = False
-                elif self.wizard.has_heterogeneous_masterkeys(self.wizard_data):
-                    self.logger.debug('Heterogenous master keys!')
-                    # TODO: user feedback
-                    self.valid = False
-                else:
-                    self.valid = True
-        else:
-            self.valid = True
+        musig_valid, errortext = self.wizard.check_multisig_constraints(self.wizard_data)
+        self.valid = musig_valid
+        self.warn_label.setText(errortext)
 
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
@@ -567,8 +553,14 @@ class WCConfirmExt(WalletWizardComponent):
         self.layout().addWidget(self.ext_edit)
         self.layout().addStretch(1)
 
-    def on_text_edited(self, text):
-        self.valid = text == self.wizard_data['seed_extra_words']
+    def on_ready(self):
+        self.validate()
+
+    def on_text_edited(self, *args):
+        self.validate()
+
+    def validate(self):
+        self.valid = self.ext_edit.text() == self.wizard_data['seed_extra_words']
 
     def apply(self):
         pass
@@ -580,6 +572,8 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         Logger.__init__(self)
 
         self.layout().addWidget(WWLabel(_('Please enter your seed phrase in order to restore your wallet.')))
+        self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
+        self.warn_label.setIcon(read_QIcon('warning.png'))
 
         self.seed_widget = None
         self.can_passphrase = True
@@ -610,6 +604,8 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         self.layout().addWidget(self.seed_widget)
         self.layout().addStretch(1)
 
+        self.layout().addWidget(self.warn_label)
+
     def is_seed(self, x):
         # really only used for electrum seeds. bip39 and slip39 are validated in SeedWidget
         t = mnemonic.calc_seed_type(x)
@@ -635,10 +631,11 @@ class WCHaveSeed(WalletWizardComponent, Logger):
             return
 
         self.apply()
-        if not self.wizard.check_multisig_constraints(self.wizard_data)[0]:
-            # TODO: user feedback
+        musig_valid, errortext = self.wizard.check_multisig_constraints(self.wizard_data)
+        if not musig_valid:
             seed_valid = False
 
+        self.warn_label.setText(errortext)
         self.valid = seed_valid
 
     def apply(self):
@@ -661,6 +658,9 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
 
         self.choice_w = None
         self.derivation_path_edit = None
+
+        self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
+        self.warn_label.setIcon(read_QIcon('warning.png'))
 
     def on_ready(self):
         message1 = _('Choose the type of addresses in your wallet.')
@@ -736,6 +736,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
         on_choice_click(self.choice_w.selected_index)  # set default value for derivation path
 
         self.layout().addStretch(1)
+        self.layout().addWidget(self.warn_label)
 
     def validate(self):
         self.apply()
@@ -744,10 +745,12 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
         valid = is_bip32_derivation(cosigner_data['derivation_path'])
 
         if valid:
-            valid, error = self.wizard.check_multisig_constraints(self.wizard_data)
+            valid, errortext = self.wizard.check_multisig_constraints(self.wizard_data)
             if not valid:
-                # TODO: user feedback
-                self.logger.error(error)
+                self.logger.error(errortext)
+            self.warn_label.setText(errortext)
+        else:
+            self.warn_label.setText(_('Invalid derivation path'))
 
         self.valid = valid
 
@@ -825,6 +828,9 @@ class WCHaveMasterKey(WalletWizardComponent):
         self.label.setMinimumWidth(400)
         self.header_layout.addWidget(self.label)
 
+        self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
+        self.warn_label.setIcon(read_QIcon('warning.png'))
+
     def on_ready(self):
         if self.wizard_data['wallet_type'] == 'standard':
             self.label.setText(self.message_create)
@@ -840,10 +846,12 @@ class WCHaveMasterKey(WalletWizardComponent):
 
             def is_valid(x) -> bool:
                 if not keystore.is_bip32_key(x):
+                    self.warn_label.setText(_('Invalid key'))
                     return False
                 self.apply()
-                if not self.wizard.check_multisig_constraints(self.wizard_data)[0]:
-                    # TODO: user feedback
+                musig_valid, errortext = self.wizard.check_multisig_constraints(self.wizard_data)
+                self.warn_label.setText(errortext)
+                if not musig_valid:
                     return False
                 return True
         else:
@@ -858,6 +866,8 @@ class WCHaveMasterKey(WalletWizardComponent):
         self.keys_widget.validChanged.connect(key_valid_changed)
 
         self.layout().addWidget(self.keys_widget)
+        self.layout().addStretch()
+        self.layout().addWidget(self.warn_label)
 
     def apply(self):
         text = self.keys_widget.get_text()
