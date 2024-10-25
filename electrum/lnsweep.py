@@ -297,7 +297,7 @@ def create_sweeptxs_for_our_ctx(
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
         if direction == RECEIVED:
-            if chan.lnworker.is_incomplete_mpp(htlc.payment_hash):
+            if not chan.lnworker.is_accepted_mpp(htlc.payment_hash):
                 # do not redeem this, it might publish the preimage of an incomplete MPP
                 continue
             preimage = chan.lnworker.get_preimage(htlc.payment_hash)
@@ -434,10 +434,12 @@ def create_sweeptxs_for_their_ctx(
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
         is_received_htlc = direction == RECEIVED
         if not is_received_htlc and not is_revocation:
-            if chan.lnworker.get_payment_status(htlc.payment_hash) == PR_PAID:
-                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-            else:
+            if not chan.lnworker.is_accepted_mpp(htlc.payment_hash):
                 # do not redeem this, it might publish the preimage of an incomplete MPP
+                continue
+            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            if not preimage:
+                # we might not have the preimage if this is a hold invoice
                 continue
         else:
             preimage = None
