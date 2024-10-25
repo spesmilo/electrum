@@ -1844,6 +1844,11 @@ _event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
 class EventListener:
+    """Use as a mixin for a class that has methods to be triggered on events.
+    - Methods that receive the callbacks should be named "on_event_*" and decorated with @event_listener.
+    - register_callbacks() should be called exactly once per instance of EventListener, e.g. in __init__
+    - unregister_callbacks() should be called at least once, e.g. when the instance is destroyed
+    """
 
     def _list_callbacks(self):
         for c in self.__class__.__mro__:
@@ -1866,6 +1871,7 @@ class EventListener:
 
 
 def event_listener(func):
+    """To be used in subclasses of EventListener only. (how to enforce this programmatically?)"""
     classname, method_name = func.__qualname__.split('.')
     assert method_name.startswith('on_event_')
     classpath = f"{func.__module__}.{classname}"
