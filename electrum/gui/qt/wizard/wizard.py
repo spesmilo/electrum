@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout,
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget, AbstractQWidget
+from electrum.gui.qt.util import (Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget, AbstractQWidget,
+                                  PasswordLineEdit)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -129,7 +130,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         else:
             viewstate = self.start_wizard()
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
-        self.next_button.setFocus()
+        if not isinstance(self.focusWidget(), PasswordLineEdit):
+            self.next_button.setFocus()
         # TODO: re-test if needed on macOS
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
