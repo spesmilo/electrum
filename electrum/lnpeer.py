@@ -24,6 +24,7 @@ from . import bitcoin, util
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector)
+from .util import event_listener, EventListener
 from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
@@ -64,7 +65,7 @@ if TYPE_CHECKING:
 LN_P2P_NETWORK_TIMEOUT = 20
 
 
-class Peer(Logger):
+class Peer(Logger, EventListener):
     # note: in general this class is NOT thread-safe. Most methods are assumed to be running on asyncio thread.
 
     LOGGING_SHORTCUT = 'P'
@@ -122,6 +123,7 @@ class Peer(Logger):
         self._received_revack_event = asyncio.Event()
         self.received_commitsig_event = asyncio.Event()
         self.downstream_htlc_resolved_event = asyncio.Event()
+        self.register_callbacks()
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -633,6 +635,7 @@ class Peer(Logger):
         # note: This method might get called multiple times!
         #       E.g. if you call close_and_cleanup() to cause a disconnection from the peer,
         #       it will get called a second time in handle_disconnect().
+        self.unregister_callbacks()
         try:
             if self.transport:
                 self.transport.close()
@@ -2250,6 +2253,13 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
         self._received_revack_event.set()
         self._received_revack_event.clear()
+
+    @event_listener
+    async def on_event_fee(self, *args):
+        async def async_wrapper():
+            for chan in self.channels.values():
+                self.maybe_update_fee(chan)
+        await self.taskgroup.spawn(async_wrapper)
 
     def on_update_fee(self, chan: Channel, payload):
         if chan.peer_state != PeerState.GOOD:  # should never happen
