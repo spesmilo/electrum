@@ -2605,6 +2605,12 @@ class Peer(Logger, EventListener):
         return closing_tx.txid()
 
     async def htlc_switch(self):
+        # In this loop, an item of chan.unfulfilled_htlcs may go through 4 stages:
+        # - 1. not forwarded yet: (None, onion_packet_hex)
+        # - 2. forwarded: (forwarding_key, onion_packet_hex)
+        # - 3. processed: (forwarding_key, None), not irrevocably removed yet
+        # - 4. done: (forwarding_key, None), irrevocably removed
+
         await self.initialized
         while True:
             await self.ping_if_required()
@@ -2632,6 +2638,16 @@ class Peer(Logger, EventListener):
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
+                    if chan.hm.is_htlc_irrevocably_removed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
+                        assert onion_packet_hex is None
+                        self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
+                        if forwarding_key:
+                            self.lnworker.maybe_cleanup_forwarding(forwarding_key)
+                        done.add(htlc_id)
+                        continue
+                    if onion_packet_hex is None:
+                        # has been processed already
+                        continue
                     error_reason = None  # type: Optional[OnionRoutingFailure]
                     error_bytes = None  # type: Optional[bytes]
                     preimage = None
@@ -2673,7 +2689,9 @@ class Peer(Logger, EventListener):
                                 chan=chan,
                                 htlc_id=htlc.htlc_id,
                                 reason=error_reason)
-                        done.add(htlc_id)
+                        # blank onion field to mark it as processed
+                        unfulfilled[htlc_id] = None, forwarding_key
+
                 # cleanup
                 for htlc_id in done:
                     unfulfilled.pop(htlc_id)
@@ -2760,7 +2778,6 @@ class Peer(Logger, EventListener):
                 # return payment_key so this branch will not be executed again
                 return None, payment_key, None
             elif preimage:
-                self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
                 return preimage, None, None
             else:
                 # we are waiting for mpp consolidation or preimage
@@ -2771,11 +2788,6 @@ class Peer(Logger, EventListener):
             payment_key = forwarding_key
             preimage = self.lnworker.get_preimage(payment_hash)
             error_bytes, error_reason = self.lnworker.get_forwarding_failure(payment_key)
-            if error_bytes or error_reason or preimage:
-                cleanup_keys = self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
-                is_htlc_key = ':' in payment_key
-                if is_htlc_key or payment_key in cleanup_keys:
-                    self.lnworker.maybe_cleanup_forwarding(payment_key)
             if error_bytes:
                 return None, None, error_bytes
             if error_reason:

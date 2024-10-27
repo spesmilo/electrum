@@ -1879,23 +1879,25 @@ class TestPeerForwarding(TestPeer):
             test_failure=False,
             attempts=2):
 
-        bob_w = graph.workers['bob']
-        carol_w = graph.workers['carol']
+        alice_w = graph.workers['alice']
         dave_w = graph.workers['dave']
 
         async def pay(lnaddr, pay_req):
-            self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
-            result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=attempts)
+            self.assertEqual(PR_UNPAID, dave_w.get_payment_status(lnaddr.paymenthash))
+            result, log = await alice_w.pay_invoice(pay_req, attempts=attempts)
+            async with OldTaskGroup() as g:
+                for peer in peers:
+                    await g.spawn(peer.wait_one_htlc_switch_iteration())
+            for peer in peers:
+                self.assertEqual(len(peer.lnworker.active_forwardings), 0)
             if result:
-                self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
-                self.assertFalse(bool(bob_w.active_forwardings))
-                self.assertFalse(bool(carol_w.active_forwardings))
+                self.assertEqual(PR_PAID, dave_w.get_payment_status(lnaddr.paymenthash))
                 raise PaymentDone()
             else:
                 raise NoPathFound()
 
         async def f():
-            await self._activate_trampoline(graph.workers['alice'])
+            await self._activate_trampoline(alice_w)
             async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())

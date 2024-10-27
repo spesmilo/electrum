@@ -2348,9 +2348,9 @@ class LNWallet(LNWorker):
             self,
             short_channel_id: ShortChannelID,
             htlc: UpdateAddHtlc,
-    ) -> Sequence[str]:
+    ) -> None:
+
         htlc_key = (short_channel_id, htlc)
-        cleanup_keys = []
         for payment_key_hex, mpp_status in list(self.received_mpp_htlcs.items()):
             if htlc_key not in mpp_status.htlc_set:
                 continue
@@ -2360,8 +2360,7 @@ class LNWallet(LNWorker):
             if len(mpp_status.htlc_set) == 0:
                 self.logger.info(f'maybe_cleanup_mpp: removing mpp {payment_key_hex}')
                 self.received_mpp_htlcs.pop(payment_key_hex)
-                cleanup_keys.append(payment_key_hex)
-        return cleanup_keys
+                self.maybe_cleanup_forwarding(payment_key_hex)
 
     def maybe_cleanup_forwarding(self, payment_key_hex: str) -> None:
         self.active_forwardings.pop(payment_key_hex, None)
