@@ -834,7 +834,10 @@ class WCHaveMasterKey(WalletWizardComponent):
             self.label.setText(self.message_create)
 
             def is_valid(x) -> bool:
-                return bool(keystore.from_master_key(x))
+                self.apply()
+                key_valid, message = self.wizard.validate_master_key(x, self.wizard_data['wallet_type'])
+                self.warn_label.setText(message)
+                return key_valid
         elif self.wizard_data['wallet_type'] == 'multisig':
             if 'multisig_current_cosigner' in self.wizard_data:
                 self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
@@ -843,10 +846,11 @@ class WCHaveMasterKey(WalletWizardComponent):
                 self.label.setText(self.message_create)
 
             def is_valid(x) -> bool:
-                if not keystore.is_bip32_key(x):
-                    self.warn_label.setText(_('Invalid key'))
-                    return False
                 self.apply()
+                key_valid, message = self.wizard.validate_master_key(x, self.wizard_data['wallet_type'])
+                if not key_valid:
+                    self.warn_label.setText(message)
+                    return False
                 musig_valid, errortext = self.wizard.check_multisig_constraints(self.wizard_data)
                 self.warn_label.setText(errortext)
                 if not musig_valid:
