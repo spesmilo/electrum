@@ -65,8 +65,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     paymentSucceeded = pyqtSignal([str], arguments=['key'])
     paymentFailed = pyqtSignal([str, str], arguments=['key', 'reason'])
     requestNewPassword = pyqtSignal()
-    signSucceeded = pyqtSignal([str], arguments=['txid'])
-    signFailed = pyqtSignal([str], arguments=['message'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str, str, str], arguments=['txid', 'code', 'reason'])
     saveTxSuccess = pyqtSignal([str], arguments=['txid'])
@@ -540,7 +538,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             tx = self.wallet.sign_transaction(tx, self.password, ignore_warnings=True)
         except BaseException as e:
             self._logger.error(f'{e!r}')
-            self.signFailed.emit(str(e))  # TODO: remove, signal never used?
             if on_failure:
                 on_failure(str(e))
             return
@@ -558,8 +555,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         txid = tx.txid()
         self._logger.debug(f'do_sign(), txid={txid}')
-
-        self.signSucceeded.emit(txid)  # TODO: remove, signal never used?
 
         if not tx.is_complete():
             self._logger.debug('tx not complete')
