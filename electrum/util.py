@@ -1944,7 +1944,7 @@ class NetworkRetryManager(Generic[_NetAddrType]):
         self._last_tried_addr.clear()
 
 
-class MySocksProxy(aiorpcx.SOCKSProxy):
+class ESocksProxy(aiorpcx.SOCKSProxy):
     # note: proxy will not leak DNS as create_connection()
     # sets (local DNS) resolve=False by default
 
@@ -1958,12 +1958,17 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return reader, writer
 
     @classmethod
-    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
-        if not proxy:
+    def from_network_settings(cls, network: Optional['Network']) -> Optional['ESocksProxy']:
+        if not network or not network.proxy:
             return None
+        proxy = network.proxy
         username, pw = proxy.get('user'), proxy.get('password')
         if not username or not pw:
-            auth = None
+            # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
+            if network.is_proxy_tor:
+                auth = aiorpcx.socks.SOCKSRandomAuth()
+            else:
+                auth = None
         else:
             auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
         addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])

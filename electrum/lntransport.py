@@ -9,7 +9,7 @@ import re
 import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from functools import cached_property
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 
@@ -17,11 +17,17 @@ from aiorpcx import NetAddress
 import electrum_ecc as ecc
 
 from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt, get_ecdh, privkey_to_pubkey
-from .util import MySocksProxy
+from .util import ESocksProxy
+
 
 class LightningPeerConnectionClosed(Exception): pass
 class HandshakeFailed(Exception): pass
 class ConnStringFormatError(Exception): pass
+
+
+if TYPE_CHECKING:
+    from electrum.network import Network
+
 
 class HandshakeState(object):
     prologue = b"lightning"
@@ -342,18 +348,18 @@ class LNTransport(LNTransportBase):
     """Transport initiated by local party."""
 
     def __init__(self, privkey: bytes, peer_addr: LNPeerAddr, *,
-                 proxy: Optional[dict]):
+                 e_proxy: Optional['ESocksProxy']):
         LNTransportBase.__init__(self)
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
         self.peer_addr = peer_addr
-        self.proxy = MySocksProxy.from_proxy_dict(proxy)
+        self.e_proxy = e_proxy
 
     async def handshake(self):
-        if not self.proxy:
+        if not self.e_proxy:
             self.reader, self.writer = await asyncio.open_connection(self.peer_addr.host, self.peer_addr.port)
         else:
-            self.reader, self.writer = await self.proxy.open_connection(self.peer_addr.host, self.peer_addr.port)
+            self.reader, self.writer = await self.e_proxy.open_connection(self.peer_addr.host, self.peer_addr.port)
         hs = HandshakeState(self.peer_addr.pubkey)
         # Get a new ephemeral key
         epriv, epub = create_ephemeral_key()
