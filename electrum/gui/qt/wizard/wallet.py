@@ -376,6 +376,9 @@ class WCWalletName(WalletWizardComponent, Logger):
         self.name_e.textChanged.connect(on_filename)
         self.name_e.setText(relative_path(path))
 
+    def initialFocus(self) -> Optional[QWidget]:
+        return self.pw_e
+
     def apply(self):
         if self.wallet_exists:
             # use full path
@@ -985,6 +988,9 @@ class WCWalletPassword(WalletWizardComponent):
         self.pw_layout.encrypt_cb.setChecked(True)
         self.layout().addLayout(self.pw_layout.layout())
         self.layout().addStretch(1)
+
+    def initialFocus(self) -> Optional[QWidget]:
+        return self.pw_layout.new_pw
 
     def apply(self):
         self.wizard_data['password'] = self.pw_layout.new_password()
