@@ -51,8 +51,9 @@ is_local = (not is_binary_distributable
 is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
 if is_git_clone:
-    # developers should probably see all deprecation warnings.
-    warnings.simplefilter('default', DeprecationWarning)
+    # developers should probably see all deprecation warnings unless explicitly overruled
+    if not any(['DeprecationWarning' in x for x in sys.warnoptions]):
+        warnings.simplefilter('default', DeprecationWarning)
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
