@@ -1423,6 +1423,7 @@ class Commands(Logger):
         Send an onion message with onionmsg_tlv.message payload to node_id.
         """
         assert wallet
+        assert wallet.lnworker
         assert node_id_or_blinded_path_hex
         assert message
 
@@ -1434,7 +1435,7 @@ class Commands(Logger):
         }
 
         try:
-            send_onion_message_to(wallet, node_id_or_blinded_path, destination_payload)
+            send_onion_message_to(wallet.lnworker, node_id_or_blinded_path, destination_payload)
             return {'success': True}
         except Exception as e:
             msg = str(e)
@@ -1445,7 +1446,7 @@ class Commands(Logger):
         }
 
     @command('wnl')
-    async def get_blinded_path_via(self, node_id: str, wallet: Abstract_Wallet = None):
+    async def get_blinded_path_via(self, node_id: str, dummy_hops: int = 0, wallet: Abstract_Wallet = None):
         """
         Create a blinded path with node_id as introduction point. Introduction point must be direct peer of me.
         """
@@ -1461,7 +1462,7 @@ class Commands(Logger):
 
         path = [pubkey, wallet.lnworker.node_keypair.pubkey]
         session_key = os.urandom(32)
-        blinded_path = create_blinded_path(session_key, final_recipient_data={}, path=path)
+        blinded_path = create_blinded_path(session_key, path=path, final_recipient_data={}, dummy_hops=dummy_hops)
 
         with io.BytesIO() as blinded_path_fd:
             OnionWireSerializer._write_complex_field(fd=blinded_path_fd,
@@ -1554,6 +1555,7 @@ command_options = {
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
     'public':      (None, 'Channel will be announced'),
+    'dummy_hops':  (None, 'Number of dummy hops to add'),
 }
 
 
@@ -1579,6 +1581,7 @@ arg_types = {
     'encrypt_file': eval_bool,
     'rbf': eval_bool,
     'timeout': float,
+    'dummy_hops': int,
 }
 
 config_variables = {

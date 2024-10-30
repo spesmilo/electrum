@@ -53,8 +53,14 @@ REQUEST_REPLY_TIMEOUT = 120
 REQUEST_REPLY_RETRY_DELAY = 5
 
 
-def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_data: dict, hop_extras: Optional[Sequence[dict]] = None):
-    # TODO: allow generation of dummy-hops
+def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_data: dict, *,
+                        hop_extras: Optional[Sequence[dict]] = None,
+                        dummy_hops: Optional[int] = 0) -> dict:
+    # dummy hops could be inserted anywhere in the path, but for compatibility just add them at the end
+    # because blinded paths are usually constructed towards ourselves, and we know we can handle dummy hops.
+    if dummy_hops:
+        logger.debug(f'adding {dummy_hops} dummy hops at the end')
+        path += [path[-1]] * dummy_hops
 
     introduction_point = path[0]
 
@@ -500,28 +506,28 @@ class OnionMessageManager(Logger):
         # check if this reply is associated with a known request
         correl_data = recipient_data['path_id'].get('data')
         if not correl_data[:8] == b'electrum':
-            logger.warning('not a reply to our request (unknown path_id prefix)')
+            self.logger.warning('not a reply to our request (unknown path_id prefix)')
             return
         key = correl_data[8:]
         reqrpy = self.get_reqrpy(key)
         if reqrpy is None:
-            logger.warning('not a reply to our request (unknown request)')
+            self.logger.warning('not a reply to our request (unknown request)')
             return
 
         self._set_reqrpy_result(key, (recipient_data, payload))
 
     def on_onion_message_received_unsolicited(self, recipient_data, payload):
-        logger.debug('unsolicited onion_message received')
-        logger.debug(f'payload: {payload!r}')
+        self.logger.debug('unsolicited onion_message received')
+        self.logger.debug(f'payload: {payload!r}')
 
         # TODO: currently only accepts simple text 'message' payload.
 
         if 'message' not in payload:
-            logger.error('Unsupported onion message payload')
+            self.logger.error('Unsupported onion message payload')
             return
 
         if 'text' not in payload['message'] or not isinstance(payload['message']['text'], bytes):
-            logger.error('Malformed \'message\' payload')
+            self.logger.error('Malformed \'message\' payload')
             return
 
         try:
@@ -534,22 +540,26 @@ class OnionMessageManager(Logger):
 
     def on_onion_message_forward(self, recipient_data, onion_packet, blinding, shared_secret):
         if recipient_data.get('path_id'):
-            logger.error('cannot forward onion_message, path_id in encrypted_data_tlv')
+            self.logger.error('cannot forward onion_message, path_id in encrypted_data_tlv')
             return
 
         next_node_id = recipient_data.get('next_node_id')
         if not next_node_id:
-            logger.error('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
+            self.logger.error('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
             return
         next_node_id = next_node_id['node_id']
 
         # TODO: support dummy-hops (next_peer is us)
-
-        # is next_node one of our peers?
-        next_peer = self.lnwallet.peers.get(next_node_id)
-        if not next_peer:
-            self.logger.info(f'next node {next_node_id.hex()} not a peer, dropping message')
-            return
+        is_dummy_hop = False
+        if next_node_id == self.lnwallet.node_keypair.pubkey:
+            self.logger.debug('dummy hop')
+            is_dummy_hop = True
+        else:
+            # is next_node one of our peers?
+            next_peer = self.lnwallet.peers.get(next_node_id)
+            if not next_peer:
+                self.logger.info(f'next node {next_node_id.hex()} not a peer, dropping message')
+                return
 
         # blinding override?
         next_blinding_override = recipient_data.get('next_blinding_override')
@@ -561,6 +571,10 @@ class OnionMessageManager(Logger):
             blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
             next_public_key_int = ecc.ECPubkey(blinding) * blinding_factor_int
             next_blinding = next_public_key_int.get_public_key_bytes()
+
+        if is_dummy_hop:
+            self.process_onion_message_packet(next_blinding, onion_packet)
+            return
 
         onion_packet_b = onion_packet.to_bytes()
 
@@ -576,26 +590,28 @@ class OnionMessageManager(Logger):
     def on_onion_message(self, payload):
         blinding = payload.get('blinding')
         if not blinding:
-            logger.error('missing blinding')
+            self.logger.error('missing blinding')
             return
         packet = payload.get('onion_message_packet')
         if payload.get('len', 0) != len(packet):
-            logger.error('invalid/missing length')
+            self.logger.error('invalid/missing length')
             return
 
-        logger.debug('handling onion message')
+        self.logger.debug('handling onion message')
 
         onion_packet = OnionPacket.from_bytes(packet)
+        self.process_onion_message_packet(blinding, onion_packet)
 
+    def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket):
         our_privkey = blinding_privkey(self.lnwallet.node_keypair.privkey, blinding)
         processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
 
-        logger.debug(f'onion peeled: {processed_onion_packet!r}')
+        self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
 
         if not processed_onion_packet.are_we_final:
             if any([x not in ['encrypted_recipient_data'] for x in payload.keys()]):
-                logger.error('unexpected data in payload')  # non-final nodes only encrypted_recipient_data
+                self.logger.error('unexpected data in payload')  # non-final nodes only encrypted_recipient_data
                 return
 
         # decrypt
@@ -605,7 +621,7 @@ class OnionMessageManager(Logger):
             encrypted_recipient_data=payload['encrypted_recipient_data']['encrypted_recipient_data']
         )
 
-        logger.debug(f'parsed recipient_data: {recipient_data!r}')
+        self.logger.debug(f'parsed recipient_data: {recipient_data!r}')
 
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
