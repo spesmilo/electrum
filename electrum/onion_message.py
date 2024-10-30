@@ -54,6 +54,8 @@ REQUEST_REPLY_RETRY_DELAY = 5
 
 
 def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_data: dict, hop_extras: Optional[Sequence[dict]] = None):
+    # TODO: allow generation of dummy-hops
+
     introduction_point = path[0]
 
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
@@ -540,6 +542,8 @@ class OnionMessageManager(Logger):
             logger.error('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
             return
         next_node_id = next_node_id['node_id']
+
+        # TODO: support dummy-hops (next_peer is us)
 
         # is next_node one of our peers?
         next_peer = self.lnwallet.peers.get(next_node_id)

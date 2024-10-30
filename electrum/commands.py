@@ -1449,6 +1449,7 @@ class Commands(Logger):
         """
         Create a blinded path with node_id as introduction point. Introduction point must be direct peer of me.
         """
+        # TODO: allow introduction_point to not be a direct peer and construct a route
         assert wallet
         assert node_id
 
