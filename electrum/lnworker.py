@@ -2335,8 +2335,7 @@ class LNWallet(LNWorker):
     def is_accepted_mpp(self, payment_hash: bytes) -> bool:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
-        assert status is not None
-        return status.resolution == RecvMPPResolution.ACCEPTED
+        return status and status.resolution == RecvMPPResolution.ACCEPTED
 
     def get_first_timestamp_of_mpp(self, payment_key: bytes) -> int:
         mpp_status = self.received_mpp_htlcs.get(payment_key.hex())

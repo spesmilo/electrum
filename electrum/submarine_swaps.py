@@ -355,7 +355,7 @@ class SwapManager(Logger):
                 if remaining_time > 0:
                     # too early for refund
                     return
-                 if swap.preimage:
+                if swap.preimage:
                     # we have been paid. do not try to get refund.
                     return
             else:
