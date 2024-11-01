@@ -72,7 +72,6 @@ TextHighlightPane {
         Label {
             id: infotext
             Layout.fillWidth: true
-            width: parent.width
             wrapMode: Text.Wrap
         }
     }
