@@ -531,7 +531,7 @@ class LNPathFinder(Logger):
             invoice_amount_msat: int,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[NodeInfo], bool]] = None
+            node_filter: Optional[Callable[[bytes, NodeInfo], bool]] = None
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
@@ -539,7 +539,7 @@ class LNPathFinder(Logger):
         # if destination is filtered, there is no route
         if node_filter:
             node_info = self.channel_db.get_node_info_for_node_id(nodeB)
-            if not node_filter(node_info):
+            if not node_filter(nodeB, node_info):
                 return {}
 
         # run Dijkstra
@@ -586,7 +586,7 @@ class LNPathFinder(Logger):
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
                 if node_filter:
                     node_info = self.channel_db.get_node_info_for_node_id(edge_startnode)
-                    if not node_filter(node_info):
+                    if not node_filter(edge_startnode, node_info):
                         continue
                 is_mine = edge_channel_id in my_sending_channels
                 if is_mine:
@@ -628,7 +628,7 @@ class LNPathFinder(Logger):
             invoice_amount_msat: int,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[NodeInfo], bool]] = None
+            node_filter: Optional[Callable[[bytes, NodeInfo], bool]] = None
     ) -> Optional[LNPaymentPath]:
         """Return a path from nodeA to nodeB."""
         assert type(nodeA) is bytes

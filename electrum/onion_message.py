@@ -113,7 +113,7 @@ def blinding_privkey(privkey, blinding):
     return our_privkey
 
 
-def is_onion_message_node(node_info: Optional['NodeInfo']):
+def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']):
     if not node_info:
         return False
     return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
@@ -129,7 +129,32 @@ def encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets):
             hops_data[i].payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
 
 
-def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, destination_payload: dict, session_key: bytes = None):
+async def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes):
+    # TODO: is this the proper way to set up my_sending_channels?
+    my_active_channels = [
+        chan for chan in lnwallet.channels.values() if
+        chan.is_active() and not chan.is_frozen_for_sending()]
+    my_sending_channels = {chan.short_channel_id: chan for chan in my_active_channels
+                           if chan.short_channel_id is not None}
+    # strat1: find route to introduction point over existing channel mesh
+    if path := lnwallet.network.path_finder.find_path_for_payment(
+        nodeA=lnwallet.node_keypair.pubkey,
+        nodeB=node_id,
+        invoice_amount_msat=10000,  # TODO: do this without amount constraints
+        node_filter=lambda x, y: True if x == lnwallet.node_keypair.pubkey else is_onion_message_node(x, y),
+        my_sending_channels=my_sending_channels
+    ): return path
+
+    # strat2: dest node has host:port in channel_db? then open direct peer connection
+    if peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+        peer = await lnwallet.add_peer(str(peer_addr))
+        await peer.initialized
+        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
+
+    raise Exception('no path found')
+
+
+async def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, destination_payload: dict, session_key: bytes = None):
     if session_key is None:
         session_key = os.urandom(32)
 
@@ -188,15 +213,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                     # start of blinded path is our peer
                     blinding = blinded_path['blinding']
                 else:
-                    # route to introduction point
-                    path = lnwallet.network.path_finder.find_path_for_payment(
-                        nodeA=lnwallet.node_keypair.pubkey,
-                        nodeB=introduction_point,
-                        invoice_amount_msat=10000,  # TODO: do this without amount constraints
-                        node_filter=is_onion_message_node
-                    )
-                    if path is None:
-                        raise Exception('no path found')
+                    path = await create_onion_message_route_to(lnwallet, introduction_point)
 
                     # first edge must be to our peer
                     peer = lnwallet.peers.get(path[0].end_node)
@@ -269,15 +286,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
             # destination is our direct peer, no need to route-find
             path = [PathEdge(short_channel_id=None, start_node=None, end_node=pubkey)]
         else:
-            # route-find to pubkey.
-            path = lnwallet.network.path_finder.find_path_for_payment(
-                nodeA=lnwallet.node_keypair.pubkey,
-                nodeB=pubkey,
-                invoice_amount_msat=10000,  # TODO: do this without amount constraints
-                node_filter=is_onion_message_node
-            )
-            if path is None:
-                raise Exception('no path found')
+            path = await create_onion_message_route_to(lnwallet, pubkey)
 
             # first edge must be to our peer
             peer = lnwallet.peers.get(path[0].end_node)
@@ -476,7 +485,7 @@ class OnionMessageManager(Logger):
 
         # TODO: we should try alternate paths when retrying, this is currently not done.
         # (send_onion_message_to decides path, without knowledge of prev attempts)
-        send_onion_message_to(self.lnwallet, node_id_or_blinded_path, final_payload)
+        await send_onion_message_to(self.lnwallet, node_id_or_blinded_path, final_payload)
 
     def _path_id_from_payload_and_key(self, payload: dict, key: bytes) -> bytes:
         # TODO: construct path_id in such a way that we can determine the request originated from us and is not spoofed
