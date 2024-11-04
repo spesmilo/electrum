@@ -198,11 +198,11 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                     if path is None:
                         raise Exception('no path found')
 
-                    # first hop must be our peer
+                    # first edge must be to our peer
                     peer = lnwallet.peers.get(path[0].end_node)
                     assert peer, 'first hop not a peer'
 
-                    # last hop is introduction point and start of blinded path. remove from route
+                    # last edge is to introduction point and start of blinded path. remove from route
                     assert path[-1].end_node == introduction_point, 'last hop in route must be introduction point'
 
                     path = path[:-1]
@@ -279,7 +279,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
             if path is None:
                 raise Exception('no path found')
 
-            # first hop must be our peer
+            # first edge must be to our peer
             peer = lnwallet.peers.get(path[0].end_node)
             assert peer, 'first hop not a peer'
 
@@ -287,7 +287,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                 OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
                     blind_fields={'next_node_id': {'node_id': x.end_node}}
-                ) for x in path[:-1]
+                ) for x in path[1:]
             ]
 
         final_hop = OnionHopsDataSingle(
