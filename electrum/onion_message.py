@@ -212,7 +212,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                                                                                            session_key)
 
                     hops_data = [
-                        lambda x: OnionHopsDataSingle(
+                        OnionHopsDataSingle(
                             tlv_stream_name='onionmsg_tlv',
                             blind_fields={'next_node_id': {'node_id': x.end_node}}
                         ) for x in path[:-1]
@@ -284,7 +284,7 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
             assert peer, 'first hop not a peer'
 
             hops_data = [
-                lambda x: OnionHopsDataSingle(
+                OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
                     blind_fields={'next_node_id': {'node_id': x.end_node}}
                 ) for x in path[:-1]
