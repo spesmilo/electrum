@@ -491,6 +491,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_proxy_set(self, *args):
         self.tor_button.setVisible(False)
 
+    @qt_event_listener
+    def on_event_recently_opened_wallets_update(self, *args):
+        self.update_recently_opened_menu()
+
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
@@ -498,7 +502,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     @profiler
     def load_wallet(self, wallet: Abstract_Wallet):
-        self.update_recently_visited(wallet.storage.path)
+        self.update_recently_opened_menu()
         if wallet.has_lightning():
             util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
@@ -643,24 +647,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.show_message(msg, title=_("Wallet backup created"))
         return True
 
-    def update_recently_visited(self, filename):
-        recent = self.config.RECENTLY_OPEN_WALLET_FILES or []
-        try:
-            sorted(recent)
-        except Exception:
-            recent = []
-        if filename in recent:
-            recent.remove(filename)
-        recent.insert(0, filename)
-        recent = [path for path in recent if os.path.exists(path)]
-        recent = recent[:5]
-        self.config.RECENTLY_OPEN_WALLET_FILES = recent
+    def update_recently_opened_menu(self):
+        recent = self.config.RECENTLY_OPEN_WALLET_FILES
         self.recently_visited_menu.clear()
-        for i, k in enumerate(sorted(recent)):
+        for i, k in enumerate(recent):
             b = os.path.basename(k)
+
             def loader(k):
                 return lambda: self.gui_object.new_window(k)
-            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d" % (i+1)))
         self.recently_visited_menu.setEnabled(bool(len(recent)))
 
     def get_wallet_folder(self):
