@@ -111,6 +111,10 @@ class HistoryNode(CustomNode):
         window = self.model.window
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
+        if not is_lightning and 'txid' not in tx_item:
+            # this may happen if two lightning tx have the same group id
+            # and the group does not have an onchain tx
+            is_lightning = True
         timestamp = tx_item['timestamp']
         short_id = None
         if is_lightning:
