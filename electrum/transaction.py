@@ -1245,6 +1245,9 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
     def has_dummy_output(self, dummy_addr: str) -> bool:
         return len(self.get_output_idxs_from_address(dummy_addr)) == 1
 
