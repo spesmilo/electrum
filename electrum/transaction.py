@@ -1528,6 +1528,11 @@ class PartialTxInput(TxInput, PSBTSection):
                              nsequence=txin.nsequence,
                              witness=None if strip_witness else txin.witness,
                              is_coinbase_output=txin.is_coinbase_output())
+        if hasattr(txin, 'make_witness'):
+            res.privkey = txin.privkey
+            res.make_witness = txin.make_witness
+            res.witness_script = txin.witness_script
+            res.script_sig = txin.script_sig
         res.utxo = txin.utxo
         return res
 
@@ -1742,7 +1747,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            ##self.witness_script = None  # fixme
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()

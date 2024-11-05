@@ -346,7 +346,6 @@ class SwapManager(Logger):
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
             funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
-            should_bump_fee = False
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
                 if spent_height > 0:
@@ -388,13 +387,6 @@ class SwapManager(Logger):
                             self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
                             self._fail_swap(swap, 'refund tx confirmed')
                             return
-                        else:
-                            claim_tx.add_info_from_wallet(self.wallet)
-                            claim_tx_fee = claim_tx.get_fee()
-                            recommended_fee = self.get_claim_fee()
-                            if claim_tx_fee * 1.1 < recommended_fee:
-                                should_bump_fee = True
-                                self.logger.info(f'claim tx fee too low {claim_tx_fee} < {recommended_fee}. we will bump the fee')
 
                 if remaining_time > 0:
                     # too early for refund
@@ -423,7 +415,7 @@ class SwapManager(Logger):
                     # for testing: do not create claim tx
                     return
 
-            if spent_height is not None and not should_bump_fee:
+            if spent_height is not None:
                 return
             try:
                 txin, locktime = self._create_claim_txin(txin=txin, swap=swap, config=self.wallet.config)
@@ -1073,6 +1065,7 @@ class SwapManager(Logger):
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(construct_witness(witness))
+        txin.nsequence = 0xffffffff - 2 # rbf
 
     @classmethod
     def _create_claim_txin(
