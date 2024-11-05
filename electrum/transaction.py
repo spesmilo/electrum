@@ -1736,13 +1736,15 @@ class PartialTxInput(TxInput, PSBTSection):
         def clear_fields_when_finalized():
             # BIP-174: "All other data except the UTXO and unknown fields in the
             #           input key-value map should be cleared from the PSBT"
+            # FIXME: serialize() should not side-effect the tx inputs
             self.sigs_ecdsa = {}
             self.tap_key_sig = None
             self.tap_merkle_root = None
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            if not hasattr(self, 'make_witness'):
+                self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()
