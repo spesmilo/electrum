@@ -44,6 +44,8 @@ class TestUnixSockets(TestLightning):
 class TestLightningAB(TestLightning):
     agents = {
         'alice': {
+            'test_force_disable_mpp': 'false',
+            'test_force_mpp': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',

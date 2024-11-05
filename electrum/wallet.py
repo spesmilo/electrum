@@ -33,7 +33,6 @@ import time
 import json
 import copy
 import errno
-import traceback
 import operator
 import math
 from functools import partial
@@ -59,6 +58,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
+from .util import log_exceptions
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
@@ -94,6 +94,7 @@ if TYPE_CHECKING:
     from .exchange_rate import FxThread
     from .submarine_swaps import SwapData
     from .lnchannel import AbstractChannel
+    from .lnsweep import SweepInfo
 
 
 _logger = get_logger(__name__)
@@ -460,6 +461,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             async with self.taskgroup as group:
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
                 await group.spawn(self.do_synchronize_loop())
+                await group.spawn(self.manage_batch_payments())
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
@@ -854,8 +856,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return True
         return False
 
-    def get_swap_by_claim_tx(self, tx: Transaction) -> Optional['SwapData']:
-        return self.lnworker.swap_manager.get_swap_by_claim_tx(tx) if self.lnworker else None
+    def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable['SwapData']:
+        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.lnworker else []
 
     def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
         return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
@@ -904,7 +906,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
-        is_swap = bool(self.get_swap_by_claim_tx(tx))
+        is_swap = bool(self.get_swaps_by_claim_tx(tx))
         fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
@@ -2500,8 +2502,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
         if not is_mine:
-            if self.lnworker:
-                self.lnworker.swap_manager.add_txin_info(txin)
             return
         txin.script_descriptor = self.get_script_descriptor_for_address(address)
         txin.is_mine = True
@@ -2564,7 +2564,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for k in self.get_keystores():
                 if k.can_sign_txin(txin):
                     return True
-        if self.get_swap_by_claim_tx(tx):
+        if self.get_swaps_by_claim_tx(tx):
             return True
         return False
 
@@ -2587,11 +2587,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
             raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
-        # note: swap signing does not require the password
-        swap = self.get_swap_by_claim_tx(tx)
-        if swap:
-            self.lnworker.swap_manager.sign_tx(tx, swap)
-            return tx
 
         # check if signing is dangerous
         sh_danger = self.check_sighash(tx)
@@ -3350,6 +3345,211 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_unlocked_password(self):
         return self._password_in_memory
+
+    def add_batch_payment(self, output: 'PartialTxOutput'):
+        # todo: maybe we should raise NotEnoughFunds here
+        self.batch_payments.append(output)
+
+    def add_sweep_info(self, sweep_info: 'SweepInfo'):
+        txin = sweep_info.txin
+        if txin.prevout in self.batch_processing:
+            return
+        # early return if the input is spent
+        # this is needed because self.batch_processing is not persisted
+        # this also allows a txin to be added again, if the block containing the spending tx is orphaned
+        prevout = txin.prevout.to_str()
+        prev_txid, index = prevout.split(':')
+        if self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            return
+        self.batch_processing.add(txin.prevout)
+        self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
+        self.batch_inputs[txin.prevout] = sweep_info
+
+    def find_confirmed_base_tx(self):
+        for tx in self.batch_txs:
+            tx_mined_status = self.adb.get_tx_height(tx.txid())
+            if tx_mined_status.conf > 0:
+                return tx
+
+    def to_pay_after(self, tx):
+        if not tx:
+            return self.batch_payments
+        return [x for x in self.batch_payments if x not in tx.outputs()]
+
+    def to_sweep_after(self, tx):
+        if not tx:
+            return self.batch_inputs
+        tx_prevouts = set(txin.prevout for txin in tx.inputs())
+        return dict((k,v) for k,v in self.batch_inputs.items() if k not in tx_prevouts)
+
+    def should_bump_fee(self, base_tx):
+        # fixme: since batch_txs is not persisted, we do not bump after a restart
+        if base_tx is None:
+            return False
+        base_tx_fee = base_tx.get_fee()
+        recommended_fee = self.config.estimate_fee(base_tx.estimated_size(), allow_fallback_to_static_rates=True)
+        should_bump_fee = base_tx_fee * 1.1 < recommended_fee
+        if should_bump_fee:
+            self.logger.info(f'base tx fee too low {base_tx_fee} < {recommended_fee}. we will bump the fee')
+        return should_bump_fee
+
+    @log_exceptions
+    async def manage_batch_payments(self):
+        #
+        # output1 :     tx1(o1)       -----
+        #                                  \
+        # output 2:     tx1'(o1,o2)         ---> tx2(tx1|o2)   -----
+        #                                   \                       \
+        # output 3:     tx1''(o1,o2,o3)      --> tx2'(tx1|o2,o3)     --->  tx3(tx2|o3)
+        #                                                                  tx3(tx1'|o3) (if tx1'cannot be replaced)
+        #
+        # self.batch_txs = [tx1, tx1', tx1'']
+        #
+        # if tx1 gets mined: broadcast: tx2(tx1|o2,o3)
+        # if tx1' gets mined: broadcast tx3(tx1'|o3)
+        #
+        # what if we cannot RBF?  -> we must add a child tx
+        #   if cannot_rbf(tx1) -> broadcast tx2(tx1,o2) and remove first row: new base is now tx2(tx,o2)
+        #   if cannot_rbf(tx1') -> broadcast tx3(tx1'|o3)
+        #
+        # TODO:
+        #   This code currently ensures that we do not double pay to an output.
+        #   However, it does not guarantee that a payment will happen, due to reorgs.
+        #   (note that sweeps are reorg-safe because lnwatcher keeps adding them.)
+        #   To make payments reorg-safe, we would need to persist data and redo failed payments.
+        #
+        self.batch_payments = []       # list of payments we need to make
+        self.batch_inputs = {}         # list of inputs we need to sweep
+        self.batch_txs = []            # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
+        self.batch_parent_tx = None
+        self.batch_processing = set()  # list of inputs we are sweeping (until spending tx is confirmed)
+
+        while True:
+            await asyncio.sleep(1)
+            password = self.get_unlocked_password()
+            if self.has_keystore_encryption() and not password:
+                continue
+            await self.maybe_broadcast_legacy_htlc_txs()
+            tx = self.find_confirmed_base_tx()
+            if tx:
+                self.logger.info(f'base tx confirmed {tx.txid()}')
+                self.clear_batch_processing(tx)
+                self.start_new_batch(tx)
+            base_tx = self.batch_txs[-1] if self.batch_txs else None
+            to_pay = self.to_pay_after(base_tx)
+            to_sweep = self.to_sweep_after(base_tx)
+            to_sweep_now = dict([(k,v) for k,v in to_sweep.items() if self.can_broadcast(v)[0] is True])
+            if not to_pay and not to_sweep_now and not self.should_bump_fee(base_tx):
+                continue
+            try:
+                tx = self.create_batch_tx(base_tx, to_sweep_now, to_pay, password)
+            except Exception as e:
+                self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
+                await asyncio.sleep(60) # retry later
+                continue
+            self.logger.info(f'created tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
+            if await self.network.try_broadcasting(tx, 'batch'):
+                self.adb.add_transaction(tx)
+                if tx.has_change():
+                    self.batch_txs.append(tx)
+                else:
+                    self.logger.info(f'starting new batch because current base tx does not have change')
+                    self.start_new_batch(tx)
+            else:
+                # base_tx is not replaceable, probably because it has children
+                self.logger.info(f'cannot broadcast tx {tx}')
+                if base_tx:
+                    self.start_new_batch(base_tx)
+
+    def create_batch_tx(self, base_tx, to_sweep, to_pay, password):
+        self.logger.info(f'to_sweep: {list(to_sweep.keys())}')
+        self.logger.info(f'to_pay: {to_pay}')
+        inputs = []
+        outputs = []
+        locktime = base_tx.locktime if base_tx else None
+        # sort inputs so that txin-txout pairs are first
+        for sweep_info in sorted(to_sweep.values(), key=lambda x: not bool(x.txout)):
+            if sweep_info.cltv_abs is not None:
+                if locktime is None or locktime < sweep_info.cltv_abs:
+                    # nLockTime must be greater than or equal to the stack operand.
+                    locktime = sweep_info.cltv_abs
+            inputs.append(copy.deepcopy(sweep_info.txin))
+            if sweep_info.txout:
+                outputs.append(sweep_info.txout)
+        self.logger.info(f'locktime: {locktime}')
+        outputs += to_pay
+        inputs += self.get_change_inputs(self.batch_parent_tx) if self.batch_parent_tx else []
+        tx = self.create_transaction(
+            base_tx=base_tx,
+            inputs=inputs,
+            outputs=outputs,
+            password=password,
+            locktime=locktime,
+            BIP69_sort=False,
+        )
+        assert tx.is_complete()
+        return tx
+
+    def clear_batch_processing(self, tx):
+        # this ensure that we can accept an input again
+        # if the spending tx is removed from the blockchain
+        for txin in tx.inputs():
+            if txin.prevout in self.batch_processing:
+                self.batch_processing.remove(txin.prevout)
+
+    def start_new_batch(self, tx):
+        use_change = tx and tx.has_change() and any([txout in self.batch_payments for txout in tx.outputs()])
+        self.batch_payments = self.to_pay_after(tx)
+        self.batch_inputs = self.to_sweep_after(tx)
+        self.batch_txs = []
+        self.batch_parent_tx = tx if use_change else None
+
+    def get_change_inputs(self, parent_tx):
+        inputs = []
+        for o in parent_tx.get_change_outputs():
+            coins = self.adb.get_addr_utxo(o.address)
+            inputs += list(coins.values())
+        for txin in inputs:
+            txin.nsequence = 0xffffffff - 2
+        return inputs
+
+    def can_broadcast(self, sweep_info: 'SweepInfo'):
+        prevout = sweep_info.txin.prevout.to_str()
+        name = sweep_info.name
+        prev_txid, index = prevout.split(':')
+        can_broadcast = True
+        wanted_height = None
+        local_height = self.network.get_local_height()
+        if sweep_info.cltv_abs:
+            wanted_height = sweep_info.cltv_abs
+            if wanted_height - local_height > 0:
+                can_broadcast = False
+                # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")
+        if sweep_info.csv_delay:
+            prev_height = self.adb.get_tx_height(prev_txid)
+            if prev_height.height > 0:
+                wanted_height = prev_height.height + sweep_info.csv_delay - 1
+            else:
+                wanted_height = local_height + sweep_info.csv_delay
+            if wanted_height - local_height > 0:
+                can_broadcast = False
+                # self.logger.debug(
+                #     f"pending redeem for {prevout}. waiting for {name}: CSV "
+                #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
+        return can_broadcast, wanted_height
+
+    async def maybe_broadcast_legacy_htlc_txs(self):
+        """ pre-anchor htlc txs cannot be batched """
+        for sweep_info in list(self.batch_inputs.values()):
+            if sweep_info.name == 'first-stage-htlc':
+                if not self.can_broadcast(sweep_info)[0]:
+                    continue
+                self.logger.info('legacy first-stage htlc tx')
+                tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.cltv_abs, version=2)
+                self.lnworker.wallet.sign_transaction(tx, password=None, ignore_warnings=True)
+                if await self.network.try_broadcasting(tx, sweep_info.name):
+                    self.adb.add_transaction(tx)
+                    self.batch_inputs.pop(sweep_info.txin.prevout)
 
 
 class Simple_Wallet(Abstract_Wallet):
