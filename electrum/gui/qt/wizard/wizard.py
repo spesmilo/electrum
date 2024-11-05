@@ -1,7 +1,7 @@
 import copy
 import threading
 from abc import abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize, QMetaObject
 from PyQt6.QtGui import QPixmap
@@ -129,7 +129,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         else:
             viewstate = self.start_wizard()
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
-        self.next_button.setFocus()
+        self.set_default_focus()
+
         # TODO: re-test if needed on macOS
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
@@ -173,6 +174,14 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.logo.setPixmap(QPixmap(icon_path(filename))
                             .scaledToWidth(60, mode=Qt.TransformationMode.SmoothTransformation))
         return prior_filename
+
+    def set_default_focus(self):
+        page = self.main_widget.currentWidget()
+        control = page.initialFocus()
+        if control and control.isVisible() and control.isEnabled():
+            control.setFocus()
+        else:
+            self.next_button.setFocus()
 
     def can_go_back(self) -> bool:
         return len(self._stack) > 0
@@ -222,6 +231,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
             view = self.submit(wd)
             try:
                 self.load_next_component(view.view, view.wizard_data, view.params)
+                self.set_default_focus()
             except Exception as e:
                 self.prev()  # rollback the submit above
                 raise e
@@ -311,3 +321,7 @@ class WizardComponent(AbstractQWidget):
             self.updated.emit(self)
         except RuntimeError:
             pass
+
+    def initialFocus(self) -> Optional[QWidget]:
+        """Override to specify a control that should receive initial focus"""
+        return None
