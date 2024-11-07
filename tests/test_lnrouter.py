@@ -215,7 +215,7 @@ class Test_LNRouter(ElectrumTestCase):
         self.prepare_graph()
         amount_to_send = 100000
 
-        def node_filter(node_info: 'NodeInfo'):
+        def node_filter(node_id: bytes, node_info: 'NodeInfo'):
             return node_info.node_id != node('b')
 
         path = self.path_finder.find_path_for_payment(
