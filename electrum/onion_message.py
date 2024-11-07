@@ -53,7 +53,9 @@ logger = get_logger(__name__)
 REQUEST_REPLY_TIMEOUT = 30
 REQUEST_REPLY_RETRY_DELAY = 5
 REQUEST_REPLY_PATHS_MAX = 3
-
+FORWARD_RETRY_TIMEOUT = 4
+FORWARD_RETRY_DELAY = 2
+FORWARD_MAX_QUEUE = 3
 
 def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_data: dict, *,
                         hop_extras: Optional[Sequence[dict]] = None,
@@ -139,6 +141,7 @@ async def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes):
     my_sending_channels = {chan.short_channel_id: chan for chan in my_active_channels
                            if chan.short_channel_id is not None}
     # strat1: find route to introduction point over existing channel mesh
+    # NOTE: nodes that are in channel_db but are offline are not removed from the set
     if path := lnwallet.network.path_finder.find_path_for_payment(
         nodeA=lnwallet.node_keypair.pubkey,
         nodeB=node_id,
@@ -359,6 +362,8 @@ class OnionMessageManager(Logger):
         self.pending_lock = threading.Lock()
         self.reqrpyqueue = queue.PriorityQueue()
         self.reqrpyqueue_notempty = asyncio.Event()
+        self.forwardqueue = queue.PriorityQueue()
+        self.forwardqueue_notempty = asyncio.Event()
 
     def start_network(self, *, network: 'Network'):
         assert network
@@ -372,6 +377,7 @@ class OnionMessageManager(Logger):
         try:
             async with self.taskgroup as group:
                 await group.spawn(self.process_request_reply_queue())
+                await group.spawn(self.process_forward_queue())
         except Exception as e:
             self.logger.exception("taskgroup died.")
         else:
@@ -380,12 +386,57 @@ class OnionMessageManager(Logger):
     async def stop(self):
         await self.taskgroup.cancel_remaining()
 
+    async def process_forward_queue(self):
+        while True:
+            try:
+                scheduled, expires, onion_packet, blinding, node_id = self.forwardqueue.get_nowait()
+            except queue.Empty:
+                self.logger.debug(f'fwd queue empty')
+                self.forwardqueue_notempty.clear()
+                await self.forwardqueue_notempty.wait()
+                continue
+
+            if expires <= now():
+                self.logger.debug(f'fwd expired {node_id=}')
+                continue
+            if scheduled > now():
+                # return to queue
+                self.forwardqueue.put_nowait((scheduled, expires, onion_packet, blinding, node_id))
+                await asyncio.sleep(1)  # sleep here, as the first queue item wasn't due yet
+                continue
+
+            try:
+                onion_packet_b = onion_packet.to_bytes()
+                next_peer = self.lnwallet.peers.get(node_id)
+
+                next_peer.send_message(
+                    "onion_message",
+                    blinding=blinding,
+                    len=len(onion_packet_b),
+                    onion_message_packet=onion_packet_b
+                )
+            except BaseException as e:
+                self.logger.debug(f'error while sending {node_id=} e={e!r}')
+                self.forwardqueue.put_nowait((now() + FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
+
+    def submit_forward(self, *,
+                       onion_packet: OnionPacket,
+                       blinding: bytes,
+                       node_id: bytes):
+        if self.forwardqueue.qsize() >= FORWARD_MAX_QUEUE:
+            self.logger.debug('fwd queue full, dropping packet')
+            return
+        expires = now() + FORWARD_RETRY_TIMEOUT
+        queueitem = (now(), expires, onion_packet, blinding, node_id)
+        self.forwardqueue.put_nowait(queueitem)
+        self.forwardqueue_notempty.set()
+
     async def process_request_reply_queue(self):
         while True:
             try:
                 scheduled, expires, key = self.reqrpyqueue.get_nowait()
             except queue.Empty:
-                self.logger.debug(f'queue empty')
+                self.logger.debug(f'reqrpy queue empty')
                 self.reqrpyqueue_notempty.clear()
                 await self.reqrpyqueue_notempty.wait()
                 continue
@@ -593,16 +644,7 @@ class OnionMessageManager(Logger):
             self.process_onion_message_packet(next_blinding, onion_packet)
             return
 
-        onion_packet_b = onion_packet.to_bytes()
-
-        # construct onion message
-        # TODO: add queue, delay to avoid traffic analysis
-        next_peer.send_message(
-            "onion_message",
-            blinding=next_blinding,
-            len=len(onion_packet_b),
-            onion_message_packet=onion_packet_b
-        )
+        self.submit_forward(onion_packet=onion_packet, blinding=next_blinding, node_id=next_node_id)
 
     def on_onion_message(self, payload):
         blinding = payload.get('blinding')
