@@ -426,11 +426,16 @@ class SwapManager(Logger):
             swap = self.swaps[key]
             if swap.funding_txid is None:
                 password = self.wallet.get_unlocked_password()
-                for batch_rbf in [True, False]:
+                for batch_rbf in [False]:
+                    # FIXME: tx batching is disabled, because extra logic is needed to handle
+                    # the case where the base tx gets mined.
                     tx = self.create_funding_tx(swap, None, password=password, batch_rbf=batch_rbf)
+                    self.logger.info(f'adding funding_tx {tx.txid()}')
+                    self.wallet.adb.add_transaction(tx)
                     try:
                         await self.broadcast_funding_tx(swap, tx)
                     except TxBroadcastError:
+                        self.wallet.adb.remove_transaction(tx.txid())
                         continue
                     break
 
