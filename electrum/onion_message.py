@@ -26,6 +26,7 @@ import io
 import os
 import queue
 import threading
+from random import random
 
 from typing import TYPE_CHECKING, Optional, List, Sequence
 
@@ -51,6 +52,7 @@ logger = get_logger(__name__)
 
 REQUEST_REPLY_TIMEOUT = 30
 REQUEST_REPLY_RETRY_DELAY = 5
+REQUEST_REPLY_PATHS_MAX = 3
 
 
 def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_data: dict, *,
@@ -323,6 +325,22 @@ async def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: b
     )
 
 
+def get_blinded_reply_paths(lnwallet: 'LNWallet', path_id: bytes) -> List[dict]:
+    # this function currently only creates blinded paths from direct channel peers
+    # TODO: build longer paths and/or add dummy hops to increase privacy
+    # NOTE: we could also use peers without channel
+    my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
+    my_onionmsg_channels = [chan for chan in my_active_channels if lnwallet.peers.get(chan.node_id) and
+                            lnwallet.peers.get(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+    result = []
+    mynodeid = lnwallet.node_keypair.pubkey
+    mydata = {'path_id': {'data': path_id}}  # same used in every path
+    for chan in sorted(my_onionmsg_channels, key=lambda x: random())[:REQUEST_REPLY_PATHS_MAX]:
+        blinded_path = create_blinded_path(os.urandom(32), [chan.node_id, mynodeid], mydata)
+        result.append(blinded_path)
+    return result
+
+
 class Timeout(Exception): pass
 
 
@@ -470,18 +488,9 @@ class OnionMessageManager(Logger):
         self.logger.debug(f'send_reqrpy {key=} {payload=} {node_id_or_blinded_path=}')
 
         path_id = self._path_id_from_payload_and_key(payload, key)
-        final_recipient_data = {
-            'path_id': {'data': path_id}
-        }
-
-        # TODO: decide blinded path introduction point (for now, just my own nodeid)
-        # Note: blinded path session_key != onion message session_key
-        rbp_session_key = os.urandom(32)
-        reply_path_nodes = [self.lnwallet.node_keypair.pubkey]
-        reply_path = create_blinded_path(rbp_session_key, reply_path_nodes, final_recipient_data)
-
+        reply_paths = get_blinded_reply_paths(self.lnwallet, path_id)
         final_payload = copy.deepcopy(payload)
-        final_payload['reply_path'] = {'path': reply_path}
+        final_payload['reply_path'] = {'path': reply_paths}
 
         # TODO: we should try alternate paths when retrying, this is currently not done.
         # (send_onion_message_to decides path, without knowledge of prev attempts)
