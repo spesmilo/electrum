@@ -567,7 +567,6 @@ class OnionMessageManager(Logger):
             return
         next_node_id = next_node_id['node_id']
 
-        # TODO: support dummy-hops (next_peer is us)
         is_dummy_hop = False
         if next_node_id == self.lnwallet.node_keypair.pubkey:
             self.logger.debug('dummy hop')
