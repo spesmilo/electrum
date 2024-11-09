@@ -17,6 +17,7 @@ Terminal=false
 Type=Application
 MimeType=x-scheme-handler/bitcoin;x-scheme-handler/lightning;
 Actions=Testnet;
+Keywords=crypto;currency;BTC
 
 [Desktop Action Testnet]
 Exec=electrum --testnet %u
