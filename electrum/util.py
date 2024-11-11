@@ -990,6 +990,8 @@ testnet_block_explorers = {
 testnet4_block_explorers = {
     'mempool.space': ('https://mempool.space/testnet4/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'wakiyamap.dev': ('https://testnet4-explorer.wakiyamap.dev/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 signet_block_explorers = {
