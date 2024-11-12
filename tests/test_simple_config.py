@@ -148,22 +148,6 @@ class Test_SimpleConfig(ElectrumTestCase):
         config.NETWORK_MAX_INCOMING_MSG_SIZE = None
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
 
-    def test_configvars_get_default_value_complex_fn(self):
-        config = SimpleConfig(self.options)
-        self.assertEqual("https://swaps.electrum.org/api", config.SWAPSERVER_URL)
-
-        config.SWAPSERVER_URL = "http://localhost:9999"
-        self.assertEqual("http://localhost:9999", config.SWAPSERVER_URL)
-
-        config.SWAPSERVER_URL = None
-        self.assertEqual("https://swaps.electrum.org/api", config.SWAPSERVER_URL)
-
-        constants.BitcoinTestnet.set_as_network()
-        try:
-            self.assertEqual("https://swaps.electrum.org/testnet", config.SWAPSERVER_URL)
-        finally:
-            constants.BitcoinMainnet.set_as_network()
-
     def test_configvars_convert_getter(self):
         config = SimpleConfig(self.options)
         self.assertEqual(None, config.NETWORK_PROXY)

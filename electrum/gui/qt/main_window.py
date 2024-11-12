@@ -1160,18 +1160,97 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        try:
-            self.run_coroutine_dialog(
-                self.wallet.lnworker.swap_manager.get_pairs(), _('Please wait...'))
-        except SwapServerError as e:
-            self.show_error(str(e))
+
+        transport = self.create_sm_transport()
+        if not transport:
             return
-        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
-        try:
-            return d.run()
-        except InvalidSwapParameters as e:
-            self.show_error(str(e))
-            return
+
+        with transport:
+            if not self.initialize_swap_manager(transport):
+                return
+            d = SwapDialog(self, transport, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
+            try:
+                return d.run(transport)
+            except InvalidSwapParameters as e:
+                self.show_error(str(e))
+                return
+
+    def create_sm_transport(self):
+        sm = self.wallet.lnworker.swap_manager
+        if sm.is_server:
+            self.show_error(_('Swap server is active'))
+            return False
+
+        if self.network is None:
+            return False
+
+        if not self.config.SWAPSERVER_URL and not self.config.SWAPSERVER_NPUB:
+            if not self.question('\n'.join([
+                    _('Electrum uses Nostr in order to find liquidity providers.'),
+                    _('Do you want to enable Nostr?'),
+            ])):
+                return False
+
+        return sm.create_transport()
+
+    def initialize_swap_manager(self, transport):
+        sm = self.wallet.lnworker.swap_manager
+        if not sm.is_initialized.is_set():
+            async def wait_until_initialized():
+                try:
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    return
+            try:
+                self.run_coroutine_dialog(wait_until_initialized(), _('Please wait...'))
+            except Exception as e:
+                self.show_error(str(e))
+                return False
+
+        if not self.config.SWAPSERVER_URL and not sm.is_initialized.is_set():
+            if not self.choose_swapserver_dialog(transport):
+                return False
+
+        assert sm.is_initialized.is_set()
+        return True
+
+    def choose_swapserver_dialog(self, transport):
+        if not transport.is_connected.is_set():
+            self.show_message(
+                '\n'.join([
+                    _('Could not connect to a Nostr relay.'),
+                    _('Please check your relays and network connection'),
+                ]))
+            return False
+        now = int(time.time())
+        recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < 3600]
+        if not recent_offers:
+            self.show_message(
+                '\n'.join([
+                    _('Could not find a swap provider.'),
+                ]))
+            return False
+        sm = self.wallet.lnworker.swap_manager
+        def descr(x):
+            last_seen = util.age(x['timestamp'])
+            return f"pubkey={x['pubkey'][0:10]},  fee={x['percentage_fee']}% + {x['reverse_mining_fee']} sats"
+        server_keys = [(x['pubkey'], descr(x)) for x in recent_offers]
+        msg = '\n'.join([
+            _("Please choose a server from this list."),
+            _("Note that fees may be updated frequently.")
+        ])
+        choice = self.query_choice(
+            msg = msg,
+            choices = server_keys,
+            title = _("Choose Swap Server"),
+            default_choice = self.config.SWAPSERVER_NPUB
+        )
+        if choice not in transport.offers:
+            return False
+        self.config.SWAPSERVER_NPUB = choice
+        pairs = transport.get_offer(choice)
+        sm.update_pairs(pairs)
+        return True
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
@@ -1309,11 +1388,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, allow_preview=False)
-        funding_tx = d.run()
+        funding_tx, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
         if not funding_tx:
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
+
+    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True):
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview)
+        if d.not_enough_funds:
+            # note: use confirmed_only=False here, regardless of config setting,
+            #       as the user needs to get to ConfirmTxDialog to change the config setting
+            if not d.can_pay_assuming_zero_fees(confirmed_only=False):
+                text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
+                self.show_message(text)
+                return
+        return d.run(), d.is_preview
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):

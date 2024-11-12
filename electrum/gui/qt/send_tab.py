@@ -14,7 +14,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
@@ -26,7 +26,6 @@ from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
                    get_iconname_camera, read_QIcon, ColorScheme, icon_path)
-from .confirm_tx_dialog import ConfirmTxDialog
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -321,31 +320,26 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
         output_value = '!' if is_max else sum(output_values)
-        conf_dlg = ConfirmTxDialog(window=self.window, make_tx=make_tx, output_value=output_value)
-        if conf_dlg.not_enough_funds:
-            # note: use confirmed_only=False here, regardless of config setting,
-            #       as the user needs to get to ConfirmTxDialog to change the config setting
-            if not conf_dlg.can_pay_assuming_zero_fees(confirmed_only=False):
-                text = self.get_text_not_enough_funds_mentioning_frozen()
-                self.show_message(text)
-                return
-        tx = conf_dlg.run()
+
+        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value)
         if tx is None:
             # user cancelled
             return
-        is_preview = conf_dlg.is_preview
 
         if tx.has_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
-            coro = sm.request_swap_for_tx(tx)
-            try:
-                swap, invoice, tx = self.network.run_from_another_thread(coro)
-            except SwapServerError as e:
-                self.show_error(str(e))
-                return
-            assert not tx.has_dummy_output(DummyAddress.SWAP)
-            tx.swap_invoice = invoice
-            tx.swap_payment_hash = swap.payment_hash
+            with self.window.create_sm_transport() as transport:
+                if not self.window.initialize_swap_manager(transport):
+                    return
+                coro = sm.request_swap_for_tx(transport, tx)
+                try:
+                    swap, invoice, tx = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+                except SwapServerError as e:
+                    self.show_error(str(e))
+                    return
+                assert not tx.has_dummy_output(DummyAddress.SWAP)
+                tx.swap_invoice = invoice
+                tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
             self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
@@ -744,12 +738,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if hasattr(tx, 'swap_payment_hash'):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
-            coro = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=tx.swap_invoice, tx=tx)
-            self.window.run_coroutine_dialog(
-                coro, _('Awaiting swap payment...'),
-                on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
-                on_cancelled=lambda: sm.cancel_normal_swap(swap))
-            return
+            with sm.create_transport() as transport:
+                coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
+                try:
+                    funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
+                except UserCancelled:
+                    sm.cancel_normal_swap(swap)
+                    return
+                self.window.on_swap_result(funding_txid, is_reverse=False)
 
         def broadcast_thread():
             # non-GUI thread

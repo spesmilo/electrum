@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-from .confirm_tx_dialog import ConfirmTxDialog, TxEditor, TxSizeLabel, HelpLabel
+from .confirm_tx_dialog import TxEditor, TxSizeLabel, HelpLabel
 
 class _BaseRBFDialog(TxEditor):
 
