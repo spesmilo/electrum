@@ -474,7 +474,7 @@ class LNSerializer:
                                                              count=subtype_field_count)
             parsedlist.append(parsed)
 
-        return parsedlist[0] if len(parsedlist) == 1 else parsedlist
+        return parsedlist if count == '...' or count > 1 else parsedlist[0]
 
     def write_tlv_stream(self, *, fd: io.BytesIO, tlv_stream_name: str, **kwargs) -> None:
         scheme_map = self.in_tlv_stream_get_tlv_record_scheme_from_type[tlv_stream_name]
