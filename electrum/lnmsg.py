@@ -403,13 +403,13 @@ class LNSerializer:
             assert isinstance(value, dict) or isinstance(value, list)
             values = [value] if isinstance(value, dict) else value
         else:
-            assert isinstance(value, list)
+            assert isinstance(value, list), f'{field_type=}, expected value of type list for {count=}'
             values = value
 
         if count == '...':
             count = len(values)
         else:
-            assert count == len(values)
+            assert count == len(values), f'{field_type=}, expected {count} but got {len(values)}'
         if count == 0:
             return
 
