@@ -47,6 +47,10 @@ def is_uri(data: str) -> bool:
     return False
 
 
+def now():
+    return int(time.time())
+
+
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
 RE_DOMAIN = r'\b([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
@@ -173,7 +177,7 @@ class PaymentIdentifier(Logger):
         return self._state in [PaymentIdentifierState.AVAILABLE]
 
     def is_lightning(self):
-        return bool(self.lnurl) or bool(self.bolt11)
+        return bool(self.lnurl) or bool(self.bolt11) or bool(self.bolt12_offer)
 
     def is_onchain(self):
         if self._type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE, PaymentIdentifierType.BIP70,
@@ -197,6 +201,8 @@ class PaymentIdentifier(Logger):
             return not self.need_resolve()  # always fixed after resolve?
         elif self._type == PaymentIdentifierType.BOLT11:
             return bool(self.bolt11.get_amount_sat())
+        elif self._type == PaymentIdentifierType.BOLT12_OFFER:
+            return bool(self.bolt12_offer.get('offer_amount'))
         elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
@@ -439,10 +445,14 @@ class PaymentIdentifier(Logger):
                 try:
                     if not self.wallet.lnworker:
                         raise Exception('wallet is not lightning-enabled')
-                    data = await bolt12.request_invoice(self.wallet.lnworker, self.bolt12_offer, amount_sat, comment)
-                    self.bolt12_invoice = data
+                    invoice, invoice_tlv = await bolt12.request_invoice(
+                        self.wallet.lnworker, self.bolt12_offer, amount_sat * 1000, note=comment)
+                    self.bolt12_invoice = invoice
+                    # expose TLV as well, due to WalletDB serialization limitations.
+                    # see Invoice.from_bolt12_invoice_tlv for more information
+                    self.bolt12_invoice_tlv = invoice_tlv
                     self.set_state(PaymentIdentifierState.AVAILABLE)
-                    self.logger.debug(f'BOLT12 invoice request data: {data!r}')
+                    self.logger.debug(f'BOLT12 invoice_request reply: {invoice!r}')
                 except Timeout:
                     self.error = _('Timeout requesting invoice')
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
@@ -624,6 +634,17 @@ class PaymentIdentifier(Logger):
         elif self.bolt11:
             recipient, amount, description = self._get_bolt11_fields()
 
+        elif self.bolt12_offer:
+            offer_amount = self.bolt12_offer.get('offer_amount')
+            if offer_amount:
+                amount = int(offer_amount.get('amount')) / 1000  # msat->sat, FIXME: cannot handle fractional sats..
+            offer_description = self.bolt12_offer.get('offer_description')
+            if offer_description:
+                description = offer_description.get('description')
+            offer_issuer = self.bolt12_offer.get('offer_issuer')
+            if offer_issuer:
+                recipient = offer_issuer.get('issuer')
+
         elif self.lnurl and self.lnurl_data:
             domain = urllib.parse.urlparse(self.lnurl).netloc
             recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
@@ -696,6 +717,16 @@ class PaymentIdentifier(Logger):
             return self.bip70_data.has_expired()
         elif self.bolt11:
             return self.bolt11.has_expired()
+        elif self.bolt12_offer or self.bolt12_invoice:
+            # TODO: invoice not from offer, or original offer unavailable (e.g. saved resolved invoice from offer)
+            if self.bolt12_offer:
+                offer_absolute_expiry = self.bolt12_offer.get('offer_absolute_expiry', {}).get('seconds_from_epoch', 0)
+                if offer_absolute_expiry:
+                    return now() > offer_absolute_expiry
+            if self.bolt12_invoice:
+                invoice_relative_expiry = self.bolt12_invoice.get('invoice_relative_expiry', {}).get('seconds_from_creation', 0)
+                if invoice_relative_expiry:
+                    return now() > self.bolt12_invoice.get('invoice_created_at').get('timestamp') + invoice_relative_expiry
         elif self.bip21:
             expires = self.bip21.get('exp') + self.bip21.get('time') if self.bip21.get('exp') else 0
             return bool(expires) and expires < time.time()
