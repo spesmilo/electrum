@@ -525,6 +525,40 @@ class NewWalletWizard(AbstractWizard):
 
         return seed_valid, seed_type, validation_message, can_passphrase
 
+    def validate_master_key(self, key: str, wallet_type: str):
+        # TODO: deduplicate with master key check in create_storage()
+        validation_message = ''
+        key_valid = False
+
+        if not keystore.is_master_key(key):
+            validation_message = _('Not a master key')
+        else:
+            k = keystore.from_master_key(key)
+            if wallet_type == 'standard':
+                if isinstance(k, keystore.Xpub):  # has bip32 xpub
+                    t1 = xpub_type(k.xpub)
+                    if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:  # disallow Ypub/Zpub
+                        validation_message = '%s: %s' % (_('Wrong key type'), t1)
+                    else:
+                        key_valid = True
+                elif isinstance(k, keystore.Old_KeyStore):
+                    key_valid = True
+                else:
+                    self._logger.error(f"unexpected keystore type: {type(keystore)}")
+            elif wallet_type == 'multisig':
+                if not isinstance(k, keystore.Xpub):  # old mpk?
+                    validation_message = '%s: %s' % (_('Wrong key type'), "not bip32")
+                t1 = xpub_type(k.xpub)
+                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:  # disallow ypub/zpub
+                    validation_message = '%s: %s' % (_('Wrong key type'), t1)
+                else:
+                    key_valid = True
+            else:
+                validation_message = '%s: %s' % (_('Unsupported wallet type'), wallet_type)
+                self._logger.error(f'Unsupported wallet type: {wallet_type}')
+
+        return key_valid, validation_message
+
     def create_storage(self, path: str, data: dict):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
 
