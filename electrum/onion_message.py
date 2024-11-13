@@ -152,19 +152,21 @@ async def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) ->
                            if chan.short_channel_id is not None}
     # strat1: find route to introduction point over existing channel mesh
     # NOTE: nodes that are in channel_db but are offline are not removed from the set
-    if path := lnwallet.network.path_finder.find_path_for_payment(
-        nodeA=lnwallet.node_keypair.pubkey,
-        nodeB=node_id,
-        invoice_amount_msat=10000,  # TODO: do this without amount constraints
-        node_filter=lambda x, y: True if x == lnwallet.node_keypair.pubkey else is_onion_message_node(x, y),
-        my_sending_channels=my_sending_channels
-    ): return path
+    if lnwallet.network.path_finder:
+        if path := lnwallet.network.path_finder.find_path_for_payment(
+            nodeA=lnwallet.node_keypair.pubkey,
+            nodeB=node_id,
+            invoice_amount_msat=10000,  # TODO: do this without amount constraints
+            node_filter=lambda x, y: True if x == lnwallet.node_keypair.pubkey else is_onion_message_node(x, y),
+            my_sending_channels=my_sending_channels
+        ): return path
 
     # strat2: dest node has host:port in channel_db? then open direct peer connection
-    if peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
-        peer = await lnwallet.add_peer(str(peer_addr))
-        await peer.initialized
-        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
+    if lnwallet.channel_db:
+        if peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+            peer = await lnwallet.add_peer(str(peer_addr))
+            await peer.initialized
+            return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
 
     raise Exception('no path found')
 
