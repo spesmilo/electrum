@@ -788,7 +788,6 @@ class Interface(Logger):
         async with self.network.bhi_lock:
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
-                self.logger.info(f"skipping header {height}")
                 return False
             _, height = await self.step(height, header)
             # in the simple case, height == self.tip+1
@@ -835,13 +834,13 @@ class Interface(Logger):
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
         if not can_connect:
-            self.logger.info(f"can't connect {height}")
+            self.logger.info(f"can't connect new block: {height=}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
             assert chain or can_connect
         if can_connect:
-            self.logger.info(f"could connect {height}")
+            self.logger.info(f"new block: {height=}")
             height += 1
             if isinstance(can_connect, Blockchain):  # not when mocking
                 self.blockchain = can_connect
