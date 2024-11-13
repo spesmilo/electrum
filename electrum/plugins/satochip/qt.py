@@ -1,26 +1,27 @@
-from electrum.i18n import _
-from electrum.logging import get_logger
-from electrum.keystore import bip39_is_checksum_valid
-from electrum.simple_config import SimpleConfig
-from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, icon_path,
-                                  OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
-from electrum.gui.qt.qrcodewidget import QRDialog
-from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
-                                            WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
-from electrum.plugin import hook
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
-                             QWidget, QGridLayout, QComboBox, QLineEdit, QTextEdit, QTabWidget)
-
 from functools import partial
 from os import urandom
 import textwrap
 import threading
 
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
+                             QWidget, QGridLayout, QComboBox, QLineEdit, QTabWidget)
+
+from electrum.i18n import _
+from electrum.logging import get_logger
+from electrum.util import UserFacingException
+from electrum.simple_config import SimpleConfig
+from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, icon_path,
+                                  OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
+from electrum.gui.qt.qrcodewidget import QRDialog
+from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
+                                           WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
+from electrum.plugin import hook
+from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+
 # satochip
 from .satochip import SatochipPlugin
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 # pysatochip
 from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError
@@ -48,6 +49,7 @@ MSG_SEED_IMPORT = [
     _("A passphrase is not a PIN. "),
     _("If set, you will need your passphrase along with your BIP39 seed to restore your wallet from a backup. "),
 ]
+
 
 class Plugin(SatochipPlugin, QtPluginBase):
     icon_unpaired = "satochip_unpaired.png"
@@ -104,7 +106,8 @@ class Plugin(SatochipPlugin, QtPluginBase):
             },
             'satochip_have_seed': {
                 'gui': WCHaveSeed,
-                'next': lambda d: 'satochip_have_ext' if wizard.wants_ext(d) else 'satochip_import_seed'
+                'next': lambda d: 'satochip_have_ext' if wizard.wants_ext(d) else 'satochip_import_seed',
+                'params': {'seed_options': ['ext', 'bip39']}
             },
             'satochip_have_ext': {
                 'gui': WCEnterExt,
@@ -255,10 +258,14 @@ class SatochipSettingsDialog(WindowModalDialog):
 
     def show_values(self, client):
         _logger.info("Show value!")
-        is_ok = client.verify_PIN()
-        if not is_ok:
-            msg = f"action cancelled by user"
-            self.window.show_error(msg)
+        try:
+            is_ok = client.verify_PIN()
+            if not is_ok:
+                msg = f"action cancelled by user"
+                self.window.show_error(msg)
+                return
+        except UserFacingException as e:
+            self.window.show_error(str(e))
             return
 
         sw_rel = 'v' + str(SATOCHIP_PROTOCOL_MAJOR_VERSION) + \
@@ -412,7 +419,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         parent = self.top_level_window()
         d = WindowModalDialog(parent, _("Enter PIN"))
         pw = QLineEdit()
-        pw.setEchoMode(2)
+        pw.setEchoMode(QLineEdit.EchoMode.Password)
         pw.setMinimumWidth(200)
 
         vbox = QVBoxLayout()
@@ -645,7 +652,6 @@ class SatochipSettingsDialog(WindowModalDialog):
             parent = self.top_level_window()
             d = WindowModalDialog(parent, _("Enter Label"))
             pw = QLineEdit()
-            pw.setEchoMode(0)
             pw.setMinimumWidth(200)
 
             vbox = QVBoxLayout()
@@ -928,6 +934,7 @@ class WCSatochipSetup(WalletWizardComponent):
 ##########################
 #   Import seed wizard   #
 ##########################
+
 
 class WCSeedMessage(WalletWizardComponent):
     def __init__(self, parent, wizard):

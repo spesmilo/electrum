@@ -20,7 +20,7 @@ from electrum.logging import get_logger
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 # pysatochip
-from pysatochip.CardConnector import CardConnector
+from pysatochip.CardConnector import CardConnector, UninitializedSeedError
 from pysatochip.CardConnector import CardNotPresentError, UnexpectedSW12Error, WrongPinError, PinBlockedError, PinRequiredError
 from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 
@@ -163,7 +163,10 @@ class SatochipClient(HardwareClientBase):
         # bip32_path is of the form 44'/0'/1'
         _logger.info(f"[SatochipClient] get_xpub(): bip32_path={bip32_path}")
         (depth, bytepath) = bip32path2bytes(bip32_path)
-        (childkey, childchaincode) = self.cc.card_bip32_get_extendedkey(bytepath)
+        try:
+            (childkey, childchaincode) = self.cc.card_bip32_get_extendedkey(bytepath)
+        except UninitializedSeedError as e:
+            raise UserFacingException(str(e))
         if depth == 0:  # masterkey
             fingerprint = bytes([0, 0, 0, 0])
             child_number = bytes([0, 0, 0, 0])
