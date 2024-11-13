@@ -819,6 +819,10 @@ class WCHaveMasterKey(WalletWizardComponent):
             _("To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."),
             _("To create a spending wallet, please enter a master private key (xprv/yprv/zprv).")
         ])
+        self.message_multisig = ' '.join([
+            _('Please enter your master private key (xprv).'),
+            _('You can also enter a public key (xpub) here, but be aware you will then create a watch-only wallet if all cosigners are added using public keys'),
+        ])
         self.message_cosign = ' '.join([
             _('Please enter the master public key (xpub) of your cosigner.'),
             _('Enter their master private key (xprv) if you want to be able to sign for them.')
@@ -846,7 +850,7 @@ class WCHaveMasterKey(WalletWizardComponent):
                 self.title = _("Add Cosigner {}").format(self.wizard_data['multisig_current_cosigner'])
                 self.label.setText(self.message_cosign)
             else:
-                self.label.setText(self.message_create)
+                self.label.setText(self.message_multisig)
 
             def is_valid(x) -> bool:
                 self.apply()
