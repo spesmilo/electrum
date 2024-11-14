@@ -447,6 +447,10 @@ class LNWalletWatcher(LNWatcher):
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
+            prev_txid, prev_index = prevout.split(':')
+            if not self.adb.get_transaction(prev_txid):
+                # do not keep watching if prevout does not exist
+                continue
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             spender_txid = spenders.get(prevout)
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
@@ -461,7 +465,7 @@ class LNWalletWatcher(LNWatcher):
                         keep_watching = True
                     await self.maybe_redeem(spenders, spender_txid+':0', e_htlc_tx, name)
                 else:
-                    keep_watching |= not self.is_deeply_mined(spender_tx.txid())
+                    keep_watching |= not self.is_deeply_mined(spender_txid)
                     txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
                     assert txin_idx is not None
                     spender_txin = spender_tx.inputs()[txin_idx]
