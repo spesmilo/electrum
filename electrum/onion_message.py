@@ -36,7 +36,7 @@ from electrum.lnrouter import PathEdge
 from electrum.logging import get_logger, Logger
 from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
-from electrum.lnonion import (get_shared_secrets_along_route2, get_bolt04_onion_key, OnionPacket, process_onion_packet,
+from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, decrypt_encrypted_data_tlv, encrypt_encrypted_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet)
 from electrum.lnutil import LnFeatures
@@ -78,7 +78,7 @@ def create_blinded_path(session_key: bytes, path: List[bytes], final_recipient_d
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
     onionmsg_hops = []
-    shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(path, session_key)
+    shared_secrets, blinded_node_ids = get_shared_secrets_along_route(path, session_key, with_blinded_node_ids=True)
     for i, node_id in enumerate(path):
         is_non_final_node = i < len(path) - 1
 
@@ -245,8 +245,9 @@ async def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: b
                         blinding = blinded_path['blinding']
                     else:
                         payment_path_pubkeys = [edge.end_node for edge in path]
-                        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys,
-                                                                                               session_key)
+                        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys,
+                                                                                              session_key,
+                                                                                              with_blinded_node_ids=True)
 
                         hops_data = [
                             OnionHopsDataSingle(
@@ -328,7 +329,8 @@ async def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: b
 
         payment_path_pubkeys = [edge.end_node for edge in path]
 
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys, session_key,
+                                                                              with_blinded_node_ids=True)
         encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, session_key, hops_data)
         packet_b = packet.to_bytes()

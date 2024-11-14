@@ -3,7 +3,7 @@ import io
 import electrum_ecc as ecc
 
 from electrum.lnmsg import decode_msg, OnionWireSerializer
-from electrum.lnonion import (get_shared_secrets_along_route2, OnionHopsDataSingle, OnionPacket,
+from electrum.lnonion import (OnionHopsDataSingle, OnionPacket,
                               process_onion_packet, get_bolt04_onion_key, encrypt_encrypted_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE,
                               HOPS_DATA_SIZE, InvalidPayloadSize)
@@ -27,7 +27,8 @@ class TestOnionMessage(ElectrumTestCase):
         ]
 
         session_key = bfh('0303030303030303030303030303030303030303030303030303030303030303')
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys, session_key,
+                                                                              with_blinded_node_ids=True)
 
         self.assertEqual(hop_shared_secrets, [
             bfh('c04d2a4c518241cb49f2800eea92554cb543f268b4c73f85693541e86d649205'),
@@ -67,7 +68,8 @@ class TestOnionMessage(ElectrumTestCase):
                                 )
         ]
 
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys, session_key,
+                                                                              with_blinded_node_ids=True)
         encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, session_key, hops_data, onion_message=True)
 
@@ -83,7 +85,8 @@ class TestOnionMessage(ElectrumTestCase):
         ]
 
         session_key = bfh('0303030303030303030303030303030303030303030303030303030303030303')
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(payment_path_pubkeys, session_key)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys, session_key,
+                                                                              with_blinded_node_ids=True)
 
         def hops_data_for_message(message):
             return [
@@ -212,7 +215,8 @@ class TestOnionMessage(ElectrumTestCase):
                                                                                          # bob is blinded_path[0]
         ]
         session_key = bfh('0303030303030303030303030303030303030303030303030303030303030303')
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route2(route_until_bob, session_key)
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(route_until_bob, session_key,
+                                                                              with_blinded_node_ids=True)
 
         hops_data = [
             OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv',

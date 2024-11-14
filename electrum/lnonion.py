@@ -158,25 +158,15 @@ def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
     return key
 
 
-def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
-                                   session_key: bytes) -> Sequence[bytes]:
-    num_hops = len(payment_path_pubkeys)
-    hop_shared_secrets = num_hops * [b'']
-    ephemeral_key = session_key
-    # compute shared key for each hop
-    for i in range(0, num_hops):
-        hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
-        ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
-        blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
-        blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-        ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
-        ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
-        ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
-    return hop_shared_secrets
-
-
-def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
-                                    session_key: bytes) -> Tuple[Sequence[bytes], Sequence[bytes]]:
+def get_shared_secrets_along_route(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
+                                   session_key: bytes,
+                                   *,
+                                   with_blinded_node_ids: bool = False) \
+        -> Union[Sequence[bytes], Tuple[Sequence[bytes], Sequence[bytes]]]:
+    """Computes shared secrets and optionally blinded_node_ids for the list of pubkeys.
+       The list of pubkeys can include tuples, which are interpreted as tuple(pubkey, ephemeral privkey override)
+       The ephemeral privkey override is used in situations where a blinded path is concatenated to a route.
+    """
     num_hops = len(payment_path_pubkeys_plus)
     hop_shared_secrets = num_hops * [b'']
     hop_blinded_node_ids = num_hops * [b'']
@@ -189,7 +179,8 @@ def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[by
             payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
 
-        hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
+        if with_blinded_node_ids:
+            hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
 
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
@@ -197,7 +188,7 @@ def get_shared_secrets_along_route2(payment_path_pubkeys_plus: Sequence[Union[by
         ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
         ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
         ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
-    return hop_shared_secrets, hop_blinded_node_ids
+    return (hop_shared_secrets, hop_blinded_node_ids) if with_blinded_node_ids else hop_shared_secrets
 
 
 def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
