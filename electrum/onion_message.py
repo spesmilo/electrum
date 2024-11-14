@@ -398,8 +398,8 @@ class OnionMessageManager(Logger):
 
         self.pending = {}
         self.pending_lock = threading.Lock()
-        self.reqrpyqueue = queue.PriorityQueue()
-        self.reqrpyqueue_notempty = asyncio.Event()
+        self.requestreply_queue = queue.PriorityQueue()
+        self.requestreply_queue_notempty = asyncio.Event()
         self.forwardqueue = queue.PriorityQueue()
         self.forwardqueue_notempty = asyncio.Event()
 
@@ -472,62 +472,62 @@ class OnionMessageManager(Logger):
     async def process_request_reply_queue(self):
         while True:
             try:
-                scheduled, expires, key = self.reqrpyqueue.get_nowait()
+                scheduled, expires, key = self.requestreply_queue.get_nowait()
             except queue.Empty:
-                self.logger.debug(f'reqrpy queue empty')
-                self.reqrpyqueue_notempty.clear()
-                await self.reqrpyqueue_notempty.wait()
+                self.logger.debug(f'requestreply queue empty')
+                self.requestreply_queue_notempty.clear()
+                await self.requestreply_queue_notempty.wait()
                 continue
 
-            reqrpy = self.get_reqrpy(key)
-            if reqrpy is None:
+            requestreply = self.get_requestreply(key)
+            if requestreply is None:
                 self.logger.debug(f'no data for key {key=}')
                 continue
-            if reqrpy.get('result') is not None:
+            if requestreply.get('result') is not None:
                 self.logger.debug(f'has result! {key=}')
                 continue
             if expires <= now():
                 self.logger.debug(f'expired {key=}')
-                self._set_reqrpy_result(key, Timeout())
+                self._set_requestreply_result(key, Timeout())
                 continue
             if scheduled > now():
                 # return to queue
-                self.reqrpyqueue.put_nowait((scheduled, expires, key))
+                self.requestreply_queue.put_nowait((scheduled, expires, key))
                 await asyncio.sleep(1)  # sleep here, as the first queue item wasn't due yet
                 continue
 
             try:
-                await self._send_pending_reqrpy(key)
+                await self._send_pending_requestreply(key)
             except BaseException as e:
                 self.logger.debug(f'error while sending {key=}')
-                self._set_reqrpy_result(key, e)
+                self._set_requestreply_result(key, e)
             else:
-                self.reqrpyqueue.put_nowait((now() + REQUEST_REPLY_RETRY_DELAY, expires, key))
+                self.requestreply_queue.put_nowait((now() + REQUEST_REPLY_RETRY_DELAY, expires, key))
 
-    def get_reqrpy(self, key):
+    def get_requestreply(self, key):
         with self.pending_lock:
             return self.pending.get(key)
 
-    def _set_reqrpy_result(self, key, result):
+    def _set_requestreply_result(self, key, result):
         with self.pending_lock:
-            reqrpy = self.pending.get(key)
-            if reqrpy is None:
+            requestreply = self.pending.get(key)
+            if requestreply is None:
                 return
             self.pending[key]['result'] = result
-        reqrpy['ev'].set()
+        requestreply['ev'].set()
 
-    def _remove_reqrpy(self, key):
+    def _remove_requestreply(self, key):
         with self.pending_lock:
-            reqrpy = self.pending.get(key)
-            if reqrpy is None:
+            requestreply = self.pending.get(key)
+            if requestreply is None:
                 return
-            reqrpy['ev'].set()
+            requestreply['ev'].set()
             del self.pending[key]
 
-    def submit_reqrpy(self, *,
-                      payload: dict,
-                      node_id_or_blinded_path: bytes,
-                      key: bytes = None) -> 'Task':
+    def submit_requestreply(self, *,
+                            payload: dict,
+                            node_id_or_blinded_path: bytes,
+                            key: bytes = None) -> 'Task':
         """Add onion message to queue for sending. Queued onion message payloads
            are supplied with a path_id and a reply_path to determine which request
            corresponds with arriving replies.
@@ -539,7 +539,7 @@ class OnionMessageManager(Logger):
             key = os.urandom(8)
         assert type(key) is bytes and len(key) >= 8
 
-        self.logger.debug(f'submit_reqrpy {key=} {payload=} {node_id_or_blinded_path=}')
+        self.logger.debug(f'submit_requestreply {key=} {payload=} {node_id_or_blinded_path=}')
 
         with self.pending_lock:
             if key in self.pending:
@@ -553,38 +553,38 @@ class OnionMessageManager(Logger):
         # tuple = (when to process, when it expires, key)
         expires = now() + REQUEST_REPLY_TIMEOUT
         queueitem = (now(), expires, key)
-        self.reqrpyqueue.put_nowait(queueitem)
-        task = asyncio.create_task(self._reqrpy_task(key))
-        self.reqrpyqueue_notempty.set()
+        self.requestreply_queue.put_nowait(queueitem)
+        task = asyncio.create_task(self._requestreply_task(key))
+        self.requestreply_queue_notempty.set()
         return task
 
-    async def _reqrpy_task(self, key):
-        reqrpy = self.get_reqrpy(key)
-        assert reqrpy
-        if reqrpy is None:
+    async def _requestreply_task(self, key):
+        requestreply = self.get_requestreply(key)
+        assert requestreply
+        if requestreply is None:
             return
         try:
             self.logger.debug(f'wait task start {key}')
-            await reqrpy['ev'].wait()
+            await requestreply['ev'].wait()
         finally:
             self.logger.debug(f'wait task end {key}')
 
         try:
-            reqrpy = self.get_reqrpy(key)
-            assert reqrpy
-            result = reqrpy.get('result')
+            requestreply = self.get_requestreply(key)
+            assert requestreply
+            result = requestreply.get('result')
             if isinstance(result, Exception):
                 raise result
             return result
         finally:
-            self._remove_reqrpy(key)
+            self._remove_requestreply(key)
 
-    async def _send_pending_reqrpy(self, key):
+    async def _send_pending_requestreply(self, key):
         """adds reply_path to payload"""
-        data = self.get_reqrpy(key)
+        data = self.get_requestreply(key)
         payload = data.get('payload')
         node_id_or_blinded_path = data.get('node_id_or_blinded_path')
-        self.logger.debug(f'send_reqrpy {key=} {payload=} {node_id_or_blinded_path=}')
+        self.logger.debug(f'send_requestreply {key=} {payload=} {node_id_or_blinded_path=}')
 
         final_payload = copy.deepcopy(payload)
 
@@ -632,12 +632,12 @@ class OnionMessageManager(Logger):
             self.logger.warning('not a reply to our request (unknown path_id prefix)')
             return
         key = correl_data[8:]
-        reqrpy = self.get_reqrpy(key)
-        if reqrpy is None:
+        requestreply = self.get_requestreply(key)
+        if requestreply is None:
             self.logger.warning('not a reply to our request (unknown request)')
             return
 
-        self._set_reqrpy_result(key, (recipient_data, payload))
+        self._set_requestreply_result(key, (recipient_data, payload))
 
     def on_onion_message_received_unsolicited(self, recipient_data, payload):
         self.logger.debug('unsolicited onion_message received')
