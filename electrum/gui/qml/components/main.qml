@@ -436,9 +436,18 @@ ApplicationWindow
         }
     }
 
+    property alias nostrSwapServersDialog: _nostrSwapServersDialog
+    Component {
+        id: _nostrSwapServersDialog
+        NostrSwapServersDialog {
+            onClosed: destroy()
+        }
+    }
+
     Component {
         id: swapDialog
         SwapDialog {
+            id: _swapdialog
             onClosed: destroy()
             swaphelper: SwapHelper {
                 id: _swaphelper
@@ -451,6 +460,20 @@ ApplicationWindow
                         title: qsTr('Error'),
                         iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                         text: message
+                    })
+                    dialog.open()
+                }
+                onUndefinedNPub: {
+                    var dialog = app.nostrSwapServersDialog.createObject(app, {
+                        swaphelper: _swaphelper,
+                        selectedPubkey: Config.swapServerNPub
+                    })
+                    dialog.accepted.connect(function() {
+                        Config.swapServerNPub = dialog.selectedPubkey
+                        _swaphelper.init_swap_manager()
+                    })
+                    dialog.rejected.connect(function() {
+                        _swaphelper.npubSelectionCancelled()
                     })
                     dialog.open()
                 }

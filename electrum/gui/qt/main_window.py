@@ -1245,7 +1245,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         sm = self.wallet.lnworker.swap_manager
         def descr(x):
             last_seen = util.age(x['timestamp'])
-            return f"pubkey={x['pubkey'][0:10]},  fee={x['percentage_fee']}% + {x['reverse_mining_fee']} sats"
+            return f"pubkey={x['pubkey'][0:10]},  fee={x['percentage_fee']}% + {x['reverse_mining_fee']} sats, {last_seen=}"
         server_keys = [(x['pubkey'], descr(x)) for x in recent_offers]
         msg = '\n'.join([
             _("Please choose a server from this list."),
