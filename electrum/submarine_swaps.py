@@ -877,6 +877,7 @@ class SwapManager(Logger):
             "preimageHash": payment_hash.hex(),
             "claimPublicKey": our_pubkey.hex()
         }
+        self.logger.debug(f'rswap: sending request for {lightning_amount_sat}')
         data = await transport.send_request_to_server('createswap', request_data)
         invoice = data['invoice']
         fee_invoice = data.get('minerFeeInvoice')
@@ -885,6 +886,7 @@ class SwapManager(Logger):
         locktime = data['timeoutBlockHeight']
         onchain_amount = data["onchainAmount"]
         response_id = data['id']
+        self.logger.debug(f'rswap: {response_id=}')
         # verify redeem_script is built with our pubkey and preimage
         check_reverse_redeem_script(
             redeem_script=redeem_script,
@@ -1312,7 +1314,6 @@ class HttpTransport(Logger):
         self.sm.update_pairs(pairs)
 
 
-
 class NostrTransport(Logger):
     # uses nostr:
     #  - to advertise servers
@@ -1382,6 +1383,7 @@ class NostrTransport(Logger):
         self.sm.is_initialized.clear()
         await self.taskgroup.cancel_remaining()
         await self.relay_manager.close()
+        self.logger.info("nostr transport shut down")
 
     @property
     def relays(self):
@@ -1559,7 +1561,7 @@ class NostrTransport(Logger):
         method = request.pop('method')
         event_id = request.pop('event_id')
         event_pubkey = request.pop('event_pubkey')
-        print(f'handle_request: id={event_id} {method} {request}')
+        self.logger.info(f'handle_request: id={event_id} {method} {request}')
         relays = request.pop('relays').split(',')
         if method == 'addswapinvoice':
             r = self.sm.server_add_swap_invoice(request)
