@@ -249,6 +249,31 @@ ElDialog {
             }
         }
 
+
+        Pane {
+            visible: _swaphelper.isNostr()
+            background: Rectangle { color: constants.darkerDialogBackground }
+            padding: 0
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            FlatButton {
+                text: qsTr('Choose swap provider')
+                onClicked: {
+                    var dialog = app.nostrSwapServersDialog.createObject(app, {
+                        swaphelper: _swaphelper,
+                        selectedPubkey: Config.swapServerNPub
+                    })
+                    dialog.accepted.connect(function() {
+                        if (true || Config.swapServerNPub != dialog.selectedPubkey) {
+                            Config.swapServerNPub = dialog.selectedPubkey
+                            _swaphelper.init_swap_manager()
+                        }
+                    })
+                    dialog.open()
+                }
+            }
+        }
+
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
         ButtonContainer {
