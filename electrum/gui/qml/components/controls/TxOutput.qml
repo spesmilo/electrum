@@ -13,6 +13,14 @@ TextHighlightPane {
     property bool allowClickAddress: true
     property int idx: -1
 
+    property string _suffix: model.is_mine || model.is_change
+            ? qsTr('mine')
+            : model.is_swap
+                ? qsTr('swap')
+                : model.is_billing
+                    ? qsTr('billing')
+                    : ""
+
     RowLayout {
         width: parent.width
 
@@ -57,18 +65,23 @@ TextHighlightPane {
             RowLayout {
                 Layout.fillWidth: true
                 Label {
-                    text: model.address
+                    text: model.address + (_suffix
+                        ? ' <span style="font-size:' + constants.fontSizeXSmall + 'px">(' + _suffix + ')</span>'
+                        : "")
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     font.pixelSize: constants.fontSizeMedium
                     font.family: FixedFont
+                    textFormat: Text.RichText
                     color: model.is_mine
                         ? model.is_change
                             ? constants.colorAddressInternal
                             : constants.colorAddressExternal
                         : model.is_billing
                             ? constants.colorAddressBilling
-                            : Material.foreground
+                            : model.is_swap
+                                ? constants.colorAddressSwap
+                                : Material.foreground
                     TapHandler {
                         enabled: allowClickAddress && model.is_mine
                         onTapped: {
