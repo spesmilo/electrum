@@ -25,7 +25,6 @@
 
 import io
 import hashlib
-from copy import deepcopy
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
 from enum import IntEnum
 
@@ -158,37 +157,23 @@ def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
     return key
 
 
-def get_shared_secrets_along_route(payment_path_pubkeys_plus: Sequence[Union[bytes, Tuple[bytes, bytes]]],
-                                   session_key: bytes,
-                                   *,
-                                   with_blinded_node_ids: bool = False) \
-        -> Union[Sequence[bytes], Tuple[Sequence[bytes], Sequence[bytes]]]:
-    """Computes shared secrets and optionally blinded_node_ids for the list of pubkeys.
-       The list of pubkeys can include tuples, which are interpreted as tuple(pubkey, ephemeral privkey override)
-       The ephemeral privkey override is used in situations where a blinded path is concatenated to a route.
-    """
-    num_hops = len(payment_path_pubkeys_plus)
+def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
+                                   session_key: bytes) -> Tuple[Sequence[bytes], Sequence[bytes]]:
+    num_hops = len(payment_path_pubkeys)
     hop_shared_secrets = num_hops * [b'']
     hop_blinded_node_ids = num_hops * [b'']
     ephemeral_key = session_key
-    payment_path_pubkeys = deepcopy(payment_path_pubkeys_plus)
     # compute shared key for each hop
     for i in range(0, num_hops):
-        if isinstance(payment_path_pubkeys[i], tuple):  # pubkey + ephemeral privkey override
-            ephemeral_key = payment_path_pubkeys[i][1]
-            payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
-
-        if with_blinded_node_ids:
-            hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
-
+        hop_blinded_node_ids[i] = get_blinded_node_id(payment_path_pubkeys[i], hop_shared_secrets[i])
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
         blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
         ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
         ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
         ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
-    return (hop_shared_secrets, hop_blinded_node_ids) if with_blinded_node_ids else hop_shared_secrets
+    return hop_shared_secrets, hop_blinded_node_ids
 
 
 def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
@@ -211,7 +196,7 @@ def new_onion_packet(
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
     assert num_hops == len(hops_data)
-    hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
+    hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
 
     payload_size = 0
     for i in range(num_hops):
@@ -267,8 +252,9 @@ def encrypt_encrypted_data_tlv(*, shared_secret, **kwargs):
             tlv_stream_name='encrypted_data_tlv',
             **kwargs)
         encrypted_data_tlv_bytes = encrypted_data_tlv_fd.getvalue()
-        encrypted_recipient_data = chacha20_poly1305_encrypt(key=rho_key, nonce=bytes(12),
-                                                             data=encrypted_data_tlv_bytes)
+        encrypted_recipient_data = chacha20_poly1305_encrypt(
+            key=rho_key, nonce=bytes(12),
+            data=encrypted_data_tlv_bytes)
         return encrypted_recipient_data
 
 
@@ -496,7 +482,7 @@ def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[byte
                         session_key: bytes) -> Tuple[bytes, int]:
     """Returns the decoded error bytes, and the index of the sender of the error."""
     num_hops = len(payment_path_pubkeys)
-    hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
+    hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
     for i in range(num_hops):
         ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
         um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
