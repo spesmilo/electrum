@@ -904,7 +904,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
             if isinstance(self.tx, PartialTransaction):
                 # 'amount' is zero for self-payments, so in that case we use sum-of-outputs
-                invoice_amt = abs(amount) or self.tx.output_value()
+                invoice_amt = abs(amount) if amount else self.tx.output_value()
                 fee_warning_tuple = self.wallet.get_tx_fee_warning(
                     invoice_amt=invoice_amt, tx_size=size, fee=fee)
                 if fee_warning_tuple:
