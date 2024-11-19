@@ -621,7 +621,8 @@ class TrustedCoinPlugin(BasePlugin):
             # online continuation
             xprv1, xpub1, xprv2, xpub2 = (wizard_data['xprv1'], wizard_data['xpub1'], None, wizard_data['xpub2'])
         else:
-            xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], wizard_data['seed_extra_words'])
+            seed_extension = wizard_data['seed_extra_words'] if wizard_data['seed_extend'] else ''
+            xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], seed_extension)
 
         data = {'x1': {'xpub': xpub1}, 'x2': {'xpub': xpub2}}
 
