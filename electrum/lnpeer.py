@@ -2033,7 +2033,6 @@ class Peer(Logger, EventListener):
         """
         Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
         Return (preimage, (payment_key, callback)) with at most a single element not None.
-        Side effect: populates lnworker.received_mpp (which is not persisted, needs to be re-populated after restart)
         """
 
         if not processed_onion.are_we_final:
