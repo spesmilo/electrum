@@ -1768,6 +1768,10 @@ class TestPeerForwarding(TestPeer):
                 async with OldTaskGroup() as g:
                     for peer in peers:
                         await g.spawn(peer.wait_one_htlc_switch_iteration())
+                # wait another iteration
+                async with OldTaskGroup() as g:
+                    for peer in peers:
+                        await g.spawn(peer.wait_one_htlc_switch_iteration())
                 for peer in peers:
                     self.assertEqual(len(peer.lnworker.received_mpp_htlcs), 0)
                 raise PaymentDone()
