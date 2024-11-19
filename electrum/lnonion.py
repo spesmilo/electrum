@@ -391,12 +391,16 @@ class OnionRoutingFailure(Exception):
 
 
 def construct_onion_error(
-        reason: OnionRoutingFailure,
+        error: OnionRoutingFailure,
         their_public_key: bytes,
         our_onion_private_key: bytes,
+        local_height: int
 ) -> bytes:
+    # add local height
+    if error.code == OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS:
+        error.data += local_height.to_bytes(4, byteorder="big")
     # create payload
-    failure_msg = reason.to_bytes()
+    failure_msg = error.to_bytes()
     failure_len = len(failure_msg)
     pad_len = 256 - failure_len
     assert pad_len >= 0
