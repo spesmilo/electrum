@@ -2061,7 +2061,7 @@ class Peer(Logger, EventListener):
         # We should not release the preimage for an HTLC that its sender could already time out as
         # then they might try to force-close and it becomes a race.
         chain = self.network.blockchain()
-        if chain.is_tip_stale():
+        if chain.is_tip_stale() and not already_forwarded:
             log_fail_reason(f"our chain tip is stale")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         local_height = chain.height()
@@ -2129,12 +2129,9 @@ class Peer(Logger, EventListener):
             raise Exception(f"unexpected {mpp_resolution=}")
 
         # TODO check against actual min_final_cltv_expiry_delta from invoice (and give 2-3 blocks of leeway?)
-        if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs:
-            if not already_forwarded:
-                log_fail_reason(f"htlc.cltv_abs is unreasonably close")
-                raise exc_incorrect_or_unknown_pd
-            else:
-                return None, None
+        if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs and not already_forwarded:
+            log_fail_reason(f"htlc.cltv_abs is unreasonably close")
+            raise exc_incorrect_or_unknown_pd
 
         # detect callback
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
