@@ -1210,7 +1210,7 @@ def make_commitment_output_to_remote_witness_script(remote_payment_pubkey: bytes
 def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes, has_anchors: bool) -> str:
     if has_anchors:
         remote_script = make_commitment_output_to_remote_witness_script(remote_payment_pubkey)
-        return bitcoin.redeem_script_to_address('p2wsh', remote_script.hex())
+        return bitcoin.redeem_script_to_address('p2wsh', remote_script)
     else:
         return bitcoin.pubkey_to_address('p2wpkh', remote_payment_pubkey.hex())
 
@@ -1229,7 +1229,7 @@ def make_commitment_output_to_anchor_witness_script(funding_pubkey: bytes) -> by
 
 def make_commitment_output_to_anchor_address(funding_pubkey: bytes) -> str:
     script = make_commitment_output_to_anchor_witness_script(funding_pubkey)
-    return bitcoin.redeem_script_to_address('p2wsh', script.hex())
+    return bitcoin.redeem_script_to_address('p2wsh', script)
 
 def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
     tx.sign({local_config.multisig_key.pubkey: local_config.multisig_key.privkey})
