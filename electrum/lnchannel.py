@@ -665,7 +665,7 @@ class ChannelBackup(AbstractChannel):
             #  we might calculate a different address here, which might not be wallet.is_mine,
             #  but that should be harmless)
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
             return [to_remote_address]
         else:  # on-chain backup
             return []
@@ -1235,7 +1235,7 @@ class Channel(AbstractChannel):
         htlc_sigs = list(chunks(data, 64))
         htlc_sig = htlc_sigs[htlc_relative_idx]
         remote_sighash = Sighash.ALL if not self.has_anchors() else Sighash.ANYONECANPAY | Sighash.SINGLE
-        remote_htlc_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(htlc_sig) + remote_sighash.to_sigbytes(1, 'big')
+        remote_htlc_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(htlc_sig) + Sighash.to_sigbytes(remote_sighash)
         return remote_htlc_sig
 
     def revoke_current_commitment(self):

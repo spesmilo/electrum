@@ -214,7 +214,7 @@ def create_sweeptxs_for_our_ctx(
     if not chan.is_backup():
         assert chan.is_static_remotekey_enabled()
         their_payment_pubkey = their_conf.payment_basepoint.pubkey
-        to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
+        to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey, has_anchors=chan.has_anchors())
         found_to_remote = bool(ctx.get_output_idxs_from_address(to_remote_address))
     else:
         found_to_remote = False
@@ -370,7 +370,7 @@ def create_sweeptxs_for_their_ctx(
     if not chan.is_backup():
         assert chan.is_static_remotekey_enabled()
         our_payment_pubkey = our_conf.payment_basepoint.pubkey
-        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=chan.has_anchors())
         found_to_remote = bool(ctx.get_output_idxs_from_address(to_remote_address))
     else:
         found_to_remote = False
@@ -404,7 +404,8 @@ def create_sweeptxs_for_their_ctx(
             remote_htlc_pubkey=our_htlc_privkey.get_public_key_bytes(compressed=True),
             local_htlc_pubkey=their_htlc_pubkey,
             payment_hash=htlc.payment_hash,
-            cltv_abs=htlc.cltv_abs)
+            cltv_abs=htlc.cltv_abs,
+            has_anchors=chan.has_anchors())
 
         cltv_abs = htlc.cltv_abs if is_received_htlc and not is_revocation else 0
         prevout = ctx.txid() + ':%d'%ctx_output_idx
