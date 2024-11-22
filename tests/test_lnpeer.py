@@ -164,6 +164,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.taskgroup = OldTaskGroup()
         self.lnwatcher = None
         self.swap_manager = None
+        self.onion_message_manager = None
         self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
         self.payment_info = {}
