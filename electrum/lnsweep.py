@@ -648,14 +648,13 @@ def create_sweeptx_their_ctx_to_remote(
     txin._trusted_value_sats = val
     desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey.hex(), script_type='p2wpkh')
     txin.script_descriptor = desc
-    txin.pubkeys = [bfh(our_payment_pubkey)]
     txin.num_sig = 1
     if not has_anchors:
         txin.script_type = 'p2wpkh'
         tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
     else:
         txin.script_sig = b''
-        txin.witness_script = make_commitment_output_to_remote_witness_script(bfh(our_payment_pubkey))
+        txin.witness_script = make_commitment_output_to_remote_witness_script(our_payment_pubkey)
         txin.nsequence = 1
         tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
     sweep_inputs = [txin]
@@ -671,7 +670,7 @@ def create_sweeptx_their_ctx_to_remote(
     else:
         sig = sweep_tx.sign_txin(0, our_payment_privkey.get_secret_bytes())
         witness = construct_witness([sig, sweep_tx.inputs()[0].witness_script])
-        sweep_tx.inputs()[0].witness = bfh(witness)
+        sweep_tx.inputs()[0].witness = witness
 
     if not sweep_tx.is_complete():
         raise Exception('channel close sweep tx is not complete')
