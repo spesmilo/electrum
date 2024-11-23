@@ -138,6 +138,10 @@ class MockWallet:
     def get_fingerprint(self):
         return ''
 
+    def get_new_sweep_address_for_channel(self):
+        # note: sweep is not tested here, only in regtest
+        return "tb1qqu5newtapamjchgxf0nty6geuykhvwas45q4q4"
+
 
 class MockLNGossip:
     def get_sync_progress_estimate(self):
