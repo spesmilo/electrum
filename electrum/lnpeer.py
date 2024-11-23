@@ -773,6 +773,8 @@ class Peer(Logger, EventListener):
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        if self.use_anchors():
+            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHOR_OUTPUTS)
         if zeroconf:
             our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
