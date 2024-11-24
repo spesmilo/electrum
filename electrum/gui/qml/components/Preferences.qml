@@ -422,11 +422,27 @@ Pane {
                             wrapMode: Text.Wrap
                         }
                     }
-                }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: setMaxBrightnessOnQrDisplay
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.setMaxBrightnessOnQrDisplay = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Set display to max brightness when displaying QR codes')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                }
             }
         }
-
     }
 
     Component {
@@ -447,6 +463,7 @@ Pane {
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
         alwaysAllowScreenshots.checked = Config.alwaysAllowScreenshots
+        setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
         useRecoverableChannels.checked = Config.useRecoverableChannels
         syncLabels.checked = AppController.isPluginEnabled('labels')
     }
