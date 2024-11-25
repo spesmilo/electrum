@@ -454,10 +454,11 @@ class LNWalletWatcher(LNWatcher):
         # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
             prev_txid, prev_index = prevout.split(':')
+            name = sweep_info.name + ' ' + chan.get_id_for_log()
             if not self.adb.get_transaction(prev_txid):
                 # do not keep watching if prevout does not exist
+                self.logger.info(f'prevout does not exist for {name}: {prev_txid}')
                 continue
-            name = sweep_info.name + ' ' + chan.get_id_for_log()
             spender_txid = spenders.get(prevout)
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
@@ -546,7 +547,10 @@ class LNWalletWatcher(LNWatcher):
                 return
         if can_broadcast:
             self.logger.info(f'we can broadcast: {name}')
-            tx_was_added = await self.network.try_broadcasting(new_tx, name)
+            if await self.network.try_broadcasting(new_tx, name):
+                tx_was_added = self.adb.add_transaction(new_tx, is_new=(old_tx is None))
+            else:
+                tx_was_added = False
         else:
             # we may have a tx with a different fee, in which case it will be replaced
             if not old_tx or (old_tx and old_tx.txid() != new_tx.txid()):
