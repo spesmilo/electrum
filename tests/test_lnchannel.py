@@ -57,7 +57,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     channel_type = lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
     if anchor_outputs:
-        channel_type |= lnutil.ChannelType.OPTION_ANCHOR_OUTPUTS
+        channel_type |= lnutil.ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX
     state = {
             "channel_id":channel_id.hex(),
             "short_channel_id":channel_id[:8],
