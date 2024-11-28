@@ -145,7 +145,8 @@ class CosignerWallet(Logger):
         self.logger.info(f'nostr pubkey: {self.nostr_pubkey}')
         self.messages = asyncio.Queue()
         self.taskgroup = OldTaskGroup()
-        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+        if self.network:
+            asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     @log_exceptions
     async def main_loop(self):
