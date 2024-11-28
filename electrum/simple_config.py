@@ -180,6 +180,18 @@ class SimpleConfig(Logger):
         1. Command line options.
         2. User configuration (in the user's config directory)
     They are taken in order (1. overrides config options set in 2.)
+
+    Options are set and read using `getconfig` and `setconfig` as
+    ```
+    $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+    $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold 1234
+    true
+    $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+    1234
+    $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold null
+    true
+    $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+    ```
     """
 
     def __init__(self, options=None, read_user_config_function=None,

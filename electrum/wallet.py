@@ -1966,6 +1966,27 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         In particular, this test triggers for large "dusting transactions"
         that are used for advertising purposes by some entities.
         see #6960
+        If this happens in error, you can manually un-freeze the coins in the
+        Coins tab (View | Show Coins, then navigate to the now-visible tab). If
+        it happens repeatedly, you can disable this test using `setconfig`:
+        ```
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold 1234
+        true
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        1234
+        $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold null
+        true
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        ```
+        It is also possible (but not recommended) to disable this by manually
+        editing the config file. To do this, set
+        ```
+            "unconf_utxo_freeze_threshold": 0
+        ```
+        in ~/.electrum/config. Make sure to back up your config file first as
+        JSON syntax is somewhat difficult to get right, and the config file
+        will be overwritten with defaults if you get it wrong.
         """
         # confirmed UTXOs are fine; check this first for performance:
         block_height = utxo.block_height
