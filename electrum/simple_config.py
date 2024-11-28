@@ -242,6 +242,9 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+    def list_config_vars(self) -> Sequence[str]:
+        return list(sorted(_config_var_from_key.keys()))
+
     def electrum_path_root(self):
         # Read electrum_path from command line
         # Otherwise use the user's default data directory.
