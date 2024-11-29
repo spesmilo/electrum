@@ -62,7 +62,7 @@ from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
 from .lntransport import extract_nodeid
-from .lnpeer import channel_id_from_funding_tx
+from .lnutil import channel_id_from_funding_tx
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -1250,6 +1250,8 @@ class Commands:
     async def close_channel(self, channel_point, force=False, password=None, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
 
@@ -1262,12 +1264,16 @@ class Commands:
         """
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels and chan_id not in wallet.lnworker.channel_backups:
+            raise UserFacingException(f'Unknown channel {channel_point}')
         await wallet.lnworker.request_force_close(chan_id, connect_str=connection_string)
 
     @command('wpl')
     async def export_channel_backup(self, channel_point, password=None, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
         return wallet.lnworker.export_channel_backup(chan_id)
 
     @command('wl')
@@ -1283,6 +1289,8 @@ class Commands:
                 "To proceed, try again, with the --iknowwhatimdoing option.")
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
         chan = wallet.lnworker.channels[chan_id]
         tx = chan.force_close_tx()
         return tx.serialize()
