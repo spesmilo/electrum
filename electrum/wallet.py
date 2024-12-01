@@ -3377,6 +3377,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             password = self.get_unlocked_password()
             if self.has_keystore_encryption() and not password:
                 continue
+            await self.maybe_broadcast_legacy_htlc_txs()
             tx = self.find_confirmed_base_tx()
             if tx:
                 self.logger.info(f'base tx confirmed {tx.txid()}')
@@ -3475,6 +3476,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
         return can_broadcast, wanted_height
 
+    async def maybe_broadcast_legacy_htlc_txs(self):
+        """ pre-anchor htlc txs cannot be batched """
+        for sweep_info in list(self.batch_inputs.values()):
+            if sweep_info.name == 'first-stage-htlc':
+                if not self.can_broadcast(sweep_info)[0]:
+                    continue
+                self.logger.info('legacy first-stage htlc tx')
+                tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.cltv_abs, version=2)
+                self.lnworker.wallet.sign_transaction(tx, password=None, ignore_warnings=True)
+                if await self.network.try_broadcasting(tx, sweep_info.name):
+                    self.adb.add_transaction(tx)
+                    self.batch_inputs.pop(sweep_info.txin.prevout)
 
 
 class Simple_Wallet(Abstract_Wallet):
