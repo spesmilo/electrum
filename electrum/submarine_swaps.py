@@ -211,7 +211,7 @@ class SwapManager(Logger):
         for k, swap in self.swaps.items():
             if swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
-        self.is_server = self.config.get('enable_plugin_swapserver', False)
+        self.is_server = False # overriden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
 
     def start_network(self, network: 'Network'):
