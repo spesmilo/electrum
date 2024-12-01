@@ -160,7 +160,7 @@ class CoinChooserBase(Logger):
         # Break change up if bigger than max_change
         output_amounts = [o.value for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
-        max_change = max(max(output_amounts) * 1.25, 0.02 * COIN)
+        max_change = max([0.02 * COIN] + output_amounts) * 1.25
 
         # Use N change outputs
         for n in range(1, count + 1):
@@ -176,8 +176,8 @@ class CoinChooserBase(Logger):
             return len(s) - len(s.rstrip('0'))
 
         zeroes = [trailing_zeroes(i) for i in output_amounts]
-        min_zeroes = min(zeroes)
-        max_zeroes = max(zeroes)
+        min_zeroes = min([8] + zeroes)
+        max_zeroes = max([0] + zeroes)
 
         if n > 1:
             zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
@@ -284,8 +284,6 @@ class CoinChooserBase(Logger):
 
         Note: fee_estimator_vb expects virtual bytes
         """
-        assert outputs, 'tx outputs cannot be empty'
-
         # Deterministic randomness from coins
         utxos = [c.prevout.serialize_to_network() for c in coins]
         self.p = PRNG(b''.join(sorted(utxos)))
@@ -460,8 +458,12 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return [coin.scriptpubkey.hex() for coin in coins]
 
     def penalty_func(self, base_tx, *, tx_from_buckets):
-        min_change = min(o.value for o in base_tx.outputs()) * 0.75
-        max_change = max(o.value for o in base_tx.outputs()) * 1.33
+        if _outputs := base_tx.outputs():
+            min_change = min(o.value for o in _outputs) * 0.75
+            max_change = max(o.value for o in _outputs) * 1.33
+        else:
+            min_change = 0
+            max_change = 0.02 * COIN
 
         def penalty(buckets: List[Bucket]) -> ScoredCandidate:
             # Penalize using many buckets (~inputs)
