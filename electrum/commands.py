@@ -1486,7 +1486,7 @@ class Commands(Logger):
         }
 
         try:
-            await send_onion_message_to(wallet.lnworker, node_id_or_blinded_path, destination_payload)
+            send_onion_message_to(wallet.lnworker, node_id_or_blinded_path, destination_payload)
             return {'success': True}
         except Exception as e:
             msg = str(e)

@@ -1,7 +1,11 @@
+import asyncio
 import io
 import os
+import time
+from functools import partial
 
 import electrum_ecc as ecc
+from electrum_ecc import ECPrivkey
 
 from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
@@ -10,10 +14,13 @@ from electrum.lnonion import (
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE,
     HOPS_DATA_SIZE, InvalidPayloadSize)
 from electrum.crypto import get_ecdh
-from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data
-from electrum.util import bfh, read_json_file
+from electrum.lnutil import LnFeatures
+from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data, \
+    OnionMessageManager, NoRouteFound, Timeout
+from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 
-from . import ElectrumTestCase
+from . import ElectrumTestCase, test_lnpeer
+from .test_lnpeer import PutIntoOthersQueueTransport, PeerInTests, keypair
 
 # test vectors https://github.com/lightning/bolts/pull/759/files
 path = os.path.join(os.path.dirname(__file__), 'blinded-onion-message-onion-test.json')
@@ -232,3 +239,149 @@ class TestOnionMessage(ElectrumTestCase):
         encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(payment_path_pubkeys, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
+
+
+class MockNetwork:
+    def __init__(self):
+        self.asyncio_loop = get_asyncio_loop()
+        self.taskgroup = OldTaskGroup()
+
+
+class MockWallet:
+    def __init__(self):
+        pass
+
+
+class MockLNWallet(test_lnpeer.MockLNWallet):
+
+    async def add_peer(self, connect_str: str):
+        t1 = PutIntoOthersQueueTransport(self.node_keypair, 'test')
+        p1 = PeerInTests(self, keypair().pubkey, t1)
+        self.peers[p1.pubkey] = p1
+        p1.initialized.set_result(True)
+        return p1
+
+
+class MockPeer:
+    their_features = LnFeatures(LnFeatures.OPTION_ONION_MESSAGE_OPT)
+
+    def __init__(self, pubkey, on_send_message=None):
+        self.pubkey = pubkey
+        self.on_send_message = on_send_message
+
+    async def wait_one_htlc_switch_iteration(self, *args):
+        pass
+
+    def send_message(self, *args, **kwargs):
+        if self.on_send_message:
+            self.on_send_message(*args, **kwargs)
+
+
+class TestOnionMessageManager(ElectrumTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.alice = ECPrivkey(privkey_bytes=b'\x41'*32)
+        self.alice_pub = self.alice.get_public_key_bytes(compressed=True)
+        self.bob = ECPrivkey(privkey_bytes=b'\x42'*32)
+        self.bob_pub = self.bob.get_public_key_bytes(compressed=True)
+        self.carol = ECPrivkey(privkey_bytes=b'\x43'*32)
+        self.carol_pub = self.carol.get_public_key_bytes(compressed=True)
+        self.dave = ECPrivkey(privkey_bytes=b'\x44'*32)
+        self.dave_pub = self.dave.get_public_key_bytes(compressed=True)
+        self.eve = ECPrivkey(privkey_bytes=b'\x45'*32)
+        self.eve_pub = self.eve.get_public_key_bytes(compressed=True)
+
+    async def run_test1(self, t):
+        t1 = t.submit_requestreply(
+            payload={'message': {'text': 'alice_timeout'.encode('utf-8')}},
+            node_id_or_blinded_path=self.alice_pub)
+
+        with self.assertRaises(Timeout):
+            await t1
+
+    async def run_test2(self, t):
+        t2 = t.submit_requestreply(
+            payload={'message': {'text': 'bob_slow_timeout'.encode('utf-8')}},
+            node_id_or_blinded_path=self.bob_pub)
+
+        with self.assertRaises(Timeout):
+            await t2
+
+    async def run_test3(self, t, rkey):
+        t3 = t.submit_requestreply(
+            payload={'message': {'text': 'carol_with_immediate_reply'.encode('utf-8')}},
+            node_id_or_blinded_path=self.carol_pub,
+            key=rkey)
+
+        t3_result = await t3
+        self.assertEqual(t3_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
+
+    async def run_test4(self, t, rkey):
+        t4 = t.submit_requestreply(
+            payload={'message': {'text': 'dave_with_slow_reply'.encode('utf-8')}},
+            node_id_or_blinded_path=self.dave_pub,
+            key=rkey)
+
+        t4_result = await t4
+        self.assertEqual(t4_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
+
+    async def run_test5(self, t):
+        t5 = t.submit_requestreply(
+            payload={'message': {'text': 'no_peer'.encode('utf-8')}},
+            node_id_or_blinded_path=self.eve_pub)
+
+        with self.assertRaises(NoRouteFound):
+            await t5
+
+    async def test_manager(self):
+        n = MockNetwork()
+        k = keypair()
+        q1, q2 = asyncio.Queue(), asyncio.Queue()
+        lnw = MockLNWallet(local_keypair=k, chans=[], tx_queue=q1, name='test', has_anchors=False)
+
+        def slow(*args, **kwargs):
+            time.sleep(2)
+
+        def withreply(key, *args, **kwargs):
+            t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
+
+        def slowwithreply(key, *args, **kwargs):
+            time.sleep(2)
+            t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
+
+        rkey1 = bfh('0102030405060708')
+        rkey2 = bfh('0102030405060709')
+
+        lnw.peers[self.alice_pub] = MockPeer(self.alice_pub)
+        lnw.peers[self.bob_pub] = MockPeer(self.bob_pub, on_send_message=slow)
+        lnw.peers[self.carol_pub] = MockPeer(self.carol_pub, on_send_message=partial(withreply, rkey1))
+        lnw.peers[self.dave_pub] = MockPeer(self.dave_pub, on_send_message=partial(slowwithreply, rkey2))
+        t = OnionMessageManager(lnw, request_reply_timeout=5, request_reply_retry_delay=1)
+        t.start_network(network=n)
+
+        try:
+            await asyncio.sleep(1)
+
+            self.logger.debug('tests in sequence')
+
+            await self.run_test1(t)
+            await self.run_test2(t)
+            await self.run_test3(t, rkey1)
+            await self.run_test4(t, rkey2)
+            await self.run_test5(t)
+
+            self.logger.debug('tests in parallel')
+
+            async with OldTaskGroup() as group:
+                await group.spawn(self.run_test1(t))
+                await group.spawn(self.run_test2(t))
+                await group.spawn(self.run_test3(t, rkey1))
+                await group.spawn(self.run_test4(t, rkey2))
+                await group.spawn(self.run_test5(t))
+        finally:
+            await asyncio.sleep(1)
+
+            self.logger.debug('stopping manager')
+            await t.stop()
+            await lnw.stop()
