@@ -2161,16 +2161,18 @@ class PartialTransaction(Transaction):
     def outputs(self) -> Sequence[PartialTxOutput]:
         return self._outputs
 
-    def add_inputs(self, inputs: List[PartialTxInput]) -> None:
+    def add_inputs(self, inputs: List[PartialTxInput], BIP69_sort=True) -> None:
         self._inputs.extend(inputs)
-        self.BIP69_sort(outputs=False)
+        if BIP69_sort:
+            self.BIP69_sort(outputs=False)
         self.invalidate_ser_cache()
 
-    def add_outputs(self, outputs: List[PartialTxOutput], *, merge_duplicates: bool = False) -> None:
+    def add_outputs(self, outputs: List[PartialTxOutput], *, merge_duplicates: bool = False, BIP69_sort: bool = True) -> None:
         self._outputs.extend(outputs)
         if merge_duplicates:
             self._outputs = merge_duplicate_tx_outputs(self._outputs)
-        self.BIP69_sort(inputs=False)
+        if BIP69_sort:
+            self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
 
     def set_rbf(self, rbf: bool) -> None:
