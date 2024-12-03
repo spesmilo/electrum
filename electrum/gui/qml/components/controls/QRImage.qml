@@ -78,10 +78,11 @@ Item {
     onVisibleChanged: {
         if (root.visible) {
             // set max brightness to make qr code easier to scan
-            AppController.setMaxScreenBrightness()
+            if (AppController.isMaxBrightnessOnQrDisplayEnabled()) {
+                AppController.setMaxScreenBrightness()
+            }
         } else {
             AppController.resetScreenBrightness()
         }
     }
-
 }
