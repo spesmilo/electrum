@@ -245,6 +245,10 @@ class LNWatcher(Logger, EventListener):
         """
         prev_txid, index = outpoint.split(':')
         spender_txid = self.adb.db.get_spent_outpoint(prev_txid, int(index))
+        # discard local spenders
+        tx_mined_status = self.adb.get_tx_height(spender_txid)
+        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spender_txid = None
         if not spender_txid:
             return
         spender_tx = self.adb.get_transaction(spender_txid)
@@ -265,6 +269,10 @@ class LNWatcher(Logger, EventListener):
         """
         prev_txid, index = outpoint.split(':')
         spender_txid = self.adb.db.get_spent_outpoint(prev_txid, int(index))
+        # discard local spenders
+        tx_mined_status = self.adb.get_tx_height(spender_txid)
+        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spender_txid = None
         result = {outpoint:spender_txid}
         if n == 0:
             if spender_txid is None:
@@ -281,7 +289,7 @@ class LNWatcher(Logger, EventListener):
             # FIXME: this is not true for anchor channels
             if len(spender_tx.inputs()) != 1:
                 return result
-            o = spender_tx.inputs()[0]
+            o = spender_tx.inputs()[0]  # fixme?
             witness = o.witness_elements()
             if not witness:
                 # This can happen if spender_tx is a local unsigned tx in the wallet history, e.g.:
