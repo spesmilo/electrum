@@ -355,18 +355,19 @@ class SwapManager(Logger):
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
                 elif spent_height == TX_HEIGHT_LOCAL:
-                    if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
-                        tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                        try:
-                            await self.network.broadcast_transaction(tx)
-                        except TxBroadcastError:
-                            self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
-                    elif funding_height.height == TX_HEIGHT_LOCAL:
-                        # the funding tx was double spent.
-                        # this will remove both funding and child (spending tx) from adb
-                        self.lnwatcher.adb.remove_transaction(swap.funding_txid)
-                        swap.funding_txid = None
-                        swap.spending_txid = None
+                    spent_height = None
+                    #if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
+                    #    tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
+                    #    try:
+                    #        await self.network.broadcast_transaction(tx)
+                    #    except TxBroadcastError:
+                    #        self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
+                    #elif funding_height.height == TX_HEIGHT_LOCAL:
+                    #    # the funding tx was double spent.
+                    #    # this will remove both funding and child (spending tx) from adb
+                    #    self.lnwatcher.adb.remove_transaction(swap.funding_txid)
+                    #    swap.funding_txid = None
+                    #    swap.spending_txid = None
                 else:
                     # spending tx is in mempool
                     pass

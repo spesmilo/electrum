@@ -263,7 +263,7 @@ class LNWatcher(Logger, EventListener):
             # if tx input is not a first-stage HTLC, we can stop recursion
             if len(spender_tx.inputs()) != 1:
                 return result
-            o = spender_tx.inputs()[0]
+            o = spender_tx.inputs()[0]  # fixme?
             witness = o.witness_elements()
             if not witness:
                 # This can happen if spender_tx is a local unsigned tx in the wallet history, e.g.:
