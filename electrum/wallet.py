@@ -3359,8 +3359,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # this also allows a txin to be added again, if the block containing the spending tx is orphaned
         prevout = txin.prevout.to_str()
         prev_txid, index = prevout.split(':')
-        if self.adb.db.get_spent_outpoint(prev_txid, int(index)):
-            return
+        if spender_txid := self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            tx_mined_status = self.adb.get_tx_height(spender_txid)
+            if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                return
         self.batch_processing.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
@@ -3377,10 +3379,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return [x for x in self.batch_payments if x not in tx.outputs()]
 
     def to_sweep_after(self, tx):
-        if not tx:
-            return self.batch_inputs
-        tx_prevouts = set(txin.prevout for txin in tx.inputs())
-        return dict((k,v) for k,v in self.batch_inputs.items() if k not in tx_prevouts)
+        tx_prevouts = set(txin.prevout for txin in tx.inputs()) if tx else set()
+        result = []
+        for k,v in self.batch_inputs.items():
+            prevout = v.txin.prevout
+            prev_txid, index = prevout.to_str().split(':')
+            if not self.adb.db.get_transaction(prev_txid):
+                continue
+            if spender_txid := self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+                tx_mined_status = self.adb.get_tx_height(spender_txid)
+                if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                    continue
+            if prevout in tx_prevouts:
+                continue
+            result.append((k,v))
+        return dict(result)
 
     def should_bump_fee(self, base_tx):
         # fixme: since batch_txs is not persisted, we do not bump after a restart
@@ -3438,7 +3451,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             base_tx = self.batch_txs[-1] if self.batch_txs else None
             to_pay = self.to_pay_after(base_tx)
             to_sweep = self.to_sweep_after(base_tx)
-            to_sweep_now = dict([(k,v) for k,v in to_sweep.items() if self.can_broadcast(v)[0] is True])
+            to_sweep_now = {}
+            for k, v in to_sweep.items():
+                can_broadcast, wanted_height = self.can_broadcast(v)
+                if can_broadcast:
+                    to_sweep_now[k] = v
+                else:
+                    self.add_future_tx(v, wanted_height)
             if not to_pay and not to_sweep_now and not self.should_bump_fee(base_tx):
                 continue
             try:
@@ -3551,6 +3570,35 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self.adb.add_transaction(tx)
                     self.batch_inputs.pop(sweep_info.txin.prevout)
 
+    def add_future_tx(self, sweep_info, wanted_height):
+        """ add local tx to provide user feedback """
+        txin = copy.deepcopy(sweep_info.txin)
+        prevout = txin.prevout.to_str()
+        prev_txid, index = prevout.split(':')
+        if self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            return
+        name = sweep_info.name
+        prevout = txin.prevout.to_str()
+        new_tx = self.create_transaction(
+            inputs=[txin],
+            outputs=[],
+            password=None,
+            fee=0,
+        )
+        # we may have a tx with a different fee, in which case it will be replaced
+        try:
+            tx_was_added = self.adb.add_transaction(new_tx)#, is_new=(old_tx is None))
+        except Exception as e:
+            self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+            tx_was_added = False
+        if tx_was_added:
+            self.logger.info(f'added future tx: {name}. prevout: {prevout}')
+
+        # set future tx regardless of tx_was_added, because it is not persisted
+        # (and wanted_height can change if input of CSV was not mined before)
+        self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
+        if tx_was_added:
+            util.trigger_callback('wallet_updated', self.lnworker.wallet)
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

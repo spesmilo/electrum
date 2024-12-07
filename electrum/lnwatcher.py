@@ -148,6 +148,10 @@ class LNWatcher(Logger, EventListener):
         """
         prev_txid, index = outpoint.split(':')
         spender_txid = self.adb.db.get_spent_outpoint(prev_txid, int(index))
+        # discard local spenders
+        tx_mined_status = self.adb.get_tx_height(spender_txid)
+        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spender_txid = None
         if not spender_txid:
             return
         spender_tx = self.adb.get_transaction(spender_txid)
