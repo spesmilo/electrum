@@ -32,7 +32,7 @@ from .lnutil import hex_to_bytes
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
-from .address_synchronizer import TX_HEIGHT_LOCAL
+from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .i18n import _
 
 from .bitcoin import construct_script
@@ -328,6 +328,10 @@ class SwapManager(Logger):
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
             funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
+            # discard local spenders
+            if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                spent_height = None
+
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
                 if spent_height > 0:
@@ -335,22 +339,6 @@ class SwapManager(Logger):
                         self.logger.info(f'stop watching swap {swap.lockup_address}')
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
-                elif spent_height == TX_HEIGHT_LOCAL:
-                    if funding_height.conf > 0 or (swap.is_reverse and self.wallet.config.LIGHTNING_ALLOW_INSTANT_SWAPS):
-                        tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                        try:
-                            await self.network.broadcast_transaction(tx)
-                        except TxBroadcastError:
-                            self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
-                    elif funding_height.height == TX_HEIGHT_LOCAL:
-                        # the funding tx was double spent.
-                        # this will remove both funding and child (spending tx) from adb
-                        self.lnwatcher.adb.remove_transaction(swap.funding_txid)
-                        swap.funding_txid = None
-                        swap.spending_txid = None
-                else:
-                    # spending tx is in mempool
-                    pass
 
             if not swap.is_reverse:
                 if swap.preimage is None and spent_height is not None:
