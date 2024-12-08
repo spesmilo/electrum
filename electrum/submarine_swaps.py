@@ -468,7 +468,7 @@ class SwapManager(Logger):
                 for batch_rbf in [False]:
                     # FIXME: tx batching is disabled, because extra logic is needed to handle
                     # the case where the base tx gets mined.
-                    tx = self.create_funding_tx(swap, None, password=password, batch_rbf=batch_rbf)
+                    tx = self.create_funding_tx(swap, None, password=password)
                     self.logger.info(f'adding funding_tx {tx.txid()}')
                     self.wallet.adb.add_transaction(tx)
                     try:
@@ -779,7 +779,6 @@ class SwapManager(Logger):
         tx: Optional[PartialTransaction],
         *,
         password,
-        batch_rbf: Optional[bool] = None,
     ) -> PartialTransaction:
         # create funding tx
         # note: rbf must not decrease payment
@@ -790,7 +789,6 @@ class SwapManager(Logger):
                 outputs=[funding_output],
                 rbf=True,
                 password=password,
-                batch_rbf=batch_rbf,
             )
         else:
             tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
