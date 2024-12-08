@@ -417,7 +417,7 @@ class TxInput:
         if self.script_sig is not None:
             d['scriptSig'] = self.script_sig.hex()
         if self.witness is not None:
-            d['witness'] = self.witness.hex()
+            d['witness'] = [x.hex() for x in self.witness_elements()]
         return d
 
     def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
