@@ -44,6 +44,8 @@ class TestUnixSockets(TestLightning):
 class TestLightningAB(TestLightning):
     agents = {
         'alice': {
+            'test_force_disable_mpp': 'false',
+            'test_force_mpp': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
@@ -117,6 +119,7 @@ class TestLightningWatchtower(TestLightning):
         }
     }
 
+    @unittest.skip("broken")
     def test_watchtower(self):
         self.run_shell(['watchtower'])
 

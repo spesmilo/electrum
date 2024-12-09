@@ -13,7 +13,7 @@ from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
-from .transaction import Transaction, TxOutpoint
+from .transaction import Transaction, TxOutpoint, PartialTransaction
 from .transaction import match_script_against_template
 from .lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
 from .logging import Logger
@@ -248,6 +248,10 @@ class LNWatcher(Logger, EventListener):
         """
         prev_txid, index = outpoint.split(':')
         spender_txid = self.adb.db.get_spent_outpoint(prev_txid, int(index))
+        # discard local spenders
+        tx_mined_status = self.adb.get_tx_height(spender_txid)
+        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spender_txid = None
         result = {outpoint:spender_txid}
         if n == 0:
             if spender_txid is None:
@@ -263,7 +267,7 @@ class LNWatcher(Logger, EventListener):
             # if tx input is not a first-stage HTLC, we can stop recursion
             if len(spender_tx.inputs()) != 1:
                 return result
-            o = spender_tx.inputs()[0]
+            o = spender_tx.inputs()[0]  # fixme?
             witness = o.witness_elements()
             if not witness:
                 # This can happen if spender_tx is a local unsigned tx in the wallet history, e.g.:
@@ -448,7 +452,7 @@ class LNWalletWatcher(LNWatcher):
         chan_id_for_log = chan.get_id_for_log()
         # detect who closed and get information about how to claim outputs
         sweep_info_dict = chan.sweep_ctx(closing_tx)
-        self.logger.info(f"do_breach_remedy: {[x.name for x in sweep_info_dict.values()]}")
+        #self.logger.info(f"do_breach_remedy: {[x.name for x in sweep_info_dict.values()]}")
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
 
         # create and broadcast transactions
@@ -457,117 +461,38 @@ class LNWalletWatcher(LNWatcher):
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             if not self.adb.get_transaction(prev_txid):
                 # do not keep watching if prevout does not exist
-                self.logger.info(f'prevout does not exist for {name}: {prev_txid}')
+                self.logger.info(f'prevout does not exist for {name}: {prevout}')
                 continue
             spender_txid = spenders.get(prevout)
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
-                htlc_idx_to_sweepinfo = chan.maybe_sweep_revoked_htlcs(closing_tx, spender_tx)
-                for idx, htlc_revocation_sweep_info in htlc_idx_to_sweepinfo.items():
-                    htlc_tx_spender = spenders.get(spender_txid+f':{idx}')
+                htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
+                for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
+                    htlc_tx_spender = spenders.get(prevout2)
                     if htlc_tx_spender:
                         keep_watching |= not self.is_deeply_mined(htlc_tx_spender)
                     else:
                         keep_watching = True
-                    await self.maybe_redeem(spenders, spender_txid+f':{idx}', htlc_revocation_sweep_info, name)
-                else:
-                    keep_watching |= not self.is_deeply_mined(spender_txid)
-                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
-                    assert txin_idx is not None
+                        await self.maybe_redeem(htlc_sweep_info)
+                # extract preimage
+                keep_watching |= not self.is_deeply_mined(spender_txid)
+                txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+                if txin_idx is not None:
                     spender_txin = spender_tx.inputs()[txin_idx]
                     chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
                 keep_watching = True
-            # broadcast or maybe update our own tx
-            await self.maybe_redeem(spenders, prevout, sweep_info, name)
+                # broadcast or maybe update our own tx
+                await self.maybe_redeem(sweep_info)
 
         return keep_watching
 
-    def get_redeem_tx(self, spenders, prevout: str, sweep_info: 'SweepInfo', name: str):
-        # check if redeem tx needs to be updated
-        # if it is in the mempool, we need to check fee rise
-        txid = spenders.get(prevout)
-        old_tx = self.adb.get_transaction(txid)
-        assert old_tx is not None or txid is None
-        tx_depth = self.get_tx_mined_depth(txid) if txid else None
-        if txid and tx_depth not in [TxMinedDepth.FREE, TxMinedDepth.MEMPOOL]:
-            assert old_tx is not None
-            return old_tx, None
-        new_tx = sweep_info.gen_tx()
-        if new_tx is None:
-            self.logger.info(f'{name} could not claim output: {prevout}, dust')
-            assert old_tx is not None
-            return old_tx, None
-        if txid is None:
-            return None, new_tx
-        elif tx_depth == TxMinedDepth.MEMPOOL:
-            delta = new_tx.get_fee() - self.adb.get_tx_fee(txid)
-            if delta > 1:
-                self.logger.info(f'increasing fee of mempool tx {name}: {prevout}')
-                return old_tx, new_tx
-            else:
-                assert old_tx is not None
-                return old_tx, None
-        elif tx_depth == TxMinedDepth.FREE:
-            # return new tx, even if it is equal to old_tx,
-            # because we need to test if it can be broadcast
-            return old_tx, new_tx
-        else:
-            assert old_tx is not None
-            return old_tx, None
 
-    async def maybe_redeem(self, spenders, prevout, sweep_info: 'SweepInfo', name: str) -> None:
-        old_tx, new_tx = self.get_redeem_tx(spenders, prevout, sweep_info, name)
-        if new_tx is None:
-            return
-        prev_txid, prev_index = prevout.split(':')
-        can_broadcast = True
-        local_height = self.network.get_local_height()
-        if sweep_info.cltv_abs:
-            wanted_height = sweep_info.cltv_abs
-            if wanted_height - local_height > 0:
-                can_broadcast = False
-                # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")
-        if sweep_info.csv_delay:
-            prev_height = self.adb.get_tx_height(prev_txid)
-            if prev_height.height > 0:
-                wanted_height = prev_height.height + sweep_info.csv_delay - 1
-            else:
-                wanted_height = local_height + sweep_info.csv_delay
-            if wanted_height - local_height > 0:
-                can_broadcast = False
-                # self.logger.debug(
-                #     f"pending redeem for {prevout}. waiting for {name}: CSV "
-                #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
+    async def maybe_redeem(self, sweep_info: 'SweepInfo') -> None:
         if not (sweep_info.cltv_abs or sweep_info.csv_delay):
             # used to control settling of htlcs onchain for testing purposes
             # careful, this prevents revocation as well
             if not self.lnworker.enable_htlc_settle_onchain:
                 return
-        if can_broadcast:
-            self.logger.info(f'we can broadcast: {name}')
-            if await self.network.try_broadcasting(new_tx, name):
-                tx_was_added = self.adb.add_transaction(new_tx, is_new=(old_tx is None))
-            else:
-                tx_was_added = False
-        else:
-            # we may have a tx with a different fee, in which case it will be replaced
-            if not old_tx or (old_tx and old_tx.txid() != new_tx.txid()):
-                try:
-                    tx_was_added = self.adb.add_transaction(new_tx, is_new=(old_tx is None))
-                except Exception as e:
-                    self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
-                    tx_was_added = False
-                if tx_was_added:
-                    self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
-            else:
-                tx_was_added = False
-            # set future tx regardless of tx_was_added, because it is not persisted
-            # (and wanted_height can change if input of CSV was not mined before)
-            self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
-        if tx_was_added:
-            self.lnworker.wallet.set_label(new_tx.txid(), name)
-            if old_tx and old_tx.txid() != new_tx.txid():
-                self.lnworker.wallet.set_label(old_tx.txid(), None)
-            util.trigger_callback('wallet_updated', self.lnworker.wallet)
+        self.lnworker.wallet.add_sweep_info(sweep_info)

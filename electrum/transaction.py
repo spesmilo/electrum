@@ -1241,6 +1241,9 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
     def has_dummy_output(self, dummy_addr: str) -> bool:
         return len(self.get_output_idxs_from_address(dummy_addr)) == 1
 
@@ -1525,6 +1528,11 @@ class PartialTxInput(TxInput, PSBTSection):
                              nsequence=txin.nsequence,
                              witness=None if strip_witness else txin.witness,
                              is_coinbase_output=txin.is_coinbase_output())
+        if hasattr(txin, 'make_witness'):
+            res.privkey = txin.privkey
+            res.make_witness = txin.make_witness
+            res.witness_script = txin.witness_script
+            res.script_sig = txin.script_sig
         res.utxo = txin.utxo
         return res
 
@@ -1739,7 +1747,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            ##self.witness_script = None  # fixme
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()
