@@ -172,7 +172,6 @@ def create_claim_tx(
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
-    tx.set_rbf(True)
     return tx
 
 
@@ -1075,6 +1074,7 @@ class SwapManager(Logger):
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(construct_witness(witness))
+        txin.nsequence = 0xffffffff - 2
 
     @classmethod
     def sign_tx(cls, tx: PartialTransaction, swap: SwapData) -> None:

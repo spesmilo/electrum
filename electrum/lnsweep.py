@@ -780,8 +780,7 @@ def tx_their_ctx_htlc(
     txin._trusted_value_sats = val
     txin.witness_script = witness_script
     txin.script_sig = b''
-    if has_anchors:
-        txin.nsequence = 1
+    txin.nsequence = 1 if has_anchors else 0xffffffff - 2
     sweep_inputs = [txin]
     tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
@@ -817,6 +816,7 @@ def tx_their_ctx_to_remote(
     txin.num_sig = 1
     if not has_anchors:
         txin.script_type = 'p2wpkh'
+        txin.nsequence = 0xffffffff - 2
         tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
     else:
         txin.script_sig = b''
@@ -831,7 +831,6 @@ def tx_their_ctx_to_remote(
     sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
 
     if not has_anchors:
-        sweep_tx.set_rbf(True)
         sweep_tx.sign({our_payment_pubkey: our_payment_privkey.get_secret_bytes()})
     else:
         sig = sweep_tx.sign_txin(0, our_payment_privkey.get_secret_bytes())
@@ -862,6 +861,7 @@ def tx_ctx_to_local(
     txin._trusted_value_sats = val
     txin.script_sig = b''
     txin.witness_script = witness_script
+    txin.nsequence = 0xffffffff - 2
     sweep_inputs = [txin]
     if not is_revocation:
         assert isinstance(to_self_delay, int)
