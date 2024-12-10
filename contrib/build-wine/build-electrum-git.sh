@@ -44,7 +44,7 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-scr
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 info "Installing hardware wallet requirements..."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    --no-binary :all: --only-binary cffi,cryptography,hidapi \
+    --no-binary :all: --only-binary cffi,cryptography,hidapi,pyscard \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
