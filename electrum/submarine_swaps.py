@@ -168,6 +168,7 @@ def create_claim_tx(
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
+    txin.nsequence = 0xffffffff - 2
     txin.script_sig = b''
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
