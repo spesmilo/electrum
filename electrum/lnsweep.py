@@ -806,6 +806,7 @@ def tx_their_ctx_to_remote(
         config: SimpleConfig,
         has_anchors: bool,
 ) -> Optional[PartialTransaction]:
+    assert has_anchors is True
     our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
     val = ctx.outputs()[output_idx].value
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
@@ -814,15 +815,10 @@ def tx_their_ctx_to_remote(
     desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey.hex(), script_type='p2wpkh')
     txin.script_descriptor = desc
     txin.num_sig = 1
-    if not has_anchors:
-        txin.script_type = 'p2wpkh'
-        txin.nsequence = 0xffffffff - 2
-        tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
-    else:
-        txin.script_sig = b''
-        txin.witness_script = make_commitment_output_to_remote_witness_script(our_payment_pubkey)
-        txin.nsequence = 1
-        tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
+    txin.script_sig = b''
+    txin.witness_script = make_commitment_output_to_remote_witness_script(our_payment_pubkey)
+    txin.nsequence = 1
+    tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
     sweep_inputs = [txin]
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
@@ -830,12 +826,9 @@ def tx_their_ctx_to_remote(
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
     sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
 
-    if not has_anchors:
-        sweep_tx.sign({our_payment_pubkey: our_payment_privkey.get_secret_bytes()})
-    else:
-        sig = sweep_tx.sign_txin(0, our_payment_privkey.get_secret_bytes())
-        witness = construct_witness([sig, sweep_tx.inputs()[0].witness_script])
-        sweep_tx.inputs()[0].witness = witness
+    sig = sweep_tx.sign_txin(0, our_payment_privkey.get_secret_bytes())
+    witness = construct_witness([sig, sweep_tx.inputs()[0].witness_script])
+    sweep_tx.inputs()[0].witness = witness
 
     if not sweep_tx.is_complete():
         raise Exception('channel close sweep tx is not complete')
