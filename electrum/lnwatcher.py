@@ -4,6 +4,7 @@
 
 from typing import NamedTuple, Iterable, TYPE_CHECKING
 import os
+import copy
 import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
@@ -482,14 +483,14 @@ class LNWalletWatcher(LNWatcher):
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
-                htlc_idx_to_sweepinfo = chan.maybe_sweep_revoked_htlcs(closing_tx, spender_tx)
-                for idx, htlc_revocation_sweep_info in htlc_idx_to_sweepinfo.items():
-                    htlc_tx_spender = self.get_spender(spender_txid+f':{idx}')
+                htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
+                for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
+                    htlc_tx_spender = self.get_spender(prevout2)
                     if htlc_tx_spender:
                         keep_watching |= not self.is_deeply_mined(htlc_tx_spender)
                     else:
                         keep_watching = True
-                    await self.maybe_redeem(spender_txid+f':{idx}', htlc_revocation_sweep_info, name)
+                    await self.maybe_redeem(prevout2, htlc_sweep_info, name)
                 else:
                     keep_watching |= not self.is_deeply_mined(spender_txid)
                     txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
@@ -513,7 +514,18 @@ class LNWalletWatcher(LNWatcher):
         if txid and tx_depth not in [TxMinedDepth.FREE, TxMinedDepth.MEMPOOL]:
             assert old_tx is not None
             return old_tx, None
-        new_tx = sweep_info.gen_tx()
+        # fixme: deepcopy is needed because tx.serialize() is destructive
+        inputs = [copy.deepcopy(sweep_info.txin)]
+        outputs = [sweep_info.txout] if sweep_info.txout else []
+        # password is needed for 1st stage htlc tx with anchors
+        password = self.lnworker.wallet.get_unlocked_password()
+        new_tx = self.lnworker.wallet.create_transaction(
+            inputs = inputs,
+            outputs = outputs,
+            password = password,
+            locktime = sweep_info.cltv_abs,
+            BIP69_sort=False,
+        )
         if new_tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
             assert old_tx is not None

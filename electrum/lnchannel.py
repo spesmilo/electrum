@@ -44,22 +44,21 @@ from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
 from .lntransport import LNPeerAddr
-from .lnonion import OnionFailureCode, OnionRoutingFailure
+from .lnonion import OnionRoutingFailure
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                      get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
                      sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
-                     make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc,
-                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
+                     make_htlc_tx_with_open_channel, make_commitment, UpdateAddHtlc,
                      funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
-                     ChannelType, LNProtocolWarning, ctx_has_anchors)
-from .lnsweep import txs_our_ctx, txs_their_ctx
-from .lnsweep import txs_their_htlctx_justice, SweepInfo
-from .lnsweep import tx_their_ctx_to_remote_backup
+                     ChannelType, LNProtocolWarning)
+from .lnsweep import sweep_our_ctx, sweep_their_ctx
+from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo
+from .lnsweep import sweep_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -284,11 +283,11 @@ class AbstractChannel(Logger, ABC):
     def delete_closing_height(self):
         self.storage.pop('closing_height', None)
 
-    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
-        return txs_our_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
+    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+        return sweep_our_ctx(chan=self, ctx=ctx)
 
-    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
-        return txs_their_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
+    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+        return sweep_their_ctx(chan=self, ctx=ctx)
 
     def is_backup(self) -> bool:
         return False
@@ -315,8 +314,8 @@ class AbstractChannel(Logger, ABC):
                 self.logger.info(f'not sure who closed.')
         return self._sweep_info[txid]
 
-    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
-        return None
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
+        return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
         return
@@ -595,15 +594,15 @@ class ChannelBackup(AbstractChannel):
         return True
 
     def create_sweeptxs_for_their_ctx(self, ctx):
-        return tx_their_ctx_to_remote_backup(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
+        return sweep_their_ctx_to_remote_backup(chan=self, ctx=ctx)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
         if self.is_imported:
-            return txs_our_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
+            return sweep_our_ctx(chan=self, ctx=ctx)
         else:
-            return
+            return {}
 
-    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
@@ -1491,9 +1490,23 @@ class Channel(AbstractChannel):
         return self.get_commitment(subject, ctn=ctn)
 
     def create_sweeptxs_for_watchtower(self, ctn: int) -> List[Transaction]:
-        from .lnsweep import txs_their_ctx_watchtower
+        from .lnsweep import sweep_their_ctx_watchtower
+        from .transaction import PartialTxOutput, PartialTransaction
         secret, ctx = self.get_secret_and_commitment(REMOTE, ctn=ctn)
-        return txs_their_ctx_watchtower(self, ctx, secret, self.get_sweep_address())
+        txs = []
+        txins = sweep_their_ctx_watchtower(self, ctx, secret)
+        for txin in txins:
+            output_idx = txin.prevout.out_idx
+            value = ctx.outputs()[output_idx].value
+            tx_size_bytes = 121
+            fee = self.lnworker.config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
+            outvalue = value - fee
+            sweep_outputs = [PartialTxOutput.from_address_and_value(self.get_sweep_address(), outvalue)]
+            sweep_tx = PartialTransaction.from_io([txin], sweep_outputs, version=2)
+            sig = sweep_tx.sign_txin(0, txin.privkey)
+            txin.witness = txin.make_witness(sig)
+            txs.append(sweep_tx)
+        return txs
 
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
         return self.hm.ctn_oldest_unrevoked(subject)
@@ -1726,9 +1739,12 @@ class Channel(AbstractChannel):
         assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"
         return ret
 
-    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         # look at the output address, check if it matches
-        return txs_their_htlctx_justice(self, ctx, htlc_tx, self.get_sweep_address())
+        d = sweep_their_htlctx_justice(self, ctx, htlc_tx)
+        d2 = sweep_our_htlctx(self, ctx, htlc_tx)
+        d.update(d2)
+        return d
 
     def has_pending_changes(self, subject: HTLCOwner) -> bool:
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)

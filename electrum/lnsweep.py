@@ -3,17 +3,14 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Callable
-from enum import Enum, auto
-from functools import partial
 
 import electrum_ecc as ecc
 
 from .util import bfh, UneconomicFee
 from .crypto import privkey_to_pubkey
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
-from .invoices import PR_PAID
 from . import descriptor
-from . import coinchooser
+from . import bitcoin
 
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -23,7 +20,7 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction, make_commitment_output_to_remote_witness_script,
                      derive_payment_basepoint, ctx_has_anchors, SCRIPT_TEMPLATE_FUNDING)
-from .transaction import (Transaction, TxInput, PartialTransaction, PartialTxInput,
+from .transaction import (Transaction, TxInput, PartialTxInput,
                           PartialTxOutput, TxOutpoint, script_GetOp, match_script_against_template)
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
@@ -43,12 +40,15 @@ HTLCTX_INPUT_OUTPUT_INDEX = 0
 class SweepInfo(NamedTuple):
     name: str
     csv_delay: int
-    cltv_abs: int
-    gen_tx: Callable[[], Optional[Transaction]]
+    cltv_abs: Optional[int] # set to None only if the script has no cltv
+    txin: PartialTxInput
+    txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
 
-
-def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
-                             sweep_address: str) -> List[Transaction]:
+def sweep_their_ctx_watchtower(
+        chan: 'Channel',
+        ctx: Transaction,
+        per_commitment_secret: bytes
+) -> List[PartialTxInput]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
     Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
@@ -63,7 +63,7 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
     )
     to_self_delay = watcher_conf.to_self_delay
     breacher_delayed_pubkey = derive_pubkey(breacher_conf.delayed_basepoint.pubkey, pcp)
-    txs = []
+    txins = []
     # create justice tx for breacher's to_local output
     revocation_pubkey = ecc.ECPrivkey(watcher_revocation_privkey).get_public_key_bytes(compressed=True)
     witness_script = make_commitment_output_to_local_witness_script(
@@ -72,21 +72,20 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
     if output_idxs:
         output_idx = output_idxs.pop()
-        sweep_tx = tx_ctx_to_local(
-            sweep_address=sweep_address,
+        txin = sweep_ctx_to_local(
             ctx=ctx,
             output_idx=output_idx,
             witness_script=witness_script,
             privkey=watcher_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
-        if sweep_tx:
-            txs.append(sweep_tx)
+        if txin:
+            txins.append(txin)
 
     # create justice txs for breacher's HTLC outputs
     breacher_htlc_pubkey = derive_pubkey(breacher_conf.htlc_basepoint.pubkey, pcp)
     watcher_htlc_pubkey = derive_pubkey(watcher_conf.htlc_basepoint.pubkey, pcp)
-    def tx_htlc(
+    def txin_htlc(
             htlc: 'UpdateAddHtlc', is_received_htlc: bool,
             ctx_output_idx: int) -> None:
         htlc_output_witness_script = make_htlc_output_witness_script(
@@ -98,12 +97,10 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
             cltv_abs=htlc.cltv_abs,
             has_anchors=chan.has_anchors()
         )
-
         cltv_abs = htlc.cltv_abs if is_received_htlc else 0
-        return tx_their_ctx_htlc(
+        return sweep_their_ctx_htlc(
             ctx=ctx,
             witness_script=htlc_output_witness_script,
-            sweep_address=sweep_address,
             preimage=None,
             output_idx=ctx_output_idx,
             privkey=watcher_revocation_privkey,
@@ -119,25 +116,24 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
-        txs.append(
-            tx_htlc(
+        txins.append(
+            txin_htlc(
                 htlc=htlc,
                 is_received_htlc=direction == RECEIVED,
                 ctx_output_idx=ctx_output_idx)
         )
-
     # for anchor channels we don't know the HTLC transaction's txid beforehand due
     # to malleability because of ANYONECANPAY
     if chan.has_anchors():
-        return txs
+        return txins
 
     # create justice transactions for HTLC transaction's outputs
-    def txs_their_htlctx_justice(
+    def sweep_their_htlctx_justice(
             *,
             htlc: 'UpdateAddHtlc',
             htlc_direction: Direction,
             ctx_output_idx: int
-    ) -> Optional[Transaction]:
+    ) -> Optional[PartialTxInput]:
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(
             chan=chan,
             pcp=pcp,
@@ -147,11 +143,10 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
             commit=ctx,
             htlc=htlc,
             ctx_output_idx=ctx_output_idx)
-        return tx_sweep_htlctx_output(
+        return sweep_htlctx_output(
             htlc_tx=htlc_tx,
             output_idx=HTLCTX_INPUT_OUTPUT_INDEX,
             htlctx_witness_script=htlc_tx_witness_script,
-            sweep_address=sweep_address,
             privkey=watcher_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
@@ -163,20 +158,20 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
-        secondstage_sweep_tx = txs_their_htlctx_justice(
+        secondstage_sweep_tx = sweep_their_htlctx_justice(
             htlc=htlc,
             htlc_direction=direction,
             ctx_output_idx=ctx_output_idx)
         if secondstage_sweep_tx:
-            txs.append(secondstage_sweep_tx)
-    return txs
+            txins.append(secondstage_sweep_tx)
+    return txins
 
 
-def tx_their_ctx_justice(
+def sweep_their_ctx_justice(
         chan: 'Channel',
         ctx: Transaction,
         per_commitment_secret: bytes,
-        sweep_address: str) -> Optional[Callable[[], Optional[Transaction]]]:
+) -> Optional[PartialTxInput]:
     # prep
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
@@ -184,7 +179,7 @@ def tx_their_ctx_justice(
                                                       per_commitment_secret)
     to_self_delay = other_conf.to_self_delay
     this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, pcp)
-    txs = []
+
     # to_local
     revocation_pubkey = ecc.ECPrivkey(other_revocation_privkey).get_public_key_bytes(compressed=True)
     witness_script = make_commitment_output_to_local_witness_script(
@@ -193,23 +188,22 @@ def tx_their_ctx_justice(
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
     if output_idxs:
         output_idx = output_idxs.pop()
-        sweep_tx = lambda: tx_ctx_to_local(
-            sweep_address=sweep_address,
+        sweep_txin = sweep_ctx_to_local(
             ctx=ctx,
             output_idx=output_idx,
             witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
-        return sweep_tx
+        return sweep_txin
     return None
 
 
-def txs_their_htlctx_justice(
+def sweep_their_htlctx_justice(
         chan: 'Channel',
         ctx: Transaction,
         htlc_tx: Transaction,
-        sweep_address: str) -> Dict[int, SweepInfo]:
+) -> Dict[str, SweepInfo]:
     """Creates justice transactions for every output in the HTLC transaction.
     Due to anchor type channels it can happen that a remote party batches HTLC transactions,
     which is why this method can return multiple SweepInfos.
@@ -241,9 +235,8 @@ def txs_their_htlctx_justice(
         return {}
 
     # generate justice transactions
-    def justice_tx(output_idx):
-        return tx_sweep_htlctx_output(
-            sweep_address=sweep_address,
+    def justice_txin(output_idx):
+        return sweep_htlctx_output(
             output_idx=output_idx,
             htlc_tx=htlc_tx,
             htlctx_witness_script=witness_script,
@@ -253,20 +246,35 @@ def txs_their_htlctx_justice(
         )
     index_to_sweepinfo = {}
     for output_idx in htlc_outputs_idxs:
-        index_to_sweepinfo[output_idx] = SweepInfo(
+        prevout = htlc_tx.txid() + f':{output_idx}'
+        index_to_sweepinfo[prevout] = SweepInfo(
             name='redeem_htlc2',
             csv_delay=0,
-            cltv_abs=0,
-            gen_tx=partial(justice_tx, output_idx)
+            cltv_abs=None,
+            txin=justice_txin(output_idx),
+            txout=None
         )
 
     return index_to_sweepinfo
 
 
-def txs_our_ctx(
+def sweep_our_htlctx(
+        chan: 'AbstractChannel',
+        ctx: Transaction,
+        htlc_tx: Transaction):
+    txs = sweep_our_ctx(
+        chan=chan,
+        ctx=ctx,
+        actual_htlc_tx=htlc_tx)
+    return txs
+
+
+def sweep_our_ctx(
         *, chan: 'AbstractChannel',
         ctx: Transaction,
-        sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
+        actual_htlc_tx: Transaction=None, # if passed, second stage
+) -> Dict[str, SweepInfo]:
+
     """Handle the case where we force-close unilaterally with our latest ctx.
 
     We sweep:
@@ -307,18 +315,17 @@ def txs_our_ctx(
     else:
         found_to_remote = False
     if not found_to_local and not found_to_remote:
-        return
-    chan.logger.debug(f'(lnsweep) found our ctx: {to_local_address} {to_remote_address}')
+        return {}
+    #chan.logger.debug(f'(lnsweep) found our ctx: {to_local_address} {to_remote_address}')
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
     txs = {}  # type: Dict[str, SweepInfo]
     # to_local
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
-    if output_idxs:
+    if actual_htlc_tx is None and output_idxs:
         output_idx = output_idxs.pop()
-        sweep_tx = lambda: tx_ctx_to_local(
-            sweep_address=sweep_address,
+        txin = sweep_ctx_to_local(
             ctx=ctx,
             output_idx=output_idx,
             witness_script=to_local_witness_script,
@@ -330,8 +337,10 @@ def txs_our_ctx(
         txs[prevout] = SweepInfo(
             name='our_ctx_to_local',
             csv_delay=to_self_delay,
-            cltv_abs=0,
-            gen_tx=sweep_tx)
+            cltv_abs=None,
+            txin=txin,
+            txout=None,
+        )
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
         chan.logger.info(f"(lnsweep) we breached. txid: {ctx.txid()}")
@@ -345,6 +354,7 @@ def txs_our_ctx(
             ctx_output_idx: int,
             htlc_relative_idx,
             preimage: Optional[bytes]):
+
         htlctx_witness_script, htlc_tx = tx_our_ctx_htlctx(
             chan=chan,
             our_pcp=our_pcp,
@@ -355,29 +365,36 @@ def txs_our_ctx(
             htlc_direction=htlc_direction,
             ctx_output_idx=ctx_output_idx,
             htlc_relative_idx=htlc_relative_idx)
-        # we sweep our ctx with HTLC transactions individually, therefore the CSV-locked output is always at
-        # index TIMELOCKED_HTLCTX_OUTPUT_INDEX
-        assert True
-        sweep_tx = lambda: tx_sweep_htlctx_output(
-            to_self_delay=to_self_delay,
-            htlc_tx=htlc_tx,
-            output_idx=HTLCTX_INPUT_OUTPUT_INDEX,
-            htlctx_witness_script=htlctx_witness_script,
-            sweep_address=sweep_address,
-            privkey=our_localdelayed_privkey.get_secret_bytes(),
-            is_revocation=False,
-            config=chan.lnworker.config)
-        # side effect
-        txs[htlc_tx.inputs()[HTLCTX_INPUT_OUTPUT_INDEX].prevout.to_str()] = SweepInfo(
-            name='first-stage-htlc',
-            csv_delay=0,
-            cltv_abs=htlc_tx.locktime,
-            gen_tx=lambda: htlc_tx)
-        txs[htlc_tx.txid() + f':{HTLCTX_INPUT_OUTPUT_INDEX}'] = SweepInfo(
-            name='second-stage-htlc',
-            csv_delay=to_self_delay,
-            cltv_abs=0,
-            gen_tx=sweep_tx)
+
+        if actual_htlc_tx is None:
+            name = 'first-stage-htlc-anchors' if chan.has_anchors() else 'first-stage-htlc'
+            prevout = ctx.txid() + f':{ctx_output_idx}'
+            txs[prevout] = SweepInfo(
+                name=name,
+                csv_delay=0,
+                cltv_abs=htlc_tx.locktime,
+                txin=htlc_tx.inputs()[0],
+                txout=htlc_tx.outputs()[0])
+        else:
+            # second-stage
+            address = bitcoin.script_to_p2wsh(htlctx_witness_script)
+            output_idxs = actual_htlc_tx.get_output_idxs_from_address(address)
+            for output_idx in output_idxs:
+                sweep_txin = sweep_htlctx_output(
+                    to_self_delay=to_self_delay,
+                    htlc_tx=actual_htlc_tx,
+                    output_idx=output_idx,
+                    htlctx_witness_script=htlctx_witness_script,
+                    privkey=our_localdelayed_privkey.get_secret_bytes(),
+                    is_revocation=False,
+                    config=chan.lnworker.config)
+                txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
+                    name='second-stage-htlc',
+                    csv_delay=to_self_delay,
+                    cltv_abs=0,
+                    txin=sweep_txin,
+                    txout=None,
+                )
 
     # offered HTLCs, in our ctx --> "timeout"
     # received HTLCs, in our ctx --> "success"
@@ -452,10 +469,9 @@ def extract_funding_pubkeys_from_ctx(txin: TxInput) -> Tuple[bytes, bytes]:
     return (pubkey1, pubkey2)
 
 
-def tx_their_ctx_to_remote_backup(
+def sweep_their_ctx_to_remote_backup(
         *, chan: 'ChannelBackup',
-        ctx: Transaction,
-        sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
+        ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
     txs = {}  # type: Dict[str, SweepInfo]
     """If we only have a backup, and the remote force-closed with their ctx,
     and anchors are enabled, we need to sweep to_remote."""
@@ -486,8 +502,7 @@ def tx_their_ctx_to_remote_backup(
     if output_idxs:
         output_idx = output_idxs.pop()
         prevout = ctx.txid() + ':%d' % output_idx
-        sweep_tx = lambda: tx_their_ctx_to_remote(
-            sweep_address=sweep_address,
+        txin = sweep_their_ctx_to_remote(
             ctx=ctx,
             output_idx=output_idx,
             our_payment_privkey=our_payment_privkey,
@@ -497,17 +512,18 @@ def tx_their_ctx_to_remote_backup(
         txs[prevout] = SweepInfo(
             name='their_ctx_to_remote_backup',
             csv_delay=csv_delay,
-            cltv_abs=0,
-            gen_tx=sweep_tx)
+            cltv_abs=None,
+            txin=txin,
+            txout=None,
+        )
     return txs
 
 
 
 
-def txs_their_ctx(
+def sweep_their_ctx(
         *, chan: 'Channel',
-        ctx: Transaction,
-        sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
+        ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
     """Handle the case when the remote force-closes with their ctx.
     Sweep outputs that do not have a CSV delay ('to_remote' and first-stage HTLCs).
     Outputs with CSV delay ('to_local' and second-stage HTLCs) are redeemed by LNWatcher.
@@ -550,15 +566,15 @@ def txs_their_ctx(
     # to_local is handled by lnwatcher
     if is_revocation:
         our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
-        gen_tx = tx_their_ctx_justice(chan, ctx, per_commitment_secret, sweep_address)
-        if gen_tx:
-            tx = gen_tx()
-            txs[tx.inputs()[0].prevout.to_str()] = SweepInfo(
+        txin = sweep_their_ctx_justice(chan, ctx, per_commitment_secret)
+        if txin:
+            txs[txin.prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
                 csv_delay=0,
-                cltv_abs=0,
-                gen_tx=gen_tx)
-
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
 
     # to_remote
     if chan.has_anchors():
@@ -577,8 +593,7 @@ def txs_their_ctx(
         if output_idxs:
             output_idx = output_idxs.pop()
             prevout = ctx.txid() + ':%d' % output_idx
-            sweep_tx = lambda: tx_their_ctx_to_remote(
-                sweep_address=sweep_address,
+            txin = sweep_their_ctx_to_remote(
                 ctx=ctx,
                 output_idx=output_idx,
                 our_payment_privkey=our_payment_privkey,
@@ -588,8 +603,10 @@ def txs_their_ctx(
             txs[prevout] = SweepInfo(
                 name='their_ctx_to_remote',
                 csv_delay=csv_delay,
-                cltv_abs=0,
-                gen_tx=sweep_tx)
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
 
     # HTLCs
     our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
@@ -612,10 +629,9 @@ def txs_their_ctx(
         cltv_abs = htlc.cltv_abs if is_received_htlc and not is_revocation else 0
         csv_delay = 1 if chan.has_anchors() else 0
         prevout = ctx.txid() + ':%d'%ctx_output_idx
-        sweep_tx = lambda: tx_their_ctx_htlc(
+        txin = sweep_their_ctx_htlc(
             ctx=ctx,
             witness_script=htlc_output_witness_script,
-            sweep_address=sweep_address,
             preimage=preimage,
             output_idx=ctx_output_idx,
             privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
@@ -628,7 +644,9 @@ def txs_their_ctx(
             name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
             csv_delay=csv_delay,
             cltv_abs=cltv_abs,
-            gen_tx=sweep_tx)
+            txin=txin,
+            txout=None,
+        )
     # received HTLCs, in their ctx --> "timeout"
     # offered HTLCs, in their ctx --> "success"
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
@@ -681,98 +699,28 @@ def tx_our_ctx_htlctx(
         ctx_output_idx=ctx_output_idx,
         name=f'our_ctx_{ctx_output_idx}_htlc_tx_{htlc.payment_hash.hex()}')
 
-    # we need to attach inputs that pay for the transaction fee
-    if chan.has_anchors():
-        wallet = chan.lnworker.wallet
-        coins = wallet.get_spendable_coins(None)
-
-        def fee_estimator(size):
-            if htlc_direction == SENT:
-                # we deal with an offered HTLC and therefore with a timeout transaction
-                # in this case it is not time critical for us to sweep unless we
-                # become a forwarding node
-                fee_per_kb = wallet.config.eta_target_to_fee(HTLC_TRANSACTION_SWEEP_TARGET)
-            else:
-                # in the case of a received HTLC, if we have the hash preimage,
-                # we should sweep before the timelock expires
-                expiry_height = htlc.cltv_abs
-                current_height = wallet.network.blockchain().height()
-                deadline_blocks = expiry_height - current_height
-                # target block inclusion with a safety buffer
-                target = int(deadline_blocks / HTLC_TRANSACTION_DEADLINE_FRACTION)
-                fee_per_kb = wallet.config.eta_target_to_fee(target)
-            if not fee_per_kb:  # testnet and other cases
-                fee_per_kb = wallet.config.fee_per_kb()
-            fee = wallet.config.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size)
-            # we only sweep if it is makes sense economically
-            if fee > htlc.amount_msat // 1000:
-                raise UneconomicFee
-            return fee
-
-        coin_chooser = coinchooser.get_coin_chooser(wallet.config)
-        change_address = wallet.get_single_change_address_for_new_transaction()
-        funded_htlc_tx = coin_chooser.make_tx(
-            coins=coins,
-            inputs=maybe_zero_fee_htlc_tx.inputs(),
-            outputs=maybe_zero_fee_htlc_tx.outputs(),
-            change_addrs=[change_address],
-            fee_estimator_vb=fee_estimator,
-            dust_threshold=wallet.dust_threshold())
-
-        # place htlc input/output at corresponding indices (due to sighash single)
-        htlc_outpoint = TxOutpoint(txid=bfh(ctx.txid()), out_idx=ctx_output_idx)
-        htlc_input_idx = funded_htlc_tx.get_input_idx_that_spent_prevout(htlc_outpoint)
-
-        htlc_out_address = maybe_zero_fee_htlc_tx.outputs()[HTLCTX_INPUT_OUTPUT_INDEX].address
-        htlc_output_idx = funded_htlc_tx.get_output_idxs_from_address(htlc_out_address).pop()
-        inputs = funded_htlc_tx.inputs()
-        outputs = funded_htlc_tx.outputs()
-        if htlc_input_idx != HTLCTX_INPUT_OUTPUT_INDEX:
-            htlc_txin = inputs.pop(htlc_input_idx)
-            inputs.insert(HTLCTX_INPUT_OUTPUT_INDEX, htlc_txin)
-        if htlc_output_idx != HTLCTX_INPUT_OUTPUT_INDEX:
-            htlc_txout = outputs.pop(htlc_output_idx)
-            outputs.insert(HTLCTX_INPUT_OUTPUT_INDEX, htlc_txout)
-        final_htlc_tx = PartialTransaction.from_io(
-            inputs,
-            outputs,
-            locktime=maybe_zero_fee_htlc_tx.locktime,
-            version=maybe_zero_fee_htlc_tx.version,
-            BIP69_sort=False
-        )
-
-        for fee_input_idx in range(1, len(funded_htlc_tx.inputs())):
-            txin = final_htlc_tx.inputs()[fee_input_idx]
-            pubkey = wallet.get_public_key(txin.address)
-            index = wallet.get_address_index(txin.address)
-            privkey, _ = wallet.keystore.get_private_key(index, wallet.get_unlocked_password())
-            desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type='p2wpkh')
-            txin.script_descriptor = desc
-            fee_input_sig = final_htlc_tx.sign_txin(fee_input_idx, privkey)
-            final_htlc_tx.add_signature_to_txin(txin_idx=fee_input_idx, signing_pubkey=bfh(pubkey), sig=fee_input_sig)
-    else:
-        final_htlc_tx = maybe_zero_fee_htlc_tx
-
     # sign HTLC output
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc_relative_idx=htlc_relative_idx)
-    local_htlc_sig = final_htlc_tx.sign_txin(HTLCTX_INPUT_OUTPUT_INDEX, local_htlc_privkey)
-    txin = final_htlc_tx.inputs()[HTLCTX_INPUT_OUTPUT_INDEX]
+    txin = maybe_zero_fee_htlc_tx.inputs()[HTLCTX_INPUT_OUTPUT_INDEX]
     witness_script_in = txin.witness_script
     assert witness_script_in
-    txin.witness = make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_script_in)
-    return witness_script_out, final_htlc_tx
+    txin.privkey = local_htlc_privkey
+    txin.make_witness = lambda local_htlc_sig: make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_script_in)
+    return witness_script_out, maybe_zero_fee_htlc_tx
 
 
-def tx_their_ctx_htlc(
-        ctx: Transaction, witness_script: bytes, sweep_address: str,
+def sweep_their_ctx_htlc(
+        ctx: Transaction,
+        witness_script: bytes,
         preimage: Optional[bytes], output_idx: int,
         privkey: bytes, is_revocation: bool,
         cltv_abs: int,
         config: SimpleConfig,
         has_anchors: bool,
-) -> Optional[PartialTransaction]:
+) -> Optional[PartialTxInput]:
     """Deals with normal (non-CSV timelocked) HTLC output sweeps."""
     assert type(cltv_abs) is int
+    assert witness_script is not None
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
@@ -781,31 +729,27 @@ def tx_their_ctx_htlc(
     txin.witness_script = witness_script
     txin.script_sig = b''
     txin.nsequence = 1 if has_anchors else 0xffffffff - 2
-    sweep_inputs = [txin]
     tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
-    if outvalue <= dust_threshold(): return None
-    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_abs)
-    sig = tx.sign_txin(0, privkey)
+    if outvalue <= dust_threshold():
+        return None
+    txin.privkey = privkey
     if not is_revocation:
-        witness = construct_witness([sig, preimage, witness_script])
+        txin.make_witness = lambda sig: construct_witness([sig, preimage, witness_script])
     else:
         revocation_pubkey = privkey_to_pubkey(privkey)
-        witness = construct_witness([sig, revocation_pubkey, witness_script])
-    tx.inputs()[0].witness = witness
-    assert tx.is_complete()
-    return tx
+        txin.make_witness = lambda sig: construct_witness([sig, revocation_pubkey, witness_script])
+    return txin
 
 
 
-def tx_their_ctx_to_remote(
-        sweep_address: str, ctx: Transaction, output_idx: int,
+def sweep_their_ctx_to_remote(
+        ctx: Transaction, output_idx: int,
         our_payment_privkey: ecc.ECPrivkey,
         config: SimpleConfig,
         has_anchors: bool,
-) -> Optional[PartialTransaction]:
+) -> Optional[PartialTxInput]:
     assert has_anchors is True
     our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
     val = ctx.outputs()[output_idx].value
@@ -813,36 +757,27 @@ def tx_their_ctx_to_remote(
     txin = PartialTxInput(prevout=prevout)
     txin._trusted_value_sats = val
     desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey.hex(), script_type='p2wpkh')
+    witness_script = make_commitment_output_to_remote_witness_script(our_payment_pubkey)
     txin.script_descriptor = desc
     txin.num_sig = 1
     txin.script_sig = b''
-    txin.witness_script = make_commitment_output_to_remote_witness_script(our_payment_pubkey)
+    txin.witness_script = witness_script
     txin.nsequence = 1
     tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
-    sweep_inputs = [txin]
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
-    if outvalue <= dust_threshold(): return None
-    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
-
-    sig = sweep_tx.sign_txin(0, our_payment_privkey.get_secret_bytes())
-    witness = construct_witness([sig, sweep_tx.inputs()[0].witness_script])
-    sweep_tx.inputs()[0].witness = witness
-
-    if not sweep_tx.is_complete():
-        raise Exception('channel close sweep tx is not complete')
-    return sweep_tx
+    if outvalue <= dust_threshold():
+        return None
+    txin.privkey = our_payment_privkey.get_secret_bytes()
+    txin.make_witness = lambda sig: construct_witness([sig, witness_script])
+    return txin
 
 
-
-
-
-def tx_ctx_to_local(
-        *, sweep_address: str, ctx: Transaction, output_idx: int, witness_script: bytes,
+def sweep_ctx_to_local(
+        *, ctx: Transaction, output_idx: int, witness_script: bytes,
         privkey: bytes, is_revocation: bool, config: SimpleConfig,
-        to_self_delay: int = None) -> Optional[PartialTransaction]:
-    """Create a txn that sweeps the 'to_local' output of a commitment
+        to_self_delay: int = None) -> Optional[PartialTxInput]:
+    """Create a txin that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
 
     privkey: either revocation_privkey or localdelayed_privkey
@@ -855,35 +790,34 @@ def tx_ctx_to_local(
     txin.script_sig = b''
     txin.witness_script = witness_script
     txin.nsequence = 0xffffffff - 2
-    sweep_inputs = [txin]
     if not is_revocation:
         assert isinstance(to_self_delay, int)
-        sweep_inputs[0].nsequence = to_self_delay
+        txin.nsequence = to_self_delay
     tx_size_bytes = 121  # approx size of to_local -> p2wpkh
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
     if outvalue <= dust_threshold():
         return None
-    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
-    sig = sweep_tx.sign_txin(0, privkey)
-    witness = construct_witness([sig, int(is_revocation), witness_script])
-    sweep_tx.inputs()[0].witness = witness
-    return sweep_tx
+    txin.privkey = privkey
+    assert txin.witness_script
+    txin.make_witness = lambda sig: construct_witness([sig, int(is_revocation), witness_script])
+    return txin
 
 
-
-def tx_sweep_htlctx_output(
-        *, htlc_tx: Transaction, output_idx: int, htlctx_witness_script: bytes, sweep_address: str,
-        privkey: bytes, is_revocation: bool, to_self_delay: int = None,
-        config: SimpleConfig) -> Optional[PartialTransaction]:
+def sweep_htlctx_output(
+        *, htlc_tx: Transaction,
+        output_idx: int,
+        htlctx_witness_script: bytes,
+        privkey: bytes,
+        is_revocation: bool,
+        to_self_delay: int = None,
+        config: SimpleConfig) -> Optional[PartialTxInput]:
     """Create a txn that sweeps the output of a first stage htlc tx
     (i.e. sweeps from an HTLC-Timeout or an HTLC-Success tx).
     """
     # note: this is the same as sweeping the to_local output of the ctx,
     #       as these are the same script (address-reuse).
-    return tx_ctx_to_local(
-        sweep_address=sweep_address,
+    return sweep_ctx_to_local(
         ctx=htlc_tx,
         output_idx=output_idx,
         witness_script=htlctx_witness_script,

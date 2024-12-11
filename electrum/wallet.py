@@ -2559,6 +2559,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if sh_danger.needs_confirm() and not ignore_warnings:
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
 
+        # sign with make_witness
+        for i, txin in enumerate(tx.inputs()):
+            if hasattr(txin, 'make_witness'):
+                self.logger.info(f'sign_transaction: adding witness using make_witness')
+                privkey = txin.privkey
+                sig = tx.sign_txin(i, privkey)
+                txin.witness = txin.make_witness(sig)
+                assert txin.is_complete()
+
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
         tmp_tx = copy.deepcopy(tx)
