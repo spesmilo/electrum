@@ -1241,6 +1241,9 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
     def has_dummy_output(self, dummy_addr: str) -> bool:
         return len(self.get_output_idxs_from_address(dummy_addr)) == 1
 
@@ -1733,13 +1736,15 @@ class PartialTxInput(TxInput, PSBTSection):
         def clear_fields_when_finalized():
             # BIP-174: "All other data except the UTXO and unknown fields in the
             #           input key-value map should be cleared from the PSBT"
+            # FIXME: serialize() should not side-effect the tx inputs
             self.sigs_ecdsa = {}
             self.tap_key_sig = None
             self.tap_merkle_root = None
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            if not hasattr(self, 'make_witness'):
+                self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()
