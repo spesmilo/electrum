@@ -3,7 +3,7 @@ import base64
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Optional, Any
+from typing import TYPE_CHECKING, Callable, Optional, Any, Tuple
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -13,7 +13,8 @@ from electrum.invoices import InvoiceError, PR_PAID, PR_BROADCASTING, PR_BROADCA
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTransaction, Transaction
-from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop
+from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, \
+    NoDynamicFeeEstimates
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -817,3 +818,32 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def signMessage(self, address, message):
         sig = self.wallet.sign_message(address, message, self.password)
         return base64.b64encode(sig).decode('ascii')
+
+    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+        text = _('Not enough funds')
+        frozen_str = self.get_frozen_balance_str()
+        if frozen_str:
+            text += " ({} {})".format(frozen_str, _('are frozen'))
+        return text
+
+    def get_frozen_balance_str(self) -> Optional[str]:
+        frozen_bal = sum(self.wallet.get_frozen_balance())
+        if not frozen_bal:
+            return None
+        return self.wallet.config.format_amount_and_units(frozen_bal)
+
+    def determine_max(self, *, mktx: Callable[[int], PartialTransaction]) -> Tuple[int, str]:
+        amount = message = None
+        try:
+            try:
+                tx = mktx(None)
+            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+                # Check if we had enough funds excluding fees,
+                # if so, still provide opportunity to set lower fees.
+                tx = mktx(0)
+            amount = tx.output_value()
+        except NotEnoughFunds as e:
+            self._logger.debug(str(e))
+            message = self.get_text_not_enough_funds_mentioning_frozen()
+
+        return amount, message

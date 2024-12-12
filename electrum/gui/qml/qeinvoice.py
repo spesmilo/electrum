@@ -1,3 +1,4 @@
+import threading
 from enum import IntEnum
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
@@ -9,10 +10,12 @@ from electrum.logging import get_logger
 from electrum.invoices import (Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
                                PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
 from electrum.transaction import PartialTxOutput, TxOutput
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.lnutil import format_short_channel_id
-from electrum.bitcoin import COIN
+from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import (PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
+
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
@@ -42,6 +45,7 @@ class QEInvoice(QObject, QtEventListener):
     invoiceChanged = pyqtSignal()
     invoiceSaved = pyqtSignal([str], arguments=['key'])
     amountOverrideChanged = pyqtSignal()
+    maxAmountMessage = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,6 +67,8 @@ class QEInvoice(QObject, QtEventListener):
         self._timer.timeout.connect(self.updateStatusString)
 
         self._amountOverride.valueChanged.connect(self._on_amountoverride_value_changed)
+
+        self._updating_max = False
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -391,6 +397,38 @@ class QEInvoice(QObject, QtEventListener):
 
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
+
+    @pyqtSlot()
+    def updateMaxAmount(self):
+        if self._updating_max:
+            return
+
+        assert self.invoiceType == QEInvoice.Type.OnchainInvoice
+
+        # only single address invoice supported
+        invoice_address = self._effectiveInvoice.get_address()
+
+        self._updating_max = True
+
+        def calc_max(address):
+            try:
+                outputs = [PartialTxOutput(scriptpubkey=address_to_script(address), value='!')]
+                make_tx = lambda fee_est, *, confirmed_only=False: self._wallet.wallet.make_unsigned_transaction(
+                    coins=self._wallet.wallet.get_spendable_coins(None),
+                    outputs=outputs,
+                    fee=fee_est,
+                    is_sweep=False)
+                amount, message = self._wallet.determine_max(mktx=make_tx)
+                if amount is None:
+                    self._amountOverride.isMax = False
+                else:
+                    self._amountOverride.satsInt = amount
+                if message:
+                    self.maxAmountMessage.emit(message)
+            finally:
+                self._updating_max = False
+
+        threading.Thread(target=calc_max, args=(invoice_address,), daemon=True).start()
 
 
 class QEInvoiceParser(QEInvoice):
