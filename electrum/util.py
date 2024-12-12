@@ -767,7 +767,7 @@ assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.
 
 # DECIMAL_POINT = locale.localeconv()['decimal_point']  # type: str
 DECIMAL_POINT = "."
-THOUSANDS_SEP = " "
+THOUSANDS_SEP = ","
 assert len(DECIMAL_POINT) == 1, f"DECIMAL_POINT has unexpected len. {DECIMAL_POINT!r}"
 assert len(THOUSANDS_SEP) == 1, f"THOUSANDS_SEP has unexpected len. {THOUSANDS_SEP!r}"
 
