@@ -14,7 +14,7 @@ from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
-from .transaction import Transaction, TxOutpoint
+from .transaction import Transaction, TxOutpoint, PartialTransaction
 from .transaction import match_script_against_template
 from .lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
 from .logging import Logger
@@ -517,15 +517,19 @@ class LNWalletWatcher(LNWatcher):
         # fixme: deepcopy is needed because tx.serialize() is destructive
         inputs = [copy.deepcopy(sweep_info.txin)]
         outputs = [sweep_info.txout] if sweep_info.txout else []
-        # password is needed for 1st stage htlc tx with anchors
-        password = self.lnworker.wallet.get_unlocked_password()
-        new_tx = self.lnworker.wallet.create_transaction(
-            inputs = inputs,
-            outputs = outputs,
-            password = password,
-            locktime = sweep_info.cltv_abs,
-            BIP69_sort=False,
-        )
+        if sweep_info.name == 'first-stage-htlc':
+            new_tx = PartialTransaction.from_io(inputs, outputs, locktime=sweep_info.cltv_abs, version=2)
+            self.lnworker.wallet.sign_transaction(new_tx, password=None, ignore_warnings=True)
+        else:
+            # password is needed for 1st stage htlc tx with anchors because we add inputs
+            password = self.lnworker.wallet.get_unlocked_password()
+            new_tx = self.lnworker.wallet.create_transaction(
+                inputs = inputs,
+                outputs = outputs,
+                password = password,
+                locktime = sweep_info.cltv_abs,
+                BIP69_sort=False,
+            )
         if new_tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
             assert old_tx is not None
