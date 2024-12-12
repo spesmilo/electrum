@@ -239,6 +239,7 @@ class LNWalletWatcher(LNWatcher):
         for prevout, sweep_info in sweep_info_dict.items():
             prev_txid, prev_index = prevout.split(':')
             name = sweep_info.name + ' ' + chan.get_id_for_log()
+            self.lnworker.wallet.set_default_label(prevout, name)
             if not self.adb.get_transaction(prev_txid):
                 # do not keep watching if prevout does not exist
                 self.logger.info(f'prevout does not exist for {name}: {prev_txid}')
@@ -250,6 +251,7 @@ class LNWalletWatcher(LNWatcher):
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
                     htlc_tx_spender = self.get_spender(prevout2)
+                    self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
                         keep_watching |= not self.is_deeply_mined(htlc_tx_spender)
                     else:
