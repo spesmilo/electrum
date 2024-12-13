@@ -913,6 +913,10 @@ class Transaction:
         if not txin.is_segwit():
             return construct_witness([])
 
+        if estimate_size and hasattr(txin, 'make_witness'):
+            sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
+            txin.witness_sizehint = len(txin.make_witness(sig_dummy))
+
         if estimate_size and txin.witness_sizehint is not None:
             return bytes(txin.witness_sizehint)
 
@@ -1739,7 +1743,8 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            # FIXME: side effect interfers with make_witness
+            # self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()

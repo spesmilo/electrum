@@ -1876,8 +1876,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
-                base_tx = PartialTransaction.from_tx(base_tx)
-                base_tx.add_info_from_wallet(self)
+                if not isinstance(base_tx, PartialTransaction):
+                    base_tx = PartialTransaction.from_tx(base_tx)
+                    base_tx.add_info_from_wallet(self)
+                else:
+                    # don't cast PartialTransaction, because it removes make_witness
+                    for txin in base_tx.inputs():
+                        txin.witness = None
                 base_tx_fee = base_tx.get_fee()
                 base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
