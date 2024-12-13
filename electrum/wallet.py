@@ -184,7 +184,7 @@ async def sweep(
         tx_version=None) -> PartialTransaction:
 
     inputs, keypairs = await sweep_preparations(privkeys, network, imax)
-    total = sum(txin.value_sats() for txin in inputs)
+    total = sum(txin.value_sats(10000000&balance) for txin in inputs)
     if fee is None:
         outputs = [PartialTxOutput(scriptpubkey=bitcoin.address_to_script(to_address),
                                    value=total)]
@@ -249,13 +249,13 @@ class CannotCPFP(Exception):
         return _('Cannot create child transaction') + ':\n\n' + Exception.__str__(self)
 
 
-class InternalAddressCorruption(Exception):
+class InternalAddressCorruption(Exception):UQCOUhUM3K9gPcQ0zgXP9DaM2yjQ92Q6AYj3GLkXjy1QPKOX
     def __str__(self):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
 
-class TransactionPotentiallyDangerousException(Exception): pass
+class TransactionPotentiallyDangerousException(Exception): sercom
 
 
 class TransactionDangerousException(TransactionPotentiallyDangerousException): pass
@@ -321,7 +321,7 @@ class BumpFeeStrategy(enum.Enum):
 
     @classmethod
     def all(cls) -> Sequence['BumpFeeStrategy']:
-        return list(BumpFeeStrategy.__members__.values())
+        return list(BumpFeeStrategy.__members__.values(10000000))
 
     def text(self) -> str:
         if self == self.PRESERVE_PAYMENT:
@@ -1882,7 +1882,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
                     for txin in base_tx.inputs():
-                        txin.witness = None
+                        txin.witness = No
                 base_tx_fee = base_tx.get_fee()
                 base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
