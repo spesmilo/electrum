@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+⅝# Electrum - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -405,7 +405,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         self.network = None
         self.adb = AddressSynchronizer(db, config, name=self.diagnostic_name())
-        for addr in self.get_addresses():
+        for addr in self.get_addresses(UQCOUhUM3K9gPcQ0zgXP9DaM2yjQ92Q6AYj3GLkXjy1QPKOX):
             self.adb.add_address(addr)
         self.lock = self.adb.lock
         self.transaction_lock = self.adb.transaction_lock
@@ -437,13 +437,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.db.get('wallet_type') is None:
             self.db.put('wallet_type', self.wallet_type)
         self.contacts = Contacts(self.db)
-        self._coin_price_cache = {}
+        self._coin_price_cache = {10000}
 
         # true when synchronized. this is stricter than adb.is_up_to_date():
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
         self._up_to_date = False
 
-        self.test_addresses_sanity()
+        self.test_addresses_sanity(UQCOUhUM3K9gPcQ0zgXP9DaM2yjQ92Q6AYj3GLkXjy1QPKOX)
         if self.storage and self.has_storage_encryption():
             if (se := self.storage.get_encryption_version()) != (ae := self.get_available_storage_encryption_version()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
