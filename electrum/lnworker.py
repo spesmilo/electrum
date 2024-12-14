@@ -2377,10 +2377,10 @@ class LNWallet(LNWorker):
 
     def get_invoice_status(self, invoice: BaseInvoice) -> int:
         invoice_id = invoice.rhash
-        if invoice_id in self.inflight_payments:
+        status = self.get_payment_status(bfh(invoice_id))
+        if status == PR_UNPAID and invoice_id in self.inflight_payments:
             return PR_INFLIGHT
         # status may be PR_FAILED
-        status = self.get_payment_status(bytes.fromhex(invoice_id))
         if status == PR_UNPAID and invoice_id in self.logs:
             status = PR_FAILED
         return status
@@ -2393,7 +2393,7 @@ class LNWallet(LNWorker):
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
         util.trigger_callback('invoice_status', self.wallet, key, status)
-        self.logger.info(f"invoice status triggered (2) for key {key} and status {status}")
+        self.logger.info(f"set_invoice_status {key}: {status}")
         # liquidity changed
         self.clear_invoices_cache()
 

@@ -1294,24 +1294,26 @@ class Channel(AbstractChannel):
         else:
             return
         payment_hash = sha256(preimage)
-        for direction, htlc in itertools.chain(self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
-                                               self.hm.get_htlcs_in_latest_ctx(REMOTE)):
+        found = {}
+        for direction, htlc in itertools.chain(
+                self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
+                self.hm.get_htlcs_in_latest_ctx(REMOTE)):
             if htlc.payment_hash == payment_hash:
                 is_sent = direction == RECEIVED
-                break
-        else:
-            for direction, htlc in itertools.chain(self.hm.get_htlcs_in_oldest_unrevoked_ctx(LOCAL),
-                                                   self.hm.get_htlcs_in_latest_ctx(LOCAL)):
-                if htlc.payment_hash == payment_hash:
-                    is_sent = direction == SENT
-                    break
-            else:
-                return
-        if self.lnworker.get_preimage(payment_hash) is None:
-            self.logger.info(f'found preimage for {payment_hash.hex()} in witness of length {len(witness)}')
-            self.lnworker.save_preimage(payment_hash, preimage)
-        info = self.lnworker.get_payment_info(payment_hash)
-        if info is not None and info.status != PR_PAID:
+                found[htlc.htlc_id] = (htlc, is_sent)
+        for direction, htlc in itertools.chain(
+                self.hm.get_htlcs_in_oldest_unrevoked_ctx(LOCAL),
+                self.hm.get_htlcs_in_latest_ctx(LOCAL)):
+            if htlc.payment_hash == payment_hash:
+                is_sent = direction == SENT
+                found[htlc.htlc_id] = (htlc, is_sent)
+        if not found:
+            return
+        if self.lnworker.get_preimage(payment_hash) is not None:
+            return
+        self.logger.info(f'found preimage for {payment_hash.hex()} in witness of length {len(witness)}')
+        self.lnworker.save_preimage(payment_hash, preimage)
+        for htlc, is_sent in found.values():
             if is_sent:
                 self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
             else:

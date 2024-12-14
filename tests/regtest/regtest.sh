@@ -277,6 +277,8 @@ fi
 
 if [[ $1 == "extract_preimage" ]]; then
     # instead of settling bob will broadcast
+    $alice setconfig test_force_disable_mpp false
+    $alice setconfig test_force_mpp true
     $bob enable_htlc_settle false
     wait_for_balance alice 1
     echo "alice opens channel"
