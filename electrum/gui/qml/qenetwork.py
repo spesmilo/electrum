@@ -269,6 +269,18 @@ class QENetwork(QObject, QtEventListener):
     def isProxyTor(self):
         return bool(self.network.is_proxy_tor)
 
+    @pyqtProperty(bool, notify=statusChanged)
+    def oneServer(self):
+        return self.network.oneserver
+
+    @oneServer.setter
+    def oneServer(self, one_server: bool):
+        if one_server != self.network.oneserver:
+            net_params = self.network.get_parameters()
+            net_params = net_params._replace(oneserver=one_server)
+            self.network.run_from_another_thread(self.network.set_parameters(net_params))
+            self.statusChanged.emit()
+
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):
         return self._fee_histogram
