@@ -321,6 +321,18 @@ def sweep_our_ctx(
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
     txs = {}  # type: Dict[str, SweepInfo]
+
+    # local anchor
+    if chan.has_anchors():
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
+            txs[txin.prevout.to_str()] = SweepInfo(
+                name='local_anchor',
+                csv_delay=0,
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
+
     # to_local
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
     if actual_htlc_tx is None and output_idxs:
@@ -495,6 +507,20 @@ def sweep_their_ctx_to_remote_backup(
         # we are dealing with static_remotekey which is locked to a wallet address
         return {}
 
+    # remote anchor
+    if local_config := chan.config.get(LOCAL):
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=local_config.multisig_key):
+            txs[txin.prevout.to_str()] = SweepInfo(
+                name='remote_anchor',
+                csv_delay=0,
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
+    else:
+        # fixme: onchain channel backups do not store the channel seed
+        pass
+
     # to_remote
     csv_delay = 1
     our_payment_privkey = ecc.ECPrivkey(our_payment_pubkey.privkey)
@@ -562,6 +588,17 @@ def sweep_their_ctx(
     if not found_to_local and not found_to_remote:
         return
     chan.logger.debug(f'(lnsweep) found their ctx: {to_local_address} {to_remote_address}')
+
+    # remote anchor
+    if chan.has_anchors():
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
+            txs[txin.prevout.to_str()] = SweepInfo(
+                name='remote_anchor',
+                csv_delay=0,
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
 
     # to_local is handled by lnwatcher
     if is_revocation:
@@ -769,6 +806,27 @@ def sweep_their_ctx_to_remote(
     if outvalue <= dust_threshold():
         return None
     txin.privkey = our_payment_privkey.get_secret_bytes()
+    txin.make_witness = lambda sig: construct_witness([sig, witness_script])
+    return txin
+
+
+def sweep_ctx_anchor(*, ctx: Transaction, multisig_key)-> Optional[PartialTxInput]:
+    from .lnutil import make_commitment_output_to_anchor_address, make_commitment_output_to_anchor_witness_script
+    local_funding_pubkey = multisig_key.pubkey
+    local_anchor_address = make_commitment_output_to_anchor_address(local_funding_pubkey)
+    witness_script = make_commitment_output_to_anchor_witness_script(local_funding_pubkey)
+    output_idxs = ctx.get_output_idxs_from_address(local_anchor_address)
+    if not output_idxs:
+        return
+    output_idx = output_idxs.pop()
+    val = ctx.outputs()[output_idx].value
+    prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.script_sig = b''
+    txin.witness_script = witness_script
+    txin.nsequence = 0xffffffff - 2
+    txin.privkey = multisig_key.privkey
     txin.make_witness = lambda sig: construct_witness([sig, witness_script])
     return txin
 
