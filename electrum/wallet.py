@@ -1824,12 +1824,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
-        if not coins:  # any bitcoin tx must have at least 1 input by consensus
+        if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
         if inputs is None:
             inputs = []
+        if inputs:
+            input_set = set(txin.prevout for txin in inputs)
+            coins = [coin for coin in coins if (coin.prevout not in input_set)]
         if base_tx is None and self.config.WALLET_BATCH_RBF:
             base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
         if send_change_to_lightning is None:
