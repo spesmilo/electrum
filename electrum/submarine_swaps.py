@@ -1121,6 +1121,8 @@ class SwapManager(Logger):
     def max_amount_forward_swap(self) -> Optional[int]:
         """ returns None if we cannot swap """
         max_swap_amt_ln = self.get_max_amount()
+        if max_swap_amt_ln is None:
+            return None
         max_recv_amt_ln = int(self.lnworker.num_sats_can_receive())
         max_amt_ln = int(min(max_swap_amt_ln, max_recv_amt_ln))
         max_amt_oc = self.get_send_amount(max_amt_ln, is_reverse=False) or 0
