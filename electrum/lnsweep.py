@@ -248,7 +248,7 @@ def sweep_their_htlctx_justice(
     for output_idx in htlc_outputs_idxs:
         prevout = htlc_tx.txid() + f':{output_idx}'
         index_to_sweepinfo[prevout] = SweepInfo(
-            name='redeem_htlc2',
+            name=f'second-stage-htlc:{output_idx}',
             csv_delay=0,
             cltv_abs=None,
             txin=justice_txin(output_idx),
@@ -401,7 +401,7 @@ def sweep_our_ctx(
                     is_revocation=False,
                     config=chan.lnworker.config)
                 txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
-                    name='second-stage-htlc',
+                    name=f'second-stage-htlc:{output_idx}',
                     csv_delay=to_self_delay,
                     cltv_abs=0,
                     txin=sweep_txin,

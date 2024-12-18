@@ -263,7 +263,6 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.network = None  # type: Optional[Network]
         self.config = config
         self.stopping_soon = False  # whether we are being shut down
-        self._labels_cache = {} # txid -> str
         self.register_callbacks()
 
     @property
@@ -1083,9 +1082,6 @@ class LNWallet(LNWorker):
             out[payment_hash] = item
         return out
 
-    def get_label_for_txid(self, txid: str) -> str:
-        return self._labels_cache.get(txid)
-
     def get_onchain_history(self):
         out = {}
         # add funding events
@@ -1095,11 +1091,11 @@ class LNWallet(LNWorker):
                 continue
             funding_txid, funding_height, funding_timestamp = item
             tx_height = self.wallet.adb.get_tx_height(funding_txid)
-            self._labels_cache[funding_txid] = _('Open channel') + ' ' + chan.get_id_for_log()
+            self.wallet.set_default_label(chan.funding_outpoint.to_str(), _('Open channel') + ' ' + chan.get_id_for_log())
             item = {
                 'channel_id': chan.channel_id.hex(),
                 'type': 'channel_opening',
-                'label': self.get_label_for_txid(funding_txid),
+                'label': self.wallet.get_label_for_txid(funding_txid),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': PaymentDirection.RECEIVED,
@@ -1118,11 +1114,11 @@ class LNWallet(LNWorker):
                 continue
             closing_txid, closing_height, closing_timestamp = item
             tx_height = self.wallet.adb.get_tx_height(closing_txid)
-            self._labels_cache[closing_txid] = _('Close channel') + ' ' + chan.get_id_for_log()
+            self.wallet.set_default_label(closing_txid, _('Close channel') + ' ' + chan.get_id_for_log())
             item = {
                 'channel_id': chan.channel_id.hex(),
                 'txid': closing_txid,
-                'label': self.get_label_for_txid(closing_txid),
+                'label': self.wallet.get_label_for_txid(closing_txid),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': PaymentDirection.SENT,
@@ -1142,7 +1138,7 @@ class LNWallet(LNWorker):
             group_id = v.get('group_id')
             group_label = v.get('group_label')
             if group_id and group_label:
-                self._labels_cache[group_id] = group_label
+                self.wallet.set_default_label(group_id, group_label)
         out.update(d)
         return out
 
@@ -1333,7 +1329,7 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.sign_transaction(funding_tx, password)
-        self.wallet.set_label(funding_tx.txid(), _('Open channel'))
+        #self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete() and not zeroconf:
             await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx

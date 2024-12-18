@@ -250,6 +250,8 @@ if [[ $1 == "swapserver_forceclose" ]]; then
     new_blocks 1
     wait_until_spent $funding_txid 0 # alice reveals preimage
     new_blocks 1
+    sleep 2
+    new_blocks 144
     wait_for_balance bob 0.999
 fi
 
@@ -376,6 +378,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     fi
     echo "alice breaches with old ctx"
     $bitcoin_cli sendrawtransaction $ctx
+    new_blocks 1
     wait_for_balance bob 1.14
 fi
 
