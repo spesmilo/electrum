@@ -116,6 +116,8 @@ msgdata,update_add_htlc,amount_msat,u64,
 msgdata,update_add_htlc,payment_hash,sha256,
 msgdata,update_add_htlc,cltv_expiry,u32,
 msgdata,update_add_htlc,onion_routing_packet,byte,1366
+tlvtype,update_add_htlc_tlvs,blinding_point,0
+tlvdata,update_add_htlc_tlvs,blinding_point,blinding,point,
 msgtype,update_fulfill_htlc,130
 msgdata,update_fulfill_htlc,channel_id,channel_id,
 msgdata,update_fulfill_htlc,id,u64,
@@ -229,3 +231,7 @@ msgtype,gossip_timestamp_filter,265
 msgdata,gossip_timestamp_filter,chain_hash,chain_hash,
 msgdata,gossip_timestamp_filter,first_timestamp,u32,
 msgdata,gossip_timestamp_filter,timestamp_range,u32,
+msgtype,onion_message,513
+msgdata,onion_message,blinding,point,
+msgdata,onion_message,len,u16,
+msgdata,onion_message,onion_message_packet,byte,len
