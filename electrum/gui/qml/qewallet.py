@@ -731,11 +731,15 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             self._logger.info('setting new password')
             self.wallet.update_password(current_password, password, encrypt_storage=True)
-            self.password = password
+            self.wallet.unlock(password)
             return True
         except InvalidPassword as e:
             self._logger.exception(repr(e))
             return False
+
+    @property
+    def password(self):
+        return self.wallet.get_unlocked_password()
 
     @pyqtSlot(str)
     def importAddresses(self, addresslist):

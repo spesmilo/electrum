@@ -251,7 +251,8 @@ class QEDaemon(AuthMixin, QObject):
         assert wallet is not None
         self._current_wallet = QEWallet.getInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
-        self._current_wallet.password = password if password else None
+        if wallet.requires_unlock():
+            wallet.unlock(password)
         self._loading = False
         self.loadingChanged.emit()
         self.walletLoaded.emit(self._name, self._path)
