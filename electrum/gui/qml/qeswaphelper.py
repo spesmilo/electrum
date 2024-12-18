@@ -1,16 +1,19 @@
 import asyncio
 import concurrent
 import threading
+import time
 from enum import IntEnum
 from typing import Union, Optional
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
+from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
+                          QModelIndex)
 
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age
+from electrum.submarine_swaps import NostrTransport
 
 from electrum.gui import messages
 
@@ -23,8 +26,72 @@ from .util import QtEventListener, qt_event_listener
 class InvalidSwapParameters(Exception): pass
 
 
+class QESwapServerNPubListModel(QAbstractListModel):
+    _logger = get_logger(__name__)
+
+    # define listmodel rolemap
+    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'reverse_mining_fee')
+    _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
+    _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
+
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self.config = config
+        self._services = []
+
+    def rowCount(self, index):
+        return len(self._services)
+
+    # also expose rowCount as a property
+    countChanged = pyqtSignal()
+    @pyqtProperty(int, notify=countChanged)
+    def count(self):
+        return len(self._services)
+
+    def roleNames(self):
+        return self._ROLE_MAP
+
+    def data(self, index, role):
+        service = self._services[index.row()]
+        role_index = role - Qt.ItemDataRole.UserRole
+        value = service[self._ROLE_NAMES[role_index]]
+        if isinstance(value, (bool, list, int, str)) or value is None:
+            return value
+        return str(value)
+
+    def clear(self):
+        self.beginResetModel()
+        self._services = []
+        self.endResetModel()
+
+    def initModel(self, items):
+        self.beginInsertRows(QModelIndex(), len(items), len(items))
+        self._services = [{
+                'npub': x['pubkey'],
+                'percentage_fee': x['percentage_fee'],
+                'reverse_mining_fee': x['reverse_mining_fee'],
+                'timestamp': age(x['timestamp']),
+            }
+            for x in items
+        ]
+        self.endInsertRows()
+        self.countChanged.emit()
+
+    @pyqtSlot(str, result=int)
+    def indexFor(self, pubkey: str):
+        for i, item in enumerate(self._services):
+            if pubkey == item['npub']:
+                return i
+        return -1
+
+
 class QESwapHelper(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
+
+    MESSAGE_SWAP_HOWTO = ' '.join([
+            _('Move the slider to set the amount and direction of the swap.'),
+            _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
+        ])
 
     @pyqtEnum
     class State(IntEnum):
@@ -34,9 +101,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         Failed = 3
         Success = 4
         Cancelled = 5
+        QueryPairs = 6
 
     confirm = pyqtSignal([str], arguments=['message'])
     error = pyqtSignal([str], arguments=['message'])
+    undefinedNPub = pyqtSignal()
+    offersUpdated = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -48,10 +118,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._tx = None
         self._valid = False
         self._state = QESwapHelper.State.Initialized
-        self._userinfo = ' '.join([
-            _('Move the slider to set the amount and direction of the swap.'),
-            _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
-        ])
+        self._userinfo = QESwapHelper.MESSAGE_SWAP_HOWTO
         self._tosend = QEAmount()
         self._toreceive = QEAmount()
         self._serverfeeperc = ''
@@ -69,6 +136,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._leftVoid = 0
         self._rightVoid = 0
 
+        self._available_swapservers = None
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
@@ -76,6 +145,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._fwd_swap_updatetx_timer.setSingleShot(True)
         # self._fwd_swap_updatetx_timer.setInterval(500)
         self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
+
+        self.offersUpdated.connect(self.on_offers_updated)
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -89,7 +160,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def wallet(self, wallet: QEWallet):
         if self._wallet != wallet:
             self._wallet = wallet
-            self.init_swap_slider_range()
+            self.init_swap_manager()
+            # self.init_swap_slider_range()
             self.walletChanged.emit()
 
     sliderPosChanged = pyqtSignal()
@@ -246,18 +318,93 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._canCancel = canCancel
             self.canCancelChanged.emit()
 
-    def init_swap_slider_range(self):
-        lnworker = self._wallet.wallet.lnworker
-        if not lnworker:
+    availableSwapServersChanged = pyqtSignal()
+    @pyqtProperty(QESwapServerNPubListModel, notify=availableSwapServersChanged)
+    def availableSwapServers(self):
+        if not self._available_swapservers:
+            self._available_swapservers = QESwapServerNPubListModel(self._wallet.wallet.config)
+
+        return self._available_swapservers
+
+    def on_offers_updated(self):
+        self.availableSwapServers.initModel(self.recent_offers)
+
+    @pyqtSlot(result=bool)
+    def isNostr(self):
+        return True  # TODO
+
+    @pyqtSlot()
+    def init_swap_manager(self):
+        self._logger.debug('init_swap_manager')
+        if (lnworker := self._wallet.wallet.lnworker) is None:
             return
         swap_manager = lnworker.swap_manager
-        try:
-            asyncio.run(swap_manager.get_pairs())
-            self.state = QESwapHelper.State.ServiceReady
-        except Exception as e:
-            self.error.emit(_('Swap service unavailable'))
-            self._logger.error(f'could not get pairs for swap: {repr(e)}')
-            return
+
+        assert not swap_manager.is_server, 'running as swap server not supported'
+
+        # if not self._wallet.wallet.config.SWAPSERVER_URL and not self._wallet.wallet.config.SWAPSERVER_NPUB:  # TODO enable nostr
+        #     self._logger.debug('nostr is preferred but swapserver npub still undefined')
+
+        # FIXME: clearing is_initialized, we might be called because the npub was changed
+        swap_manager.is_initialized.clear()
+        self.state = QESwapHelper.State.Initialized
+
+        swap_transport = swap_manager.create_transport()
+
+        def query_task(transport):
+            with transport:
+                try:
+                    async def wait_initialized():
+                        try:
+                            await asyncio.wait_for(swap_manager.is_initialized.wait(), timeout=5)
+                        except asyncio.TimeoutError:
+                            return
+
+                    if not swap_manager.is_initialized.is_set():
+                        self.userinfo = _('Initializing...')
+                        fut = asyncio.run_coroutine_threadsafe(wait_initialized(), get_asyncio_loop())
+                        fut.result()
+                except Exception as e:
+                    try:  # swaphelper might be destroyed at this point
+                        self.userinfo = _('Error') + ': ' + str(e)
+                        self._logger.error(str(e))
+                    except RuntimeError:
+                        pass
+
+                if isinstance(transport, NostrTransport):
+                    now = int(time.time())
+                    if not swap_manager.is_initialized.is_set():
+                        if not transport.is_connected.is_set():
+                            self.userinfo = _('Error') + ': ' + '\n'.join[
+                                _('Could not connect to a Nostr relay.'),
+                                _('Please check your relays and network connection')
+                            ]
+                            return
+                        self.recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < 3600]
+                        if not self.recent_offers:
+                            self.userinfo = _('Could not find a swap provider.')
+                            return
+
+                        self.offersUpdated.emit()
+                        self.undefinedNPub.emit()
+                        return
+                    else:
+                        self.recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < 3600]
+                        if not self.recent_offers:
+                            self.userinfo = _('Could not find a swap provider.')
+                            return
+
+                        self.offersUpdated.emit()
+
+                self.state = QESwapHelper.State.ServiceReady
+                self.userinfo = QESwapHelper.MESSAGE_SWAP_HOWTO
+                self.init_swap_slider_range()
+
+        threading.Thread(target=query_task, args=(swap_transport,), daemon=True).start()
+
+    def init_swap_slider_range(self):
+        lnworker = self._wallet.wallet.lnworker
+        swap_manager = lnworker.swap_manager
 
         """Sets the minimal and maximal amount that can be swapped for the swap
         slider."""
@@ -366,55 +513,57 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if lightning_amount is None or onchain_amount is None:
             return
         loop = get_asyncio_loop()
-        coro = self._wallet.wallet.lnworker.swap_manager.request_normal_swap(
-            lightning_amount_sat=lightning_amount,
-            expected_onchain_amount_sat=onchain_amount,
-        )
 
         def swap_task():
-            try:
-                dummy_tx = self._create_tx(onchain_amount)
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                self.userinfo = _('Performing swap...')
-                self.state = QESwapHelper.State.Started
-                self._swap, invoice = fut.result()
+            with self._wallet.wallet.lnworker.swap_manager.create_transport() as transport:
+                coro = self._wallet.wallet.lnworker.swap_manager.request_normal_swap(
+                    transport,
+                    lightning_amount_sat=lightning_amount,
+                    expected_onchain_amount_sat=onchain_amount,
+                )
+                try:
+                    dummy_tx = self._create_tx(onchain_amount)
+                    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                    self.userinfo = _('Performing swap...')
+                    self.state = QESwapHelper.State.Started
+                    self._swap, invoice = fut.result()
 
-                tx = self._wallet.wallet.lnworker.swap_manager.create_funding_tx(self._swap, dummy_tx, password=self._wallet.password)
-                coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(swap=self._swap, invoice=invoice, tx=tx)
-                self._fut_htlc_wait = fut = asyncio.run_coroutine_threadsafe(coro2, loop)
+                    tx = self._wallet.wallet.lnworker.swap_manager.create_funding_tx(self._swap, dummy_tx, password=self._wallet.password)
+                    coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(transport, swap=self._swap, invoice=invoice, tx=tx)
+                    self._fut_htlc_wait = fut = asyncio.run_coroutine_threadsafe(coro2, loop)
 
-                self.canCancel = True
-                txid = fut.result()
-                try:  # swaphelper might be destroyed at this point
-                    if txid:
-                        self.userinfo = ' '.join([
-                            _('Success!'),
-                            messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL,
-                        ])
-                        self.state = QESwapHelper.State.Success
-                    else:
-                        self.userinfo = _('Swap failed!')
+                    self.canCancel = True
+                    txid = fut.result()
+                    try:  # swaphelper might be destroyed at this point
+                        if txid:
+                            self.userinfo = ' '.join([
+                                _('Success!'),
+                                messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL,
+                            ])
+                            self.state = QESwapHelper.State.Success
+                        else:
+                            self.userinfo = _('Swap failed!')
+                            self.state = QESwapHelper.State.Failed
+                    except RuntimeError:
+                        pass
+                except concurrent.futures.CancelledError:
+                    self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap)
+                    self.userinfo = _('Swap cancelled')
+                    self.state = QESwapHelper.State.Cancelled
+                except Exception as e:
+                    try:  # swaphelper might be destroyed at this point
                         self.state = QESwapHelper.State.Failed
-                except RuntimeError:
-                    pass
-            except concurrent.futures.CancelledError:
-                self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap)
-                self.userinfo = _('Swap cancelled')
-                self.state = QESwapHelper.State.Cancelled
-            except Exception as e:
-                try:  # swaphelper might be destroyed at this point
-                    self.state = QESwapHelper.State.Failed
-                    self.userinfo = _('Error') + ': ' + str(e)
-                    self._logger.error(str(e))
-                except RuntimeError:
-                    pass
-            finally:
-                try:  # swaphelper might be destroyed at this point
-                    self.canCancel = False
-                    self._swap = None
-                    self._fut_htlc_wait = None
-                except RuntimeError:
-                    pass
+                        self.userinfo = _('Error') + ': ' + str(e)
+                        self._logger.error(str(e))
+                    except RuntimeError:
+                        pass
+                finally:
+                    try:  # swaphelper might be destroyed at this point
+                        self.canCancel = False
+                        self._swap = None
+                        self._fut_htlc_wait = None
+                    except RuntimeError:
+                        pass
 
         threading.Thread(target=swap_task, daemon=True).start()
 
@@ -446,38 +595,42 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def do_reverse_swap(self, lightning_amount, onchain_amount):
         if lightning_amount is None or onchain_amount is None:
             return
-        swap_manager = self._wallet.wallet.lnworker.swap_manager
-        loop = get_asyncio_loop()
-        coro = swap_manager.reverse_swap(
-            lightning_amount_sat=lightning_amount,
-            expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
-        )
 
         def swap_task():
-            try:
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                self.userinfo = _('Performing swap...')
-                self.state = QESwapHelper.State.Started
-                txid = fut.result()
-                try:  # swaphelper might be destroyed at this point
-                    if txid:
-                        self.userinfo = ' '.join([
-                            _('Success!'),
-                            messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL,
-                        ])
-                        self.state = QESwapHelper.State.Success
-                    else:
-                        self.userinfo = _('Swap failed!')
+            swap_manager = self._wallet.wallet.lnworker.swap_manager
+            loop = get_asyncio_loop()
+            with self._wallet.wallet.lnworker.swap_manager.create_transport() as transport:
+                coro = swap_manager.reverse_swap(
+                    transport,
+                    lightning_amount_sat=lightning_amount,
+                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
+                )
+                try:
+                    time.sleep(1)  # FIXME: this is needed because transport hasn't finished initializing yet.
+                    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                    self.userinfo = _('Performing swap...')
+                    self.state = QESwapHelper.State.Started
+                    txid = fut.result()
+                    try:  # swaphelper might be destroyed at this point
+                        if txid:
+                            self.userinfo = ' '.join([
+                                _('Success!'),
+                                messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL,
+                            ])
+                            self.state = QESwapHelper.State.Success
+                        else:
+                            self.userinfo = _('Swap failed!')
+                            self.state = QESwapHelper.State.Failed
+                    except RuntimeError:
+                        pass
+                except Exception as e:
+                    try:  # swaphelper might be destroyed at this point
                         self.state = QESwapHelper.State.Failed
-                except RuntimeError:
-                    pass
-            except Exception as e:
-                try:  # swaphelper might be destroyed at this point
-                    self.state = QESwapHelper.State.Failed
-                    self.userinfo = _('Error') + ': ' + str(e)
-                    self._logger.error(str(e))
-                except RuntimeError:
-                    pass
+                        msg = _('Timeout') if isinstance(e, TimeoutError) else str(e)
+                        self.userinfo = _('Error') + ': ' + msg
+                        self._logger.error(str(e))
+                    except RuntimeError:
+                        pass
 
         threading.Thread(target=swap_task, daemon=True).start()
 
