@@ -21,6 +21,10 @@ ckcc-protocol>=0.7.7
 # device plugin: bitbox02
 bitbox02>=6.2.0
 
+# device plugin: satochip
+pyscard>=1.9.9
+pysatochip==0.12.6
+
 # device plugin: jade
 cbor2>=5.4.6,<6.0.0
 pyserial>=3.5.0,<4.0.0
