@@ -568,6 +568,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
+    def require_full_encryption(self):
+        if self.wallet.has_keystore_encryption() and not self.wallet.has_storage_encryption():
+            msg = ' '.join([
+                _("Your wallet is password-protected, but the wallet file is not encrypted."),
+                _("This is no longer supported."),
+                _("Please enter your password in order to encrypt your wallet file."),
+            ])
+            while True:
+                password = self.password_dialog(msg)
+                if not password:
+                    self.close()
+                    raise UserCancelled()
+                try:
+                    self.wallet.update_password(password, password, encrypt_storage=True)
+                    break
+                except InvalidPassword as e:
+                    self.show_error(str(e))
+
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
             return

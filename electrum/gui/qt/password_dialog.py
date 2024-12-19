@@ -64,7 +64,7 @@ class PasswordLayout(object):
 
     titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
-    def __init__(self, msg, kind, OK_button, wallet=None, force_disable_encrypt_cb=False):
+    def __init__(self, msg, kind, OK_button, wallet=None):
         self.wallet = wallet
 
         self.pw = PasswordLineEdit()
@@ -123,17 +123,9 @@ class PasswordLayout(object):
             grid.addWidget(self.pw_strength, 3, 0, 1, 2)
             self.new_pw.textChanged.connect(self.pw_changed)
 
-        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
-        self.encrypt_cb.setEnabled(False)
-        grid.addWidget(self.encrypt_cb, 4, 0, 1, 2)
-        if kind == PW_PASSPHRASE:
-            self.encrypt_cb.setVisible(False)
-
         def enable_OK():
             ok = self.new_pw.text() == self.conf_pw.text()
             OK_button.setEnabled(ok)
-            self.encrypt_cb.setEnabled(ok and bool(self.new_pw.text())
-                                       and not force_disable_encrypt_cb)
         self.new_pw.textChanged.connect(enable_OK)
         self.conf_pw.textChanged.connect(enable_OK)
         enable_OK()
@@ -211,9 +203,6 @@ class PasswordLayoutForHW(object):
 
         vbox.addLayout(grid)
 
-        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
-        grid.addWidget(self.encrypt_cb, 1, 0, 1, 2)
-
         self.vbox = vbox
 
     def title(self):
@@ -237,18 +226,12 @@ class ChangePasswordDialogBase(WindowModalDialog):
         vbox.addLayout(self.playout.layout())
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CancelButton(self), OK_button))
-        self.playout.encrypt_cb.setChecked(is_encrypted)
 
     def create_password_layout(self, wallet, is_encrypted, OK_button):
         raise NotImplementedError()
 
 
 class ChangePasswordDialogForSW(ChangePasswordDialogBase):
-
-    def __init__(self, parent, wallet):
-        ChangePasswordDialogBase.__init__(self, parent, wallet)
-        if not wallet.has_password():
-            self.playout.encrypt_cb.setChecked(True)
 
     def create_password_layout(self, wallet, is_encrypted, OK_button):
         if not wallet.has_password():
@@ -260,17 +243,17 @@ class ChangePasswordDialogForSW(ChangePasswordDialogBase):
             else:
                 msg = _('Your wallet is password protected and encrypted.')
             msg += ' ' + _('Use this dialog to change your password.')
-        self.playout = PasswordLayout(msg=msg,
-                                      kind=PW_CHANGE,
-                                      OK_button=OK_button,
-                                      wallet=wallet,
-                                      force_disable_encrypt_cb=not wallet.can_have_keystore_encryption())
+        self.playout = PasswordLayout(
+            msg=msg,
+            kind=PW_CHANGE,
+            OK_button=OK_button,
+            wallet=wallet)
 
     def run(self):
         try:
             if not self.exec():
                 return False, None, None, None
-            return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
+            return True, self.playout.old_password(), self.playout.new_password(), True
         finally:
             self.playout.clear_password_fields()
 
@@ -292,7 +275,7 @@ class ChangePasswordDialogForHW(ChangePasswordDialogBase):
     def run(self):
         if not self.exec():
             return False, None
-        return True, self.playout.encrypt_cb.isChecked()
+        return True, True
 
 
 class PasswordDialog(WindowModalDialog):
@@ -301,8 +284,10 @@ class PasswordDialog(WindowModalDialog):
         msg = msg or _('Please enter your password')
         WindowModalDialog.__init__(self, parent, _("Enter Password"))
         self.pw = pw = PasswordLineEdit()
+        label = QLabel(msg)
+        label.setWordWrap(True)
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(msg))
+        vbox.addWidget(label)
         grid = QGridLayout()
         grid.setSpacing(8)
         grid.addWidget(QLabel(_('Password')), 1, 0)

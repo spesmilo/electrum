@@ -325,6 +325,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         w.warn_if_testnet()
         w.warn_if_watching_only()
+        w.require_full_encryption()
         return w
 
     def count_wizards_in_progress(func):
@@ -394,6 +395,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                     break
             else:
                 window = self._create_window_for_wallet(wallet)
+        except UserCancelled:
+            return
         except Exception as e:
             self.logger.exception('')
             err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
