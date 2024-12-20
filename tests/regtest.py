@@ -110,7 +110,7 @@ class TestLightningWatchtower(TestLightning):
             'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
         },
         'carol':{
-            'run_watchtower': 'true',
+            'enable_plugin_watchtower': 'true',
             'watchtower_user': 'wtuser',
             'watchtower_password': 'wtpassword',
             'watchtower_port': '12345',

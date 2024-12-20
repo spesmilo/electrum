@@ -68,7 +68,7 @@ if TYPE_CHECKING:
     from .channel_db import ChannelDB
     from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
-    from .lnwatcher import WatchTower
+    #from .lnwatcher import WatchTower
     from .daemon import Daemon
     from .simple_config import SimpleConfig
 
@@ -290,7 +290,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
-    local_watchtower: Optional['WatchTower'] = None
     path_finder: Optional['LNPathFinder'] = None
 
     def __init__(self, config: 'SimpleConfig', *, daemon: 'Daemon' = None):
@@ -364,11 +363,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
         self._was_started = False
 
-        # lightning network
-        if self.config.WATCHTOWER_SERVER_ENABLED:
-            from . import lnwatcher
-            self.local_watchtower = lnwatcher.WatchTower(self)
-            asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""

@@ -1298,7 +1298,7 @@ class Commands:
     @command('wnl')
     async def get_watchtower_ctn(self, channel_point, wallet: Abstract_Wallet = None):
         """ return the local watchtower's ctn of channel. used in regtests """
-        return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
+        return wallet.lnworker.get_watchtower_ctn(channel_point)
 
     @command('wnpl')
     async def rebalance_channels(self, from_scid, dest_scid, amount, password=None, wallet: Abstract_Wallet = None):

@@ -362,34 +362,6 @@ class CommandsServer(AuthenticatedServer):
         return result
 
 
-class WatchTowerServer(AuthenticatedServer):
-
-    def __init__(self, network: 'Network', port:int):
-        self.port = port
-        self.config = network.config
-        self.network = network
-        watchtower_user = self.config.WATCHTOWER_SERVER_USER or ""
-        watchtower_password = self.config.WATCHTOWER_SERVER_PASSWORD or ""
-        AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
-        self.lnwatcher = network.local_watchtower
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.register_method(self.get_ctn)
-        self.register_method(self.add_sweep_tx)
-
-    async def run(self):
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, host='localhost', port=self.port)
-        await site.start()
-        self.logger.info(f"running and listening on port {self.port}")
-
-    async def get_ctn(self, *args):
-        return await self.lnwatcher.get_ctn(*args)
-
-    async def add_sweep_tx(self, *args):
-        return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
-
 
 
 
@@ -397,7 +369,6 @@ class Daemon(Logger):
 
     network: Optional[Network] = None
     gui_object: Optional['gui.BaseElectrumGui'] = None
-    watchtower: Optional['WatchTowerServer'] = None
 
     @profiler
     def __init__(
@@ -460,11 +431,6 @@ class Daemon(Logger):
         self.logger.info(f"starting network.")
         assert not self.config.NETWORK_OFFLINE
         assert self.network
-        # server-side watchtower
-        if watchtower_port := self.config.WATCHTOWER_SERVER_PORT:
-            self.watchtower = WatchTowerServer(self.network, watchtower_port)
-            asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.watchtower.run), self.asyncio_loop)
-
         self.network.start(jobs=[self.fx.run])
         # prepare lightning functionality, also load channel db early
         if self.config.LIGHTNING_USE_GOSSIP:
