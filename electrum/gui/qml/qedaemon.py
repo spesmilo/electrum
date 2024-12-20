@@ -252,7 +252,7 @@ class QEDaemon(AuthMixin, QObject):
         self._current_wallet = QEWallet.getInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
         if wallet.requires_unlock():
-            wallet.unlock(password)
+            wallet.unlock(password or None)
         self._loading = False
         self.loadingChanged.emit()
         self.walletLoaded.emit(self._name, self._path)
