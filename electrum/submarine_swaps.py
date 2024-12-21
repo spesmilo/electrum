@@ -386,7 +386,7 @@ class SwapManager(Logger):
                     # for testing: do not create claim tx
                     return
 
-            if spent_height is not None:
+            if spent_height is not None and spent_height > 0:
                 return
             try:
                 txin, locktime = self.create_claim_txin(txin=txin, swap=swap, config=self.wallet.config)
