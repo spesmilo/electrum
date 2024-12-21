@@ -3354,26 +3354,29 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         txin = sweep_info.txin
         if txin.prevout in self.batch_processing:
             return
-        # early return if the input is spent
-        # this is needed because self.batch_processing is not persisted
-        # this also allows a txin to be added again, if the block containing the spending tx is orphaned
+        # early return if the spending tx is confirmed
+        # if its block is is orphaned, the txin will be added again
         prevout = txin.prevout.to_str()
         prev_txid, index = prevout.split(':')
         if spender_txid := self.adb.db.get_spent_outpoint(prev_txid, int(index)):
             tx_mined_status = self.adb.get_tx_height(spender_txid)
-            if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            if tx_mined_status.height > 0:
                 return
         self.batch_processing.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
 
     def find_confirmed_base_tx(self):
-        for tx in self.batch_txs:
-            tx_mined_status = self.adb.get_tx_height(tx.txid())
+        for txid in self.batch_txids:
+            tx_mined_status = self.adb.get_tx_height(txid)
             if tx_mined_status.conf > 0:
+                tx = self.adb.get_transaction(txid)
+                tx = PartialTransaction.from_tx(tx)
+                tx.add_info_from_wallet(self) # needed for txid
                 return tx
 
     def to_pay_after(self, tx):
+        # fixme: not robust to client restart
         if not tx:
             return self.batch_payments
         return [x for x in self.batch_payments if x not in tx.outputs()]
@@ -3416,7 +3419,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # output 3:     tx1''(o1,o2,o3)      --> tx2'(tx1|o2,o3)     --->  tx3(tx2|o3)
         #                                                                  tx3(tx1'|o3) (if tx1'cannot be replaced)
         #
-        # self.batch_txs = [tx1, tx1', tx1'']
+        # self.batch_txid = [tx1, tx1', tx1'']
         #
         # if tx1 gets mined: broadcast: tx2(tx1|o2,o3)
         # if tx1' gets mined: broadcast tx3(tx1'|o3)
@@ -3433,7 +3436,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #
         self.batch_payments = []       # list of payments we need to make
         self.batch_inputs = {}         # list of inputs we need to sweep
-        self.batch_txs = []            # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
+
+        # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
+        self.batch_txids = self.db.get_stored_item("batch_txids", [])
+        self.batch_tx = None           # current batch tx. last element of batch_txids
+
+        if self.batch_txids:
+            self.logger.info(f'batch_txids {self.batch_txids}')
+            last_txid = self.batch_txids[-1]
+            tx = self.adb.get_transaction(last_txid)
+            tx = PartialTransaction.from_tx(tx)
+            tx.add_info_from_wallet(self) # this adds input amounts
+            self.batch_tx = tx
+
         self.batch_parent_tx = None
         self.batch_processing = set()  # list of inputs we are sweeping (until spending tx is confirmed)
 
@@ -3448,7 +3463,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.logger.info(f'base tx confirmed {tx.txid()}')
                 self.clear_batch_processing(tx)
                 self.start_new_batch(tx)
-            base_tx = self.batch_txs[-1] if self.batch_txs else None
+            base_tx = self.batch_tx
             to_pay = self.to_pay_after(base_tx)
             to_sweep = self.to_sweep_after(base_tx)
             to_sweep_now = {}
@@ -3470,7 +3485,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if await self.network.try_broadcasting(tx, 'batch'):
                 self.adb.add_transaction(tx)
                 if tx.has_change():
-                    self.batch_txs.append(tx)
+                    self.batch_txids.append(tx.txid())
+                    self.batch_tx = tx
                 else:
                     self.logger.info(f'starting new batch because current base tx does not have change')
                     self.start_new_batch(tx)
@@ -3512,6 +3528,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def clear_batch_processing(self, tx):
         # this ensure that we can accept an input again
         # if the spending tx is removed from the blockchain
+        # fixme: what if there are several batches?
         for txin in tx.inputs():
             if txin.prevout in self.batch_processing:
                 self.batch_processing.remove(txin.prevout)
@@ -3520,7 +3537,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         use_change = tx and tx.has_change() and any([txout in self.batch_payments for txout in tx.outputs()])
         self.batch_payments = self.to_pay_after(tx)
         self.batch_inputs = self.to_sweep_after(tx)
-        self.batch_txs = []
+        self.batch_txids.clear()
+        self.batch_tx = None
         self.batch_parent_tx = tx if use_change else None
 
     def get_change_inputs(self, parent_tx):
@@ -3599,6 +3617,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
         if tx_was_added:
             util.trigger_callback('wallet_updated', self.lnworker.wallet)
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
