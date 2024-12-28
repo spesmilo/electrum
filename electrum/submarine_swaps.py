@@ -1288,7 +1288,6 @@ class HttpTransport(Logger):
         self.sm.update_pairs(pairs)
 
 
-
 class NostrTransport(Logger):
     # uses nostr:
     #  - to advertise servers
@@ -1357,6 +1356,7 @@ class NostrTransport(Logger):
         self.sm.is_initialized.clear()
         await self.taskgroup.cancel_remaining()
         await self.relay_manager.close()
+        self.logger.info("nostr transport shut down")
 
     @property
     def relays(self):
@@ -1428,6 +1428,9 @@ class NostrTransport(Logger):
                 continue
             if content.get('network') != constants.net.NET_NAME:
                 continue
+            if now() - event.created_at > self.NOSTR_EVENT_TIMEOUT:
+                self.logger.debug(f'offer for swap server too old (pub={event.pubkey})')
+                continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
             ts = self.offers.get(pubkey, {}).get('timestamp', 0)
@@ -1452,6 +1455,9 @@ class NostrTransport(Logger):
             if content.get('version') != self.NOSTR_EVENT_VERSION:
                 continue
             if content.get('network') != constants.net.NET_NAME:
+                continue
+            if now() - event.created_at > self.NOSTR_EVENT_TIMEOUT:
+                self.logger.debug(f'pair for selected swap server too old (pub={event.pubkey})')
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
