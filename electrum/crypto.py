@@ -29,6 +29,7 @@ import os
 import sys
 import hashlib
 import hmac
+from argon2 import PasswordHasher
 from typing import Union, Mapping, Optional
 
 import electrum_ecc as ecc
@@ -226,7 +227,20 @@ def _hash_password(password: Union[bytes, str], *, version: int) -> bytes:
     if version not in SUPPORTED_PW_HASH_VERSIONS:
         raise UnsupportedPasswordHashVersion(version)
     if version == 1:
-        return sha256d(pw)
+        # Parameters chosen to be stronger than the library defaults
+        # time_cost=3 (default=2)
+        # memory_cost=65536 (default=102400)
+        # parallelism=4 (default=8)
+        # hash_len=32 (default=16)
+        # salt_len=32 (default=16)
+        ph = PasswordHasher(
+            time_cost=3,
+            memory_cost=65536,
+            parallelism=4,
+            hash_len=32,
+            salt_len=32
+        )
+        return ph.hash(pw)
     else:
         assert version not in KNOWN_PW_HASH_VERSIONS
         raise UnexpectedPasswordHashVersion(version)
