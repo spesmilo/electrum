@@ -197,7 +197,7 @@ class LabelsPlugin(BasePlugin):
         mpk = mpk.encode('ascii')
         ph = PasswordHasher()
         password = ph.hash(mpk)[:32].encode('ascii')
-        iv = hashlib.sha256(password).digest()[:16]
+        iv = ph.hash(password)[:16].encode('ascii')
         wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
         nonce = self.get_nonce(wallet)
