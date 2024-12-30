@@ -13,6 +13,7 @@ from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from electrum.i18n import _
 from electrum.util import log_exceptions, ignore_exceptions, make_aiohttp_session
 from electrum.network import Network
+from argon2 import PasswordHasher
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -194,8 +195,9 @@ class LabelsPlugin(BasePlugin):
         if not mpk:
             return
         mpk = mpk.encode('ascii')
-        password = hashlib.sha1(mpk).hexdigest()[:32].encode('ascii')
-        iv = hashlib.sha256(password).digest()[:16]
+        ph = PasswordHasher()
+        password = ph.hash(mpk)[:32].encode('ascii')
+        iv = ph.hash(password)[:16].encode('ascii')
         wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
         nonce = self.get_nonce(wallet)
