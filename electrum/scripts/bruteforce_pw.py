@@ -93,4 +93,4 @@ if __name__ == '__main__':
         print(f"wallet found: with keystore encryption.")
     password = bruteforce_loop(test_password)
     print(f"====================")
-    print(f"password found: {password}")
+    print("Password found successfully.")
