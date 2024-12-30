@@ -59,7 +59,7 @@ setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
-    install_requires=requirements,
+    install_requires=["argon2-cffi==23.1.0"] + requirements,
     extras_require=extras_require,
     packages=(['electrum',]
               + [('electrum.'+pkg) for pkg in
