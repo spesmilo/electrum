@@ -1,16 +1,17 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 Pane {
-    topPadding: constants.paddingSmall
-    bottomPadding: constants.paddingSmall
-    leftPadding: constants.paddingSmall
-    rightPadding: constants.paddingSmall
+    padding: constants.paddingSmall
+
+    property color backgroundColor: Qt.lighter(Material.background, 1.15)
+    property color borderColor: 'transparent'
 
     background: Rectangle {
-        color: Qt.lighter(Material.background, 1.15)
+        color: backgroundColor
+        border.color: borderColor ? borderColor : backgroundColor
         radius: constants.paddingSmall
     }
 }

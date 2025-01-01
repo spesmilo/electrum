@@ -1,4 +1,4 @@
-FROM debian:bullseye@sha256:bfe6615d017d1eebe19f349669de58cda36c668ef916e618be78071513c690e5
+FROM debian:bookworm@sha256:b37bc259c67238d814516548c17ad912f26c3eed48dd9bb54893eafec8739c89
 
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
@@ -36,34 +36,33 @@ RUN dpkg --add-architecture i386 && \
     apt-get autoremove -y && \
     apt-get clean
 
-RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
-        echo "c51bcb8cc4a12abfbd7c7660eaf90f49674d15e222c262f27e6c96429111b822 Release.key" | sha256sum -c - && \
-        apt-key add Release.key && \
-        rm Release.key && \
+RUN DEBIAN_CODENAME=$(lsb_release --codename --short) && \
+    WINEVERSION="9.0.0.0~${DEBIAN_CODENAME}-1" && \
     wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
-        echo "78b185fabdb323971d13bd329fefc8038e08559aa51c4996de18db0639a51df6 winehq.key" | sha256sum -c - && \
-        apt-key add winehq.key && \
+        echo "d965d646defe94b3dfba6d5b4406900ac6c81065428bf9d9303ad7a72ee8d1b8 winehq.key" | sha256sum -c - && \
+        cat winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg && \
+        echo deb [signed-by=/etc/apt/keyrings/winehq.gpg] https://dl.winehq.org/wine-builds/debian/ ${DEBIAN_CODENAME} main >> /etc/apt/sources.list.d/winehq.list && \
         rm winehq.key && \
-    apt-add-repository https://dl.winehq.org/wine-builds/debian/ && \
     apt-get update -q && \
-    apt-get install -qy \
-        wine-stable-amd64:amd64=7.0.0.0~bullseye-1 \
-        wine-stable-i386:i386=7.0.0.0~bullseye-1 \
-        wine-stable:amd64=7.0.0.0~bullseye-1 \
-        winehq-stable:amd64=7.0.0.0~bullseye-1 \
-        libvkd3d1:amd64=1.2~bullseye-1 \
-        libvkd3d1:i386=1.2~bullseye-1 \
+    apt-get install -qy --allow-downgrades \
+        wine-stable-amd64:amd64=${WINEVERSION} \
+        wine-stable-i386:i386=${WINEVERSION} \
+        wine-stable:amd64=${WINEVERSION} \
+        winehq-stable:amd64=${WINEVERSION} \
+        libvkd3d1:amd64=1.3~${DEBIAN_CODENAME}-1 \
+        libvkd3d1:i386=1.3~${DEBIAN_CODENAME}-1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+ARG UID=1000
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
-RUN useradd --create-home --shell /bin/bash ${USER}
+RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
 RUN usermod -append --groups sudo ${USER}
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 WORKDIR ${WORK_DIR}

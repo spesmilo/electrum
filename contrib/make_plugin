@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+import os
+import sys
+import hashlib
+import json
+import zipfile
+import zipimport
+
+# todo: use version number
+
+if len(sys.argv) != 2:
+    print(f"usage: {os.path.basename(__file__)} <plugin_directory>", file=sys.stderr)
+    sys.exit(1)
+
+
+source_dir = sys.argv[1]  # where the plugin source code is
+if source_dir.endswith('/'):
+    source_dir = source_dir[:-1]
+
+plugin_name = os.path.basename(source_dir)
+dest_dir = os.path.dirname(source_dir)
+zip_path = os.path.join(dest_dir, plugin_name + '.zip')
+
+# remove old zipfile
+if os.path.exists(zip_path):
+    os.unlink(zip_path)
+# create zipfile
+print('creating', zip_path)
+with zipfile.ZipFile(zip_path, 'w') as zip_object:
+    for folder_name, sub_folders, file_names in os.walk(source_dir):
+        for filename in file_names:
+            file_path = os.path.join(folder_name, filename)
+            dest_path = os.path.join(plugin_name, os.path.relpath(folder_name, source_dir), os.path.basename(file_path))
+            zip_object.write(file_path, dest_path)
+            print('added', dest_path)
+
+# read version
+zip_file = zipimport.zipimporter(zip_path)
+module = zip_file.load_module(plugin_name)
+if not module.version:
+    raise Exception('version not set')
+
+versioned_plugin_name = plugin_name + '-' + module.version + '.zip'
+zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
+# rename zip file
+os.rename(zip_path, zip_path_with_version)
+
+print(f'Created {zip_path_with_version}')
+

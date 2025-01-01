@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -10,220 +10,217 @@ import "controls"
 ElDialog {
     id: dialog
 
-    required property string txid
     required property QtObject rbffeebumper
 
-    signal txaccepted
-
     title: qsTr('Bump Fee')
+    iconSource: Qt.resolvedUrl('../../icons/rocket.png')
 
     width: parent.width
     height: parent.height
     padding: 0
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        GridLayout {
-            Layout.preferredWidth: parent.width
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
-            columns: 2
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            Label {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                text: qsTr('Increase your transaction\'s fee to improve its position in the mempool')
-                wrapMode: Text.Wrap
-            }
+            leftMargin: constants.paddingLarge
+            rightMargin: constants.paddingLarge
 
-            Label {
-                Layout.preferredWidth: 1
-                Layout.fillWidth: true
-                text: qsTr('Method')
-                color: Material.accentColor
-            }
+            contentHeight: rootLayout.height
+            clip: true
+            interactive: height < contentHeight
 
-            RowLayout {
-                Layout.preferredWidth: 1
-                Layout.fillWidth: true
-                ElComboBox {
-                    textRole: 'text'
-                    valueRole: 'value'
+            GridLayout {
+                id: rootLayout
 
-                    model: [
-                        { text: qsTr('Preserve payment'), value: 'preserve_payment' },
-                        { text: qsTr('Decrease payment'), value: 'decrease_payment' }
-                    ]
-                    onCurrentValueChanged: {
-                        if (activeFocus)
-                            rbffeebumper.bumpMethod = currentValue
-                    }
-                    Component.onCompleted: {
-                        currentIndex = indexOfValue(rbffeebumper.bumpMethod)
-                    }
-                }
-                Item { Layout.fillWidth: true;  Layout.preferredHeight: 1 }
-            }
+                width: parent.width
 
-            Label {
-                Layout.preferredWidth: 1
-                Layout.fillWidth: true
-                text: qsTr('Old fee')
-                color: Material.accentColor
-            }
+                columns: 2
 
-            FormattedAmount {
-                Layout.preferredWidth: 1
-                Layout.fillWidth: true
-                amount: rbffeebumper.oldfee
-            }
-
-            Label {
-                text: qsTr('Old fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Label {
-                    id: oldfeeRate
-                    text: rbffeebumper.oldfeeRate
-                    font.family: FixedFont
-                }
-
-                Label {
-                    text: 'sat/vB'
-                    color: Material.accentColor
-                }
-            }
-
-            Label {
-                text: qsTr('Mining fee')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                amount: rbffeebumper.fee
-                valid: rbffeebumper.valid
-            }
-
-            Label {
-                text: qsTr('Fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Label {
-                    id: feeRate
-                    text: rbffeebumper.valid ? rbffeebumper.feeRate : ''
-                    font.family: FixedFont
-                }
-
-                Label {
-                    visible: rbffeebumper.valid
-                    text: 'sat/vB'
-                    color: Material.accentColor
-                }
-            }
-
-            Label {
-                text: qsTr('Target')
-                color: Material.accentColor
-            }
-
-            Label {
-                id: targetdesc
-                text: rbffeebumper.target
-            }
-
-            RowLayout {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                Slider {
-                    id: feeslider
-                    Layout.fillWidth: true
-                    leftPadding: constants.paddingMedium
-                    snapMode: Slider.SnapOnRelease
-                    stepSize: 1
-                    from: 0
-                    to: rbffeebumper.sliderSteps
-                    onValueChanged: {
-                        if (activeFocus)
-                            rbffeebumper.sliderPos = value
-                    }
-                    Component.onCompleted: {
-                        value = rbffeebumper.sliderPos
-                    }
-                    Connections {
-                        target: rbffeebumper
-                        function onSliderPosChanged() {
-                            feeslider.value = rbffeebumper.sliderPos
-                        }
-                    }
-                }
-
-                FeeMethodComboBox {
-                    id: target
-                    feeslider: rbffeebumper
-                }
-            }
-
-            InfoTextArea {
-                Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width * 3/4
-                Layout.alignment: Qt.AlignHCenter
-                visible: rbffeebumper.warning != ''
-                text: rbffeebumper.warning
-                iconStyle: InfoTextArea.IconStyle.Warn
-            }
-
-            Label {
-                visible: rbffeebumper.valid
-                text: qsTr('Outputs')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
-
-            Repeater {
-                model: rbffeebumper.valid ? rbffeebumper.outputs : []
-                delegate: TextHighlightPane {
+                InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
-                    RowLayout {
+                    Layout.bottomMargin: constants.paddingLarge
+                    text: qsTr('Move the slider to increase your transaction\'s fee. This will improve its position in the mempool')
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr('Method')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    ElComboBox {
+                        id: bumpMethodComboBox
+
+                        textRole: 'text'
+                        valueRole: 'value'
+
+                        model: rbffeebumper.bumpMethodsAvailable
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                rbffeebumper.bumpMethod = currentValue
+                        }
+                        Component.onCompleted: {
+                            currentIndex = indexOfValue(rbffeebumper.bumpMethod)
+                        }
+                    }
+                    Item { Layout.fillWidth: true;  Layout.preferredHeight: 1 }
+                }
+
+                Label {
+                    text: qsTr('Old fee')
+                    color: Material.accentColor
+                }
+
+                FormattedAmount {
+                    amount: rbffeebumper.oldfee
+                }
+
+                Label {
+                    text: qsTr('Old fee rate')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    Label {
+                        id: oldfeeRate
+                        text: rbffeebumper.oldfeeRate
+                        font.family: FixedFont
+                    }
+
+                    Label {
+                        text: UI_UNIT_NAME.FEERATE_SAT_PER_VB
+                        color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('New fee')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    height: feepicker.height
+
+                    FeePicker {
+                        id: feepicker
                         width: parent.width
-                        Label {
-                            text: modelData.address
+                        finalizer: dialog.rbffeebumper
+
+                    }
+                }
+
+                ToggleLabel {
+                    id: optionstoggle
+                    Layout.columnSpan: 2
+                    labelText: qsTr('Options')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: !optionstoggle.collapsed
+                    height: optionslayout.height
+
+                    GridLayout {
+                        id: optionslayout
+                        width: parent.width
+                        columns: 2
+
+                        ElCheckBox {
                             Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
+                            text: qsTr('Enable output value rounding')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.outputValueRounding = checked
+                                    rbffeebumper.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Config.outputValueRounding
+                            }
                         }
-                        Label {
-                            text: Config.formatSats(modelData.value_sats)
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
-                        }
-                        Label {
-                            text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
+
+                        HelpButton {
+                            heading: qsTr('Enable output value rounding')
+                            helptext: qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.')
+                                    + ' ' + qsTr('This may result in higher transactions fees.')
                         }
                     }
                 }
+
+                InfoTextArea {
+                    Layout.columnSpan: 2
+                    Layout.preferredWidth: parent.width * 3/4
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: constants.paddingLarge
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                    visible: rbffeebumper.warning != ''
+                    text: rbffeebumper.warning
+                }
+
+                ToggleLabel {
+                    id: inputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: rbffeebumper.valid
+                    labelText: qsTr('Inputs (%1)').arg(rbffeebumper.inputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: inputs_label.collapsed || !inputs_label.visible
+                        ? undefined
+                        : rbffeebumper.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    visible: rbffeebumper.valid
+                    labelText: qsTr('Outputs (%1)').arg(rbffeebumper.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: outputs_label.collapsed || !outputs_label.visible
+                        ? undefined
+                        : rbffeebumper.outputs
+                    delegate: TxOutput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
             }
         }
-
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
         FlatButton {
             id: sendButton
@@ -231,17 +228,14 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             enabled: rbffeebumper.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
     Connections {
         target: rbffeebumper
         function onTxMined() {
-            dialog.close()
+            dialog.doReject()
         }
     }
 }

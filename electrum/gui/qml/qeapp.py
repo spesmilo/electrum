@@ -5,30 +5,32 @@ import os
 import sys
 import html
 import threading
-import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Set
 
-from PyQt5.QtCore import pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
-from PyQt5.QtGui import QGuiApplication, QFontDatabase
-from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
+from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
+                          qInstallMessageHandler, QTimer, QSortFilterProxyModel)
+from PyQt6.QtGui import QGuiApplication, QFontDatabase
+from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 
+import electrum
 from electrum import version, constants
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
-from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
+from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
+from electrum.plugin import run_hook
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
 from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
-from .qewalletdb import QEWalletDB
+from .qeqrscanner import QEQRScanner
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
-from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller
-from .qeinvoice import QEInvoice, QEInvoiceParser, QEUserEnteredPayment
+from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller, QETxSweepFinalizer
+from .qeinvoice import QEInvoice, QEInvoiceParser
 from .qerequestdetails import QERequestDetails
 from .qetypes import QEAmount
 from .qeaddressdetails import QEAddressDetails
@@ -38,30 +40,52 @@ from .qelnpaymentdetails import QELnPaymentDetails
 from .qechanneldetails import QEChannelDetails
 from .qeswaphelper import QESwapHelper
 from .qewizard import QENewWalletWizard, QEServerConnectWizard
+from .qemodelfilter import QEFilterProxyModel
+from .qebip39recovery import QEBip39RecoveryListModel
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.wallet import Abstract_Wallet
+    from electrum.daemon import Daemon
+    from electrum.plugin import Plugins
+
+if 'ANDROID_DATA' in os.environ:
+    from jnius import autoclass, cast
+    from android import activity
+
+    jpythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+    jHfc = autoclass('android.view.HapticFeedbackConstants')
+    jString = autoclass('java.lang.String')
+    jIntent = autoclass('android.content.Intent')
+    jview = jpythonActivity.getWindow().getDecorView()
 
 notification = None
 
+
 class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
-    userNotify = pyqtSignal(str)
+    userNotify = pyqtSignal(str, str)
     uriReceived = pyqtSignal(str)
-    showException = pyqtSignal()
+    showException = pyqtSignal('QVariantMap')
     sendingBugreport = pyqtSignal()
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
+    secureWindowChanged = pyqtSignal()
+    wantCloseChanged = pyqtSignal()
 
-    _crash_user_text = ''
-
-    def __init__(self, qedaemon, plugins):
+    def __init__(self, qeapp: 'ElectrumQmlApplication', qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
         QObject.__init__(self)
 
+        self._app = qeapp
         self._qedaemon = qedaemon
         self._plugins = plugins
+        self.config = qedaemon.daemon.config
+
+        self._crash_user_text = ''
+        self._app_started = False
+        self._intent = ''
+        self._secureWindow = False
 
         # set up notification queue and notification_timer
         self.user_notification_queue = queue.Queue()
@@ -74,25 +98,32 @@ class QEAppController(BaseCrashReporter, QObject):
 
         self._qedaemon.walletLoaded.connect(self.on_wallet_loaded)
 
-        self.userNotify.connect(self.notifyAndroid)
+        self.userNotify.connect(self.doNotify)
 
-        self.bindIntent()
+        if self.isAndroid():
+            self.bindIntent()
+
+        self._want_close = False
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
         if not qewallet:
             return
+
+        # register wallet in Exception_Hook
+        Exception_Hook.maybe_setup(config=qewallet.wallet.config, wallet=qewallet.wallet)
+
         # attach to the wallet user notification events
         # connect only once
         try:
             qewallet.userNotify.disconnect(self.on_wallet_usernotify)
-        except:
+        except Exception:
             pass
         qewallet.userNotify.connect(self.on_wallet_usernotify)
 
     def on_wallet_usernotify(self, wallet, message):
         self.logger.debug(message)
-        self.user_notification_queue.put(message)
+        self.user_notification_queue.put((wallet,message))
         if not self.notification_timer.isActive():
             self.logger.debug('starting app notification timer')
             self.notification_timer.start()
@@ -109,18 +140,23 @@ class QEAppController(BaseCrashReporter, QObject):
         self.user_notification_last_time = now
         self.logger.info("Notifying GUI about new user notifications")
         try:
-            self.userNotify.emit(self.user_notification_queue.get_nowait())
+            wallet, message = self.user_notification_queue.get_nowait()
+            self.userNotify.emit(str(wallet), message)
         except queue.Empty:
             pass
 
-    def notifyAndroid(self, message):
+    def doNotify(self, wallet_name, message):
+        self.logger.debug(f'sending push notification to OS: {message=!r}')
+        # FIXME: this does not work on Android 13+. We would need to declare (in manifest)
+        #        and also request-at-runtime android.permission.POST_NOTIFICATIONS.
         try:
             # TODO: lazy load not in UI thread please
             global notification
             if not notification:
                 from plyer import notification
-            icon = (os.path.dirname(os.path.realpath(__file__))
-                    + '/../icons/electrum.png')
+            icon = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "icons", "electrum.png",
+            )
             notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
         except ImportError:
             self.logger.warning('Notification: needs plyer; `sudo python3 -m pip install plyer`')
@@ -128,42 +164,75 @@ class QEAppController(BaseCrashReporter, QObject):
             self.logger.error(repr(e))
 
     def bindIntent(self):
+        if not self.isAndroid():
+            return
         try:
-            from android import activity
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            mactivity = PythonActivity.mActivity
-            self.on_new_intent(mactivity.getIntent())
+            self.on_new_intent(jpythonActivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
         except Exception as e:
             self.logger.error(f'unable to bind intent: {repr(e)}')
 
     def on_new_intent(self, intent):
+        if not self._app_started:
+            self._intent = intent
+            return
+
         data = str(intent.getDataString())
+        self.logger.debug(f'received intent: {repr(data)}')
         scheme = str(intent.getScheme()).lower()
         if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
             self.uriReceived.emit(data)
 
+    def startupFinished(self):
+        self._app_started = True
+        if self._intent:
+            self.on_new_intent(self._intent)
+
+    @pyqtProperty(bool, notify=wantCloseChanged)
+    def wantClose(self):
+        return self._want_close
+
+    @wantClose.setter
+    def wantClose(self, want_close):
+        if want_close != self._want_close:
+            self._want_close = want_close
+            self.wantCloseChanged.emit()
+
     @pyqtSlot(str, str)
     def doShare(self, data, title):
-        #if platform != 'android':
-            #return
-        try:
-            from jnius import autoclass, cast
-        except ImportError:
-            self.logger.error('Share: needs jnius. Platform not Android?')
+        if not self.isAndroid():
             return
 
-        JS = autoclass('java.lang.String')
-        Intent = autoclass('android.content.Intent')
-        sendIntent = Intent()
-        sendIntent.setAction(Intent.ACTION_SEND)
+        sendIntent = jIntent()
+        sendIntent.setAction(jIntent.ACTION_SEND)
         sendIntent.setType("text/plain")
-        sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
-        pythonActivity = autoclass('org.kivy.android.PythonActivity')
-        currentActivity = cast('android.app.Activity', pythonActivity.mActivity)
-        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
-        currentActivity.startActivity(it)
+        sendIntent.putExtra(jIntent.EXTRA_TEXT, jString(data))
+        it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
+        jpythonActivity.startActivity(it)
+
+    @pyqtSlot()
+    def setMaxScreenBrightness(self):
+        self._set_screen_brightness(1.0)
+
+    @pyqtSlot()
+    def resetScreenBrightness(self):
+        self._set_screen_brightness(-1.0)
+
+    def _set_screen_brightness(self, br: float) -> None:
+        """br is the desired screen brightness, a value in the [0, 1] interval.
+        A negative value, e.g. -1.0, means a "reset" back to the system preferred value.
+        """
+        if not self.isAndroid():
+            return
+        from android.runnable import run_on_ui_thread
+
+        @run_on_ui_thread
+        def set_br():
+            window = jpythonActivity.getWindow()
+            attrs = window.getAttributes()
+            attrs.screenBrightness = br
+            window.setAttributes(attrs)
+        set_br()
 
     @pyqtSlot('QString')
     def textToClipboard(self, text):
@@ -171,14 +240,15 @@ class QEAppController(BaseCrashReporter, QObject):
 
     @pyqtSlot(result='QString')
     def clipboardToText(self):
-        return QGuiApplication.clipboard().text()
+        clip = QGuiApplication.clipboard()
+        return clip.text() if clip.mimeData().hasText() else ''
 
     @pyqtSlot(str, result=QObject)
     def plugin(self, plugin_name):
         self.logger.debug(f'now {self._plugins.count()} plugins loaded')
         plugin = self._plugins.get(plugin_name)
         self.logger.debug(f'plugin with name {plugin_name} is {str(type(plugin))}')
-        if plugin and hasattr(plugin,'so'):
+        if plugin and hasattr(plugin, 'so'):
             return plugin.so
         else:
             self.logger.debug('None!')
@@ -199,11 +269,17 @@ class QEAppController(BaseCrashReporter, QObject):
         return s
 
     @pyqtSlot(str, bool)
-    def setPluginEnabled(self, plugin, enabled):
+    def setPluginEnabled(self, plugin: str, enabled: bool):
         if enabled:
             self._plugins.enable(plugin)
+            # note: all enabled plugins will receive this hook:
+            run_hook('init_qml', self._app)
         else:
             self._plugins.disable(plugin)
+
+    @pyqtSlot(str, result=bool)
+    def isPluginEnabled(self, plugin: str):
+        return bool(self._plugins.get(plugin))
 
     @pyqtSlot(result=bool)
     def isAndroid(self):
@@ -217,10 +293,10 @@ class QEAppController(BaseCrashReporter, QObject):
             'reportstring': self.get_report_string()
         }
 
-    @pyqtSlot(object,object,object,object)
+    @pyqtSlot(object, object, object, object)
     def crash(self, config, e, text, tb):
-        self.exc_args = (e, text, tb) # for BaseCrashReporter
-        self.showException.emit()
+        self.exc_args = (e, text, tb)  # for BaseCrashReporter
+        self.showException.emit(self.crashData())
 
     @pyqtSlot()
     def sendReport(self):
@@ -230,20 +306,24 @@ class QEAppController(BaseCrashReporter, QObject):
         def report_task():
             try:
                 response = BaseCrashReporter.send_report(self, network.asyncio_loop, proxy)
-                self.sendingBugreportSuccess.emit(response)
             except Exception as e:
                 self.logger.error('There was a problem with the automatic reporting', exc_info=e)
                 self.sendingBugreportFailure.emit(_('There was a problem with the automatic reporting:') + '<br/>' +
                                         repr(e)[:120] + '<br/><br/>' +
                                         _("Please report this issue manually") +
                                         f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.')
+            else:
+                text = response.text
+                if response.url:
+                    text += f" You can track further progress on <a href='{response.url}'>GitHub</a>."
+                self.sendingBugreportSuccess.emit(text)
 
         self.sendingBugreport.emit()
-        threading.Thread(target=report_task).start()
+        threading.Thread(target=report_task, daemon=True).start()
 
     @pyqtSlot()
     def showNever(self):
-        self.config.set_key(BaseCrashReporter.config_key, False)
+        self.config.SHOW_CRASH_REPORTER = False
 
     @pyqtSlot(str)
     def setCrashUserText(self, text):
@@ -254,7 +334,7 @@ class QEAppController(BaseCrashReporter, QObject):
         # if traceback contains special HTML characters, e.g. '<',
         # they need to be escaped to avoid formatting issues.
         traceback_str = super()._get_traceback_str_to_display()
-        return html.escape(traceback_str).replace('&#x27;','&apos;')
+        return html.escape(traceback_str).replace('&#x27;', '&apos;')
 
     def get_user_description(self):
         return self._crash_user_text
@@ -263,26 +343,54 @@ class QEAppController(BaseCrashReporter, QObject):
         wallet_types = Exception_Hook._INSTANCE.wallet_types_seen
         return ",".join(wallet_types)
 
+    @pyqtSlot()
+    def haptic(self):
+        if not self.isAndroid():
+            return
+        jview.performHapticFeedback(jHfc.VIRTUAL_KEY)
+
+    @pyqtProperty(bool, notify=secureWindowChanged)
+    def secureWindow(self):
+        return self._secureWindow
+
+    @secureWindow.setter
+    def secureWindow(self, secure):
+        if not self.isAndroid():
+            return
+        if self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS:
+            return
+        if self._secureWindow != secure:
+            jpythonActivity.setSecureWindow(secure)
+            self._secureWindow = secure
+            self.secureWindowChanged.emit()
+
+
 class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
 
-    def __init__(self, args, config, daemon, plugins):
+    def __init__(self, args, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         super().__init__(args)
 
         self.logger = get_logger(__name__)
 
         ElectrumQmlApplication._daemon = daemon
 
+        # TODO QT6 order of declaration is important now?
+        qmlRegisterType(QEAmount, 'org.electrum', 1, 0, 'Amount')
+        qmlRegisterType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard')
+        qmlRegisterType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard')
+        qmlRegisterType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel')
+        qmlRegisterType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel')
+
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
-        qmlRegisterType(QEWalletDB, 'org.electrum', 1, 0, 'WalletDB')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
+        qmlRegisterType(QEQRScanner, 'org.electrum', 1, 0, 'QRScanner')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
         qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
         qmlRegisterType(QEInvoiceParser, 'org.electrum', 1, 0, 'InvoiceParser')
-        qmlRegisterType(QEUserEnteredPayment, 'org.electrum', 1, 0, 'UserEnteredPayment')
         qmlRegisterType(QEAddressDetails, 'org.electrum', 1, 0, 'AddressDetails')
         qmlRegisterType(QETxDetails, 'org.electrum', 1, 0, 'TxDetails')
         qmlRegisterType(QEChannelOpener, 'org.electrum', 1, 0, 'ChannelOpener')
@@ -293,18 +401,24 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxRbfFeeBumper, 'org.electrum', 1, 0, 'TxRbfFeeBumper')
         qmlRegisterType(QETxCpfpFeeBumper, 'org.electrum', 1, 0, 'TxCpfpFeeBumper')
         qmlRegisterType(QETxCanceller, 'org.electrum', 1, 0, 'TxCanceller')
+        qmlRegisterType(QETxSweepFinalizer, 'org.electrum', 1, 0, 'SweepFinalizer')
+        qmlRegisterType(QEBip39RecoveryListModel, 'org.electrum', 1, 0, 'Bip39RecoveryListModel')
 
-        qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
-        qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'NewWalletWizard', 'NewWalletWizard can only be used as property')
-        qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'ServerConnectWizard', 'ServerConnectWizard can only be used as property')
+        # TODO QT6: these were declared as uncreatable, but that doesn't seem to work for pyqt6
+        # qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
+        # qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard', 'QNewWalletWizard can only be used as property')
+        # qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard', 'QServerConnectWizard can only be used as property')
+        # qmlRegisterUncreatableType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel', 'FilterProxyModel can only be used as property')
+        # qmlRegisterUncreatableType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel', 'QSortFilterProxyModel can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
 
         screensize = self.primaryScreen().size()
 
-        self.qr_ip = QEQRImageProvider((7/8)*min(screensize.width(), screensize.height()))
+        qr_size = min(screensize.width(), screensize.height()) * 7/8
+        self.qr_ip = QEQRImageProvider(qr_size)
         self.engine.addImageProvider('qrgen', self.qr_ip)
-        self.qr_ip_h = QEQRImageProviderHelper((7/8)*min(screensize.width(), screensize.height()))
+        self.qr_ip_h = QEQRImageProviderHelper(qr_size)
 
         # add a monospace font as we can't rely on device having one
         self.fixedFont = 'PT Mono'
@@ -318,8 +432,8 @@ class ElectrumQmlApplication(QGuiApplication):
         self.plugins = plugins
         self._qeconfig = QEConfig(config)
         self._qenetwork = QENetwork(daemon.network, self._qeconfig)
-        self.daemon = QEDaemon(daemon)
-        self.appController = QEAppController(self.daemon, self.plugins)
+        self.daemon = QEDaemon(daemon, self.plugins)
+        self.appController = QEAppController(self, self.daemon, self.plugins)
         self._maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self._qeconfig)
@@ -330,11 +444,18 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('QRIP', self.qr_ip_h)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
-            'apk_version': version.APK_VERSION,
-            'protocol_version': version.PROTOCOL_VERSION
+            'protocol_version': version.PROTOCOL_VERSION,
+            'qt_version': QT_VERSION_STR,
+            'pyqt_version': PYQT_VERSION_STR
+        })
+        self.context.setContextProperty('UI_UNIT_NAME', {
+            "FEERATE_SAT_PER_VBYTE": electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
+            "FEERATE_SAT_PER_VB":    electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VB,
+            "TXSIZE_VBYTES":         electrum.util.UI_UNIT_NAME_TXSIZE_VBYTES,
+            "MEMPOOL_MB":            electrum.util.UI_UNIT_NAME_MEMPOOL_MB,
         })
 
-        self.plugins.load_plugin('trustedcoin')
+        self.plugins.load_internal_plugin('trustedcoin')
 
         qInstallMessageHandler(self.message_handler)
 
@@ -347,12 +468,14 @@ class ElectrumQmlApplication(QGuiApplication):
         if object is None:
             self._valid = False
         self.engine.objectCreated.disconnect(self.objectCreated)
+        self.appController.startupFinished()
 
     def message_handler(self, line, funct, file):
         # filter out common harmless messages
         if re.search('file:///.*TypeError: Cannot read property.*null$', file):
             return
         self.logger.warning(file)
+
 
 class Exception_Hook(QObject, Logger):
     _report_exception = pyqtSignal(object, object, object, object)
@@ -374,7 +497,7 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None, slot = None) -> None:
-        if not config.get(BaseCrashReporter.config_key, default=True):
+        if not config.SHOW_CRASH_REPORTER:
             EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         if not cls._INSTANCE:

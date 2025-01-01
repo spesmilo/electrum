@@ -5,13 +5,17 @@ import datetime
 import locale
 from decimal import Decimal
 import getpass
-import logging
-import pyperclip
 from typing import TYPE_CHECKING, Optional
+
+# 3rd-party dependency:
+try:
+    import pyperclip
+except ImportError:  # only use vendored lib as fallback, to allow Linux distros to bring their own
+    from electrum._vendor import pyperclip
 
 import electrum
 from electrum.gui import BaseElectrumGui
-from electrum import util
+from electrum.bip21 import parse_bip21_URI
 from electrum.util import format_satoshis, format_time
 from electrum.util import EventListener, event_listener
 from electrum.bitcoin import is_address, address_to_script, COIN
@@ -22,7 +26,6 @@ from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import ServerAddr
 from electrum.invoices import Invoice
-from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -32,19 +35,26 @@ if TYPE_CHECKING:
 
 _ = lambda x:x  # i18n
 
+
+# ascii key codes
+KEY_BACKSPACE = 8
+KEY_ESC = 27
+KEY_DELETE = 127
+
+
 def parse_bip21(text):
     try:
-        return util.parse_URI(text)
-    except:
+        return parse_bip21_URI(text)
+    except Exception:
         return
+
 
 def parse_bolt11(text):
     from electrum.lnaddr import lndecode
     try:
         return lndecode(text)
-    except:
+    except Exception:
         return
-
 
 
 class ElectrumGui(BaseElectrumGui, EventListener):
@@ -52,15 +62,15 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path())
+        storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
@@ -163,9 +173,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         domain = self.wallet.get_addresses()
         self.history = []
         self.txid = []
+        balance_sat = 0
         for item in self.wallet.get_full_history().values():
             amount_sat = item['value'].value
-            balance_sat = item['balance'].value
+            balance_sat += amount_sat
             if item.get('lightning'):
                 timestamp = item['timestamp']
                 label = self.wallet.get_label_for_rhash(item['payment_hash'])
@@ -231,9 +242,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.str_recv_description = self.edit_str(self.str_recv_description, c)
         elif self.pos == 1:
             self.str_recv_amount = self.edit_str(self.str_recv_amount, c)
-        elif self.pos in self.buttons and c == 10:
+        elif self.pos in self.buttons and c == ord("\n"):
             self.buttons[self.pos]()
-        elif self.pos >= 5 and c == 10:
+        elif self.pos >= 5 and c == ord("\n"):
             key = self.requests[self.pos - 5]
             self.show_request(key)
 
@@ -432,7 +443,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if self.need_update and redraw:
                 self.update()
             if self.tab == -1:
-                return 27
+                return KEY_ESC
 
     def main_command(self):
         c = self.getch(redraw=True)
@@ -441,7 +452,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.tab = (self.tab + 1)%self.num_tabs
         elif c == curses.KEY_LEFT:
             self.tab = (self.tab - 1)%self.num_tabs
-        elif c in [curses.KEY_DOWN, 9]:
+        elif c in [curses.KEY_DOWN, ord("\t")]:
             self.increase_cursor(1)
         elif c == curses.KEY_UP:
             self.increase_cursor(-1)
@@ -464,13 +475,15 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
     def run_history_tab(self, c):
         # Get txid from cursor position
-        if c == 10:
+        if c == ord("\n"):
             out = self.run_popup('', ['Transaction ID:', self.txid[self.pos]])
 
     def edit_str(self, target, c, is_num=False):
+        if target is None:
+            target = ''
         # detect backspace
         cc = curses.unctrl(c).decode()
-        if c in [8, 127, 263] and target:
+        if c in [KEY_BACKSPACE, KEY_DELETE, curses.KEY_BACKSPACE] and target:
             target = target[:-1]
         elif not is_num or cc in '0123456789.':
             target += cc
@@ -484,13 +497,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             self.str_description = self.edit_str(self.str_description, c)
         elif self.pos == 2:
             self.str_amount = self.edit_str(self.str_amount, c, True)
-        elif self.pos in self.buttons and c == 10:
+        elif self.pos in self.buttons and c == ord("\n"):
             self.buttons[self.pos]()
-        elif self.pos >= 7 and c == 10:
+        elif self.pos >= 7 and c == ord("\n"):
             self.show_invoice_menu()
 
     def run_contacts_tab(self, c):
-        if c == 10 and self.contacts:
+        if c == ord("\n") and self.contacts:
             out = self.run_popup('Address', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
             key = list(self.contacts.keys())[self.pos%len(self.contacts.keys())]
             if out == "Pay to":
@@ -509,7 +522,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def run_channels_tab(self, c):
-        if c == 10:
+        if c == ord("\n"):
             out = self.run_popup('Channel Details', ['Short channel ID:', self.channel_ids[self.pos]])
 
     def run_banner_tab(self, c):
@@ -517,6 +530,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def main(self):
+        self.daemon.start_network()
         tty.setraw(sys.stdin)
         try:
             while self.tab != -1:
@@ -557,7 +571,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if not address:
                 return
         message = self.str_recv_description
-        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         key = self.wallet.create_request(amount_sat, message, expiry, address)
         self.do_clear_request()
         self.pos = self.max_pos
@@ -593,7 +607,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def parse_amount(self, text):
         try:
             x = Decimal(text)
-        except:
+        except Exception:
             return None
         power = pow(10, self.config.get_decimal_point())
         return int(power * x)
@@ -604,13 +618,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if invoice.amount_msat is None:
                 amount_sat = self.parse_amount(self.str_amount)
                 if amount_sat:
-                    invoice.amount_msat = int(amount_sat * 1000)
+                    invoice.set_amount_msat(int(amount_sat * 1000))
                 else:
                     self.show_error(_('No amount'))
                     return
         elif is_address(self.str_recipient):
             amount_sat = self.parse_amount(self.str_amount)
-            scriptpubkey = bytes.fromhex(address_to_script(self.str_recipient))
+            scriptpubkey = address_to_script(self.str_recipient)
             outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat)]
             invoice = self.wallet.create_invoice(
                 outputs=outputs,
@@ -671,10 +685,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         else:
             password = None
         try:
-            tx = self.wallet.mktx(
+            tx = self.wallet.create_transaction(
                 outputs=invoice.outputs,
                 password=password,
-                fee=None)
+                fee=None,
+            )
         except Exception as e:
             self.show_message(repr(e))
             return
@@ -717,10 +732,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':srv},
-            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
-            ], buttons = 1)
+            {'label': 'server', 'type': 'str', 'value': srv},
+            {'label': 'proxy', 'type': 'str', 'value': self.config.NETWORK_PROXY},
+            {'label': 'proxy user', 'type': 'str', 'value': self.config.NETWORK_PROXY_USER},
+            {'label': 'proxy pass', 'type': 'str', 'value': self.config.NETWORK_PROXY_PASSWORD},
+            ], buttons=1)
         if out:
+            self.show_message(repr(proxy_config))
             if out.get('server'):
                 server_str = out.get('server')
                 auto_connect = server_str == 'auto-connect'
@@ -730,11 +748,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                     except Exception:
                         self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
-            if out.get('server') or out.get('proxy'):
-                proxy = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
+            if out.get('server') or out.get('proxy') or out.get('proxy user') or out.get('proxy pass'):
+                new_proxy_config = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
+                if new_proxy_config:
+                    new_proxy_config['user'] = out.get('proxy user') if 'proxy user' in out else proxy_config['user']
+                    new_proxy_config['pass'] = out.get('proxy pass') if 'proxy pass' in out else proxy_config['pass']
                 net_params = NetworkParameters(
                     server=server_addr,
-                    proxy=proxy,
+                    proxy=new_proxy_config,
                     auto_connect=auto_connect)
                 self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
@@ -746,7 +767,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if out:
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.set_key('fee_per_kb', fee, True)
+                self.config.FEE_EST_STATIC_FEERATE = fee
 
     def password_dialog(self):
         out = self.run_dialog('Password', [
@@ -799,7 +820,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             w.refresh()
 
             c = self.getch()
-            if c in [ord('q'), 27]:
+            if c in [ord('q'), KEY_ESC]:
                 break
             elif c in [curses.KEY_LEFT, curses.KEY_UP]:
                 self.popup_pos -= 1
@@ -807,7 +828,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 self.popup_pos +=1
             else:
                 i = self.popup_pos%numpos
-                if buttons and c==10:
+                if buttons and c == ord("\n"):
                     if i == numpos-2:
                         return out
                     elif i == numpos -1:
@@ -854,7 +875,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         req = self.wallet.get_request(key)
         addr = req.get_address() or ''
         URI = self.wallet.get_request_URI(req) or ''
-        lnaddr = req.lightning_invoice or ''
+        lnaddr = self.wallet.get_bolt11_invoice(req) or ''
         w = curses.newwin(self.maxy - 2, self.maxx - 2, 1, 1)
         pos = 4
         while True:
@@ -894,9 +915,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             c = self.getch()
             if c in [curses.KEY_UP]:
                 pos -= 1
-            elif c in [curses.KEY_DOWN, 9]:
-                pos +=1
-            elif c == 10:
+            elif c in [curses.KEY_DOWN, ord("\t")]:
+                pos += 1
+            elif c == ord("\n"):
                 if pos in [0,1,2]:
                     pyperclip.copy(text)
                     self.show_message('Text copied to clipboard')

@@ -1,5 +1,5 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.3
+import QtQuick
+import QtQuick.Controls
 
 import org.electrum 1.0
 
@@ -17,7 +17,6 @@ ElComboBox {
             expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
             expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
             expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
-            expiresmodel.append({'text': qsTr('1 month'), 'value': 31*24*60*60})
             expiresmodel.append({'text': qsTr('Never'), 'value': 0})
             expires.currentIndex = 0
             for (let i=0; i < expiresmodel.count; i++) {
@@ -30,7 +29,7 @@ ElComboBox {
     }
 
     onCurrentValueChanged: {
-        if (activeFocus)
+        if (activeFocus && currentValue)
             Config.requestExpiry = currentValue
     }
 }

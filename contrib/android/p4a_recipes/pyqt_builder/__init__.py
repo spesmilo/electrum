@@ -1,13 +1,13 @@
 from pythonforandroid.recipes.pyqt_builder import PyQtBuilderRecipe
 
 
-assert PyQtBuilderRecipe._version == "1.12.2"
+assert PyQtBuilderRecipe._version == "1.15.1"
 assert PyQtBuilderRecipe.depends == ["sip", "packaging", "python3"]
 assert PyQtBuilderRecipe.python_depends == []
 
 
 class PyQtBuilderRecipePinned(PyQtBuilderRecipe):
-    sha512sum = "022f2cd40c100543c4b442fc5b27bbf2ec853d94b531f8f6dc1d7f92b07bcc20e8f0a4eb64feb96d094ba0d5f01fddcc8aed23ddf67a61417e07983a73918230"
+    sha512sum = "61ee73b6bb922c04739da60025ab50d35d345d2e298943305fcbd3926cda31d732cc5e5b0dbfc39f5eb85c0f0b091b8c3f5fee00dcc240d7849c5c4191c1368a"
 
 
 recipe = PyQtBuilderRecipePinned()

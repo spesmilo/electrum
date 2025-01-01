@@ -1,40 +1,50 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.14
-import QtQuick.Layouts 1.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
 import "controls"
 
+// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: dialog
 
     property InvoiceParser invoiceParser
 
     signal txFound(data: string)
+    signal channelBackupFound(data: string)
 
-    parent: Overlay.overlay
-    modal: true
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
-    header: Item {}
+    header: null
     padding: 0
     topPadding: 0
+
+    onAboutToHide: {
+        console.log('about to hide')
+        qrscan.stop()
+    }
 
     function restart() {
         qrscan.restart()
     }
 
     function dispatch(data) {
+        data = data.trim()
         if (bitcoin.isRawTx(data)) {
             txFound(data)
+        } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+            channelBackupFound(data)
         } else {
             invoiceParser.recipient = data
         }
+    }
+
+    // override
+    function doClose() {
+        console.log('SendDialog doClose override') // doesn't trigger when going back??
+        qrscan.stop()
+        Qt.callLater(doReject)
     }
 
     ColumnLayout {
@@ -43,75 +53,31 @@ ElDialog {
 
         QRScan {
             id: qrscan
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
+            hint: Daemon.currentWallet.isLightning
+                ? qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel Backup')
+                : qsTr('Scan an Invoice, an Address, an LNURL-pay or a PSBT')
             onFound: dialog.dispatch(scanData)
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            icon.source: '../../icons/pen.png'
-            text: qsTr('Manual input')
-            onClicked: {
-                var _mid = manualInputDialog.createObject(mainView)
-                _mid.accepted.connect(function() {
-                    dialog.dispatch(_mid.recipient)
-                })
-                _mid.open()
-            }
-        }
 
-        FlatButton {
-            Layout.fillWidth: true
-            icon.source: '../../icons/paste.png'
-            text: qsTr('Paste from clipboard')
-            onClicked: dialog.dispatch(AppController.clipboardToText())
-        }
-    }
-
-    Component {
-        id: manualInputDialog
-        ElDialog {
-            property alias recipient: recipientTextEdit.text
-
-            iconSource: Qt.resolvedUrl('../../icons/pen.png')
-
-            anchors.centerIn: parent
-            implicitWidth: parent.width * 0.9
-
-            parent: Overlay.overlay
-            modal: true
-
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
-
-            title: qsTr('Manual Input')
-
-            ColumnLayout {
-                width: parent.width
-
-                Label {
-                    text: 'Enter a bitcoin address or a Lightning invoice'
-                    wrapMode: Text.Wrap
-                    Layout.maximumWidth: parent.width
-                }
-
-                TextField {
-                    id: recipientTextEdit
-                    topPadding: constants.paddingXXLarge
-                    bottomPadding: constants.paddingXXLarge
-                    Layout.preferredWidth: parent.width
-                    font.family: FixedFont
-
-                    wrapMode: TextInput.WrapAnywhere
-                    placeholderText: qsTr('Enter the payment request here')
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                enabled: !invoiceParser.busy
+                icon.source: '../../icons/copy_bw.png'
+                text: qsTr('Paste')
+                onClicked: {
+                    qrscan.stop()
+                    dialog.dispatch(AppController.clipboardToText())
                 }
             }
-
-            onClosed: destroy()
         }
+
     }
 
     Bitcoin {

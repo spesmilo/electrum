@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -19,7 +19,9 @@ WizardComponent {
     function apply() {
         wizard_data['cosigner_keystore_type'] = keystoregroup.checkedButton.keystoretype
         wizard_data['multisig_current_cosigner'] = cosigner
-        wizard_data['multisig_cosigner_data'][cosigner.toString()] = {}
+        wizard_data['multisig_cosigner_data'][cosigner.toString()] = {
+            'keystore_type': keystoregroup.checkedButton.keystoretype
+        }
     }
 
     ButtonGroup {
@@ -30,17 +32,17 @@ WizardComponent {
         width: parent.width
 
         Label {
+            Layout.fillWidth: true
+
             visible: cosigner
             text: qsTr('Here is your master public key. Please share it with your cosigners')
-            Layout.fillWidth: true
             wrapMode: Text.Wrap
         }
 
         TextHighlightPane {
-            visible: cosigner
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
+
+            visible: cosigner
 
             RowLayout {
                 width: parent.width
@@ -65,7 +67,7 @@ WizardComponent {
         }
 
         Rectangle {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.preferredHeight: 1
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
@@ -74,17 +76,19 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             text: qsTr('Add cosigner #%1 of %2 to your multi-sig wallet').arg(cosigner).arg(participants)
+            wrapMode: Text.Wrap
         }
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: keystoregroup
-            property string keystoretype: 'key'
+            property string keystoretype: 'masterkey'
             checked: true
             text: qsTr('Cosigner key')
         }
-        RadioButton {
+        ElRadioButton {
             ButtonGroup.group: keystoregroup
-            property string keystoretype: 'seed'
+            property string keystoretype: 'haveseed'
             text: qsTr('Cosigner seed')
         }
     }

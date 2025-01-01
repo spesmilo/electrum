@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick
 
 Image {
     id: root
@@ -6,14 +6,14 @@ Image {
     sourceSize.width: constants.iconSizeMedium
     sourceSize.height: constants.iconSizeMedium
 
-    property bool connected: Network.status == 'connected'
+    property bool connected: Network.isConnected
     property bool lagging: connected && Network.isLagging
     property bool fork: connected && Network.chaintips > 1
     property bool syncing: connected && Daemon.currentWallet && Daemon.currentWallet.synchronizing
     property bool proxy: connected && 'mode' in Network.proxy && Network.proxy.mode
 
     // ?: in order to keep this a binding..
-    source: !connected
+    source: Qt.resolvedUrl(!connected
                 ? '../../../icons/status_disconnected.png'
                 : syncing
                     ? '../../../icons/status_waiting.png'
@@ -27,7 +27,7 @@ Image {
                                 : '../../../icons/status_connected_fork.png'
                             : proxy
                                 ? '../../../icons/status_connected_proxy.png'
-                                : '../../../icons/status_connected.png'
+                                : '../../../icons/status_connected.png')
 
 
     states: [

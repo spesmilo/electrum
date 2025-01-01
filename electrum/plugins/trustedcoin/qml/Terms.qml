@@ -9,19 +9,17 @@ import "../../../gui/qml/components/controls"
 
 WizardComponent {
     valid: !plugin ? false
-                   : email.text.length > 0 // TODO: validate email address
-                     && plugin.termsAndConditions
+                   : tosShown
 
     property QtObject plugin
-
-    onAccept: {
-        wizard_data['2fa_email'] = email.text
-    }
+    property bool tosShown: false
 
     ColumnLayout {
         anchors.fill: parent
 
-        Label { text: qsTr('Terms and conditions') }
+        Label {
+            text: qsTr('Terms and conditions')
+        }
 
         TextHighlightPane {
             Layout.fillWidth: true
@@ -39,7 +37,6 @@ WizardComponent {
                     width: parent.width
                     rightPadding: constants.paddingSmall
                     wrapMode: Text.Wrap
-                    text: plugin ? plugin.termsAndConditions : ''
                 }
                 ScrollIndicator.vertical: ScrollIndicator { }
             }
@@ -50,18 +47,21 @@ WizardComponent {
                 running: visible
             }
         }
-
-        Label { text: qsTr('Email') }
-
-        TextField {
-            id: email
-            Layout.fillWidth: true
-            placeholderText: qsTr('Enter your email address')
-        }
     }
 
     Component.onCompleted: {
         plugin = AppController.plugin('trustedcoin')
         plugin.fetchTermsAndConditions()
+    }
+
+    Connections {
+        target: plugin
+        function onTermsAndConditionsRetrieved(message) {
+            termsText.text = message
+            tosShown = true
+        }
+        function onTermsAndConditionsError(message) {
+            termsText.text = message
+        }
     }
 }

@@ -44,14 +44,16 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
 is_appimage = 'APPIMAGE' in os.environ
+is_binary_distributable = is_pyinstaller or is_android or is_appimage
 # is_local: unpacked tar.gz but not pip installed, or git clone
-is_local = (not is_pyinstaller and not is_android and not is_appimage
+is_local = (not is_binary_distributable
             and os.path.exists(os.path.join(script_dir, "electrum.desktop")))
 is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
 if is_git_clone:
-    # developers should probably see all deprecation warnings.
-    warnings.simplefilter('default', DeprecationWarning)
+    # developers should probably see all deprecation warnings unless explicitly overruled
+    if not any(['DeprecationWarning' in x for x in sys.warnoptions]):
+        warnings.simplefilter('default', DeprecationWarning)
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
@@ -73,8 +75,8 @@ def check_imports():
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
-    if not ((0, 22, 0) <= aiorpcx._version < (0, 23)):
-        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.23')
+    if not ((0, 22, 0) <= aiorpcx._version < (0, 24)):
+        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.24')
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -92,6 +94,7 @@ sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
 
 from electrum.logging import get_logger, configure_logging  # import logging submodule first
 from electrum import util
+from electrum.payment_identifier import PaymentIdentifier
 from electrum import constants
 from electrum import SimpleConfig
 from electrum.wallet_db import WalletDB
@@ -102,7 +105,7 @@ from electrum.util import InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
-from electrum.util import create_and_start_event_loop
+from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
 from electrum.i18n import set_language
 
 if TYPE_CHECKING:
@@ -114,7 +117,7 @@ _logger = get_logger(__name__)
 
 
 # get password routine
-def prompt_password(prompt, confirm=True):
+def prompt_password(prompt: str, *, confirm: bool = True) -> Optional[str]:
     import getpass
     password = getpass.getpass(prompt, stream=None)
     if password and confirm:
@@ -126,7 +129,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig'):
+def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'SimpleConfig'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -150,27 +153,20 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
-    # will we need a password
-    if not storage.is_encrypted():
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        use_encryption = db.get('use_encryption')
-    else:
-        use_encryption = True
-
     # commands needing password
-    if ((cmd.requires_wallet and storage.is_encrypted() and server is False)\
-       or (cmdname == 'load_wallet' and storage.is_encrypted())\
-       or (cmd.requires_password and use_encryption)):
+    if ((cmd.requires_wallet and storage.is_encrypted() and not rpcserver)
+            or (cmdname == 'load_wallet' and storage.is_encrypted())
+            or (cmdname in ['password', 'unlock'])
+            or (cmd.requires_password and not rpcserver)):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
-        elif config.get('password'):
+        elif config.get('password') is not None:
             password = config.get('password')
+            if password == '':
+                password = None
         else:
-            password = prompt_password('Password:', False)
-            if not password:
-                print_msg("Error: Password required")
-                sys_exit(1)
+            password = prompt_password('Password:', confirm=False)
     else:
         password = None
 
@@ -214,6 +210,7 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devmgr = plugins.device_manager
     try:
         client = devmgr.client_by_id(device_info.device.id_)
+        client.handler = client.plugin.create_handler(None)
         return client.get_password_for_storage_encryption()
     except UserCancelled:
         sys.exit(0)
@@ -232,8 +229,8 @@ async def run_offline_command(config, config_options, plugins: 'Plugins'):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        wallet = Wallet(db, storage, config=config)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        wallet = Wallet(db, config=config)
         config_options['wallet'] = wallet
     else:
         wallet = None
@@ -282,6 +279,7 @@ def sys_exit(i):
 
 
 def main():
+    global loop, stop_loop, loop_thread
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
@@ -314,7 +312,7 @@ def main():
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
-            sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
+            sys.argv[i] = prompt_password('Enter argument (will not echo):', confirm=False)
 
     # parse command line
     parser = get_parser()
@@ -323,12 +321,12 @@ def main():
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         import importlib.util
-        android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
         config_options = {
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
-            'gui': android_gui,
-            'single_password': True,
+            SimpleConfig.GUI_NAME.key(): 'qml',
+            SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.SWAPSERVER_URL: 'https://swaps.electrum.org/api',
         }
         if util.get_android_package_name() == "org.electrum.testnet.electrum":
             # ~hack for easier testnet builds. pkgname subject to change.
@@ -337,8 +335,8 @@ def main():
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            config_options['auto_connect'] = False
+        if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
+            config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
 
     config_options['cwd'] = cwd = os.getcwd()
 
@@ -363,32 +361,45 @@ def main():
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)
 
-    # check uri
-    uri = config_options.get('url')
-    if uri and not util.is_uri(uri):
-        print_stderr('unknown command:', uri)
-        sys.exit(1)
-
     config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
 
     # set language as early as possible
     # Note: we are already too late for strings that are declared in the global scope
     #       of an already imported module. However, the GUI and the plugins at least have
-    #       not been imported yet.
-    # Note: it is ok to call set_language() again later. E.g. the Qt GUI has additional
-    #       tools to figure out the default language so it will get called again there.
-    set_language(config.get('language'))
+    #       not been imported yet. (see #4621)
+    # Note: it is ok to call set_language() again later, but note that any call only applies
+    #       to not-yet-evaluated strings.
+    # Note: the CLI is intentionally always non-localized.
+    # Note: Some unit tests might rely on the default non-localized strings.
+    if cmdname == 'gui':
+        gui_name = config.GUI_NAME
+        lang = config.LOCALIZATION_LANGUAGE
+        if not lang:
+            try:
+                from electrum.gui.default_lang import get_default_language
+                lang = get_default_language(gui_name=gui_name)
+                _logger.info(f"get_default_language: detected default as {lang=!r}")
+            except ImportError as e:
+                _logger.info(f"get_default_language: failed. got exc={e!r}")
+        set_language(lang)
 
     if config.get('testnet'):
-        constants.set_testnet()
+        constants.BitcoinTestnet.set_as_network()
+    elif config.get('testnet4'):
+        constants.BitcoinTestnet4.set_as_network()
     elif config.get('regtest'):
-        constants.set_regtest()
+        constants.BitcoinRegtest.set_as_network()
     elif config.get('simnet'):
-        constants.set_simnet()
+        constants.BitcoinSimnet.set_as_network()
     elif config.get('signet'):
-        constants.set_signet()
+        constants.BitcoinSignet.set_as_network()
 
-    cmdname = config.get('cmd')
+    # check if we received a valid payment identifier
+    uri = config_options.get('url')
+    if uri and not PaymentIdentifier(None, uri).is_valid():
+        print_stderr('unknown command:', uri)
+        sys.exit(1)
 
     if cmdname == 'daemon' and config.get("detach"):
         # detect lockfile.
@@ -398,11 +409,26 @@ def main():
             print_stderr("Daemon already running (lockfile detected).")
             print_stderr("Run 'electrum stop' to stop the daemon.")
             sys.exit(1)
+        # Initialise rpc credentials to random if not set yet. This would normally be done
+        # later anyway, but we need to avoid the two sides of the fork setting conflicting random creds.
+        daemon.get_rpc_credentials(config)  # inits creds as side-effect
         # fork before creating the asyncio event loop
-        pid = os.fork()
+        try:
+            pid = os.fork()
+        except AttributeError as e:
+            print_stderr(f"Error: {e!r}")
+            print_stderr("Running daemon in detached mode (-d) is not supported on this platform.")
+            print_stderr("Try running the daemon in the foreground (without -d).")
+            sys.exit(1)
         if pid:
             print_stderr("starting daemon (PID %d)" % pid)
-            sys.exit(0)
+            loop, stop_loop, loop_thread = create_and_start_event_loop()
+            ready = daemon.wait_until_daemon_becomes_ready(config=config, timeout=5)
+            if ready:
+                sys_exit(0)
+            else:
+                print_stderr("timed out waiting for daemon to get ready")
+                sys_exit(1)
         else:
             # redirect standard file descriptors
             sys.stdout.flush()
@@ -414,7 +440,6 @@ def main():
             os.dup2(so.fileno(), sys.stdout.fileno())
             os.dup2(se.fileno(), sys.stderr.fileno())
 
-    global loop, stop_loop, loop_thread
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     try:
@@ -433,17 +458,26 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd)
+            d = daemon.Daemon(config, fd, start_network=False)
             try:
-                d.run_gui(config, plugins)
+                d.run_gui()
             except BaseException as e:
                 _logger.exception('daemon.run_gui errored')
                 sys_exit(1)
             else:
                 sys_exit(0)
         else:
-            result = daemon.request(config, 'gui', (config_options,))
+            try:
+                result = daemon.request(config, 'gui', (config_options,))
+            except JsonRPCError as e:
+                if e.code == JsonRPCError.Codes.USERFACING:
+                    print_stderr(e.message)
+                elif e.code == JsonRPCError.Codes.INTERNAL:
+                    print_stderr("(inside daemon): " + e.data["traceback"])
+                    print_stderr(e.message)
+                else:
+                    raise Exception(f"unknown error code {e.code}")
+                sys_exit(1)
 
     elif cmdname == 'daemon':
 
@@ -451,7 +485,6 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # run daemon
-            init_plugins(config, 'cmdline')
             d = daemon.Daemon(config, fd)
             d.run_daemon()
             sys_exit(0)
@@ -464,10 +497,9 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config, log_to_file=False)  # don't spam logfiles for each client-side RPC, but support "-v"
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
-        if not config.get('offline'):
-            init_cmdline(config_options, wallet_path, True, config=config)
-            timeout = config.get('timeout', 60)
-            if timeout: timeout = int(timeout)
+        if not config.NETWORK_OFFLINE:
+            init_cmdline(config_options, wallet_path, rpcserver=True, config=config)
+            timeout = config.CLI_TIMEOUT
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
             except daemon.DaemonNotRunning:
@@ -480,27 +512,47 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                         print_msg("Found lingering lockfile for daemon. Removing.")
                         daemon.remove_lockfile(lockfile)
                 sys_exit(1)
+            except JsonRPCError as e:
+                if e.code == JsonRPCError.Codes.USERFACING:
+                    print_stderr(e.message)
+                elif e.code == JsonRPCError.Codes.INTERNAL:
+                    print_stderr("(inside daemon): " + e.data["traceback"])
+                    print_stderr(e.message)
+                else:
+                    raise Exception(f"unknown error code {e.code}")
+                sys_exit(1)
             except Exception as e:
-                print_stderr(str(e) or repr(e))
+                _logger.exception("error running command (with daemon)")
                 sys_exit(1)
         else:
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
-            init_cmdline(config_options, wallet_path, False, config=config)
+            lockfile = daemon.get_lockfile(config)
+            if os.path.exists(lockfile):
+                print_stderr("Daemon already running (lockfile detected)")
+                print_stderr("Run 'electrum stop' to stop the daemon.")
+                print_stderr("Run this command without --offline to interact with the daemon")
+                sys_exit(1)
+            init_cmdline(config_options, wallet_path, rpcserver=False, config=config)
             plugins = init_plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
-                result = fut.result()
-            except Exception as e:
-                print_stderr(str(e) or repr(e))
+                try:
+                    result = fut.result()
+                finally:
+                    plugins.stop()
+                    plugins.stopped_event.wait(1)
+            except UserFacingException as e:
+                print_stderr(str(e))
                 sys_exit(1)
+            except Exception as e:
+                _logger.exception("error running command (without daemon)")
+                sys_exit(1)
+    # print result
     if isinstance(result, str):
         print_msg(result)
-    elif type(result) is dict and result.get('error'):
-        print_stderr(result.get('error'))
-        sys_exit(1)
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)

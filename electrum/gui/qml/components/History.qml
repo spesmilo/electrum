@@ -1,8 +1,8 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
-import QtQuick.Controls.Material 2.0
-import QtQml.Models 2.2
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
+import QtQml.Models
 
 import org.electrum 1.0
 
@@ -18,7 +18,7 @@ Pane {
         color: constants.darkerBackground
     }
 
-    ListView {
+    ElListView {
         id: listview
         width: parent.width
         height: parent.height
@@ -59,7 +59,7 @@ Pane {
                 text: listview.sectionLabels[section]
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingLarge
-                font.pixelSize: constants.fontSizeLarge
+                font.pixelSize: constants.fontSizeMedium
                 color: Material.accentColor
             }
         }
@@ -76,19 +76,18 @@ Pane {
                 DelegateModelGroup { name: 'older'; includeByDefault: false }
             ]
 
-            delegate: HistoryItemDelegate {
-            }
+            delegate: HistoryItemDelegate { }
         }
 
         ScrollIndicator.vertical: ScrollIndicator { }
 
         Label {
-            visible: Daemon.currentWallet.historyModel.count == 0
+            visible: Daemon.currentWallet.historyModel.count == 0 && !Daemon.currentWallet.synchronizing
             anchors.centerIn: parent
             width: listview.width * 4/5
             font.pixelSize: constants.fontSizeXXLarge
             color: constants.mutedForeground
-            text: qsTr('No transactions yet in this wallet')
+            text: qsTr('No transactions in this wallet yet')
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
         }
@@ -131,7 +130,9 @@ Pane {
         Label {
             id: postext
             anchors.centerIn: parent
-            text: listview.itemAt(0,listview.contentY + (dragb.y + dragb.height/2)).delegateModel.date
+            text: dragb.opacity
+                    ? listview.itemAt(0,listview.contentY + (dragb.y + dragb.height/2)).delegateModel.date
+                    : ''
             font.pixelSize: constants.fontSizeLarge
         }
     }
@@ -140,6 +141,20 @@ Pane {
         target: Network
         function onHeightChanged(height) {
             Daemon.currentWallet.historyModel.updateBlockchainHeight(height)
+        }
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            listview.positionViewAtBeginning()
+        }
+    }
+
+    StackView.onVisibleChanged: {
+        // refresh model if History becomes visible and the model is dirty.
+        if (StackView.visible) {
+            Daemon.currentWallet.historyModel.initModel(false)
         }
     }
 }

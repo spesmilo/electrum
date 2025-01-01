@@ -1,5 +1,5 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.0
+import QtQuick
+import QtQuick.Controls
 
 import org.electrum 1.0
 
@@ -10,7 +10,11 @@ TextField {
 
     font.family: FixedFont
     placeholderText: qsTr('Amount')
-    inputMethodHints: Qt.ImhPreferNumbers
+    inputMethodHints: Qt.ImhDigitsOnly
+    validator: RegularExpressionValidator {
+        regularExpression: Daemon.fx.fiatAmountRegex
+    }
+
     onTextChanged: {
         if (amountFiat.activeFocus)
             btcfield.text = text == ''

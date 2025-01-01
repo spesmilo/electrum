@@ -1,6 +1,6 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 import "wizard"
 
@@ -12,6 +12,7 @@ Wizard {
     enter: null // disable transition
 
     wiz: Daemon.serverConnectWizard
+    finishButtonText: qsTr('Next')
 
     onAccepted: {
         var proxy = wizard_data['proxy']
@@ -23,12 +24,11 @@ Wizard {
         Config.autoConnect = wizard_data['autoconnect']
         if (!wizard_data['autoconnect']) {
             Network.server = wizard_data['server']
-            Config.serverString = wizard_data['server']
         }
     }
 
     Component.onCompleted: {
-        var view = wiz.start_wizard()
+        var view = wiz.startWizard()
         _loadNextComponent(view)
     }
 }

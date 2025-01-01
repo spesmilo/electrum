@@ -1,0 +1,27 @@
+{
+    "accounts": {
+        "/x": {
+            "imported": {
+                "1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf": [
+                    null,
+                    null
+                ],
+                "1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs": [
+                    null,
+                    null
+                ],
+                "1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa": [
+                    null,
+                    null
+                ]
+            }
+        }
+    },
+    "accounts_expanded": {},
+    "pruned_txo": {},
+    "stored_height": 490038,
+    "transactions": {},
+    "txi": {},
+    "txo": {},
+    "wallet_type": "imported"
+}

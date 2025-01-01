@@ -4,25 +4,29 @@
 from abc import ABC, abstractmethod
 import base64
 import hashlib
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
+import electrum_ecc as ecc
 
-from electrum import bip32, constants, ecc
-from electrum.base_wizard import ScriptTypeNotSupported
-from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
-from electrum.bitcoin import EncodeBase58Check, int_to_hex, is_b58_address, is_segwit_script_type, var_int
+from electrum import bip32, constants
+from electrum import descriptor
+from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
+from electrum.bitcoin import EncodeBase58Check, is_b58_address, is_segwit_script_type, var_int
 from electrum.crypto import hash_160
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.logging import get_logger
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import PartialTransaction, Transaction
+from electrum.transaction import PartialTransaction, Transaction, PartialTxInput
 from electrum.util import bfh, UserFacingException, versiontuple
 from electrum.wallet import Standard_Wallet
 
 from ..hw_wallet import HardwareClientBase, HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
 
+if TYPE_CHECKING:
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -312,7 +316,17 @@ class Ledger_Client(HardwareClientBase, ABC):
         hid_device.path = device.path
         hid_device.open()
         transport = ledger_bitcoin.TransportClient('hid', hid=hid_device)
-        cl = ledger_bitcoin.createClient(transport, chain=get_chain())
+        try:
+            cl = ledger_bitcoin.createClient(transport, chain=get_chain())
+        except (ledger_bitcoin.exception.errors.InsNotSupportedError,
+                ledger_bitcoin.exception.errors.ClaNotSupportedError) as e:
+            # This can happen on very old versions.
+            # E.g. with a "nano s", with bitcoin app 1.1.10, SE 1.3.1, MCU 1.0,
+            #      - on machine one, ghost43 got InsNotSupportedError
+            #      - on machine two, thomasv got ClaNotSupportedError
+            #      unclear why the different exceptions, ledger_bitcoin version 0.2.1 in both cases
+            _logger.info(f"ledger_bitcoin.createClient() got exc: {e}. falling back to old plugin.")
+            cl = None
         if isinstance(cl, ledger_bitcoin.client.NewClient):
             return Ledger_Client_New(hid_device, *args, **kwargs)
         else:
@@ -429,8 +443,8 @@ class Ledger_Client_Legacy(Ledger_Client):
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
         if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
-        bip32_path = bip32.normalize_bip32_derivation(bip32_path)
-        bip32_intpath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        bip32_path = bip32.normalize_bip32_derivation(bip32_path, hardened_char="'")
+        bip32_intpath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
             prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]
@@ -544,20 +558,25 @@ class Ledger_Client_Legacy(Ledger_Client):
         pin = ""
         # prompt for the PIN before displaying the dialog if necessary
 
+        def is_txin_legacy_multisig(txin: PartialTxInput) -> bool:
+            desc = txin.script_descriptor
+            return (isinstance(desc, descriptor.SHDescriptor)
+                    and isinstance(desc.subdescriptors[0], descriptor.MultisigDescriptor))
+
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
             if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if txin.script_type in ['p2sh']:
+            if is_txin_legacy_multisig(txin):
                 p2shTransaction = True
 
-            if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if txin.is_p2sh_segwit():
                 if not self.supports_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
-            if txin.script_type in ['p2wpkh', 'p2wsh']:
+            if txin.is_native_segwit():
                 if not self.supports_native_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
@@ -567,7 +586,7 @@ class Ledger_Client_Legacy(Ledger_Client):
                 self.give_error("No matching pubkey for sign_transaction")  # should never happen
             full_path = convert_bip32_intpath_to_strpath(full_path)[2:]
 
-            redeemScript = Transaction.get_preimage_script(txin)
+            redeemScript = Transaction.get_preimage_script(txin).hex()
             txin_prev_tx = txin.utxo
             if txin_prev_tx is None and not txin.is_segwit():
                 raise UserFacingException(_('Missing previous tx for legacy input.'))
@@ -584,16 +603,17 @@ class Ledger_Client_Legacy(Ledger_Client):
         # Sanity check
         if p2shTransaction:
             for txin in tx.inputs():
-                if txin.script_type != 'p2sh':
+                if not is_txin_legacy_multisig(txin):
                     self.give_error("P2SH / regular input mixed in same transaction not supported")  # should never happen
 
-        txOutput = var_int(len(tx.outputs()))
+        txOutput = bytearray()
+        txOutput += var_int(len(tx.outputs()))
         for o in tx.outputs():
-            txOutput += int_to_hex(o.value, 8)
-            script = o.scriptpubkey.hex()
-            txOutput += var_int(len(script) // 2)
+            txOutput += int.to_bytes(o.value, length=8, byteorder="little", signed=False)
+            script = o.scriptpubkey
+            txOutput += var_int(len(script))
             txOutput += script
-        txOutput = bfh(txOutput)
+        txOutput = bytes(txOutput)
 
         if not self.supports_multi_output():
             if len(tx.outputs()) > 2:
@@ -632,11 +652,11 @@ class Ledger_Client_Legacy(Ledger_Client):
             # Get trusted inputs from the original transactions
             for input_idx, utxo in enumerate(inputs):
                 self.handler.show_message(_("Preparing transaction inputs...") + f" (phase1, {input_idx}/{len(inputs)})")
-                sequence = int_to_hex(utxo[5], 4)
+                sequence = int.to_bytes(utxo[5], length=4, byteorder="little", signed=False)
                 if segwitTransaction and not self.supports_segwit_trustedInputs():
                     tmp = bfh(utxo[3])[::-1]
-                    tmp += bfh(int_to_hex(utxo[1], 4))
-                    tmp += bfh(int_to_hex(utxo[6], 8))  # txin['value']
+                    tmp += int.to_bytes(utxo[1], length=4, byteorder="little", signed=False)
+                    tmp += int.to_bytes(utxo[6], length=8, byteorder="little", signed=False)  # txin['value']
                     chipInputs.append({'value': tmp, 'witness': True, 'sequence': sequence})
                     redeemScripts.append(bfh(utxo[2]))
                 elif (not p2shTransaction) or self.supports_multi_output():
@@ -652,7 +672,7 @@ class Ledger_Client_Legacy(Ledger_Client):
                         redeemScripts.append(txtmp.outputs[utxo[1]].script)
                 else:
                     tmp = bfh(utxo[3])[::-1]
-                    tmp += bfh(int_to_hex(utxo[1], 4))
+                    tmp += int.to_bytes(utxo[1], length=4, byteorder="little", signed=False)
                     chipInputs.append({'value': tmp, 'sequence': sequence})
                     redeemScripts.append(bfh(utxo[2]))
 
@@ -660,7 +680,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
-            rawTx = tx.serialize_to_network()
+            rawTx = tx.serialize_to_network(include_sigs=False)
             if self.is_hw1():
                 self.dongleObject.enableAlternate2fa(False)
             if segwitTransaction:
@@ -686,8 +706,8 @@ class Ledger_Client_Legacy(Ledger_Client):
                     inputSignature[0] = 0x30  # force for 1.4.9+
                     my_pubkey = inputs[inputIndex][4]
                     tx.add_signature_to_txin(txin_idx=inputIndex,
-                                             signing_pubkey=my_pubkey.hex(),
-                                             sig=inputSignature.hex())
+                                             signing_pubkey=my_pubkey,
+                                             sig=inputSignature)
                     inputIndex = inputIndex + 1
             else:
                 while inputIndex < len(inputs):
@@ -711,8 +731,8 @@ class Ledger_Client_Legacy(Ledger_Client):
                         inputSignature[0] = 0x30  # force for 1.4.9+
                         my_pubkey = inputs[inputIndex][4]
                         tx.add_signature_to_txin(txin_idx=inputIndex,
-                                                 signing_pubkey=my_pubkey.hex(),
-                                                 sig=inputSignature.hex())
+                                                 signing_pubkey=my_pubkey,
+                                                 sig=inputSignature)
                         inputIndex = inputIndex + 1
                     firstTransaction = False
         except UserWarning:
@@ -850,18 +870,17 @@ class Ledger_Client_Legacy_HW1(Ledger_Client_Legacy):
                     msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
                 confirmed, p, pin = self.password_dialog(msg)
                 if not confirmed:
-                    raise UserFacingException('Aborted by user - please unplug the dongle and plug it again before retrying')
+                    raise UserFacingException(_('Aborted by user - please unplug the dongle and plug it again before retrying'))
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
         except BTChipException as e:
             if (e.sw == 0x6faa):
-                raise UserFacingException("Dongle is temporarily locked - please unplug it and replug it again")
+                raise UserFacingException(_('Dongle is temporarily locked - please unplug it and replug it again'))
             if ((e.sw & 0xFFF0) == 0x63c0):
-                raise UserFacingException("Invalid PIN - please unplug the dongle and plug it again before retrying")
+                raise UserFacingException(_('Invalid PIN - please unplug the dongle and plug it again before retrying'))
             if e.sw == 0x6f00 and e.message == 'Invalid channel':
                 # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
-                raise UserFacingException("Invalid channel.\n"
-                                          "Please make sure that 'Browser support' is disabled on your device.")
+                raise UserFacingException(_("Invalid channel.\nPlease make sure that 'Browser support' is disabled on your device."))
             if e.sw == 0x6d00 or e.sw == 0x6700:
                 raise UserFacingException(_("Device not in Bitcoin mode")) from e
             raise e
@@ -925,10 +944,10 @@ class Ledger_Client_New(Ledger_Client):
 
     @runs_in_hwd_thread
     @test_pin_unlocked
-    def get_xpub(self, bip32_path, xtype):
+    def get_xpub(self, bip32_path: str, xtype):
         # try silently first; if not a standard path, repeat with on-screen display
 
-        bip32_path = bip32_path.replace('h', '\'')
+        bip32_path = normalize_bip32_derivation(bip32_path, hardened_char="'")
 
         # cache known path/xpubs combinations in order to avoid requesting them many times
         if bip32_path in self._known_xpubs:
@@ -985,7 +1004,7 @@ class Ledger_Client_New(Ledger_Client):
         path_parts = path.split("/")
 
         if not 5 <= len(path_parts) <= 6:
-            raise UserFacingException(f"Unsupported path: {path}")
+            raise UserFacingException(_('Unsupported derivation path: {}').format(path))
 
         path_root = "/".join(path_parts[:-2])
 
@@ -1080,41 +1099,35 @@ class Ledger_Client_New(Ledger_Client):
             wallets: Dict[bytes, Tuple[AddressType, WalletPolicy, Optional[bytes]]] = {}
             for input_num, (electrum_txin, psbt_in) in enumerate(zip(tx.inputs(), psbt.inputs)):
                 if electrum_txin.is_coinbase_input():
-                    raise UserFacingException("Coinbase not supported")     # should never happen
+                    raise UserFacingException(_('Coinbase not supported'))     # should never happen
 
                 utxo = None
-                scriptcode = b""
                 if psbt_in.witness_utxo:
                     utxo = psbt_in.witness_utxo
                 if psbt_in.non_witness_utxo:
                     if psbt_in.prev_txid != psbt_in.non_witness_utxo.hash:
-                        raise UserFacingException(f"Input {input_num} has a non_witness_utxo with the wrong hash")
+                        raise UserFacingException(_('Input {} has a non_witness_utxo with the wrong hash').format(input_num))
                     assert psbt_in.prev_out is not None
                     utxo = psbt_in.non_witness_utxo.vout[psbt_in.prev_out]
 
                 if utxo is None:
                     continue
-                scriptcode = utxo.scriptPubKey
+                if (desc := electrum_txin.script_descriptor) is None:
+                    raise Exception("script_descriptor missing for txin ")
+                scriptcode = desc.expand().scriptcode_for_sighash
 
-                p2sh = False
-                if electrum_txin.script_type in ['p2sh', 'p2wpkh-p2sh']:
-                    if len(psbt_in.redeem_script) == 0:
-                        continue
-                    scriptcode = psbt_in.redeem_script
-                    p2sh = True
-
-                is_wit, wit_ver, __ = is_witness(scriptcode)
+                is_wit, wit_ver, __ = is_witness(psbt_in.redeem_script or utxo.scriptPubKey)
 
                 script_addrtype = AddressType.LEGACY
                 if is_wit:
                     # if it's a segwit spend (any version), make sure the witness_utxo is also present
                     psbt_in.witness_utxo = utxo
 
-                    if p2sh:
+                    if electrum_txin.is_p2sh_segwit():
                         if wit_ver == 0:
                             script_addrtype = AddressType.SH_WIT
                         else:
-                            raise UserFacingException("Cannot have witness v1+ in p2sh")
+                            raise UserFacingException(_('Cannot have witness v1+ in p2sh'))
                     else:
                         if wit_ver == 0:
                             script_addrtype = AddressType.WIT
@@ -1122,12 +1135,6 @@ class Ledger_Client_New(Ledger_Client):
                             script_addrtype = AddressType.TAP
                         else:
                             continue
-
-                # Check if P2WSH
-                if electrum_txin.script_type in ['p2wsh']:
-                    if len(psbt_in.witness_script) == 0:
-                        continue
-                    scriptcode = psbt_in.witness_script
 
                 multisig = parse_multisig(scriptcode)
                 if multisig is not None:
@@ -1177,7 +1184,7 @@ class Ledger_Client_New(Ledger_Client):
                             registered_hmac,
                         )
                 else:
-                    def process_origin(origin: KeyOriginInfo) -> None:
+                    def process_origin(origin: KeyOriginInfo, *, script_addrtype=script_addrtype) -> None:
                         if is_standard_path(origin.path, script_addrtype, get_chain()):
                             # these policies do not need to be registered
                             policy = self.get_singlesig_default_wallet_policy(script_addrtype, origin.path[2])
@@ -1241,8 +1248,9 @@ class Ledger_Client_New(Ledger_Client):
             # For each wallet, sign
             for __, (__, wallet, wallet_hmac) in wallets.items():
                 input_sigs = self.client.sign_psbt(psbt, wallet, wallet_hmac)
-                for idx, pubkey, sig in input_sigs:
-                    tx.add_signature_to_txin(txin_idx=idx, signing_pubkey=pubkey.hex(), sig=sig.hex())
+                for idx, part_sig in input_sigs:
+                    tx.add_signature_to_txin(
+                        txin_idx=idx, signing_pubkey=part_sig.pubkey, sig=part_sig.signature)
         except DenyError:
             pass  # cancelled by user
         except BaseException as e:
@@ -1306,20 +1314,25 @@ class Ledger_KeyStore(Hardware_KeyStore):
         raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     def sign_message(self, sequence, *args, **kwargs):
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d" % sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         return self.get_client_dongle_object().sign_message(address_path, *args, **kwargs)
 
     def sign_transaction(self, *args, **kwargs):
         return self.get_client_dongle_object().sign_transaction(self, *args, **kwargs)
 
     def show_address(self, sequence, *args, **kwargs):
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d" % sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         return self.get_client_dongle_object().show_address(address_path, *args, **kwargs)
 
 
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
-    minimum_library = (0, 1, 1)
+    minimum_library = (0, 2, 0)
+    maximum_library = (0, 4, 0)
     DEVICE_IDS = [(0x2581, 0x1807),  # HW.1 legacy btchip
                   (0x2581, 0x2b7c),  # HW.1 transitional production
                   (0x2581, 0x3b7c),  # HW.1 ledger production
@@ -1328,8 +1341,8 @@ class LedgerPlugin(HW_PluginBase):
                   (0x2c97, 0x0001),  # Nano-S
                   (0x2c97, 0x0004),  # Nano-X
                   (0x2c97, 0x0005),  # Nano-S Plus
-                  (0x2c97, 0x0006),  # RFU
-                  (0x2c97, 0x0007),  # RFU
+                  (0x2c97, 0x0006),  # Stax
+                  (0x2c97, 0x0007),  # Flex
                   (0x2c97, 0x0008),  # RFU
                   (0x2c97, 0x0009),  # RFU
                   (0x2c97, 0x000a)]  # RFU
@@ -1338,12 +1351,13 @@ class LedgerPlugin(HW_PluginBase):
         0x10: "Ledger Nano S",
         0x40: "Ledger Nano X",
         0x50: "Ledger Nano S Plus",
+        0x60: "Ledger Stax",
+        0x70: "Ledger Flex",
     }
 
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
     def __init__(self, parent, config, name):
-        self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
         self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:
@@ -1360,7 +1374,7 @@ class LedgerPlugin(HW_PluginBase):
             version = ledger_bitcoin.__version__
         except ImportError:
             raise
-        except:
+        except Exception:
             version = "unknown"
         if LEDGER_BITCOIN:
             return version
@@ -1386,6 +1400,10 @@ class LedgerPlugin(HW_PluginBase):
                 return True, "Ledger Nano X"
             if product_key == (0x2c97, 0x0005):
                 return True, "Ledger Nano S Plus"
+            if product_key == (0x2c97, 0x0006):
+                return True, "Ledger Stax"
+            if product_key == (0x2c97, 0x0007):
+                return True, "Ledger Flex"
             return True, None
         # modern product_keys
         if product_key[0] == 0x2c97:
@@ -1398,7 +1416,16 @@ class LedgerPlugin(HW_PluginBase):
         return False, None
 
     def can_recognize_device(self, device: Device) -> bool:
-        return self._recognize_device(device.product_key)[0]
+        can_recognize = self._recognize_device(device.product_key)[0]
+        if can_recognize:
+            # Do a further check, duplicated from:
+            # https://github.com/LedgerHQ/ledgercomm/blob/bc5ada865980cb63c2b9b71a916e01f2f8e53716/ledgercomm/interfaces/hid_device.py#L79-L82
+            # Modern ledger devices can have multiple interfaces picked up by hid, only one of which is usable by us.
+            # If we try communicating with the wrong one, we might not get a reply and block forever.
+            if device.product_key[0] == 0x2c97:
+                if not (device.interface_number == 0 or device.usage_page == 0xffa0):
+                    return False
+        return can_recognize
 
     @classmethod
     def device_name_from_product_key(cls, product_key) -> Optional[str]:
@@ -1415,21 +1442,8 @@ class LedgerPlugin(HW_PluginBase):
         try:
             return Ledger_Client.construct_new(device=device, product_key=device.product_key, plugin=self)
         except Exception as e:
-            self.logger.info(f"cannot connect at {device.path} {e}")
+            self.logger.info(f"cannot connect at {device.path} {e}", exc_info=e)
         return None
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client: Ledger_Client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_master_fingerprint())
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        return client.get_xpub(derivation, xtype)
 
     @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
@@ -1444,3 +1458,28 @@ class LedgerPlugin(HW_PluginBase):
         txin_type = wallet.get_txin_type(address)
 
         keystore.show_address(sequence, txin_type)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'ledger_start' if device_info.initialized else 'ledger_not_initialized'
+        else:
+            return 'ledger_unlock'
+
+    # insert ledger pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'ledger_start': {
+                'next': 'ledger_xpub',
+            },
+            'ledger_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'ledger_not_initialized': {},
+            'ledger_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)
+

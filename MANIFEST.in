@@ -3,6 +3,7 @@ include README.md
 include electrum.desktop
 include *.py
 include run_electrum
+include org.electrum.electrum.metainfo.xml
 recursive-include packages *.py
 recursive-include packages cacert.pem
 
@@ -11,7 +12,7 @@ include contrib/deterministic-build/requirements*.txt
 include contrib/*.sh
 
 graft electrum
-prune electrum/tests
+graft tests
 graft contrib/udev
 
 exclude electrum/*.so

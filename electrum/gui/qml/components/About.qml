@@ -1,9 +1,11 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 Pane {
+    objectName: 'About'
+
     property string title: qsTr("About Electrum")
 
     Flickable {
@@ -38,18 +40,25 @@ Pane {
                 text: BUILD.electrum_version
             }
             Label {
-                text: qsTr('APK Version')
-                Layout.alignment: Qt.AlignRight
-            }
-            Label {
-                text: BUILD.apk_version
-            }
-            Label {
                 text: qsTr('Protocol version')
                 Layout.alignment: Qt.AlignRight
             }
             Label {
                 text: BUILD.protocol_version
+            }
+            Label {
+                text: qsTr('Qt Version')
+                Layout.alignment: Qt.AlignRight
+            }
+            Label {
+                text: BUILD.qt_version
+            }
+            Label {
+                text: qsTr('PyQt Version')
+                Layout.alignment: Qt.AlignRight
+            }
+            Label {
+                text: BUILD.pyqt_version
             }
             Label {
                 text: qsTr('License')

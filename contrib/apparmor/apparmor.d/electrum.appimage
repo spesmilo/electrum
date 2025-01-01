@@ -1,0 +1,36 @@
+# Credits : Mikhail Morfikov
+abi <abi/3.0>,
+
+include <tunables/global>
+
+@{exec_path} = /{usr/,}bin/fusermount{,3}
+profile fusermount @{exec_path} {
+  include <abstractions/base>
+  include <abstractions/nameservice> 
+
+  # To mount anything:
+  #  fusermount: mount failed: Operation not permitted
+  capability sys_admin,
+
+  # For jmtpfs
+  capability dac_read_search,
+
+  @{exec_path} mr,
+
+  # Where to mount ISO files
+  owner @{HOME}/*/ rw,
+  owner @{HOME}/*/*/ rw,
+  owner @{HOME}/.cache/**/ rw,
+
+  # Be able to mount ISO images
+  mount fstype={fuse,fuse.*}, 
+  unmount fstype={fuse,fuse.*},
+
+  /etc/fuse.conf r,
+
+  /dev/fuse rw,
+
+  @{PROC}/@{pid}/mounts r,
+
+  include if exists <local/fusermount>
+}

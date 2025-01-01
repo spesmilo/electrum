@@ -25,11 +25,11 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
+from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
                              QScrollArea, QWidget, QPushButton, QGridLayout, QToolButton)
-from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
-from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
+from PyQt6.QtCore import QRect, QEventLoop, Qt, pyqtSignal
+from PyQt6.QtGui import QPalette, QPen, QPainter, QPixmap
 
 
 from electrum.i18n import _
@@ -45,33 +45,37 @@ if TYPE_CHECKING:
 #  show lightning funds that are not usable
 #  pie chart mouse interactive, to prepare a swap
 
-COLOR_CONFIRMED = Qt.green
-COLOR_UNCONFIRMED = Qt.red
-COLOR_UNMATURED = Qt.magenta
+COLOR_CONFIRMED = Qt.GlobalColor.green
+COLOR_UNCONFIRMED = Qt.GlobalColor.red
+COLOR_UNMATURED = Qt.GlobalColor.magenta
 COLOR_FROZEN = ColorScheme.BLUE.as_color(True)
-COLOR_LIGHTNING = Qt.yellow
-COLOR_FROZEN_LIGHTNING = Qt.cyan
+COLOR_LIGHTNING = Qt.GlobalColor.yellow
+COLOR_FROZEN_LIGHTNING = Qt.GlobalColor.cyan
 
 class PieChartObject:
 
     def paintEvent(self, event):
-        bgcolor = self.palette().color(QPalette.Background)
-        pen = QPen(Qt.gray, 1, Qt.SolidLine)
+        pen = QPen(Qt.GlobalColor.gray, 1, Qt.PenStyle.SolidLine)
         qp = QPainter()
         qp.begin(self)
         qp.setPen(pen)
-        qp.setRenderHint(QPainter.Antialiasing)
-        qp.setBrush(Qt.gray)
+        qp.setRenderHint(QPainter.RenderHint.Antialiasing)
+        qp.setBrush(Qt.GlobalColor.gray)
         total = sum([x[2] for x in self._list])
         if total == 0:
             return
         alpha = 0
         s = 0
         for name, color, amount in self._list:
-            delta = int(16 * 360 * amount/total)
             qp.setBrush(color)
-            qp.drawPie(self.R, alpha, delta)
-            alpha += delta
+            if amount == 0:
+                continue
+            elif amount == total:
+                qp.drawEllipse(self.R)
+            else:
+                delta = int(16 * 360 * amount/total)
+                qp.drawPie(self.R, alpha, delta)
+                alpha += delta
         qp.end()
 
 class PieChartWidget(QWidget, PieChartObject):
@@ -97,9 +101,8 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def __init__(self):
         QToolButton.__init__(self)
-        self.size = max(18, font_height())
         self._list = []
-        self.R = QRect(6, 3, self.size, self.size)
+        self._update_size()
 
     def update_list(self, l):
         self._list = l
@@ -112,6 +115,14 @@ class BalanceToolButton(QToolButton, PieChartObject):
     def paintEvent(self, event):
         QToolButton.paintEvent(self, event)
         PieChartObject.paintEvent(self, event)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._update_size()
+
+    def _update_size(self):
+        size = round(font_height(self) * 1.1)
+        self.R = QRect(6, 3, size, size)
 
 
 class LegendWidget(QWidget):
@@ -128,12 +139,11 @@ class LegendWidget(QWidget):
         self.setMaximumHeight(self.size)
 
     def paintEvent(self, event):
-        bgcolor = self.palette().color(QPalette.Background)
-        pen = QPen(Qt.gray, 1, Qt.SolidLine)
+        pen = QPen(Qt.GlobalColor.gray, 1, Qt.PenStyle.SolidLine)
         qp = QPainter()
         qp.begin(self)
         qp.setPen(pen)
-        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setRenderHint(QPainter.RenderHint.Antialiasing)
         qp.setBrush(self.color)
         qp.drawRect(self.R)
         qp.end()
@@ -180,39 +190,39 @@ class BalanceDialog(WindowModalDialog):
         vbox.addWidget(piechart)
         grid = QGridLayout()
         #grid.addWidget(QLabel(_("Onchain") + ':'), 0, 1)
-        #grid.addWidget(QLabel(onchain_str), 0, 2, alignment=Qt.AlignRight)
-        #grid.addWidget(QLabel(onchain_fiat_str), 0, 3, alignment=Qt.AlignRight)
+        #grid.addWidget(QLabel(onchain_str), 0, 2, alignment=Qt.AlignmentFlag.AlignRight)
+        #grid.addWidget(QLabel(onchain_fiat_str), 0, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         if frozen:
             grid.addWidget(LegendWidget(COLOR_FROZEN), 0, 0)
             grid.addWidget(QLabel(_("Frozen") + ':'), 0, 1)
-            grid.addWidget(AmountLabel(frozen_str), 0, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(frozen_fiat_str), 0, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(frozen_str), 0, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(frozen_fiat_str), 0, 3, alignment=Qt.AlignmentFlag.AlignRight)
         if unconfirmed:
             grid.addWidget(LegendWidget(COLOR_UNCONFIRMED), 2, 0)
             grid.addWidget(QLabel(_("Unconfirmed") + ':'), 2, 1)
-            grid.addWidget(AmountLabel(unconfirmed_str), 2, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(unconfirmed_fiat_str), 2, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unconfirmed_str), 2, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(unconfirmed_fiat_str), 2, 3, alignment=Qt.AlignmentFlag.AlignRight)
         if unmatured:
             grid.addWidget(LegendWidget(COLOR_UNMATURED), 3, 0)
             grid.addWidget(QLabel(_("Unmatured") + ':'), 3, 1)
-            grid.addWidget(AmountLabel(unmatured_str), 3, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(unmatured_fiat_str), 3, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unmatured_str), 3, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(unmatured_fiat_str), 3, 3, alignment=Qt.AlignmentFlag.AlignRight)
         if confirmed:
             grid.addWidget(LegendWidget(COLOR_CONFIRMED), 1, 0)
             grid.addWidget(QLabel(_("On-chain") + ':'), 1, 1)
-            grid.addWidget(AmountLabel(confirmed_str), 1, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(confirmed_fiat_str), 1, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(confirmed_str), 1, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(confirmed_fiat_str), 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
         if lightning:
             grid.addWidget(LegendWidget(COLOR_LIGHTNING), 4, 0)
             grid.addWidget(QLabel(_("Lightning") + ':'), 4, 1)
-            grid.addWidget(AmountLabel(lightning_str), 4, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(lightning_fiat_str), 4, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(lightning_str), 4, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(lightning_fiat_str), 4, 3, alignment=Qt.AlignmentFlag.AlignRight)
         if f_lightning:
             grid.addWidget(LegendWidget(COLOR_FROZEN_LIGHTNING), 5, 0)
             grid.addWidget(QLabel(_("Lightning (frozen)") + ':'), 5, 1)
-            grid.addWidget(AmountLabel(f_lightning_str), 5, 2, alignment=Qt.AlignRight)
-            grid.addWidget(AmountLabel(f_lightning_fiat_str), 5, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(f_lightning_str), 5, 2, alignment=Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(AmountLabel(f_lightning_fiat_str), 5, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         vbox.addLayout(grid)
         vbox.addStretch(1)
@@ -222,4 +232,4 @@ class BalanceDialog(WindowModalDialog):
         self.setLayout(vbox)
 
     def run(self):
-        self.exec_()
+        self.exec()

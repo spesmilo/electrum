@@ -23,16 +23,17 @@
 import os
 import threading
 import time
-from typing import Optional, Dict, Mapping, Sequence
+from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING
 
 from . import util
-from .bitcoin import hash_encode, int_to_hex, rev_hex
+from .bitcoin import hash_encode
 from .crypto import sha256d
 from . import constants
-from .util import bfh, bh2u, with_lock
-from .simple_config import SimpleConfig
+from .util import bfh, with_lock
 from .logging import get_logger, Logger
 
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 _logger = get_logger(__name__)
 
@@ -48,13 +49,14 @@ class MissingHeader(Exception):
 class InvalidHeader(Exception):
     pass
 
-def serialize_header(header_dict: dict) -> str:
-    s = int_to_hex(header_dict['version'], 4) \
-        + rev_hex(header_dict['prev_block_hash']) \
-        + rev_hex(header_dict['merkle_root']) \
-        + int_to_hex(int(header_dict['timestamp']), 4) \
-        + int_to_hex(int(header_dict['bits']), 4) \
-        + int_to_hex(int(header_dict['nonce']), 4)
+def serialize_header(header_dict: dict) -> bytes:
+    s = (
+        int.to_bytes(header_dict['version'], length=4, byteorder="little", signed=False)
+        + bfh(header_dict['prev_block_hash'])[::-1]
+        + bfh(header_dict['merkle_root'])[::-1]
+        + int.to_bytes(int(header_dict['timestamp']), length=4, byteorder="little", signed=False)
+        + int.to_bytes(int(header_dict['bits']), length=4, byteorder="little", signed=False)
+        + int.to_bytes(int(header_dict['nonce']), length=4, byteorder="little", signed=False))
     return s
 
 def deserialize_header(s: bytes, height: int) -> dict:
@@ -62,14 +64,13 @@ def deserialize_header(s: bytes, height: int) -> dict:
         raise InvalidHeader('Invalid header: {}'.format(s))
     if len(s) != HEADER_SIZE:
         raise InvalidHeader('Invalid header length: {}'.format(len(s)))
-    hex_to_int = lambda s: int.from_bytes(s, byteorder='little')
     h = {}
-    h['version'] = hex_to_int(s[0:4])
+    h['version'] = int.from_bytes(s[0:4], byteorder='little')
     h['prev_block_hash'] = hash_encode(s[4:36])
     h['merkle_root'] = hash_encode(s[36:68])
-    h['timestamp'] = hex_to_int(s[68:72])
-    h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['timestamp'] = int.from_bytes(s[68:72], byteorder='little')
+    h['bits'] = int.from_bytes(s[72:76], byteorder='little')
+    h['nonce'] = int.from_bytes(s[76:80], byteorder='little')
     h['block_height'] = height
     return h
 
@@ -81,8 +82,12 @@ def hash_header(header: dict) -> str:
     return hash_raw_header(serialize_header(header))
 
 
-def hash_raw_header(header: str) -> str:
-    return hash_encode(sha256d(bfh(header)))
+def hash_raw_header(header: bytes) -> str:
+    assert isinstance(header, bytes)
+    return hash_encode(sha256d(header))
+
+
+pow_hash_header = hash_header
 
 
 # key: blockhash hex at forkpoint
@@ -181,7 +186,7 @@ class Blockchain(Logger):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config: SimpleConfig, forkpoint: int, parent: Optional['Blockchain'],
+    def __init__(self, config: 'SimpleConfig', forkpoint: int, parent: Optional['Blockchain'],
                  forkpoint_hash: str, prev_hash: Optional[str]):
         assert isinstance(forkpoint_hash, str) and len(forkpoint_hash) == 64, forkpoint_hash
         assert (prev_hash is None) or (isinstance(prev_hash, str) and len(prev_hash) == 64), prev_hash
@@ -296,17 +301,18 @@ class Blockchain(Logger):
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
-            raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
+            raise InvalidHeader("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
-            raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
+            raise InvalidHeader("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+            raise InvalidHeader("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+        _pow_hash = pow_hash_header(header)
+        pow_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
+        if pow_hash_as_num > target:
+            raise InvalidHeader(f"insufficient proof of work: {pow_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
@@ -408,7 +414,7 @@ class Blockchain(Logger):
         # swap parameters
         self.parent, parent.parent = parent.parent, self  # type: Optional[Blockchain], Optional[Blockchain]
         self.forkpoint, parent.forkpoint = parent.forkpoint, self.forkpoint
-        self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(bh2u(parent_data[:HEADER_SIZE]))
+        self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(parent_data[:HEADER_SIZE])
         self._prev_hash, parent._prev_hash = parent._prev_hash, self._prev_hash
         # parent's new name
         os.replace(child_old_name, parent.path())
@@ -449,7 +455,7 @@ class Blockchain(Logger):
     @with_lock
     def save_header(self, header: dict) -> None:
         delta = header.get('block_height') - self.forkpoint
-        data = bfh(serialize_header(header))
+        data = serialize_header(header)
         # headers are only _appended_ to the end:
         assert delta == self.size(), (delta, self.size())
         assert len(data) == HEADER_SIZE
@@ -544,7 +550,7 @@ class Blockchain(Logger):
     def bits_to_target(cls, bits: int) -> int:
         # arith_uint256::SetCompact in Bitcoin Core
         if not (0 <= bits < (1 << 32)):
-            raise Exception(f"bits should be uint32. got {bits!r}")
+            raise InvalidHeader(f"bits should be uint32. got {bits!r}")
         bitsN = (bits >> 24) & 0xff
         bitsBase = bits & 0x7fffff
         if bitsN <= 3:
@@ -553,12 +559,12 @@ class Blockchain(Logger):
             target = bitsBase << (8 * (bitsN-3))
         if target != 0 and bits & 0x800000 != 0:
             # Bit number 24 (0x800000) represents the sign of N
-            raise Exception("target cannot be negative")
+            raise InvalidHeader("target cannot be negative")
         if (target != 0 and
                 (bitsN > 34 or
                  (bitsN > 33 and bitsBase > 0xff) or
                  (bitsN > 32 and bitsBase > 0xffff))):
-            raise Exception("target has overflown")
+            raise InvalidHeader("target has overflown")
         return target
 
     @classmethod
@@ -622,7 +628,7 @@ class Blockchain(Logger):
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-        except:
+        except Exception:
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False

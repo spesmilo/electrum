@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -13,16 +13,10 @@ ElDialog {
     title: qsTr("Open Lightning Channel")
     iconSource: Qt.resolvedUrl('../../icons/lightning.png')
 
-    parent: Overlay.overlay
-    modal: true
     padding: 0
 
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -43,10 +37,39 @@ ElDialog {
                 id: rootLayout
                 width: parent.width
 
-                columns: 4
+                columns: 3
+
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.columnSpan: 3
+                    visible: !Daemon.currentWallet.lightningHasDeterministicNodeId
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                    text: Daemon.currentWallet.seedType == 'segwit'
+                        ? [ qsTr('Your channels cannot be recovered from seed, because they were created with an old version of Electrum.'), ' ',
+                            qsTr('This means that you must save a backup of your wallet every time you create a new channel.'),
+                            '\n\n',
+                            qsTr('If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed.')
+                          ].join('')
+                        : [ qsTr('Your channels cannot be recovered from seed.'), ' ',
+                            qsTr('This means that you must save a backup of your wallet every time you create a new channel.'),
+                            '\n\n',
+                            qsTr('If you want to have recoverable channels, you must create a new wallet with an Electrum seed')
+                          ].join('')
+                }
+
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.columnSpan: 3
+                    visible: Daemon.currentWallet.lightningHasDeterministicNodeId && !Config.useRecoverableChannels
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                    text: [ qsTr('You currently have recoverable channels setting disabled.'),
+                            qsTr('This means your channels cannot be recovered from seed.')
+                          ].join(' ')
+                }
 
                 Label {
                     text: qsTr('Node')
+                    Layout.columnSpan: 3
                     color: Material.accentColor
                 }
 
@@ -59,9 +82,14 @@ ElDialog {
                     font.family: FixedFont
                     wrapMode: Text.Wrap
                     placeholderText: qsTr('Paste or scan node uri/pubkey')
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    onTextChanged: {
+                        if (activeFocus)
+                            channelopener.connectStr = text
+                    }
                     onActiveFocusChanged: {
                         if (!activeFocus)
-                            channelopener.nodeid = text
+                            channelopener.connectStr = text
                     }
                 }
 
@@ -73,9 +101,17 @@ ElDialog {
                         icon.height: constants.iconSizeMedium
                         icon.width: constants.iconSizeMedium
                         onClicked: {
-                            if (channelopener.validate_nodeid(AppController.clipboardToText())) {
-                                channelopener.nodeid = AppController.clipboardToText()
-                                node.text = channelopener.nodeid
+                            var cliptext = AppController.clipboardToText()
+                            if (!cliptext)
+                                return
+                            if (channelopener.validateConnectString(cliptext)) {
+                                channelopener.connectStr = cliptext
+                                node.text = channelopener.connectStr
+                            } else {
+                                var dialog = app.messageDialog.createObject(app, {
+                                    text: qsTr('Invalid node-id or connect string')
+                                })
+                                dialog.open()
                             }
                         }
                     }
@@ -85,14 +121,22 @@ ElDialog {
                         icon.width: constants.iconSizeMedium
                         scale: 1.2
                         onClicked: {
-                            var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
-                            page.onFound.connect(function() {
-                                if (channelopener.validate_nodeid(page.scanData)) {
-                                    channelopener.nodeid = page.scanData
-                                    node.text = channelopener.nodeid
-                                }
-                                app.stack.pop()
+                            var dialog = app.scanDialog.createObject(app, {
+                                hint: qsTr('Scan a node-id or a connect string')
                             })
+                            dialog.onFound.connect(function() {
+                                if (channelopener.validateConnectString(dialog.scanData)) {
+                                    channelopener.connectStr = dialog.scanData
+                                    node.text = channelopener.connectStr
+                                } else {
+                                    var errdialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Invalid node-id or connect string')
+                                    })
+                                    errdialog.open()
+                                }
+                                dialog.close()
+                            })
+                            dialog.open()
                         }
                     }
                 }
@@ -105,19 +149,20 @@ ElDialog {
                     model: channelopener.trampolineNodeNames
                     onCurrentValueChanged: {
                         if (activeFocus)
-                            channelopener.nodeid = currentValue
+                            channelopener.connectStr = currentValue
                     }
                     // preselect a random node
                     Component.onCompleted: {
                         if (!Config.useGossip) {
                             currentIndex = Math.floor(Math.random() * channelopener.trampolineNodeNames.length)
-                            channelopener.nodeid = currentValue
+                            channelopener.connectStr = currentValue
                         }
                     }
                 }
 
                 Label {
                     text: qsTr('Amount')
+                    Layout.columnSpan: 3
                     color: Material.accentColor
                 }
 
@@ -130,7 +175,6 @@ ElDialog {
                 }
 
                 RowLayout {
-                    Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Label {
                         text: Config.baseUnit
@@ -169,15 +213,15 @@ ElDialog {
         FlatButton {
             Layout.fillWidth: true
             text: qsTr('Open Channel')
+            icon.source: '../../icons/confirmed.png'
             enabled: channelopener.valid
-            onClicked: channelopener.open_channel()
+            onClicked: channelopener.openChannel()
         }
     }
 
     Component {
         id: confirmOpenChannelDialog
         ConfirmTxDialog {
-            title: qsTr('Confirm Open Channel')
             amountLabelText: qsTr('Channel capacity')
             sendButtonText: qsTr('Open Channel')
             finalizer: channelopener.finalizer
@@ -187,47 +231,54 @@ ElDialog {
     ChannelOpener {
         id: channelopener
         wallet: Daemon.currentWallet
-        onAuthRequired: {
-            app.handleAuthRequired(channelopener, method)
+        onAuthRequired: (method, authMessage) => {
+            app.handleAuthRequired(channelopener, method, authMessage)
         }
-        onValidationError: {
+        onValidationError: (code, message) => {
             if (code == 'invalid_nodeid') {
-                var dialog = app.messageDialog.createObject(app, { 'text': message })
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Error'),
+                    iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                    text: message
+                })
                 dialog.open()
             }
         }
-        onConflictingBackup: {
-            var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
+        onConflictingBackup: (message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message,
+                yesno: true
+            })
             dialog.open()
-            dialog.yesClicked.connect(function() {
-                channelopener.open_channel(true)
+            dialog.accepted.connect(function() {
+                channelopener.openChannel(true)
             })
         }
         onFinalizerChanged: {
             var dialog = confirmOpenChannelDialog.createObject(app, {
-                'satoshis': channelopener.amount
+                satoshis: channelopener.amount
             })
-            dialog.txaccepted.connect(function() {
+            dialog.accepted.connect(function() {
                 dialog.finalizer.signAndSend()
             })
             dialog.open()
         }
-        onChannelOpening: {
+        onChannelOpening: (peer) => {
             console.log('Channel is opening')
             app.channelOpenProgressDialog.reset()
             app.channelOpenProgressDialog.peer = peer
             app.channelOpenProgressDialog.open()
         }
-        onChannelOpenError: {
+        onChannelOpenError: (message) => {
             app.channelOpenProgressDialog.state = 'failed'
             app.channelOpenProgressDialog.error = message
         }
-        onChannelOpenSuccess: {
+        onChannelOpenSuccess: (cid, has_onchain_backup, min_depth, tx_complete) => {
             var message = qsTr('Channel established.') + ' '
                     + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
             if (!tx_complete) {
                 message = message + '\n\n' + qsTr('Please sign and broadcast the funding transaction.')
-                channelopener.wallet.historyModel.init_model() // local tx doesn't trigger model update
+                channelopener.wallet.historyModel.initModel(true) // local tx doesn't trigger model update
             }
             app.channelOpenProgressDialog.state = 'success'
             app.channelOpenProgressDialog.info = message
@@ -235,8 +286,8 @@ ElDialog {
                 app.channelOpenProgressDialog.channelBackup = channelopener.channelBackup(cid)
             }
             // TODO: handle incomplete TX
-            channelopener.wallet.channelModel.new_channel(cid)
             root.close()
         }
     }
+
 }

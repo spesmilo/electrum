@@ -5,25 +5,26 @@
 import hid
 from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 
+import electrum_ecc as ecc
+
 from electrum import bip32, constants
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import PartialTransaction
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
-from electrum.util import bh2u, UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
+from electrum.transaction import PartialTransaction, Sighash
+from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
+from electrum.util import UserFacingException
 from electrum.logging import get_logger
 from electrum.plugin import Device, DeviceInfo, runs_in_hwd_thread
 from electrum.simple_config import SimpleConfig
-from electrum.json_db import StoredDict
 from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.bitcoin import OnchainOutputType
 
 import electrum.bitcoin as bitcoin
-import electrum.ecc as ecc
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
+if TYPE_CHECKING:
+    from electrum.wizard import NewWalletWizard
 
 _logger = get_logger(__name__)
 
@@ -31,18 +32,17 @@ _logger = get_logger(__name__)
 try:
     from bitbox02 import bitbox02
     from bitbox02 import util
-    from bitbox02.communication import (
-        devices,
-        HARDENED,
-        u2fhid,
-        bitbox_api_protocol,
-        FirmwareVersionOutdatedException,
-    )
+    from bitbox02.communication import (devices, HARDENED, u2fhid, bitbox_api_protocol,
+                                        FirmwareVersionOutdatedException)
     requirements_ok = True
 except ImportError as e:
     if not (isinstance(e, ModuleNotFoundError) and e.name == 'bitbox02'):
         _logger.exception('error importing bitbox02 plugin deps')
     requirements_ok = False
+
+
+class BitBox02NotInitialized(UserFacingException):
+    pass
 
 
 class BitBox02Client(HardwareClientBase):
@@ -72,6 +72,9 @@ class BitBox02Client(HardwareClientBase):
         if self.bitbox_hid_info is None:
             raise Exception("No BitBox02 detected")
 
+    def device_model_name(self) -> Optional[str]:
+        return 'BitBox02'
+
     def is_initialized(self) -> bool:
         return True
 
@@ -79,7 +82,7 @@ class BitBox02Client(HardwareClientBase):
     def close(self):
         try:
             self.bitbox02_device.close()
-        except:
+        except Exception:
             pass
 
     def has_usable_connection_with_device(self) -> bool:
@@ -104,7 +107,7 @@ class BitBox02Client(HardwareClientBase):
             self.handler.show_message(msg)
             try:
                 res = device_response()
-            except:
+            except Exception:
                 # Close the hid device on exception
                 hid_device.close()
                 raise
@@ -116,7 +119,7 @@ class BitBox02Client(HardwareClientBase):
             bitbox02_config = self.config.get("bitbox02")
             noise_keys = bitbox02_config.get("remote_static_noise_keys")
             if noise_keys is not None:
-                if pubkey.hex() in [noise_key for noise_key in noise_keys]:
+                if pubkey.hex() in noise_keys:
                     return True
             return False
 
@@ -189,7 +192,7 @@ class BitBox02Client(HardwareClientBase):
     def fail_if_not_initialized(self) -> None:
         assert self.bitbox02_device
         if not self.bitbox02_device.device_info()["initialized"]:
-            raise Exception(
+            raise BitBox02NotInitialized(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
             )
 
@@ -200,8 +203,16 @@ class BitBox02Client(HardwareClientBase):
 
     @runs_in_hwd_thread
     def get_password_for_storage_encryption(self) -> str:
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+
+        if self.bitbox02_device is None:
+            raise Exception(
+                "Need to setup communication first before attempting any BitBox02 calls"
+            )
+
         derivation = get_derivation_used_for_hw_device_encryption()
-        derivation_list = bip32.convert_bip32_path_to_list_of_uint32(derivation)
+        derivation_list = bip32.convert_bip32_strpath_to_intpath(derivation)
         xpub = self.bitbox02_device.electrum_encryption_key(derivation_list)
         node = bip32.BIP32Node.from_xkey(xpub, net = constants.BitcoinMainnet()).subkey_at_public_derivation(())
         return node.eckey.get_public_key_bytes(compressed=True).hex()
@@ -218,7 +229,7 @@ class BitBox02Client(HardwareClientBase):
 
         self.fail_if_not_initialized()
 
-        xpub_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        xpub_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if xtype == "p2wpkh":
@@ -245,12 +256,8 @@ class BitBox02Client(HardwareClientBase):
         else:
             raise Exception("invalid xtype:{}".format(xtype))
 
-        return self.bitbox02_device.btc_xpub(
-            keypath=xpub_keypath,
-            xpub_type=out_type,
-            coin=coin_network,
-            display=display,
-        )
+        return self.bitbox02_device.btc_xpub(keypath=xpub_keypath, xpub_type=out_type, coin=coin_network,
+                                             display=display)
 
     @runs_in_hwd_thread
     def label(self) -> str:
@@ -327,8 +334,8 @@ class BitBox02Client(HardwareClientBase):
                 )
             except bitbox02.DuplicateEntryException:
                 raise
-            except:
-                raise UserFacingException("Failed to register multisig\naccount configuration on BitBox02")
+            except Exception:
+                raise UserFacingException(_('Failed to register multisig\naccount configuration on BitBox02'))
         return multisig_config
 
     @runs_in_hwd_thread
@@ -341,7 +348,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        address_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        address_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if address_type == "p2wpkh":
@@ -444,9 +451,11 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
+            desc = txin.script_descriptor
+            assert desc
             if tx_script_type is None:
-                tx_script_type = txin.script_type
-            elif tx_script_type != txin.script_type:
+                tx_script_type = desc.to_legacy_electrum_script_type()
+            elif tx_script_type != desc.to_legacy_electrum_script_type():
                 raise Exception("Cannot mix different input script types")
 
         if tx_script_type == "p2wpkh":
@@ -464,9 +473,7 @@ class BitBox02Client(HardwareClientBase):
                 raise Exception("Can only use p2wsh-p2sh or p2wsh with multisig wallets")
         else:
             raise UserFacingException(
-                "invalid input script type: {} is not supported by the BitBox02".format(
-                    tx_script_type
-                )
+                _('Invalid input script type: {} is not supported by the BitBox02').format(tx_script_type)
             )
 
         # Build BTCOutputType list
@@ -495,7 +502,7 @@ class BitBox02Client(HardwareClientBase):
                     output_type = bitbox02.btc.P2TR
                 else:
                     raise UserFacingException(
-                        "Received unsupported output type during transaction signing: {} is not supported by the BitBox02".format(
+                        _('Received unsupported output type during transaction signing: {} is not supported by the BitBox02').format(
                             addrtype
                         )
                     )
@@ -508,6 +515,12 @@ class BitBox02Client(HardwareClientBase):
                 )
 
         keypath_account = full_path[:-2]
+
+        format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.DEFAULT
+        # Base unit is configured to be "sat":
+        if self.config.get_decimal_point() == 0:
+            format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.SAT
+
         sigs = self.bitbox02_device.btc_sign(
             coin,
             [bitbox02.btc.BTCScriptConfigWithKeypath(
@@ -518,12 +531,14 @@ class BitBox02Client(HardwareClientBase):
             outputs=outputs,
             locktime=tx.locktime,
             version=tx.version,
+            format_unit=format_unit,
         )
 
         # Fill signatures
         if len(sigs) != len(tx.inputs()):
             raise Exception("Incorrect number of inputs signed.")  # Should never occur
-        signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        signatures = [ecc.ecdsa_der_sig_from_ecdsa_sig64(x[1]) + sighash for x in sigs]
         tx.update_signatures(signatures)
 
     def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
@@ -538,19 +553,20 @@ class BitBox02Client(HardwareClientBase):
                 "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
             }[script_type]
         except KeyError:
-            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(script_type))
+            raise UserFacingException(_('The BitBox02 does not support signing messages for this address type: {}').format(script_type))
 
-        _, _, signature = self.bitbox02_device.btc_sign_msg(
+        _a, _b, signature = self.bitbox02_device.btc_sign_msg(
             self._get_coin(),
             bitbox02.btc.BTCScriptConfigWithKeypath(
                 script_config=bitbox02.btc.BTCScriptConfig(
                     simple_type=simple_type,
                 ),
-                keypath=bip32.convert_bip32_path_to_list_of_uint32(keypath),
+                keypath=bip32.convert_bip32_strpath_to_intpath(keypath),
             ),
             message,
         )
         return signature
+
 
 class BitBox02_KeyStore(Hardware_KeyStore):
     hw_type = "bitbox02"
@@ -571,9 +587,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
     def decrypt_message(self, pubkey, message, password):
         raise UserFacingException(
-            _(
-                "Message encryption, decryption and signing are currently not supported for {}"
-            ).format(self.device)
+            _('Message encryption, decryption and signing are currently not supported for {}').format(self.device)
         )
 
     def sign_message(self, sequence, message, password, *, script_type=None):
@@ -587,7 +601,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
         return client.sign_message(keypath, message.encode("utf-8"), script_type)
 
-
     @runs_in_hwd_thread
     def sign_transaction(self, tx: PartialTransaction, password: str):
         if tx.is_complete():
@@ -599,7 +612,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
             try:
                 self.handler.show_message("Authorize Transaction...")
                 client.sign_transaction(self, tx, self.handler.get_wallet())
-
             finally:
                 self.handler.finished()
 
@@ -626,9 +638,10 @@ class BitBox02_KeyStore(Hardware_KeyStore):
             self.logger.exception("")
             self.handler.show_error(e)
 
+
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (6, 0, 0)
+    minimum_library = (6, 2, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")
@@ -645,7 +658,7 @@ class BitBox02Plugin(HW_PluginBase):
         try:
             from bitbox02 import bitbox02
             version = bitbox02.__version__
-        except:
+        except Exception:
             version = "unknown"
         if requirements_ok:
             return version
@@ -655,30 +668,6 @@ class BitBox02Plugin(HW_PluginBase):
     @runs_in_hwd_thread
     def create_client(self, device, handler) -> BitBox02Client:
         return BitBox02Client(handler, device, self.config, plugin=self)
-
-    def setup_device(
-        self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int
-    ):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        assert isinstance(client, BitBox02Client)
-        if client.bitbox02_device is None:
-            wizard.run_task_without_blocking_gui(
-                task=lambda client=client: client.pairing_dialog())
-        client.fail_if_not_initialized()
-        return client
-
-    def get_xpub(
-        self, device_id: str, derivation: str, xtype: str, wizard: BaseWizard
-    ):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(
-                _("This type of script is not supported with {}: {}").format(self.device, xtype)
-            )
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        assert isinstance(client, BitBox02Client)
-        assert client.bitbox02_device is not None
-        return client.get_xpub(derivation, xtype)
 
     @runs_in_hwd_thread
     def show_address(
@@ -710,3 +699,29 @@ class BitBox02Plugin(HW_PluginBase):
         # distinguish devices.
         id_ = str(d['path'])
         return device._replace(id_=id_)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        # Note: device_info.initialized for this hardware doesn't imply a seed is present,
+        # only that it has firmware installed
+        if new_wallet:
+            return 'bitbox02_start' if device_info.initialized else 'bitbox02_not_initialized'
+        else:
+            return 'bitbox02_unlock'
+
+    # insert bitbox02 pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'bitbox02_start': {
+                'next': 'bitbox02_xpub',
+            },
+            'bitbox02_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'bitbox02_not_initialized': {},
+            'bitbox02_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

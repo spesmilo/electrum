@@ -1,14 +1,20 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.0
-import QtQuick.Layouts 1.0
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
 
 ItemDelegate {
     id: root
+
     height: item.height
     width: ListView.view.width
-
     font.pixelSize: constants.fontSizeSmall // set default font size for child controls
+
+    highlighted: ListView.isCurrentItem
+
+    function getKey() {
+        return model.key
+    }
 
     GridLayout {
         id: item
@@ -25,7 +31,7 @@ ItemDelegate {
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: 'transparent'
         }
 
@@ -127,9 +133,10 @@ ItemDelegate {
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: 'transparent'
         }
+
     }
 
     Connections {

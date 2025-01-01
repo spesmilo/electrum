@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -14,13 +14,12 @@ ElDialog {
     required property Amount satoshis
     property string address
     property string message
+    property bool showOptions: true
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
-    signal txcancelled
-    signal txaccepted
-
-    title: qsTr('Confirm Transaction')
+    title: qsTr('Transaction Fee')
+    iconSource: Qt.resolvedUrl('../../icons/question.png')
 
     // copy these to finalizer
     onAddressChanged: finalizer.address = address
@@ -30,200 +29,247 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     function updateAmountText() {
         btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
         fiatValue.text = Daemon.fx.enabled
-            ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+            ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
             : ''
     }
 
     ColumnLayout {
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
         spacing: 0
 
-        GridLayout {
-            width: parent.width
-            columns: 2
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            Label {
-                id: amountLabel
-                text: qsTr('Amount to send')
-                color: Material.accentColor
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Label {
-                    id: btcValue
-                    font.bold: true
-                }
+            leftMargin: constants.paddingLarge
+            rightMargin: constants.paddingLarge
+
+            contentHeight: rootLayout.height
+            clip: true
+            interactive: height < contentHeight
+
+            GridLayout {
+                id: rootLayout
+                width: parent.width
+
+                columns: 2
 
                 Label {
-                    text: Config.baseUnit
+                    id: amountLabel
+                    Layout.columnSpan: 2
+                    text: qsTr('Amount to send')
                     color: Material.accentColor
                 }
 
-                Label {
-                    id: fiatValue
-                    Layout.fillWidth: true
-                    font.pixelSize: constants.fontSizeMedium
-                }
-
-                Component.onCompleted: updateAmountText()
-                Connections {
-                    target: finalizer
-                    function onEffectiveAmountChanged() {
-                        updateAmountText()
-                    }
-                }
-            }
-
-            Label {
-                text: qsTr('Mining fee')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                amount: finalizer.fee
-            }
-
-            Label {
-                visible: !finalizer.extraFee.isEmpty
-                text: qsTr('Extra fee')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                visible: !finalizer.extraFee.isEmpty
-                amount: finalizer.extraFee
-            }
-
-            Label {
-                text: qsTr('Fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Label {
-                    id: feeRate
-                    text: finalizer.feeRate
-                    font.family: FixedFont
-                }
-
-                Label {
-                    text: 'sat/vB'
-                    color: Material.accentColor
-                }
-            }
-
-            Label {
-                text: qsTr('Target')
-                color: Material.accentColor
-            }
-
-            Label {
-                id: targetdesc
-                text: finalizer.target
-            }
-
-            Slider {
-                id: feeslider
-                leftPadding: constants.paddingMedium
-                snapMode: Slider.SnapOnRelease
-                stepSize: 1
-                from: 0
-                to: finalizer.sliderSteps
-                onValueChanged: {
-                    if (activeFocus)
-                        finalizer.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = finalizer.sliderPos
-                }
-                Connections {
-                    target: finalizer
-                    function onSliderPosChanged() {
-                        feeslider.value = finalizer.sliderPos
-                    }
-                }
-            }
-
-            FeeMethodComboBox {
-                id: target
-                feeslider: finalizer
-            }
-
-            InfoTextArea {
-                Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width * 3/4
-                Layout.alignment: Qt.AlignHCenter
-                visible: finalizer.warning != ''
-                text: finalizer.warning
-                iconStyle: InfoTextArea.IconStyle.Warn
-            }
-
-            Label {
-                text: qsTr('Outputs')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
-
-            Repeater {
-                model: finalizer.outputs
-                delegate: TextHighlightPane {
+                TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
-                    RowLayout {
-                        width: parent.width
+                    GridLayout {
+                        columns: 2
                         Label {
-                            text: modelData.address
+                            id: btcValue
+                            Layout.alignment: Qt.AlignRight
+                            font.pixelSize: constants.fontSizeXLarge
+                            font.family: FixedFont
+                            font.bold: true
+                        }
+
+                        Label {
                             Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
-                        }
-                        Label {
-                            text: Config.formatSats(modelData.value_sats)
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
-                        }
-                        Label {
                             text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
                             color: Material.accentColor
+                            font.pixelSize: constants.fontSizeXLarge
+                        }
+
+                        Label {
+                            id: fiatValue
+                            Layout.alignment: Qt.AlignRight
+                            visible: Daemon.fx.enabled
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: Daemon.fx.enabled
+                            text: Daemon.fx.fiatCurrency
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+                        Component.onCompleted: updateAmountText()
+                        Connections {
+                            target: finalizer
+                            function onEffectiveAmountChanged() {
+                                updateAmountText()
+                            }
                         }
                     }
                 }
+
+                Label {
+                    Layout.columnSpan: 2
+                    text: qsTr('Fee')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    height: feepicker.height
+
+                    FeePicker {
+                        id: feepicker
+                        width: parent.width
+                        finalizer: dialog.finalizer
+
+                        Label {
+                            visible: !finalizer.extraFee.isEmpty
+                            text: qsTr('Extra fee')
+                            color: Material.accentColor
+                        }
+
+                        FormattedAmount {
+                            visible: !finalizer.extraFee.isEmpty
+                            amount: finalizer.extraFee
+                        }
+                    }
+                }
+
+                ToggleLabel {
+                    id: optionstoggle
+                    Layout.columnSpan: 2
+                    labelText: qsTr('Options')
+                    color: Material.accentColor
+                    visible: showOptions
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: optionstoggle.visible && !optionstoggle.collapsed
+                    height: optionslayout.height
+
+                    GridLayout {
+                        id: optionslayout
+                        width: parent.width
+                        columns: 2
+
+                        ElCheckBox {
+                            Layout.fillWidth: true
+                            text: qsTr('Use multiple change addresses')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Daemon.currentWallet.multipleChange = checked
+                                    finalizer.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Daemon.currentWallet.multipleChange
+                            }
+                        }
+
+                        HelpButton {
+                            heading: qsTr('Use multiple change addresses')
+                            helptext: qsTr('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.')
+                        }
+
+                        ElCheckBox {
+                            Layout.fillWidth: true
+                            text: qsTr('Enable output value rounding')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.outputValueRounding = checked
+                                    finalizer.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Config.outputValueRounding
+                            }
+                        }
+
+                        HelpButton {
+                            heading: qsTr('Enable output value rounding')
+                            helptext: qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.')
+                                    + ' ' + qsTr('This may result in higher transactions fees.')
+                        }
+
+                    }
+                }
+
+                InfoTextArea {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    Layout.topMargin: constants.paddingLarge
+                    Layout.bottomMargin: constants.paddingLarge
+                    visible: finalizer.warning != ''
+                    text: finalizer.warning
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                }
+
+                ToggleLabel {
+                    id: inputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    labelText: qsTr('Inputs (%1)').arg(finalizer.inputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: inputs_label.collapsed
+                        ? undefined
+                        : finalizer.inputs
+                    delegate: TxInput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
+                ToggleLabel {
+                    id: outputs_label
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingMedium
+
+                    labelText: qsTr('Outputs (%1)').arg(finalizer.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: outputs_label.collapsed
+                        ? undefined
+                        : finalizer.outputs
+                    delegate: TxOutput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        allowShare: false
+                        allowClickAddress: false
+
+                        idx: index
+                        model: modelData
+                    }
+                }
+
             }
         }
-
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
         FlatButton {
             id: sendButton
             Layout.fillWidth: true
             text: (Daemon.currentWallet.isWatchOnly || !Daemon.currentWallet.canSignWithoutCosigner)
                     ? qsTr('Finalize')
-                    : qsTr('Pay')
+                    : qsTr('Pay...')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
-    onClosed: txcancelled()
+    onClosed: doReject()
 }

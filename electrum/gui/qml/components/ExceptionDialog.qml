@@ -1,9 +1,9 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
-import QtQml 2.6
+import QtQml
 
 import "controls"
 
@@ -14,12 +14,6 @@ ElDialog
     property var crashData
 
     property bool _sending: false
-
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     width: parent.width
     height: parent.height
@@ -54,7 +48,8 @@ ElDialog
             Layout.alignment: Qt.AlignCenter
             text: qsTr('Show report contents')
             onClicked: {
-                console.log('traceback: ' + crashData.traceback.stack)
+                if (crashData.traceback)
+                    console.log('traceback: ' + crashData.traceback.stack)
                 var dialog = report.createObject(app, {
                     reportText: crashData.reportstring
                 })
@@ -112,21 +107,23 @@ ElDialog
             property string reportText
 
             z: 3000
-            modal: true
-            parent: Overlay.overlay
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
 
             width: parent.width
             height: parent.height
 
             header: null
 
-            Label {
-                text: reportText
-                wrapMode: Text.Wrap
-                width: parent.width
+            Flickable {
+                anchors.fill: parent
+                contentHeight: reportLabel.implicitHeight
+                interactive: height < contentHeight
+
+                Label {
+                    id: reportLabel
+                    text: reportText
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                }
             }
         }
     }
@@ -145,6 +142,8 @@ ElDialog
         function onSendingBugreportFailure(text) {
             _sending = false
             var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: text,
                 richText: true
             })

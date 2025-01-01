@@ -1,23 +1,21 @@
-from binascii import hexlify, unhexlify
-import traceback
-import sys
-from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Sequence
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
+from electrum.util import UserFacingException
 from electrum.bip32 import BIP32Node
+from electrum import descriptor
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.keystore import Hardware_KeyStore
-from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                get_xpubs_and_der_suffixes_from_txinout)
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
 
 if TYPE_CHECKING:
     from .client import SafeTClient
+    from electrum.plugin import DeviceInfo
+    from electrum.wizard import NewWalletWizard
 
 # Safe-T mini initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -156,52 +154,8 @@ class SafeTPlugin(HW_PluginBase):
     def get_coin_name(self):
         return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
-    def initialize_device(self, device_id, wizard, handler):
-        # Initialization method
-        msg = _("Choose how you want to initialize your {}.\n\n"
-                "The first two methods are secure as no secret information "
-                "is entered into your computer.\n\n"
-                "For the last two methods you input secrets on your keyboard "
-                "and upload them to your {}, and so you should "
-                "only do those on a computer you know to be trustworthy "
-                "and free of malware."
-        ).format(self.device, self.device)
-        choices = [
-            # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
-            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
-            (TIM_PRIVKEY, _("Upload a master private key"))
-        ]
-        def f(method):
-            import threading
-            settings = self.request_safe_t_init_settings(wizard, method, self.device)
-            t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.daemon = True
-            t.start()
-            exit_code = wizard.loop.exec_()
-            if exit_code != 0:
-                # this method (initialize_device) was called with the expectation
-                # of leaving the device in an initialized state when finishing.
-                # signal that this is not the case:
-                raise UserCancelled()
-        wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
-
-    def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
-        exit_code = 0
-        try:
-            self._initialize_device(settings, method, device_id, wizard, handler)
-        except UserCancelled:
-            exit_code = 1
-        except BaseException as e:
-            self.logger.exception('')
-            handler.show_error(repr(e))
-            exit_code = 1
-        finally:
-            wizard.loop.exit(exit_code)
-
     @runs_in_hwd_thread
-    def _initialize_device(self, settings, method, device_id, wizard, handler):
+    def _initialize_device(self, settings, method, device_id, handler):
         item, label, pin_protection, passphrase_protection = settings
 
         if method == TIM_RECOVER:
@@ -241,7 +195,7 @@ class SafeTPlugin(HW_PluginBase):
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
 
-    def _make_node_path(self, xpub, address_n):
+    def _make_node_path(self, xpub: str, address_n: Sequence[int]):
         bip32node = BIP32Node.from_xkey(xpub)
         node = self.types.HDNodeType(
             depth=bip32node.depth,
@@ -251,24 +205,6 @@ class SafeTPlugin(HW_PluginBase):
             public_key=bip32node.eckey.get_public_key_bytes(compressed=True),
         )
         return self.types.HDNodePathType(node=node, address_n=address_n)
-
-    def setup_device(self, device_info, wizard, purpose):
-        device_id = device_info.device.id_
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        if not device_info.initialized:
-            self.initialize_device(device_id, wizard, client.handler)
-        wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m", 'standard'))
-        client.used()
-        return client
-
-    def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        xpub = client.get_xpub(derivation, xtype)
-        client.used()
-        return xpub
 
     def get_safet_input_script_type(self, electrum_txin_type: str):
         if electrum_txin_type in ('p2wpkh', 'p2wsh'):
@@ -300,7 +236,8 @@ class SafeTPlugin(HW_PluginBase):
         outputs = self.tx_outputs(tx, keystore=keystore)
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs,
                                     lock_time=tx.locktime, version=tx.version)[0]
-        signatures = [(bh2u(x) + '01') for x in signatures]
+        sighash = Sighash.to_sigbytes(Sighash.ALL)
+        signatures = [(sig + sighash) for sig in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread
@@ -320,14 +257,9 @@ class SafeTPlugin(HW_PluginBase):
         script_type = self.get_safet_input_script_type(wallet.txin_type)
 
         # prepare multisig, if available:
-        xpubs = wallet.get_master_public_keys()
-        if len(xpubs) > 1:
-            pubkeys = wallet.get_public_keys(address)
-            # sort xpubs using the order of pubkeys
-            sorted_pairs = sorted(zip(pubkeys, xpubs))
-            multisig = self._make_multisig(
-                wallet.m,
-                [(xpub, deriv_suffix) for pubkey, xpub in sorted_pairs])
+        desc = wallet.get_script_descriptor_for_address(address)
+        if multi := desc.get_simple_multisig():
+            multisig = self._make_multisig(multi)
         else:
             multisig = None
 
@@ -345,12 +277,13 @@ class SafeTPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    if len(txin.pubkeys) > 1:
-                        xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
-                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                    desc = txin.script_descriptor
+                    assert desc
+                    if multi := desc.get_simple_multisig():
+                        multisig = self._make_multisig(multi)
                     else:
                         multisig = None
-                    script_type = self.get_safet_input_script_type(txin.script_type)
+                    script_type = self.get_safet_input_script_type(desc.to_legacy_electrum_script_type())
                     txinputtype = self.types.TxInputType(
                         script_type=script_type,
                         multisig=multisig)
@@ -375,22 +308,27 @@ class SafeTPlugin(HW_PluginBase):
 
         return inputs
 
-    def _make_multisig(self, m, xpubs):
-        if len(xpubs) == 1:
-            return None
-        pubkeys = [self._make_node_path(xpub, deriv) for xpub, deriv in xpubs]
+    def _make_multisig(self, desc: descriptor.MultisigDescriptor):
+        pubkeys = []
+        for pubkey_provider in desc.pubkeys:
+            assert not pubkey_provider.is_range()
+            assert pubkey_provider.extkey is not None
+            xpub = pubkey_provider.pubkey
+            der_suffix = pubkey_provider.get_der_suffix_int_list()
+            pubkeys.append(self._make_node_path(xpub, der_suffix))
         return self.types.MultisigRedeemScriptType(
             pubkeys=pubkeys,
             signatures=[b''] * len(pubkeys),
-            m=m)
+            m=desc.thresh)
 
     def tx_outputs(self, tx: PartialTransaction, *, keystore: 'SafeTKeyStore'):
 
         def create_output_by_derivation():
-            script_type = self.get_safet_output_script_type(txout.script_type)
-            if len(txout.pubkeys) > 1:
-                xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
-                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+            desc = txout.script_descriptor
+            assert desc
+            script_type = self.get_safet_output_script_type(desc.to_legacy_electrum_script_type())
+            if multi := desc.get_simple_multisig():
+                multisig = self._make_multisig(multi)
             else:
                 multisig = None
             my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)
@@ -458,3 +396,35 @@ class SafeTPlugin(HW_PluginBase):
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
+
+    def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if new_wallet:
+            return 'safet_start' if device_info.initialized else 'safet_not_initialized'
+        else:
+            return 'safet_unlock'
+
+    # insert safe_t pages in new wallet wizard
+    def extend_wizard(self, wizard: 'NewWalletWizard'):
+        views = {
+            'safet_start': {
+                'next': 'safet_xpub',
+            },
+            'safet_xpub': {
+                'next': lambda d: wizard.wallet_password_view(d) if wizard.last_cosigner(d) else 'multisig_cosigner_keystore',
+                'accept': wizard.maybe_master_pubkey,
+                'last': lambda d: wizard.is_single_password() and wizard.last_cosigner(d)
+            },
+            'safet_not_initialized': {
+                'next': 'safet_choose_new_recover',
+            },
+            'safet_choose_new_recover': {
+                'next': 'safet_do_init',
+            },
+            'safet_do_init': {
+                'next': 'safet_start',
+            },
+            'safet_unlock': {
+                'last': True
+            },
+        }
+        wizard.navmap_merge(views)

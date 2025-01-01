@@ -1,6 +1,6 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 import org.electrum 1.0
 
@@ -8,6 +8,7 @@ import "../controls"
 
 WizardComponent {
     id: root
+    securePage: true
 
     valid: false
 
@@ -25,23 +26,29 @@ WizardComponent {
 
     ColumnLayout {
         width: parent.width
-
-        Label { text: qsTr('Import Bitcoin Addresses') }
-
+        height: parent.height
         InfoTextArea {
             Layout.preferredWidth: parent.width
             text: qsTr('Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 
         RowLayout {
-            TextArea {
+            Layout.topMargin: constants.paddingMedium
+            Layout.fillHeight: true
+
+            ElTextArea {
                 id: import_ta
                 Layout.fillWidth: true
-                Layout.minimumHeight: 80
-                focus: true
+                Layout.fillHeight: true
+                font.family: FixedFont
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: valid = verify(text)
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                background: PaneInsetBackground {
+                    baseColor: constants.darkerDialogBackground
+                }
             }
+
             ColumnLayout {
                 Layout.alignment: Qt.AlignTop
                 ToolButton {
@@ -62,35 +69,23 @@ WizardComponent {
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root)
-                        scan.onFound.connect(function() {
-                            if (verify(scan.scanData)) {
-                                if (import_ta.text != '')
-                                    import_ta.text = import_ta.text + ',\n'
-                                import_ta.text = import_ta.text + scan.scanData
-                            }
-                            scan.destroy()
+                        var dialog = app.scanDialog.createObject(app, {
+                            hint: bitcoin.isAddressList(import_ta.text)
+                                ? qsTr('Scan another address')
+                                : bitcoin.isPrivateKeyList(import_ta.text)
+                                    ? qsTr('Scan another private key')
+                                    : qsTr('Scan a private key or an address')
                         })
+                        dialog.onFound.connect(function() {
+                            if (verify(dialog.scanData)) {
+                                if (import_ta.text != '')
+                                    import_ta.text = import_ta.text + '\n'
+                                import_ta.text = import_ta.text + dialog.scanData
+                            }
+                            dialog.close()
+                        })
+                        dialog.open()
                     }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: root.width
-            height: root.height
-
-            ToolButton {
-                icon.source: '../../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
                 }
             }
         }

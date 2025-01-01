@@ -23,11 +23,19 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+from typing import Optional
 
 import gettext
 
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
-language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
+
+# Set initial default language to None. i.e. translations explicitly disabled.
+# The main script or GUIs can call set_language to enable translations.
+language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
 
 
 # note: do not use old-style (%) formatting inside translations,
@@ -38,14 +46,26 @@ language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
 #       So this does not work:   _(f"My name: {name}")
 #       instead use .format:     _("My name: {}").format(name)
-def _(x: str) -> str:
-    if x == "":
+def _(msg: str, *, context=None) -> str:
+    if msg == "":
         return ""  # empty string must not be translated. see #7158
     global language
-    return language.gettext(x)
+    if context:
+        contexts = [context]
+        if context[-1] != "|":  # try with both "|" suffix and without
+            contexts.append(context + "|")
+        else:
+            contexts.append(context[:-1])
+        for ctx in contexts:
+            out = language.pgettext(ctx, msg)
+            if out != msg:  # found non-trivial translation
+                return out
+        # else try without context
+    return language.gettext(msg)
 
 
-def set_language(x):
+def set_language(x: Optional[str]) -> None:
+    _logger.info(f"setting language to {x!r}")
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])

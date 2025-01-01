@@ -1,13 +1,13 @@
 from pythonforandroid.recipes.sip import SipRecipe
 
 
-assert SipRecipe._version == "6.5.1"
-assert SipRecipe.depends == ["setuptools", "packaging", "toml", "python3"]
+assert SipRecipe._version == "6.7.9"
+assert SipRecipe.depends == ["setuptools", "packaging", "tomli", "ply", "python3"], SipRecipe.depends
 assert SipRecipe.python_depends == []
 
 
 class SipRecipePinned(SipRecipe):
-    sha512sum = "2d6f225e653873462d97dfdc85bd308a26b66996e1bb98e2c3aa60a3b260db745021f1d3182db8e943fd216ee27a2f65731b96d287e94f8f2e7972c5df971c69"
+    sha512sum = "bb9d0d0d92002b6fd33f7e8ebe8cd62456dacc16b5734b73760b1ba14fb9b1f2b9b6640b40196c6cf5f345e1afde48bdef39675c4d3480041771325d4cf3c233"
 
 
 recipe = SipRecipePinned()

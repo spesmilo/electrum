@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -15,12 +15,6 @@ ElDialog {
     title: qsTr('Opening Channel...')
 
     allowClose: false
-
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     property alias state: s.state
     property alias error: errorText.text
@@ -123,7 +117,7 @@ ElDialog {
 
         var sharedialog = app.genericShareDialog.createObject(app, {
             title: qsTr('Save Channel Backup'),
-            text: dialog.channelBackup,
+            text_qr: dialog.channelBackup,
             text_help: qsTr('The channel you created is not recoverable from seed.')
             + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
             + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')

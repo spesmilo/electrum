@@ -1,16 +1,19 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
+from electrum.util import UserFacingException
 
+from .auth import auth_protect, AuthMixin
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
 
-class QEAddressDetails(QObject):
+class QEAddressDetails(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
     detailsChanged = pyqtSignal()
+    addressDeleteFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -27,6 +30,7 @@ class QEAddressDetails(QObject):
         self._privkey = None
         self._derivationPath = None
         self._numtx = 0
+        self._candelete = False
 
         self._historyModel = None
 
@@ -67,6 +71,10 @@ class QEAddressDetails(QObject):
         return self._pubkeys
 
     @pyqtProperty(str, notify=detailsChanged)
+    def privkey(self):
+        return self._privkey
+
+    @pyqtProperty(str, notify=detailsChanged)
     def derivationPath(self):
         return self._derivationPath
 
@@ -74,6 +82,9 @@ class QEAddressDetails(QObject):
     def numTx(self):
         return self._numtx
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def canDelete(self):
+        return self._candelete
 
     frozenChanged = pyqtSignal()
     @pyqtProperty(bool, notify=frozenChanged)
@@ -94,7 +105,7 @@ class QEAddressDetails(QObject):
             self._wallet.balanceChanged.emit()
 
     @pyqtSlot(str)
-    def set_label(self, label: str):
+    def setLabel(self, label: str):
         if label != self._label:
             self._wallet.wallet.set_label(self._address, label)
             self._label = label
@@ -107,6 +118,31 @@ class QEAddressDetails(QObject):
             self._historyModel = QETransactionListModel(self._wallet.wallet,
                                                         onchain_domain=[self._address], include_lightning=False)
         return self._historyModel
+
+    @pyqtSlot()
+    def requestShowPrivateKey(self):
+        self.retrieve_private_key()
+
+    @auth_protect(method='wallet')
+    def retrieve_private_key(self):
+        try:
+            self._privkey = self._wallet.wallet.export_private_key(self._address, self._wallet.password)
+        except Exception as e:
+            self._logger.error(f'problem retrieving privkey: {str(e)}')
+            self._privkey = ''
+
+        self.detailsChanged.emit()
+
+    @pyqtSlot(result=bool)
+    def deleteAddress(self):
+        assert self.canDelete
+        try:
+            self._wallet.wallet.delete_address(self._address)
+            self._wallet.historyModel.setDirty()
+        except UserFacingException as e:
+            self.addressDeleteFailed.emit(str(e))
+            return False
+        return True
 
     def update(self):
         if self._wallet is None:
@@ -125,5 +161,5 @@ class QEAddressDetails(QObject):
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
-        assert self._numtx == self.historyModel.rowCount(0)
+        self._candelete = self.wallet.wallet.can_delete_address()
         self.detailsChanged.emit()

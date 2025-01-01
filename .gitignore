@@ -12,8 +12,7 @@ electrum/locale/
 packages
 env/
 .buildozer
-.buildozer_kivy/
-.buildozer_qml/
+.buildozer_*/
 bin/
 /app.fil
 .idea
@@ -21,6 +20,8 @@ bin/
 .vscode
 electrum_data
 .DS_Store
+contrib/trigger_website
+contrib/trigger_binaries
 
 # tests/tox
 .tox/
@@ -34,14 +35,10 @@ contrib/build-wine/build/
 contrib/build-wine/.cache/
 contrib/build-wine/dist/
 contrib/build-wine/signed/
-contrib/build-wine/fresh_clone/
-contrib/build-linux/sdist/fresh_clone/
 contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
-contrib/build-linux/appimage/fresh_clone/
 contrib/osx/.cache/
 contrib/osx/build-venv/
-contrib/android/fresh_clone
 contrib/android/android_debug.keystore
 contrib/secp256k1/
 contrib/zbar/
@@ -50,7 +47,7 @@ contrib/.venv_make_packages/
 
 # shared objects
 electrum/*.so
-electrum/*.so.0
+electrum/*.so.*
 electrum/*.dll
 electrum/*.dylib
 contrib/osx/*.dylib

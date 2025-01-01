@@ -6,7 +6,7 @@ here="$(dirname "$(readlink -e "$0")")"
 test -n "$here" -a -d "$here" || exit
 
 if [ -z "$WIN_ARCH" ] ; then
-    export WIN_ARCH="win32"  # default
+    export WIN_ARCH="win64"  # default
 fi
 if [ "$WIN_ARCH" = "win32" ] ; then
     export GCC_TRIPLET_HOST="i686-w64-mingw32"
@@ -31,9 +31,11 @@ export DLL_TARGET_DIR="$CACHEDIR/dlls"
 export WINEPREFIX="/opt/wine64"
 export WINEDEBUG=-all
 export WINE_PYHOME="c:/python3"
-export WINE_PYTHON="wine $WINE_PYHOME/python.exe -OO -B"
+export WINE_PYTHON="wine $WINE_PYHOME/python.exe -B"
 
 . "$CONTRIB"/build_tools_util.sh
+
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
 
 info "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -rf
@@ -41,7 +43,7 @@ rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
 
-if [ -f "$DLL_TARGET_DIR/libsecp256k1-0.dll" ]; then
+if [ -f "$DLL_TARGET_DIR/libsecp256k1-2.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"

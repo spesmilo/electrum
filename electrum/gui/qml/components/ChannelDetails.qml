@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -31,235 +31,451 @@ Pane {
             clip:true
             interactive: height < contentHeight
 
-            GridLayout {
+            ColumnLayout {
                 id: rootLayout
                 width: parent.width
-                columns: 2
 
                 Heading {
-                    Layout.columnSpan: 2
-                    text: qsTr('Channel details')
+                    text: !channeldetails.isBackup ? qsTr('Lightning Channel') : qsTr('Channel Backup')
                 }
 
-                Label {
-                    visible: channeldetails.name
-                    text: qsTr('Node name')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    visible: channeldetails.name
-                    text: channeldetails.name
-                }
-
-                Label {
-                    text: qsTr('Short channel ID')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: channeldetails.short_cid
-                }
-
-                Label {
-                    text: qsTr('State')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: channeldetails.state
-                }
-
-                Label {
-                    text: qsTr('Initiator')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: channeldetails.initiator
-                }
-
-                Label {
-                    text: qsTr('Capacity')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: channeldetails.capacity
-                }
-
-                Label {
-                    text: qsTr('Can send')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    visible: channeldetails.isOpen
-                    FormattedAmount {
-                        visible: !channeldetails.frozenForSending
-                        amount: channeldetails.canSend
-                        singleLine: false
-                    }
-                    Label {
-                        visible: channeldetails.frozenForSending
-                        text: qsTr('n/a (frozen)')
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                    }
-                    FlatButton {
-                        Layout.minimumWidth: implicitWidth
-                        // icon.source: '../../icons/warning.png'
-                        // icon.color: 'transparent'
-                        text: channeldetails.frozenForSending ? qsTr('Unfreeze') : qsTr('Freeze')
-                        onClicked: channeldetails.freezeForSending()
-                    }
-                }
-
-                Label {
-                    visible: !channeldetails.isOpen
-                    text: qsTr('n/a (channel not open)')
-                }
-
-                Label {
-                    text: qsTr('Can Receive')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    visible: channeldetails.isOpen
-                    FormattedAmount {
-                        visible: !channeldetails.frozenForReceiving
-                        amount: channeldetails.canReceive
-                        singleLine: false
-                    }
-
-                    Label {
-                        visible: channeldetails.frozenForReceiving
-                        text: qsTr('n/a (frozen)')
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                    }
-                    FlatButton {
-                        Layout.minimumWidth: implicitWidth
-                        // icon.source: '../../icons/warning.png'
-                        // icon.color: 'transparent'
-                        text: channeldetails.frozenForReceiving ? qsTr('Unfreeze') : qsTr('Freeze')
-                        onClicked: channeldetails.freezeForReceiving()
-                    }
-                }
-
-                Label {
-                    visible: !channeldetails.isOpen
-                    text: qsTr('n/a (channel not open)')
-                }
-
-                Label {
-                    text: qsTr('Channel type')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: channeldetails.channelType
-                }
-
-                Label {
-                    text: qsTr('Remote node ID')
-                    Layout.columnSpan: 2
-                    color: Material.accentColor
-                }
-
-                TextHighlightPane {
-                    Layout.columnSpan: 2
+                GridLayout {
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
+                    columns: 2
 
-                    RowLayout {
-                        width: parent.width
-                        Label {
-                            text: channeldetails.pubkey
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                        }
-                        ToolButton {
-                            icon.source: '../../icons/share.png'
-                            icon.color: 'transparent'
-                            onClicked: {
-                                var dialog = app.genericShareDialog.createObject(root,
-                                    { title: qsTr('Channel node ID'), text: channeldetails.pubkey }
-                                )
-                                dialog.open()
+                    Label {
+                        visible: channeldetails.name
+                        text: qsTr('Node name')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: channeldetails.name
+                        text: channeldetails.name
+                    }
+
+                    Label {
+                        text: qsTr('State')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        text: channeldetails.state
+                        color: channeldetails.state == 'OPEN'
+                                ? constants.colorChannelOpen
+                                : Material.foreground
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Capacity and ratio')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        padding: constants.paddingLarge
+
+                        GridLayout {
+                            width: parent.width
+                            columns: 2
+                            rowSpacing: constants.paddingSmall
+
+                            InfoTextArea {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                Layout.bottomMargin: constants.paddingMedium
+                                visible: channeldetails.canSend.msatsInt < 0.5 * channeldetails.localCapacity.msatsInt
+                                    && channeldetails.localCapacity.msatsInt > 0.2 * channeldetails.capacity.msatsInt
+                                iconStyle: InfoTextArea.IconStyle.Warn
+                                compact: true
+                                text: [qsTr('The amount available for sending is considerably lower than the local balance.'),
+                                    qsTr('This can occur when mempool fees are high.')].join(' ')
+                            }
+
+                            ChannelBar {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                Layout.topMargin: constants.paddingLarge
+                                Layout.bottomMargin: constants.paddingXLarge
+                                visible: channeldetails.stateCode != ChannelDetails.Redeemed
+                                    && channeldetails.stateCode != ChannelDetails.Closed
+                                    && !channeldetails.isBackup
+                                capacity: channeldetails.capacity
+                                localCapacity: channeldetails.localCapacity
+                                remoteCapacity: channeldetails.remoteCapacity
+                                canSend: channeldetails.canSend
+                                canReceive: channeldetails.canReceive
+                                frozenForSending: channeldetails.frozenForSending
+                                frozenForReceiving: channeldetails.frozenForReceiving
+                            }
+
+                            Label {
+                                text: qsTr('Capacity')
+                                color: Material.accentColor
+                            }
+
+                            FormattedAmount {
+                                amount: channeldetails.capacity
+                            }
+
+                            Label {
+                                text: qsTr('Can send')
+                                color: Material.accentColor
+                            }
+
+                            RowLayout {
+                                visible: channeldetails.isOpen
+                                FormattedAmount {
+                                    visible: !channeldetails.frozenForSending
+                                    amount: channeldetails.canSend
+                                    singleLine: false
+                                }
+                                Label {
+                                    visible: channeldetails.frozenForSending
+                                    text: qsTr('n/a (frozen)')
+                                }
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 1
+                                }
+                                Pane {
+                                    background: Rectangle { color: Material.dialogColor }
+                                    padding: 0
+                                    FlatButton {
+                                        Layout.minimumWidth: implicitWidth
+                                        text: channeldetails.frozenForSending ? qsTr('Unfreeze') : qsTr('Freeze')
+                                        onClicked: channeldetails.freezeForSending()
+                                    }
+                                }
+                            }
+
+                            Label {
+                                visible: !channeldetails.isOpen
+                                text: qsTr('n/a (channel not open)')
+                            }
+
+                            Label {
+                                text: qsTr('Can receive')
+                                color: Material.accentColor
+                            }
+
+                            RowLayout {
+                                visible: channeldetails.isOpen
+                                FormattedAmount {
+                                    visible: !channeldetails.frozenForReceiving
+                                    amount: channeldetails.canReceive
+                                    singleLine: false
+                                }
+
+                                Label {
+                                    visible: channeldetails.frozenForReceiving
+                                    text: qsTr('n/a (frozen)')
+                                }
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 1
+                                }
+                                Pane {
+                                    background: Rectangle { color: Material.dialogColor }
+                                    padding: 0
+                                    FlatButton {
+                                        Layout.minimumWidth: implicitWidth
+                                        text: channeldetails.frozenForReceiving ? qsTr('Unfreeze') : qsTr('Freeze')
+                                        onClicked: channeldetails.freezeForReceiving()
+                                    }
+                                }
+                            }
+
+                            Label {
+                                visible: !channeldetails.isOpen
+                                text: qsTr('n/a (channel not open)')
                             }
                         }
                     }
-                }
 
+                    Heading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Technical properties')
+                    }
+
+                    Label {
+                        text: qsTr('Short channel ID')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.shortCid
+                    }
+
+                    Label {
+                        text: qsTr('Local SCID alias')
+                        color: Material.accentColor
+                        visible: channeldetails.localScidAlias
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.localScidAlias
+                        visible: channeldetails.localScidAlias
+                    }
+
+                    Label {
+                        text: qsTr('Remote SCID alias')
+                        color: Material.accentColor
+                        visible: channeldetails.remoteScidAlias
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.remoteScidAlias
+                        visible: channeldetails.remoteScidAlias
+                    }
+
+                    Label {
+                        visible: !channeldetails.isBackup
+                        text: qsTr('Initiator')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        visible: !channeldetails.isBackup
+                        text: channeldetails.initiator
+                    }
+
+                    Label {
+                        text: qsTr('Channel type')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        text: channeldetails.channelType
+                    }
+
+                    Label {
+                        text: qsTr('Current feerate')
+                        color: Material.accentColor
+                        visible: channeldetails.currentFeerate
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: channeldetails.currentFeerate
+                        visible: channeldetails.currentFeerate
+                    }
+
+                    Label {
+                        visible: channeldetails.isBackup
+                        text: qsTr('Backup type')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        visible: channeldetails.isBackup
+                        text: channeldetails.backupType == 'imported'
+                                  ? qsTr('imported')
+                                  : channeldetails.backupType == 'on-chain'
+                                      ? qsTr('on-chain')
+                                      : '?'
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Remote node ID')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: channeldetails.pubkey
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Channel node ID'),
+                                        text: channeldetails.pubkey
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Funding Outpoint')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: channeldetails.fundingOutpoint.txid + ':' +  channeldetails.fundingOutpoint.index
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+
+                                TapHandler {
+                                    onTapped: {
+                                        app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {
+                                            txid: channeldetails.fundingOutpoint.txid
+                                        })
+                                    }
+                                }
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Funding Outpoint'),
+                                        text: channeldetails.fundingOutpoint.txid + ':' + channeldetails.fundingOutpoint.index
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        visible: channeldetails.closingTxid
+                        text: qsTr('Closing transaction')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: channeldetails.closingTxid
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: channeldetails.closingTxid
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+
+                                TapHandler {
+                                    onTapped: {
+                                        app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {
+                                            txid: channeldetails.closingTxid
+                                        })
+                                    }
+                                }
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Channel close transaction'),
+                                        text: channeldetails.closingTxid
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                }
             }
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Backup');
-            onClicked: {
-                var dialog = app.genericShareDialog.createObject(root,
-                    {
-                        title: qsTr('Channel Backup for %1').arg(channeldetails.short_cid),
-                        text: channeldetails.channelBackup(),
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                visible: !channeldetails.isBackup
+                text: qsTr('Backup')
+                icon.source: '../../icons/file.png'
+                onClicked: {
+                    var dialog = app.genericShareDialog.createObject(root, {
+                        title: qsTr('Channel Backup for %1').arg(channeldetails.shortCid),
+                        text_qr: channeldetails.channelBackup(),
                         text_help: channeldetails.channelBackupHelpText(),
                         iconSource: Qt.resolvedUrl('../../icons/file.png')
-                    }
-                )
-                dialog.open()
+                    })
+                    dialog.open()
+                }
             }
-            icon.source: '../../icons/file.png'
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Close channel');
+                visible: channeldetails.canClose
+                icon.source: '../../icons/closebutton.png'
+                onClicked: {
+                    var dialog = closechannel.createObject(root, { channelid: channelid })
+                    dialog.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Delete channel');
+                visible: channeldetails.canDelete
+                icon.source: '../../icons/delete.png'
+                onClicked: {
+                    var dialog = app.messageDialog.createObject(root, {
+                        title: qsTr('Are you sure?'),
+                        text: channeldetails.isBackup ? '' : qsTr('This will purge associated transactions from your wallet history.'),
+                        yesno: true
+                    })
+                    dialog.accepted.connect(function() {
+                        channeldetails.deleteChannel()
+                        app.stack.pop()
+                        Daemon.currentWallet.historyModel.initModel(true) // needed here?
+                        Daemon.currentWallet.channelModel.removeChannel(channelid)
+                    })
+                    dialog.open()
+                }
+            }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            text: qsTr('Close channel');
-            visible: channeldetails.canClose
-            onClicked: {
-                var dialog = closechannel.createObject(root, { 'channelid': channelid })
-                dialog.open()
-            }
-            icon.source: '../../icons/closebutton.png'
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            text: qsTr('Delete channel');
-            visible: channeldetails.canDelete
-            onClicked: {
-                var dialog = app.messageDialog.createObject(root,
-                        {
-                            'text': qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
-                            'yesno': true
-                        }
-                )
-                dialog.yesClicked.connect(function() {
-                    channeldetails.deleteChannel()
-                    app.stack.pop()
-                    Daemon.currentWallet.historyModel.init_model() // needed here?
-                    Daemon.currentWallet.channelModel.remove_channel(channelid)
-                })
-                dialog.open()
-            }
-            icon.source: '../../icons/delete.png'
-        }
     }
 
     ChannelDetails {
         id: channeldetails
         wallet: Daemon.currentWallet
         channelid: root.channelid
+        onTrampolineFrozenInGossipMode: {
+            var dialog = app.messageDialog.createObject(root, {
+                title: qsTr('Cannot unfreeze channel'),
+                text: [qsTr('Non-Trampoline channels cannot be used for sending while in trampoline mode.'),
+                        qsTr('Disable trampoline mode to enable sending from this channel.')].join(' ')
+            })
+            dialog.open()
+        }
     }
 
     Component {

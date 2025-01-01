@@ -37,13 +37,28 @@ fi
 VERSION=$("$CONTRIB"/print_electrum_version.py)
 info "VERSION: $VERSION"
 
+ANDROID_VERSIONCODE_NULLARCH=$("$CONTRIB"/android/get_apk_versioncode.py "null")
+# ^ note: should parse as an integer in the final json
+info "ANDROID_VERSIONCODE_NULLARCH: $ANDROID_VERSIONCODE_NULLARCH"
+
 set -x
 
 info "updating www repo"
 ./contrib/make_download "$WWW_DIR"
 info "signing the version announcement file"
 sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
-echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > "$WWW_DIR"/version
+# note: the contents of "extradata" are currently not signed. We could add another field, extradata_sigs,
+#       containing signature(s) for "extradata". extradata, being json, would have to be canonically
+#       serialized before signing.
+cat <<EOF > "$WWW_DIR"/version
+{
+    "version": "$VERSION",
+    "signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$sig"},
+    "extradata": {
+        "android_versioncode_nullarch": $ANDROID_VERSIONCODE_NULLARCH
+    }
+}
+EOF
 
 # push changes to website repo
 pushd "$WWW_DIR"

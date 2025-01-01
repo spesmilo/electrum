@@ -1,0 +1,27 @@
+{
+    "addr_history": {
+        "1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf": [],
+        "1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs": [],
+        "1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa": []
+    },
+    "addresses": [
+        "1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs",
+        "1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa",
+        "1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf"
+    ],
+    "pruned_txo": {},
+    "seed_version": 13,
+    "stored_height": 490039,
+    "transactions": {},
+    "tx_fees": {},
+    "txi": {},
+    "txo": {},
+    "verified_tx3": {},
+    "wallet_type": "imported",
+    "winpos-qt": [
+        499,
+        386,
+        840,
+        405
+    ]
+}

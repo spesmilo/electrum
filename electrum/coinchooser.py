@@ -24,13 +24,16 @@
 # SOFTWARE.
 from collections import defaultdict
 from math import floor, log10
-from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple, Mapping, Type
+from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple, Mapping, Type, TYPE_CHECKING
 from decimal import Decimal
 
 from .bitcoin import sha256, COIN, is_address
 from .transaction import Transaction, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput
 from .util import NotEnoughFunds
 from .logging import Logger
+
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 
 # A simple deterministic PRNG.  Used to deterministically shuffle a
@@ -157,7 +160,7 @@ class CoinChooserBase(Logger):
         # Break change up if bigger than max_change
         output_amounts = [o.value for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
-        max_change = max(max(output_amounts) * 1.25, 0.02 * COIN)
+        max_change = max([0.02 * COIN] + output_amounts) * 1.25
 
         # Use N change outputs
         for n in range(1, count + 1):
@@ -173,8 +176,8 @@ class CoinChooserBase(Logger):
             return len(s) - len(s.rstrip('0'))
 
         zeroes = [trailing_zeroes(i) for i in output_amounts]
-        min_zeroes = min(zeroes)
-        max_zeroes = max(zeroes)
+        min_zeroes = min([8] + zeroes)
+        max_zeroes = max([0] + zeroes)
 
         if n > 1:
             zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
@@ -218,16 +221,21 @@ class CoinChooserBase(Logger):
         amounts = [amount for amount in amounts if amount >= dust_threshold]
         change = [PartialTxOutput.from_address_and_value(addr, amount)
                   for addr, amount in zip(change_addrs, amounts)]
+        for c in change:
+            c.is_change = True
         return change
 
-    def _construct_tx_from_selected_buckets(self, *, buckets: Sequence[Bucket],
-                                            base_tx: PartialTransaction, change_addrs,
-                                            fee_estimator_w, dust_threshold,
-                                            base_weight) -> Tuple[PartialTransaction, List[PartialTxOutput]]:
+    def _construct_tx_from_selected_buckets(
+            self, *, buckets: Sequence[Bucket],
+            base_tx: PartialTransaction, change_addrs,
+            fee_estimator_w, dust_threshold,
+            base_weight,
+            BIP69_sort: bool,
+    ) -> Tuple[PartialTransaction, List[PartialTxOutput]]:
         # make a copy of base_tx so it won't get mutated
-        tx = PartialTransaction.from_io(base_tx.inputs()[:], base_tx.outputs()[:])
+        tx = PartialTransaction.from_io(base_tx.inputs()[:], base_tx.outputs()[:], BIP69_sort=BIP69_sort)
 
-        tx.add_inputs([coin for b in buckets for coin in b.coins])
+        tx.add_inputs([coin for b in buckets for coin in b.coins], BIP69_sort=BIP69_sort)
         tx_weight = self._get_tx_weight(buckets, base_weight=base_weight)
 
         # change is sent back to sending address unless specified
@@ -241,7 +249,7 @@ class CoinChooserBase(Logger):
         output_weight = 4 * Transaction.estimated_output_size_for_address(change_addrs[0])
         fee_estimator_numchange = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self._change_outputs(tx, change_addrs, fee_estimator_numchange, dust_threshold)
-        tx.add_outputs(change)
+        tx.add_outputs(change, BIP69_sort=BIP69_sort)
 
         return tx, change
 
@@ -265,9 +273,16 @@ class CoinChooserBase(Logger):
 
         return total_weight
 
-    def make_tx(self, *, coins: Sequence[PartialTxInput], inputs: List[PartialTxInput],
-                outputs: List[PartialTxOutput], change_addrs: Sequence[str],
-                fee_estimator_vb: Callable, dust_threshold: int) -> PartialTransaction:
+    def make_tx(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            inputs: List[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            change_addrs: Sequence[str],
+            fee_estimator_vb: Callable,
+            dust_threshold: int,
+            BIP69_sort: bool = True,
+    ) -> PartialTransaction:
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -279,14 +294,12 @@ class CoinChooserBase(Logger):
 
         Note: fee_estimator_vb expects virtual bytes
         """
-        assert outputs, 'tx outputs cannot be empty'
-
         # Deterministic randomness from coins
         utxos = [c.prevout.serialize_to_network() for c in coins]
         self.p = PRNG(b''.join(sorted(utxos)))
 
         # Copy the outputs so when adding change we don't modify "outputs"
-        base_tx = PartialTransaction.from_io(inputs[:], outputs[:])
+        base_tx = PartialTransaction.from_io(inputs[:], outputs[:], BIP69_sort=BIP69_sort)
         input_value = base_tx.input_value()
 
         # Weight of the transaction with no inputs and no change
@@ -317,13 +330,15 @@ class CoinChooserBase(Logger):
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 
         def tx_from_buckets(buckets):
-            return self._construct_tx_from_selected_buckets(buckets=buckets,
-                                                            base_tx=base_tx,
-                                                            change_addrs=change_addrs,
-                                                            fee_estimator_w=fee_estimator_w,
-                                                            dust_threshold=dust_threshold,
-                                                            base_weight=base_weight)
-
+            return self._construct_tx_from_selected_buckets(
+                buckets=buckets,
+                base_tx=base_tx,
+                change_addrs=change_addrs,
+                fee_estimator_w=fee_estimator_w,
+                dust_threshold=dust_threshold,
+                base_weight=base_weight,
+                BIP69_sort=BIP69_sort,
+            )
         # Collect the coins into buckets
         all_buckets = self.bucketize_coins(coins, fee_estimator_vb=fee_estimator_vb)
         # Filter some buckets out. Only keep those that have positive effective value.
@@ -410,7 +425,11 @@ class CoinChooserRandom(CoinChooserBase):
 
         for bkts_choose_from in bucket_sets:
             try:
-                def sfunds(bkts, *, bucket_value_sum):
+                def sfunds(
+                    bkts, *, bucket_value_sum,
+                    already_selected_buckets_value_sum=already_selected_buckets_value_sum,
+                    already_selected_buckets=already_selected_buckets,
+                ):
                     bucket_value_sum += already_selected_buckets_value_sum
                     return sufficient_funds(already_selected_buckets + bkts,
                                             bucket_value_sum=bucket_value_sum)
@@ -451,8 +470,12 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return [coin.scriptpubkey.hex() for coin in coins]
 
     def penalty_func(self, base_tx, *, tx_from_buckets):
-        min_change = min(o.value for o in base_tx.outputs()) * 0.75
-        max_change = max(o.value for o in base_tx.outputs()) * 1.33
+        if _outputs := base_tx.outputs():
+            min_change = min(o.value for o in _outputs) * 0.75
+            max_change = max(o.value for o in _outputs) * 1.33
+        else:
+            min_change = 0
+            max_change = 0.02 * COIN
 
         def penalty(buckets: List[Bucket]) -> ScoredCandidate:
             # Penalize using many buckets (~inputs)
@@ -480,13 +503,13 @@ COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
 }  # type: Mapping[str, Type[CoinChooserBase]]
 
-def get_name(config):
-    kind = config.get('coin_chooser')
+def get_name(config: 'SimpleConfig') -> str:
+    kind = config.WALLET_COIN_CHOOSER_POLICY
     if kind not in COIN_CHOOSERS:
-        kind = 'Privacy'
+        kind = config.cv.WALLET_COIN_CHOOSER_POLICY.get_default_value()
     return kind
 
-def get_coin_chooser(config) -> CoinChooserBase:
+def get_coin_chooser(config: 'SimpleConfig') -> CoinChooserBase:
     klass = COIN_CHOOSERS[get_name(config)]
     # note: we enable enable_output_value_rounding by default as
     #       - for sacrificing a few satoshis
@@ -494,6 +517,6 @@ def get_coin_chooser(config) -> CoinChooserBase:
     #       + it also helps the network as a whole as fees will become noisier
     #         (trying to counter the heuristic that "whole integer sat/byte feerates" are common)
     coinchooser = klass(
-        enable_output_value_rounding=config.get('coin_chooser_output_rounding', True),
+        enable_output_value_rounding=config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING,
     )
     return coinchooser

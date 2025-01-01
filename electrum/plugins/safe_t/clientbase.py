@@ -2,11 +2,12 @@ import time
 from struct import pack
 from typing import Optional
 
-from electrum import ecc
+import electrum_ecc as ecc
+
 from electrum.i18n import _
 from electrum.util import UserCancelled
 from electrum.keystore import bip39_normalize_passphrase
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
+from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath
 from electrum.logging import Logger
 from electrum.plugin import runs_in_hwd_thread
 from electrum.plugins.hw_wallet.plugin import HardwareClientBase, HardwareHandlerBase
@@ -117,6 +118,9 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
         Logger.__init__(self)
         self.used()
 
+    def device_model_name(self) -> Optional[str]:
+        return 'Safe-T'
+
     def __str__(self):
         return "%s/%s" % (self.label(), self.features.device_id)
 
@@ -156,7 +160,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     @staticmethod
     def expand_path(n):
-        return convert_bip32_path_to_list_of_uint32(n)
+        return convert_bip32_strpath_to_intpath(n)
 
     @runs_in_hwd_thread
     def cancel(self):
