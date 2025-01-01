@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
 from electrum.lnchannel import Channel
@@ -68,7 +68,7 @@ class RebalanceDialog(WindowModalDialog):
         self.ok_button.setEnabled(b)
 
     def run(self):
-        if not self.exec_():
+        if not self.exec():
             return
         amount_msat = self.amount_e.get_amount() * 1000
         coro = self.wallet.lnworker.rebalance_channels(self.chan1, self.chan2, amount_msat=amount_msat)

@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.i18n import _
@@ -11,10 +11,11 @@ from electrum.i18n import _
 # should also capture millisats amounts and MAX/'!' indicators
 # and (unformatted) string representations
 
+
 class QEAmount(QObject):
     _logger = get_logger(__name__)
 
-    def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, from_invoice = None, parent=None):
+    def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, from_invoice=None, parent=None):
         super().__init__(parent)
         self._amount_sat = int(amount_sat) if amount_sat is not None else None
         self._amount_msat = int(amount_msat) if amount_msat is not None else None
@@ -31,7 +32,7 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def satsInt(self):
-        if self._amount_sat is None: # should normally be defined when accessing this property
+        if self._amount_sat is None:  # should normally be defined when accessing this property
             self._logger.warning('amount_sat is undefined, returning 0')
             return 0
         return self._amount_sat
@@ -44,7 +45,7 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def msatsInt(self):
-        if self._amount_msat is None: # should normally be defined when accessing this property
+        if self._amount_msat is None:  # should normally be defined when accessing this property
             self._logger.warning('amount_msat is undefined, returning 0')
             return 0
         return self._amount_msat
@@ -77,14 +78,16 @@ class QEAmount(QObject):
     def isEmpty(self):
         return not(self._is_max or self._amount_sat or self._amount_msat)
 
+    @pyqtSlot()
     def clear(self):
-        self.satsInt = 0
-        self.msatsInt = 0
-        self.isMax = False
+        self._amount_sat = 0
+        self._amount_msat = 0
+        self._is_max = False
+        self.valueChanged.emit()
 
     def copyFrom(self, amount):
         if not amount:
-            self._logger.warning('copyFrom with None argument. assuming 0') # TODO
+            self._logger.warning('copyFrom with None argument. assuming 0')  # TODO
             amount = QEAmount()
         self.satsInt = amount.satsInt
         self.msatsInt = amount.msatsInt

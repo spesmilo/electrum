@@ -12,17 +12,19 @@ CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
 PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 
+. "$CONTRIB"/build_tools_util.sh
+
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.9.15
-PY_VER_MAJOR="3.9"  # as it appears in fs paths
+PYTHON_VERSION=3.11.9
+PY_VER_MAJOR="3.11"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
 APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
-
-. "$CONTRIB"/build_tools_util.sh
 
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR" "$DLL_TARGET_DIR"
@@ -39,7 +41,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "12daff6809528d9f6154216950423c9e30f0e47336cb57c6aa0b4387dd5eb4b2"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "9b1e896523fc510691126c864406d9360a3d1e986acbda59cda57b5abda45b87"
 
 
 
@@ -53,8 +55,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
     cd "$CACHEDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
-    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
+    # Patches taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.11/python3.11_3.11.6-3.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.11-reproducible-buildinfo.diff"
     ./configure \
         --cache-file="$CACHEDIR/python.config.cache" \
         --prefix="$APPDIR/usr" \
@@ -76,19 +78,28 @@ info "installing python."
 )
 
 
-if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.0" ]; then
+if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.2" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 fi
-cp -f "$DLL_TARGET_DIR/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not copy libsecp to its destination"
+
+
+if [ -f "$DLL_TARGET_DIR/libzbar.so.0" ]; then
+    info "libzbar already built, skipping"
+else
+    # note: could instead just use the libzbar0 pkg from debian/apt, but that is too old and missing fixes for CVE-2023-40889
+    "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
+fi
+cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
 
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
 #       This pkg is needed on some distros for Qt to launch. (see #8011)
+download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
+verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
 info "building libxcb-util1."
-XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
-# ^ git tag 0.4.0
 (
     if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
         info "libxcb-util1 already built, skipping"
@@ -97,18 +108,9 @@ XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
     cd "$CACHEDIR"
     mkdir "libxcb-util1"
     cd "libxcb-util1"
-    if [ ! -d util ]; then
-        git clone --recursive "https://anongit.freedesktop.org/git/xcb/util"
-    fi
+    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
+    mv "xcb-util-0.4.0" util
     cd util
-    if ! $(git cat-file -e ${XCB_UTIL_VERSION}) ; then
-        info "Could not find requested version $XCB_UTIL_VERSION in local clone; fetching..."
-        git fetch --all
-        git submodule update
-    fi
-    git reset --hard
-    git clean -dfxq
-    git checkout "${XCB_UTIL_VERSION}^{commit}"
     ./autogen.sh
     ./configure --enable-shared
     make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
@@ -148,7 +150,7 @@ info "Installing build dependencies."
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,
 #       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
+#       - PyQt6, as it's harder to build from source
 #       - cryptography, as it's harder to build from source
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
@@ -159,9 +161,10 @@ info "Installing build dependencies."
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum and its dependencies."
+export ELECTRUM_ECC_DONT_COMPILE=1
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography --no-warn-script-location \
+"$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
@@ -171,10 +174,6 @@ info "installing electrum and its dependencies."
 
 # was only needed during build time, not runtime
 "$python" -m pip uninstall -y Cython
-
-
-info "copying zbar"
-cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
 
 
 info "desktop integration."
@@ -242,19 +241,23 @@ rm -rf "$PYDIR"/config-3.*-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
-# rm lots of unused parts of Qt/PyQt. (assuming PyQt 5.15.3+ layout)
+# rm lots of unused parts of Qt/PyQt. (assuming PyQt 6 layout)
 for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/translations/qt${component}_*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/resources/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/translations/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/resources/qt${component}_*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/{qml,libexec}
-rm -rf "$PYDIR"/site-packages/PyQt5/{pyrcc*.so,pylupdate*.so,uic}
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
-for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml ; do
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/lib/libQt5${component}*
-    rm -rf "$PYDIR"/site-packages/PyQt5/Qt${component}*
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/{qml,libexec}
+rm -rf "$PYDIR"/site-packages/PyQt6/{pyrcc*.so,pylupdate*.so,uic}
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
+for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml Labs ShaderTools SpatialAudio ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
-rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
+for component in Qml Quick ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6*${component}.so*
+done
+rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete

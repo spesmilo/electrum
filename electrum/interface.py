@@ -44,7 +44,7 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, ESocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
                    is_int_or_float, is_non_negative_int_or_float, OldTaskGroup)
 from . import util
@@ -67,8 +67,6 @@ if TYPE_CHECKING:
 ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
-
-MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
 _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'
@@ -137,7 +135,6 @@ class NotificationSession(RPCSession):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)
         self.cache = {}
-        self.default_timeout = NetworkTimeout.Generic.NORMAL
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
@@ -168,12 +165,16 @@ class NotificationSession(RPCSession):
         try:
             # note: RPCSession.send_request raises TaskTimeout in case of a timeout.
             # TaskTimeout is a subclass of CancelledError, which is *suppressed* in TaskGroups
-            response = await asyncio.wait_for(
+            response = await util.wait_for2(
                 super().send_request(*args, **kwargs),
                 timeout)
         except (TaskTimeout, asyncio.TimeoutError) as e:
+            self.maybe_log(f"--> request timed out: {args} (id: {msg_id})")
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
         except CodeMessageError as e:
+            self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
+            raise
+        except BaseException as e:  # cancellations, etc. are useful for debugging
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
             raise
         else:
@@ -181,7 +182,9 @@ class NotificationSession(RPCSession):
             return response
 
     def set_default_timeout(self, timeout):
+        assert hasattr(self, "sent_request_timeout")  # in base class
         self.sent_request_timeout = timeout
+        assert hasattr(self, "max_send_delay")        # in base class
         self.max_send_delay = timeout
 
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
@@ -216,8 +219,8 @@ class NotificationSession(RPCSession):
 
     def default_framer(self):
         # overridden so that max_size can be customized
-        max_size = int(self.interface.network.config.get('network_max_incoming_msg_size',
-                                                         MAX_INCOMING_MSG_SIZE))
+        max_size = self.interface.network.config.NETWORK_MAX_INCOMING_MSG_SIZE
+        assert max_size > 500_000, f"{max_size=} (< 500_000) is too small"
         return NewlineFramer(max_size=max_size)
 
     async def close(self, *, force_after: int = None):
@@ -292,6 +295,7 @@ class ServerAddr:
 
     @classmethod
     def from_str(cls, s: str) -> 'ServerAddr':
+        """Constructs a ServerAddr or raises ValueError."""
         # host might be IPv6 address, hence do rsplit:
         host, port, protocol = str(s).rsplit(':', 2)
         return ServerAddr(host=host, port=port, protocol=protocol)
@@ -299,20 +303,29 @@ class ServerAddr:
     @classmethod
     def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
         """Construct ServerAddr from str, guessing missing details.
+        Does not raise - just returns None if guessing failed.
         Ongoing compatibility not guaranteed.
         """
         if not s:
             return None
+        host = ""
+        if s[0] == "[" and "]" in s:  # IPv6 address
+            host_end = s.index("]")
+            host = s[1:host_end]
+            s = s[host_end+1:]
         items = str(s).rsplit(':', 2)
         if len(items) < 2:
             return None  # although maybe we could guess the port too?
-        host = items[0]
+        host = host or items[0]
         port = items[1]
         if len(items) >= 3:
             protocol = items[2]
         else:
             protocol = PREFERRED_NETWORK_PROTOCOL
-        return ServerAddr(host=host, port=port, protocol=protocol)
+        try:
+            return ServerAddr(host=host, port=port, protocol=protocol)
+        except ValueError:
+            return None
 
     def to_friendly_name(self) -> str:
         # note: this method is closely linked to from_str_with_inference
@@ -362,7 +375,7 @@ class Interface(Logger):
 
     LOGGING_SHORTCUT = 'i'
 
-    def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
+    def __init__(self, *, network: 'Network', server: ServerAddr):
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
         self.server = server
@@ -381,8 +394,9 @@ class Interface(Logger):
         #         addresses...? e.g. 192.168.x.x
         if util.is_localhost(server.host):
             self.logger.info(f"looks like localhost: not using proxy for this server")
-            proxy = None
-        self.proxy = MySocksProxy.from_proxy_dict(proxy)
+            self.proxy = None
+        else:
+            self.proxy = ESocksProxy.from_network_settings(network)
 
         # Latest block header and corresponding height, as claimed by the server.
         # Note that these values are updated before they are verified.
@@ -430,10 +444,14 @@ class Interface(Logger):
             await self.open_session(ca_ssl_context, exit_early=True)
         except ConnectError as e:
             cause = e.__cause__
-            if isinstance(cause, ssl.SSLError) and cause.reason == 'CERTIFICATE_VERIFY_FAILED':
-                # failures due to self-signed certs are normal
+            if (isinstance(cause, ssl.SSLCertVerificationError)
+                    and cause.reason == 'CERTIFICATE_VERIFY_FAILED'
+                    and cause.verify_code == 18):  # "self signed certificate"
+                # Good. We will use this server as self-signed.
                 return False
+            # Not good. Cannot use this server.
             raise
+        # Good. We will use this server as CA-signed.
         return True
 
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
@@ -496,6 +514,9 @@ class Interface(Logger):
         else:
             # pinned self-signed cert
             sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
+            # note: Flag "ssl.VERIFY_X509_STRICT" is enabled by default in python 3.13+ (disabled in older versions).
+            #       We explicitly disable it as it breaks lots of servers.
+            sslc.verify_flags &= ~ssl.VERIFY_X509_STRICT
             sslc.check_hostname = False
         return sslc
 
@@ -594,7 +615,7 @@ class Interface(Logger):
 
     def _get_expected_fingerprint(self) -> Optional[str]:
         if self.is_main_server():
-            return self.network.config.get("serverfingerprint")
+            return self.network.config.NETWORK_SERVERFINGERPRINT
 
     def _verify_certificate_fingerprint(self, certificate):
         expected_fingerprint = self._get_expected_fingerprint()
@@ -682,10 +703,14 @@ class Interface(Logger):
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
             except aiorpcx.jsonrpc.RPCError as e:
-                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE,
-                              JSONRPC.SERVER_BUSY,
-                              JSONRPC.METHOD_NOT_FOUND):
-                    raise GracefulDisconnect(e, log_level=logging.WARNING) from e
+                if e.code in (
+                    JSONRPC.EXCESSIVE_RESOURCE_USAGE,
+                    JSONRPC.SERVER_BUSY,
+                    JSONRPC.METHOD_NOT_FOUND,
+                    JSONRPC.INTERNAL_ERROR,
+                ):
+                    log_level = logging.WARNING if self.is_main_server() else logging.INFO
+                    raise GracefulDisconnect(e, log_level=log_level) from e
                 raise
             finally:
                 self.got_disconnected.set()  # set this ASAP, ideally before any awaits
@@ -763,7 +788,6 @@ class Interface(Logger):
         async with self.network.bhi_lock:
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
-                self.logger.info(f"skipping header {height}")
                 return False
             _, height = await self.step(height, header)
             # in the simple case, height == self.tip+1
@@ -784,6 +808,7 @@ class Interface(Logger):
                         raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
+                util.trigger_callback('blockchain_updated')
                 util.trigger_callback('network_updated')
                 height = (height // 2016 * 2016) + num_headers
                 assert height <= next_height+1, (height, self.tip)
@@ -809,13 +834,13 @@ class Interface(Logger):
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
         if not can_connect:
-            self.logger.info(f"can't connect {height}")
+            self.logger.info(f"can't connect new block: {height=}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
             assert chain or can_connect
         if can_connect:
-            self.logger.info(f"could connect {height}")
+            self.logger.info(f"new block: {height=}")
             height += 1
             if isinstance(can_connect, Blockchain):  # not when mocking
                 self.blockchain = can_connect
@@ -1111,11 +1136,29 @@ class Interface(Logger):
     async def get_estimatefee(self, num_blocks: int) -> int:
         """Returns a feerate estimate for getting confirmed within
         num_blocks blocks, in sat/kbyte.
+        Returns -1 if the server could not provide an estimate.
         """
         if not is_non_negative_integer(num_blocks):
             raise Exception(f"{repr(num_blocks)} is not a num_blocks")
         # do request
-        res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        try:
+            res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        except aiorpcx.jsonrpc.ProtocolError as e:
+            # The protocol spec says the server itself should already have returned -1
+            # if it cannot provide an estimate, however apparently "electrs" does not conform
+            # and sends an error instead. Convert it here:
+            if "cannot estimate fee" in e.message:
+                res = -1
+            else:
+                raise
+        except aiorpcx.jsonrpc.RPCError as e:
+            # The protocol spec says the server itself should already have returned -1
+            # if it cannot provide an estimate. "Fulcrum" often sends:
+            #   aiorpcx.jsonrpc.RPCError: (-32603, 'internal error: bitcoind request timed out')
+            if e.code == JSONRPC.INTERNAL_ERROR:
+                res = -1
+            else:
+                raise
         # check response
         if res != -1:
             assert_non_negative_int_or_float(res)
@@ -1133,14 +1176,14 @@ def check_cert(host, cert):
     try:
         b = pem.dePem(cert, 'CERTIFICATE')
         x = x509.X509(b)
-    except:
+    except Exception:
         traceback.print_exc(file=sys.stdout)
         return
 
     try:
         x.check_date()
         expired = False
-    except:
+    except Exception:
         expired = True
 
     m = "host: %s\n"%host

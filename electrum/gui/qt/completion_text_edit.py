@@ -23,9 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QApplication
+from PyQt6.QtGui import QTextCursor
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QCompleter, QPlainTextEdit, QApplication
 
 from .util import ButtonsTextEdit
 
@@ -35,7 +35,7 @@ class CompletionTextEdit(ButtonsTextEdit):
     def __init__(self):
         ButtonsTextEdit.__init__(self)
         self.completer = None
-        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QTextCursor.MoveOperation.End)
         self.disable_suggestions()
 
     def set_completer(self, completer):
@@ -44,7 +44,7 @@ class CompletionTextEdit(ButtonsTextEdit):
 
     def initialize_completer(self):
         self.completer.setWidget(self)
-        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.activated.connect(self.insert_completion)
         self.enable_suggestions()
 
@@ -53,8 +53,8 @@ class CompletionTextEdit(ButtonsTextEdit):
             return
         text_cursor = self.textCursor()
         extra = len(completion) - len(self.completer.completionPrefix())
-        text_cursor.movePosition(QTextCursor.Left)
-        text_cursor.movePosition(QTextCursor.EndOfWord)
+        text_cursor.movePosition(QTextCursor.MoveOperation.Left)
+        text_cursor.movePosition(QTextCursor.MoveOperation.EndOfWord)
         if extra == 0:
             text_cursor.insertText(" ")
         else:
@@ -63,7 +63,7 @@ class CompletionTextEdit(ButtonsTextEdit):
 
     def text_under_cursor(self):
         tc = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
         return tc.selectedText()
 
     def enable_suggestions(self):
@@ -84,7 +84,8 @@ class CompletionTextEdit(ButtonsTextEdit):
         if self.isReadOnly():  # if field became read-only *after* keyPress, exit now
             return
 
-        ctrlOrShift = bool(int(e.modifiers()) & int(Qt.ControlModifier | Qt.ShiftModifier))
+        ctrlOrShift = ((Qt.KeyboardModifier.ControlModifier in e.modifiers())
+                       or (Qt.KeyboardModifier.ShiftModifier in e.modifiers()))
         if self.completer is None or (ctrlOrShift and not e.text()):
             return
 
@@ -92,7 +93,7 @@ class CompletionTextEdit(ButtonsTextEdit):
             return
 
         eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
-        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
+        hasModifier = (e.modifiers() != Qt.KeyboardModifier.NoModifier) and not ctrlOrShift
         completionPrefix = self.text_under_cursor()
 
         if hasModifier or not e.text() or len(completionPrefix) < 1 or eow.find(e.text()[-1]) >= 0:
@@ -109,9 +110,9 @@ class CompletionTextEdit(ButtonsTextEdit):
 
     def is_special_key(self, e):
         if self.completer and self.completer.popup().isVisible():
-            if e.key() in (Qt.Key_Enter, Qt.Key_Return):
+            if e.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return):
                 return True
-        if e.key() == Qt.Key_Tab:
+        if e.key() == Qt.Key.Key_Tab:
             return True
         return False
 
@@ -121,4 +122,4 @@ if __name__ == "__main__":
     te = CompletionTextEdit()
     te.set_completer(completer)
     te.show()
-    app.exec_()
+    app.exec()

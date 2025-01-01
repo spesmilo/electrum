@@ -42,9 +42,10 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 
 extras_require = {
     'hardware': requirements_hw,
-    'gui': ['pyqt5'],
+    'gui': ['pyqt6'],
     'crypto': ['cryptography>=2.6'],
     'tests': ['pycryptodomex>=3.7', 'cryptography>=2.6', 'pyaes>=0.1a1'],
+    'qml_gui': ['pyqt6', 'Pillow>=8.4.0']
 }
 # 'full' extra that tries to grab everything an enduser would need (except for libsecp256k1...)
 extras_require['full'] = [pkg for sublist in
@@ -58,11 +59,11 @@ setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
-    install_requires=requirements,
+    install_requires=["argon2-cffi==23.1.0"] + requirements,
     extras_require=extras_require,
     packages=(['electrum',]
               + [('electrum.'+pkg) for pkg in
-                 find_packages('electrum', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
+                 find_packages('electrum', exclude=["tests"])]),
     package_dir={
         'electrum': 'electrum'
     },

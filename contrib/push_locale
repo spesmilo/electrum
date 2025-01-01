@@ -6,13 +6,14 @@ import sys
 try:
     import requests
 except ImportError as e:
-    sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+    sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install --user <module-name>'")
 
-os.chdir(os.path.dirname(os.path.realpath(__file__)))
-os.chdir('..')
+
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+os.chdir(project_root)
 
 cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
-
 files = subprocess.check_output(cmd, shell=True)
 
 with open("app.fil", "wb") as f:
@@ -24,10 +25,34 @@ print("Found {} files to translate".format(len(files.splitlines())))
 if not os.path.exists('electrum/locale'):
     os.mkdir('electrum/locale')
 print('Generating template...')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages.pot'
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages_gettext.pot'
 subprocess.check_output(cmd, shell=True)
 
-os.chdir('electrum')
+
+# add QML translations
+cmd = "find electrum/gui/qml -type f -name '*.qml'"
+files = subprocess.check_output(cmd, shell=True)
+
+with open("electrum/locale/qml.lst", "wb") as f:
+    f.write(files)
+
+print("Found {} QML files to translate".format(len(files.splitlines())))
+
+cmd = "lupdate @electrum/locale/qml.lst -ts electrum/locale/qml.ts"
+print('Collecting strings')
+subprocess.check_output(cmd, shell=True)
+
+cmd = "lconvert -of po -o electrum/locale/messages_qml.pot electrum/locale/qml.ts"
+print('Convert to gettext')
+subprocess.check_output(cmd, shell=True)
+
+cmd = "msgcat -u -o electrum/locale/messages.pot electrum/locale/messages_gettext.pot electrum/locale/messages_qml.pot"
+print('Generate template')
+subprocess.check_output(cmd, shell=True)
+
+
+# prepare uploading to crowdin
+os.chdir(os.path.join(project_root, "electrum"))
 
 crowdin_api_key = None
 

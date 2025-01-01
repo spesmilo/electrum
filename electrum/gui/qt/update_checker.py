@@ -4,14 +4,15 @@
 
 import asyncio
 import base64
+from typing import Optional
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
                              QHBoxLayout, QPushButton, QDialog)
 
 from electrum import version
 from electrum import constants
-from electrum import ecc
+from electrum.bitcoin import verify_usermessage_with_address
 from electrum.i18n import _
 from electrum.util import make_aiohttp_session
 from electrum.logging import Logger
@@ -38,7 +39,7 @@ class UpdateCheck(QDialog, Logger):
         self.content.addWidget(self.heading_label)
 
         self.detail_label = QLabel()
-        self.detail_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
         self.detail_label.setOpenExternalLinks(True)
         self.content.addWidget(self.detail_label)
 
@@ -48,8 +49,8 @@ class UpdateCheck(QDialog, Logger):
         self.content.addWidget(self.pb)
 
         versions = QHBoxLayout()
-        versions.addWidget(QLabel(_("Current version: {}".format(version.ELECTRUM_VERSION))))
-        self.latest_version_label = QLabel(_("Latest version: {}".format(" ")))
+        versions.addWidget(QLabel(_("Current version: {}").format(version.ELECTRUM_VERSION)))
+        self.latest_version_label = QLabel(_("Latest version: {}").format(" "))
         versions.addWidget(self.latest_version_label)
         self.content.addLayout(versions)
 
@@ -81,7 +82,7 @@ class UpdateCheck(QDialog, Logger):
     def update_view(self, latest_version=None):
         if latest_version:
             self.pb.hide()
-            self.latest_version_label.setText(_("Latest version: {}".format(latest_version)))
+            self.latest_version_label.setText(_("Latest version: {}").format(latest_version))
             if self.is_newer(latest_version):
                 self.heading_label.setText('<h2>' + _("There is a new update available") + '</h2>')
                 url = "<a href='{u}'>{u}</a>".format(u=UpdateCheck.download_url)
@@ -102,6 +103,7 @@ class UpdateCheckThread(QThread, Logger):
         QThread.__init__(self)
         Logger.__init__(self)
         self.network = Network.get_instance()
+        self._fut = None  # type: Optional[asyncio.Future]
 
     async def get_update_info(self):
         # note: Use long timeout here as it is not critical that we get a response fast,
@@ -123,8 +125,10 @@ class UpdateCheckThread(QThread, Logger):
                         continue
                     sig = base64.b64decode(sig)
                     msg = version_num.encode('utf-8')
-                    if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
-                                                       net=constants.BitcoinMainnet):
+                    if verify_usermessage_with_address(
+                        address=address, sig65=sig, message=msg,
+                        net=constants.BitcoinMainnet
+                    ):
                         self.logger.info(f"valid sig for version announcement '{version_num}' from address '{address}'")
                         break
                 else:
@@ -135,10 +139,17 @@ class UpdateCheckThread(QThread, Logger):
         if not self.network:
             self.failed.emit()
             return
+        self._fut = asyncio.run_coroutine_threadsafe(self.get_update_info(), self.network.asyncio_loop)
         try:
-            update_info = asyncio.run_coroutine_threadsafe(self.get_update_info(), self.network.asyncio_loop).result()
+            update_info = self._fut.result()
         except Exception as e:
             self.logger.info(f"got exception: '{repr(e)}'")
             self.failed.emit()
         else:
             self.checked.emit(update_info)
+
+    def stop(self):
+        if self._fut:
+            self._fut.cancel()
+        self.exit()
+        self.wait()

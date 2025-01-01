@@ -10,6 +10,8 @@ LOCALE="$PROJECT_ROOT/electrum/locale"
 
 . "$CONTRIB"/build_tools_util.sh
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 # note that at least py3.7 is needed, to have https://bugs.python.org/issue30693
 python3 --version || fail "python interpreter not found"
 

@@ -1,25 +1,33 @@
 from functools import partial
 import threading
+from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal
-from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+from PyQt6.QtCore import Qt, QEventLoop, pyqtSignal
+from PyQt6.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
                              QLineEdit, QRadioButton, QCheckBox, QWidget,
-                             QMessageBox, QFileDialog, QSlider, QTabWidget)
+                             QMessageBox, QSlider, QTabWidget)
+
+from electrum.i18n import _
+from electrum.logging import Logger
+from electrum.plugin import hook
+from electrum.keystore import ScriptTypeNotSupported
+
+from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.plugins.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
+from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available, OutdatedHwFirmwareException
 
 from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                  OkButton, CloseButton, PasswordLineEdit, getOpenFileName)
-from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.util import bh2u
+                                  OkButton, CloseButton, PasswordLineEdit, getOpenFileName, ChoiceWidget)
+from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent
 
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
-                     PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
+                     PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceInputMethod)
 
+if TYPE_CHECKING:
+    from electrum.gui.qt.wizard.wallet import QENewWalletWizard
 
-PASSPHRASE_HELP_SHORT =_(
+PASSPHRASE_HELP_SHORT = _(
     "Passphrases allow you to access new wallets, each "
     "hidden behind a particular case-sensitive passphrase.")
 PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
@@ -67,9 +75,9 @@ class MatrixDialog(WindowModalDialog):
         vbox.addLayout(grid)
 
         self.backspace_button = QPushButton("<=")
-        self.backspace_button.clicked.connect(partial(self.process_key, Qt.Key_Backspace))
+        self.backspace_button.clicked.connect(partial(self.process_key, Qt.Key.Key_Backspace))
         self.cancel_button = QPushButton(_("Cancel"))
-        self.cancel_button.clicked.connect(partial(self.process_key, Qt.Key_Escape))
+        self.cancel_button.clicked.connect(partial(self.process_key, Qt.Key.Key_Escape))
         buttons = Buttons(self.backspace_button, self.cancel_button)
         vbox.addSpacing(40)
         vbox.addLayout(buttons)
@@ -85,9 +93,9 @@ class MatrixDialog(WindowModalDialog):
 
     def process_key(self, key):
         self.data = None
-        if key == Qt.Key_Backspace:
+        if key == Qt.Key.Key_Backspace:
             self.data = '\010'
-        elif key == Qt.Key_Escape:
+        elif key == Qt.Key.Key_Escape:
             self.data = 'x'
         elif self.is_valid(key):
             self.char_buttons[key - ord('1')].setFocus()
@@ -103,7 +111,7 @@ class MatrixDialog(WindowModalDialog):
     def get_matrix(self, num):
         self.num = num
         self.refresh()
-        self.loop.exec_()
+        self.loop.exec()
 
 
 class QtHandler(QtHandlerBase):
@@ -154,7 +162,7 @@ class QtHandler(QtHandlerBase):
         vbox.addWidget(matrix)
         vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         dialog.setLayout(vbox)
-        dialog.exec_()
+        dialog.exec()
         self.response = str(matrix.get_value())
         self.done.set()
 
@@ -225,7 +233,7 @@ class QtHandler(QtHandlerBase):
         OnDevice_button.clicked.connect(on_device_clicked)
         OnDevice_button.clicked.connect(d.accept)
 
-        d.exec_()
+        d.exec()
         self.done.set()
 
 
@@ -252,14 +260,14 @@ class QtPlugin(QtPluginBase):
             return device_id
         def show_dialog(device_id):
             if device_id:
-                SettingsDialog(window, self, keystore, device_id).exec_()
+                SettingsDialog(window, self, keystore, device_id).exec()
         keystore.thread.add(connect, on_success=show_dialog)
 
-    def request_trezor_init_settings(self, wizard, method, device_id):
-        vbox = QVBoxLayout()
-        next_enabled = True
 
-        devmgr = self.device_manager()
+class InitSettingsLayout(QVBoxLayout):
+    def __init__(self, devmgr, method, device_id) -> QVBoxLayout:
+        super().__init__()
+
         client = devmgr.client_by_id(device_id)
         if not client:
             raise Exception(_("The device was disconnected."))
@@ -270,40 +278,40 @@ class QtPlugin(QtPluginBase):
 
         # label
         label = QLabel(_("Enter a label to name your device:"))
-        name = QLineEdit()
+        self.name = QLineEdit()
         hl = QHBoxLayout()
         hl.addWidget(label)
-        hl.addWidget(name)
+        hl.addWidget(self.name)
         hl.addStretch(1)
-        vbox.addLayout(hl)
+        self.addLayout(hl)
 
         # Backup type
         gb_backuptype = QGroupBox()
         hbox_backuptype = QHBoxLayout()
         gb_backuptype.setLayout(hbox_backuptype)
-        vbox.addWidget(gb_backuptype)
+        self.addWidget(gb_backuptype)
         gb_backuptype.setTitle(_('Select backup type:'))
-        bg_backuptype = QButtonGroup()
+        self.bg_backuptype = QButtonGroup()
 
         rb_single = QRadioButton(gb_backuptype)
         rb_single.setText(_('Single seed (BIP39)'))
-        bg_backuptype.addButton(rb_single)
-        bg_backuptype.setId(rb_single, BackupType.Bip39)
+        self.bg_backuptype.addButton(rb_single)
+        self.bg_backuptype.setId(rb_single, BackupType.Bip39)
         hbox_backuptype.addWidget(rb_single)
         rb_single.setChecked(True)
 
         rb_shamir = QRadioButton(gb_backuptype)
         rb_shamir.setText(_('Shamir'))
-        bg_backuptype.addButton(rb_shamir)
-        bg_backuptype.setId(rb_shamir, BackupType.Slip39_Basic)
+        self.bg_backuptype.addButton(rb_shamir)
+        self.bg_backuptype.setId(rb_shamir, BackupType.Slip39_Basic)
         hbox_backuptype.addWidget(rb_shamir)
         rb_shamir.setEnabled(Capability.Shamir in capabilities)
         rb_shamir.setVisible(False)  # visible with "expert settings"
 
         rb_shamir_groups = QRadioButton(gb_backuptype)
         rb_shamir_groups.setText(_('Super Shamir'))
-        bg_backuptype.addButton(rb_shamir_groups)
-        bg_backuptype.setId(rb_shamir_groups, BackupType.Slip39_Advanced)
+        self.bg_backuptype.addButton(rb_shamir_groups)
+        self.bg_backuptype.setId(rb_shamir_groups, BackupType.Slip39_Advanced)
         hbox_backuptype.addWidget(rb_shamir_groups)
         rb_shamir_groups.setEnabled(Capability.ShamirGroups in capabilities)
         rb_shamir_groups.setVisible(False)  # visible with "expert settings"
@@ -314,15 +322,15 @@ class QtPlugin(QtPluginBase):
         gb_numwords = QGroupBox()
         hbox1 = QHBoxLayout()
         gb_numwords.setLayout(hbox1)
-        vbox.addWidget(gb_numwords)
+        self.addWidget(gb_numwords)
         gb_numwords.setTitle(_("Select seed/share length:"))
-        bg_numwords = QButtonGroup()
+        self.bg_numwords = QButtonGroup()
         for count in (12, 18, 20, 24, 33):
             rb = QRadioButton(gb_numwords)
             word_count_buttons[count] = rb
             rb.setText(_("{:d} words").format(count))
-            bg_numwords.addButton(rb)
-            bg_numwords.setId(rb, count)
+            self.bg_numwords.addButton(rb)
+            self.bg_numwords.setId(rb, count)
             hbox1.addWidget(rb)
             rb.setChecked(True)
 
@@ -349,7 +357,7 @@ class QtPlugin(QtPluginBase):
             for c, btn in word_count_buttons.items():
                 btn.setVisible(c in valid_word_counts)
 
-        bg_backuptype.buttonClicked.connect(configure_word_counts)
+        self.bg_backuptype.buttonClicked.connect(configure_word_counts)
         configure_word_counts()
 
         # set up conditional visibility:
@@ -360,10 +368,10 @@ class QtPlugin(QtPluginBase):
             gb_numwords.setVisible(False)
 
         # PIN
-        cb_pin = QCheckBox(_('Enable PIN protection'))
-        cb_pin.setChecked(True)
-        vbox.addWidget(WWLabel(RECOMMEND_PIN))
-        vbox.addWidget(cb_pin)
+        self.cb_pin = QCheckBox(_('Enable PIN protection'))
+        self.cb_pin.setChecked(True)
+        self.addWidget(WWLabel(RECOMMEND_PIN))
+        self.addWidget(self.cb_pin)
 
         # "expert settings" button
         expert_vbox = QVBoxLayout()
@@ -377,65 +385,72 @@ class QtPlugin(QtPluginBase):
             rb_shamir.setVisible(True)
             rb_shamir_groups.setVisible(True)
         expert_button.clicked.connect(show_expert_settings)
-        vbox.addWidget(expert_button)
+        self.addWidget(expert_button)
 
         # passphrase
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
-        cb_phrase = QCheckBox(_('Enable passphrases'))
-        cb_phrase.setChecked(False)
+        self.cb_phrase = QCheckBox(_('Enable passphrases'))
+        self.cb_phrase.setChecked(False)
         expert_vbox.addWidget(passphrase_msg)
         expert_vbox.addWidget(passphrase_warning)
-        expert_vbox.addWidget(cb_phrase)
+        expert_vbox.addWidget(self.cb_phrase)
 
         # ask for recovery type (random word order OR matrix)
-        bg_rectype = None
+        self.bg_rectype = None
         if method == TIM_RECOVER and model == '1':
             gb_rectype = QGroupBox()
             hbox_rectype = QHBoxLayout()
             gb_rectype.setLayout(hbox_rectype)
             expert_vbox.addWidget(gb_rectype)
             gb_rectype.setTitle(_("Select recovery type:"))
-            bg_rectype = QButtonGroup()
+            self.bg_rectype = QButtonGroup()
 
             rb1 = QRadioButton(gb_rectype)
             rb1.setText(_('Scrambled words'))
-            bg_rectype.addButton(rb1)
-            bg_rectype.setId(rb1, RecoveryDeviceType.ScrambledWords)
+            self.bg_rectype.addButton(rb1)
+            self.bg_rectype.setId(rb1, RecoveryDeviceInputMethod.ScrambledWords)
             hbox_rectype.addWidget(rb1)
             rb1.setChecked(True)
 
             rb2 = QRadioButton(gb_rectype)
             rb2.setText(_('Matrix'))
-            bg_rectype.addButton(rb2)
-            bg_rectype.setId(rb2, RecoveryDeviceType.Matrix)
+            self.bg_rectype.addButton(rb2)
+            self.bg_rectype.setId(rb2, RecoveryDeviceInputMethod.Matrix)
             hbox_rectype.addWidget(rb2)
 
         # no backup
-        cb_no_backup = None
+        self.cb_no_backup = None
         if method == TIM_NEW:
-            cb_no_backup = QCheckBox(f'''{_('Enable seedless mode')}''')
-            cb_no_backup.setChecked(False)
-            if (model == '1' and fw_version >= (1, 7, 1)
-                    or model == 'T' and fw_version >= (2, 0, 9)):
-                cb_no_backup.setToolTip(SEEDLESS_MODE_WARNING)
+            self.cb_no_backup = QCheckBox(_('Enable seedless mode'))
+            self.cb_no_backup.setChecked(False)
+            supports_no_backup = False
+            if model == '1':
+                if fw_version >= (1, 7, 1):
+                    supports_no_backup = True
             else:
-                cb_no_backup.setEnabled(False)
-                cb_no_backup.setToolTip(_('Firmware version too old.'))
-            expert_vbox.addWidget(cb_no_backup)
+                if fw_version >= (2, 0, 9):
+                    supports_no_backup = True
+            if supports_no_backup:
+                self.cb_no_backup.setEnabled(True)
+                self.cb_no_backup.setToolTip(SEEDLESS_MODE_WARNING)
+            else:
+                self.cb_no_backup.setEnabled(False)
+                self.cb_no_backup.setToolTip(_('Firmware version too old.'))
+            expert_vbox.addWidget(self.cb_no_backup)
 
-        vbox.addWidget(expert_widget)
-        wizard.exec_layout(vbox, next_enabled=next_enabled)
+        self.addWidget(expert_widget)
 
+    def get_settings(self):
         return TrezorInitSettings(
-            word_count=bg_numwords.checkedId(),
-            label=name.text(),
-            pin_enabled=cb_pin.isChecked(),
-            passphrase_enabled=cb_phrase.isChecked(),
-            recovery_type=bg_rectype.checkedId() if bg_rectype else None,
-            backup_type=bg_backuptype.checkedId(),
-            no_backup=cb_no_backup.isChecked() if cb_no_backup else False,
+            word_count=self.bg_numwords.checkedId(),
+            label=self.name.text(),
+            pin_enabled=self.cb_pin.isChecked(),
+            passphrase_enabled=self.cb_phrase.isChecked(),
+            recovery_type=self.bg_rectype.checkedId() if self.bg_rectype else None,
+            backup_type=self.bg_backuptype.checkedId(),
+            no_backup=self.cb_no_backup.isChecked() if self.cb_no_backup else False,
         )
 
 
@@ -448,8 +463,24 @@ class Plugin(TrezorPlugin, QtPlugin):
 
     @classmethod
     def pin_matrix_widget_class(self):
-        from trezorlib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
+        self.extend_wizard(wizard)
+
+    # insert trezor pages in new wallet wizard
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
+        super().extend_wizard(wizard)
+        views = {
+            'trezor_start': {'gui': WCScriptAndDerivation},
+            'trezor_xpub': {'gui': WCTrezorXPub},
+            'trezor_not_initialized': {'gui': WCTrezorInitMethod},
+            'trezor_choose_new_recover': {'gui': WCTrezorInitParams},
+            'trezor_do_init': {'gui': WCTrezorInit},
+            'trezor_unlock': {'gui': WCHWUnlock},
+        }
+        wizard.navmap_merge(views)
 
 
 class SettingsDialog(WindowModalDialog):
@@ -487,7 +518,7 @@ class SettingsDialog(WindowModalDialog):
             self.features = features
             set_label_enabled()
             if features.bootloader_hash:
-                bl_hash = bh2u(features.bootloader_hash)
+                bl_hash = features.bootloader_hash.hex()
                 bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
             else:
                 bl_hash = "N/A"
@@ -528,14 +559,14 @@ class SettingsDialog(WindowModalDialog):
                 msg = _("After disabling passphrases, you can only pair this "
                         "Electrum wallet if it had an empty passphrase.  "
                         "If its passphrase was not empty, you will need to "
-                        "create a new wallet with the install wizard.  You "
-                        "can use this wallet again at any time by re-enabling "
-                        "passphrases and entering its passphrase.")
+                        "create a new wallet.  You can use this wallet again "
+                        "at any time by re-enabling passphrases and entering "
+                        "its passphrase.")
             else:
                 msg = _("Your current Electrum wallet can only be used with "
                         "an empty passphrase.  You must create a separate "
-                        "wallet with the install wizard for other passphrases "
-                        "as each one generates a new set of addresses.")
+                        "wallet for other passphrases as each one generates "
+                        "a new set of addresses.")
             msg += "\n\n" + _("Are you sure you want to proceed?")
             if not self.question(msg, title=title):
                 return
@@ -588,7 +619,7 @@ class SettingsDialog(WindowModalDialog):
                 msg = _("Are you SURE you want to wipe the device?\n"
                         "Your wallet still has bitcoins in it!")
                 if not self.question(msg, title=title,
-                                     icon=QMessageBox.Critical):
+                                     icon=QMessageBox.Icon.Critical):
                     return
             invoke_client('wipe_device', unpair_after=True)
 
@@ -690,11 +721,11 @@ class SettingsDialog(WindowModalDialog):
         # Settings tab - Session Timeout
         timeout_label = QLabel(_("Session Timeout"))
         timeout_minutes = QLabel()
-        timeout_slider = QSlider(Qt.Horizontal)
+        timeout_slider = QSlider(Qt.Orientation.Horizontal)
         timeout_slider.setRange(1, 60)
         timeout_slider.setSingleStep(1)
         timeout_slider.setTickInterval(5)
-        timeout_slider.setTickPosition(QSlider.TicksBelow)
+        timeout_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         timeout_slider.setTracking(True)
         timeout_msg = QLabel(
             _("Clear the session after the specified period "
@@ -768,3 +799,129 @@ class SettingsDialog(WindowModalDialog):
 
         # Update information
         invoke_client(None)
+
+
+class WCTrezorXPub(WCHWXPub):
+    def __init__(self, parent, wizard):
+        WCHWXPub.__init__(self, parent, wizard)
+
+    def get_xpub_from_client(self, client, derivation, xtype):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        if xtype not in self.plugin.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}').format(_info.model_name))
+        if not client.is_uptodate():
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                     .format(_info.model_name, _info.label, self.plugin.firmware_URL))
+            raise OutdatedHwFirmwareException(msg)
+        return client.get_xpub(derivation, xtype, True)
+
+
+class WCTrezorInitMethod(WalletWizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self.plugin = None
+
+    def on_ready(self):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        self.plugin = self.plugins.get_plugin(_info.plugin_name)
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client.features.bootloader_mode:
+            msg = (_("Looks like your device is in bootloader mode. Try reconnecting it.\n"
+                     "If you haven't installed a firmware on it yet, you can download it from {}")
+                   .format(self.plugin.firmware_URL))
+            self.error = msg
+            return
+        if not client.is_uptodate():
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                     .format(_info.model_name, _info.label, self.plugin.firmware_URL))
+            self.error = msg
+            return
+
+        message = _('Choose how you want to initialize your {}.').format(_info.model_name)
+        choices = [
+            # Must be short as QT doesn't word-wrap radio button text
+            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
+            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
+        ]
+        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.layout().addWidget(self.choice_w)
+        self.layout().addStretch(1)
+
+        self._valid = True
+
+    def apply(self):
+        if not self.valid:
+            return
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['trezor_init'] = self.choice_w.selected_key
+
+
+class WCTrezorInitParams(WalletWizardComponent):
+    def __init__(self, parent, wizard):
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
+        self.plugins = wizard.plugins
+        self._busy = True
+
+    def on_ready(self):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        self.settings_layout = InitSettingsLayout(self.plugins.device_manager, current_cosigner['trezor_init'], _info.device.id_)
+        self.layout().addLayout(self.settings_layout)
+        self.layout().addStretch(1)
+
+        self.valid = True
+        self.busy = False
+
+    def apply(self):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        current_cosigner['trezor_settings'] = self.settings_layout.get_settings()
+
+
+class WCTrezorInit(WalletWizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Trezor Setup'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self.plugin = self.plugins.get_plugin('trezor')
+
+        self.layout().addWidget(WWLabel('Done'))
+
+        self._busy = True
+
+    def on_ready(self):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        settings = current_cosigner['trezor_settings']
+        method = current_cosigner['trezor_init']
+        _name, _info = current_cosigner['hardware_device']
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        client.handler = self.plugin.create_handler(self.wizard)
+
+        def initialize_device_task(settings, method, device_id, handler):
+            try:
+                self.plugin._initialize_device(settings, method, device_id, handler)
+                self.logger.info('Done initialize device')
+                self.valid = True
+                self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
+            except Exception as e:
+                self.valid = False
+                self.error = repr(e)
+                self.logger.exception(repr(e))
+            finally:
+                self.busy = False
+
+        t = threading.Thread(
+            target=initialize_device_task,
+            args=(settings, method, device_id, client.handler),
+            daemon=True)
+        t.start()
+
+    def apply(self):
+        pass

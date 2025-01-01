@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -10,34 +10,27 @@ import "controls"
 ElDialog {
     id: root
 
-    title: qsTr('PIN')
-    iconSource: '../../../icons/lock.png'
-
-    width: parent.width * 2/3
-
-    anchors.centerIn: parent
-
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: canCancel ? "#aa000000" : "#ff000000"
-    }
-
-    focus: true
-
-    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
-
     property bool canCancel: true
-
-    allowClose: canCancel
-
     property string mode // [check, enter, change]
     property string pincode // old one passed in when change, new one passed out
-
+    property bool checkError: false
+    property string authMessage
     property int _phase: mode == 'enter' ? 1 : 0 // 0 = existing pin, 1 = new pin, 2 = re-enter new pin
     property string _pin
 
-    property bool checkError: false
+    title: authMessage ? authMessage : qsTr('PIN')
+    iconSource: Qt.resolvedUrl('../../icons/lock.png')
+    width: parent.width * 3/4
+    z: 1000
+    focus: true
+    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
+    allowClose: canCancel
+
+    anchors.centerIn: parent
+
+    Overlay.modal: Rectangle {
+        color: canCancel ? "#aa000000" : "#ff000000"
+    }
 
     function submit() {
         if (_phase == 0) {
@@ -79,17 +72,21 @@ ElDialog {
 
         Label {
             text: [qsTr('Enter PIN'), qsTr('Enter New PIN'), qsTr('Re-enter New PIN')][_phase]
-            font.pixelSize: constants.fontSizeXXLarge
-            Layout.alignment: Qt.AlignHCenter
+            font.pixelSize: constants.fontSizeXLarge
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
         }
 
         TextField {
             id: pin
-            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
+            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6 + pin.leftPadding + pin.rightPadding
+            Layout.preferredHeight: fontMetrics.height + pin.topPadding + pin.bottomPadding
             Layout.alignment: Qt.AlignHCenter
             font.pixelSize: constants.fontSizeXXLarge
             maximumLength: 6
             inputMethodHints: Qt.ImhDigitsOnly
+
             echoMode: TextInput.Password
             focus: true
             onTextChanged: {

@@ -19,7 +19,7 @@
   OutFile "dist/electrum-setup.exe"
 
   ;Default installation folder
-  InstallDir "$PROGRAMFILES\${PRODUCT_NAME}"
+  InstallDir "$PROGRAMFILES64\${PRODUCT_NAME}"
 
   ;Get installation folder from registry if available
   InstallDirRegKey HKCU "Software\${PRODUCT_NAME}" ""

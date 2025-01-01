@@ -4,7 +4,7 @@ It reads the current stylesheet, appends our modifications and sets the new styl
 
 import sys
 
-from PyQt5 import QtWidgets
+from PyQt6 import QtWidgets
 
 
 CUSTOM_PATCH_FOR_DARK_THEME = '''

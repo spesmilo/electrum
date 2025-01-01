@@ -1,6 +1,6 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.3
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 import org.electrum 1.0
 
@@ -9,19 +9,16 @@ import "controls"
 ElDialog {
     id: root
 
-    property bool valid: false
-
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-    width: parent.width
-    height: parent.height
-
     title: Daemon.currentWallet.isWatchOnly
             ? qsTr('Import additional addresses')
             : qsTr('Import additional keys')
+
+    property bool valid: false
+
+    width: parent.width
+    height: parent.height
+
+    padding: 0
 
     function verify(text) {
         if (Daemon.currentWallet.isWatchOnly)
@@ -38,87 +35,88 @@ ElDialog {
     }
 
     ColumnLayout {
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
+        spacing: 0
 
-        Label {
-            text: Daemon.currentWallet.isWatchOnly
-                    ? qsTr('Import additional addresses')
-                    : qsTr('Import additional keys')
-        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
 
-        RowLayout {
-            TextArea {
-                id: import_ta
+            Label {
                 Layout.fillWidth: true
-                Layout.minimumHeight: 80
-                focus: true
-                wrapMode: TextEdit.WrapAnywhere
-                onTextChanged: valid = verify(text)
+                wrapMode: Text.Wrap
+                text: (Daemon.currentWallet.isWatchOnly
+                        ? qsTr('Enter, paste or scan additional addresses')
+                        : qsTr('Enter, paste or scan additional private keys')) +
+                      '. ' + qsTr('You can add multiple, each on a separate line.')
             }
-            ColumnLayout {
-                Layout.alignment: Qt.AlignTop
-                ToolButton {
-                    icon.source: '../../icons/paste.png'
-                    icon.height: constants.iconSizeMedium
-                    icon.width: constants.iconSizeMedium
-                    onClicked: {
-                        if (verify(AppController.clipboardToText())) {
-                            if (import_ta.text != '')
-                                import_ta.text = import_ta.text + '\n'
-                            import_ta.text = import_ta.text + AppController.clipboardToText()
+
+            RowLayout {
+                ElTextArea {
+                    id: import_ta
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    font.family: FixedFont
+                    wrapMode: TextEdit.WrapAnywhere
+                    onTextChanged: valid = verify(text)
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    background: PaneInsetBackground {
+                        baseColor: constants.darkerDialogBackground
+                    }
+                }
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignTop
+                    ToolButton {
+                        icon.source: '../../icons/paste.png'
+                        icon.height: constants.iconSizeMedium
+                        icon.width: constants.iconSizeMedium
+                        onClicked: {
+                            if (verify(AppController.clipboardToText())) {
+                                if (import_ta.text != '')
+                                    import_ta.text = import_ta.text + '\n'
+                                import_ta.text = import_ta.text + AppController.clipboardToText()
+                            }
+                        }
+                    }
+                    ToolButton {
+                        icon.source: '../../icons/qrcode.png'
+                        icon.height: constants.iconSizeMedium
+                        icon.width: constants.iconSizeMedium
+                        scale: 1.2
+                        onClicked: {
+                            var dialog = app.scanDialog.createObject(app, {
+                                hint: Daemon.currentWallet.isWatchOnly
+                                    ? qsTr('Scan another address')
+                                    : qsTr('Scan another private key')
+                            })
+                            dialog.onFound.connect(function() {
+                                if (verify(dialog.scanData)) {
+                                    if (import_ta.text != '')
+                                        import_ta.text = import_ta.text + ',\n'
+                                    import_ta.text = import_ta.text + dialog.scanData
+                                }
+                                dialog.close()
+                            })
+                            dialog.open()
                         }
                     }
                 }
-                ToolButton {
-                    icon.source: '../../icons/qrcode.png'
-                    icon.height: constants.iconSizeMedium
-                    icon.width: constants.iconSizeMedium
-                    scale: 1.2
-                    onClicked: {
-                        var scan = qrscan.createObject(root.contentItem) // can't use dialog as parent?
-                        scan.onFound.connect(function() {
-                            if (verify(scan.scanData)) {
-                                if (import_ta.text != '')
-                                    import_ta.text = import_ta.text + ',\n'
-                                import_ta.text = import_ta.text + scan.scanData
-                            }
-                            scan.destroy()
-                        })
-                    }
-                }
             }
-        }
 
-        Item {
-            Layout.preferredWidth: 1
-            Layout.fillHeight: true
+            Item {
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
+            }
         }
 
         FlatButton {
             Layout.fillWidth: true
+            icon.source: '../../icons/add.png'
             text: qsTr('Import')
             enabled: valid
-            onClicked: accept()
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: parent.width
-            height: parent.height
-
-            ToolButton {
-                icon.source: '../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
-                }
-            }
+            onClicked: doAccept()
         }
     }
 

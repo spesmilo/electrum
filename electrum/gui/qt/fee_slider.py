@@ -1,8 +1,8 @@
 import threading
 
-from PyQt5.QtGui import QCursor
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QToolTip, QComboBox
+from PyQt6.QtGui import QCursor
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox
 
 from electrum.i18n import _
 
@@ -23,15 +23,15 @@ class FeeComboBox(QComboBox):
         )
 
     def on_fee_type(self, x):
-        self.config.set_key('mempool_fees', x==2)
-        self.config.set_key('dynamic_fees', x>0)
+        self.config.FEE_EST_USE_MEMPOOL = (x == 2)
+        self.config.FEE_EST_DYNAMIC = (x > 0)
         self.fee_slider.update()
 
 
 class FeeSlider(QSlider):
 
     def __init__(self, window, config, callback):
-        QSlider.__init__(self, Qt.Horizontal)
+        QSlider.__init__(self, Qt.Orientation.Horizontal)
         self.config = config
         self.window = window
         self.callback = callback
@@ -41,12 +41,16 @@ class FeeSlider(QSlider):
         self.valueChanged.connect(self.moved)
         self._active = True
 
+    def get_fee_rate(self, pos):
+        if self.dyn:
+            fee_rate = self.config.depth_to_fee(pos) if self.config.use_mempool_fees() else self.config.eta_to_fee(pos)
+        else:
+            fee_rate = self.config.static_fee(pos)
+        return fee_rate
+
     def moved(self, pos):
         with self.lock:
-            if self.dyn:
-                fee_rate = self.config.depth_to_fee(pos) if self.config.use_mempool_fees() else self.config.eta_to_fee(pos)
-            else:
-                fee_rate = self.config.static_fee(pos)
+            fee_rate = self.get_fee_rate(pos)
             tooltip = self.get_tooltip(pos, fee_rate)
             QToolTip.showText(QCursor.pos(), tooltip, self)
             self.setToolTip(tooltip)
@@ -59,6 +63,15 @@ class FeeSlider(QSlider):
             return _('Target') + ': ' + target + '\n' + _('Current rate') + ': ' + estimate
         else:
             return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
+
+    def get_dynfee_target(self):
+        if not self.dyn:
+            return ''
+        pos = self.value()
+        fee_rate = self.get_fee_rate(pos)
+        mempool = self.config.use_mempool_fees()
+        target, estimate = self.config.get_fee_text(pos, True, mempool, fee_rate)
+        return target
 
     def update(self):
         with self.lock:

@@ -66,7 +66,7 @@ def bruteforce_loop(test_password: Callable[[str], bool]) -> str:
                 return password
             num_tested += 1
             if num_tested % 5000 == 0:
-                print(f"> tested {num_tested} passwords so far... most recently tried: {password!r}")
+                print(f"> tested {num_tested} passwords so far...")
 
 
 if __name__ == '__main__':
@@ -93,4 +93,4 @@ if __name__ == '__main__':
         print(f"wallet found: with keystore encryption.")
     password = bruteforce_loop(test_password)
     print(f"====================")
-    print(f"password found: {password}")
+    print("Password found successfully.")

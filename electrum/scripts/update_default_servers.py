@@ -37,7 +37,7 @@ def get_newly_added_servers(fname1, fname2=None):
 
 
 # testnet?
-#constants.set_testnet()
+#constants.BitcoinTestnet.set_as_network()
 config = SimpleConfig({'testnet': False})
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()

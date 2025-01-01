@@ -1,6 +1,6 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 import org.electrum 1.0
 
@@ -22,8 +22,6 @@ WizardComponent {
 
         TextHighlightPane {
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
 
             RowLayout {
                 width: parent.width

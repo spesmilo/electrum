@@ -1,6 +1,6 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 Item {
     id: pc
@@ -74,6 +74,7 @@ Item {
             TextField {
                 id: address
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Label {
@@ -84,6 +85,7 @@ Item {
             TextField {
                 id: port
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhDigitsOnly
             }
 
             Label {
@@ -94,6 +96,7 @@ Item {
             TextField {
                 id: username_tf
                 enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Label {

@@ -1,0 +1,50 @@
+{
+    "accounts": {
+        "0": {
+            "change": [
+                "038f4bae4a901fe5f2a30a06a09681fff6678e8efda4e881f71dcdc0fdb36dd1b8",
+                "032c628bec66fe98c3921b4fea6f18d241e6b23f4baf9e56c78b7a5262cd4cc412",
+                "0232b68a11cde50a49fb3155fe2c9e9cf7aa9f4bcb0f51c3963b13c997e40de40d"
+            ],
+            "receiving": [
+                "0237246e68c6916c43c7c5aca1031df0c442439b80ceda07eaf72645a0597ed6aa",
+                "03f35bee973012909d839c9999137b7f2f3296c02791764da3f55561425bb1d53c",
+                "02fdbe9f95e2279045e6ef5f04172c6fe9476ba09d70aa0a8483347bfc10dee65e",
+                "026bc52dc91445594bb639c7a996d682ac74a4564381874b9d36cc5feea103d7a4",
+                "0319182796c6377447234eeee9fe62ce6b25b83a9c46965d9a02c579a23f9fa57a",
+                "02e23d202a45515ce509c8b9548a251de3ad8e64c92b24bb74b354c8d4d0dc85af",
+                "0307d7ccb51aa6860606bcbe008acc1aae5b53d19d0752a20a327b6ec164399b52",
+                "038a2362fde711e1a4b9c5f8fe1090a0a38aec3643c0c3d69b00660b213dc4bfb8",
+                "0396255ef7b75e5d8ffc18d01b9012a98141ee5458a68cde8b25c492c569a22ab8",
+                "02c7edf03d215b7d3478fb26e9375d541440f4a8b5c562c0eb98fab6215dbea731",
+                "024286902b95da3daf6ffb571d5465537dae5b4e00139e6465e440d6a26892158e",
+                "03aa0d3fa1fe190a24e14d6aabd9c163c7fe70707b00f7e0f9fa6b4d3a4e441149",
+                "03995d433093a2ae9dc305fe8664f6ab9143b2f7eaf6f31bc5fefdacb183699808",
+                "033c5da7c4c7a3479ddb569fecbcbb8725867370746c04ff5d2a84d1706607bbab",
+                "036a097331c285c83c4dab7d454170b60a94d8d9daa152b0af6af81dbd7f0cc440",
+                "033ed002ddf99c1e21cb8468d0f5512d71466ac5ba4003b33d71a181e3a696e3c5",
+                "02a6a0f30d1a341063a57a0549a3d16d9487b1d4e0d4bffadabdc62d1ad1a43f8f",
+                "02dcae71fc2e31013cf12ad78f9e16672eeb7c75e536f4f7d36adb54f9682884eb",
+                "028ef32bc57b95697dacdb29b724e3d0fa860ffdc33c295962b680d31b23232090",
+                "0314afd1ac2a4bf324d6e73f466a60f511d59088843f93c895507e7af1ccdb5a3b"
+            ],
+            "xpub": "xpub661MyMwAqRbcEuc5dCRqgPpGX2bKStk4g2cbZ96SSmKsQmLUrhaQEtrfnBMsXSUSyKWuCtjLiZ8zXrxcNeC2LR8gnZPrQJdmUEeofS2yuux"
+        }
+    },
+    "accounts_expanded": {},
+    "master_private_keys": {
+        "x/": "xprv9s21ZrQH143K2RXcXAtqKFsXxzkq3S2DJogzkkgptRntXy1LKAG9h6YBvw8JjSUogF1UNneyYgS5uYshMBemqr41XsC7bTr8Fjx1uAyLbPC"
+    },
+    "master_public_keys": {
+        "x/": "xpub661MyMwAqRbcEuc5dCRqgPpGX2bKStk4g2cbZ96SSmKsQmLUrhaQEtrfnBMsXSUSyKWuCtjLiZ8zXrxcNeC2LR8gnZPrQJdmUEeofS2yuux"
+    },
+    "pruned_txo": {},
+    "seed": "agree tongue gas total hollow clip wasp slender dolphin rebel ozone omit achieve",
+    "seed_version": 11,
+    "stored_height": 0,
+    "transactions": {},
+    "txi": {},
+    "txo": {},
+    "use_encryption": false,
+    "wallet_type": "standard"
+}

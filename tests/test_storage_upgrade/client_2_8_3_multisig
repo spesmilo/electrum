@@ -1,0 +1,89 @@
+{
+    "addr_history": {
+        "32Qk6Q7XYD2v3et9g5fA97ky8XRAJNDZCS": [],
+        "339axnadPaQg3ngChNBKap2dndUWrSwjk6": [],
+        "34FG8qzA6UYLxrnkpVkM9mrGYix3ZyePJZ": [],
+        "35CR3h2dFF3EkRX5yK47NGuF2FcLtJvpUM": [],
+        "35zrocLBQbHfEqysgv2v5z3RH7BRGQzSMJ": [],
+        "36uBJPkgiQwav23ybewbgkQ2zEzJDY2EX1": [],
+        "37nSiBvGXm1PNYseymaJn5ERcU4mSMueYc": [],
+        "39r4XCmfU4J3N98YQ8Fwvm8VN1Fukfj7QW": [],
+        "3BDqFoYMxyy7nWCpRChYV6YCGh9qnWDmav": [],
+        "3CGCLSHU8ZjeXv6oukJ3eAQN4fqEQ7wuyX": [],
+        "3DCNnfh7oWLsnS3p5QdWfW3hvcFF8qAPFq": [],
+        "3DPheE9uany9ET2qBnWF1wh3zDtptGP6Ts": [],
+        "3EeNJHgSYVJPxYR2NaYv2M2ZnXkPRWSHQh": [],
+        "3FWZ7pJPxZhGr8p6HNr9LLsHA8sABcP7cF": [],
+        "3FZbzEF9HdRqzif2cKUFnwW9AFTJcibjVK": [],
+        "3GEhQHTrWykC6Jfu923qtpxJECsEGVdhUc": [],
+        "3HJ95uxwW6rMoEhYgUfcgpd3ExU3fjkfNb": [],
+        "3HbdMVgKRqadNiHRNGizUCyTQYpJ1aXFav": [],
+        "3J6xRF9d16QNsvoXkYkeTwTU8L5N3Y8f7c": [],
+        "3JBbS3GvhvoLgtLcuMvHCtqjE7dnbpTMkz": [],
+        "3KNWZasWDBuVzzp5Y5cbEgjeYn3NKHZKso": [],
+        "3KQ5tTEbkQSkKiccKFDPrhLnBjSMey6CQM": [],
+        "3KrFHcAzNJYjukGDDZm2HeV5Mok4NGQaD6": [],
+        "3LNZbX9wenL3bLxJTQnPidSvVt3EtDrnUg": [],
+        "3LzjAqqfiN8w4TSiW8Up7bKLD5CicBUC3a": [],
+        "3Nro51wauHugv72NMtY9pmLnwX3FXWU1eE": []
+    },
+    "addresses": {
+        "change": [
+            "34FG8qzA6UYLxrnkpVkM9mrGYix3ZyePJZ",
+            "3LzjAqqfiN8w4TSiW8Up7bKLD5CicBUC3a",
+            "3GEhQHTrWykC6Jfu923qtpxJECsEGVdhUc",
+            "3Nro51wauHugv72NMtY9pmLnwX3FXWU1eE",
+            "3JBbS3GvhvoLgtLcuMvHCtqjE7dnbpTMkz",
+            "3CGCLSHU8ZjeXv6oukJ3eAQN4fqEQ7wuyX"
+        ],
+        "receiving": [
+            "35zrocLBQbHfEqysgv2v5z3RH7BRGQzSMJ",
+            "3FWZ7pJPxZhGr8p6HNr9LLsHA8sABcP7cF",
+            "3DPheE9uany9ET2qBnWF1wh3zDtptGP6Ts",
+            "3HbdMVgKRqadNiHRNGizUCyTQYpJ1aXFav",
+            "3KQ5tTEbkQSkKiccKFDPrhLnBjSMey6CQM",
+            "35CR3h2dFF3EkRX5yK47NGuF2FcLtJvpUM",
+            "3HJ95uxwW6rMoEhYgUfcgpd3ExU3fjkfNb",
+            "3FZbzEF9HdRqzif2cKUFnwW9AFTJcibjVK",
+            "39r4XCmfU4J3N98YQ8Fwvm8VN1Fukfj7QW",
+            "3LNZbX9wenL3bLxJTQnPidSvVt3EtDrnUg",
+            "32Qk6Q7XYD2v3et9g5fA97ky8XRAJNDZCS",
+            "339axnadPaQg3ngChNBKap2dndUWrSwjk6",
+            "3EeNJHgSYVJPxYR2NaYv2M2ZnXkPRWSHQh",
+            "3BDqFoYMxyy7nWCpRChYV6YCGh9qnWDmav",
+            "3DCNnfh7oWLsnS3p5QdWfW3hvcFF8qAPFq",
+            "3KNWZasWDBuVzzp5Y5cbEgjeYn3NKHZKso",
+            "37nSiBvGXm1PNYseymaJn5ERcU4mSMueYc",
+            "3KrFHcAzNJYjukGDDZm2HeV5Mok4NGQaD6",
+            "36uBJPkgiQwav23ybewbgkQ2zEzJDY2EX1",
+            "3J6xRF9d16QNsvoXkYkeTwTU8L5N3Y8f7c"
+        ]
+    },
+    "pruned_txo": {},
+    "seed_version": 13,
+    "stored_height": 0,
+    "transactions": {},
+    "tx_fees": {},
+    "txi": {},
+    "txo": {},
+    "use_encryption": false,
+    "verified_tx3": {},
+    "wallet_type": "2of2",
+    "winpos-qt": [
+        671,
+        238,
+        840,
+        405
+    ],
+    "x1/": {
+        "seed": "property play install hill hunt follow trash comic pulse consider canyon limit",
+        "type": "bip32",
+        "xprv": "xprv9s21ZrQH143K46tCjDh5i4H9eSJpnMrYyLUbVZheTbNjiamdxPiffMEYLgxuYsMFokFrNEZ6S6z5wSXXszXaCVQWf6jzZvn14uYZhsnM9Sb",
+        "xpub": "xpub661MyMwAqRbcGaxfqFE65CDtCU9KBpaQLZQCHx7G1vuibP6nVw2vD9Z2Bz2DsH43bDZGXjmcvx2TD9wq3CmmFcoT96RCiDd1wMSUB2UH7Gu"
+    },
+    "x2/": {
+        "type": "bip32",
+        "xprv": null,
+        "xpub": "xpub661MyMwAqRbcEncvVc1zrPFZSKe7iAP1LTRhzxuXpmztu1kTtnfj8XNFzzmGH1X1gcGxczBZ3MmYKkxXgZKJCsNXXdasNaQJKJE4KcUjn1L"
+    }
+}

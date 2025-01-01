@@ -23,336 +23,272 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
-import decimal
-from decimal import Decimal
-from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
+from functools import partial
+from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QFontMetrics, QFont
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QFontMetrics, QFont
+from PyQt6.QtWidgets import QApplication, QTextEdit, QWidget, QLineEdit, QStackedLayout, QSizePolicy
 
-from electrum import bitcoin
-from electrum.util import bfh, parse_max_spend, FailedToParsePaymentIdentifier
-from electrum.transaction import PartialTxOutput
-from electrum.bitcoin import opcodes, construct_script
+from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger
-from electrum.lnurl import LNURLError
 
-from .qrtextedit import ScanQRTextEdit
-from .completion_text_edit import CompletionTextEdit
 from . import util
-from .util import MONOSPACE_FONT
+from .util import MONOSPACE_FONT, GenericInputHandler, editor_contextMenuEvent, ColorScheme
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
     from .send_tab import SendTab
 
-
-RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
 frozen_style = "QWidget {border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 
-class PayToLineError(NamedTuple):
-    line_content: str
-    exc: Exception
-    idx: int = 0  # index of line
-    is_multiline: bool = False
+class InvalidPaymentIdentifier(Exception):
+    pass
 
 
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+class ResizingTextEdit(QTextEdit):
 
-    def __init__(self, send_tab: 'SendTab'):
-        CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=send_tab.config, setText=self._on_input_btn)
-        Logger.__init__(self)
-        self.send_tab = send_tab
-        self.win = send_tab.window
-        self.app = QApplication.instance()
-        self.amount_edit = self.send_tab.amount_e
-        self.setFont(QFont(MONOSPACE_FONT))
+    textReallyChanged = pyqtSignal()
+    resized = pyqtSignal()
+
+    def __init__(self):
+        QTextEdit.__init__(self)
+        self._text = ''
+        self.setAcceptRichText(False)
+        self.textChanged.connect(self.on_text_changed)
         document = self.document()
-        document.contentsChanged.connect(self.update_size)
-
         fontMetrics = QFontMetrics(document.defaultFont())
         self.fontSpacing = fontMetrics.lineSpacing()
-
         margins = self.contentsMargins()
         documentMargin = document.documentMargin()
         self.verticalMargins = margins.top() + margins.bottom()
         self.verticalMargins += self.frameWidth() * 2
         self.verticalMargins += documentMargin * 2
-
         self.heightMin = self.fontSpacing + self.verticalMargins
         self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
-
-        self.c = None
-        self.addPasteButton(setText=self._on_input_btn)
-        self.textChanged.connect(self._on_text_changed)
-        self.outputs = []  # type: List[PartialTxOutput]
-        self.errors = []  # type: List[PayToLineError]
-        self.disable_checks = False
-        self.is_alias = False
         self.update_size()
-        self.payto_scriptpubkey = None  # type: Optional[bytes]
-        self.lightning_invoice = None
-        self.previous_payto = ''
 
-    def setFrozen(self, b):
-        self.setReadOnly(b)
-        self.setStyleSheet(frozen_style if b else normal_style)
-        self.overlay_widget.setHidden(b)
-
-    def setTextNoCheck(self, text: str):
-        """Sets the text, while also ensuring the new value will not be resolved/checked."""
-        self.previous_payto = text
-        self.setText(text)
-
-    def do_clear(self):
-        self.disable_checks = False
-        self.is_alias = False
-        self.setText('')
-        self.setFrozen(False)
-        self.setEnabled(True)
-
-    def setGreen(self):
-        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
-
-    def setExpired(self):
-        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
-
-    def parse_address_and_amount(self, line) -> PartialTxOutput:
-        try:
-            x, y = line.split(',')
-        except ValueError:
-            raise Exception("expected two comma-separated values: (address, amount)") from None
-        scriptpubkey = self.parse_output(x)
-        amount = self.parse_amount(y)
-        return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
-
-    def parse_output(self, x) -> bytes:
-        try:
-            address = self.parse_address(x)
-            return bfh(bitcoin.address_to_script(address))
-        except Exception:
-            pass
-        try:
-            script = self.parse_script(x)
-            return bfh(script)
-        except Exception:
-            pass
-        raise Exception("Invalid address or script.")
-
-    def parse_script(self, x):
-        script = ''
-        for word in x.split():
-            if word[0:3] == 'OP_':
-                opcode_int = opcodes[word]
-                script += construct_script([opcode_int])
-            else:
-                bfh(word)  # to test it is hex data
-                script += construct_script([word])
-        return script
-
-    def parse_amount(self, x):
-        x = x.strip()
-        if not x:
-            raise Exception("Amount is empty")
-        if parse_max_spend(x):
-            return x
-        p = pow(10, self.amount_edit.decimal_point())
-        try:
-            return int(p * Decimal(x))
-        except decimal.InvalidOperation:
-            raise Exception("Invalid amount")
-
-    def parse_address(self, line):
-        r = line.strip()
-        m = re.match('^'+RE_ALIAS+'$', r)
-        address = str(m.group(2) if m else r)
-        assert bitcoin.is_address(address)
-        return address
-
-    def _on_input_btn(self, text: str):
-        self.setText(text)
-        self._check_text(full_check=True)
-
-    def _on_text_changed(self):
-        if self.app.clipboard().text() == self.toPlainText():
-            # user likely pasted from clipboard
-            self._check_text(full_check=True)
-        else:
-            self._check_text(full_check=False)
-
-    def on_timer_check_text(self):
-        if self.hasFocus():
-            return
-        self._check_text(full_check=True)
-
-    def _check_text(self, *, full_check: bool):
-        if self.previous_payto == str(self.toPlainText()).strip():
-            return
-        if full_check:
-            self.previous_payto = str(self.toPlainText()).strip()
-        self.errors = []
-        if self.disable_checks:
-            return
-        # filter out empty lines
-        lines = [i for i in self.lines() if i]
-
-        self.payto_scriptpubkey = None
-        self.lightning_invoice = None
-        self.outputs = []
-
-        if len(lines) == 1:
-            data = lines[0]
-            try:
-                self.send_tab.handle_payment_identifier(data, can_use_network=full_check)
-            except LNURLError as e:
-                self.logger.exception("")
-                self.send_tab.show_error(e)
-            except FailedToParsePaymentIdentifier:
-                pass
-            else:
-                return
-            # try "address, amount" on-chain format
-            try:
-                self._parse_as_multiline(lines, raise_errors=True)
-            except Exception as e:
-                pass
-            else:
-                return
-            # try address/script
-            try:
-                self.payto_scriptpubkey = self.parse_output(data)
-            except Exception as e:
-                self.errors.append(PayToLineError(line_content=data, exc=e))
-            else:
-                self.send_tab.set_onchain(True)
-                self.send_tab.lock_amount(False)
-                return
-            if full_check:  # network requests  # FIXME blocking GUI thread
-                # try openalias
-                oa_data = self._resolve_openalias(data)
-                if oa_data:
-                    self._set_openalias(key=data, data=oa_data)
-                    return
-        else:
-            # there are multiple lines
-            self._parse_as_multiline(lines, raise_errors=False)
-
-    def _parse_as_multiline(self, lines, *, raise_errors: bool):
-        outputs = []  # type: List[PartialTxOutput]
-        total = 0
-        is_max = False
-        for i, line in enumerate(lines):
-            try:
-                output = self.parse_address_and_amount(line)
-            except Exception as e:
-                if raise_errors:
-                    raise
-                else:
-                    self.errors.append(PayToLineError(
-                        idx=i, line_content=line.strip(), exc=e, is_multiline=True))
-                    continue
-            outputs.append(output)
-            if parse_max_spend(output.value):
-                is_max = True
-            else:
-                total += output.value
-        if outputs:
-            self.send_tab.set_onchain(True)
-
-        self.send_tab.max_button.setChecked(is_max)
-        self.outputs = outputs
-        self.payto_scriptpubkey = None
-
-        if self.send_tab.max_button.isChecked():
-            self.send_tab.spend_max()
-        else:
-            self.amount_edit.setAmount(total if outputs else None)
-        self.send_tab.lock_amount(self.send_tab.max_button.isChecked() or bool(outputs))
-
-    def get_errors(self) -> Sequence[PayToLineError]:
-        return self.errors
-
-    def get_destination_scriptpubkey(self) -> Optional[bytes]:
-        return self.payto_scriptpubkey
-
-    def get_outputs(self, is_max: bool) -> List[PartialTxOutput]:
-        if self.payto_scriptpubkey:
-            if is_max:
-                amount = '!'
-            else:
-                amount = self.amount_edit.get_amount()
-                if amount is None:
-                    return []
-            self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
-
-        return self.outputs[:]
-
-    def lines(self):
-        return self.toPlainText().split('\n')
-
-    def is_multiline(self):
-        return len(self.lines()) > 1
-
-    def paytomany(self):
-        self.setTextNoCheck("\n\n\n")
-        self.update_size()
+    def on_text_changed(self):
+        # QTextEdit emits spurious textChanged events
+        if self.toPlainText() != self._text:
+            self._text = self.toPlainText()
+            self.textReallyChanged.emit()
+            self.update_size()
 
     def update_size(self):
         docLineCount = self.document().lineCount()
-        if self.cursorRect().right() + 1 >= self.overlay_widget.pos().x():
-            # Add a line if we are under the overlay widget
-            docLineCount += 1
-        docHeight = docLineCount * self.fontSpacing
-
+        docHeight = max(3, docLineCount) * self.fontSpacing
         h = docHeight + self.verticalMargins
         h = min(max(h, self.heightMin), self.heightMax)
         self.setMinimumHeight(int(h))
         self.setMaximumHeight(int(h))
-
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.verticalScrollBar().setHidden(docHeight + self.verticalMargins < self.heightMax)
+        self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.resized.emit()
 
-        # The scrollbar visibility can have changed so we update the overlay position here
-        self._updateOverlayPos()
+    def sizeHint(self) -> QSize:
+        return QSize(0, self.minimumHeight())
 
-    def _resolve_openalias(self, text: str) -> Optional[dict]:
-        key = text
-        key = key.strip()  # strip whitespaces
-        if not (('.' in key) and ('<' not in key) and (' ' not in key)):
-            return None
-        parts = key.split(sep=',')  # assuming single line
-        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
-            return None
-        try:
-            data = self.win.contacts.resolve(key)
-        except Exception as e:
-            self.logger.info(f'error resolving address/alias: {repr(e)}')
-            return None
-        return data or None
 
-    def _set_openalias(self, *, key: str, data: dict) -> bool:
-        self.is_alias = True
-        self.setFrozen(True)
-        key = key.strip()  # strip whitespaces
-        address = data.get('address')
-        name = data.get('name')
-        new_url = key + ' <' + address + '>'
-        self.setTextNoCheck(new_url)
+class PayToEdit(QWidget, Logger, GenericInputHandler):
+    paymentIdentifierChanged = pyqtSignal()
+    textChanged = pyqtSignal()
 
-        #if self.win.config.get('openalias_autoadd') == 'checked':
-        self.win.contacts[key] = ('openalias', name)
-        self.win.contact_list.update()
+    def __init__(self, send_tab: 'SendTab'):
+        QWidget.__init__(self, parent=send_tab)
+        Logger.__init__(self)
+        GenericInputHandler.__init__(self)
 
-        if data.get('type') == 'openalias':
-            self.validated = data.get('validated')
-            if self.validated:
-                self.setGreen()
-            else:
-                self.setExpired()
+        self._text = ''
+        self._layout = QStackedLayout()
+        self.setLayout(self._layout)
+
+        def text_edit_changed():
+            text = self.text_edit.toPlainText()
+            if self._text != text:
+                # sync and emit
+                self._text = text
+                self.line_edit.setText(text)
+                self.textChanged.emit()
+
+        def text_edit_resized():
+            self.update_height()
+
+        def line_edit_changed():
+            text = self.line_edit.text()
+            if self._text != text:
+                # sync and emit
+                self._text = text
+                self.text_edit.setPlainText(text)
+                self.textChanged.emit()
+
+        self.line_edit = QLineEdit()
+        self.line_edit.textChanged.connect(line_edit_changed)
+        self.text_edit = ResizingTextEdit()
+        self.text_edit.setTabChangesFocus(True)
+        self.text_edit.textReallyChanged.connect(text_edit_changed)
+        self.text_edit.resized.connect(text_edit_resized)
+
+        self.textChanged.connect(self._handle_text_change)
+
+        self._layout.addWidget(self.line_edit)
+        self._layout.addWidget(self.text_edit)
+
+        self.multiline = False
+
+        self._is_paytomany = False
+        self.line_edit.setFont(QFont(MONOSPACE_FONT))
+        self.text_edit.setFont(QFont(MONOSPACE_FONT))
+        self.send_tab = send_tab
+        self.config = send_tab.config
+
+        # button handlers
+        self.on_qr_from_camera_input_btn = partial(
+            self.input_qr_from_camera,
+            config=self.config,
+            allow_multi=False,
+            show_error=self.send_tab.show_error,
+            setText=self.try_payment_identifier,
+            parent=self.send_tab.window,
+        )
+        self.on_qr_from_screenshot_input_btn = partial(
+            self.input_qr_from_screenshot,
+            allow_multi=False,
+            show_error=self.send_tab.show_error,
+            setText=self.try_payment_identifier,
+        )
+        self.on_input_file = partial(
+            self.input_file,
+            config=self.config,
+            show_error=self.send_tab.show_error,
+            setText=self.try_payment_identifier,
+        )
+
+        self.text_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.text_edit, self)
+        self.line_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.line_edit, self)
+
+        self.edit_timer = QTimer(self)
+        self.edit_timer.setSingleShot(True)
+        self.edit_timer.setInterval(1000)
+        self.edit_timer.timeout.connect(self._on_edit_timer)
+
+        self.payment_identifier = None  # type: Optional[PaymentIdentifier]
+
+    @property
+    def multiline(self):
+        return self._multiline
+
+    @multiline.setter
+    def multiline(self, b: bool) -> None:
+        if b is None:
+            return
+        self._multiline = b
+        self._layout.setCurrentWidget(self.text_edit if b else self.line_edit)
+        self.update_height()
+
+    def update_height(self) -> None:
+        h = self._layout.currentWidget().sizeHint().height()
+        self.setMaximumHeight(h)
+
+    def setText(self, text: str) -> None:
+        if self._text != text:
+            self.line_edit.setText(text)
+            self.text_edit.setText(text)
+
+    def setFocus(self, reason=Qt.FocusReason.OtherFocusReason) -> None:
+        if self.multiline:
+            self.text_edit.setFocus(reason)
         else:
-            self.validated = None
-        return True
+            self.line_edit.setFocus(reason)
+
+    def setToolTip(self, tt: str) -> None:
+        self.line_edit.setToolTip(tt)
+        self.text_edit.setToolTip(tt)
+
+    def try_payment_identifier(self, text) -> None:
+        '''set payment identifier only if valid, else exception'''
+        text = text.strip()
+        pi = PaymentIdentifier(self.send_tab.wallet, text)
+        if not pi.is_valid():
+            raise InvalidPaymentIdentifier('Invalid payment identifier')
+        self.set_payment_identifier(text)
+
+    def set_payment_identifier(self, text) -> None:
+        text = text.strip()
+        if self.payment_identifier and self.payment_identifier.text == text:
+            # no change.
+            return
+
+        self.payment_identifier = PaymentIdentifier(self.send_tab.wallet, text)
+
+        # toggle to multiline if payment identifier is a multiline
+        if self.payment_identifier.is_multiline() and not self._is_paytomany:
+            self.set_paytomany(True)
+
+        # if payment identifier gets set externally, we want to update the edit control
+        # Note: this triggers the change handler, but we shortcut if it's the same payment identifier
+        self.setText(text)
+
+        self.paymentIdentifierChanged.emit()
+
+    def set_paytomany(self, b):
+        self._is_paytomany = b
+        self.multiline = b
+        self.send_tab.paytomany_menu.setChecked(b)
+
+    def toggle_paytomany(self) -> None:
+        self.set_paytomany(not self._is_paytomany)
+
+    def is_paytomany(self):
+        return self._is_paytomany
+
+    def setReadOnly(self, b: bool) -> None:
+        self.line_edit.setReadOnly(b)
+        self.text_edit.setReadOnly(b)
+
+    def isReadOnly(self):
+        return self.line_edit.isReadOnly()
+
+    def setStyleSheet(self, stylesheet: str) -> None:
+        self.line_edit.setStyleSheet(stylesheet)
+        self.text_edit.setStyleSheet(stylesheet)
+
+    def setFrozen(self, b) -> None:
+        self.setReadOnly(b)
+        self.setStyleSheet(ColorScheme.LIGHTBLUE.as_stylesheet(True) if b else '')
+
+    def isFrozen(self):
+        return self.isReadOnly()
+
+    def do_clear(self) -> None:
+        self.set_paytomany(False)
+        self.setText('')
+        self.setToolTip('')
+        self.payment_identifier = None
+
+    def setGreen(self) -> None:
+        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
+
+    def setExpired(self) -> None:
+        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
+
+    def _handle_text_change(self) -> None:
+        if self.isFrozen():
+            # if editor is frozen, we ignore text changes as they might not be a payment identifier
+            # but a user friendly representation.
+            return
+
+        # pushback timer if timer active or PI needs resolving
+        pi = PaymentIdentifier(self.send_tab.wallet, self._text)
+        if not pi.is_valid() or pi.need_resolve() or self.edit_timer.isActive():
+            self.edit_timer.start()
+        else:
+            self.set_payment_identifier(self._text)
+
+    def _on_edit_timer(self) -> None:
+        if not self.isFrozen():
+            self.set_payment_identifier(self._text)

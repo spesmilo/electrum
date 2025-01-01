@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -9,6 +9,7 @@ import "../controls"
 
 WizardComponent {
     id: root
+    securePage: true
 
     valid: false
 
@@ -17,19 +18,34 @@ WizardComponent {
     property int participants: 0
     property string multisigMasterPubkey: wizard_data['multisig_master_pubkey']
 
+    property string _seedType
+    property string _validationMessage
+    property bool _canPassphrase
+    property bool _seedValid
+
     function apply() {
+        var seed_extend = extendcb.checked && _canPassphrase
         if (cosigner) {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seed_type
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = _seedType
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = seed_extend
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = seed_extend ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['seed_type'] = bitcoin.seed_type
-            wizard_data['seed_extend'] = extendcb.checked
-            wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+            wizard_data['seed_type'] = _seedType
+            wizard_data['seed_extend'] = seed_extend
+            wizard_data['seed_extra_words'] = seed_extend ? customwordstext.text : ''
+
+            // determine script type from electrum seed type
+            // (used to limit script type options for bip39 cosigners)
+            if (wizard_data['wallet_type'] == 'multisig' && seed_variant_cb.currentValue == 'electrum') {
+                wizard_data['script_type'] = {
+                    'standard': 'p2sh',
+                    'segwit': 'p2wsh'
+                }[_seedType]
+            }
         }
     }
 
@@ -56,21 +72,40 @@ WizardComponent {
 
     function checkValid() {
         valid = false
-        validationtext.text = ''
+        _seedValid = false
 
-        var validSeed = bitcoin.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
-        if (!cosigner || !validSeed) {
-            valid = validSeed
-            return
+        var verifyResult = wiz.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
+
+        _validationMessage = verifyResult.message
+        _seedType = verifyResult.type
+        _canPassphrase = verifyResult.can_passphrase
+
+        if (!cosigner || !verifyResult.valid) {
+            _seedValid = verifyResult.valid
         } else {
-            apply()
-            if (wiz.hasDuplicateKeys(wizard_data)) {
-                validationtext.text = qsTr('Error: duplicate master public key')
-                return
+            // bip39 validate after derivation path is known
+            if (seed_variant_cb.currentValue == 'electrum') {
+                apply()
+                if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                    _validationMessage = qsTr('Error: duplicate master public key')
+                    return
+                } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                    _validationMessage = qsTr('Error: master public key types do not match')
+                    return
+                } else {
+                    _seedValid = true
+                }
             } else {
-                valid = true
+                _seedValid = true
             }
         }
+
+        if (_canPassphrase && extendcb.checked && customwordstext.text == '') {
+            valid = false
+            return
+        }
+
+        valid = _seedValid
     }
 
     Flickable {
@@ -93,11 +128,10 @@ WizardComponent {
             }
 
             TextHighlightPane {
-                visible: cosigner
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
-                padding: 0
-                leftPadding: constants.paddingSmall
+
+                visible: cosigner
 
                 RowLayout {
                     width: parent.width
@@ -142,6 +176,7 @@ WizardComponent {
                 visible: !is2fa
                 text: qsTr('Seed Type')
             }
+
             ComboBox {
                 id: seed_variant_cb
                 visible: !is2fa
@@ -158,71 +193,62 @@ WizardComponent {
                     checkValid()
                 }
             }
+
             InfoTextArea {
                 id: infotext
+                visible: !cosigner && !is2fa
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+                Layout.bottomMargin: constants.paddingLarge
             }
-            Label {
-                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
-                Layout.columnSpan: 2
-            }
+
             SeedTextArea {
                 id: seedtext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+
+                placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
+
+                indicatorValid: root._seedValid
+                    ? root._seedType == 'bip39' && root._validationMessage
+                        ? false
+                        : root._seedValid
+                    : root._seedValid
+                indicatorText: root._validationMessage
+                        ? root._validationMessage
+                        : root._seedType
                 onTextChanged: {
-                    validationTimer.restart()
-                }
-
-                Rectangle {
-                    anchors.fill: contentText
-                    color: root.valid ? 'green' : 'red'
-                    border.color: Material.accentColor
-                    radius: 2
-                }
-                Label {
-                    id: contentText
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    leftPadding: text != '' ? constants.paddingLarge : 0
-                    rightPadding: text != '' ? constants.paddingLarge : 0
-                    font.bold: false
-                    font.pixelSize: constants.fontSizeSmall
-                }
-            }
-            TextArea {
-                id: validationtext
-                visible: text
-                Layout.fillWidth: true
-                readOnly: true
-                wrapMode: TextInput.WordWrap
-                background: Rectangle {
-                    color: 'transparent'
+                    startValidationTimer()
                 }
             }
 
-            CheckBox {
+            ElCheckBox {
                 id: extendcb
                 Layout.columnSpan: 2
+                Layout.fillWidth: true
+                visible: _canPassphrase
                 text: qsTr('Extend seed with custom words')
-                onCheckedChanged: validationTimer.restart()
+                onCheckedChanged: startValidationTimer()
             }
+
             TextField {
                 id: customwordstext
-                visible: extendcb.checked
+                visible: extendcb.checked && extendcb.visible
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
-                onTextChanged: validationTimer.restart()
+                inputMethodHints: Qt.ImhNoPredictiveText
+
+                onTextChanged: startValidationTimer()
             }
         }
     }
 
-    Bitcoin {
-        id: bitcoin
-        onSeedTypeChanged: contentText.text = bitcoin.seed_type
-        onValidationMessageChanged: validationtext.text = validationMessage
+    function startValidationTimer() {
+        valid = false
+        root._seedType = ''
+        root._validationMessage = ''
+        validationTimer.restart()
     }
 
     Timer {

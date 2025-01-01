@@ -1,0 +1,89 @@
+{
+    "addr_history": {
+        "31uiqKhw4PQSmZWnCkqpeh6moB8B1jXEt3": [],
+        "32PBjkXmwRoEQt8HBZcAEUbNwaHw5dR5fe": [],
+        "33FQMD675LMRLZDLYLK7QV6TMYA1uYW1sw": [],
+        "33MQEs6TCgxmAJhZvUEXYr6gCkEoEYzUfm": [],
+        "33vuhs2Wor9Xkax66ucDkscPcU6nQHw8LA": [],
+        "35tbMt1qBGmy5RNcsdGZJgs7XVbf5gEgPs": [],
+        "36zhHEtGA33NjHJdxCMjY6DLeU2qxhiLUE": [],
+        "37rZuTsieKVpRXshwrY8qvFBn6me42mYr5": [],
+        "38A2KDXYRmRKZRRCGgazrj19i22kDr8d4V": [],
+        "38GZH5GhxLKi5so9Aka6orY2EDZkvaXdxm": [],
+        "3AEtxrCwiYv5Y5CRmHn1c5nZnV3Hpfh5BM": [],
+        "3AaHWprY1MytygvQVDLp6i63e9o5CwMSN5": [],
+        "3DAD19hHXNxAfZjCtUbWjZVxw1fxQqCbY7": [],
+        "3GK4CBbgwumoeR9wxJjr1QnfnYhGUEzHhN": [],
+        "3H18xmkyX3XAb5MwucqKpEhTnh3qz8V4Mn": [],
+        "3JhkakvHAyFvukJ3cyaVgiyaqjYNo2gmsS": [],
+        "3JtA4x1AKW4BR5YAEeLR5D157Nd92NHArC": [],
+        "3KQosfGFGsUniyqsidE2Y4Bz1y4iZUkGW6": [],
+        "3KXe1z2Lfk22zL6ggQJLpHZfc9dKxYV95p": [],
+        "3KZiENj4VHdUycv9UDts4ojVRsaMk8LC5c": [],
+        "3KeTKHJbkZN1QVkvKnHRqYDYP7UXsUu6va": [],
+        "3L5aZKtDKSd65wPLMRooNtWHkKd5Mz6E3i": [],
+        "3LAPqjqW4C2Se9HNziUhNaJQS46X1r9p3M": [],
+        "3P3JJPoyNFussuyxkDbnYevYim5XnPGmwZ": [],
+        "3PgNdMYSaPRymskby885DgKoTeA1uZr6Gi": [],
+        "3Pm7DaUzaDMxy2mW5WzHp1sE9hVWEpdf7J": []
+    },
+    "addresses": {
+        "change": [
+            "31uiqKhw4PQSmZWnCkqpeh6moB8B1jXEt3",
+            "3JhkakvHAyFvukJ3cyaVgiyaqjYNo2gmsS",
+            "3GK4CBbgwumoeR9wxJjr1QnfnYhGUEzHhN",
+            "3LAPqjqW4C2Se9HNziUhNaJQS46X1r9p3M",
+            "33MQEs6TCgxmAJhZvUEXYr6gCkEoEYzUfm",
+            "3AEtxrCwiYv5Y5CRmHn1c5nZnV3Hpfh5BM"
+        ],
+        "receiving": [
+            "3P3JJPoyNFussuyxkDbnYevYim5XnPGmwZ",
+            "33FQMD675LMRLZDLYLK7QV6TMYA1uYW1sw",
+            "3DAD19hHXNxAfZjCtUbWjZVxw1fxQqCbY7",
+            "3AaHWprY1MytygvQVDLp6i63e9o5CwMSN5",
+            "3H18xmkyX3XAb5MwucqKpEhTnh3qz8V4Mn",
+            "36zhHEtGA33NjHJdxCMjY6DLeU2qxhiLUE",
+            "37rZuTsieKVpRXshwrY8qvFBn6me42mYr5",
+            "38A2KDXYRmRKZRRCGgazrj19i22kDr8d4V",
+            "38GZH5GhxLKi5so9Aka6orY2EDZkvaXdxm",
+            "33vuhs2Wor9Xkax66ucDkscPcU6nQHw8LA",
+            "3L5aZKtDKSd65wPLMRooNtWHkKd5Mz6E3i",
+            "3KXe1z2Lfk22zL6ggQJLpHZfc9dKxYV95p",
+            "3KQosfGFGsUniyqsidE2Y4Bz1y4iZUkGW6",
+            "3KZiENj4VHdUycv9UDts4ojVRsaMk8LC5c",
+            "32PBjkXmwRoEQt8HBZcAEUbNwaHw5dR5fe",
+            "3KeTKHJbkZN1QVkvKnHRqYDYP7UXsUu6va",
+            "3JtA4x1AKW4BR5YAEeLR5D157Nd92NHArC",
+            "3PgNdMYSaPRymskby885DgKoTeA1uZr6Gi",
+            "3Pm7DaUzaDMxy2mW5WzHp1sE9hVWEpdf7J",
+            "35tbMt1qBGmy5RNcsdGZJgs7XVbf5gEgPs"
+        ]
+    },
+    "pruned_txo": {},
+    "seed_version": 13,
+    "stored_height": 485855,
+    "transactions": {},
+    "tx_fees": {},
+    "txi": {},
+    "txo": {},
+    "use_encryption": false,
+    "verified_tx3": {},
+    "wallet_type": "2of2",
+    "winpos-qt": [
+        617,
+        227,
+        840,
+        405
+    ],
+    "x1/": {
+        "seed": "speed cruise market wasp ability alarm hold essay grass coconut tissue recipe",
+        "type": "bip32",
+        "xprv": "xprv9s21ZrQH143K48ig2wcAuZoEKaYdNRaShKFR3hLrgwsNW13QYRhXH6gAG1khxim6dw2RtAzF8RWbQxr1vvWUJFfEu2SJZhYbv6pfreMpuLB",
+        "xpub": "xpub661MyMwAqRbcGco98y9BGhjxscP7mtJJ4YB1r5kUFHQMNoNZ5y1mptze7J37JypkbrmBdnqTvSNzxL7cE1FrHg16qoj9S12MUpiYxVbTKQV"
+    },
+    "x2/": {
+        "type": "bip32",
+        "xprv": null,
+        "xpub": "xpub661MyMwAqRbcGrCDZaVs9VC7Z6579tsGvpqyDYZEHKg2MXoDkxhrWoukqvwDPXKdxVkYA6Hv9XHLETptfZfNpcJZmsUThdXXkTNGoBjQv1o"
+    }
+}

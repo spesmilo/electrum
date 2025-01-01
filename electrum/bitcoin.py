@@ -24,15 +24,16 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence, Any
 import enum
 from enum import IntEnum, Enum
 
-from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
+import electrum_ecc as ecc
+
+from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str, classproperty
 from . import version
 from . import segwit_addr
 from . import constants
-from . import ecc
 from .crypto import sha256d, sha256, hash_160, hmac_oneshot
 
 if TYPE_CHECKING:
@@ -197,34 +198,14 @@ class opcodes(IntEnum):
         return bytes([self]).hex()
 
 
-def rev_hex(s: str) -> str:
-    return bh2u(bfh(s)[::-1])
-
-
-def int_to_hex(i: int, length: int=1) -> str:
-    """Converts int to little-endian hex string.
-    `length` is the number of bytes available
-    """
-    if not isinstance(i, int):
-        raise TypeError('{} instead of int'.format(i))
-    range_size = pow(256, length)
-    if i < -(range_size//2) or i >= range_size:
-        raise OverflowError('cannot convert int {} to hex ({} bytes)'.format(i, length))
-    if i < 0:
-        # two's complement
-        i = range_size + i
-    s = hex(i)[2:].rstrip('L')
-    s = "0"*(2*length - len(s)) + s
-    return rev_hex(s)
-
-def script_num_to_hex(i: int) -> str:
+def script_num_to_bytes(i: int) -> bytes:
     """See CScriptNum in Bitcoin Core.
-    Encodes an integer as hex, to be used in script.
+    Encodes an integer as bytes, to be used in script.
 
     ported from https://github.com/bitcoin/bitcoin/blob/8cbc5c4be4be22aca228074f087a374a7ec38be8/src/script/script.h#L326
     """
     if i == 0:
-        return ''
+        return b""
 
     result = bytearray()
     neg = i < 0
@@ -238,101 +219,102 @@ def script_num_to_hex(i: int) -> str:
     elif neg:
         result[-1] |= 0x80
 
-    return bh2u(result)
+    return bytes(result)
 
 
-def var_int(i: int) -> str:
+def var_int(i: int) -> bytes:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
     # "CompactSize"
     assert i >= 0, i
-    if i<0xfd:
-        return int_to_hex(i)
-    elif i<=0xffff:
-        return "fd"+int_to_hex(i,2)
-    elif i<=0xffffffff:
-        return "fe"+int_to_hex(i,4)
-    else:
-        return "ff"+int_to_hex(i,8)
-
-
-def witness_push(item: str) -> str:
-    """Returns data in the form it should be present in the witness.
-    hex -> hex
-    """
-    return var_int(len(item) // 2) + item
-
-
-def _op_push(i: int) -> str:
-    if i < opcodes.OP_PUSHDATA1:
-        return int_to_hex(i)
-    elif i <= 0xff:
-        return opcodes.OP_PUSHDATA1.hex() + int_to_hex(i, 1)
+    if i < 0xfd:
+        return int.to_bytes(i, length=1, byteorder="little", signed=False)
     elif i <= 0xffff:
-        return opcodes.OP_PUSHDATA2.hex() + int_to_hex(i, 2)
+        return b"\xfd" + int.to_bytes(i, length=2, byteorder="little", signed=False)
+    elif i <= 0xffffffff:
+        return b"\xfe" + int.to_bytes(i, length=4, byteorder="little", signed=False)
     else:
-        return opcodes.OP_PUSHDATA4.hex() + int_to_hex(i, 4)
+        return b"\xff" + int.to_bytes(i, length=8, byteorder="little", signed=False)
 
 
-def push_script(data: str) -> str:
+def witness_push(item: bytes) -> bytes:
+    """Returns data in the form it should be present in the witness."""
+    return var_int(len(item)) + item
+
+
+def _op_push(i: int) -> bytes:
+    if i < opcodes.OP_PUSHDATA1:
+        return int.to_bytes(i, length=1, byteorder="little", signed=False)
+    elif i <= 0xff:
+        return bytes([opcodes.OP_PUSHDATA1]) + int.to_bytes(i, length=1, byteorder="little", signed=False)
+    elif i <= 0xffff:
+        return bytes([opcodes.OP_PUSHDATA2]) + int.to_bytes(i, length=2, byteorder="little", signed=False)
+    else:
+        return bytes([opcodes.OP_PUSHDATA4]) + int.to_bytes(i, length=4, byteorder="little", signed=False)
+
+
+def push_script(data: bytes) -> bytes:
     """Returns pushed data to the script, automatically
     choosing canonical opcodes depending on the length of the data.
-    hex -> hex
 
     ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
-    data = bfh(data)
     data_len = len(data)
 
     # "small integer" opcodes
     if data_len == 0 or data_len == 1 and data[0] == 0:
-        return opcodes.OP_0.hex()
+        return bytes([opcodes.OP_0])
     elif data_len == 1 and data[0] <= 16:
-        return bh2u(bytes([opcodes.OP_1 - 1 + data[0]]))
+        return bytes([opcodes.OP_1 - 1 + data[0]])
     elif data_len == 1 and data[0] == 0x81:
-        return opcodes.OP_1NEGATE.hex()
+        return bytes([opcodes.OP_1NEGATE])
 
-    return _op_push(data_len) + bh2u(data)
+    return _op_push(data_len) + data
 
 
-def make_op_return(x:bytes) -> bytes:
-    return bytes([opcodes.OP_RETURN]) + bytes.fromhex(push_script(x.hex()))
+def make_op_return(x: bytes) -> bytes:
+    return bytes([opcodes.OP_RETURN]) + push_script(x)
 
 
 def add_number_to_script(i: int) -> bytes:
-    return bfh(push_script(script_num_to_hex(i)))
+    return push_script(script_num_to_bytes(i))
 
 
-def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> bytes:
     """Constructs a witness from the given stack items."""
-    witness = var_int(len(items))
+    witness = bytearray()
+    witness += var_int(len(items))
     for item in items:
         if type(item) is int:
-            item = script_num_to_hex(item)
+            item = script_num_to_bytes(item)
         elif isinstance(item, (bytes, bytearray)):
-            item = bh2u(item)
+            pass  # use as-is
         else:
-            assert is_hex_str(item)
+            assert is_hex_str(item), repr(item)
+            item = bfh(item)
         witness += witness_push(item)
-    return witness
+    return bytes(witness)
 
 
-def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=None) -> bytes:
     """Constructs bitcoin script from given items."""
-    script = ''
-    for item in items:
+    script = bytearray()
+    values = values or {}
+    for i, item in enumerate(items):
+        if i in values:
+            item = values[i]
         if isinstance(item, opcodes):
-            script += item.hex()
+            script += bytes([item])
         elif type(item) is int:
-            script += add_number_to_script(item).hex()
+            script += add_number_to_script(item)
         elif isinstance(item, (bytes, bytearray)):
-            script += push_script(item.hex())
+            script += push_script(item)
         elif isinstance(item, str):
             assert is_hex_str(item)
-            script += push_script(item)
+            script += push_script(bfh(item))
         else:
             raise Exception(f'unexpected item for script: {item!r}')
-    return script
+    return bytes(script)
 
 
 def relayfee(network: 'Network' = None) -> int:
@@ -366,7 +348,7 @@ def dust_threshold(network: 'Network' = None) -> int:
 
 
 def hash_encode(x: bytes) -> str:
-    return bh2u(x[::-1])
+    return x[::-1].hex()
 
 
 def hash_decode(x: str) -> bytes:
@@ -398,7 +380,6 @@ def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
 def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash160_to_p2pkh(hash_160(public_key), net=net)
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
@@ -408,57 +389,44 @@ def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     return addr
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
-def script_to_p2wsh(script: str, *, net=None) -> str:
-    if net is None: net = constants.net
-    return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
+def script_to_p2wsh(script: bytes, *, net=None) -> str:
+    return hash_to_segwit_addr(sha256(script), witver=0, net=net)
 
-def p2wpkh_nested_script(pubkey: str) -> str:
-    pkh = hash_160(bfh(pubkey))
-    return construct_script([0, pkh])
-
-def p2wsh_nested_script(witness_script: str) -> str:
-    wsh = sha256(bfh(witness_script))
+def p2wsh_nested_script(witness_script: bytes) -> bytes:
+    wsh = sha256(witness_script)
     return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
-    if net is None: net = constants.net
-    if txin_type == 'p2pkh':
-        return public_key_to_p2pkh(bfh(pubkey), net=net)
-    elif txin_type == 'p2wpkh':
-        return public_key_to_p2wpkh(bfh(pubkey), net=net)
-    elif txin_type == 'p2wpkh-p2sh':
-        scriptSig = p2wpkh_nested_script(pubkey)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
-    else:
-        raise NotImplementedError(txin_type)
+    from . import descriptor
+    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+    return desc.expand().address(net=net)
 
 
 # TODO this method is confusingly named
-def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
-    if net is None: net = constants.net
+def redeem_script_to_address(txin_type: str, scriptcode: bytes, *, net=None) -> str:
+    assert isinstance(scriptcode, bytes)
     if txin_type == 'p2sh':
         # given scriptcode is a redeem_script
-        return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
+        return hash160_to_p2sh(hash_160(scriptcode), net=net)
     elif txin_type == 'p2wsh':
         # given scriptcode is a witness_script
         return script_to_p2wsh(scriptcode, net=net)
     elif txin_type == 'p2wsh-p2sh':
         # given scriptcode is a witness_script
         redeem_script = p2wsh_nested_script(scriptcode)
-        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
+        return hash160_to_p2sh(hash_160(redeem_script), net=net)
     else:
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script: str, *, net=None) -> str:
+def script_to_address(script: bytes, *, net=None) -> Optional[str]:
     from .transaction import get_address_from_output_script
-    return get_address_from_output_script(bfh(script), net=net)
+    return get_address_from_output_script(script, net=net)
 
 
-def address_to_script(addr: str, *, net=None) -> str:
+def address_to_script(addr: str, *, net=None) -> bytes:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
@@ -469,7 +437,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
+        script = pubkeyhash_to_p2pkh_script(hash_160_)
     elif addrtype == net.ADDRTYPE_P2SH:
         script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
@@ -522,14 +490,12 @@ def address_to_scripthash(addr: str, *, net=None) -> str:
     return script_to_scripthash(script)
 
 
-def script_to_scripthash(script: str) -> str:
-    h = sha256(bfh(script))[0:32]
-    return bh2u(bytes(reversed(h)))
+def script_to_scripthash(script: bytes) -> str:
+    h = sha256(script)
+    return h[::-1].hex()
 
-def public_key_to_p2pk_script(pubkey: str) -> str:
-    return construct_script([pubkey, opcodes.OP_CHECKSIG])
 
-def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
+def pubkeyhash_to_p2pkh_script(pubkey_hash160: bytes) -> bytes:
     return construct_script([
         opcodes.OP_DUP,
         opcodes.OP_HASH160,
@@ -618,7 +584,7 @@ def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
     csum_found = vchRet[-4:]
     csum_calculated = sha256d(payload)[0:4]
     if csum_calculated != csum_found:
-        raise InvalidChecksum(f'calculated {bh2u(csum_calculated)}, found {bh2u(csum_found)}')
+        raise InvalidChecksum(f'calculated {csum_calculated.hex()}, found {csum_found.hex()}')
     else:
         return payload
 
@@ -721,6 +687,14 @@ def is_segwit_address(addr: str, *, net=None) -> bool:
         return False
     return witprog is not None
 
+def is_taproot_address(addr: str, *, net=None) -> bool:
+    if net is None: net = constants.net
+    try:
+        witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
+    except Exception as e:
+        return False
+    return witver == 1
+
 def is_b58_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
@@ -733,7 +707,6 @@ def is_b58_address(addr: str, *, net=None) -> bool:
     return True
 
 def is_address(addr: str, *, net=None) -> bool:
-    if net is None: net = constants.net
     return is_segwit_address(addr, net=net) \
            or is_b58_address(addr, net=net)
 
@@ -762,3 +735,144 @@ def is_minikey(text: str) -> bool:
 
 def minikey_to_private_key(text: str) -> bytes:
     return sha256(text)
+
+
+def _get_dummy_address(purpose: str) -> str:
+    return redeem_script_to_address('p2wsh', sha256(bytes(purpose, "utf8")))
+
+_dummy_addr_funcs = set()
+class DummyAddress:
+    """dummy address for fee estimation of funding tx
+    Use e.g. as: DummyAddress.CHANNEL
+    """
+    def purpose(func):
+        _dummy_addr_funcs.add(func)
+        return classproperty(func)
+
+    @purpose
+    def CHANNEL(self) -> str:
+        return _get_dummy_address("channel")
+    @purpose
+    def SWAP(self) -> str:
+        return _get_dummy_address("swap")
+
+    @classmethod
+    def is_dummy_address(cls, addr: str) -> bool:
+        return addr in (f(cls) for f in _dummy_addr_funcs)
+
+
+class DummyAddressUsedInTxException(Exception): pass
+
+
+def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
+    assert isinstance(pubkey32, bytes), type(pubkey32)
+    assert isinstance(h, bytes), type(h)
+    assert len(pubkey32) == 32, len(pubkey32)
+    int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
+
+    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    if tweak >= ecc.CURVE_ORDER:
+        raise ValueError
+    P = ecc.ECPubkey(b"\x02" + pubkey32)
+    Q = P + (ecc.GENERATOR * tweak)
+    return 0 if Q.has_even_y() else 1, Q.get_public_key_bytes(compressed=True)[1:]
+
+
+def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
+    assert isinstance(seckey0, bytes), type(seckey0)
+    assert isinstance(h, bytes), type(h)
+    assert len(seckey0) == 32, len(seckey0)
+    int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
+
+    P = ecc.ECPrivkey(seckey0)
+    seckey = P.secret_scalar if P.has_even_y() else ecc.CURVE_ORDER - P.secret_scalar
+    pubkey32 = P.get_public_key_bytes(compressed=True)[1:]
+    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    if tweak >= ecc.CURVE_ORDER:
+        raise ValueError
+    return int.to_bytes((seckey + tweak) % ecc.CURVE_ORDER, length=32, byteorder="big", signed=False)
+
+
+# a TapTree is either:
+#  - a (leaf_version, script) tuple (leaf_version is 0xc0 for BIP-0342 scripts)
+#  - a list of two elements, each with the same structure as TapTree itself
+TapTreeLeaf = Tuple[int, bytes]
+TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
+
+# FIXME just use electrum_ecc.util.bip340_tagged_hash instead
+def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
+    # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
+    return sha256(sha256(tag) + sha256(tag) + msg)
+
+def taproot_tree_helper(script_tree: TapTree):
+    if isinstance(script_tree, tuple):
+        leaf_version, script = script_tree
+        h = bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
+        return ([((leaf_version, script), bytes())], h)
+    left, left_h = taproot_tree_helper(script_tree[0])
+    right, right_h = taproot_tree_helper(script_tree[1])
+    ret = [(l, c + right_h) for l, c in left] + [(l, c + left_h) for l, c in right]
+    if right_h < left_h:
+        left_h, right_h = right_h, left_h
+    return (ret, bip340_tagged_hash(b"TapBranch", left_h + right_h))
+
+
+def taproot_output_script(internal_pubkey: bytes, *, script_tree: Optional[TapTree]) -> bytes:
+    """Given an internal public key and a tree of scripts, compute the output script."""
+    assert isinstance(internal_pubkey, bytes), type(internal_pubkey)
+    assert len(internal_pubkey) == 32, len(internal_pubkey)
+    if script_tree is None:
+        merkle_root = bytes()
+    else:
+        _, merkle_root = taproot_tree_helper(script_tree)
+    _, output_pubkey = taproot_tweak_pubkey(internal_pubkey, merkle_root)
+    return construct_script([1, output_pubkey])
+
+
+def control_block_for_taproot_script_spend(
+    *, internal_pubkey: bytes, script_tree: TapTree, script_num: int,
+) -> Tuple[bytes, bytes]:
+    """Constructs the control block necessary for spending a taproot UTXO using a script.
+    script_num indicates which script to use, which indexes into (flattened) script_tree.
+    """
+    assert isinstance(internal_pubkey, bytes), type(internal_pubkey)
+    assert len(internal_pubkey) == 32, len(internal_pubkey)
+    info, merkle_root = taproot_tree_helper(script_tree)
+    (leaf_version, leaf_script), merkle_path = info[script_num]
+    output_pubkey_y_parity, _ = taproot_tweak_pubkey(internal_pubkey, merkle_root)
+    pubkey_data = bytes([output_pubkey_y_parity + leaf_version]) + internal_pubkey
+    control_block = pubkey_data + merkle_path
+    return (leaf_script, control_block)
+
+
+# user message signing
+def usermessage_magic(message: bytes) -> bytes:
+    length = var_int(len(message))
+    return b"\x18Bitcoin Signed Message:\n" + length + message
+
+def ecdsa_sign_usermessage(ec_privkey, message: Union[bytes, str], *, is_compressed: bool) -> bytes:
+    message = to_bytes(message, 'utf8')
+    msg32 = sha256d(usermessage_magic(message))
+    return ec_privkey.ecdsa_sign_recoverable(msg32, is_compressed=is_compressed)
+
+def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, *, net=None) -> bool:
+    from electrum_ecc import ECPubkey
+    assert_bytes(sig65, message)
+    if net is None: net = constants.net
+    h = sha256d(usermessage_magic(message))
+    try:
+        public_key, compressed, txin_type_guess = ECPubkey.from_ecdsa_sig65(sig65, h)
+    except Exception as e:
+        return False
+    # check public key using the address
+    pubkey_hex = public_key.get_public_key_hex(compressed)
+    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
+    for txin_type in txin_types:
+        addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
+        if address == addr:
+            break
+    else:
+        return False
+    # check message
+    # note: `$ bitcoin-cli verifymessage` does NOT enforce the low-S rule for ecdsa sigs
+    return public_key.ecdsa_verify(sig65[1:], h, enforce_low_s=False)

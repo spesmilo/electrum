@@ -1,9 +1,9 @@
-import QtQuick 2.6
-import QtQuick.Controls 2.0
+import QtQuick
+import QtQuick.Controls
 
 import org.electrum 1.0
 
-ComboBox {
+ElComboBox {
     id: control
 
     required property QtObject feeslider

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Mapping, Optional
 
 if TYPE_CHECKING:
     from . import qt
-    from . import kivy
     from electrum.simple_config import SimpleConfig
     from electrum.daemon import Daemon
     from electrum.plugin import Plugins

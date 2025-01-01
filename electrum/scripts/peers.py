@@ -21,7 +21,7 @@ async def f():
         results = await network.send_multiple_requests(peers, 'blockchain.headers.subscribe', [])
         for server, header in sorted(results.items(), key=lambda x: x[1].get('height')):
             height = header.get('height')
-            blockhash = hash_raw_header(header.get('hex'))
+            blockhash = hash_raw_header(bytes.fromhex(header.get('hex')))
             print(server, height, blockhash)
     finally:
         stopping_fut.set_result(1)

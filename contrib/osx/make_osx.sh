@@ -3,8 +3,8 @@
 set -e
 
 # Parameterize
-PYTHON_VERSION=3.9.13
-PY_VER_MAJOR="3.9"  # as it appears in fs paths
+PYTHON_VERSION=3.11.9
+PY_VER_MAJOR="3.11"  # as it appears in fs paths
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 
@@ -25,55 +25,19 @@ mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
 
 cd "$PROJECT_ROOT"
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"
 
-# Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
-if [ -n "$CODESIGN_CERT" ]; then
-    # Test the identity is valid for signing by doing this hack. There is no other way to do this.
-    cp -f /bin/ls ./CODESIGN_TEST
-    set +e
-    codesign -s "$CODESIGN_CERT" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
-    res=$?
-    set -e
-    rm -f ./CODESIGN_TEST
-    if ((res)); then
-        fail "Code signing identity \"$CODESIGN_CERT\" appears to be invalid."
-    fi
-    unset res
-    info "Code signing enabled using identity \"$CODESIGN_CERT\""
-else
-    warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system to enable signing."
-fi
-
-
-function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
-    infoName="$1"
-    file="$2"
-    deep=""
-    if [ -z "$CODESIGN_CERT" ]; then
-        # no cert -> we won't codesign
-        return
-    fi
-    if [ -d "$file" ]; then
-        deep="--deep"
-    fi
-    if [ -z "$infoName" ] || [ -z "$file" ] || [ ! -e "$file" ]; then
-        fail "Argument error to internal function DoCodeSignMaybe()"
-    fi
-    hardened_arg="--entitlements=${CONTRIB_OSX}/entitlements.plist -o runtime"
-
-    info "Code signing ${infoName}..."
-    codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
-}
 
 info "Installing Python $PYTHON_VERSION"
-PKG_FILE="python-${PYTHON_VERSION}-macosx10.9.pkg"
+PKG_FILE="python-${PYTHON_VERSION}-macos11.pkg"
 if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
     curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
-echo "167c4e2d9f172a617ba6f3b08783cf376dec429386378066eb2f865c98030dd7  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+echo "b6cfdee2571ca56ee895043ca1e7110fb78a878cee3eb0c21accb2de34d24b55  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
     || fail "python pkg checksum mismatched"
 sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"
@@ -99,11 +63,15 @@ source $VENV_DIR/bin/activate
 #       see additional "strip" pass on built files later in the file.
 export CFLAGS="-g0"
 
+# Do not build universal binaries. The default on macos 11+ and xcode 12+ is "-arch arm64 -arch x86_64"
+# but with that e.g. "hid.cpython-310-darwin.so" is not reproducible as built by clang.
+export ARCHFLAGS="-arch x86_64"
+
 info "Installing build dependencies"
 # note: re pip installing from PyPI,
 #       we prefer compiling C extensions ourselves, instead of using binary wheels,
 #       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
+#       - PyQt6, as it's harder to build from source
 #       - cryptography, as it's harder to build from source
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
@@ -120,11 +88,8 @@ brew install autoconf automake libtool gettext coreutils pkgconfig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="fbf7948be85177dd44b41217e9f039e1d176de6b"
-# ^ tag "5.3"
-# TODO test newer versions of pyinstaller for build-reproducibility.
-#      we are using this version for now due to change in code-signing behaviour
-#      (https://github.com/pyinstaller/pyinstaller/pull/5581)
+PYINSTALLER_COMMIT="5d7a0449ecea400eccbbb30d5fcef27d72f8f75d"
+# ^ tag "v6.6.0"
 (
     if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ]; then
         info "pyinstaller already built, skipping"
@@ -178,13 +143,13 @@ info "generating locale"
 ) || fail "failed generating locale"
 
 
-if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" ]; then
+if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
     info "Building libsecp256k1 dylib..."
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 else
     info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
-cp -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libsecp256k1 dylib"
+#cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."
@@ -204,6 +169,7 @@ cp -f "$DLL_TARGET_DIR/libusb-1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Coul
 
 
 info "Installing requirements..."
+export ELECTRUM_ECC_DONT_COMPILE=1
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
     --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
@@ -216,7 +182,7 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
-python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography \
     --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
@@ -224,6 +190,9 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
+# pyinstaller needs to be able to "import electrum_ecc", for which we need libsecp256k1:
+# (or could try "pip install -e" instead)
+cp "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum_ecc/"
 
 # strip debug symbols of some compiled libs
 # - hidapi (hid.cpython-39-darwin.so) in particular is not reproducible without this
@@ -236,25 +205,13 @@ find . -exec touch -t '200101220000' {} + || true
 VERSION=$(git describe --tags --dirty --always)
 
 info "Building binary"
-ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"
+ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/osx.spec || fail "Could not build binary"
 
-DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
+info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
+find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
 
-if [ ! -z "$CODESIGN_CERT" ]; then
-    if [ ! -z "$APPLE_ID_USER" ]; then
-        info "Notarizing .app with Apple's central server..."
-        "${CONTRIB_OSX}/notarize_app.sh" "dist/${PACKAGE}.app" || fail "Could not notarize binary."
-    else
-        warn "AppleID details not set! Skipping Apple notarization."
-    fi
-fi
+info "Creating unsigned .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
 
-info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
-
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
-
-if [ -z "$CODESIGN_CERT" ]; then
-    warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
-    warn "Specify a valid code signing identity to enable code signing."
-fi
+info "App was built successfully but was not code signed. Users may get security warnings from macOS."
+info "Now you also need to run sign_osx.sh to codesign/notarize the binary."

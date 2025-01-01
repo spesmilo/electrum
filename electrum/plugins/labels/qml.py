@@ -1,14 +1,15 @@
 import threading
 
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtProperty, pyqtSlot
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 
 from electrum.i18n import _
 from electrum.plugin import hook
 
 from electrum.gui.qml.qewallet import QEWallet
-from electrum.gui.qml.plugins import PluginQObject
+from electrum.gui.common_qt.plugins import PluginQObject
 
 from .labels import LabelsPlugin
+
 
 class Plugin(LabelsPlugin):
 
@@ -63,6 +64,8 @@ class Plugin(LabelsPlugin):
 
     def __init__(self, *args):
         LabelsPlugin.__init__(self, *args)
+        self._app = None
+        self.so = None
 
     @hook
     def load_wallet(self, wallet):
@@ -77,9 +80,9 @@ class Plugin(LabelsPlugin):
 
         wallet = self._app.daemon.currentWallet.wallet
 
-        def push_thread(wallet):
+        def push_thread(_wallet):
             try:
-                self.push(wallet)
+                self.push(_wallet)
                 self.so.upload_finished(True)
                 self._app.appController.userNotify.emit(_('Labels uploaded'))
             except Exception as e:
@@ -87,7 +90,7 @@ class Plugin(LabelsPlugin):
                 self.so.upload_finished(False)
                 self._app.appController.userNotify.emit(repr(e))
 
-        threading.Thread(target=push_thread,args=[wallet]).start()
+        threading.Thread(target=push_thread, args=[wallet]).start()
 
     def pull_async(self):
         if not self._app.daemon.currentWallet:
@@ -96,9 +99,10 @@ class Plugin(LabelsPlugin):
             return
 
         wallet = self._app.daemon.currentWallet.wallet
-        def pull_thread(wallet):
+
+        def pull_thread(_wallet):
             try:
-                self.pull(wallet, True)
+                self.pull(_wallet, True)
                 self.so.download_finished(True)
                 self._app.appController.userNotify.emit(_('Labels downloaded'))
             except Exception as e:
@@ -106,20 +110,22 @@ class Plugin(LabelsPlugin):
                 self.so.download_finished(False)
                 self._app.appController.userNotify.emit(repr(e))
 
-        threading.Thread(target=pull_thread,args=[wallet]).start()
-
+        threading.Thread(target=pull_thread, args=[wallet]).start()
 
     def on_pulled(self, wallet):
-        self.logger.info('on pulled')
         _wallet = QEWallet.getInstanceFor(wallet)
         self.logger.debug('wallet ' + ('found' if _wallet else 'not found'))
-        if _wallet:
-            _wallet.labelsUpdated.emit()
 
     @hook
-    def init_qml(self, gui):
-        self.logger.debug(f'init_qml hook called, gui={str(type(gui))}')
-        self._app = gui.app
+    def init_qml(self, app):
+        self.logger.debug(f'init_qml hook called, gui={str(type(app))}')
+        self.logger.debug(f'app={self._app!r}, so={self.so!r}')
+        self._app = app
         # important: QSignalObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
         self.so = Plugin.QSignalObject(self, self._app)
+
+        # If the user just enabled the plugin, the 'load_wallet' hook would not
+        # get called for already loaded wallets, hence we call it manually for those:
+        for wallet_name, wallet in app.daemon.daemon._wallets.items():
+            self.load_wallet(wallet)

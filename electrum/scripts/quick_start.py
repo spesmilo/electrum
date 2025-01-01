@@ -16,7 +16,7 @@ from electrum.util import create_and_start_event_loop, log_exceptions
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
 
 config = SimpleConfig({"testnet": True})  # to use ~/.electrum/testnet as datadir
-constants.set_testnet()  # to set testnet magic bytes
+constants.BitcoinTestnet.set_as_network()  # to set testnet magic bytes
 daemon = Daemon(config, listen_jsonrpc=False)
 network = daemon.network
 assert network.asyncio_loop.is_running()
@@ -28,8 +28,7 @@ if not os.path.exists(wallet_path):
     create_new_wallet(path=wallet_path, config=config)
 
 # open wallet
-wallet = daemon.load_wallet(wallet_path, password=None, manual_upgrades=False)
-wallet.start_network(network)
+wallet = daemon.load_wallet(wallet_path, password=None, upgrade=True)
 
 # you can use ~CLI commands by accessing command_runner
 command_runner = Commands(config=config, daemon=daemon, network=network)

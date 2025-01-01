@@ -1,7 +1,7 @@
 #!/bin/bash
 
-LIBUSB_VERSION="c6a35c56016ea2ab2f19115d2ea1e85e0edae155"
-# ^ tag v1.0.24
+LIBUSB_VERSION="4239bc3a50014b8e6a5a2a59df1fff3b7469543b"
+# ^ tag v1.0.26
 
 set -e
 

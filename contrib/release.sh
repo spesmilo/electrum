@@ -19,7 +19,7 @@
 #
 # Note: steps before doing a new release:
 # - update locale:
-#     1. cd /opt/electrum-locale && ./update && git push
+#     1. cd /opt/electrum-locale && ./update.py && git push
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
@@ -66,6 +66,8 @@ if [ "$GPGUSER" == "ThomasV" ]; then
 elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
     PUBKEY="--local-user 0EEDCFD5CAFB459067349B23CA9EEEC43DF911DC"
     export SSHUSER=sombernight
+else
+    warn "unexpected GPGUSER=$GPGUSER"
 fi
 
 
@@ -145,25 +147,29 @@ else
 fi
 
 # android
-apk1="Electrum-$VERSION.0-armeabi-v7a-release.apk"
-apk1_unsigned="Electrum-$VERSION.0-armeabi-v7a-release-unsigned.apk"
-apk2="Electrum-$VERSION.0-arm64-v8a-release.apk"
-apk2_unsigned="Electrum-$VERSION.0-arm64-v8a-release-unsigned.apk"
-if test -f "dist/$apk1"; then
-    info "file exists: $apk1"
-else
-    if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh kivy all release $password
+apk1="Electrum-$VERSION-armeabi-v7a-release.apk"
+apk2="Electrum-$VERSION-arm64-v8a-release.apk"
+apk3="Electrum-$VERSION-x86_64-release.apk"
+for arch in armeabi-v7a arm64-v8a x86_64
+do
+    apk="Electrum-$VERSION-$arch-release.apk"
+    apk_unsigned="Electrum-$VERSION-$arch-release-unsigned.apk"
+    if test -f "dist/$apk"; then
+        info "file exists: $apk"
     else
-        ./contrib/android/build.sh kivy all release-unsigned
-        mv "dist/$apk1_unsigned" "dist/$apk1"
-        mv "dist/$apk2_unsigned" "dist/$apk2"
+        info "file does not exists: $apk"
+        if [ ! -z "$RELEASEMANAGER" ] ; then
+            ./contrib/android/build.sh qml $arch release $password
+        else
+            ./contrib/android/build.sh qml $arch release-unsigned
+            mv "dist/$apk_unsigned" "dist/$apk"
+        fi
     fi
-fi
+done
 
 # the macos binary is built on a separate machine.
 # the file that needs to be copied over is the codesigned release binary (regardless of builder role)
-dmg=electrum-$VERSION.dmg
+dmg="electrum-$VERSION.dmg"
 if ! test -f "dist/$dmg"; then
     if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
         fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
@@ -218,6 +224,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$win3"       || fail "win3 not found among sftp downloads"
     test -f "$apk1"       || fail "apk1 not found among sftp downloads"
     test -f "$apk2"       || fail "apk2 not found among sftp downloads"
+    test -f "$apk3"       || fail "apk3 not found among sftp downloads"
     test -f "$dmg"        || fail "dmg not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
@@ -227,6 +234,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$CONTRIB/build-wine/dist/$win3" || fail "win3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball"    "$PROJECT_ROOT/dist/$tarball"    || fail "files are different. tarball."
@@ -237,11 +245,12 @@ if [ -z "$RELEASEMANAGER" ] ; then
     "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
+    "$CONTRIB/android/apkdiff.py" "$apk3" "$PROJECT_ROOT/dist/$apk3" || fail "files are different. android."
     cmp --silent "$dmg" "$PROJECT_ROOT/dist/$dmg" || fail "files are different. macos."
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$dmg" ; do
+    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "$dmg" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
@@ -252,6 +261,18 @@ else
     # ONLY release manager
 
     cd "$PROJECT_ROOT"
+
+    # check we have each binary
+    test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win1"       || fail "win1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win2"       || fail "win2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win3"       || fail "win3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
 
     if [ $REV != $VERSION ]; then
         fail "versions differ, not uploading"

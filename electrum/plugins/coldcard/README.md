@@ -13,7 +13,7 @@ this reason, all PIN code entry is done directly on the device.
 Coldcard does not appear on the USB bus until unlocked with appropriate
 PIN. Initial setup, and seed generation must be done offline.
 
-Coldcard uses the standard for unsigned tranasctions:
+Coldcard uses the standard for unsigned transactions:
 
 PSBT = Partially Signed Bitcoin Transaction = BIP174
 

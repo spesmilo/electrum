@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 import traceback
-from enum import IntEnum
-from typing import Sequence, Optional, Dict
+import enum
+from typing import Sequence, Optional, Dict, TYPE_CHECKING
 from abc import abstractmethod, ABC
 
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt, QRect, QSize
-from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
+from PyQt6 import QtCore, QtGui
+from PyQt6.QtCore import Qt, QRect, QSize
+from PyQt6.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QAbstractItemView, QComboBox, QCheckBox,
                              QToolTip)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
+from PyQt6.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
-from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
 from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState, ChanCloseOption
 from electrum.wallet import Abstract_Wallet
@@ -19,13 +19,17 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnworker import LNWallet
 from electrum.gui import messages
 
-from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .util import read_QIcon, font_height
+from .my_treeview import MyTreeView
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
-ROLE_CHANNEL_ID = Qt.UserRole
+ROLE_CHANNEL_ID = Qt.ItemDataRole.UserRole
 
 
 class ChannelsList(MyTreeView):
@@ -33,15 +37,15 @@ class ChannelsList(MyTreeView):
     update_single_row = QtCore.pyqtSignal(Abstract_Wallet, AbstractChannel)
     gossip_db_loaded = QtCore.pyqtSignal()
 
-    class Columns(IntEnum):
-        FEATURES = 0
-        SHORT_CHANID = 1
-        NODE_ALIAS = 2
-        CAPACITY = 3
-        LOCAL_BALANCE = 4
-        REMOTE_BALANCE = 5
-        CHANNEL_STATUS = 6
-        LONG_CHANID = 7
+    class Columns(MyTreeView.BaseColumnsEnum):
+        FEATURES = enum.auto()
+        SHORT_CHANID = enum.auto()
+        NODE_ALIAS = enum.auto()
+        CAPACITY = enum.auto()
+        LOCAL_BALANCE = enum.auto()
+        REMOTE_BALANCE = enum.auto()
+        CHANNEL_STATUS = enum.auto()
+        LONG_CHANID = enum.auto()
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
@@ -63,18 +67,19 @@ class ChannelsList(MyTreeView):
 
     _default_item_bg_brush = None  # type: Optional[QBrush]
 
-    def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ALIAS)
+    def __init__(self, main_window: 'ElectrumWindow'):
+        super().__init__(
+            main_window=main_window,
+            stretch_column=self.Columns.NODE_ALIAS,
+        )
         self.setModel(QtGui.QStandardItemModel(self))
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.main_window = parent
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.gossip_db_loaded.connect(self.on_gossip_db)
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
-        self.network = self.parent.network
-        self.wallet = self.parent.wallet
+        self.network = self.main_window.network
+        self.wallet = self.main_window.wallet
         self.setSortingEnabled(True)
-        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
     @property
     # property because lnworker might be initialized at runtime
@@ -86,12 +91,12 @@ class ChannelsList(MyTreeView):
         for subject in (REMOTE, LOCAL):
             if isinstance(chan, Channel):
                 can_send = chan.available_to_spend(subject) / 1000
-                label = self.parent.format_amount(can_send, whitespaces=True)
+                label = self.main_window.format_amount(can_send, whitespaces=True)
                 other = subject.inverted()
                 bal_other = chan.balance(other)//1000
                 bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
                 if bal_other != bal_minus_htlcs_other:
-                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=False) + ')'
+                    label += ' (+' + self.main_window.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=False) + ')'
             else:
                 assert isinstance(chan, ChannelBackup)
                 label = ''
@@ -99,7 +104,7 @@ class ChannelsList(MyTreeView):
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
         node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
-        capacity_str = self.parent.format_amount(chan.get_capacity(), whitespaces=True)
+        capacity_str = self.main_window.format_amount(chan.get_capacity(), whitespaces=True)
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
             self.Columns.LONG_CHANID: chan.channel_id.hex(),
@@ -114,9 +119,6 @@ class ChannelsList(MyTreeView):
     def on_channel_closed(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
 
-    def on_request_sent(self, b):
-        self.main_window.show_message(_('Request sent'))
-
     def on_failure(self, exc_info):
         type_, e, tb = exc_info
         traceback.print_tb(tb)
@@ -125,20 +127,20 @@ class ChannelsList(MyTreeView):
     def close_channel(self, channel_id):
         self.is_force_close = False
         msg = _('Cooperative close?')
-        msg += '\n' + _(messages.MSG_COOPERATIVE_CLOSE)
-        if not self.parent.question(msg):
+        msg += '\n\n' + messages.MSG_COOPERATIVE_CLOSE
+        if not self.main_window.question(msg):
             return
         coro = self.lnworker.close_channel(channel_id)
         on_success = self.on_channel_closed
         def task():
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
+        WaitingDialog(self, _('Please wait...'), task, on_success, self.on_failure)
 
     def force_close(self, channel_id):
         self.save_backup = True
         backup_cb = QCheckBox('Create a backup now', checked=True)
-        def on_checked(b):
-            self.save_backup = bool(b)
+        def on_checked(_x):
+            self.save_backup = backup_cb.isChecked()
         backup_cb.stateChanged.connect(on_checked)
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
@@ -148,15 +150,15 @@ class ChannelsList(MyTreeView):
             + '<u>' + _('Please create a backup of your wallet file!') + '</u> '\
             + '<p>' + _('Funds in this channel will not be recoverable from seed until they are swept back into your wallet, and might be lost if you lose your wallet file.') + ' '\
             + _('To prevent that, you should save a backup of your wallet on another device.') + '</p>'
-        if not self.parent.question(msg, title=_('Force-close channel'), rich_text=True, checkbox=backup_cb):
+        if not self.main_window.question(msg, title=_('Force-close channel'), rich_text=True, checkbox=backup_cb):
             return
         if self.save_backup:
-            if not self.parent.backup_wallet():
+            if not self.main_window.backup_wallet():
                 return
         def task():
             coro = self.lnworker.force_close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_channel_closed, self.on_failure)
+        WaitingDialog(self, _('Please wait...'), task, self.on_channel_closed, self.on_failure)
 
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
@@ -168,7 +170,9 @@ class ChannelsList(MyTreeView):
 
     def export_channel_backup(self, channel_id):
         msg = ' '.join([
-            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Channel backups can be imported in another instance of the same wallet."),
+            _("In the Electrum mobile app, use the 'Send' button to scan this QR code."),
+            '\n\n',
             _("Please note that channel backups cannot be used to restore your channels."),
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
@@ -178,17 +182,22 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         msg = _('Request force-close from remote peer?')
-        msg += '\n' + _(messages.MSG_REQUEST_FORCE_CLOSE)
-        if not self.parent.question(msg):
+        msg += '\n\n' + messages.MSG_REQUEST_FORCE_CLOSE
+        if not self.main_window.question(msg):
             return
         def task():
             coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
+        def on_done(b):
+            self.main_window.show_message(_('Request scheduled'))
+        WaitingDialog(self, _('Please wait...'), task, on_done, self.on_failure)
 
-    def freeze_channel_for_sending(self, chan, b):
+    def set_frozen(self, chan, *, for_sending, value):
         if not self.lnworker.uses_trampoline() or self.lnworker.is_trampoline_peer(chan.node_id):
-            chan.set_frozen_for_sending(b)
+            if for_sending:
+                chan.set_frozen_for_sending(value)
+            else:
+                chan.set_frozen_for_receiving(value)
         else:
             msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
             self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
@@ -208,25 +217,28 @@ class ChannelsList(MyTreeView):
 
     def on_rebalance(self):
         chan1, chan2 = self.get_rebalance_pair()
-        self.parent.rebalance_dialog(chan1, chan2)
+        if chan1 is None:
+            self.main_window.show_error("Select two active channels to rebalance.")
+            return
+        self.main_window.rebalance_dialog(chan1, chan2)
 
-    def on_selection_changed(self):
-        chan1, chan2 = self.get_rebalance_pair()
-        self.rebalance_button.setEnabled(chan1 is not None)
+    def on_double_click(self, idx):
+        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
+        self.main_window.show_channel_details(chan)
 
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         selected = self.selected_in_column(self.Columns.NODE_ALIAS)
         if not selected:
-            menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
-            menu.exec_(self.viewport().mapToGlobal(position))
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         if len(selected) == 2:
             chan1, chan2 = self.get_rebalance_pair()
             if chan1 and chan2:
-                menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
-                menu.exec_(self.viewport().mapToGlobal(position))
+                menu.addAction(_("Rebalance channels"), lambda: self.main_window.rebalance_dialog(chan1, chan2))
+                menu.exec(self.viewport().mapToGlobal(position))
             return
         elif len(selected) > 2:
             return
@@ -238,7 +250,7 @@ class ChannelsList(MyTreeView):
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
-        menu.addAction(_("Details..."), lambda: self.parent.show_channel_details(chan))
+        menu.addAction(_("Details"), lambda: self.main_window.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
@@ -248,13 +260,13 @@ class ChannelsList(MyTreeView):
         if not chan.is_backup() and not chan.is_closed():
             fm = menu.addMenu(_("Freeze"))
             if not chan.is_frozen_for_sending():
-                fm.addAction(_("Freeze for sending"), lambda: self.freeze_channel_for_sending(chan, True))
+                fm.addAction(_("Freeze for sending"), lambda: self.set_frozen(chan, for_sending=True, value=True))
             else:
-                fm.addAction(_("Unfreeze for sending"), lambda: self.freeze_channel_for_sending(chan, False))
+                fm.addAction(_("Unfreeze for sending"), lambda: self.set_frozen(chan, for_sending=True, value=False))
             if not chan.is_frozen_for_receiving():
-                fm.addAction(_("Freeze for receiving"), lambda: chan.set_frozen_for_receiving(True))
+                fm.addAction(_("Freeze for receiving"), lambda: self.set_frozen(chan, for_sending=False, value=True))
             else:
-                fm.addAction(_("Unfreeze for receiving"), lambda: chan.set_frozen_for_receiving(False))
+                fm.addAction(_("Unfreeze for receiving"), lambda: self.set_frozen(chan, for_sending=False, value=False))
         if close_opts := chan.get_close_options():
             cm = menu.addMenu(_("Close"))
             if ChanCloseOption.COOP_CLOSE in close_opts:
@@ -271,18 +283,18 @@ class ChannelsList(MyTreeView):
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             else:
                 menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
-        menu.exec_(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
     def do_update_single_row(self, wallet: Abstract_Wallet, chan: AbstractChannel):
-        if wallet != self.parent.wallet:
+        if wallet != self.wallet:
             return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ALIAS)
             if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
                 continue
             for column, v in self.format_fields(chan).items():
-                self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+                self.model().item(row, column).setData(v, QtCore.Qt.ItemDataRole.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
         if wallet.lnworker:
@@ -290,11 +302,11 @@ class ChannelsList(MyTreeView):
 
     @QtCore.pyqtSlot()
     def on_gossip_db(self):
-        self.do_update_rows(self.parent.wallet)
+        self.do_update_rows(self.wallet)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
     def do_update_rows(self, wallet):
-        if wallet != self.parent.wallet:
+        if wallet != self.wallet:
             return
         self.model().clear()
         self.update_headers(self.headers)
@@ -318,7 +330,8 @@ class ChannelsList(MyTreeView):
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
-        self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
+        # FIXME sorting by SHORT_CHANID should treat values as tuple, not as string ( 50x1x1 > 8x1x1 )
+        self.sortByColumn(self.Columns.SHORT_CHANID, Qt.SortOrder.DescendingOrder)
 
     def _update_chan_frozen_bg(self, *, chan: AbstractChannel, items: Sequence[QStandardItem]):
         assert self._default_item_bg_brush is not None
@@ -340,52 +353,31 @@ class ChannelsList(MyTreeView):
             item.setToolTip("")
 
     def update_can_send(self, lnworker: LNWallet):
-        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.num_sats_can_send())\
-              + ' ' + self.parent.base_unit() + '; '\
-              + _('can receive') + ' ' + self.parent.format_amount(lnworker.num_sats_can_receive())\
-              + ' ' + self.parent.base_unit()
+        msg = _('Can send') + ' ' + self.main_window.format_amount(lnworker.num_sats_can_send())\
+              + ' ' + self.main_window.base_unit() + '; '\
+              + _('can receive') + ' ' + self.main_window.format_amount(lnworker.num_sats_can_receive())\
+              + ' ' + self.main_window.base_unit()
         self.can_send_label.setText(msg)
-        self.update_swap_button(lnworker)
 
-    def update_swap_button(self, lnworker: LNWallet):
-        if lnworker.num_sats_can_send() or lnworker.num_sats_can_receive():
-            self.swap_button.setEnabled(True)
-        else:
-            self.swap_button.setEnabled(False)
-
-    def get_toolbar(self):
-        h = QHBoxLayout()
-        self.can_send_label = QLabel('')
-        h.addWidget(self.can_send_label)
-        h.addStretch()
-        self.rebalance_button = EnterButton(_('Rebalance'), lambda x: self.on_rebalance())
-        self.rebalance_button.setToolTip("Select two active channels to rebalance.")
-        self.rebalance_button.setDisabled(True)
-        self.swap_button = EnterButton(_('Swap'), lambda x: self.parent.run_swap_dialog())
-        self.swap_button.setToolTip("Have at least one channel to do swaps.")
-        self.swap_button.setDisabled(True)
-        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
-        self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
-        h.addWidget(self.new_channel_button)
-        h.addWidget(self.rebalance_button)
-        h.addWidget(self.swap_button)
-        return h
-
-    def new_channel_with_warning(self):
-        lnworker = self.parent.wallet.lnworker
-        if not lnworker.channels and not lnworker.channel_backups:
-            warning = _(messages.MSG_LIGHTNING_WARNING)
-            answer = self.parent.question(
-                _('Do you want to create your first channel?') + '\n\n' + warning)
-            if answer:
-                self.new_channel_dialog()
-        else:
-            self.new_channel_dialog()
+    def create_toolbar(self, config):
+        toolbar, menu = self.create_toolbar_with_menu('')
+        self.can_send_label = toolbar.itemAt(0).widget()
+        menu.addAction(_('Rebalance channels'), lambda: self.on_rebalance())
+        menu.addAction(read_QIcon('update.png'), _('Submarine swap'), lambda: self.main_window.run_swap_dialog())
+        menu.addSeparator()
+        menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
+        # only enable menu if has LN. Or we could selectively enable menu items?
+        #     and maybe add item "main_window.init_lightning_dialog()" when applicable
+        menu.setEnabled(self.wallet.has_lightning())
+        self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
+        self.new_channel_button.setEnabled(self.wallet.has_lightning())
+        toolbar.insertWidget(2, self.new_channel_button)
+        return toolbar
 
     def statistics_dialog(self):
-        channel_db = self.parent.network.channel_db
-        capacity = self.parent.format_amount(channel_db.capacity()) + ' '+ self.parent.base_unit()
-        d = WindowModalDialog(self.parent, _('Lightning Network Statistics'))
+        channel_db = self.network.channel_db
+        capacity = self.main_window.format_amount(channel_db.capacity()) + ' '+ self.main_window.base_unit()
+        d = WindowModalDialog(self.main_window, _('Lightning Network Statistics'))
         d.setMinimumWidth(400)
         vbox = QVBoxLayout(d)
         h = QGridLayout()
@@ -397,12 +389,7 @@ class ChannelsList(MyTreeView):
         h.addWidget(QLabel(capacity), 2, 1)
         vbox.addLayout(h)
         vbox.addLayout(Buttons(OkButton(d)))
-        d.exec_()
-
-    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
-        from .new_channel_dialog import NewChannelDialog
-        d = NewChannelDialog(self.parent, amount_sat, min_amount_sat)
-        return d.run()
+        d.exec()
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
@@ -448,7 +435,14 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
     def tooltip(self) -> str:
         return _("This channel cannot be recovered from your seed. You must back it up manually.")
     def icon(self) -> QIcon:
-        return read_QIcon("nocloud")
+        return read_QIcon("cloud_no")
+
+
+class ChanFeatAnchors(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This channel uses anchor outputs.")
+    def icon(self) -> QIcon:
+        return read_QIcon("anchor")
 
 
 class ChannelFeatureIcons:
@@ -471,6 +465,8 @@ class ChannelFeatureIcons:
                 feats.append(ChanFeatTrampoline())
             if not chan.has_onchain_backup():
                 feats.append(ChanFeatNoOnchainBackup())
+            if chan.has_anchors():
+                feats.append(ChanFeatAnchors())
         return ChannelFeatureIcons(feats)
 
     def paint(self, painter: QPainter, rect: QRect) -> None:

@@ -1,0 +1,14 @@
+{
+    "testnet4-electrumx.wakiyamap.dev": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4"
+    },
+    "blackie.c3-soft.com": {
+        "pruning": "-",
+        "s": "57010",
+        "t": "57009",
+        "version": "1.4"
+    }
+}

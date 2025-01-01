@@ -1,8 +1,8 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
-import QtQml.Models 2.1
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
+import QtQml.Models
 
 import org.electrum 1.0
 
@@ -13,6 +13,8 @@ ElDialog {
 
     title: qsTr('Receive Payment')
 
+    property string key
+
     property string _bolt11: request.bolt11
     property string _bip21uri: request.bip21
     property string _address: request.address
@@ -20,16 +22,8 @@ ElDialog {
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
     property bool _ispaid: false
-    property bool _ignore_gaplimit: false
-    property bool _reuse_address: false
 
-    parent: Overlay.overlay
-    modal: true
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -58,123 +52,119 @@ ElDialog {
                     State {
                         name: 'bolt11'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                        PropertyChanges { target: bolt11label; color: Material.accentColor; font.underline: true }
                     },
                     State {
                         name: 'bip21uri'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                        PropertyChanges { target: bip21label; color: Material.accentColor; font.underline: true }
                     },
                     State {
                         name: 'address'
                         PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                        PropertyChanges { target: addresslabel; color: Material.accentColor; font.underline: true }
                     }
                 ]
 
-                Rectangle {
+                TextHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: constants.paddingSmall
-                    Layout.bottomMargin: constants.paddingSmall
+                    Layout.fillWidth: true
 
-                    Layout.preferredWidth: dialog.width * 7/8
-                    Layout.preferredHeight: dialog.width * 7/8
+                    ColumnLayout {
+                        width: parent.width
+                        Rectangle {
+                            id: qrbg
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingSmall
+                            Layout.bottomMargin: constants.paddingSmall
 
-                    color: 'white'
+                            Layout.preferredWidth: dialog.width * 7/8
+                            Layout.preferredHeight: dialog.width * 7/8
 
-                    Loader {
-                        id: qrloader
-                        anchors.centerIn: parent
-                        Component {
-                            id: qri_bolt11
-                            QRImage {
-                                qrdata: _bolt11
-                                render: _render_qr
+                            color: 'white'
+
+                            Loader {
+                                id: qrloader
+                                anchors.centerIn: parent
+                                Component {
+                                    id: qri_bolt11
+                                    QRImage {
+                                        qrdata: _bolt11
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
+                                Component {
+                                    id: qri_bip21uri
+                                    QRImage {
+                                        qrdata: _bip21uri
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
+                                Component {
+                                    id: qri_address
+                                    QRImage {
+                                        qrdata: _address
+                                        render: _render_qr
+                                        enableToggleText: true
+                                    }
+                                }
                             }
                         }
-                        Component {
-                            id: qri_bip21uri
-                            QRImage {
-                                qrdata: _bip21uri
-                                render: _render_qr
-                            }
-                        }
-                        Component {
-                            id: qri_address
-                            QRImage {
-                                qrdata: _address
-                                render: _render_qr
-                            }
-                        }
-                    }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (rootLayout.state == 'bolt11') {
-                                if (_bip21uri != '')
-                                    rootLayout.state = 'bip21uri'
-                                else if (_address != '')
-                                    rootLayout.state = 'address'
-                            } else if (rootLayout.state == 'bip21uri') {
-                                if (_address != '')
-                                    rootLayout.state = 'address'
-                                else if (_bolt11 != '')
+                        ButtonContainer {
+                            Layout.fillWidth: true
+                            showSeparator: false
+                            Component {
+                                id: _ind
+                                Rectangle {
+                                    color: Material.dialogColor
+                                    opacity: parent.checked ? 1 : 0
+                                    radius: 5
+                                    width: parent.width
+                                    height: parent.height
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 200 }
+                                    }
+                                }
+                            }
+                            TabButton {
+                                id: bolt11Button
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('Lightning')
+                                enabled: _bolt11
+                                checked: rootLayout.state == 'bolt11'
+                                indicator: _ind.createObject()
+                                onClicked: {
                                     rootLayout.state = 'bolt11'
-                            } else if (rootLayout.state == 'address') {
-                                if (_bolt11 != '')
-                                    rootLayout.state = 'bolt11'
-                                else if (_bip21uri != '')
-                                    rootLayout.state = 'bip21uri'
+                                    Config.preferredRequestType = 'bolt11'
+                                }
                             }
-                            Config.preferredRequestType = rootLayout.state
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: constants.paddingLarge
-                    Label {
-                        id: bolt11label
-                        text: qsTr('Lightning')
-                        color: _bolt11 ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _bolt11
-                            onClicked: rootLayout.state = 'bolt11'
-                        }
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: constants.paddingXXSmall
-                        Layout.preferredHeight: constants.paddingXXSmall
-                        radius: constants.paddingXXSmall / 2
-                        color: Material.accentColor
-                    }
-                    Label {
-                        id: bip21label
-                        text: qsTr('URI')
-                        color: _bip21uri ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _bip21uri
-                            onClicked: rootLayout.state = 'bip21uri'
-                        }
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: constants.paddingXXSmall
-                        Layout.preferredHeight: constants.paddingXXSmall
-                        radius: constants.paddingXXSmall / 2
-                        color: Material.accentColor
-                    }
-                    Label {
-                        id: addresslabel
-                        text: qsTr('Address')
-                        color: _address ? Material.foreground : constants.mutedForeground
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: _address
-                            onClicked: rootLayout.state = 'address'
+                            TabButton {
+                                id: bip21Button
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('URI')
+                                enabled: _bip21uri
+                                checked: rootLayout.state == 'bip21uri'
+                                indicator: _ind.createObject()
+                                onClicked: {
+                                    rootLayout.state = 'bip21uri'
+                                    Config.preferredRequestType = 'bip21uri'
+                                }
+                            }
+                            TabButton {
+                                id: addressButton
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                text: qsTr('Address')
+                                checked: rootLayout.state == 'address'
+                                indicator: _ind.createObject()
+                                onClicked: {
+                                    rootLayout.state = 'address'
+                                    Config.preferredRequestType = 'address'
+                                }
+                            }
                         }
                     }
                 }
@@ -182,18 +172,23 @@ ElDialog {
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: buttons.width
+                    Layout.preferredWidth: qrbg.width
                     color: Material.accentColor
                 }
 
                 GridLayout {
                     columns: 2
-                    visible: request.message || !request.amount.isEmpty
-                    Layout.maximumWidth: buttons.width
+                    Layout.maximumWidth: qrbg.width
                     Layout.alignment: Qt.AlignHCenter
 
                     Label {
-                        visible: request.message
+                        text: qsTr('Status')
+                        color: Material.accentColor
+                    }
+                    Label {
+                        text: request.status_str
+                    }
+                    Label {
                         text: qsTr('Message')
                         color: Material.accentColor
                     }
@@ -204,64 +199,77 @@ ElDialog {
                         wrapMode: Text.Wrap
                     }
                     Label {
-                        visible: !request.amount.isEmpty
+                        visible: !request.message
+                        Layout.fillWidth: true
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
+                    }
+                    Label {
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
                     FormattedAmount {
                         visible: !request.amount.isEmpty
+                        valid: !request.amount.isEmpty
                         amount: request.amount
+                    }
+                    Label {
+                        visible: request.amount.isEmpty
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
                     }
                 }
 
                 Rectangle {
-                    visible: request.message || !request.amount.isEmpty
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: buttons.width
+                    Layout.preferredWidth: qrbg.width
                     color: Material.accentColor
                 }
 
-                RowLayout {
-                    id: buttons
-                    Layout.alignment: Qt.AlignHCenter
-                    FlatButton {
-                        icon.source: '../../icons/copy_bw.png'
-                        icon.color: 'transparent'
-                        text: 'Copy'
-                        onClicked: {
-                            if (request.isLightning && rootLayout.state == 'bolt11')
-                                AppController.textToClipboard(_bolt11)
-                            else if (rootLayout.state == 'bip21uri')
-                                AppController.textToClipboard(_bip21uri)
-                            else
-                                AppController.textToClipboard(_address)
-                        }
-                    }
-                    FlatButton {
-                        icon.source: '../../icons/share.png'
-                        text: 'Share'
-                        onClicked: {
-                            enabled = false
-                            if (request.isLightning && rootLayout.state == 'bolt11')
-                                AppController.doShare(_bolt11, qsTr('Payment Request'))
-                            else if (rootLayout.state == 'bip21uri')
-                                AppController.doShare(_bip21uri, qsTr('Payment Request'))
-                            else
-                                AppController.doShare(_address, qsTr('Onchain address'))
-
-                            enabled = true
-                        }
-                    }
-                    FlatButton {
-                        Layout.alignment: Qt.AlignHCenter
-                        icon.source: '../../icons/pen.png'
-                        text: qsTr('Edit')
-                        onClicked: receiveDetailsDialog.open()
-                    }
-                }
             }
 
+        }
+
+        ButtonContainer {
+            id: buttons
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/copy_bw.png'
+                icon.color: 'transparent'
+                text: 'Copy'
+                onClicked: {
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.textToClipboard(_bolt11.toLowerCase())
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.textToClipboard(_bip21uri)
+                    else
+                        AppController.textToClipboard(_address)
+                    toaster.show(this, qsTr('Copied!'))
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/share.png'
+                text: 'Share'
+                onClicked: {
+                    enabled = false
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.doShare(_bolt11.toLowerCase(), qsTr('Payment Request'))
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                    else
+                        AppController.doShare(_address, qsTr('Onchain address'))
+
+                    enabled = true
+                }
+            }
         }
     }
 
@@ -296,64 +304,6 @@ ElDialog {
         }
     }
 
-    // make clicking the dialog background move the scope away from textedit fields
-    // so the keyboard goes away
-    MouseArea {
-        anchors.fill: parent
-        z: -1000
-        onClicked: parkFocus.focus = true
-        FocusScope { id: parkFocus }
-    }
-
-    Component {
-        id: requestdialog
-        RequestDialog {
-            onClosed: destroy()
-        }
-    }
-
-    function createRequest() {
-        var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
-        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
-            console.log('Creating OnChain request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, _ignore_gaplimit, _reuse_address)
-        } else {
-            console.log('Creating Lightning request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true, _ignore_gaplimit, _reuse_address)
-        }
-    }
-
-    function createDefaultRequest() {
-        console.log('Creating default request')
-        Daemon.currentWallet.createDefaultRequest(_ignore_gaplimit, _reuse_address)
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onRequestCreateSuccess(key) {
-            request.key = key
-        }
-        function onRequestCreateError(code, error) {
-            if (code == 'gaplimit') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _ignore_gaplimit = true
-                    createDefaultRequest()
-                })
-            } else if (code == 'non-deterministic') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _reuse_address = true
-                    createDefaultRequest()
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
-            dialog.open()
-        }
-    }
-
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet
@@ -380,25 +330,12 @@ ElDialog {
         }
     }
 
-    ReceiveDetailsDialog {
-        id: receiveDetailsDialog
-
-        width: parent.width * 0.9
-        anchors.centerIn: parent
-
-        onAccepted: {
-            console.log('accepted')
-            Daemon.currentWallet.delete_request(request.key)
-            createRequest()
-        }
-        onRejected: {
-            console.log('rejected')
-        }
+    Toaster {
+        id: toaster
     }
 
     Component.onCompleted: {
-        // callLater to make sure any popups are on top of the dialog stacking order
-        Qt.callLater(createDefaultRequest)
+        request.key = dialog.key
     }
 
     // hack. delay qr rendering until dialog is shown
@@ -410,5 +347,4 @@ ElDialog {
             }
         }
     }
-
 }

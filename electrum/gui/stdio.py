@@ -25,7 +25,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path())
+        storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
@@ -33,7 +33,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
 
-        db = WalletDB(storage.read(), manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
 
         self.done = 0
         self.last_balance = ""
@@ -43,7 +43,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
+        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
@@ -68,7 +68,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.updated()
 
     @event_listener
-    def on_event_banner(self):
+    def on_event_banner(self, *args):
         self.print_banner()
 
     def main_command(self):
@@ -115,8 +115,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 time_str = 'unconfirmed'
 
             label = self.wallet.get_label_for_txid(hist_item.txid)
-            messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
-                                          format_satoshis(hist_item.balance, whitespaces=True)))
+            messages.append(format_str % (
+                time_str, label,
+                format_satoshis(hist_item.delta, whitespaces=True),
+                format_satoshis(hist_item.balance, whitespaces=True)))
 
         self.print_list(messages[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 
@@ -177,7 +179,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
 
     def main(self):
-        while self.done == 0: self.main_command()
+        self.daemon.start_network()
+        while self.done == 0:
+            self.main_command()
 
     def do_send(self):
         if not is_address(self.str_recipient):
@@ -207,9 +211,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx(outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
-                                  password=password,
-                                  fee=fee)
+            tx = self.wallet.create_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
+                password=password,
+                fee=fee,
+            )
         except Exception as e:
             print(repr(e))
             return

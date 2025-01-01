@@ -21,11 +21,13 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import binascii
+import concurrent.futures
+import logging
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set)
-from datetime import datetime
+                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
+from datetime import datetime, timezone
 import decimal
 from decimal import Decimal
 import traceback
@@ -46,8 +48,10 @@ from ipaddress import IPv4Address, IPv6Address
 import random
 import secrets
 import functools
+from functools import partial
 from abc import abstractmethod, ABC
 import socket
+import enum
 
 import attr
 import aiohttp
@@ -63,6 +67,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .interface import Interface
     from .simple_config import SimpleConfig
+    from .paymentrequest import PaymentRequest
 
 
 _logger = get_logger(__name__)
@@ -102,6 +107,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
+    """Returns the max number of digits allowed after the decimal point."""
     # e.g. "BTC" -> 8
     try:
         return base_units[unit_name]
@@ -139,9 +145,18 @@ class NotEnoughFunds(Exception):
         return _("Insufficient funds")
 
 
+class UneconomicFee(Exception):
+    def __str__(self):
+        return _("The fee for the transaction is higher than the funds gained from it.")
+
+
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
+
+
+class BelowDustLimit(Exception):
+    pass
 
 
 class InvalidPassword(Exception):
@@ -180,7 +195,10 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class WalletFileException(Exception): pass
+class WalletFileException(Exception):
+    def __init__(self, message='', *, should_report_crash: bool = False):
+        Exception.__init__(self, message)
+        self.should_report_crash = should_report_crash
 
 
 class BitcoinException(Exception): pass
@@ -193,11 +211,30 @@ class UserFacingException(Exception):
 class InvoiceError(UserFacingException): pass
 
 
+class NetworkOfflineException(UserFacingException):
+    """Can be raised if we are running in offline mode (--offline flag)
+    and the user requests an operation that requires the network.
+    """
+    def __str__(self):
+        return _("You are offline.")
+
+
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
 class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
+
+
+def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
+    # helper function mainly for float->Decimal conversion, i.e.:
+    #   >>> Decimal(41754.681)
+    #   Decimal('41754.680999999996856786310672760009765625')
+    #   >>> Decimal("41754.681")
+    #   Decimal('41754.681')
+    if isinstance(x, Decimal):
+        return x
+    return Decimal(str(x))
 
 
 # note: this is not a NamedTuple as then its json encoding cannot be customized
@@ -207,6 +244,7 @@ class Satoshis(object):
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
         # note: 'value' sometimes has msat precision
+        assert isinstance(value, (int, Decimal)), f"unexpected type for {value=!r}"
         self.value = value
         return self
 
@@ -276,9 +314,6 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction, TxOutput
-        from .lnutil import UpdateAddHtlc
-        if isinstance(obj, UpdateAddHtlc):
-            return obj.to_tuple()
         if isinstance(obj, Transaction):
             return obj.serialize()
         if isinstance(obj, TxOutput):
@@ -351,7 +386,9 @@ class DaemonThread(threading.Thread, Logger):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
-        self.stopped_event = threading.Event()  # set when fully stopped
+        self.stopped_event = threading.Event()        # set when fully stopped
+        self.stopped_event_async = asyncio.Event()    # set when fully stopped
+        self.wake_up_event = threading.Event()  # for perf optimisation of polling in run()
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -385,6 +422,8 @@ class DaemonThread(threading.Thread, Logger):
     def stop(self):
         with self.running_lock:
             self.running = False
+            self.wake_up_event.set()
+            self.wake_up_event.clear()
 
     def on_stop(self):
         if 'ANDROID_DATA' in os.environ:
@@ -393,6 +432,8 @@ class DaemonThread(threading.Thread, Logger):
             self.logger.info("jnius detach")
         self.logger.info("stopped")
         self.stopped_event.set()
+        loop = get_asyncio_loop()
+        loop.call_soon_threadsafe(self.stopped_event_async.set)
 
 
 def print_stderr(*args):
@@ -416,7 +457,7 @@ def json_encode(obj):
 def json_decode(x):
     try:
         return json.loads(x, parse_float=Decimal)
-    except:
+    except Exception:
         return x
 
 def json_normalize(x):
@@ -433,17 +474,53 @@ def constant_time_compare(val1, val2):
     return hmac.compare_digest(to_bytes(val1, 'utf8'), to_bytes(val2, 'utf8'))
 
 
-# decorator that prints execution time
 _profiler_logger = _logger.getChild('profiler')
-def profiler(func):
-    def do_profile(args, kw_args):
+def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
+    """Function decorator that logs execution time.
+
+    min_threshold: if set, only log if time taken is higher than threshold
+    NOTE: does not work with async methods.
+    """
+    if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
+        return partial(profiler, min_threshold=min_threshold)
+    def do_profile(*args, **kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _profiler_logger.debug(f"{name} {t:,.4f} sec")
+        if min_threshold is None or t > min_threshold:
+            _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
-    return lambda *args, **kw_args: do_profile(args, kw_args)
+    return do_profile
+
+
+class AsyncHangDetector:
+    """Context manager that logs every `n` seconds if encapsulated context still has not exited."""
+
+    def __init__(
+        self,
+        *,
+        period_sec: int = 15,
+        message: str,
+        logger: logging.Logger = None,
+    ):
+        self.period_sec = period_sec
+        self.message = message
+        self.logger = logger or _logger
+
+    async def _monitor(self):
+        # note: this assumes that the event loop itself is not blocked
+        t0 = time.monotonic()
+        while True:
+            await asyncio.sleep(self.period_sec)
+            t1 = time.monotonic()
+            self.logger.info(f"{self.message} (after {t1 - t0:.2f} sec)")
+
+    async def __aenter__(self):
+        self.mtask = asyncio.create_task(self._monitor())
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.mtask.cancel()
 
 
 def android_ext_dir():
@@ -497,12 +574,13 @@ def assert_file_in_datadir_available(path, config_path):
 
 
 def standardize_path(path):
+    # note: os.path.realpath() is not used, as on Windows it can return non-working paths (see #8495).
+    #       This means that we don't resolve symlinks!
     return os.path.normcase(
-            os.path.realpath(
                 os.path.abspath(
                     os.path.expanduser(
                         path
-    ))))
+    )))
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
@@ -546,7 +624,7 @@ def assert_bytes(*args):
     try:
         for x in args:
             assert isinstance(x, (bytes, bytearray))
-    except:
+    except Exception:
         print('assert bytes failed', list(map(type, args)))
         raise
 
@@ -583,17 +661,6 @@ def to_bytes(something, encoding='utf8') -> bytes:
 
 
 bfh = bytes.fromhex
-
-
-def bh2u(x: bytes) -> str:
-    """
-    str with hex representation of a bytes-like object
-
-    >>> x = bytes((1, 2, 10))
-    >>> bh2u(x)
-    '01020A'
-    """
-    return x.hex()
 
 
 def xor_bytes(a: bytes, b: bytes) -> bytes:
@@ -641,7 +708,7 @@ def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
         b = bytes.fromhex(text)
-    except:
+    except Exception:
         return False
     # forbid whitespaces in text:
     if len(text) != 2 * len(b):
@@ -762,6 +829,10 @@ def format_satoshis(
 
 FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
 _feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
+UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE = "sat/vbyte"
+UI_UNIT_NAME_FEERATE_SAT_PER_VB = "sat/vB"
+UI_UNIT_NAME_TXSIZE_VBYTES = "vbytes"
+UI_UNIT_NAME_MEMPOOL_MB = "vMB"
 
 
 def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
@@ -778,18 +849,28 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp: Optional[int]) -> Optional[datetime]:
+def timestamp_to_datetime(timestamp: Union[int, float, None], *, utc: bool = False) -> Optional[datetime]:
     if timestamp is None:
         return None
-    return datetime.fromtimestamp(timestamp)
+    tz = None
+    if utc:
+        tz = timezone.utc
+    return datetime.fromtimestamp(timestamp, tz=tz)
 
-def format_time(timestamp):
+
+def format_time(timestamp: Union[int, float, None]) -> str:
     date = timestamp_to_datetime(timestamp)
-    return date.isoformat(' ')[:-3] if date else _("Unknown")
+    return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
 
 
-# Takes a timestamp and returns a string with the approximation of the age
-def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+def age(
+    from_date: Union[int, float, None],  # POSIX timestamp
+    *,
+    since_date: datetime = None,
+    target_tz=None,
+    include_seconds: bool = False,
+) -> str:
+    """Takes a timestamp and returns a string with the approximation of the age"""
     if from_date is None:
         return _("Unknown")
 
@@ -797,47 +878,74 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if since_date is None:
         since_date = datetime.now(target_tz)
 
-    td = time_difference(from_date - since_date, include_seconds)
-    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
-
-
-def time_difference(distance_in_time, include_seconds):
-    #distance_in_time = since_date - from_date
+    distance_in_time = from_date - since_date
+    is_in_past = from_date < since_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
-    distance_in_minutes = int(round(distance_in_seconds/60))
+    distance_in_minutes = int(round(distance_in_seconds / 60))
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return _("{} seconds").format(distance_in_seconds)
+            if is_in_past:
+                return _("{} seconds ago").format(distance_in_seconds)
+            else:
+                return _("in {} seconds").format(distance_in_seconds)
         else:
-            return _("less than a minute")
+            if is_in_past:
+                return _("less than a minute ago")
+            else:
+                return _("in less than a minute")
     elif distance_in_minutes < 45:
-        return _("about {} minutes").format(distance_in_minutes)
+        if is_in_past:
+            return _("about {} minutes ago").format(distance_in_minutes)
+        else:
+            return _("in about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        return _("about 1 hour")
+        if is_in_past:
+            return _("about 1 hour ago")
+        else:
+            return _("in about 1 hour")
     elif distance_in_minutes < 1440:
-        return _("about {} hours").format(round(distance_in_minutes / 60.0))
+        if is_in_past:
+            return _("about {} hours ago").format(round(distance_in_minutes / 60.0))
+        else:
+            return _("in about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return _("about 1 day")
+        if is_in_past:
+            return _("about 1 day ago")
+        else:
+            return _("in about 1 day")
     elif distance_in_minutes < 43220:
-        return _("about {} days").format(round(distance_in_minutes / 1440))
+        if is_in_past:
+            return _("about {} days ago").format(round(distance_in_minutes / 1440))
+        else:
+            return _("in about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return _("about 1 month")
+        if is_in_past:
+            return _("about 1 month ago")
+        else:
+            return _("in about 1 month")
     elif distance_in_minutes < 525600:
-        return _("about {} months").format(round(distance_in_minutes / 43200))
+        if is_in_past:
+            return _("about {} months ago").format(round(distance_in_minutes / 43200))
+        else:
+            return _("in about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return _("about 1 year")
+        if is_in_past:
+            return _("about 1 year ago")
+        else:
+            return _("in about 1 year")
     else:
-        return _("over {} years").format(round(distance_in_minutes / 525600))
+        if is_in_past:
+            return _("over {} years ago").format(round(distance_in_minutes / 525600))
+        else:
+            return _("in over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
-                        {'tx': 'transactions/', 'addr': 'addresses/'}),
+    '3xpl.com': ('https://3xpl.com/bitcoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
                         {'tx': 'Transaction/', 'addr': 'Address/'}),
     'Blockchain.info': ('https://blockchain.com/btc/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -848,8 +956,6 @@ mainnet_block_explorers = {
     'Chain.so': ('https://www.chain.so/',
                         {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
     'Insight.is': ('https://insight.bitpay.com/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'TradeBlock.com': ('https://tradeblock.com/blockchain/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'BlockCypher.com': ('https://live.blockcypher.com/btc/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -863,8 +969,6 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
-    'smartbit.com.au': ('https://www.smartbit.com.au/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
     'mynode.local': ('http://mynode.local:3002/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
@@ -888,6 +992,13 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+testnet4_block_explorers = {
+    'mempool.space': ('https://mempool.space/testnet4/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'wakiyamap.dev': ('https://testnet4-explorer.wakiyamap.dev/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+}
+
 signet_block_explorers = {
     'bc-2.jp': ('https://explorer.bc-2.jp/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -896,6 +1007,8 @@ signet_block_explorers = {
     'bitcoinexplorer.org': ('https://signet.bitcoinexplorer.org/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'wakiyamap.dev': ('https://signet-explorer.wakiyamap.dev/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'ex.signet.bublina.eu.org': ('https://ex.signet.bublina.eu.org/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                        {'tx': 'tx/', 'addr': 'address/'}),
@@ -908,6 +1021,8 @@ def block_explorer_info():
     from . import constants
     if constants.net.NET_NAME == "testnet":
         return testnet_block_explorers
+    elif constants.net.NET_NAME == "testnet4":
+        return testnet4_block_explorers
     elif constants.net.NET_NAME == "signet":
         return signet_block_explorers
     return mainnet_block_explorers
@@ -917,25 +1032,24 @@ def block_explorer(config: 'SimpleConfig') -> Optional[str]:
     """Returns name of selected block explorer,
     or None if a custom one (not among hardcoded ones) is configured.
     """
-    if config.get('block_explorer_custom') is not None:
+    if config.BLOCK_EXPLORER_CUSTOM is not None:
         return None
-    default_ = 'Blockstream.info'
-    be_key = config.get('block_explorer', default_)
+    be_key = config.BLOCK_EXPLORER
     be_tuple = block_explorer_info().get(be_key)
     if be_tuple is None:
-        be_key = default_
+        be_key = config.cv.BLOCK_EXPLORER.get_default_value()
     assert isinstance(be_key, str), f"{be_key!r} should be str"
     return be_key
 
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    custom_be = config.get('block_explorer_custom')
+    custom_be = config.BLOCK_EXPLORER_CUSTOM
     if custom_be:
         if isinstance(custom_be, str):
             return custom_be, _block_explorer_default_api_loc
         if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
             return tuple(custom_be)
-        _logger.warning(f"not using 'block_explorer_custom' from config. "
+        _logger.warning(f"not using {config.cv.BLOCK_EXPLORER_CUSTOM.key()!r} from config. "
                         f"expected a str or a pair but got {custom_be!r}")
         return None
     else:
@@ -956,172 +1070,8 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
-# URL decode
-#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 
-# note: when checking against these, use .lower() to support case-insensitivity
-BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
-LIGHTNING_URI_SCHEME = 'lightning'
-
-
-class InvalidBitcoinURI(Exception): pass
-
-
-# TODO rename to parse_bip21_uri or similar
-def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
-    """Raises InvalidBitcoinURI on malformed URI."""
-    from . import bitcoin
-    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-    from .lnaddr import lndecode, LnDecodeException
-
-    if not isinstance(uri, str):
-        raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
-
-    if ':' not in uri:
-        if not bitcoin.is_address(uri):
-            raise InvalidBitcoinURI("Not a bitcoin address")
-        return {'address': uri}
-
-    u = urllib.parse.urlparse(uri)
-    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
-        raise InvalidBitcoinURI("Not a bitcoin URI")
-    address = u.path
-
-    # python for android fails to parse query
-    if address.find('?') > 0:
-        address, query = u.path.split('?')
-        pq = urllib.parse.parse_qs(query)
-    else:
-        pq = urllib.parse.parse_qs(u.query)
-
-    for k, v in pq.items():
-        if len(v) != 1:
-            raise InvalidBitcoinURI(f'Duplicate Key: {repr(k)}')
-
-    out = {k: v[0] for k, v in pq.items()}
-    if address:
-        if not bitcoin.is_address(address):
-            raise InvalidBitcoinURI(f"Invalid bitcoin address: {address}")
-        out['address'] = address
-    if 'amount' in out:
-        am = out['amount']
-        try:
-            m = re.match(r'([0-9.]+)X([0-9])', am)
-            if m:
-                k = int(m.group(2)) - 8
-                amount = Decimal(m.group(1)) * pow(Decimal(10), k)
-            else:
-                amount = Decimal(am) * COIN
-            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
-            out['amount'] = int(amount)
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
-    if 'message' in out:
-        out['message'] = out['message']
-        out['memo'] = out['message']
-    if 'time' in out:
-        try:
-            out['time'] = int(out['time'])
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'time' field: {repr(e)}") from e
-    if 'exp' in out:
-        try:
-            out['exp'] = int(out['exp'])
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
-    if 'sig' in out:
-        try:
-            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
-    if 'lightning' in out:
-        try:
-            lnaddr = lndecode(out['lightning'])
-        except LnDecodeException as e:
-            raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
-        amount_sat = out.get('amount')
-        if amount_sat:
-            # allow small leeway due to msat precision
-            if abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
-                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: amount")
-        address = out.get('address')
-        ln_fallback_addr = lnaddr.get_fallback_address()
-        if address and ln_fallback_addr:
-            if ln_fallback_addr != address:
-                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: address")
-
-    r = out.get('r')
-    sig = out.get('sig')
-    name = out.get('name')
-    if on_pr and (r or (name and sig)):
-        @log_exceptions
-        async def get_payment_request():
-            from . import paymentrequest as pr
-            if name and sig:
-                s = pr.serialize_request(out).SerializeToString()
-                request = pr.PaymentRequest(s)
-            else:
-                request = await pr.get_payment_request(r)
-            if on_pr:
-                on_pr(request)
-        loop = loop or get_asyncio_loop()
-        asyncio.run_coroutine_threadsafe(get_payment_request(), loop)
-
-    return out
-
-
-def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
-                     *, extra_query_params: Optional[dict] = None) -> str:
-    from . import bitcoin
-    if not bitcoin.is_address(addr):
-        return ""
-    if extra_query_params is None:
-        extra_query_params = {}
-    query = []
-    if amount_sat:
-        query.append('amount=%s'%format_satoshis_plain(amount_sat))
-    if message:
-        query.append('message=%s'%urllib.parse.quote(message))
-    for k, v in extra_query_params.items():
-        if not isinstance(k, str) or k != urllib.parse.quote(k):
-            raise Exception(f"illegal key for URI: {repr(k)}")
-        v = urllib.parse.quote(v)
-        query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(
-        scheme=BITCOIN_BIP21_URI_SCHEME,
-        netloc='',
-        path=addr,
-        params='',
-        query='&'.join(query),
-        fragment='',
-    )
-    return str(urllib.parse.urlunparse(p))
-
-
-def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
-    data = data.strip()  # whitespaces
-    data = data.lower()
-    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
-        cut_prefix = LIGHTNING_URI_SCHEME + ':'
-        data = data[len(cut_prefix):]
-    if data.startswith('ln'):
-        return data
-    return None
-
-
-def is_uri(data: str) -> bool:
-    data = data.lower()
-    if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
-            data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
-        return True
-    return False
-
-
-class FailedToParsePaymentIdentifier(Exception):
-    pass
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -1143,7 +1093,7 @@ def parse_json(message):
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
-    except:
+    except Exception:
         j = None
     return j, message[n+1:]
 
@@ -1187,8 +1137,7 @@ def read_json_file(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.loads(f.read())
-    #backwards compatibility for JSONDecodeError
-    except ValueError:
+    except json.JSONDecodeError:
         _logger.exception('')
         raise FileImportFailed(_("Invalid JSON code."))
     except BaseException as e:
@@ -1280,10 +1229,26 @@ def with_lock(func):
 
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
+    conf: Optional[int] = None         # number of confirmations, SPV verified. >=0, or None (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
+    wanted_height: Optional[int] = None  # in case of timelock, min abs block height
+
+    def short_id(self) -> Optional[str]:
+        if self.txpos is not None and self.txpos >= 0:
+            assert self.height > 0
+            return f"{self.height}x{self.txpos}"
+        return None
+
+    def is_local_like(self) -> bool:
+        """Returns whether the tx is local-like (LOCAL/FUTURE)."""
+        from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+        if self.height > 0:
+            return False
+        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            return False
+        return True
 
 
 class ShortID(bytes):
@@ -1363,7 +1328,7 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
             port=int(proxy['port']),
             username=proxy.get('user', None),
             password=proxy.get('password', None),
-            rdns=True,
+            rdns=True,  # needed to prevent DNS leaks over proxy
             ssl=ssl_context,
         )
     else:
@@ -1465,6 +1430,36 @@ aiorpcx.curio._set_task_deadline   = _aiorpcx_monkeypatched_set_task_deadline
 aiorpcx.curio._unset_task_deadline = _aiorpcx_monkeypatched_unset_task_deadline
 
 
+async def wait_for2(fut: Awaitable, timeout: Union[int, float, None]):
+    """Replacement for asyncio.wait_for,
+     due to bugs: https://bugs.python.org/issue42130 and https://github.com/python/cpython/issues/86296 ,
+     which are only fixed in python 3.12+.
+     """
+    if sys.version_info[:3] >= (3, 12):
+        return await asyncio.wait_for(fut, timeout)
+    else:
+        async with async_timeout(timeout):
+            return await asyncio.ensure_future(fut, loop=get_running_loop())
+
+
+if hasattr(asyncio, 'timeout'):  # python 3.11+
+    async_timeout = asyncio.timeout
+else:
+    class TimeoutAfterAsynciolike(aiorpcx.curio.TimeoutAfter):
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            try:
+                await super().__aexit__(exc_type, exc_value, traceback)
+            except (aiorpcx.TaskTimeout, aiorpcx.UncaughtTimeoutError):
+                raise asyncio.TimeoutError from None
+            except aiorpcx.TimeoutCancellationError:
+                raise asyncio.CancelledError from None
+
+    def async_timeout(delay: Union[int, float, None]):
+        if delay is None:
+            return nullcontext()
+        return TimeoutAfterAsynciolike(delay)
+
+
 class NetworkJobOnDefaultServer(Logger, ABC):
     """An abstract base class for a job that runs on the main network
     interface. Every time the main interface changes, the job is
@@ -1493,8 +1488,20 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         self.reset_request_counters()
 
     async def _start(self, interface: 'Interface'):
+        self.logger.debug(f"starting. interface.server={repr(str(interface.server))}")
         self.interface = interface
-        await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
+
+        taskgroup = self.taskgroup
+        async def run_tasks_wrapper():
+            self.logger.debug(f"starting taskgroup ({hex(id(taskgroup))}).")
+            try:
+                await self._run_tasks(taskgroup=taskgroup)
+            except Exception as e:
+                self.logger.error(f"taskgroup died ({hex(id(taskgroup))}). exc={e!r}")
+                raise
+            finally:
+                self.logger.debug(f"taskgroup stopped ({hex(id(taskgroup))}).")
+        await interface.taskgroup.spawn(run_tasks_wrapper)
 
     @abstractmethod
     async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
@@ -1507,6 +1514,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             raise asyncio.CancelledError()
 
     async def stop(self, *, full_shutdown: bool = True):
+        self.logger.debug(f"stopping. {full_shutdown=}")
         if full_shutdown:
             unregister_callback(self._restart)
         await self.taskgroup.cancel_remaining()
@@ -1550,9 +1558,7 @@ def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
 
 def is_tor_socks_port(host: str, port: int) -> bool:
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.1)
-            s.connect((host, port))
+        with socket.create_connection((host, port), timeout=10) as s:
             # mimic "tor-resolve 0.0.0.0".
             # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
             # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in
@@ -1566,12 +1572,17 @@ def is_tor_socks_port(host: str, port: int) -> bool:
     return False
 
 
+AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = False  # used by unit tests
+
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
 def get_asyncio_loop() -> asyncio.AbstractEventLoop:
     """Returns the global asyncio event loop we use."""
-    if _asyncio_event_loop is None:
-        raise Exception("event loop not created yet")
-    return _asyncio_event_loop
+    if loop := _asyncio_event_loop:
+        return loop
+    if AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP:
+        if loop := get_running_loop():
+            return loop
+    raise Exception("event loop not created yet")
 
 
 def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
@@ -1754,6 +1765,7 @@ def list_enabled_bits(x: int) -> Sequence[int]:
 
 
 def resolve_dns_srv(host: str):
+    # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
     srv_records = dns.resolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
@@ -1769,20 +1781,23 @@ def resolve_dns_srv(host: str):
 
 def randrange(bound: int) -> int:
     """Return a random integer k such that 1 <= k < bound, uniformly
-    distributed across that range."""
+    distributed across that range.
+    This is guaranteed to be cryptographically strong.
+    """
     # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
     # hence transformations:
     return secrets.randbelow(bound - 1) + 1
 
 
-class CallbackManager:
+class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
 
     def __init__(self):
+        Logger.__init__(self)
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
-        self.asyncio_loop = None
+        self._running_cb_futs = set()
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1800,21 +1815,32 @@ class CallbackManager:
         Can be called from any thread. The callback itself will get scheduled
         on the event loop.
         """
-        if self.asyncio_loop is None:
-            self.asyncio_loop = get_asyncio_loop()
-            assert self.asyncio_loop.is_running(), "event loop not running"
+        loop = get_asyncio_loop()
+        assert loop.is_running(), "event loop not running"
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
-            # FIXME: if callback throws, we will lose the traceback
-            if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(*args), self.asyncio_loop)
-            elif get_running_loop() == self.asyncio_loop:
-                # run callback immediately, so that it is guaranteed
-                # to have been executed when this method returns
-                callback(*args)
-            else:
-                self.asyncio_loop.call_soon_threadsafe(callback, *args)
+            if asyncio.iscoroutinefunction(callback):  # async cb
+                fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
+                # keep strong references around to avoid GC issues:
+                self._running_cb_futs.add(fut)
+                def on_done(fut_: concurrent.futures.Future):
+                    assert fut_.done()
+                    self._running_cb_futs.remove(fut_)
+                    if fut_.cancelled():
+                        self.logger.debug(f"cb cancelled. {event=}.")
+                    elif exc := fut_.exception():
+                        self.logger.error(f"cb errored. {event=}. {exc=}", exc_info=exc)
+                fut.add_done_callback(on_done)
+            else:  # non-async cb
+                # note: the cb needs to run in the asyncio thread
+                if get_running_loop() == loop:
+                    # run callback immediately, so that it is guaranteed
+                    # to have been executed when this method returns
+                    callback(*args)
+                else:
+                    # note: if cb raises, asyncio will log the exception
+                    loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
@@ -1825,6 +1851,11 @@ _event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
 class EventListener:
+    """Use as a mixin for a class that has methods to be triggered on events.
+    - Methods that receive the callbacks should be named "on_event_*" and decorated with @event_listener.
+    - register_callbacks() should be called exactly once per instance of EventListener, e.g. in __init__
+    - unregister_callbacks() should be called at least once, e.g. when the instance is destroyed
+    """
 
     def _list_callbacks(self):
         for c in self.__class__.__mro__:
@@ -1847,6 +1878,7 @@ class EventListener:
 
 
 def event_listener(func):
+    """To be used in subclasses of EventListener only. (how to enforce this programmatically?)"""
     classname, method_name = func.__qualname__.split('.')
     assert method_name.startswith('on_event_')
     classpath = f"{func.__module__}.{classname}"
@@ -1855,7 +1887,8 @@ def event_listener(func):
 
 
 _NetAddrType = TypeVar("_NetAddrType")
-
+# requirements for _NetAddrType:
+# - reasonable __hash__() implementation (e.g. based on host/port of remote endpoint)
 
 class NetworkRetryManager(Generic[_NetAddrType]):
     """Truncated Exponential Backoff for network connections."""
@@ -1918,7 +1951,9 @@ class NetworkRetryManager(Generic[_NetAddrType]):
         self._last_tried_addr.clear()
 
 
-class MySocksProxy(aiorpcx.SOCKSProxy):
+class ESocksProxy(aiorpcx.SOCKSProxy):
+    # note: proxy will not leak DNS as create_connection()
+    # sets (local DNS) resolve=False by default
 
     async def open_connection(self, host=None, port=None, **kwargs):
         loop = asyncio.get_running_loop()
@@ -1930,12 +1965,17 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return reader, writer
 
     @classmethod
-    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
-        if not proxy:
+    def from_network_settings(cls, network: Optional['Network']) -> Optional['ESocksProxy']:
+        if not network or not network.proxy:
             return None
+        proxy = network.proxy
         username, pw = proxy.get('user'), proxy.get('password')
         if not username or not pw:
-            auth = None
+            # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
+            if network.is_proxy_tor:
+                auth = aiorpcx.socks.SOCKSRandomAuth()
+            else:
+                auth = None
         else:
             auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
         addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
@@ -1948,6 +1988,20 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return ret
 
 
+class JsonRPCError(Exception):
+
+    class Codes(enum.IntEnum):
+        # application-specific error codes
+        USERFACING = 1
+        INTERNAL = 2
+
+    def __init__(self, *, code: int, message: str, data: Optional[dict] = None):
+        Exception.__init__(self)
+        self.code = code
+        self.message = message
+        self.data = data
+
+
 class JsonRPCClient:
 
     def __init__(self, session: aiohttp.ClientSession, url: str):
@@ -1956,6 +2010,10 @@ class JsonRPCClient:
         self._id = 0
 
     async def request(self, endpoint, *args):
+        """Send request to server, parse and return result.
+        note: parsing code is naive, the server is assumed to be well-behaved.
+              Up to the caller to handle exceptions, including those arising from parsing errors.
+        """
         self._id += 1
         data = ('{"jsonrpc": "2.0", "id":"%d", "method": "%s", "params": %s }'
                 % (self._id, endpoint, json.dumps(args)))
@@ -1965,7 +2023,7 @@ class JsonRPCClient:
                 result = r.get('result')
                 error = r.get('error')
                 if error:
-                    return 'Error: ' + str(error)
+                    raise JsonRPCError(code=error["code"], message=error["message"], data=error.get("data"))
                 else:
                     return result
             else:
@@ -2030,9 +2088,59 @@ class nullcontext:
         pass
 
 
+def traceback_format_exception(exc: BaseException) -> Sequence[str]:
+    """Compatibility wrapper for stdlib traceback.format_exception using python 3.10+ API."""
+    if sys.version_info[:3] >= (3, 10):
+        return traceback.format_exception(exc)
+    else:
+        return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
+
+
+class classproperty(property):
+    """~read-only class-level @property
+    from https://stackoverflow.com/a/13624858 by denis-ryzhkov
+    """
+    def __get__(self, owner_self, owner_cls):
+        return self.fget(owner_cls)
+
+
 def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
     """Returns the asyncio event loop that is *running in this thread*, if any."""
     try:
         return asyncio.get_running_loop()
     except RuntimeError:
         return None
+
+
+def error_text_str_to_safe_str(err: str, *, max_len: Optional[int] = 500) -> str:
+    """Converts an untrusted error string to a sane printable ascii str.
+    Never raises.
+    """
+    text = error_text_bytes_to_safe_str(
+        err.encode("ascii", errors='backslashreplace'),
+        max_len=None)
+    return truncate_text(text, max_len=max_len)
+
+
+def error_text_bytes_to_safe_str(err: bytes, *, max_len: Optional[int] = 500) -> str:
+    """Converts an untrusted error bytes text to a sane printable ascii str.
+    Never raises.
+
+    Note that naive ascii conversion would be insufficient. Fun stuff:
+    >>> b = b"my_long_prefix_blabla" + 21 * b"\x08" + b"malicious_stuff"
+    >>> s = b.decode("ascii")
+    >>> print(s)
+    malicious_stuffblabla
+    """
+    # convert to ascii, to get rid of unicode stuff
+    ascii_text = err.decode("ascii", errors='backslashreplace')
+    # do repr to handle ascii special chars (especially when printing/logging the str)
+    text = repr(ascii_text)
+    return truncate_text(text, max_len=max_len)
+
+
+def truncate_text(text: str, *, max_len: Optional[int]) -> str:
+    if max_len is None or len(text) <= max_len:
+        return text
+    else:
+        return text[:max_len] + f"... (truncated. orig_len={len(text)})"

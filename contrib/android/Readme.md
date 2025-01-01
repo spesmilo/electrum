@@ -1,19 +1,25 @@
-# Kivy GUI
+# Qml GUI
 
-The Kivy GUI is used with Electrum on Android devices.
+The Qml GUI is used with Electrum on Android devices, since Electrum 4.4.
 To generate an APK file, follow these instructions.
+
+(note: older versions of Electrum for Android used the "kivy" GUI)
 
 ## Android binary with Docker
 
 ✓ _These binaries should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
+- _Minimum supported target system (i.e. what end-users need): Android 6.0 (API 23)_
+
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system.
 
 1. Install Docker
 
-    See `contrib/docker_notes.md`.
+    See [`contrib/docker_notes.md`](../docker_notes.md).
+
+    (worth reading even if you already have docker)
 
 2. Build binaries
 
@@ -21,11 +27,11 @@ similar system.
     ```
     $ ./build.sh
     ```
-    For development, consider e.g. `$ ./build.sh kivy arm64-v8a debug`
+    For development, consider e.g. `$ ./build.sh qml arm64-v8a debug`
 
     If you want reproducibility, try instead e.g.:
     ```
-    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh kivy all release-unsigned
+    $ ELECBUILD_COMMIT=HEAD ./build.sh qml all release-unsigned
     ```
 
 3. The generated binary is in `./dist`.
@@ -90,19 +96,36 @@ adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
 ```
 
 
-### Kivy can be run directly on Linux Desktop. How?
-Install Kivy.
+### The Qml GUI can be run directly on Linux Desktop. How?
+Install requirements:
+```
+python3 -m pip install ".[qml_gui]"
+```
 
-Build atlas: `(cd contrib/android/; make theming)`
+Run electrum with the `-g` switch: `electrum -g qml`
 
-Run electrum with the `-g` switch: `electrum -g kivy`
+Notes:
+
+- pyqt ~6.4 would work best, as the gui has not yet been adapted to styling changes in 6.5
+- However, pyqt6 as distributed on PyPI does not include a required module (PyQt6.QtQml) until 6.5
+- Installing these deps from your OS package manager should also work,
+  except many don't distribute pyqt6 yet.
+  For pyqt5 on debian-based distros, this used to look like this:
+  ```
+  sudo apt-get install python3-pyqt5 python3-pyqt5.qtquick python3-pyqt5.qtmultimedia
+  sudo apt-get install python3-pil
+  sudo apt-get install qml-module-qtquick-controls2 qml-module-qtquick-layouts \
+      qml-module-qtquick-window2 qml-module-qtmultimedia \
+      libqt5multimedia5-plugins qml-module-qt-labs-folderlistmodel
+  ```
+
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk
 in debug mode. The most notable difference is that the apk will be
 signed using a debug keystore. If you are planning to upload
 what you build to e.g. the Play Store, you should create your own
-keystore, back it up safely, and run `./contrib/make_apk.sh release`.
+keystore, back it up safely, and run `./build.sh` in `release` mode.
 
 See e.g. [kivy wiki](https://github.com/kivy/kivy/wiki/Creating-a-Release-APK)
 and [android dev docs](https://developer.android.com/studio/build/building-cmdline#sign_cmdline).
@@ -111,26 +134,61 @@ and [android dev docs](https://developer.android.com/studio/build/building-cmdli
 Note that this only works for debug builds! Otherwise the security model
 of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
+To pull a file:
 ```
 $ adb shell
-$ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
-$ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+adb$ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
+adb$ exit
+$ adb exec-out run-as org.electrum.electrum cat /data/data/org.electrum.electrum/files/data/wallets/my_wallet > my_wallet
+```
+To push a file:
+```
+$ adb push ~/wspace/tmp/my_wallet /data/local/tmp
+$ adb shell
+adb$ ls -la /data/local/tmp
+adb$ run-as org.electrum.testnet.electrum cp /data/local/tmp/my_wallet /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets/
+adb$ run-as org.electrum.testnet.electrum chmod -R 700 /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
+adb$ run-as org.electrum.testnet.electrum chmod -R u-x,u+X /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
+adb$ rm /data/local/tmp/my_wallet
 ```
 
 Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
+
+#### Device with multiple user profiles
+
+There are further complications if using an Android device
+[with multiple user profiles](https://source.android.com/docs/devices/admin/multi-user-testing)
+(typical for GrapheneOS/etc).
+
+Run `$ adb shell pm list users` to get a list of all existing users, and take note of the user ids.
+
+Instead of `/data/data/{app.path}`, private app data is stored at `/data/user/{userId}/{app.path}`.
+
+Further, instead of `adb$ run-as org.electrum.electrum`,
+you need `adb$ run-as org.electrum.electrum --user {userId}`.
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
 cd dist/
 unzip Electrum-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
-tar -xzvf apk1/assets/private.mp3 --directory apk1/assets/private_mp3/
+tar -xzvf apk1/assets/private.tar --directory apk1/assets/private_mp3/
+mkdir apk1/lib/_libpybundle/
+tar -xzvf apk1/lib/*/libpybundle.so --directory apk1/lib/_libpybundle/
 
 unzip Electrum-*.apk2 -d apk2
 mkdir apk2/assets/private_mp3/
-tar -xzvf apk2/assets/private.mp3 --directory apk2/assets/private_mp3/
+tar -xzvf apk2/assets/private.tar --directory apk2/assets/private_mp3/
+mkdir apk2/lib/_libpybundle/
+tar -xzvf apk2/lib/*/libpybundle.so --directory apk2/lib/_libpybundle/
 
-sudo chown --recursive "$(id -u -n)" apk1/ apk2/
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
+chmod -R +Xr  apk1/ apk2/
+
+unzip apk1/lib/_libpybundle/_python_bundle/stdlib.zip -d apk1/lib/_libpybundle/_python_bundle/stdlib
+unzip apk2/lib/_libpybundle/_python_bundle/stdlib.zip -d apk2/lib/_libpybundle/_python_bundle/stdlib
+
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
 chmod -R +Xr  apk1/ apk2/
 $(cd apk1; find -type f -exec sha256sum '{}' \; > ./../sha256sum1)
 $(cd apk2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)

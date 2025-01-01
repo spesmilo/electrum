@@ -26,14 +26,14 @@
 import ast
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QComboBox,  QTabWidget, QDialog,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QWidget, QHBoxLayout)
+                             QPushButton, QWidget, QHBoxLayout, QSlider)
 
 from electrum.i18n import _, languages
-from electrum import util, coinchooser, paymentrequest
+from electrum import util, paymentrequest
 from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
@@ -43,8 +43,17 @@ from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
 
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
+    from electrum.simple_config import SimpleConfig, ConfigVarWithConfig
     from .main_window import ElectrumWindow
+
+
+def checkbox_from_configvar(cv: 'ConfigVarWithConfig') -> QCheckBox:
+    short_desc = cv.get_short_desc()
+    assert short_desc is not None, f"short_desc missing for {cv}"
+    cb = QCheckBox(short_desc)
+    if (long_desc := cv.get_long_desc()) is not None:
+        cb.setToolTip(messages.to_rtf(long_desc))
+    return cb
 
 
 class SettingsDialog(QDialog, QtEventListener):
@@ -67,143 +76,138 @@ class SettingsDialog(QDialog, QtEventListener):
         tabs = QTabWidget()
 
         # language
-        lang_help = _('Select which language is used in the GUI (after restart).')
-        lang_label = HelpLabel(_('Language') + ':', lang_help)
+        lang_label = HelpLabel.from_configvar(self.config.cv.LOCALIZATION_LANGUAGE)
         lang_combo = QComboBox()
         lang_combo.addItems(list(languages.values()))
         lang_keys = list(languages.keys())
-        lang_cur_setting = self.config.get("language", '')
+        lang_cur_setting = self.config.LOCALIZATION_LANGUAGE
         try:
             index = lang_keys.index(lang_cur_setting)
         except ValueError:  # not in list
             index = 0
         lang_combo.setCurrentIndex(index)
-        if not self.config.is_modifiable('language'):
+        if not self.config.cv.LOCALIZATION_LANGUAGE.is_modifiable():
             for w in [lang_combo, lang_label]: w.setEnabled(False)
         def on_lang(x):
             lang_request = list(languages.keys())[lang_combo.currentIndex()]
-            if lang_request != self.config.get('language'):
-                self.config.set_key("language", lang_request, True)
+            if lang_request != self.config.LOCALIZATION_LANGUAGE:
+                self.config.LOCALIZATION_LANGUAGE = lang_request
                 self.need_restart = True
         lang_combo.currentIndexChanged.connect(on_lang)
 
-        nz_help = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
+        nz_label = HelpLabel.from_configvar(self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT)
         nz = QSpinBox()
         nz.setMinimum(0)
         nz.setMaximum(self.config.decimal_point)
         nz.setValue(self.config.num_zeros)
-        if not self.config.is_modifiable('num_zeros'):
+        if not self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT.is_modifiable():
             for w in [nz, nz_label]: w.setEnabled(False)
         def on_nz():
             value = nz.value()
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
-                self.config.set_key('num_zeros', value, True)
+                self.config.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = value
                 self.app.refresh_tabs_signal.emit()
                 self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
 
-        # invoices
-        bolt11_fallback_cb = QCheckBox(_('Add on-chain fallback to lightning invoices'))
-        bolt11_fallback_cb.setChecked(bool(self.config.get('bolt11_fallback', True)))
-        bolt11_fallback_cb.setToolTip(_('Add fallback addresses to BOLT11 lightning invoices.'))
-        def on_bolt11_fallback(x):
-            self.config.set_key('bolt11_fallback', bool(x))
-        bolt11_fallback_cb.stateChanged.connect(on_bolt11_fallback)
-
-        bip21_lightning_cb = QCheckBox(_('Add lightning invoice to bitcoin URIs'))
-        bip21_lightning_cb.setChecked(bool(self.config.get('bip21_lightning', False)))
-        bip21_lightning_cb.setToolTip(_('This may create larger qr codes.'))
-        def on_bip21_lightning(x):
-            self.config.set_key('bip21_lightning', bool(x))
-        bip21_lightning_cb.stateChanged.connect(on_bip21_lightning)
-
-        batch_rbf_cb = QCheckBox(_('Batch unconfirmed transactions'))
-        batch_rbf_cb.setChecked(bool(self.config.get('batch_rbf', False)))
-        batch_rbf_cb.setToolTip(
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
-            _('This will save fees.'))
-        def on_batch_rbf(x):
-            self.config.set_key('batch_rbf', bool(x))
-        batch_rbf_cb.stateChanged.connect(on_batch_rbf)
-
         # lightning
-        help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
-        recov_cb = QCheckBox(_("Create recoverable channels"))
-        enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
-        recov_cb.setEnabled(enable_toggle_use_recoverable_channels)
-        recov_cb.setToolTip(messages.to_rtf(help_recov))
-        recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)) and enable_toggle_use_recoverable_channels)
-        def on_recov_checked(x):
-            self.config.set_key('use_recoverable_channels', bool(x))
-        recov_cb.stateChanged.connect(on_recov_checked)
-
-        help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
-        trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
-        trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
-        trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
-        def on_trampoline_checked(use_trampoline):
-            use_gossip = not bool(use_trampoline)
-            self.config.set_key('use_gossip', use_gossip)
-            if use_gossip:
+        trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_USE_GOSSIP)
+        trampoline_cb.setChecked(not self.config.LIGHTNING_USE_GOSSIP)
+        def on_trampoline_checked(_x):
+            use_trampoline = trampoline_cb.isChecked()
+            if not use_trampoline:
+                if not window.question('\n'.join([
+                        _("Are you sure you want to disable trampoline?"),
+                        _("Without this option, Electrum will need to sync with the Lightning network on every start."),
+                        _("This may impact the reliability of your payments."),
+                ])):
+                    trampoline_cb.setCheckState(Qt.CheckState.Checked)
+                    return
+            self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
+            if not use_trampoline:
                 self.network.start_gossip()
             else:
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
+            legacy_add_trampoline_cb.setEnabled(use_trampoline)
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
-        help_instant_swaps = ' '.join([
-            _("If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed."),
-            _("Note you are at risk of losing the funds in the swap, if the funding transaction never confirms.")
-            ])
-        instant_swaps_cb = QCheckBox(_("Allow instant swaps"))
-        instant_swaps_cb.setToolTip(messages.to_rtf(help_instant_swaps))
-        instant_swaps_cb.setChecked(bool(self.config.get('allow_instant_swaps', False)))
-        def on_instant_swaps_checked(allow_instant_swaps):
-            self.config.set_key('allow_instant_swaps', bool(allow_instant_swaps))
-        instant_swaps_cb.stateChanged.connect(on_instant_swaps_checked)
+        legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
+        legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
+        legacy_add_trampoline_cb.setEnabled(trampoline_cb.isChecked())
+        def on_legacy_add_trampoline_checked(_x):
+            self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
+        legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
 
-        help_remote_wt = ' '.join([
-            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
-            _("If you have private a watchtower, enter its URL here."),
-            _("Check our online documentation if you want to configure Electrum as a watchtower."),
-        ])
-        remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
-        remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
-        def on_remote_wt_checked(x):
-            self.config.set_key('use_watchtower', bool(x))
-            self.watchtower_url_e.setEnabled(bool(x))
+        remote_wt_cb = checkbox_from_configvar(self.config.cv.WATCHTOWER_CLIENT_ENABLED)
+        remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
+        def on_remote_wt_checked(_x):
+            self.config.WATCHTOWER_CLIENT_ENABLED = remote_wt_cb.isChecked()
+            self.watchtower_url_e.setEnabled(remote_wt_cb.isChecked())
         remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
-        watchtower_url = self.config.get('watchtower_url')
+        watchtower_url = self.config.WATCHTOWER_CLIENT_URL
         self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.get('use_watchtower', False))
+        self.watchtower_url_e.setEnabled(self.config.WATCHTOWER_CLIENT_ENABLED)
         def on_wt_url():
             url = self.watchtower_url_e.text() or None
-            watchtower_url = self.config.set_key('watchtower_url', url)
+            self.config.WATCHTOWER_CLIENT_URL = url
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
 
-        msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
-              + _('The following alias providers are available:') + '\n'\
-              + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
-              + 'For more information, see https://openalias.org'
-        alias_label = HelpLabel(_('OpenAlias') + ':', msg)
-        alias = self.config.get('alias','')
+        lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+        def lnfee_update_vlabel(fee_val: int):
+            lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+        def lnfee_slider_moved():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            lnfee_update_vlabel(fee_val)
+        def lnfee_slider_released():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
+        lnfee_slider.setRange(0, len(lnfee_map)-1)
+        lnfee_slider.setTracking(True)
+        try:
+            lnfee_spos = lnfee_map.index(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        except ValueError:
+            lnfee_spos = 0
+        lnfee_slider.setSliderPosition(lnfee_spos)
+        lnfee_vlabel = QLabel("")
+        lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_slider.valueChanged.connect(lnfee_slider_moved)
+        lnfee_slider.sliderReleased.connect(lnfee_slider_released)
+        lnfee_hbox = QHBoxLayout()
+        lnfee_hbox.setContentsMargins(0, 0, 0, 0)
+        lnfee_hbox.addWidget(lnfee_vlabel)
+        lnfee_hbox.addWidget(lnfee_slider)
+        lnfee_hbox_w = QWidget()
+        lnfee_hbox_w.setLayout(lnfee_hbox)
+
+        alias_label = HelpLabel.from_configvar(self.config.cv.OPENALIAS_ID)
+        alias = self.config.OPENALIAS_ID
         self.alias_e = QLineEdit(alias)
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
-        msat_cb = QCheckBox(_("Show Lightning amounts with msat precision"))
-        msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
-        def on_msat_checked(v):
-            prec = 3 if v == Qt.Checked else 0
+        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
+        nostr_relays = self.config.NOSTR_RELAYS
+        self.nostr_relays_e = QLineEdit(nostr_relays)
+        def on_nostr_edit():
+            self.config.NOSTR_RELAYS = str(self.nostr_relays_e.text())
+        self.nostr_relays_e.editingFinished.connect(on_nostr_edit)
+
+        msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
+        msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
+        def on_msat_checked(_x):
+            prec = 3 if msat_cb.isChecked() else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
-                self.config.set_key('amt_precision_post_satoshi', prec)
+                self.config.BTC_AMOUNTS_PREC_POST_SAT = prec
                 self.app.refresh_tabs_signal.emit()
         msat_cb.stateChanged.connect(on_msat_checked)
 
@@ -227,137 +231,61 @@ class SettingsDialog(QDialog, QtEventListener):
             self.app.refresh_amount_edits_signal.emit()
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
 
-        thousandsep_cb = QCheckBox(_("Add thousand separators to bitcoin amounts"))
-        thousandsep_cb.setChecked(bool(self.config.get('amt_add_thousands_sep', False)))
-        def on_set_thousandsep(v):
-            checked = v == Qt.Checked
+        thousandsep_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
+        thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
+        def on_set_thousandsep(_x):
+            checked = thousandsep_cb.isChecked()
             if self.config.amt_add_thousands_sep != checked:
                 self.config.amt_add_thousands_sep = checked
-                self.config.set_key('amt_add_thousands_sep', checked)
+                self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP = checked
                 self.app.refresh_tabs_signal.emit()
         thousandsep_cb.stateChanged.connect(on_set_thousandsep)
 
         qr_combo = QComboBox()
         qr_combo.addItem("Default", "default")
-        msg = (_("For scanning QR codes.") + "\n"
-               + _("Install the zbar package to enable this."))
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
+        qr_label = HelpLabel.from_configvar(self.config.cv.VIDEO_DEVICE_PATH)
         from .qrreader import find_system_cameras
         system_cameras = find_system_cameras()
         for cam_desc, cam_path in system_cameras.items():
             qr_combo.addItem(cam_desc, cam_path)
-        index = qr_combo.findData(self.config.get("video_device"))
+        index = qr_combo.findData(self.config.VIDEO_DEVICE_PATH)
         qr_combo.setCurrentIndex(index)
-        on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
+        def on_video_device(x):
+            self.config.VIDEO_DEVICE_PATH = qr_combo.itemData(x)
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
         colortheme_combo.addItem(_('Light'), 'default')
         colortheme_combo.addItem(_('Dark'), 'dark')
-        index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
+        index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
-        colortheme_label = QLabel(_('Color theme') + ':')
+        colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
         def on_colortheme(x):
-            self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
+            self.config.GUI_QT_COLOR_THEME = colortheme_combo.itemData(x)
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
-        updatecheck_cb = QCheckBox(_("Automatically check for software updates"))
-        updatecheck_cb.setChecked(bool(self.config.get('check_updates', False)))
-        def on_set_updatecheck(v):
-            self.config.set_key('check_updates', v == Qt.Checked, save=True)
+        updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
+        updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
+        def on_set_updatecheck(_x):
+            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = updatecheck_cb.isChecked()
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
-        filelogging_cb = QCheckBox(_("Write logs to file"))
-        filelogging_cb.setChecked(bool(self.config.get('log_to_file', False)))
-        def on_set_filelogging(v):
-            self.config.set_key('log_to_file', v == Qt.Checked, save=True)
+        filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
+        filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
+        def on_set_filelogging(_x):
+            self.config.WRITE_LOGS_TO_DISK = filelogging_cb.isChecked()
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
-        filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
-
-        preview_cb = QCheckBox(_('Advanced preview'))
-        preview_cb.setChecked(bool(self.config.get('advanced_preview', False)))
-        preview_cb.setToolTip(_("Open advanced transaction preview dialog when 'Pay' is clicked."))
-        def on_preview(x):
-            self.config.set_key('advanced_preview', x == Qt.Checked)
-        preview_cb.stateChanged.connect(on_preview)
-
-        usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(self.wallet.use_change)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
-        def on_usechange(x):
-            usechange_result = x == Qt.Checked
-            if self.wallet.use_change != usechange_result:
-                self.wallet.use_change = usechange_result
-                self.wallet.db.put('use_change', self.wallet.use_change)
-                multiple_cb.setEnabled(self.wallet.use_change)
-        usechange_cb.stateChanged.connect(on_usechange)
-        usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
-
-        def on_multiple(x):
-            multiple = x == Qt.Checked
-            if self.wallet.multiple_change != multiple:
-                self.wallet.multiple_change = multiple
-                self.wallet.db.put('multiple_change', multiple)
-        multiple_change = self.wallet.multiple_change
-        multiple_cb = QCheckBox(_('Use multiple change addresses'))
-        multiple_cb.setEnabled(self.wallet.use_change)
-        multiple_cb.setToolTip('\n'.join([
-            _('In some cases, use up to 3 change addresses in order to break '
-              'up large coin amounts and obfuscate the recipient address.'),
-            _('This may result in higher transactions fees.')
-        ]))
-        multiple_cb.setChecked(multiple_change)
-        multiple_cb.stateChanged.connect(on_multiple)
-
-        def fmt_docs(key, klass):
-            lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
-            return '\n'.join([key, "", " ".join(lines)])
-
-        choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
-        if len(choosers) > 1:
-            chooser_name = coinchooser.get_name(self.config)
-            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
-            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
-            chooser_combo = QComboBox()
-            chooser_combo.addItems(choosers)
-            i = choosers.index(chooser_name) if chooser_name in choosers else 0
-            chooser_combo.setCurrentIndex(i)
-            def on_chooser(x):
-                chooser_name = choosers[chooser_combo.currentIndex()]
-                self.config.set_key('coin_chooser', chooser_name)
-            chooser_combo.currentIndexChanged.connect(on_chooser)
-
-        def on_unconf(x):
-            self.config.set_key('confirmed_only', bool(x))
-        conf_only = bool(self.config.get('confirmed_only', False))
-        unconf_cb = QCheckBox(_('Spend only confirmed coins'))
-        unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
-        unconf_cb.setChecked(conf_only)
-        unconf_cb.stateChanged.connect(on_unconf)
-
-        def on_outrounding(x):
-            self.config.set_key('coin_chooser_output_rounding', bool(x))
-        enable_outrounding = bool(self.config.get('coin_chooser_output_rounding', True))
-        outrounding_cb = QCheckBox(_('Enable output value rounding'))
-        outrounding_cb.setToolTip(
-            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
-            _('This might improve your privacy somewhat.') + '\n' +
-            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
-        outrounding_cb.setChecked(enable_outrounding)
-        outrounding_cb.stateChanged.connect(on_outrounding)
 
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
         if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
             block_explorers.remove(BLOCK_EX_CUSTOM_ITEM)
         block_explorers.append(BLOCK_EX_CUSTOM_ITEM)
-        msg = _('Choose which online block explorer to use for functions that open a web browser')
-        block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
+        block_ex_label = HelpLabel.from_configvar(self.config.cv.BLOCK_EXPLORER)
         block_ex_combo = QComboBox()
-        block_ex_custom_e = QLineEdit(str(self.config.get('block_explorer_custom') or ''))
+        block_ex_custom_e = QLineEdit(str(self.config.BLOCK_EXPLORER_CUSTOM or ''))
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(
             block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
@@ -369,17 +297,17 @@ class SettingsDialog(QDialog, QtEventListener):
                 on_be_edit()
             else:
                 be_result = block_explorers[block_ex_combo.currentIndex()]
-                self.config.set_key('block_explorer_custom', None, False)
-                self.config.set_key('block_explorer', be_result, True)
+                self.config.BLOCK_EXPLORER_CUSTOM = None
+                self.config.BLOCK_EXPLORER = be_result
             showhide_block_ex_custom_e()
         block_ex_combo.currentIndexChanged.connect(on_be_combo)
         def on_be_edit():
             val = block_ex_custom_e.text()
             try:
                 val = ast.literal_eval(val)  # to also accept tuples
-            except:
+            except Exception:
                 pass
-            self.config.set_key('block_explorer_custom', val)
+            self.config.BLOCK_EXPLORER_CUSTOM = val
         block_ex_custom_e.editingFinished.connect(on_be_edit)
         block_ex_hbox = QHBoxLayout()
         block_ex_hbox.setContentsMargins(0, 0, 0, 0)
@@ -390,41 +318,26 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_hbox_w.setLayout(block_ex_hbox)
 
         # Fiat Currency
-        hist_checkbox = QCheckBox()
-        hist_capgains_checkbox = QCheckBox()
-        fiat_address_checkbox = QCheckBox()
+        self.history_rates_cb = checkbox_from_configvar(self.config.cv.FX_HISTORY_RATES)
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
         def update_currencies():
             if not self.fx:
                 return
-            currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
+            h = self.config.FX_HISTORY_RATES
+            currencies = sorted(self.fx.get_currencies(h))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
                 ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
-
-        def update_history_cb():
-            if not self.fx: return
-            hist_checkbox.setChecked(self.fx.get_history_config())
-            hist_checkbox.setEnabled(self.fx.is_enabled())
-
-        def update_fiat_address_cb():
-            if not self.fx: return
-            fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
-
-        def update_history_capgains_cb():
-            if not self.fx: return
-            hist_capgains_checkbox.setChecked(self.fx.get_history_capital_gains_config())
-            hist_capgains_checkbox.setEnabled(hist_checkbox.isChecked())
 
         def update_exchanges():
             if not self.fx: return
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.fx.get_history_config()
+                h = self.config.FX_HISTORY_RATES
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -442,7 +355,6 @@ class SettingsDialog(QDialog, QtEventListener):
             self.fx.set_enabled(b)
             if b and ccy != self.fx.ccy:
                 self.fx.set_currency(ccy)
-            update_history_cb()
             update_exchanges()
             self.app.update_fiat_signal.emit()
 
@@ -450,80 +362,52 @@ class SettingsDialog(QDialog, QtEventListener):
             exchange = str(ex_combo.currentText())
             if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
                 self.fx.set_exchange(exchange)
+            self.app.update_fiat_signal.emit()
 
-        def on_history(checked):
-            if not self.fx: return
-            self.fx.set_history_config(checked)
+        def on_history_rates(_x):
+            self.config.FX_HISTORY_RATES = self.history_rates_cb.isChecked()
+            if not self.fx:
+                return
             update_exchanges()
-            if self.fx.is_enabled() and checked:
-                self.fx.trigger_update()
-            update_history_capgains_cb()
-            self.app.update_fiat_signal.emit()
-
-        def on_history_capgains(checked):
-            if not self.fx: return
-            self.fx.set_history_capital_gains_config(checked)
-            self.app.update_fiat_signal.emit()
-
-        def on_fiat_address(checked):
-            if not self.fx: return
-            self.fx.set_fiat_address_config(checked)
-            self.app.update_fiat_signal.emit()
+            window.app.update_fiat_signal.emit()
 
         update_currencies()
-        update_history_cb()
-        update_history_capgains_cb()
-        update_fiat_address_cb()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        hist_checkbox.stateChanged.connect(on_history)
-        hist_capgains_checkbox.stateChanged.connect(on_history_capgains)
-        fiat_address_checkbox.stateChanged.connect(on_fiat_address)
+        self.history_rates_cb.setChecked(self.config.FX_HISTORY_RATES)
+        self.history_rates_cb.stateChanged.connect(on_history_rates)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         gui_widgets = []
         gui_widgets.append((lang_label, lang_combo))
         gui_widgets.append((colortheme_label, colortheme_combo))
-        gui_widgets.append((unit_label, unit_combo))
-        gui_widgets.append((nz_label, nz))
-        gui_widgets.append((msat_cb, None))
-        gui_widgets.append((thousandsep_cb, None))
-        invoices_widgets = []
-        invoices_widgets.append((bolt11_fallback_cb, None))
-        invoices_widgets.append((bip21_lightning_cb, None))
-        tx_widgets = []
-        tx_widgets.append((usechange_cb, None))
-        tx_widgets.append((batch_rbf_cb, None))
-        tx_widgets.append((preview_cb, None))
-        tx_widgets.append((unconf_cb, None))
-        tx_widgets.append((multiple_cb, None))
-        tx_widgets.append((outrounding_cb, None))
-        if len(choosers) > 1:
-            tx_widgets.append((chooser_label, chooser_combo))
-        tx_widgets.append((block_ex_label, block_ex_hbox_w))
+        gui_widgets.append((block_ex_label, block_ex_hbox_w))
+        units_widgets = []
+        units_widgets.append((unit_label, unit_combo))
+        units_widgets.append((nz_label, nz))
+        units_widgets.append((msat_cb, None))
+        units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
-        lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
-        lightning_widgets.append((instant_swaps_cb, None))
+        lightning_widgets.append((legacy_add_trampoline_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
+        lightning_widgets.append((lnfee_hlabel, lnfee_hbox_w))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
-        fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
+        fiat_widgets.append((self.history_rates_cb, None))
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
+        misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
-            (tx_widgets, _('Transactions')),
-            (invoices_widgets, _('Invoices')),
-            (lightning_widgets, _('Lightning')),
+            (units_widgets, _('Units')),
             (fiat_widgets, _('Fiat')),
+            (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
         ]
         for widgets, name in tabs_info:
@@ -552,7 +436,7 @@ class SettingsDialog(QDialog, QtEventListener):
         self.app.alias_received_signal.emit()
 
     def set_alias_color(self):
-        if not self.config.get('alias'):
+        if not self.config.OPENALIAS_ID:
             self.alias_e.setStyleSheet("")
             return
         if self.wallet.contacts.alias_info:
@@ -564,7 +448,7 @@ class SettingsDialog(QDialog, QtEventListener):
     def on_alias_edit(self):
         self.alias_e.setStyleSheet("")
         alias = str(self.alias_e.text())
-        self.config.set_key('alias', alias, True)
+        self.config.OPENALIAS_ID = alias
         if alias:
             self.wallet.contacts.fetch_openalias(self.config)
 

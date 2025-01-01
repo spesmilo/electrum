@@ -23,41 +23,41 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+import enum
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu, QAbstractItemView
-from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
+from PyQt6.QtGui import QStandardItemModel, QStandardItem
+from PyQt6.QtWidgets import QMenu, QAbstractItemView
+from PyQt6.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum.i18n import _
 from electrum.util import format_time
 from electrum.plugin import run_hook
 from electrum.invoices import Invoice
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+from .util import pr_icons, read_QIcon, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from .receive_tab import ReceiveTab
 
 
-ROLE_REQUEST_TYPE = Qt.UserRole
-ROLE_KEY = Qt.UserRole + 1
-ROLE_SORT_ORDER = Qt.UserRole + 2
+ROLE_REQUEST_TYPE = Qt.ItemDataRole.UserRole
+ROLE_KEY = Qt.ItemDataRole.UserRole + 1
+ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 2
 
 
 class RequestList(MyTreeView):
     key_role = ROLE_KEY
 
-    class Columns(IntEnum):
-        DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
-        ADDRESS = 4
-        LN_INVOICE = 5
-        LN_RHASH = 6
+    class Columns(MyTreeView.BaseColumnsEnum):
+        DATE = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        STATUS = enum.auto()
+        ADDRESS = enum.auto()
+        LN_RHASH = enum.auto()
 
     headers = {
         Columns.DATE: _('Date'),
@@ -65,18 +65,19 @@ class RequestList(MyTreeView):
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
         Columns.ADDRESS: _('Address'),
-        Columns.LN_INVOICE: 'LN Request',
         Columns.LN_RHASH: 'LN RHASH',
     }
     filter_columns = [
         Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT,
-        Columns.ADDRESS, Columns.LN_INVOICE, Columns.LN_RHASH,
+        Columns.ADDRESS, Columns.LN_RHASH,
     ]
 
     def __init__(self, receive_tab: 'ReceiveTab'):
         window = receive_tab.window
-        super().__init__(window, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION)
+        super().__init__(
+            main_window=window,
+            stretch_column=self.Columns.DESCRIPTION,
+        )
         self.wallet = window.wallet
         self.receive_tab = receive_tab
         self.std_model = QStandardItemModel(self)
@@ -85,14 +86,15 @@ class RequestList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     def set_current_key(self, key):
         for i in range(self.model().rowCount()):
             item = self.model().index(i, self.Columns.DATE)
             row_key = item.data(ROLE_KEY)
             if key == row_key:
-                self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
+                self.selectionModel().setCurrentIndex(
+                    item, QItemSelectionModel.SelectionFlag.SelectCurrent | QItemSelectionModel.SelectionFlag.Rows)
                 break
 
     def get_current_key(self):
@@ -143,26 +145,27 @@ class RequestList(MyTreeView):
             amount = req.get_amount_sat()
             message = req.get_message()
             date = format_time(timestamp)
-            amount_str = self.parent.format_amount(amount) if amount else ""
+            amount_str = self.main_window.format_amount(amount) if amount else ""
+            amount_str_nots = self.main_window.format_amount(amount, add_thousands_sep=False) if amount else ""
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = date
             labels[self.Columns.DESCRIPTION] = message
             labels[self.Columns.AMOUNT] = amount_str
             labels[self.Columns.STATUS] = status_str
             labels[self.Columns.ADDRESS] = req.get_address() or ""
-            labels[self.Columns.LN_INVOICE] = req.lightning_invoice or ""
             labels[self.Columns.LN_RHASH] = req.rhash if req.is_lightning() else ""
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
             items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
+            items[self.Columns.AMOUNT].setData(amount_str_nots.strip(), self.ROLE_CLIPBOARD_DATA)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.std_model.insertRow(self.std_model.rowCount(), items)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         # sort requests by date
-        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
+        self.sortByColumn(self.Columns.DATE, Qt.SortOrder.DescendingOrder)
         self.hide_if_empty()
         if current_key is not None:
             self.set_current_key(current_key)
@@ -181,7 +184,7 @@ class RequestList(MyTreeView):
             keys = [item.data(ROLE_KEY)  for item in items]
             menu = QMenu(self)
             menu.addAction(_("Delete requests"), lambda: self.delete_requests(keys))
-            menu.exec_(self.viewport().mapToGlobal(position))
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
         # TODO use siblingAtColumn when min Qt version is >=5.11
@@ -194,29 +197,31 @@ class RequestList(MyTreeView):
             self.update()
             return
         menu = QMenu(self)
+        copy_menu = self.add_copy_menu(menu, idx)
         if req.get_address():
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Bitcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(req.get_address(), title='Bitcoin Address'))
         if URI := self.wallet.get_request_URI(req):
-            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
+            copy_menu.addAction(_("Bitcoin URI"), lambda: self.main_window.do_copy(URI, title='Bitcoin URI'))
         if req.is_lightning():
-            menu.addAction(_("Copy Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
-        self.add_copy_menu(menu, idx)
+            copy_menu.addAction(_("Lightning Request"), lambda: self.main_window.do_copy(self.wallet.get_bolt11_invoice(req), title='Lightning Request'))
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
-        run_hook('receive_list_menu', self.parent, menu, key)
-        menu.exec_(self.viewport().mapToGlobal(position))
+        run_hook('receive_list_menu', self.main_window, menu, key)
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):
-        for key in keys:
-            self.wallet.delete_request(key, write_to_disk=False)
-            self.delete_item(key)
-        self.wallet.save_db()
+        self.wallet.delete_requests(keys)
+        self.update()
+        self.receive_tab.do_clear()
+
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        self.update()
         self.receive_tab.do_clear()
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.showColumn(col) if b else self.hideColumn(col)
         set_visible(self.Columns.ADDRESS, False)
-        set_visible(self.Columns.LN_INVOICE, False)
         set_visible(self.Columns.LN_RHASH, False)

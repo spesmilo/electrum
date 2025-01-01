@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.14
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -11,16 +11,10 @@ ElDialog {
     id: rootItem
 
     title: qsTr('Proxy settings')
-
-    parent: Overlay.overlay
-    modal: true
+    iconSource: Qt.resolvedUrl('../../icons/status_connected_proxy.png')
 
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -64,7 +58,7 @@ ElDialog {
             proxyconfig.proxy_port = p['port']
             proxyconfig.username = p['user']
             proxyconfig.password = p['password']
-            proxyconfig.proxy_type = proxyconfig.proxy_types.map(function(x) {
+            proxyconfig.proxy_type = proxyconfig.proxy_type_map.map(function(x) {
                 return x.value
             }).indexOf(p['mode'])
         } else {

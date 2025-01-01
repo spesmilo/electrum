@@ -1,20 +1,21 @@
 from typing import TYPE_CHECKING, Optional
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout
+import electrum_ecc as ecc
 
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
+from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
-from electrum import ecc
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 
-
+from electrum.gui import messages
+from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel,
                    char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
-
+from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -33,10 +34,14 @@ class NewChannelDialog(WindowModalDialog):
         self.trampoline_names = list(self.trampolines.keys())
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
+        toolbar, menu = create_toolbar_with_menu(self.config, '')
+        menu.addConfig(
+            self.config.cv.LIGHTNING_USE_RECOVERABLE_CHANNELS,
+            checked=self.lnworker.has_recoverable_channels(),
+        ).setEnabled(self.lnworker.can_have_recoverable_channels())
+        vbox.addLayout(toolbar)
         msg = _('Choose a remote node and an amount to fund the channel.')
-        if min_amount_sat:
-            # only displayed if min_amount_sat is passed as parameter
-            msg += '\n' + _('You need to put at least') + ': ' + self.window.format_amount_and_units(self.min_amount_sat)
+        msg += '\n' + _('Minimum required amount: {}').format(self.window.format_amount_and_units(self.min_amount_sat))
         vbox.addWidget(WWLabel(msg))
         if self.network.channel_db:
             vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
@@ -109,6 +114,7 @@ class NewChannelDialog(WindowModalDialog):
 
     def spend_min(self):
         self.max_button.setChecked(False)
+        self.amount_e.setFrozen(False)
         self.amount_e.setAmount(self.min_amount_sat)
 
     def spend_max(self):
@@ -125,13 +131,13 @@ class NewChannelDialog(WindowModalDialog):
             self.window.show_error(str(e))
             return
         amount = tx.output_value()
-        amount = min(amount, LN_MAX_FUNDING_SAT)
+        amount = min(amount, self.config.LIGHTNING_MAX_FUNDING_SAT)
         self.amount_e.setAmount(amount)
 
     def run(self):
-        if not self.exec_():
+        if not self.exec():
             return
-        if self.max_button.isChecked() and self.amount_e.get_amount() < LN_MAX_FUNDING_SAT:
+        if self.max_button.isChecked() and self.amount_e.get_amount() < self.config.LIGHTNING_MAX_FUNDING_SAT:
             # if 'max' enabled and amount is strictly less than max allowed,
             # that means we have fewer coins than max allowed, and hence we can
             # spend all coins

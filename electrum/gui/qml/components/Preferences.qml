@@ -1,7 +1,7 @@
-import QtQuick 2.6
-import QtQuick.Layouts 1.15
-import QtQuick.Controls 2.3
-import QtQuick.Controls.Material 2.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
@@ -9,6 +9,7 @@ import "controls"
 
 Pane {
     id: preferences
+    objectName: 'Properties'
 
     property string title: qsTr("Preferences")
 
@@ -46,7 +47,20 @@ Pane {
 
                     ElComboBox {
                         id: language
-                        enabled: false
+                        textRole: 'text'
+                        valueRole: 'value'
+                        model: Config.languagesAvailable
+                        onCurrentValueChanged: {
+                            if (activeFocus) {
+                                if (Config.language != currentValue) {
+                                    Config.language = currentValue
+                                    var dialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Please restart Electrum to activate the new GUI settings')
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
                     }
 
                     Label {
@@ -65,7 +79,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: thousands
@@ -82,23 +95,6 @@ Pane {
                     }
 
                     RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
-                        spacing: 0
-                        Switch {
-                            id: checkSoftware
-                            enabled: false
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Automatically check for software updates')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: fiatEnable
@@ -127,7 +123,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: historicRates
@@ -162,57 +157,87 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: usePin
+                            checked: Config.pinCode
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    console.log('PIN active ' + checked)
+                                    if (checked) {
+                                        var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
+                                        dialog.accepted.connect(function() {
+                                            Config.pinCode = dialog.pincode
+                                            dialog.close()
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = false
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        focus = false
+                                        Config.pinCode = ''
+                                        // re-add binding, pincode still set if auth failed
+                                        checked = Qt.binding(function () { return Config.pinCode })
+                                    }
+                                }
+
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('PIN protect payments')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Pane {
+                        background: Rectangle { color: Material.dialogColor }
+                        padding: 0
+                        visible: Config.pinCode != ''
+                        FlatButton {
+                            text: qsTr('Modify')
+                            onClicked: {
+                                var dialog = pinSetup.createObject(preferences, {
+                                    mode: 'change',
+                                    pincode: Config.pinCode
+                                })
+                                dialog.accepted.connect(function() {
+                                    Config.pinCode = dialog.pincode
+                                    dialog.close()
+                                })
+                                dialog.open()
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: syncLabels
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    AppController.setPluginEnabled('labels', checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Synchronize labels')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Wallet behavior')
                     }
 
-                    Label {
-                        text: qsTr('PIN')
-                    }
-
-                    RowLayout {
-                        Label {
-                            text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
-                            color: Material.accentColor
-                            Layout.rightMargin: constants.paddingMedium
-                        }
-                        Button {
-                            text: qsTr('Enable')
-                            visible: Config.pinCode == ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Change')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Remove')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                Config.pinCode = ''
-                            }
-                        }
-                    }
-
                     RowLayout {
                         Layout.columnSpan: 2
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: spendUnconfirmed
@@ -228,27 +253,50 @@ Pane {
                         }
                     }
 
-                    Label {
-                        text: qsTr('Default request expiry')
-                        Layout.fillWidth: false
-                    }
-
-                    RequestExpiryComboBox {
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.requestExpiry = currentValue
-                        }
-                    }
-
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Lightning')
                     }
 
+                    Label {
+                        Layout.fillWidth: true
+                        text: Config.shortDescFor('LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS')
+                        wrapMode: Text.Wrap
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr('<b>%1%</b> of payment').arg(maxfeeslider._fees[maxfeeslider.value]/10000)
+                        wrapMode: Text.Wrap
+                    }
+
+                    Slider {
+                        id: maxfeeslider
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.leftMargin: constants.paddingXLarge
+                        Layout.rightMargin: constants.paddingXLarge
+
+                        property var _fees: [500, 1000, 3000, 5000, 10000, 20000, 30000, 50000]
+
+                        snapMode: Slider.SnapOnRelease
+                        stepSize: 1
+                        from: 0
+                        to: _fees.length - 1
+
+                        onValueChanged: {
+                            if (activeFocus)
+                                Config.lightningPaymentFeeMaxMillionths = _fees[value]
+                        }
+
+                        Component.onCompleted: {
+                            value = _fees.indexOf(Config.lightningPaymentFeeMaxMillionths)
+                        }
+                    }
+
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useTrampolineRouting
@@ -256,10 +304,11 @@ Pane {
                                 if (activeFocus) {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
-                                            text: qsTr('Using plain gossip mode is not recommended on mobile. Are you sure?'),
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('Electrum will have to download the Lightning Network graph, which is not recommended on mobile.'),
                                             yesno: true
                                         })
-                                        dialog.yesClicked.connect(function() {
+                                        dialog.accepted.connect(function() {
                                             Config.useGossip = true
                                         })
                                         dialog.rejected.connect(function() {
@@ -283,13 +332,28 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useRecoverableChannels
                             onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.useRecoverableChannels = checked
+                                if (activeFocus) {
+                                    if (!checked) {
+                                        var dialog = app.messageDialog.createObject(app, {
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('This option allows you to recover your lightning funds if you lose your device, or if you uninstall this app while lightning channels are active. Do not disable it unless you know how to recover channels from backups.'),
+                                            yesno: true
+                                        })
+                                        dialog.accepted.connect(function() {
+                                            Config.useRecoverableChannels = false
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = true // revert
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        Config.useRecoverableChannels = checked
+                                    }
+                                }
                             }
                         }
                         Label {
@@ -302,7 +366,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: useFallbackAddress
@@ -326,7 +389,6 @@ Pane {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
                             id: enableDebugLogs
@@ -339,6 +401,24 @@ Pane {
                         Label {
                             Layout.fillWidth: true
                             text: qsTr('Enable debug logs (for developers)')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: alwaysAllowScreenshots
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.alwaysAllowScreenshots = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Always allow screenshots')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -355,6 +435,7 @@ Pane {
     }
 
     Component.onCompleted: {
+        language.currentIndex = language.indexOfValue(Config.language)
         baseUnit.currentIndex = _baseunits.indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)
@@ -365,6 +446,8 @@ Pane {
         useTrampolineRouting.checked = !Config.useGossip
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
+        alwaysAllowScreenshots.checked = Config.alwaysAllowScreenshots
         useRecoverableChannels.checked = Config.useRecoverableChannels
+        syncLabels.checked = AppController.isPluginEnabled('labels')
     }
 }
