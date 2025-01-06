@@ -2801,8 +2801,8 @@ class Peer(Logger, EventListener):
                                 self.lnworker.active_forwardings[payment_key].append(next_htlc)
                                 self.lnworker.downstream_to_upstream_htlc[next_htlc] = htlc_key
                         except OnionRoutingFailure as e:
-                            assert len(self.lnworker.active_forwardings[payment_key]) == 0
-                            self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
+                            if len(self.lnworker.active_forwardings[payment_key]) == 0:
+                                self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
                         # TODO what about other errors? e.g. TxBroadcastError for a swap.
                         #        - malicious electrum server could fake TxBroadcastError
                         #      Could we "catch-all Exception" and fail back the htlcs with e.g. TEMPORARY_NODE_FAILURE?

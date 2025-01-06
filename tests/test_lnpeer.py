@@ -1950,7 +1950,8 @@ class TestPeerForwarding(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
         if test_mpp_consolidation:
             graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
-            graph.workers['alice'].network.config.TEST_FORCE_MPP = True
+            graph.workers['alice'].network.config.TEST_FORCE_MPP = True # trampoline must wait until all incoming htlcs are received before sending outgoing htlcs
+            graph.workers['bob'].network.config.TEST_FORCE_MPP = True   # trampoline must wait until all outgoing htlcs have failed before failing incoming htlcs
         if is_legacy:
             # turn off trampoline features in invoice
             graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
