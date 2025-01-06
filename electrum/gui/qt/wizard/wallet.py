@@ -991,9 +991,7 @@ class WCWalletPassword(WalletWizardComponent):
             msg=MSG_ENTER_PASSWORD,
             kind=PW_NEW,
             OK_button=self.next_button,
-            # force_disable_encrypt_cb=force_disable_encrypt_cb
         )
-        self.pw_layout.encrypt_cb.setChecked(True)
         self.layout().addLayout(self.pw_layout.layout())
         self.layout().addStretch(1)
 
@@ -1002,7 +1000,7 @@ class WCWalletPassword(WalletWizardComponent):
 
     def apply(self):
         self.wizard_data['password'] = self.pw_layout.new_password()
-        self.wizard_data['encrypt'] = self.pw_layout.encrypt_cb.isChecked()
+        self.wizard_data['encrypt'] = True
 
 
 class SeedExtensionEdit(QWidget):
@@ -1240,22 +1238,20 @@ class WCWalletPasswordHardware(WalletWizardComponent):
         self.plugins = wizard.plugins
 
         self.playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
-        self.playout.encrypt_cb.setChecked(True)
         self.layout().addLayout(self.playout.layout())
         self.layout().addStretch(1)
 
         self._valid = True
 
     def apply(self):
-        self.wizard_data['encrypt'] = self.playout.encrypt_cb.isChecked()
-        if self.playout.encrypt_cb.isChecked():
-            _name, _info = self.wizard_data['hardware_device']
-            device_id = _info.device.id_
-            client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
-            # client.handler = self.plugin.create_handler(self.wizard)
-            # FIXME client can be None if it was recently disconnected.
-            #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
-            self.wizard_data['password'] = client.get_password_for_storage_encryption()
+        self.wizard_data['encrypt'] = True
+        _name, _info = self.wizard_data['hardware_device']
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        # client.handler = self.plugin.create_handler(self.wizard)
+        # FIXME client can be None if it was recently disconnected.
+        #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
+        self.wizard_data['password'] = client.get_password_for_storage_encryption()
 
 
 class WCHWUnlock(WalletWizardComponent, Logger):
