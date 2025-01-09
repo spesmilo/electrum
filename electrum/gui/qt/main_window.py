@@ -93,6 +93,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    getOpenFileName, getSaveFileName, font_height)
 from .util import ButtonsLineEdit, ShowQRLineEdit
 from .util import QtEventListener, qt_event_listener, event_listener
+from .util import scan_qr_from_screenshot
 from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -1689,7 +1690,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             'util': util,
             'bitcoin': bitcoin,
             'lnutil': lnutil,
-            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else []
+            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else [],
+            'scan_qr': scan_qr_from_screenshot,
         })
 
         c = commands.Commands(

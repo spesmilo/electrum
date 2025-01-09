@@ -21,10 +21,10 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
 
 from electrum.i18n import _
 from electrum.util import FileImportFailed, FileExportFailed, resource_path
-from electrum.util import EventListener, event_listener, get_logger, UserCancelled
+from electrum.util import EventListener, event_listener, get_logger, UserCancelled, UserFacingException
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import Logger
-from electrum.qrreader import MissingQrDetectionLib
+from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -662,6 +662,28 @@ def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> Non
     m.exec(e.globalPos())
 
 
+def scan_qr_from_screenshot() -> QrCodeResult:
+    from .qrreader import scan_qr_from_image
+    screenshots = [screen.grabWindow(0).toImage()
+                   for screen in QApplication.instance().screens()]
+    if all(screen.allGray() for screen in screenshots):
+        raise UserFacingException(_("Failed to take screenshot."))
+    scanned_qr = None
+    for screenshot in screenshots:
+        try:
+            scan_result = scan_qr_from_image(screenshot)
+        except MissingQrDetectionLib as e:
+            raise UserFacingException(_("Unable to scan image.") + "\n" + repr(e))
+        if len(scan_result) > 0:
+            if (scanned_qr is not None) or len(scan_result) > 1:
+                raise UserFacingException(_("More than one QR code was found on the screen."))
+            scanned_qr = scan_result
+    if scanned_qr is None:
+        raise UserFacingException(_("No QR code was found on the screen."))
+    assert len(scanned_qr) == 1, f"{len(scanned_qr)=}, expected 1"
+    return scanned_qr[0]
+
+
 class GenericInputHandler:
     def input_qr_from_camera(
             self,
@@ -711,28 +733,12 @@ class GenericInputHandler:
     ) -> None:
         if setText is None:
             setText = self.setText
-        from .qrreader import scan_qr_from_image
-        screenshots = [screen.grabWindow(0).toImage()
-                       for screen in QApplication.instance().screens()]
-        if all(screen.allGray() for screen in screenshots):
-            show_error(_("Failed to take screenshot."))
+        try:
+            scanned_qr = scan_qr_from_screenshot()
+        except UserFacingException as e:
+            show_error(str(e))
             return
-        scanned_qr = None
-        for screenshot in screenshots:
-            try:
-                scan_result = scan_qr_from_image(screenshot)
-            except MissingQrDetectionLib as e:
-                show_error(_("Unable to scan image.") + "\n" + repr(e))
-                return
-            if len(scan_result) > 0:
-                if (scanned_qr is not None) or len(scan_result) > 1:
-                    show_error(_("More than one QR code was found on the screen."))
-                    return
-                scanned_qr = scan_result
-        if scanned_qr is None:
-            show_error(_("No QR code was found on the screen."))
-            return
-        data = scanned_qr[0].data
+        data = scanned_qr.data
         try:
             if allow_multi:
                 text = self.text()
