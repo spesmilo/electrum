@@ -34,6 +34,10 @@ export FROZENLIST_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 
+# see https://github.com/python-websockets/websockets/blob/e6d0ea1d6b13a979924329d02fb82f79d82c7236/setup.py#L22
+export BUILD_EXTENSION="no"
+
+
 # if we end up having to compile something, at least give reproducibility a fighting chance
 export LC_ALL=C
 export TZ=UTC
