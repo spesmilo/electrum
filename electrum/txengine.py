@@ -168,7 +168,7 @@ class TxEngine(Logger):
             to_sweep = self.to_sweep_after(base_tx)
             to_sweep_now = {}
             for k, v in to_sweep.items():
-                can_broadcast, wanted_height = self.can_broadcast(v)
+                can_broadcast, wanted_height = self.can_broadcast(v, base_tx)
                 if can_broadcast:
                     to_sweep_now[k] = v
                 else:
@@ -252,7 +252,7 @@ class TxEngine(Logger):
             txin.nsequence = 0xffffffff - 2
         return inputs
 
-    def can_broadcast(self, sweep_info: 'SweepInfo'):
+    def can_broadcast(self, sweep_info: 'SweepInfo', base_tx):
         prevout = sweep_info.txin.prevout.to_str()
         name = sweep_info.name
         prev_txid, index = prevout.split(':')
@@ -264,10 +264,10 @@ class TxEngine(Logger):
             if wanted_height - local_height > 0:
                 can_broadcast = False
                 # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")
+        prev_height = self.wallet.adb.get_tx_height(prev_txid).height
         if sweep_info.csv_delay:
-            prev_height = self.wallet.adb.get_tx_height(prev_txid)
-            if prev_height.height > 0:
-                wanted_height = prev_height.height + sweep_info.csv_delay - 1
+            if prev_height > 0:
+                wanted_height = prev_height + sweep_info.csv_delay - 1
             else:
                 wanted_height = local_height + sweep_info.csv_delay
             if wanted_height - local_height > 0:
@@ -275,6 +275,11 @@ class TxEngine(Logger):
                 # self.logger.debug(
                 #     f"pending redeem for {prevout}. waiting for {name}: CSV "
                 #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
+        if base_tx and prev_height <= 0:
+            # we cannot add unconfirmed inputs to existing base_tx (per RBF rules)
+            # thus, we will wait until the current batch is confirmed
+            can_broadcast = False
+            wanted_height = prev_height
         return can_broadcast, wanted_height
 
     async def maybe_broadcast_legacy_htlc_txs(self):
