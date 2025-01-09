@@ -1190,6 +1190,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             except InvalidSwapParameters as e:
                 self.show_error(str(e))
                 return
+            except UserCancelled:
+                return
 
     def create_sm_transport(self):
         sm = self.wallet.lnworker.swap_manager
