@@ -8,7 +8,7 @@ from electrum.gui import messages
 from electrum.plugin import run_hook, BasePlugin
 
 from . import util
-from .util import WindowModalDialog, Buttons, CloseButton, HelpButton, WWLabel
+from .util import WindowModalDialog, Buttons, CloseButton, HelpButton, WWLabel, insert_spaces
 
 
 if TYPE_CHECKING:
@@ -23,6 +23,7 @@ class PluginDialog(WindowModalDialog):
         description = metadata.get('description', '')
         requires = metadata.get('requires')
         version = metadata.get('version', 'n/a')
+        zip_hash = metadata.get('zip_hash_sha256', None)
 
         WindowModalDialog.__init__(self, window, 'Plugin')
         self.setMinimumSize(400,250)
@@ -39,6 +40,8 @@ class PluginDialog(WindowModalDialog):
         form.addRow(QLabel(_('Author') + ':'), QLabel(author))
         form.addRow(QLabel(_('Description') + ':'), WWLabel(description))
         form.addRow(QLabel(_('Version') + ':'), QLabel(version))
+        if zip_hash:
+            form.addRow(QLabel('Hash [sha256]:'), WWLabel(insert_spaces(zip_hash, 8)))
         if requires:
             msg = '\n'.join(map(lambda x: x[1], requires))
             form.addRow(QLabel(_('Requires') + ':'), WWLabel(msg))

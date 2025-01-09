@@ -1473,6 +1473,9 @@ def qt_event_listener(func):
         self.qt_callback_signal.emit( (func,) + args)
     return decorator
 
+def insert_spaces(text: str, every_chars: int) -> str:
+    '''Insert spaces at every Nth character to allow for WordWrap'''
+    return ' '.join(text[i:i+every_chars] for i in range(0, len(text), every_chars))
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass

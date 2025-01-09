@@ -45,6 +45,7 @@ from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
+from .crypto import sha256
 
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
@@ -222,6 +223,7 @@ class Plugins(DaemonThread):
                 if 'fullname' not in d:
                     continue
                 d['display_name'] = d['fullname']
+                d['zip_hash_sha256'] = get_file_hash256(path)
                 self.external_plugin_metadata[name] = d
 
     def load_external_plugins(self):
@@ -359,6 +361,10 @@ class Plugins(DaemonThread):
             self.run_jobs()
         self.on_stop()
 
+def get_file_hash256(path: str) -> str:
+    '''Get the sha256 hash of a file in hex, similar to `sha256sum`.'''
+    with open(path, 'rb') as f:
+        return sha256(f.read()).hex()
 
 def hook(func):
     hook_names.add(func.__name__)
