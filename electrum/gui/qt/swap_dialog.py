@@ -44,8 +44,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
-        menu.addConfig(
-            self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
+        menu.addToggle(
+            _('Zeroconf swap'), self.toggle_zeroconf
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         if not self.config.SWAPSERVER_URL:
             menu.addAction(_('Choose swap server'), lambda: self.window.choose_swapserver_dialog(transport))
@@ -62,6 +62,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         # send_follows is used to know whether the send amount field / receive
         # amount field should be adjusted after the fee slider was moved
         self.send_follows = False
+        self.zeroconf = False
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
         self.toggle_button.clicked.connect(self.toggle_direction)
@@ -107,6 +108,15 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.needs_tx_update = True
         self.window.gui_object.timer.timeout.connect(self.timer_actions)
         self.register_callbacks()
+
+    def toggle_zeroconf(self):
+        self.zeroconf = not self.zeroconf
+        if self.zeroconf:
+            msg = "\n\n".join([
+                "Zero-confirmation swap: Your wallet will not wait until the funding transaction is confirmed.",
+                "Note that this option is risky: the server can steal your funds if they double-spend the funding transaction."
+            ])
+            self.window.show_warning(msg)
 
     def closeEvent(self, event):
         self.unregister_callbacks()
@@ -255,10 +265,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 return
             sm = self.swap_manager
             coro = sm.reverse_swap(
-                    transport,
-                    lightning_amount_sat=lightning_amount,
-                    expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
-                )
+                transport,
+                lightning_amount_sat=lightning_amount,
+                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+                zeroconf=self.zeroconf,
+            )
             # we must not leave the context, so we use run_couroutine_dialog
             funding_txid = self.window.run_coroutine_dialog(coro, _('Initiating swap...'))
             self.window.on_swap_result(funding_txid, is_reverse=True)

@@ -1017,13 +1017,6 @@ Note that static backups only allow you to request a force-close with the remote
 
 If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."""),
     )
-    LIGHTNING_ALLOW_INSTANT_SWAPS = ConfigVar(
-        'allow_instant_swaps', default=False, type_=bool,
-        short_desc=lambda: _("Allow instant swaps"),
-        long_desc=lambda: _("""If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed.
-
-Note you are at risk of losing the funds in the swap, if the funding transaction never confirms."""),
-    )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
     LIGHTNING_LEGACY_ADD_TRAMPOLINE = ConfigVar(
