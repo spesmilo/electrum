@@ -104,7 +104,9 @@ class QrReaderValidatorColorizing(QrReaderValidatorCounting):
     WEAK_COLOR: QColor = QColor(Qt.GlobalColor.red)
     STRONG_COLOR: QColor = QColor(Qt.GlobalColor.green)
 
-    strong_count: int = 10
+    strong_count: int = 2  # FIXME: make this time based rather than framect based
+    # note: we set a low strong_count to ~disable this mechanism and make QR codes
+    #       much easier to scan (but potentially with some false positives)
 
     def validate_results(self, results: List[QrCodeResult]) -> QrReaderValidatorResult:
         res = super().validate_results(results)
