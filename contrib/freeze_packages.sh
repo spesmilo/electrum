@@ -8,7 +8,7 @@ contrib=$(dirname "$0")
 
 # note: we should not use a higher version of python than what the binaries bundle
 if [[ ! "$SYSTEM_PYTHON" ]] ; then
-    SYSTEM_PYTHON=$(which python3.8) || printf ""
+    SYSTEM_PYTHON=$(which python3.10) || printf ""
 else
     SYSTEM_PYTHON=$(which $SYSTEM_PYTHON) || printf ""
 fi
