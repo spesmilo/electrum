@@ -127,10 +127,7 @@ class Plugins(DaemonThread):
             # sys.modules needs to be modified for relative imports to work
             # see https://stackoverflow.com/a/50395128
             sys.modules[path] = module
-            if sys.version_info >= (3, 10):
-                spec.loader.exec_module(module)
-            else:
-                module = spec.loader.load_module(path)
+            spec.loader.exec_module(module)
         except Exception as e:
             raise Exception(f"Error pre-loading {path}: {repr(e)}") from e
         return module
@@ -209,12 +206,8 @@ class Plugins(DaemonThread):
                 if name in self.external_plugin_metadata:
                     raise Exception(f"duplicate plugins for name={name}")
                 module_path = f'electrum_external_plugins.{name}'
-                if sys.version_info >= (3, 10):
-                    spec = zipfile.find_spec(name)
-                    module = self.exec_module_from_spec(spec, module_path)
-                else:
-                    module = zipfile.load_module(name)
-                    sys.modules[module_path] = module
+                spec = zipfile.find_spec(name)
+                module = self.exec_module_from_spec(spec, module_path)
                 d = module.__dict__
                 gui_good = self.gui_name in d.get('available_for', [])
                 if not gui_good:

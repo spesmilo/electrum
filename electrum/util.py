@@ -52,6 +52,7 @@ from functools import partial
 from abc import abstractmethod, ABC
 import socket
 import enum
+from contextlib import nullcontext
 
 import attr
 import aiohttp
@@ -2065,35 +2066,6 @@ def test_read_write_permissions(path) -> None:
         raise IOError(e) from e
     if echo != echo2:
         raise IOError('echo sanity-check failed')
-
-
-class nullcontext:
-    """Context manager that does no additional processing.
-    This is a ~backport of contextlib.nullcontext from Python 3.10
-    """
-
-    def __init__(self, enter_result=None):
-        self.enter_result = enter_result
-
-    def __enter__(self):
-        return self.enter_result
-
-    def __exit__(self, *excinfo):
-        pass
-
-    async def __aenter__(self):
-        return self.enter_result
-
-    async def __aexit__(self, *excinfo):
-        pass
-
-
-def traceback_format_exception(exc: BaseException) -> Sequence[str]:
-    """Compatibility wrapper for stdlib traceback.format_exception using python 3.10+ API."""
-    if sys.version_info[:3] >= (3, 10):
-        return traceback.format_exception(exc)
-    else:
-        return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
 
 
 class classproperty(property):
