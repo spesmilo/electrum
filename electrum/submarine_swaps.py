@@ -329,12 +329,12 @@ class SwapManager(Logger):
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
             funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
+            # set spending_txid (even if tx is local), for GUI grouping
+            swap.spending_txid = txin.spent_txid
             # discard local spenders
             if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                 spent_height = None
-
             if spent_height is not None:
-                swap.spending_txid = txin.spent_txid
                 if spent_height > 0:
                     if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                         self.logger.info(f'stop watching swap {swap.lockup_address}')
