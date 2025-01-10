@@ -57,18 +57,8 @@ fi
     fi
     TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
     if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
-        python3 <<EOF
-import importlib.util
-import os
-
-# load version.py; needlessly complicated alternative to "imp.load_source":
-version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
-version_module = importlib.util.module_from_spec(version_spec)
-version_spec.loader.exec_module(version_module)
-
-VER = version_module.ELECTRUM_VERSION
-os.rename(f"dist/_sourceonly/Electrum-{VER}.tar.gz", f"dist/Electrum-sourceonly-{VER}.tar.gz")
-EOF
+        VERSION=$("$CONTRIB"/print_electrum_version.py)
+        mv "dist/_sourceonly/Electrum-$VERSION.tar.gz" "dist/Electrum-sourceonly-$VERSION.tar.gz"
         rmdir "$PY_DISTDIR"
     fi
 )
