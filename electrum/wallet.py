@@ -1159,9 +1159,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
                 'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
+                'wanted_height': hist_item.tx_mined_status.wanted_height,
             }
-            if wanted_height := hist_item.tx_mined_status.wanted_height:
-                d['wanted_height'] = wanted_height
             yield d
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
@@ -1420,6 +1419,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     parent['date'] = timestamp_to_datetime(tx_item['timestamp'])
                     parent['height'] = tx_item['height']
                     parent['confirmations'] = tx_item['confirmations']
+                    parent['wanted_height'] = tx_item.get('wanted_height')
                 parent['children'].append(tx_item)
 
         now = time.time()
