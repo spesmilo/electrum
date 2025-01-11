@@ -3365,7 +3365,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
         # we may have a tx with a different fee, in which case it will be replaced
         try:
-            tx_was_added = self.adb.add_transaction(new_tx)#, is_new=(old_tx is None))
+            tx_was_added = self.adb.add_transaction(new_tx)
         except Exception as e:
             self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
             tx_was_added = False
