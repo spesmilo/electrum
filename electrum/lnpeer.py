@@ -2196,6 +2196,7 @@ class Peer(Logger, EventListener):
                     htlc=htlc,
                     processed_onion=trampoline_onion,
                     onion_packet_bytes=onion_packet_bytes,
+                    already_forwarded=already_forwarded,
                 )
             else:
                 callback = lambda: self.maybe_forward_trampoline(
