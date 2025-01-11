@@ -467,6 +467,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.console.showMessage(args[0])
 
     @qt_event_listener
+    def on_event_adb_set_future_tx(self, adb, txid):
+        if adb == self.wallet.adb:
+            self.history_model.refresh('set_future_tx')
+
+    @qt_event_listener
     def on_event_verified(self, *args):
         wallet, tx_hash, tx_mined_status = args
         if wallet == self.wallet:

@@ -1748,9 +1748,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = self.db.get_transaction(hist_item.txid)
             if not tx:
                 continue
+            txid = tx.txid()
+            # to not use txid from txengine to avoid conflicts
+            if txid in self.txengine.batch_txids:
+                continue
             # is_mine outputs should not be spent yet
             # to avoid cancelling our own dependent transactions
-            txid = tx.txid()
             if any([self.is_mine(o.address) and self.db.get_spent_outpoint(txid, output_idx)
                     for output_idx, o in enumerate(tx.outputs())]):
                 continue
@@ -2141,6 +2144,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.remove_signatures()
         if not tx.is_rbf_enabled():
             raise CannotBumpFee(_('Transaction is final'))
+        if tx.txid() in self.txengine.batch_txids:
+            raise CannotBumpFee('Transaction managed by txengine')
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
@@ -3353,30 +3358,26 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         txin = copy.deepcopy(sweep_info.txin)
         prevout = txin.prevout.to_str()
         prev_txid, index = prevout.split(':')
-        if self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+        if txid := self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            # set future tx of existing spender because it is not persisted
+            # (and wanted_height can change if input of CSV was not mined before)
+            self.adb.set_future_tx(txid, wanted_height=wanted_height)
             return
         name = sweep_info.name
-        prevout = txin.prevout.to_str()
-        new_tx = self.create_transaction(
+        tx = self.create_transaction(
             inputs=[txin],
             outputs=[],
             password=None,
             fee=0,
         )
-        # we may have a tx with a different fee, in which case it will be replaced
         try:
-            tx_was_added = self.adb.add_transaction(new_tx)
+            self.adb.add_transaction(tx)
         except Exception as e:
             self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
-            tx_was_added = False
-        if tx_was_added:
-            self.logger.info(f'added future tx: {name}. prevout: {prevout}')
-
-        # set future tx regardless of tx_was_added, because it is not persisted
-        # (and wanted_height can change if input of CSV was not mined before)
-        self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
-        if tx_was_added:
-            util.trigger_callback('wallet_updated', self)
+            return
+        self.logger.info(f'added future tx: {name}. prevout: {prevout}')
+        util.trigger_callback('wallet_updated', self)
+        self.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
 
 
 class Simple_Wallet(Abstract_Wallet):

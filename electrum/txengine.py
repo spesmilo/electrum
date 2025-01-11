@@ -76,13 +76,14 @@ class TxEngine(Logger):
         # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
         self.batch_txids = self.db.get_stored_item("batch_txids", [])
         self.batch_tx = None           # current batch tx. last element of batch_txids
-        self.logger.info(f'batch_txids {self.batch_txids}')
         if self.batch_txids:
             last_txid = self.batch_txids[-1]
             tx = self.wallet.adb.get_transaction(last_txid)
-            tx = PartialTransaction.from_tx(tx)
-            tx.add_info_from_wallet(self.wallet) # this adds input amounts
-            self.batch_tx = tx
+            if tx:
+                tx = PartialTransaction.from_tx(tx)
+                tx.add_info_from_wallet(self.wallet) # this adds input amounts
+                self.batch_tx = tx
+                self.logger.info(f'found batch_tx {last_txid}')
 
         self.batch_parent_tx = None
         self.batch_processing = set()  # list of inputs we are sweeping (until spending tx is confirmed)
