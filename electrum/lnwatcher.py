@@ -83,6 +83,13 @@ class LNWatcher(Logger, EventListener):
         await self.trigger_callbacks()
 
     @event_listener
+    async def on_event_wallet_updated(self, wallet):
+        # called if we add local tx
+        if wallet.adb != self.adb:
+            return
+        await self.trigger_callbacks()
+
+    @event_listener
     async def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
