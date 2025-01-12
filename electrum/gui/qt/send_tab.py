@@ -345,7 +345,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 except SwapServerError as e:
                     self.show_error(str(e))
                     return
-                
+
                 if is_batching:
                     self.save_pending_invoice()
                     funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap_dummy_output.value)

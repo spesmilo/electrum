@@ -64,6 +64,7 @@ from .lnsweep import SweepInfo
 
 
 class TxEngine(Logger):
+    INTERVAL = 1
 
     def __init__(self, wallet):
         Logger.__init__(self)
@@ -164,7 +165,7 @@ class TxEngine(Logger):
     @log_exceptions
     async def run(self):
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(self.INTERVAL)
             password = self.wallet.get_unlocked_password()
             if self.wallet.has_keystore_encryption() and not password:
                 continue
