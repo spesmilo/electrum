@@ -1873,10 +1873,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if inputs:
             input_set = set(txin.prevout for txin in inputs)
             coins = [coin for coin in coins if (coin.prevout not in input_set)]
-        if base_tx is None and self.config.WALLET_BATCH_RBF:
-            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
-        if send_change_to_lightning is None:
-            send_change_to_lightning = self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
+
+        # this must not be called from the tx batcher
+        #if base_tx is None and self.config.WALLET_BATCH_RBF:
+        #    base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
+        #if send_change_to_lightning is None:
+        #    send_change_to_lightning = self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
 
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
@@ -1946,8 +1948,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
-            if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
-                txo = transaction.merge_duplicate_tx_outputs(txo)
+
+            #if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
+            #    txo = transaction.merge_duplicate_tx_outputs(txo)
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,

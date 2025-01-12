@@ -223,6 +223,9 @@ class UTXOList(MyTreeView):
         utxos = [self._utxo_dict[x] for x in self._spend_set]
         return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
 
+    def is_coincontrol_active(self):
+        return bool(self._spend_set)
+
     def _maybe_reset_coincontrol(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
         if not bool(self._spend_set):
             return

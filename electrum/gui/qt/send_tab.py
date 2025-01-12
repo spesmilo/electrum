@@ -312,34 +312,62 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
             get_coins = self.window.get_coins
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
-            coins=get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
-            outputs=outputs,
-            fee=fee_est,
-            is_sweep=is_sweep)
+
+        def make_tx(fee_est, *, confirmed_only=False, is_batching=False):
+            base_tx = self.wallet.txengine.batch_tx if is_batching else None
+            coins = get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only)
+            return self.wallet.make_unsigned_transaction(
+                coins=coins,
+                outputs=outputs,
+                base_tx=base_tx,
+                fee=fee_est,
+                is_sweep=is_sweep,
+                send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
+            )
+
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
         output_value = '!' if is_max else sum(output_values)
 
-        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value)
+        tx, is_preview, is_batching = self.window.confirm_tx_dialog(make_tx, output_value)
         if tx is None:
             # user cancelled
             return
 
-        if tx.has_dummy_output(DummyAddress.SWAP):
+        if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
             with self.window.create_sm_transport() as transport:
                 if not self.window.initialize_swap_manager(transport):
                     return
-                coro = sm.request_swap_for_tx(transport, tx)
+                coro = sm.request_swap_for_amount(transport, swap_dummy_output.value)
                 try:
-                    swap, invoice, tx = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+                    swap, invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
                 except SwapServerError as e:
                     self.show_error(str(e))
                     return
-                assert not tx.has_dummy_output(DummyAddress.SWAP)
-                tx.swap_invoice = invoice
-                tx.swap_payment_hash = swap.payment_hash
+                
+                if is_batching:
+                    self.save_pending_invoice()
+                    funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap_dummy_output.value)
+                    coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=invoice, output=funding_output)
+                    try:
+                        funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
+                    except UserCancelled:
+                        sm.cancel_normal_swap(swap)
+                        return
+                    self.window.on_swap_result(funding_txid, is_reverse=False)
+                    return
+                else:
+                    tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
+                    assert tx.get_dummy_output(DummyAddress.SWAP) is None
+                    tx.swap_invoice = invoice
+                    tx.swap_payment_hash = swap.payment_hash
+
+        if is_batching:
+            self.save_pending_invoice()
+            for output in outputs:
+                self.wallet.txengine.add_batch_payment(output)
+            return
 
         if is_preview:
             self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
