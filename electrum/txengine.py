@@ -108,6 +108,15 @@ class TxEngine(Logger):
         self.batch_processing.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
+        # transfer knowledge
+        if self.batch_tx:
+            for base_txin in self.batch_tx.inputs():
+                if base_txin.prevout == txin.prevout:
+                    if hasattr(txin, 'make_witness'):
+                        base_txin.make_witness = txin.make_witness
+                        base_txin.privkey = txin.privkey
+                        base_txin.witness_script = txin.witness_script
+                        base_txin.script_sig = txin.script_sig
 
     def find_confirmed_base_tx(self):
         for txid in self.batch_txids:
@@ -122,6 +131,7 @@ class TxEngine(Logger):
         # fixme: not robust to client restart, because we do not persist batch_payments
         if not tx:
             return self.batch_payments
+        # not robust to duplicates
         return [x for x in self.batch_payments if x not in tx.outputs()]
 
     def to_sweep_after(self, tx):
@@ -197,6 +207,7 @@ class TxEngine(Logger):
                 # or if we are trying to sweep unconfirmed inputs (replacement-adds-unconfirmed error)
                 self.logger.info(f'cannot broadcast tx {tx}')
                 if base_tx:
+                    self.logger.info(f'starting new batch because could not broadcast')
                     self.start_new_batch(base_tx)
 
     def create_batch_tx(self, base_tx, to_sweep, to_pay, password):
@@ -217,6 +228,7 @@ class TxEngine(Logger):
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
         inputs += self.get_change_inputs(self.batch_parent_tx) if self.batch_parent_tx else []
+
         tx = self.wallet.create_transaction(
             base_tx=base_tx,
             inputs=inputs,
