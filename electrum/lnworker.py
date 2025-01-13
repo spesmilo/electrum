@@ -1311,8 +1311,14 @@ class LNWallet(LNWorker):
             public: bool,
             zeroconf=False,
             opening_fee=None,
-            password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
+            password: Optional[str],
+    ) -> Tuple[Channel, PartialTransaction]:
 
+        if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
+            raise Exception(
+                _("Requested channel capacity is over maximum.")
+                + f"\n{funding_sat} sat > {self.config.LIGHTNING_MAX_FUNDING_SAT} sat"
+            )
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
@@ -1409,10 +1415,8 @@ class LNWallet(LNWorker):
             funding_sat: int,
             push_amt_sat: int,
             public: bool = False,
-            password: str = None) -> Tuple[Channel, PartialTransaction]:
-
-        if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
-            raise Exception(_("Requested channel capacity is over maximum."))
+            password: str = None,
+    ) -> Tuple[Channel, PartialTransaction]:
 
         fut = asyncio.run_coroutine_threadsafe(self.add_peer(connect_str), self.network.asyncio_loop)
         try:
