@@ -38,6 +38,7 @@ from concurrent import futures
 import copy
 import functools
 from enum import IntEnum
+from contextlib import nullcontext
 
 import aiorpcx
 from aiorpcx import ignore_after, NetAddress
@@ -47,7 +48,7 @@ from . import util
 from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
                    bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
-                   nullcontext, error_text_str_to_safe_str)
+                   error_text_str_to_safe_str)
 from .bitcoin import COIN, DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain

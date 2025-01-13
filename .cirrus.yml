@@ -11,8 +11,6 @@ task:
         ELECTRUM_PYTHON_NAME: python3
       matrix:
        - env:
-           ELECTRUM_PYTHON_VERSION: 3.9
-       - env:
            ELECTRUM_PYTHON_VERSION: 3.10
        - env:
            ELECTRUM_PYTHON_VERSION: 3.11
@@ -85,11 +83,11 @@ task:
   locale_script:
     - contrib/push_locale
   env:
-    ELECTRUM_IMAGE: python:3.9
+    ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - "unittests: Tox Python 3.9"
+    - "unittests: Tox Python 3.10"
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
@@ -156,7 +154,7 @@ task:
   flake8_script:
     - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "*_pb2.py,electrum/_vendor/"
   env:
-    ELECTRUM_IMAGE: python:3.9
+    ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
   matrix:
     - name: "linter: Flake8 Mandatory"
@@ -212,7 +210,7 @@ task:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
   depends_on:
-    - "unittests: Tox Python 3.9"
+    - "unittests: Tox Python 3.10"
 
 task:
   name: "build: Android (QML $APK_ARCH)"
@@ -246,7 +244,7 @@ task:
   binaries_artifacts:
     path: "dist/*"
   depends_on:
-    - "unittests: Tox Python 3.9"
+    - "unittests: Tox Python 3.10"
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
@@ -309,7 +307,7 @@ task:
   env:
     CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
   depends_on:
-    - "unittests: Tox Python 3.9"
+    - "unittests: Tox Python 3.10"
 
 task:
   container:
@@ -332,12 +330,12 @@ task:
       env:
         OMIT_UNCLEAN_FILES: 1
   depends_on:
-    - "unittests: Tox Python 3.9"
+    - "unittests: Tox Python 3.10"
 
 task:
   name: "check submodules"
   container:
-    image: python:3.9
+    image: python:3.10
     cpu: 1
     memory: 1G
   fetch_script:
