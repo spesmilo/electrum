@@ -44,6 +44,9 @@ ElDialog {
             onClicked: {
                 Config.autoConnect = serverconfig.auto_connect
                 Network.server = serverconfig.address
+                Network.oneServer = serverconfig.auto_connect
+                    ? false
+                    : serverconfig.one_server
                 rootItem.close()
             }
         }
