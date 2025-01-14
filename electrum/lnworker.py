@@ -1497,7 +1497,7 @@ class LNWallet(LNWorker):
                 min_final_cltv_delta=min_final_cltv_delta,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
-                attempts=attempts,
+                attempts=20 if attempts is None and self.uses_trampoline() else attempts,
                 full_path=full_path,
                 channels=channels,
                 budget=budget,
