@@ -72,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 59     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 60     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -234,6 +234,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_57()
         self._convert_version_58()
         self._convert_version_59()
+        self._convert_version_60()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1145,6 +1146,15 @@ class WalletDBUpgrader(Logger):
             chan['unfulfilled_htlcs'] = unfulfilled_htlcs
         self.data['channels'] = channels
         self.data['seed_version'] = 59
+
+    def _convert_version_60(self):
+        if not self._is_upgrade_method_needed(59, 59):
+            return
+        cbs = self.data.get('imported_channel_backups', {})
+        for channel_id, cb in list(cbs.items()):
+            if 'multisig_funding_privkey' not in cb:
+                cb['multisig_funding_privkey'] = None
+        self.data['seed_version'] = 60
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

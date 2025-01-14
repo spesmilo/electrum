@@ -103,6 +103,7 @@ NUM_PEERS_TARGET = 4
 # onchain channel backup data
 CB_VERSION = 0
 CB_MAGIC_BYTES = bytes([0, 0, 0, CB_VERSION])
+NODE_ID_PREFIX_LEN = 16
 
 
 FALLBACK_NODE_LIST_TESTNET = (
@@ -830,6 +831,7 @@ class LNWallet(LNWorker):
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self.static_payment_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_BASE)
         self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
+        self.funding_root_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.FUNDING_ROOT_KEY)
         Logger.__init__(self)
         features = LNWALLET_FEATURES
         if self.config.ENABLE_ANCHOR_CHANNELS:
@@ -1352,8 +1354,8 @@ class LNWallet(LNWorker):
             self.remove_channel(chan.channel_id)
             raise
 
-    def cb_data(self, node_id):
-        return CB_MAGIC_BYTES + node_id[0:16]
+    def cb_data(self, node_id: bytes) -> bytes:
+        return CB_MAGIC_BYTES + node_id[0:NODE_ID_PREFIX_LEN]
 
     def decrypt_cb_data(self, encrypted_data, funding_address):
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
@@ -1373,6 +1375,8 @@ class LNWallet(LNWorker):
             funding_sat: int,
             node_id: bytes,
             fee_est=None) -> PartialTransaction:
+        from .wallet import get_locktime_for_new_transaction
+
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.CHANNEL, funding_sat)]
         if self.has_recoverable_channels():
             dummy_scriptpubkey = make_op_return(self.cb_data(node_id))
@@ -1382,6 +1386,9 @@ class LNWallet(LNWorker):
             outputs=outputs,
             fee=fee_est)
         tx.set_rbf(False)
+        # rm randomness from locktime, as we use the locktime as entropy for deriving the funding_privkey
+        # (and it would be confusing to get a collision as a consequence of the randomness)
+        tx.locktime = get_locktime_for_new_transaction(self.network, include_random_component=False)
         return tx
 
     def suggest_funding_amount(self, amount_to_pay, coins):
@@ -2960,6 +2967,7 @@ class LNWallet(LNWorker):
             remote_revocation_pubkey = chan.config[REMOTE].revocation_basepoint.pubkey,
             remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey,
             local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
+            multisig_funding_privkey=chan.config[LOCAL].multisig_key.privkey,
         )
 
     def export_channel_backup(self, channel_id):
@@ -3095,7 +3103,7 @@ class LNWallet(LNWorker):
                         encrypted_data = o2.scriptpubkey[2:]
                         data = self.decrypt_cb_data(encrypted_data, funding_address)
                         if data.startswith(CB_MAGIC_BYTES):
-                            node_id_prefix = data[4:]
+                            node_id_prefix = data[len(CB_MAGIC_BYTES):]
         if node_id_prefix is None:
             return
         funding_txid = tx.txid()

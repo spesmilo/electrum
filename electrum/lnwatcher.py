@@ -132,7 +132,7 @@ class LNWatcher(Logger, EventListener):
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
+    async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
         raise NotImplementedError()  # implemented by subclasses
 
     async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,

@@ -19,7 +19,8 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      get_ordered_channel_configs, get_per_commitment_secret_from_seed,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction, make_commitment_output_to_remote_witness_script,
-                     derive_payment_basepoint, ctx_has_anchors, SCRIPT_TEMPLATE_FUNDING)
+                     derive_payment_basepoint, ctx_has_anchors, SCRIPT_TEMPLATE_FUNDING, Keypair,
+                     derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened)
 from .transaction import (Transaction, TxInput, PartialTxInput,
                           PartialTxOutput, TxOutpoint, script_GetOp, match_script_against_template)
 from .simple_config import SimpleConfig
@@ -483,7 +484,9 @@ def extract_funding_pubkeys_from_ctx(txin: TxInput) -> Tuple[bytes, bytes]:
 
 def sweep_their_ctx_to_remote_backup(
         *, chan: 'ChannelBackup',
-        ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
+        ctx: Transaction,
+        funding_tx: Transaction,
+) -> Optional[Dict[str, SweepInfo]]:
     txs = {}  # type: Dict[str, SweepInfo]
     """If we only have a backup, and the remote force-closed with their ctx,
     and anchors are enabled, we need to sweep to_remote."""
@@ -493,7 +496,7 @@ def sweep_their_ctx_to_remote_backup(
         funding_pubkeys = extract_funding_pubkeys_from_ctx(ctx.inputs()[0])
         _logger.debug(f'checking their ctx for funding pubkeys: {[pk.hex() for pk in funding_pubkeys]}')
         # check which of the pubkey was ours
-        for pubkey in funding_pubkeys:
+        for fp_idx, pubkey in enumerate(funding_pubkeys):
             candidate_basepoint = derive_payment_basepoint(chan.lnworker.static_payment_key.privkey, funding_pubkey=pubkey)
             candidate_to_remote_address = make_commitment_output_to_remote_address(candidate_basepoint.pubkey, has_anchors=True)
             if ctx.get_output_idxs_from_address(candidate_to_remote_address):
@@ -508,8 +511,33 @@ def sweep_their_ctx_to_remote_backup(
         return {}
 
     # remote anchor
+    # derive funding_privkey ("multisig_key")
+    # note: for imported backups, we already have this as 'local_config.multisig_key'
+    #       but for on-chain backups, we need to derive it.
+    #       For symmetry, we derive it now regardless of type
+    our_funding_pubkey = funding_pubkeys[fp_idx]
+    their_funding_pubkey = funding_pubkeys[1 - fp_idx]
+    remote_node_id = chan.node_id  # for onchain backups, this is only the prefix
+    if chan.is_initiator():
+        funding_kp_cand = derive_multisig_funding_key_if_we_opened(
+            funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
+            remote_node_id_or_prefix=remote_node_id,
+            nlocktime=funding_tx.locktime,
+        )
+    else:
+        funding_kp_cand = derive_multisig_funding_key_if_they_opened(
+            funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
+            remote_node_id_or_prefix=remote_node_id,
+            remote_funding_pubkey=their_funding_pubkey,
+        )
+    assert funding_kp_cand.pubkey == our_funding_pubkey, f"funding pubkey mismatch1. {chan.is_initiator()=}"
+    our_ms_funding_keypair = funding_kp_cand
+    # sanity check funding_privkey, if we had it already (if backup is imported):
     if local_config := chan.config.get(LOCAL):
-        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=local_config.multisig_key):
+        assert our_ms_funding_keypair == local_config.multisig_key, f"funding pubkey mismatch2. {chan.is_initiator()=}"
+
+    if our_ms_funding_keypair:
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_ms_funding_keypair):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
                 csv_delay=0,
@@ -517,9 +545,6 @@ def sweep_their_ctx_to_remote_backup(
                 txin=txin,
                 txout=None,
             )
-    else:
-        # fixme: onchain channel backups do not store the channel seed
-        pass
 
     # to_remote
     csv_delay = 1
@@ -810,7 +835,7 @@ def sweep_their_ctx_to_remote(
     return txin
 
 
-def sweep_ctx_anchor(*, ctx: Transaction, multisig_key)-> Optional[PartialTxInput]:
+def sweep_ctx_anchor(*, ctx: Transaction, multisig_key: Keypair) -> Optional[PartialTxInput]:
     from .lnutil import make_commitment_output_to_anchor_address, make_commitment_output_to_anchor_witness_script
     local_funding_pubkey = multisig_key.pubkey
     local_anchor_address = make_commitment_output_to_anchor_address(local_funding_pubkey)

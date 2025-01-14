@@ -156,6 +156,7 @@ if [[ $1 == "backup" ]]; then
     echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel1=$($alice open_channel $bob_node 0.15 --password='')
+    new_blocks 1  # cannot open multiple chans with same node in same block
     $alice setconfig use_recoverable_channels False
     channel2=$($alice open_channel $bob_node 0.15 --password='')
     new_blocks 3

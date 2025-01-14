@@ -1086,6 +1086,7 @@ class TestLNUtil(ElectrumTestCase):
                 remote_payment_pubkey=bfh('02a1bbc818e2e88847016a93c223eb4adef7bb8becb3709c75c556b6beb3afe7bd'),
                 remote_revocation_pubkey=bfh('022f28b7d8d1f05768ada3df1b0966083b8058e1e7197c57393e302ec118d7f0ae'),
                 local_payment_pubkey=None,
+                multisig_funding_privkey=None,
             ),
             decoded_cb,
         )
@@ -1113,6 +1114,7 @@ class TestLNUtil(ElectrumTestCase):
                 remote_payment_pubkey=bfh('02a1bbc818e2e88847016a93c223eb4adef7bb8becb3709c75c556b6beb3afe7bd'),
                 remote_revocation_pubkey=bfh('022f28b7d8d1f05768ada3df1b0966083b8058e1e7197c57393e302ec118d7f0ae'),
                 local_payment_pubkey=bfh('0308d686712782a44b0cef220485ad83dae77853a5bf8501a92bb79056c9dcb25a'),
+                multisig_funding_privkey=None,
             ),
             decoded_cb,
         )
