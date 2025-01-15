@@ -1487,6 +1487,9 @@ class LNWallet(LNWorker):
         self.wallet.set_label(key, lnaddr.get_description())
         self.set_invoice_status(key, PR_INFLIGHT)
         budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
+        if attempts is None and self.uses_trampoline():
+            # we don't expect lots of failed htlcs with trampoline, so we can fail sooner
+            attempts = 30
         success = False
         try:
             await self.pay_to_node(
@@ -1497,7 +1500,7 @@ class LNWallet(LNWorker):
                 min_final_cltv_delta=min_final_cltv_delta,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
-                attempts=20 if attempts is None and self.uses_trampoline() else attempts,
+                attempts=attempts,
                 full_path=full_path,
                 channels=channels,
                 budget=budget,
