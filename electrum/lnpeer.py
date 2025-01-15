@@ -2007,7 +2007,7 @@ class Peer(Logger, EventListener):
                 invoice_features=invoice_features,
                 fwd_trampoline_onion=next_trampoline_onion,
                 budget=budget,
-                attempts=1,
+                attempts=100,
                 fw_payment_key=fw_payment_key,
             )
         except OnionRoutingFailure as e:
