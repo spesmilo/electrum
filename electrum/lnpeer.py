@@ -1605,7 +1605,7 @@ class Peer(Logger, EventListener):
         # if we are forwarding a trampoline payment, add trampoline onion
         if trampoline_onion:
             self.logger.info(f'adding trampoline onion to final payload')
-            trampoline_payload = hops_data[num_hops-2].payload
+            trampoline_payload = hops_data[-1].payload
             trampoline_payload["trampoline_onion_packet"] = {
                 "version": trampoline_onion.version,
                 "public_key": trampoline_onion.public_key,
