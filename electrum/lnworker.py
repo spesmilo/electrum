@@ -436,6 +436,15 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             for chan in peer.channels.values():
                 chan.add_or_update_peer_addr(peer_addr)
 
+    def reload_peers_into_channeldb(self) -> None:
+        '''Loads existing peers into the gossip ChannelDB'''
+        if self.uses_trampoline() or self.channel_db is None:
+            return
+        for peer in self.peers.values():
+            if not peer.is_initialized() or not isinstance(peer.transport, LNTransport):
+                continue
+            self.channel_db.add_recent_peer(peer.transport.peer_addr)
+
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
         await self.channel_db.data_loaded.wait()

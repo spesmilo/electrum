@@ -127,6 +127,9 @@ class SettingsDialog(QDialog, QtEventListener):
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
             if not use_trampoline:
                 self.network.start_gossip()
+                if self.wallet.lnworker is not None:
+                    # add existing peers to ChannelDB
+                    self.wallet.lnworker.reload_peers_into_channeldb()
             else:
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
