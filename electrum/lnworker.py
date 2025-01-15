@@ -152,6 +152,20 @@ FALLBACK_NODE_LIST_MAINNET = [
     LNPeerAddr(host='2001:41d0:1:b40d::1', port=9735, pubkey=bfh('026726a4b043d413b45b334876d17b8a98848129604429ec65532ba286a42efeac')),
 ]
 
+FALLBACK_NODE_LIST_SIGNET = (
+    LNPeerAddr(host='34.68.95.152', port=9735, pubkey=bfh('02357a375a846279fc1e8413f5e182652a125e5f6a4f4653bffabebb8177a6d8aa')),
+    LNPeerAddr(host='34.124.125.201', port=9735, pubkey=bfh('0305061295fa30847df41ae6ee809b560e78d65c2a7337a41c725ea3920b65e08a')),
+    LNPeerAddr(host='35.247.14.99', port=9735, pubkey=bfh('027554f8d4d99a43cf1b49d274f698ee5045273cd377206eba62ea308b4386a4fa')),
+    LNPeerAddr(host='34.138.100.228', port=9735, pubkey=bfh('0244bb7ba2392ab2d493ad04ad4afcd482ca44a2bfe5b42bcc830bfe00e5b08082')),
+    LNPeerAddr(host='34.74.81.232', port=9735, pubkey=bfh('03adf6efe5346d455172c750a655b07fb85be4f50f5b555f9f91a853a6b448c3bf')),
+    LNPeerAddr(host='34.138.237.159', port=9735, pubkey=bfh('03ea42c9408a73dabdcb5655e2923956d132fbb25cb71e7c00a29e10c73e937e64')),
+    LNPeerAddr(host='34.75.211.29', port=9735, pubkey=bfh('024d899b60d5de58e8d66af042445323a48b6962d6c667c033802421dc49abc232')),
+    LNPeerAddr(host='34.73.252.102', port=9735, pubkey=bfh('02e8430ba207ce87bd2d4ab36497b9eac10e6d5d86f9fda8aa270c48877e0a8259')),
+    LNPeerAddr(host='175.45.182.145', port=39735, pubkey=bfh('0265ed138065b84d6b9448f9e0a2fd4ceb63fef08efe1dfc949a63d5d43110e4c0')), # port: not a typo
+    LNPeerAddr(host='104.244.73.68', port=9735, pubkey=bfh('0307238136c48cd35084c4efadc486143a7e8a7acd8ff8ac053fdab4efabc551c4')),
+    LNPeerAddr(host='84.247.50.180', port=44149, pubkey=bfh('020ee56ff81d12d17d5d3eea5306a8982a5763522ca73e0e220ce282030543c90c')),
+    LNPeerAddr(host='signet-eclair.wakiyamap.dev', port=9735, pubkey=bfh('0271cf3881e6eadad960f47125434342e57e65b98a78afa99f9b4191c02dd7ab3b')),
+)
 
 from .trampoline import trampolines_by_id, hardcoded_trampoline_nodes, is_hardcoded_trampoline
 
@@ -475,6 +489,8 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             fallback_list = FALLBACK_NODE_LIST_TESTNET
         elif constants.net in (constants.BitcoinMainnet,):
             fallback_list = FALLBACK_NODE_LIST_MAINNET
+        elif constants.net in (constants.BitcoinSignet,):
+            fallback_list = FALLBACK_NODE_LIST_SIGNET
         else:
             return []  # regtest??
 
