@@ -253,7 +253,9 @@ Pane {
                     }
 
                     Label {
+                        Layout.fillWidth: true
                         text: channeldetails.channelType
+                        wrapMode: Text.Wrap
                     }
 
                     Label {
