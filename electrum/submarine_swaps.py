@@ -24,7 +24,7 @@ from .bitcoin import (script_to_p2wsh, opcodes,
                       construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
-from .util import log_exceptions, BelowDustLimit, OldTaskGroup, age
+from .util import log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -1379,6 +1379,7 @@ class NostrTransport(Logger):
             max_amount = offer['max_amount'],
         )
 
+    @ignore_exceptions
     @log_exceptions
     async def publish_offer(self, sm):
         assert self.sm.is_server
