@@ -480,7 +480,6 @@ class OnionMessageManager(Logger):
                 scheduled, expires, key = self.requestreply_queue.get_nowait()
             except queue.Empty:
                 self.logger.info(f'requestreply queue empty')
-                self.requestreply_queue_notempty.clear()
                 try:
                     self.requestreply_queue_notempty.clear()
                     await self.requestreply_queue_notempty.wait()  # NOTE: quirk, see note below
