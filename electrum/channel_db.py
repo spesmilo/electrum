@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import ipaddress
 import time
 import random
 import os
@@ -41,7 +42,7 @@ from electrum_ecc import ECPubkey
 
 from .sql_db import SqlDB, sql
 from . import constants, util
-from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException
+from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException, is_private_netaddress
 from .logging import Logger
 from .lntransport import LNPeerAddr
 from .lnutil import (format_short_channel_id, ShortChannelID,
@@ -193,6 +194,48 @@ class NodeInfo(NamedTuple):
         return NodeInfo.from_msg(payload_dict)
 
     @staticmethod
+    def to_addresses_field(hostname: str, port: int) -> bytes:
+        """Encodes a hostname/port pair into a BOLT-7 'addresses' field."""
+        if (NodeInfo.invalid_announcement_hostname(hostname)
+                or port is None or port <= 0 or port > 65535):
+            return b''
+        port_bytes = port.to_bytes(2, 'big')
+        if is_ip_address(hostname):  # ipv4 or ipv6
+            ip_addr = ipaddress.ip_address(hostname)
+            if ip_addr.version == 4:
+                return b'\x01' + ip_addr.packed + port_bytes
+            elif ip_addr.version == 6:
+                return b'\x02' + ip_addr.packed + port_bytes
+        elif hostname.endswith('.onion'):  # Tor onion v3
+            onion_addr: bytes = base64.b32decode(hostname[:-6], casefold=True)
+            return b'\x04' + onion_addr + port_bytes
+        else:
+            try:
+                hostname_ascii: bytes = hostname.encode('ascii')
+            except UnicodeEncodeError:
+                # encoding single characters to punycode (according to spec) doesn't make sense
+                # as you can't differentiate them from regular ascii? encoding the whole string to punycode
+                # doesn't work either as the receiver would interpret it as regular ascii.
+                # hostname_ascii: bytes = hostname.encode('punycode')
+                return b''
+            if len(hostname_ascii) + 3 > 258:  # + 1 byte for length and 2 for port
+                return b''  # too long
+            return b'\x05' + len(hostname_ascii).to_bytes(1, "big") + hostname_ascii + port_bytes
+
+    @staticmethod
+    def invalid_announcement_hostname(hostname: Optional[str]) -> bool:
+        """Returns True if hostname unsuited for publishing in a NodeAnnouncement."""
+        if (hostname is None or hostname == ""
+                or is_private_netaddress(hostname)
+                or hostname.startswith("http://")  # not catching 'http' due to onion addresses
+                or hostname.startswith("https://")):
+            return True
+        if hostname.endswith('.onion'):
+            if len(hostname) != 62:  # not an onion v3 link (probably onion v2)
+                return True
+        return False
+
+    @staticmethod
     def parse_addresses_field(addresses_field):
         buf = addresses_field
         def read(n):
@@ -216,15 +259,18 @@ class NodeInfo(NamedTuple):
                 if is_ip_address(ipv6_addr) and port != 0:
                     addresses.append((ipv6_addr, port))
             elif atype == 3:  # onion v2
-                host = base64.b32encode(read(10)) + b'.onion'
-                host = host.decode('ascii').lower()
-                port = int.from_bytes(read(2), 'big')
-                addresses.append((host, port))
+                read(12)  # we skip onion v2 as it is deprecated
             elif atype == 4:  # onion v3
                 host = base64.b32encode(read(35)) + b'.onion'
                 host = host.decode('ascii').lower()
                 port = int.from_bytes(read(2), 'big')
                 addresses.append((host, port))
+            elif atype == 5:  # dns hostname
+                len_hostname = int.from_bytes(read(1), 'big')
+                host = read(len_hostname).decode('ascii')
+                port = int.from_bytes(read(2), 'big')
+                if not NodeInfo.invalid_announcement_hostname(host) and port > 0:
+                    addresses.append((host, port))
             else:
                 # unknown address type
                 # we don't know how long it is -> have to escape
