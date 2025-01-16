@@ -24,6 +24,13 @@ from electrum.logging import console_stderr_handler
 from . import ElectrumTestCase, test_lnpeer
 from .test_lnpeer import PutIntoOthersQueueTransport, PeerInTests, keypair
 
+TIME_STEP = 0.01 # run tests 100 x faster
+OnionMessageManager.SLEEP_DELAY *= TIME_STEP
+OnionMessageManager.REQUEST_REPLY_TIMEOUT *= TIME_STEP
+OnionMessageManager.REQUEST_REPLY_RETRY_DELAY *= TIME_STEP
+OnionMessageManager.FORWARD_RETRY_TIMEOUT *= TIME_STEP
+OnionMessageManager.FORWARD_RETRY_DELAY *= TIME_STEP
+
 # test vectors https://github.com/lightning/bolts/pull/759/files
 path = os.path.join(os.path.dirname(__file__), 'blinded-onion-message-onion-test.json')
 test_vectors = read_json_file(path)
@@ -348,13 +355,13 @@ class TestOnionMessageManager(ElectrumTestCase):
         lnw = MockLNWallet(local_keypair=k, chans=[], tx_queue=q1, name='test', has_anchors=False)
 
         def slow(*args, **kwargs):
-            time.sleep(2)
+            time.sleep(2*TIME_STEP)
 
         def withreply(key, *args, **kwargs):
             t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
 
         def slowwithreply(key, *args, **kwargs):
-            time.sleep(2)
+            time.sleep(2*TIME_STEP)
             t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
 
         rkey1 = bfh('0102030405060708')
@@ -364,22 +371,18 @@ class TestOnionMessageManager(ElectrumTestCase):
         lnw.peers[self.bob_pub] = MockPeer(self.bob_pub, on_send_message=slow)
         lnw.peers[self.carol_pub] = MockPeer(self.carol_pub, on_send_message=partial(withreply, rkey1))
         lnw.peers[self.dave_pub] = MockPeer(self.dave_pub, on_send_message=partial(slowwithreply, rkey2))
-        t = OnionMessageManager(lnw, request_reply_timeout=5, request_reply_retry_delay=1)
+        t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
         try:
-            await asyncio.sleep(1)
-
+            await asyncio.sleep(TIME_STEP)
             self.logger.debug('tests in sequence')
-
             await self.run_test1(t)
             await self.run_test2(t)
             await self.run_test3(t, rkey1)
             await self.run_test4(t, rkey2)
             await self.run_test5(t)
-
             self.logger.debug('tests in parallel')
-
             async with OldTaskGroup() as group:
                 await group.spawn(self.run_test1(t))
                 await group.spawn(self.run_test2(t))
@@ -387,7 +390,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 await group.spawn(self.run_test4(t, rkey2))
                 await group.spawn(self.run_test5(t))
         finally:
-            await asyncio.sleep(1)
+            await asyncio.sleep(TIME_STEP)
 
             self.logger.debug('stopping manager')
             await t.stop()

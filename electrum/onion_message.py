@@ -26,6 +26,7 @@ import io
 import os
 import queue
 import threading
+import time
 from random import random
 
 from typing import TYPE_CHECKING, Optional, List, Sequence
@@ -40,7 +41,12 @@ from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_p
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet)
 from electrum.lnutil import LnFeatures
-from electrum.util import OldTaskGroup, now
+from electrum.util import OldTaskGroup
+
+# do not use util.now, because it rounds to integers
+def now():
+    return time.time()
+
 
 if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
@@ -52,12 +58,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-REQUEST_REPLY_TIMEOUT = 30
-REQUEST_REPLY_RETRY_DELAY = 5
 REQUEST_REPLY_PATHS_MAX = 3
-FORWARD_RETRY_TIMEOUT = 4
-FORWARD_RETRY_DELAY = 2
-FORWARD_MAX_QUEUE = 3
 
 
 class NoRouteFound(Exception):
@@ -386,9 +387,14 @@ class OnionMessageManager(Logger):
     - association between onion message and their replies
     - manage re-send attempts, TODO: iterate through routes (both directions)"""
 
-    def __init__(self, lnwallet: 'LNWallet', *,
-            request_reply_timeout=REQUEST_REPLY_TIMEOUT,
-            request_reply_retry_delay=REQUEST_REPLY_RETRY_DELAY):
+    SLEEP_DELAY = 1
+    REQUEST_REPLY_TIMEOUT = 30
+    REQUEST_REPLY_RETRY_DELAY = 5
+    FORWARD_RETRY_TIMEOUT = 4
+    FORWARD_RETRY_DELAY = 2
+    FORWARD_MAX_QUEUE = 3
+
+    def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
         self.network = None  # type: Optional['Network']
         self.taskgroup = None  # type: OldTaskGroup
@@ -400,9 +406,6 @@ class OnionMessageManager(Logger):
         self.requestreply_queue_notempty = asyncio.Event()
         self.forwardqueue = queue.PriorityQueue()
         self.forwardqueue_notempty = asyncio.Event()
-
-        self.request_reply_timeout = request_reply_timeout
-        self.request_reply_retry_delay = request_reply_retry_delay
 
     def start_network(self, *, network: 'Network'):
         assert network
@@ -441,7 +444,7 @@ class OnionMessageManager(Logger):
             if scheduled > now():
                 # return to queue
                 self.forwardqueue.put_nowait((scheduled, expires, onion_packet, blinding, node_id))
-                await asyncio.sleep(1)  # sleep here, as the first queue item wasn't due yet
+                await asyncio.sleep(self.SLEEP_DELAY)  # sleep here, as the first queue item wasn't due yet
                 continue
 
             try:
@@ -456,17 +459,17 @@ class OnionMessageManager(Logger):
                 )
             except BaseException as e:
                 self.logger.debug(f'error while sending {node_id=} e={e!r}')
-                self.forwardqueue.put_nowait((now() + FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
+                self.forwardqueue.put_nowait((now() + self.FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
 
     def submit_forward(
             self, *,
             onion_packet: OnionPacket,
             blinding: bytes,
             node_id: bytes):
-        if self.forwardqueue.qsize() >= FORWARD_MAX_QUEUE:
+        if self.forwardqueue.qsize() >= self.FORWARD_MAX_QUEUE:
             self.logger.debug('forward queue full, dropping packet')
             return
-        expires = now() + FORWARD_RETRY_TIMEOUT
+        expires = now() + self.FORWARD_RETRY_TIMEOUT
         queueitem = (now(), expires, onion_packet, blinding, node_id)
         self.forwardqueue.put_nowait(queueitem)
         self.forwardqueue_notempty.set()
@@ -498,8 +501,9 @@ class OnionMessageManager(Logger):
                 continue
             if scheduled > now():
                 # return to queue
+                self.logger.debug(f'return to queue {key=}, {scheduled - now()}')
                 self.requestreply_queue.put_nowait((scheduled, expires, key))
-                await asyncio.sleep(1)  # sleep here, as the first queue item wasn't due yet
+                await asyncio.sleep(self.SLEEP_DELAY)  # sleep here, as the first queue item wasn't due yet
                 continue
 
             try:
@@ -513,7 +517,7 @@ class OnionMessageManager(Logger):
                     await self.lnwallet.add_peer(str(e.peer_address))
             else:
                 self.logger.debug(f'resubmit {key=}')
-                self.requestreply_queue.put_nowait((now() + self.request_reply_retry_delay, expires, key))
+                self.requestreply_queue.put_nowait((now() + self.REQUEST_REPLY_RETRY_DELAY, expires, key))
 
     def get_requestreply(self, key):
         with self.pending_lock:
@@ -564,7 +568,7 @@ class OnionMessageManager(Logger):
             }
 
         # tuple = (when to process, when it expires, key)
-        expires = now() + self.request_reply_timeout
+        expires = now() + self.REQUEST_REPLY_TIMEOUT
         queueitem = (now(), expires, key)
         self.requestreply_queue.put_nowait(queueitem)
         task = asyncio.create_task(self._requestreply_task(key))
