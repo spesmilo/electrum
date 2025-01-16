@@ -604,6 +604,7 @@ class LNGossip(LNWorker):
         for coro in [
                 self._maintain_connectivity(),
                 self.maintain_db(),
+                self._load_existing_peers(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
@@ -615,6 +616,14 @@ class LNGossip(LNWorker):
                 self.channel_db.prune_old_policies(self.max_age)
                 self.channel_db.prune_orphaned_channels()
             await asyncio.sleep(120)
+
+    async def _load_existing_peers(self) -> None:
+        '''Loads existing peers of all wallets into the ChannelDB once DB is ready'''
+        await self.channel_db.data_loaded.wait()
+        if not self.channel_db.get_recent_peers():
+            for wallet in self.network.daemon.get_wallets().values():
+                if wallet.lnworker is not None:
+                    wallet.lnworker.reload_peers_into_channeldb()
 
     async def add_new_ids(self, ids: Iterable[bytes]):
         known = self.channel_db.get_channel_ids()
