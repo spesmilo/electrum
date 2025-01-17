@@ -368,7 +368,7 @@ class HistoryModel(CustomModel, Logger):
         fiat_fields = self.window.wallet.get_tx_item_fiat(
             tx_hash=txid, amount_sat=value, fx=self.window.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
-        self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ForegroundRole])
+        self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole])
 
     def update_tx_mined_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
         try:
