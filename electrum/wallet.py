@@ -206,7 +206,11 @@ async def sweep(
     return tx
 
 
-def get_locktime_for_new_transaction(network: 'Network') -> int:
+def get_locktime_for_new_transaction(
+    network: 'Network',
+    *,
+    include_random_component: bool = True,
+) -> int:
     # if no network or not up to date, just set locktime to zero
     if not network:
         return 0
@@ -225,8 +229,9 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     locktime = min(chain_height, server_height)
     # sometimes pick locktime a bit further back, to help privacy
     # of setups that need more time (offline/multisig/coinjoin/...)
-    if random.randint(0, 9) == 0:
-        locktime = max(0, locktime - random.randint(0, 99))
+    if include_random_component:
+        if random.randint(0, 9) == 0:
+            locktime = max(0, locktime - random.randint(0, 99))
     locktime = max(0, locktime)
     return locktime
 

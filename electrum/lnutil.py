@@ -224,7 +224,8 @@ class LocalConfig(ChannelConfig):
         node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
         keypair_generator = lambda family: generate_keypair(node, family)
         kwargs['per_commitment_secret_seed'] = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
-        kwargs['multisig_key'] = keypair_generator(LnKeyFamily.MULTISIG)
+        if kwargs['multisig_key'] is None:
+            kwargs['multisig_key'] = keypair_generator(LnKeyFamily.MULTISIG)
         kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
         kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
         kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
@@ -279,8 +280,8 @@ class ChannelConstraints(StoredObject):
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
-CHANNEL_BACKUP_VERSION_LATEST = 1
-KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1,)
+CHANNEL_BACKUP_VERSION_LATEST = 2
+KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1, 2, )
 assert CHANNEL_BACKUP_VERSION_LATEST in KNOWN_CHANNEL_BACKUP_VERSIONS
 
 @attr.s
@@ -315,6 +316,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
     remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
     remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
     local_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
+    multisig_funding_privkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
@@ -333,6 +335,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         vds.write_string(self.host)
         vds.write_uint16(self.port)
         vds.write_bytes(self.local_payment_pubkey, 33)
+        vds.write_bytes(self.multisig_funding_privkey, 32)
         return bytes(vds.input)
 
     @staticmethod
@@ -359,6 +362,10 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
             local_payment_pubkey = vds.read_bytes(33)
         else:
             local_payment_pubkey = None
+        if version >= 2:
+            multisig_funding_privkey = vds.read_bytes(32)
+        else:
+            multisig_funding_privkey = None
         return ImportedChannelBackupStorage(
             is_initiator=is_initiator,
             privkey=privkey,
@@ -374,6 +381,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
             host=host,
             port=port,
             local_payment_pubkey=local_payment_pubkey,
+            multisig_funding_privkey=multisig_funding_privkey,
         )
 
     @staticmethod
@@ -613,6 +621,54 @@ def derive_payment_basepoint(static_payment_secret: bytes, funding_pubkey: bytes
     return Keypair(
         pubkey=payment_basepoint.get_public_key_bytes(),
         privkey=payment_basepoint.get_secret_bytes()
+    )
+
+
+def derive_multisig_funding_key_if_we_opened(
+    *,
+    funding_root_secret: bytes,
+    remote_node_id_or_prefix: bytes,
+    nlocktime: int,
+) -> Keypair:
+    from .lnworker import NODE_ID_PREFIX_LEN
+    assert isinstance(funding_root_secret, bytes)
+    assert len(funding_root_secret) == 32
+    assert isinstance(remote_node_id_or_prefix, bytes)
+    assert len(remote_node_id_or_prefix) in (NODE_ID_PREFIX_LEN, 33)
+    assert isinstance(nlocktime, int)
+    nlocktime_bytes = int.to_bytes(nlocktime, length=4, byteorder="little", signed=False)
+    node_id_prefix = remote_node_id_or_prefix[0:NODE_ID_PREFIX_LEN]
+    funding_key = ecc.ECPrivkey(bitcoin.bip340_tagged_hash(
+        tag=b"electrum/ln_multisig_funding_key/we_opened",
+        msg=funding_root_secret + node_id_prefix + nlocktime_bytes,
+    ))
+    return Keypair(
+        pubkey=funding_key.get_public_key_bytes(),
+        privkey=funding_key.get_secret_bytes(),
+    )
+
+
+def derive_multisig_funding_key_if_they_opened(
+    *,
+    funding_root_secret: bytes,
+    remote_node_id_or_prefix: bytes,
+    remote_funding_pubkey: bytes,
+) -> Keypair:
+    from .lnworker import NODE_ID_PREFIX_LEN
+    assert isinstance(funding_root_secret, bytes)
+    assert len(funding_root_secret) == 32
+    assert isinstance(remote_node_id_or_prefix, bytes)
+    assert len(remote_node_id_or_prefix) in (NODE_ID_PREFIX_LEN, 33)
+    assert isinstance(remote_funding_pubkey, bytes)
+    assert len(remote_funding_pubkey) == 33
+    node_id_prefix = remote_node_id_or_prefix[0:NODE_ID_PREFIX_LEN]
+    funding_key = ecc.ECPrivkey(bitcoin.bip340_tagged_hash(
+        tag=b"electrum/ln_multisig_funding_key/they_opened",
+        msg=funding_root_secret + node_id_prefix + remote_funding_pubkey,
+    ))
+    return Keypair(
+        pubkey=funding_key.get_public_key_bytes(),
+        privkey=funding_key.get_secret_bytes(),
     )
 
 
@@ -1693,6 +1749,7 @@ class LnKeyFamily(IntEnum):
     BACKUP_CIPHER = 7 | BIP32_PRIME
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
     NOSTR_KEY = 9 | BIP32_PRIME
+    FUNDING_ROOT_KEY = 10 | BIP32_PRIME
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:

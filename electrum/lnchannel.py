@@ -415,6 +415,10 @@ class AbstractChannel(Logger, ABC):
     def get_funding_address(self) -> str:
         pass
 
+    def get_funding_tx(self) -> Optional[Transaction]:
+        funding_txid = self.funding_outpoint.txid
+        return self.lnworker.lnwatcher.adb.get_transaction(funding_txid)
+
     @abstractmethod
     def get_sweep_address(self) -> str:
         """Returns a wallet address we can use to sweep coins to.
@@ -534,6 +538,12 @@ class ChannelBackup(AbstractChannel):
             self.logger.warning(
                 f"local_payment_pubkey missing from (old-type) channel backup. "
                 f"You should export and re-import a newer backup.")
+        multisig_funding_keypair = None
+        if multisig_funding_secret := cb.multisig_funding_privkey:
+            multisig_funding_keypair = Keypair(
+                privkey=multisig_funding_secret,
+                pubkey=ecc.ECPrivkey(multisig_funding_secret).get_public_key_bytes(),
+            )
         self.config[LOCAL] = LocalConfig.from_seed(
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
@@ -542,6 +552,7 @@ class ChannelBackup(AbstractChannel):
             # 2. static_remotekey: to_remote sweep not necessary due to wallet address
             # 3. anchor outputs: sweep to_remote by deriving the key from the funding pubkeys
             static_remotekey=local_payment_pubkey,
+            multisig_key=multisig_funding_keypair,
             # dummy values
             static_payment_key=None,
             dust_limit_sat=None,
@@ -594,7 +605,9 @@ class ChannelBackup(AbstractChannel):
         return True
 
     def create_sweeptxs_for_their_ctx(self, ctx):
-        return sweep_their_ctx_to_remote_backup(chan=self, ctx=ctx)
+        funding_tx = self.get_funding_tx()
+        assert funding_tx
+        return sweep_their_ctx_to_remote_backup(chan=self, ctx=ctx, funding_tx=funding_tx)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
         if self.is_imported:

@@ -46,7 +46,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
                      ChannelType, LNProtocolWarning, validate_features, IncompatibleOrInsaneFeatures)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
-from .lnutil import serialize_htlc_key
+from .lnutil import serialize_htlc_key, Keypair
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
@@ -673,7 +673,15 @@ class Peer(Logger, EventListener):
         self.logger.info(f"upfront shutdown script received: {upfront_shutdown_script}")
         return upfront_shutdown_script
 
-    def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner, channel_type: ChannelType) -> LocalConfig:
+    def make_local_config(
+        self,
+        *,
+        funding_sat: int,
+        push_msat: int,
+        initiator: HTLCOwner,
+        channel_type: ChannelType,
+        multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
+    ) -> LocalConfig:
         channel_seed = os.urandom(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
 
@@ -692,6 +700,14 @@ class Peer(Logger, EventListener):
             static_payment_key = None
             static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
 
+        if multisig_funding_keypair:
+            for chan in self.lnworker.channels.values():  # check against all chans of lnworker, for sanity
+                if multisig_funding_keypair.pubkey == chan.config[LOCAL].multisig_key.pubkey:
+                    raise Exception(
+                        "Refusing to reuse multisig_funding_keypair for new channel. "
+                        "Wait one block before opening another channel with this peer."
+                    )
+
         dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
         # for comparison of defaults, see
@@ -702,6 +718,7 @@ class Peer(Logger, EventListener):
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
             static_payment_key=static_payment_key,
+            multisig_key=multisig_funding_keypair,
             upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
             dust_limit_sat=dust_limit_sat,
@@ -787,7 +804,21 @@ class Peer(Logger, EventListener):
                 'type': our_channel_type.to_bytes_minimal()
             }
 
-        local_config = self.make_local_config(funding_sat, push_msat, LOCAL, our_channel_type)
+        if self.use_anchors():
+            multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_we_opened(
+                funding_root_secret=self.lnworker.funding_root_keypair.privkey,
+                remote_node_id_or_prefix=self.pubkey,
+                nlocktime=funding_tx.locktime,
+            )
+        else:
+            multisig_funding_keypair = None
+        local_config = self.make_local_config(
+            funding_sat=funding_sat,
+            push_msat=push_msat,
+            initiator=LOCAL,
+            channel_type=our_channel_type,
+            multisig_funding_keypair=multisig_funding_keypair,
+        )
         # if it includes open_channel_tlvs: MUST include upfront_shutdown_script.
         open_channel_tlvs['upfront_shutdown_script'] = {
             'shutdown_scriptpubkey': local_config.upfront_shutdown_script
@@ -1019,7 +1050,21 @@ class Peer(Logger, EventListener):
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
 
-        local_config = self.make_local_config(funding_sat, push_msat, REMOTE, channel_type)
+        if self.use_anchors():
+            multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
+                funding_root_secret=self.lnworker.funding_root_keypair.privkey,
+                remote_node_id_or_prefix=self.pubkey,
+                remote_funding_pubkey=payload['funding_pubkey'],
+            )
+        else:
+            multisig_funding_keypair = None
+        local_config = self.make_local_config(
+            funding_sat=funding_sat,
+            push_msat=push_msat,
+            initiator=REMOTE,
+            channel_type=channel_type,
+            multisig_funding_keypair=multisig_funding_keypair,
+        )
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
