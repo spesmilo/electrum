@@ -1500,6 +1500,7 @@ class Peer(Logger, EventListener):
         self.maybe_mark_open(chan)
 
     def send_node_announcement(self, alias:str):
+        from .channel_db import NodeInfo
         timestamp = int(time.time())
         node_id = privkey_to_pubkey(self.privkey)
         features = self.features.for_node_announcement()
@@ -1508,7 +1509,11 @@ class Peer(Logger, EventListener):
         rgb_color = bytes.fromhex('000000')
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
-        addresses = b''
+        addr = self.lnworker.config.LIGHTNING_LISTEN
+        hostname, port = addr.split(':')
+        if port is None:  # use default port if not specified
+            port = 9735
+        addresses = NodeInfo.to_addresses_field(hostname, int(port))
         raw_msg = encode_msg(
             "node_announcement",
             flen=flen,
