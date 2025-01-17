@@ -307,7 +307,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.eve_pub = self.eve.get_public_key_bytes(compressed=True)
 
     async def run_test1(self, t):
-        t1 = t.submit_requestreply(
+        t1 = t.submit_send(
             payload={'message': {'text': 'alice_timeout'.encode('utf-8')}},
             node_id_or_blinded_path=self.alice_pub)
 
@@ -315,7 +315,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t1
 
     async def run_test2(self, t):
-        t2 = t.submit_requestreply(
+        t2 = t.submit_send(
             payload={'message': {'text': 'bob_slow_timeout'.encode('utf-8')}},
             node_id_or_blinded_path=self.bob_pub)
 
@@ -323,7 +323,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t2
 
     async def run_test3(self, t, rkey):
-        t3 = t.submit_requestreply(
+        t3 = t.submit_send(
             payload={'message': {'text': 'carol_with_immediate_reply'.encode('utf-8')}},
             node_id_or_blinded_path=self.carol_pub,
             key=rkey)
@@ -332,7 +332,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t3_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def run_test4(self, t, rkey):
-        t4 = t.submit_requestreply(
+        t4 = t.submit_send(
             payload={'message': {'text': 'dave_with_slow_reply'.encode('utf-8')}},
             node_id_or_blinded_path=self.dave_pub,
             key=rkey)
@@ -341,7 +341,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t4_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def run_test5(self, t):
-        t5 = t.submit_requestreply(
+        t5 = t.submit_send(
             payload={'message': {'text': 'no_peer'.encode('utf-8')}},
             node_id_or_blinded_path=self.eve_pub)
 
