@@ -251,8 +251,8 @@ class QEDaemon(AuthMixin, QObject):
         assert wallet is not None
         self._current_wallet = QEWallet.getInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
-        if wallet.requires_unlock():
-            wallet.unlock(password or None)
+        wallet.unlock(password or None)  # not conditional on wallet.requires_unlock in qml, as
+        # the auth wrapper doesn't pass the entered password, but instead we rely on the password in memory
         self._loading = False
         self.loadingChanged.emit()
         self.walletLoaded.emit(self._name, self._path)
