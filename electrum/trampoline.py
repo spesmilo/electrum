@@ -161,7 +161,7 @@ def _allocate_fee_along_route(
         assert trampoline_fee_level > 0
         MAX_LEVEL = 6
         if trampoline_fee_level > MAX_LEVEL:
-            raise NoPathFound()
+            raise NoPathFound("highest trampoline fee level reached", maybe_fee_related=True)
         budget_to_use = budget.fee_msat // (2 ** (MAX_LEVEL - trampoline_fee_level))
     _logger.debug(f"_allocate_fee_along_route(). {trampoline_fee_level=}, {budget.fee_msat=}, {budget_to_use=}")
     # replace placeholder fees
@@ -264,7 +264,7 @@ def create_trampoline_route(
         amount_msat_for_dest=amount_msat,
         cltv_delta_for_dest=min_final_cltv_delta,
     ):
-        raise NoPathFound("route exceeds budget")
+        raise NoPathFound("route exceeds budget", maybe_fee_related=True)
     return route
 
 

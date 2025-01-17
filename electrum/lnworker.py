@@ -1880,6 +1880,7 @@ class LNWallet(LNWorker):
         and mpp is supported by the receiver, we will split the payment."""
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.network.get_local_height()
+        fee_related_error = False
         if channels:
             my_active_channels = channels
         else:
@@ -1970,8 +1971,9 @@ class LNWallet(LNWorker):
                             )
                             routes.append((shi, per_trampoline_cltv_delta, trampoline_onion))
                         if per_trampoline_fees != 0:
-                            self.logger.info('not enough margin to pay trampoline fee')
-                            raise NoPathFound()
+                            e = 'not enough margin to pay trampoline fee'
+                            self.logger.info(e)
+                            raise NoPathFound(e, maybe_fee_related=True)
                 else:
                     # We atomically loop through a split configuration. If there was
                     # a failure to find a path for a single part, we try the next configuration
@@ -2002,12 +2004,13 @@ class LNWallet(LNWorker):
                                 trampoline_route=None,
                             )
                             routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
-            except NoPathFound:
+            except NoPathFound as e:
+                fee_related_error = e.maybe_fee_related
                 continue
             for route in routes:
                 yield route
             return
-        raise NoPathFound()
+        raise NoPathFound(maybe_fee_related=fee_related_error)
 
     @profiler
     def create_route_for_single_htlc(
@@ -2079,7 +2082,7 @@ class LNWallet(LNWorker):
             route, budget=budget, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=min_final_cltv_delta,
         ):
             self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
-            raise NoPathFound()
+            raise NoPathFound(maybe_fee_related=True)
         assert len(route) > 0
         if route[-1].end_node != invoice_pubkey:
             raise LNPathInconsistent("last node_id != invoice pubkey")
