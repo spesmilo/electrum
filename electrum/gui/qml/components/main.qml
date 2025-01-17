@@ -613,10 +613,10 @@ ApplicationWindow
         }
         // TODO: add to notification queue instead of barging through
         function onPaymentSucceeded(key) {
-            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment Succeeded'))
+            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment succeeded'))
         }
         function onPaymentFailed(key, reason) {
-            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment Failed') + ': ' + reason)
+            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment failed') + ': ' + reason)
         }
     }
 
