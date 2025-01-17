@@ -364,10 +364,17 @@ class Commands:
         return self.config.list_config_vars()
 
     @command('')
-    async def helpconfig(self, key, more=False):
+    async def helpconfig(self, key):
         """Returns help about a configuration variable. """
         cv = self.config.cv.from_key(key)
-        return cv.get_long_desc() if more else cv.get_short_desc()
+        short = cv.get_short_desc()
+        long = cv.get_long_desc()
+        if short and long:
+            return short + "\n---\n\n" + long
+        elif short or long:
+            return short or long
+        else:
+            return f"No description available for '{key}'"
 
     @command('')
     async def make_seed(self, nbits=None, language=None, seed_type=None):
@@ -1513,7 +1520,6 @@ command_options = {
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),
     'public':      (None, 'Channel will be announced'),
-    'more':        (None, 'Return detailed description'),
 }
 
 
