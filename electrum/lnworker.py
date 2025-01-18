@@ -451,6 +451,15 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             for chan in peer.channels.values():
                 chan.add_or_update_peer_addr(peer_addr)
 
+    def reload_peers_into_channeldb(self) -> None:
+        '''Loads existing peers into the gossip ChannelDB'''
+        if self.uses_trampoline() or self.channel_db is None:
+            return
+        for peer in self.peers.values():
+            if not peer.is_initialized() or not isinstance(peer.transport, LNTransport):
+                continue
+            self.channel_db.add_recent_peer(peer.transport.peer_addr)
+
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
         await self.channel_db.data_loaded.wait()
@@ -612,6 +621,7 @@ class LNGossip(LNWorker):
         for coro in [
                 self._maintain_connectivity(),
                 self.maintain_db(),
+                self._load_existing_peers(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
@@ -623,6 +633,14 @@ class LNGossip(LNWorker):
                 self.channel_db.prune_old_policies(self.max_age)
                 self.channel_db.prune_orphaned_channels()
             await asyncio.sleep(120)
+
+    async def _load_existing_peers(self) -> None:
+        '''Loads existing peers of all wallets into the ChannelDB once DB is ready'''
+        await self.channel_db.data_loaded.wait()
+        if not self.channel_db.get_recent_peers():
+            for wallet in self.network.daemon.get_wallets().values():
+                if wallet.lnworker is not None:
+                    wallet.lnworker.reload_peers_into_channeldb()
 
     async def add_new_ids(self, ids: Iterable[bytes]):
         known = self.channel_db.get_channel_ids()
