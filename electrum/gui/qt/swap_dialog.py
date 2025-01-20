@@ -270,8 +270,12 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
                 zeroconf=self.zeroconf,
             )
-            # we must not leave the context, so we use run_couroutine_dialog
-            funding_txid = self.window.run_coroutine_dialog(coro, _('Initiating swap...'))
+            try:
+                # we must not leave the context, so we use run_couroutine_dialog
+                funding_txid = self.window.run_coroutine_dialog(coro, _('Initiating swap...'))
+            except Exception as e:
+                self.window.show_error(f"Reverse swap failed: {str(e)}")
+                return
             self.window.on_swap_result(funding_txid, is_reverse=True)
             return True
         else:
