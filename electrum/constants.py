@@ -25,8 +25,9 @@
 
 import os
 import json
-from typing import Sequence, Tuple, Mapping, Type
+from typing import Sequence, Tuple, Mapping, Type, List
 
+from .lntransport import LNPeerAddr
 from .util import inv_dict, all_subclasses
 from . import bitcoin
 
@@ -39,6 +40,15 @@ def read_json(filename, default):
     except Exception:
         r = default
     return r
+
+
+def create_fallback_node_list(fallback_nodes_dict: dict[str, dict]) -> List[LNPeerAddr]:
+    """Take a json dict of fallback nodes like: k:node_id, v:{k:'host', k:'port'} and return LNPeerAddr list"""
+    fallback_nodes = []
+    for node_id, address in fallback_nodes_dict.items():
+        fallback_nodes.append(
+            LNPeerAddr(host=address['host'], port=int(address['port']), pubkey=bytes.fromhex(node_id)))
+    return fallback_nodes
 
 
 GIT_REPO_URL = "https://github.com/spesmilo/electrum"
@@ -94,6 +104,7 @@ class BitcoinMainnet(AbstractNet):
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
+    FALLBACK_LN_NODES = create_fallback_node_list(read_json('fallback_lnnodes_mainnet.json', {}))
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
@@ -134,6 +145,7 @@ class BitcoinTestnet(AbstractNet):
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
+    FALLBACK_LN_NODES = create_fallback_node_list(read_json('fallback_lnnodes_testnet3.json', {}))
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 
     XPRV_HEADERS = {
@@ -165,6 +177,7 @@ class BitcoinTestnet4(BitcoinTestnet):
     NET_NAME = "testnet4"
     GENESIS = "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043"
     DEFAULT_SERVERS = read_json('servers_testnet4.json', {})
+    FALLBACK_LN_NODES = create_fallback_node_list(read_json('fallback_lnnodes_testnet4.json', {}))
     CHECKPOINTS = read_json('checkpoints_testnet4.json', [])
     LN_DNS_SEEDS = []
 
@@ -200,6 +213,7 @@ class BitcoinSignet(BitcoinTestnet):
     BOLT11_HRP = "tbs"
     GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
     DEFAULT_SERVERS = read_json('servers_signet.json', {})
+    FALLBACK_LN_NODES = create_fallback_node_list(read_json('fallback_lnnodes_signet.json', {}))
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
