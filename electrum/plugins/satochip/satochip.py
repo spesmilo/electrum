@@ -38,7 +38,11 @@ SATOCHIP_PLUGIN_REVISION = 'lib0.11.a-plugin0.1'
 SATOCHIP_VID = 0  # 0x096E
 SATOCHIP_PID = 0  # 0x0503
 
-MSG_USE_2FA = _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. First you have to install the Satochip-2FA android app on google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. \n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!")
+MSG_USE_2FA = _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on "
+                "a second device such as your smartphone. First you have to install the Satochip-2FA android app on "
+                "google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the "
+                "next screen. \n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have "
+                "to reinstall the app!")
 
 
 def bip32path2bytes(bip32path: str) -> (int, bytes):
@@ -47,7 +51,7 @@ def bip32path2bytes(bip32path: str) -> (int, bytes):
     bytePath = b''
     for index in intPath:
         bytePath += index.to_bytes(4, byteorder='big', signed=False)
-    return (depth, bytePath)
+    return depth, bytePath
 
 
 class SatochipClient(HardwareClientBase):
@@ -118,7 +122,7 @@ class SatochipClient(HardwareClientBase):
         return True
 
     def verify_PIN(self, pin=None):
-        while (True):
+        while True:
             try:
                 # when pin is None, pysatochip use a cached pin if available
                 (response, sw1, sw2) = self.cc.card_verify_PIN_simple(pin)
@@ -222,7 +226,7 @@ class SatochipClient(HardwareClientBase):
                 return True, password
 
     def PIN_setup_dialog(self, msg, msg_confirm, msg_error):
-        while (True):
+        while True:
             (is_PIN, pin) = self.PIN_dialog(msg)
             if not is_PIN:
                 # return (False, None)
@@ -231,34 +235,33 @@ class SatochipClient(HardwareClientBase):
             (is_PIN, pin_confirm) = self.PIN_dialog(msg_confirm)
             if not is_PIN:
                 # return (False, None)
-                raise RuntimeError(
-                    ('A PIN confirmation is required to initialize the Satochip!'))
+                raise RuntimeError('A PIN confirmation is required to initialize the Satochip!')
             if pin != pin_confirm:
                 self.request('show_error', msg_error)
             else:
-                return (is_PIN, pin)
+                return is_PIN, pin
 
     def PIN_change_dialog(self, msg_oldpin, msg_newpin, msg_confirm, msg_error, msg_cancel):
         # old pin
         (is_PIN, oldpin) = self.PIN_dialog(msg_oldpin)
         if not is_PIN:
             self.request('show_message', msg_cancel)
-            return (False, None, None)
+            return False, None, None
 
         # new pin
-        while (True):
+        while True:
             (is_PIN, newpin) = self.PIN_dialog(msg_newpin)
             if not is_PIN:
                 self.request('show_message', msg_cancel)
-                return (False, None, None)
+                return False, None, None
             (is_PIN, pin_confirm) = self.PIN_dialog(msg_confirm)
             if not is_PIN:
                 self.request('show_message', msg_cancel)
-                return (False, None, None)
+                return False, None, None
             if newpin != pin_confirm:
                 self.request('show_error', msg_error)
             else:
-                return (True, oldpin, newpin)
+                return True, oldpin, newpin
 
 
 class Satochip_KeyStore(Hardware_KeyStore):
@@ -635,7 +638,7 @@ class SatochipPlugin(HW_PluginBase):
         seed_type, seed, passphrase = settings
 
         # check seed type:
-        if seed_type !=  'bip39':
+        if seed_type != 'bip39':
             _logger.error(
                 f"[SatochipPlugin] _import_seed() wrong seed type!")
             raise Exception(f'Wrong seed type {seed_type}: only BIP39 is supported!')
