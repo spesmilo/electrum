@@ -1,6 +1,7 @@
 from os import urandom
 import hashlib
 import time
+import electrum_ecc as ecc
 
 # electrum
 from electrum import constants
@@ -13,7 +14,7 @@ from electrum.wallet import Standard_Wallet
 from electrum.wizard import NewWalletWizard
 from electrum.util import UserFacingException
 from electrum.crypto import hash_160, sha256d
-from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig
+#from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 
@@ -432,10 +433,10 @@ class Satochip_KeyStore(Hardware_KeyStore):
 
             # enforce low-S signature (BIP 62)
             tx_sig = bytes(tx_sig)  # bytearray(tx_sig)
-            r, s = get_r_and_s_from_ecdsa_der_sig(tx_sig)
-            if s > CURVE_ORDER // 2:
-                s = CURVE_ORDER - s
-            tx_sig = ecdsa_der_sig_from_r_and_s(r, s)
+            r, s = ecc.get_r_and_s_from_ecdsa_der_sig(tx_sig)
+            if s > ecc.CURVE_ORDER // 2:
+                s = ecc.CURVE_ORDER - s
+            tx_sig = ecc.ecdsa_der_sig_from_r_and_s(r, s)
             # update tx with signature
             tx_sig = tx_sig + Sighash.to_sigbytes(Sighash.ALL)
             tx.add_signature_to_txin(
