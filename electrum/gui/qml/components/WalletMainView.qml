@@ -131,6 +131,38 @@ Item {
         Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
     }
 
+    function startSweep() {
+        var dialog = sweepDialog.createObject(app)
+        dialog.accepted.connect(function() {
+            var finalizerDialog = confirmSweepDialog.createObject(mainView, {
+                privateKeys: dialog.privateKeys,
+                message: qsTr('Sweep transaction'),
+                showOptions: false,
+                amountLabelText: qsTr('Total sweep amount'),
+                sendButtonText: qsTr('Sweep')
+            })
+            finalizerDialog.accepted.connect(function() {
+                if (Daemon.currentWallet.isWatchOnly) {
+                    var confirmdialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Confirm Sweep'),
+                        text: qsTr('Current wallet is watch-only. You might not be able to spend from these addresses.\n\nAre you sure?'),
+                        yesno: true
+                    })
+                    confirmdialog.accepted.connect(function() {
+                        finalizerDialog.finalizer.send()
+                        close()
+                    })
+                    confirmdialog.open()
+                    return
+                }
+                console.log("Sending sweep transaction")
+                finalizerDialog.finalizer.send()
+            })
+            finalizerDialog.open()
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
         id: menu
 
@@ -182,6 +214,18 @@ Item {
                 onTriggered: {
                     var dialog = app.signVerifyMessageDialog.createObject(app)
                     dialog.open()
+                    menu.deselect()
+                }
+            }
+        }
+
+        MenuItem {
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/sweep.png'
+            action: Action {
+                text: qsTr('Sweep key')
+                onTriggered: {
+                    startSweep()
                     menu.deselect()
                 }
             }
@@ -441,7 +485,7 @@ Item {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
-                text: message
+                text: message ? message : qsTr('Payment failed')
             })
             dialog.open()
         }
@@ -600,11 +644,35 @@ Item {
                     }
                     _confirmPaymentDialog.destroy()
                 }
+                onSignError: (message) => {
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Error'),
+                        text: [qsTr('Could not sign tx'), message].join('\n\n'),
+                        iconSource: '../../../icons/warning.png'
+                    })
+                    dialog.open()
+                }
             }
             // TODO: lingering confirmPaymentDialogs can raise exceptions in
             // the child finalizer when currentWallet disappears, but we need
             // it long enough for the finalizer to finish..
             // onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: confirmSweepDialog
+        ConfirmTxDialog {
+            id: _confirmSweepDialog
+
+            property string privateKeys
+            title: qsTr('Confirm Sweep')
+            satoshis: MAX
+            finalizer: SweepFinalizer {
+                wallet: Daemon.currentWallet
+                canRbf: true
+                privateKeys: _confirmSweepDialog.privateKeys
+            }
         }
     }
 
@@ -631,6 +699,13 @@ Item {
     Component {
         id: exportTxDialog
         ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: sweepDialog
+        SweepDialog {
             onClosed: destroy()
         }
     }

@@ -40,7 +40,9 @@ import itertools
 import binascii
 import copy
 
-from . import ecc, bitcoin, constants, segwit_addr, bip32
+import electrum_ecc as ecc
+
+from . import bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
 from .i18n import _
 from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend
@@ -415,7 +417,7 @@ class TxInput:
         if self.script_sig is not None:
             d['scriptSig'] = self.script_sig.hex()
         if self.witness is not None:
-            d['witness'] = self.witness.hex()
+            d['witness'] = [x.hex() for x in self.witness_elements()]
         return d
 
     def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
@@ -615,6 +617,9 @@ def script_GetOp(_bytes : bytes):
                 try: (nSize,) = struct.unpack_from('<I', _bytes, i)
                 except struct.error: raise MalformedBitcoinScript()
                 i += 4
+            if i + nSize > len(_bytes):
+                raise MalformedBitcoinScript(
+                    f"Push of data element that is larger than remaining data: {nSize} vs {len(_bytes) - i}")
             vch = _bytes[i:i + nSize]
             i += nSize
 
@@ -910,6 +915,10 @@ class Transaction:
 
         if not txin.is_segwit():
             return construct_witness([])
+
+        if estimate_size and hasattr(txin, 'make_witness'):
+            sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
+            txin.witness_sizehint = len(txin.make_witness(sig_dummy))
 
         if estimate_size and txin.witness_sizehint is not None:
             return bytes(txin.witness_sizehint)
@@ -1737,7 +1746,8 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            self.witness_script = None
+            # FIXME: side effect interfers with make_witness
+            # self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
             clear_fields_when_finalized()
@@ -2159,16 +2169,18 @@ class PartialTransaction(Transaction):
     def outputs(self) -> Sequence[PartialTxOutput]:
         return self._outputs
 
-    def add_inputs(self, inputs: List[PartialTxInput]) -> None:
+    def add_inputs(self, inputs: List[PartialTxInput], BIP69_sort=True) -> None:
         self._inputs.extend(inputs)
-        self.BIP69_sort(outputs=False)
+        if BIP69_sort:
+            self.BIP69_sort(outputs=False)
         self.invalidate_ser_cache()
 
-    def add_outputs(self, outputs: List[PartialTxOutput], *, merge_duplicates: bool = False) -> None:
+    def add_outputs(self, outputs: List[PartialTxOutput], *, merge_duplicates: bool = False, BIP69_sort: bool = True) -> None:
         self._outputs.extend(outputs)
         if merge_duplicates:
             self._outputs = merge_duplicate_tx_outputs(self._outputs)
-        self.BIP69_sort(inputs=False)
+        if BIP69_sort:
+            self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
 
     def set_rbf(self, rbf: bool) -> None:
@@ -2286,7 +2298,7 @@ class PartialTransaction(Transaction):
                     break
                 if pubkey not in keypairs:
                     continue
-                _logger.info(f"adding signature for {pubkey}. spending utxo {txin.prevout.to_str()}")
+                _logger.info(f"adding signature for {pubkey.hex()}. spending utxo {txin.prevout.to_str()}")
                 sec = keypairs[pubkey]
                 sig = self.sign_txin(i, sec, sighash_cache=sighash_cache)
                 self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey, sig=sig)

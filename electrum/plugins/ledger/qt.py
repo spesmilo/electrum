@@ -63,7 +63,7 @@ class Ledger_Handler(QtHandlerBase):
         self.auth_signal.connect(self.auth_dialog)
 
     def word_dialog(self, msg):
-        response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.Password)
+        response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.EchoMode.Password)
         if not response[1]:
             self.word = None
         else:

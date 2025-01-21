@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 from electrum.plugin import BasePlugin, hook
 
-from .server import SwapServer
+from .server import HttpSwapServer
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -49,12 +49,6 @@ class SwapServerPlugin(BasePlugin):
         # we use the first wallet loaded
         if self.server is not None:
             return
-        if self.config.NETWORK_OFFLINE:
-            return
-
-        self.server = SwapServer(self.config, wallet)
         sm = wallet.lnworker.swap_manager
-        for coro in [
-            self.server.run(),
-        ]:
-            asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(coro), daemon.asyncio_loop)
+        sm.is_server = True
+        sm.http_server = HttpSwapServer(self.config, wallet)

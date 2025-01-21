@@ -28,6 +28,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
     """Base class for our unit tests."""
 
     TESTNET = False
+    TEST_ANCHOR_CHANNELS = False
     # maxDiff = None  # for debugging
 
     # some unit tests are modifying globals... so we run sequentially:

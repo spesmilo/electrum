@@ -32,6 +32,12 @@ export YARL_NO_EXTENSIONS=1
 export MULTIDICT_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
 
+export ELECTRUM_ECC_DONT_COMPILE=1
+
+# see https://github.com/python-websockets/websockets/blob/e6d0ea1d6b13a979924329d02fb82f79d82c7236/setup.py#L22
+export BUILD_EXTENSION="no"
+
+
 # if we end up having to compile something, at least give reproducibility a fighting chance
 export LC_ALL=C
 export TZ=UTC
@@ -51,3 +57,5 @@ export BUILD_TIME="$(LC_ALL=C TZ=UTC date +'%H:%M:%S' -d @$SOURCE_DATE_EPOCH)"
 #       instead of downloading the latest ones
 python3 -m pip install --no-build-isolation --no-compile --no-dependencies --no-binary :all: \
     -r "$CONTRIB"/deterministic-build/requirements.txt -t "$PACKAGES"
+
+echo "Pure-python dependencies have been placed into $PACKAGES"

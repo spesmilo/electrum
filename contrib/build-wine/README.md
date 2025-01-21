@@ -3,6 +3,8 @@
 ✓ _These binaries should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
+- _Minimum supported target system (i.e. what end-users need): x86_64, Windows 10 (1809)_
+
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system.
 

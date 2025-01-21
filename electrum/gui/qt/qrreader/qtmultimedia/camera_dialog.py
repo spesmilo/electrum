@@ -171,7 +171,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         """
 
         self.validator = QrReaderValidatorCounted()
-        self.validator.strong_count = 5  # FIXME: make this time based rather than framect based
 
         device_info = None
 
@@ -322,8 +321,8 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         if last_stats_delta > 1.0:  # stats every 1.0 seconds
             fps = self.frame_counter / last_stats_delta
             qr_fps = self.qr_frame_counter / last_stats_delta
-            if self.validator is not None:
-                self.validator.strong_count = math.ceil(qr_fps / 3)  # 1/3 of a second's worth of qr frames determines strong_count
+            #if self.validator is not None:
+            #    self.validator.strong_count = math.ceil(qr_fps / 3)  # 1/3 of a second's worth of qr frames determines strong_count
             stats_format = 'running at {} FPS, scanner at {} FPS'
             self.logger.info(stats_format.format(fps, qr_fps))
             self.frame_counter = 0

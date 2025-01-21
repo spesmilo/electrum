@@ -31,10 +31,11 @@ import hashlib
 import hmac
 from typing import Union, Mapping, Optional
 
+import electrum_ecc as ecc
+
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
 from .logging import get_logger
-from . import ecc
 
 _logger = get_logger(__name__)
 
@@ -445,7 +446,12 @@ def chacha20_decrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
     raise Exception("no chacha20 backend found")
 
 
-def ecies_encrypt_message(ec_pubkey, message: bytes, *, magic: bytes = b'BIE1') -> bytes:
+def ecies_encrypt_message(
+    ec_pubkey: 'ecc.ECPubkey',
+    message: bytes,
+    *,
+    magic: bytes = b'BIE1',
+) -> bytes:
     """
         ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
     """
@@ -461,7 +467,12 @@ def ecies_encrypt_message(ec_pubkey, message: bytes, *, magic: bytes = b'BIE1') 
     return base64.b64encode(encrypted + mac)
 
 
-def ecies_decrypt_message(ec_privkey, encrypted: Union[str, bytes], *, magic: bytes=b'BIE1') -> bytes:
+def ecies_decrypt_message(
+    ec_privkey: 'ecc.ECPrivkey',
+    encrypted: Union[str, bytes],
+    *,
+    magic: bytes = b'BIE1',
+) -> bytes:
     encrypted = base64.b64decode(encrypted)  # type: bytes
     if len(encrypted) < 85:
         raise Exception('invalid ciphertext: length')
@@ -481,3 +492,11 @@ def ecies_decrypt_message(ec_privkey, encrypted: Union[str, bytes], *, magic: by
     if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
         raise InvalidPassword()
     return aes_decrypt_with_iv(key_e, iv, ciphertext)
+
+
+def get_ecdh(priv: bytes, pub: bytes) -> bytes:
+    pt = ecc.ECPubkey(pub) * ecc.string_to_number(priv)
+    return sha256(pt.get_public_key_bytes())
+
+def privkey_to_pubkey(priv: bytes) -> bytes:
+    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()

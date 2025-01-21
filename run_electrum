@@ -27,7 +27,7 @@ import os
 import sys
 
 
-MIN_PYTHON_VERSION = "3.8.0"  # FIXME duplicated from setup.py
+MIN_PYTHON_VERSION = "3.10.0"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 
@@ -51,8 +51,9 @@ is_local = (not is_binary_distributable
 is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
 if is_git_clone:
-    # developers should probably see all deprecation warnings.
-    warnings.simplefilter('default', DeprecationWarning)
+    # developers should probably see all deprecation warnings unless explicitly overruled
+    if not any(['DeprecationWarning' in x for x in sys.warnoptions]):
+        warnings.simplefilter('default', DeprecationWarning)
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
@@ -74,8 +75,8 @@ def check_imports():
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
-    if not ((0, 22, 0) <= aiorpcx._version < (0, 24)):
-        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.24')
+    if not ((0, 22, 0) <= aiorpcx._version < (0, 25)):
+        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.25')
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -209,6 +210,7 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devmgr = plugins.device_manager
     try:
         client = devmgr.client_by_id(device_info.device.id_)
+        client.handler = client.plugin.create_handler(None)
         return client.get_password_for_storage_encryption()
     except UserCancelled:
         sys.exit(0)
@@ -324,10 +326,14 @@ def main():
             'cmd': 'gui',
             SimpleConfig.GUI_NAME.key(): 'qml',
             SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.SWAPSERVER_URL: 'https://swaps.electrum.org/api',
         }
         if util.get_android_package_name() == "org.electrum.testnet.electrum":
             # ~hack for easier testnet builds. pkgname subject to change.
             config_options['testnet'] = True
+        elif util.get_android_package_name() == "org.electrum.regtest.electrum":
+            # ~hack for easier regtest builds. pkgname subject to change.
+            config_options['regtest'] = True
     else:
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()

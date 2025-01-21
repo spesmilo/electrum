@@ -11,11 +11,16 @@ WizardComponent {
         wizard_data['wallet_name'] = wallet_name.text
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('Wallet name') }
+    ColumnLayout {
+        width: parent.width
+
+        Label {
+            text: qsTr('Wallet name')
+        }
+
         TextField {
             id: wallet_name
+            Layout.fillWidth: true
             focus: true
             text: Daemon.suggestWalletName()
             inputMethodHints: Qt.ImhNoPredictiveText

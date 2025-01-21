@@ -10,6 +10,8 @@ To generate an APK file, follow these instructions.
 ✓ _These binaries should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
+- _Minimum supported target system (i.e. what end-users need): Android 6.0 (API 23)_
+
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system.
 
@@ -145,10 +147,25 @@ $ adb push ~/wspace/tmp/my_wallet /data/local/tmp
 $ adb shell
 adb$ ls -la /data/local/tmp
 adb$ run-as org.electrum.testnet.electrum cp /data/local/tmp/my_wallet /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets/
+adb$ run-as org.electrum.testnet.electrum chmod -R 700 /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
+adb$ run-as org.electrum.testnet.electrum chmod -R u-x,u+X /data/data/org.electrum.testnet.electrum/files/data/testnet/wallets
 adb$ rm /data/local/tmp/my_wallet
 ```
 
 Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
+
+#### Device with multiple user profiles
+
+There are further complications if using an Android device
+[with multiple user profiles](https://source.android.com/docs/devices/admin/multi-user-testing)
+(typical for GrapheneOS/etc).
+
+Run `$ adb shell pm list users` to get a list of all existing users, and take note of the user ids.
+
+Instead of `/data/data/{app.path}`, private app data is stored at `/data/user/{userId}/{app.path}`.
+
+Further, instead of `adb$ run-as org.electrum.electrum`,
+you need `adb$ run-as org.electrum.electrum --user {userId}`.
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
@@ -156,12 +173,22 @@ cd dist/
 unzip Electrum-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
 tar -xzvf apk1/assets/private.tar --directory apk1/assets/private_mp3/
+mkdir apk1/lib/_libpybundle/
+tar -xzvf apk1/lib/*/libpybundle.so --directory apk1/lib/_libpybundle/
 
 unzip Electrum-*.apk2 -d apk2
 mkdir apk2/assets/private_mp3/
 tar -xzvf apk2/assets/private.tar --directory apk2/assets/private_mp3/
+mkdir apk2/lib/_libpybundle/
+tar -xzvf apk2/lib/*/libpybundle.so --directory apk2/lib/_libpybundle/
 
-sudo chown --recursive "$(id -u -n)" apk1/ apk2/
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
+chmod -R +Xr  apk1/ apk2/
+
+unzip apk1/lib/_libpybundle/_python_bundle/stdlib.zip -d apk1/lib/_libpybundle/_python_bundle/stdlib
+unzip apk2/lib/_libpybundle/_python_bundle/stdlib.zip -d apk2/lib/_libpybundle/_python_bundle/stdlib
+
+sudo chown --recursive "$(id -u -n)":"$(id -u -n)" apk1/ apk2/
 chmod -R +Xr  apk1/ apk2/
 $(cd apk1; find -type f -exec sha256sum '{}' \; > ./../sha256sum1)
 $(cd apk2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)

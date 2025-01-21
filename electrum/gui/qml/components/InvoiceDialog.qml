@@ -435,7 +435,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Pay')
+                text: qsTr('Pay...')
                 icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {

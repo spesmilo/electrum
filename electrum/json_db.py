@@ -88,7 +88,10 @@ def key_path(path, key):
         else:
             assert isinstance(x, str)
             return x
-    return '/' + '/'.join([to_str(x) for x in path + [to_str(key)]])
+    items = [to_str(x) for x in path]
+    if key is not None:
+        items.append(to_str(key))
+    return '/' + '/'.join(items)
 
 
 class StoredObject:
@@ -208,6 +211,12 @@ class StoredList(list):
         list.remove(self, item)
         if self.db:
             self.db.add_patch({'op': 'remove', 'path': key_path(self.path, '%d'%n)})
+
+    @locked
+    def clear(self):
+        list.clear(self)
+        if self.db:
+            self.db.add_patch({'op': 'replace', 'path': key_path(self.path, None), 'value':[]})
 
 
 

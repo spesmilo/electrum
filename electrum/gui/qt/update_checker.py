@@ -4,6 +4,7 @@
 
 import asyncio
 import base64
+from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
@@ -102,6 +103,7 @@ class UpdateCheckThread(QThread, Logger):
         QThread.__init__(self)
         Logger.__init__(self)
         self.network = Network.get_instance()
+        self._fut = None  # type: Optional[asyncio.Future]
 
     async def get_update_info(self):
         # note: Use long timeout here as it is not critical that we get a response fast,
@@ -137,10 +139,17 @@ class UpdateCheckThread(QThread, Logger):
         if not self.network:
             self.failed.emit()
             return
+        self._fut = asyncio.run_coroutine_threadsafe(self.get_update_info(), self.network.asyncio_loop)
         try:
-            update_info = asyncio.run_coroutine_threadsafe(self.get_update_info(), self.network.asyncio_loop).result()
+            update_info = self._fut.result()
         except Exception as e:
             self.logger.info(f"got exception: '{repr(e)}'")
             self.failed.emit()
         else:
             self.checked.emit(update_info)
+
+    def stop(self):
+        if self._fut:
+            self._fut.cancel()
+        self.exit()
+        self.wait()

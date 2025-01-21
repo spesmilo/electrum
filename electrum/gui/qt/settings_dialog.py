@@ -130,6 +130,7 @@ class SettingsDialog(QDialog, QtEventListener):
             else:
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
+            legacy_add_trampoline_cb.setEnabled(use_trampoline)
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
@@ -137,6 +138,7 @@ class SettingsDialog(QDialog, QtEventListener):
 
         legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
         legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
+        legacy_add_trampoline_cb.setEnabled(trampoline_cb.isChecked())
         def on_legacy_add_trampoline_checked(_x):
             self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
         legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
@@ -191,6 +193,13 @@ class SettingsDialog(QDialog, QtEventListener):
         self.alias_e = QLineEdit(alias)
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
+
+        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
+        nostr_relays = self.config.NOSTR_RELAYS
+        self.nostr_relays_e = QLineEdit(nostr_relays)
+        def on_nostr_edit():
+            self.config.NOSTR_RELAYS = str(self.nostr_relays_e.text())
+        self.nostr_relays_e.editingFinished.connect(on_nostr_edit)
 
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
@@ -390,6 +399,7 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
+        misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 

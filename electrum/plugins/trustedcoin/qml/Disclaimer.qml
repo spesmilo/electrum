@@ -17,7 +17,7 @@ WizardComponent {
         Image {
             Layout.alignment: Qt.AlignHCenter
             Layout.bottomMargin: constants.paddingLarge
-            source: '../../../gui/icons/trustedcoin-wizard.png'
+            source: '../trustedcoin-wizard.png'
         }
 
         Label {

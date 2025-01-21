@@ -15,8 +15,10 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.logging import Logger
 
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available
+from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.plugins.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
+from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
+
 from .keepkey import KeepKeyPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WalletWizardComponent
@@ -318,7 +320,6 @@ class Plugin(KeepKeyPlugin, QtPlugin):
 
     @classmethod
     def pin_matrix_widget_class(self):
-        from keepkeylib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
 
     @hook

@@ -259,6 +259,35 @@ class Bitbank(ExchangeBase):
         return {'JPY': to_decimal(json['data']['last'])}
 
 
+class BitFinex(ExchangeBase):
+
+    async def get_currencies(self):
+        json = await self.get_json(
+            'api-pub.bitfinex.com',
+            f"/v2/conf/pub:list:pair:exchange")
+        pairs = [pair for pair in json[0]
+                 if len(pair) == 6 and pair[:3] == "BTC"]
+        return [pair[3:] for pair in pairs]
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def get_rates(self, ccy):
+        # ref https://docs.bitfinex.com/reference/rest-public-ticker
+        json = await self.get_json(
+            'api-pub.bitfinex.com',
+            f"/v2/ticker/tBTC{ccy}")
+        return {ccy: to_decimal(json[6])}
+
+    async def request_history(self, ccy):
+        # ref https://docs.bitfinex.com/reference/rest-public-candles
+        history = await self.get_json(
+            'api.bitfinex.com',
+            f"/v2/candles/trade:1D:tBTC{ccy}/hist?limit=10000")
+        return dict([(timestamp_to_datetime(h[0] // 1000, utc=True).strftime('%Y-%m-%d'), str(h[2]))
+                     for h in history])
+
+
 class BitFlyer(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -283,13 +312,49 @@ class Bitso(ExchangeBase):
 class BitStamp(ExchangeBase):
 
     async def get_currencies(self):
-        return ['USD', 'EUR']
+        # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetCurrencyPairTickers
+        json = await self.get_json(
+            'www.bitstamp.net',
+            f"/api/v2/ticker/")
+        pairs = [ticker["pair"] for ticker in json]
+        pairs = [pair for pair in pairs
+                 if len(pair) == 7 and pair[:4] == "BTC/"]
+        return [pair[4:] for pair in pairs]
 
     async def get_rates(self, ccy):
+        # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetMarketTicker
         if ccy in CURRENCIES[self.name()]:
             json = await self.get_json('www.bitstamp.net', f'/api/v2/ticker/btc{ccy.lower()}/')
             return {ccy: to_decimal(json['last'])}
         return {}
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        # ref https://www.bitstamp.net/api/#tag/Market-info/operation/GetOHLCData
+        merged_history = {}
+        history_starts = 1313625600  # for BTCUSD pair (probably earliest)
+        items_per_request = 1000
+        step = 86400
+
+        async def populate_history(endtime: int):
+            history = await self.get_json(
+                'www.bitstamp.net',
+                f"/api/v2/ohlc/btc{ccy.lower()}/?step={step}&limit={items_per_request}&end={endtime}")
+            history = dict([
+                (timestamp_to_datetime(int(h["timestamp"]), utc=True).strftime('%Y-%m-%d'), str(h["close"]))
+                for h in history["data"]["ohlc"]])
+            merged_history.update(history)
+
+        async with OldTaskGroup() as group:
+            endtime = int(time.time())
+            while True:
+                if endtime < history_starts:
+                    break
+                await group.spawn(populate_history(endtime=endtime))
+                endtime = endtime - items_per_request * step
+        return merged_history
 
 
 class Bitvalor(ExchangeBase):
@@ -380,6 +445,7 @@ class CoinGecko(ExchangeBase):
         return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
+        # ref https://docs.coingecko.com/v3.0.1/reference/coins-id-market-chart
         num_days = 365
         # Setting `num_days = "max"` started erroring (around 2024-04) with:
         # > Your request exceeds the allowed time range. Public API users are limited to querying
@@ -429,12 +495,17 @@ class itBit(ExchangeBase):
 class Kraken(ExchangeBase):
 
     async def get_rates(self, ccy):
+        # ref https://docs.kraken.com/api/docs/rest-api/get-ticker-information
         ccys = ['EUR', 'USD', 'CAD', 'GBP', 'JPY']
         pairs = ['XBT%s' % c for c in ccys]
         json = await self.get_json('api.kraken.com',
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
         return dict((k[-3:], to_decimal(v['c'][0]))
                      for k, v in json['result'].items())
+
+    # async def request_history(self, ccy):
+    #     # ref https://docs.kraken.com/api/docs/rest-api/get-ohlc-data
+    #     pass  # limited to last 720 steps (step can by 1 day / 7 days / 15 days)
 
 
 class MercadoBitcoin(ExchangeBase):
@@ -526,11 +597,14 @@ def get_exchanges_and_currencies():
                 for name, klass in exchanges.items():
                     exchange = klass(None, None)
                     await group.spawn(get_currencies_safe(name, exchange))
-    loop = util.get_asyncio_loop()
+
+    loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(query_all_exchanges_for_their_ccys_over_network())
     except Exception as e:
         pass
+    finally:
+        loop.close()
     with open(path, 'w', encoding='utf-8') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))
     return d

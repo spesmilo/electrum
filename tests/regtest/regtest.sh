@@ -2,6 +2,8 @@
 export HOME=~
 set -eu
 
+TEST_ANCHOR_CHANNELS=True
+
 # alice -> bob -> carol
 
 alice="./run_electrum --regtest -D /tmp/alice"
@@ -89,6 +91,7 @@ if [[ $1 == "init" ]]; then
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
+    $agent setconfig --offline enable_anchor_channels $TEST_ANCHOR_CHANNELS
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
@@ -153,6 +156,7 @@ if [[ $1 == "backup" ]]; then
     echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel1=$($alice open_channel $bob_node 0.15 --password='')
+    new_blocks 1  # cannot open multiple chans with same node in same block
     $alice setconfig use_recoverable_channels False
     channel2=$($alice open_channel $bob_node 0.15 --password='')
     new_blocks 3
@@ -169,7 +173,8 @@ if [[ $1 == "backup" ]]; then
     $alice request_force_close $channel1
     echo "request force close $channel2"
     $alice request_force_close $channel2
-    wait_for_balance alice 0.998
+    new_blocks 1
+    wait_for_balance alice 0.997
 fi
 
 
@@ -229,6 +234,27 @@ if [[ $1 == "swapserver_success" ]]; then
 fi
 
 
+if [[ $1 == "swapserver_forceclose" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='')
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates swap"
+    dryrun=$($alice reverse_swap 0.02 dryrun)
+    onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
+    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    echo $swap | jq
+    funding_txid=$(echo $swap| jq -r ".funding_txid")
+    $bob close_channel --force $channel
+    new_blocks 1
+    wait_until_spent $funding_txid 0 # alice reveals preimage
+    new_blocks 1
+    wait_for_balance bob 0.999
+fi
+
+
 if [[ $1 == "swapserver_refund" ]]; then
     $alice setconfig test_swapserver_refund true
     wait_for_balance alice 1
@@ -252,6 +278,8 @@ fi
 
 if [[ $1 == "extract_preimage" ]]; then
     # instead of settling bob will broadcast
+    $alice setconfig test_force_disable_mpp false
+    $alice setconfig test_force_mpp true
     $bob enable_htlc_settle false
     wait_for_balance alice 1
     echo "alice opens channel"
@@ -397,8 +425,16 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
-    wait_until_spent $ctx_id 0
-    wait_until_spent $ctx_id 1
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        # to_local_anchor/to_remote_anchor: 0 and 1 (both are present due to untrimmed htlcs)
+        # htlc: 2, to_local: 3
+        wait_until_spent $ctx_id 2
+        wait_until_spent $ctx_id 3
+    else
+        # htlc: 0, to_local: 1
+        wait_until_spent $ctx_id 0
+        wait_until_spent $ctx_id 1
+    fi
     new_blocks 1
     echo "bob comes back"
     $bob daemon -d
@@ -423,12 +459,12 @@ if [[ $1 == "watchtower" ]]; then
     echo "alice pays bob again"
     invoice2=$($bob add_request 0.01 -m "invoice2" | jq -r ".lightning_invoice")
     $alice lnpay $invoice2
-    alice_ctn=$($alice list_channels | jq '.[0].local_ctn')
+    bob_ctn=$($bob list_channels | jq '.[0].local_ctn')
     msg="waiting until watchtower is synchronized"
     # watchtower needs to be at latest revoked ctn
-    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((alice_ctn-1)) ]]; do
+    while watchtower_ctn=$($bob get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((bob_ctn-1)) ]]; do
         sleep 0.1
-        printf "$msg $alice_ctn $watchtower_ctn\r"
+        printf "$msg $bob_ctn $watchtower_ctn\r"
     done
     printf "\n"
     echo "stopping alice and bob"
@@ -437,7 +473,12 @@ if [[ $1 == "watchtower" ]]; then
     ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     echo "watchtower publishes justice transaction"
-    wait_until_spent $ctx_id 1  # alice's to_local gets punished immediately
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        output_index=3
+    else
+        output_index=1
+    fi
+    wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
 fi
 
 if [[ $1 == "just_in_time" ]]; then

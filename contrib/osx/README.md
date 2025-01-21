@@ -4,6 +4,8 @@ Building macOS binaries
 ✓ _This binary should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
+- _Minimum supported target system (i.e. what end-users need): macOS 11_
+
 This guide explains how to build Electrum binaries for macOS systems.
 
 

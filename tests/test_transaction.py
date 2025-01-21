@@ -2,15 +2,17 @@ import json
 import os
 from typing import NamedTuple, Union
 
+from electrum_ecc import ECPrivkey
+
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
-                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, TxOutput)
+                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, TxOutput, script_GetOp,
+                                  MalformedBitcoinScript)
 from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
-from electrum.ecc import ECPrivkey
 from electrum import descriptor
 
 from .test_bitcoin import disable_ecdsa_r_value_grinding
@@ -89,6 +91,16 @@ class TestTransaction(ElectrumTestCase):
         self.assertFalse(match_script_against_template(script, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT))
         script = construct_script([opcodes.OP_0, bytes(50)])
         self.assertFalse(match_script_against_template(script, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT))
+
+    def test_script_GetOp(self):
+        # TODO add more test cases for script_GetOp
+        # cases from https://github.com/bitcoinj/bitcoinj/blob/09defa626648687f8bd6ea7d197818249eebd3c8/core/src/test/resources/org/bitcoinj/script/script_tests.json#L721-L723
+        with self.assertRaises(MalformedBitcoinScript):
+            [x for x in script_GetOp(bfh("4c01"))]            # PUSHDATA1 with not enough bytes
+        with self.assertRaises(MalformedBitcoinScript):
+            [x for x in script_GetOp(bfh("4d0200ff"))]        # PUSHDATA2 with not enough bytes
+        with self.assertRaises(MalformedBitcoinScript):
+            [x for x in script_GetOp(bfh("4e03000000ffff"))]  # PUSHDATA4 with not enough bytes
 
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")

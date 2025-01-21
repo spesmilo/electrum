@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-from .confirm_tx_dialog import ConfirmTxDialog, TxEditor, TxSizeLabel, HelpLabel
+from .confirm_tx_dialog import TxEditor, TxSizeLabel, HelpLabel
 
 class _BaseRBFDialog(TxEditor):
 
@@ -40,11 +40,17 @@ class _BaseRBFDialog(TxEditor):
         self.old_tx_size = tx.estimated_size()
         self.old_fee_rate = old_fee_rate = self.old_fee / self.old_tx_size  # sat/vbyte
 
+        output_value = sum([txo.value for txo in tx.outputs() if not txo.is_mine])
+        if output_value == 0:
+            output_value = tx.output_value()
+
         TxEditor.__init__(
             self,
             window=main_window,
             title=title,
-            make_tx=self.rbf_func)
+            make_tx=self.rbf_func,
+            output_value=output_value,
+        )
 
         self.fee_e.setFrozen(True)  # disallow setting absolute fee for now, as wallet.bump_fee can only target feerate
         new_fee_rate = self.old_fee_rate + max(1, self.old_fee_rate // 20)

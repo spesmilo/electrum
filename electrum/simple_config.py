@@ -242,6 +242,9 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+    def list_config_vars(self) -> Sequence[str]:
+        return list(sorted(_config_var_from_key.keys()))
+
     def electrum_path_root(self):
         # Read electrum_path from command line
         # Otherwise use the user's default data directory.
@@ -922,15 +925,6 @@ class SimpleConfig(Logger):
                     f"Either use config.cv.{name}.set() or assign to config.{name} instead.")
         return CVLookupHelper()
 
-    def _default_swapserver_url(self) -> str:
-        if constants.net == constants.BitcoinMainnet:
-            default = 'https://swaps.electrum.org/api'
-        elif constants.net == constants.BitcoinTestnet:
-            default = 'https://swaps.electrum.org/testnet'
-        else:
-            default = 'http://localhost:5455'
-        return default
-
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
@@ -1025,13 +1019,6 @@ Downloading the network gossip uses quite some bandwidth and storage, and is not
 Note that static backups only allow you to request a force-close with the remote node. This assumes that the remote node is still online, did not lose its data, and accepts to force close the channel.
 
 If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."""),
-    )
-    LIGHTNING_ALLOW_INSTANT_SWAPS = ConfigVar(
-        'allow_instant_swaps', default=False, type_=bool,
-        short_desc=lambda: _("Allow instant swaps"),
-        long_desc=lambda: _("""If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed.
-
-Note you are at risk of losing the funds in the swap, if the funding transaction never confirms."""),
     )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
@@ -1201,11 +1188,27 @@ Warning: setting this to too low will result in lots of payment failures."""),
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
     # connect to remote submarine swap server
-    SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
+    SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
     # run submarine swap server locally
-    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
+    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=None, type_=int)
+    SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
+    SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
 
+    # nostr
+    NOSTR_RELAYS = ConfigVar(
+        'nostr_relays',
+        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
+        type_=str,
+        short_desc=lambda: _("Nostr relays"),
+        long_desc=lambda: ' '.join([
+            _('Nostr relays are used to send and receive submarine swap offers'),
+            _('If this list is empty, Electrum will use http instead'),
+        ]),
+    )
+
+    # anchor outputs channels
+    ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=False, type_=bool)
     # zeroconf channels
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)

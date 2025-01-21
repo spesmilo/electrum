@@ -159,54 +159,40 @@ ElDialog {
             }
         }
 
-        ColumnLayout {
-            Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
+        ButtonContainer {
+            Layout.fillWidth: true
 
-            PageIndicator {
-                id: indicator
-
-                Layout.alignment: Qt.AlignHCenter
-
-                count: pages.count
-                currentIndex: pages.currentIndex
-            }
-
-            ButtonContainer {
+            FlatButton {
                 Layout.fillWidth: true
-
-                FlatButton {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    visible: pages.currentIndex == 0
-                    text: qsTr("Cancel")
-                    onClicked: wizard.doReject()
-                }
-                FlatButton {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    visible: pages.currentIndex > 0
-                    text: qsTr('Back')
-                    onClicked: pages.prev()
-                }
-                FlatButton {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    text: qsTr("Next")
-                    visible: !pages.lastpage
-                    enabled: pages.pagevalid
-                    onClicked: pages.next()
-                }
-                FlatButton {
-                    id: finishButton
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    text: qsTr("Finish")
-                    visible: pages.lastpage
-                    enabled: pages.pagevalid
-                    onClicked: pages.finish()
-                }
+                Layout.preferredWidth: 1
+                visible: pages.currentIndex == 0
+                text: qsTr("Cancel")
+                onClicked: wizard.doReject()
             }
-
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                visible: pages.currentIndex > 0
+                text: qsTr('Back')
+                onClicked: pages.prev()
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr("Next")
+                visible: !pages.lastpage
+                enabled: pages.pagevalid
+                onClicked: pages.next()
+            }
+            FlatButton {
+                id: finishButton
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr("Finish")
+                visible: pages.lastpage
+                enabled: pages.pagevalid
+                onClicked: pages.finish()
+            }
         }
     }
 

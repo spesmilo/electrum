@@ -573,7 +573,7 @@ class QEInvoiceParser(QEInvoice):
     def resolve_pi(self):
         assert self._pi.need_resolve()
 
-        def on_finished(pi):
+        def on_finished(pi: PaymentIdentifier):
             self._busy = False
             self.busyChanged.emit()
 
@@ -581,7 +581,7 @@ class QEInvoiceParser(QEInvoice):
                 if pi.type in [PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE]:
                     msg = _('Could not resolve address')
                 elif pi.type == PaymentIdentifierType.LNURLP:
-                    msg = _('Could not resolve LNURL')
+                    msg = _('Could not resolve LNURL') + "\n\n" + pi.get_error()
                 elif pi.type == PaymentIdentifierType.BIP70:
                     msg = _('Could not resolve BIP70 payment request: {}').format(pi.error)
                 else:

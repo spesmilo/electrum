@@ -44,7 +44,7 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, ESocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
                    is_int_or_float, is_non_negative_int_or_float, OldTaskGroup)
 from . import util
@@ -375,7 +375,7 @@ class Interface(Logger):
 
     LOGGING_SHORTCUT = 'i'
 
-    def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
+    def __init__(self, *, network: 'Network', server: ServerAddr):
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
         self.server = server
@@ -394,8 +394,9 @@ class Interface(Logger):
         #         addresses...? e.g. 192.168.x.x
         if util.is_localhost(server.host):
             self.logger.info(f"looks like localhost: not using proxy for this server")
-            proxy = None
-        self.proxy = MySocksProxy.from_proxy_dict(proxy)
+            self.proxy = None
+        else:
+            self.proxy = ESocksProxy.from_network_settings(network)
 
         # Latest block header and corresponding height, as claimed by the server.
         # Note that these values are updated before they are verified.
@@ -513,6 +514,9 @@ class Interface(Logger):
         else:
             # pinned self-signed cert
             sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
+            # note: Flag "ssl.VERIFY_X509_STRICT" is enabled by default in python 3.13+ (disabled in older versions).
+            #       We explicitly disable it as it breaks lots of servers.
+            sslc.verify_flags &= ~ssl.VERIFY_X509_STRICT
             sslc.check_hostname = False
         return sslc
 
@@ -784,7 +788,6 @@ class Interface(Logger):
         async with self.network.bhi_lock:
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
-                self.logger.info(f"skipping header {height}")
                 return False
             _, height = await self.step(height, header)
             # in the simple case, height == self.tip+1
@@ -831,13 +834,13 @@ class Interface(Logger):
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
         if not can_connect:
-            self.logger.info(f"can't connect {height}")
+            self.logger.info(f"can't connect new block: {height=}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
             assert chain or can_connect
         if can_connect:
-            self.logger.info(f"could connect {height}")
+            self.logger.info(f"new block: {height=}")
             height += 1
             if isinstance(can_connect, Blockchain):  # not when mocking
                 self.blockchain = can_connect

@@ -1,9 +1,9 @@
 import asyncio
 
+import electrum_ecc as ecc
+
 from electrum import util
-from electrum.ecc import ECPrivkey
-from electrum.lnutil import LNPeerAddr
-from electrum.lntransport import LNResponderTransport, LNTransport
+from electrum.lntransport import LNPeerAddr, LNResponderTransport, LNTransport, extract_nodeid, split_host_port, ConnStringFormatError
 from electrum.util import OldTaskGroup
 
 from . import ElectrumTestCase
@@ -45,8 +45,8 @@ class TestLNTransport(ElectrumTestCase):
     async def test_loop(self):
         responder_shaked = asyncio.Event()
         server_shaked = asyncio.Event()
-        responder_key = ECPrivkey.generate_random_key()
-        initiator_key = ECPrivkey.generate_random_key()
+        responder_key = ecc.ECPrivkey.generate_random_key()
+        initiator_key = ecc.ECPrivkey.generate_random_key()
         messages_sent_by_client = [
             b'hello from client',
             b'long data from client ' + bytes(range(256)) * 100 + b'... client done',
@@ -78,7 +78,7 @@ class TestLNTransport(ElectrumTestCase):
             responder_shaked.set()
         async def connect(port: int):
             peer_addr = LNPeerAddr('127.0.0.1', port, responder_key.get_public_key_bytes())
-            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, proxy=None)
+            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, e_proxy=None)
             await t.handshake()
             async with OldTaskGroup() as group:
                 await group.spawn(read_messages(t, messages_sent_by_server))
@@ -97,3 +97,39 @@ class TestLNTransport(ElectrumTestCase):
                 server.close()
 
         await f()
+
+    def test_split_host_port(self):
+        self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
+        self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800:9a:dc59:a4ff:fede:24a9]:9735"), ("2601:602:8800:9a:dc59:a4ff:fede:24a9", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800::a4ff:fede:24a9]:9735"), ("2601:602:8800::a4ff:fede:24a9", "9735"))
+        self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
+        self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
+        self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))
+        self.assertEqual(split_host_port("127.0.0.1"), ("127.0.0.1", "9735"))
+        # accepted by getaddrinfo but not ipaddress.ip_address
+        self.assertEqual(split_host_port("127.0.0:8000"), ("127.0.0", "8000"))
+        self.assertEqual(split_host_port("127.0.0"), ("127.0.0", "9735"))
+        self.assertEqual(split_host_port("electrum.org:8000"), ("electrum.org", "8000"))
+        self.assertEqual(split_host_port("electrum.org"), ("electrum.org", "9735"))
+
+        with self.assertRaises(ConnStringFormatError):
+            split_host_port("electrum.org:8000:")
+        with self.assertRaises(ConnStringFormatError):
+            split_host_port("electrum.org:")
+
+    def test_extract_nodeid(self):
+        pubkey1 = ecc.GENERATOR.get_public_key_bytes(compressed=True)
+        with self.assertRaises(ConnStringFormatError):
+            extract_nodeid("00" * 32 + "@localhost")
+        with self.assertRaises(ConnStringFormatError):
+            extract_nodeid("00" * 33 + "@")
+        # pubkey + host
+        self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44"), (pubkey1, "11.22.33.44"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]"), (pubkey1, "[2001:41d0:e:734::1]"))
+        # pubkey + host + port
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44:5555"), (pubkey1, "11.22.33.44:5555"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]:8888"), (pubkey1, "[2001:41d0:e:734::1]:8888"))
+        # just pubkey
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}"), (pubkey1, None))

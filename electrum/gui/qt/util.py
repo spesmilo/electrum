@@ -21,10 +21,10 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
 
 from electrum.i18n import _
 from electrum.util import FileImportFailed, FileExportFailed, resource_path
-from electrum.util import EventListener, event_listener, get_logger
+from electrum.util import EventListener, event_listener, get_logger, UserCancelled, UserFacingException
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import Logger
-from electrum.qrreader import MissingQrDetectionLib
+from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -371,32 +371,32 @@ class WaitingDialog(WindowModalDialog):
         self.message_label.setText(msg)
 
 
-class BlockingWaitingDialog(WindowModalDialog):
-    """Shows a waiting dialog whilst running a task.
-    Should be called from the GUI thread. The GUI thread will be blocked while
-    the task is running; the point of the dialog is to provide feedback
-    to the user regarding what is going on.
-    """
-    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any]):
-        assert parent
-        if isinstance(parent, MessageBoxMixin):
-            parent = parent.top_level_window()
-        WindowModalDialog.__init__(self, parent, _("Please wait"))
-        self.message_label = QLabel(message)
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(self.message_label)
-        self.finished.connect(self.deleteLater)  # see #3956
-        # show popup
-        self.show()
-        # refresh GUI; needed for popup to appear and for message_label to get drawn
-        QCoreApplication.processEvents()
-        QCoreApplication.processEvents()
-        try:
-            # block and run given task
-            task()
-        finally:
-            # close popup
-            self.accept()
+class RunCoroutineDialog(WaitingDialog):
+
+    def __init__(self, parent: QWidget, message: str, coroutine):
+        from electrum import util
+        import asyncio
+        import concurrent.futures
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
+        self._exception = None
+        self._result = None
+        self._future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+        def task():
+            try:
+                self._result = self._future.result()
+            except concurrent.futures.CancelledError:
+                self._exception = UserCancelled
+            except Exception as e:
+                self._exception = e
+        WaitingDialog.__init__(self, parent, message, task, on_cancel=self._future.cancel)
+
+    def run(self):
+        self.exec()
+        if self._exception:
+            raise self._exception
+        else:
+            return self._result
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
@@ -662,6 +662,28 @@ def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> Non
     m.exec(e.globalPos())
 
 
+def scan_qr_from_screenshot() -> QrCodeResult:
+    from .qrreader import scan_qr_from_image
+    screenshots = [screen.grabWindow(0).toImage()
+                   for screen in QApplication.instance().screens()]
+    if all(screen.allGray() for screen in screenshots):
+        raise UserFacingException(_("Failed to take screenshot."))
+    scanned_qr = None
+    for screenshot in screenshots:
+        try:
+            scan_result = scan_qr_from_image(screenshot)
+        except MissingQrDetectionLib as e:
+            raise UserFacingException(_("Unable to scan image.") + "\n" + repr(e))
+        if len(scan_result) > 0:
+            if (scanned_qr is not None) or len(scan_result) > 1:
+                raise UserFacingException(_("More than one QR code was found on the screen."))
+            scanned_qr = scan_result
+    if scanned_qr is None:
+        raise UserFacingException(_("No QR code was found on the screen."))
+    assert len(scanned_qr) == 1, f"{len(scanned_qr)=}, expected 1"
+    return scanned_qr[0]
+
+
 class GenericInputHandler:
     def input_qr_from_camera(
             self,
@@ -711,28 +733,12 @@ class GenericInputHandler:
     ) -> None:
         if setText is None:
             setText = self.setText
-        from .qrreader import scan_qr_from_image
-        screenshots = [screen.grabWindow(0).toImage()
-                       for screen in QApplication.instance().screens()]
-        if all(screen.allGray() for screen in screenshots):
-            show_error(_("Failed to take screenshot."))
+        try:
+            scanned_qr = scan_qr_from_screenshot()
+        except UserFacingException as e:
+            show_error(str(e))
             return
-        scanned_qr = None
-        for screenshot in screenshots:
-            try:
-                scan_result = scan_qr_from_image(screenshot)
-            except MissingQrDetectionLib as e:
-                show_error(_("Unable to scan image.") + "\n" + repr(e))
-                return
-            if len(scan_result) > 0:
-                if (scanned_qr is not None) or len(scan_result) > 1:
-                    show_error(_("More than one QR code was found on the screen."))
-                    return
-                scanned_qr = scan_result
-        if scanned_qr is None:
-            show_error(_("No QR code was found on the screen."))
-            return
-        data = scanned_qr[0].data
+        data = scanned_qr.data
         try:
             if allow_multi:
                 text = self.text()
@@ -1242,20 +1248,29 @@ def getSaveFileName(
 def icon_path(icon_basename: str):
     return resource_path('gui', 'icons', icon_basename)
 
+def internal_plugin_icon_path(plugin_name, icon_basename: str):
+    return resource_path('plugins', plugin_name, icon_basename)
+
 
 @lru_cache(maxsize=1000)
 def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
-def read_QIcon_from_bytes(b: bytes) -> QIcon:
+def read_QPixmap_from_bytes(b: bytes) -> QPixmap:
     qp = QPixmap()
     qp.loadFromData(b)
+    return qp
+
+def read_QIcon_from_bytes(b: bytes) -> QIcon:
+    qp = read_QPixmap_from_bytes(b)
     return QIcon(qp)
+
 
 class IconLabel(QWidget):
     HorizontalSpacing = 2
-    def __init__(self, *, text='', final_stretch=True):
+    def __init__(self, *, text='', final_stretch=True, reverse=False, hide_if_empty=False):
         super(QWidget, self).__init__()
+        self.hide_if_empty = hide_if_empty
         size = max(16, font_height())
         self.icon_size = QSize(size, size)
         layout = QHBoxLayout()
@@ -1264,13 +1279,18 @@ class IconLabel(QWidget):
         self.icon = QLabel()
         self.label = QLabel(text)
         self.label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.label)
+        layout.addWidget(self.icon if reverse else self.label)
         layout.addSpacing(self.HorizontalSpacing)
-        layout.addWidget(self.icon)
+        layout.addWidget(self.label if reverse else self.icon)
         if final_stretch:
             layout.addStretch()
+        self.setText(text)
+
     def setText(self, text):
         self.label.setText(text)
+        if self.hide_if_empty:
+            self.setVisible(bool(text))
+
     def setIcon(self, icon):
         self.icon.setPixmap(icon.pixmap(self.icon_size))
         self.icon.repaint()  # macOS hack for #6269
@@ -1453,6 +1473,9 @@ def qt_event_listener(func):
         self.qt_callback_signal.emit( (func,) + args)
     return decorator
 
+def insert_spaces(text: str, every_chars: int) -> str:
+    '''Insert spaces at every Nth character to allow for WordWrap'''
+    return ' '.join(text[i:i+every_chars] for i in range(0, len(text), every_chars))
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass

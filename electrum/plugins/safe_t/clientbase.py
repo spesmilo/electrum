@@ -2,7 +2,8 @@ import time
 from struct import pack
 from typing import Optional
 
-from electrum import ecc
+import electrum_ecc as ecc
+
 from electrum.i18n import _
 from electrum.util import UserCancelled
 from electrum.keystore import bip39_normalize_passphrase

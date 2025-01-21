@@ -36,6 +36,7 @@ from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDial
                                   Buttons, CancelButton, TaskThread, char_width_in_lineedit,
                                   PasswordLineEdit)
 from electrum.gui.qt.main_window import StatusBarButton
+from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -92,8 +93,9 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
     def _update_status(self, paired):
         if hasattr(self, 'button'):
             button = self.button
-            icon_name = button.icon_paired if paired else button.icon_unpaired
-            button.setIcon(read_QIcon(icon_name))
+            icon_bytes = button.icon_paired if paired else button.icon_unpaired
+            icon = read_QIcon_from_bytes(icon_bytes)
+            button.setIcon(icon)
 
     def query_choice(self, msg: str, labels: Sequence[Tuple]):
         self.done.clear()
@@ -222,9 +224,10 @@ class QtPluginBase(object):
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self._on_status_bar_button_click, window=window, keystore=keystore)
             sb = window.statusBar()
-            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb, sb.height())
-            button.icon_paired = self.icon_paired
-            button.icon_unpaired = self.icon_unpaired
+            icon = read_QIcon_from_bytes(self.read_file(self.icon_unpaired))
+            button = StatusBarButton(icon, tooltip, cb, sb.height())
+            button.icon_paired = self.read_file(self.icon_paired)
+            button.icon_unpaired = self.read_file(self.icon_unpaired)
             sb.addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button

@@ -8,6 +8,7 @@ from electrum.lnmsg import (read_bigsize_int, write_bigsize_int, FieldEncodingNo
 from electrum.lnonion import OnionRoutingFailure
 from electrum.util import bfh
 from electrum.lnutil import ShortChannelID, LnFeatures
+from electrum.channel_db import NodeInfo
 from electrum import constants
 
 from . import ElectrumTestCase
@@ -370,3 +371,45 @@ class TestLNMsg(ElectrumTestCase):
             OnionWireSerializer.decode_msg(orf2.to_bytes())
         self.assertEqual(None, orf2.decode_data())
 
+    def test_address_parsing_and_serialization(self):
+        """Tests the NodeInfo bolt7 node_announcement addresses field serialization and parsing"""
+        taf = NodeInfo.to_addresses_field
+        paf = NodeInfo.parse_addresses_field
+
+        # -- INVALID INPUTS --
+        invalid_inputs_parsing = (
+            b'', # empty input
+            b'\x06\x00', # address type 6 (\x06) is not specified
+        )
+        invalid_inputs_serialization = (
+            ("::1", 9735),  # local ipv6
+            ("::", 9735),  # local ipv6
+            ("::1", 0),  # local host, invalid port
+            ("::1", 65536),  # local host, invalid port
+            ("127.0.0.1", 9735),  # local ipv4
+            ("localhost", 9735),  # local host
+            ("domain.com", 0),  # domain, invalid port
+            ("domain.com", 65536),  # domain, invalid port
+            ("domain.com", -1),  # domain, invalid port
+            ("expyuzz4wqqyqhjn.onion", 9735),  # onion v2, not supported
+            ("", 9735),  # empty address
+        )
+        for invalid_input in invalid_inputs_parsing:
+            self.assertEqual(paf(invalid_input), [])
+        for host, port in invalid_inputs_serialization:
+            self.assertEqual(taf(host, port), b'')
+
+        # -- VALID INPUTS --
+        valid_inputs = (
+            ("34.138.100.228", 9735),  # ipv4
+            ("2001:41d0:0001:b40d:0000:0000:0000:0001", 9735),  # ipv6
+            ("2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion", 9735), # onion v3
+            ("ecb.europa.eu", 8624),  # domain
+        )
+        valid_inputs_with_defined_output = [
+            [["2001:41d0:1:b40d::1", 9735], [("2001:41d0:0001:b40d:0000:0000:0000:0001", 9735)]]  # ipv6
+        ]
+        for host, port in valid_inputs:
+            self.assertEqual(paf(taf(host, port)), [(host, port)])
+        for input_, output in valid_inputs_with_defined_output:
+            self.assertEqual(paf(taf(*input_)), output)

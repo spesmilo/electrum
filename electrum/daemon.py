@@ -46,7 +46,7 @@ from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
 from .invoices import PR_PAID, PR_EXPIRED
 from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
-from .util import EventListener, event_listener, traceback_format_exception
+from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
@@ -264,7 +264,7 @@ class AuthenticatedServer(Logger):
                 'message': "internal error while executing RPC",
                 'data': {
                     "exception": repr(e),
-                    "traceback": "".join(traceback_format_exception(e)),
+                    "traceback": "".join(traceback.format_exception(e)),
                 },
             }
         return web.json_response(response)
@@ -362,34 +362,6 @@ class CommandsServer(AuthenticatedServer):
         return result
 
 
-class WatchTowerServer(AuthenticatedServer):
-
-    def __init__(self, network: 'Network', port:int):
-        self.port = port
-        self.config = network.config
-        self.network = network
-        watchtower_user = self.config.WATCHTOWER_SERVER_USER or ""
-        watchtower_password = self.config.WATCHTOWER_SERVER_PASSWORD or ""
-        AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
-        self.lnwatcher = network.local_watchtower
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.register_method(self.get_ctn)
-        self.register_method(self.add_sweep_tx)
-
-    async def run(self):
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, host='localhost', port=self.port)
-        await site.start()
-        self.logger.info(f"running and listening on port {self.port}")
-
-    async def get_ctn(self, *args):
-        return await self.lnwatcher.get_ctn(*args)
-
-    async def add_sweep_tx(self, *args):
-        return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
-
 
 
 
@@ -397,7 +369,6 @@ class Daemon(Logger):
 
     network: Optional[Network] = None
     gui_object: Optional['gui.BaseElectrumGui'] = None
-    watchtower: Optional['WatchTowerServer'] = None
 
     @profiler
     def __init__(
@@ -460,11 +431,6 @@ class Daemon(Logger):
         self.logger.info(f"starting network.")
         assert not self.config.NETWORK_OFFLINE
         assert self.network
-        # server-side watchtower
-        if watchtower_port := self.config.WATCHTOWER_SERVER_PORT:
-            self.watchtower = WatchTowerServer(self.network, watchtower_port)
-            asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.watchtower.run), self.asyncio_loop)
-
         self.network.start(jobs=[self.fx.run])
         # prepare lightning functionality, also load channel db early
         if self.config.LIGHTNING_USE_GOSSIP:
@@ -495,8 +461,11 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
+        if wallet.requires_unlock():
+            wallet.unlock(password)
         wallet.start_network(self.network)
         self.add_wallet(wallet)
+        self.update_recently_opened_wallets(path)
         return wallet
 
     @staticmethod
@@ -542,6 +511,7 @@ class Daemon(Logger):
         self.stop_wallet(path)
         if os.path.exists(path):
             os.unlink(path)
+            self.update_recently_opened_wallets(path, remove=True)
             return True
         return False
 
@@ -704,3 +674,14 @@ class Daemon(Logger):
         self._check_password_for_directory(
             old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
         return True
+
+    def update_recently_opened_wallets(self, wallet_path, *, remove: bool = False):
+        recent = self.config.RECENTLY_OPEN_WALLET_FILES or []
+        if wallet_path in recent:
+            recent.remove(wallet_path)
+        if not remove:
+            recent.insert(0, wallet_path)
+            recent = [path for path in recent if os.path.exists(path)]
+            recent = recent[:5]
+        self.config.RECENTLY_OPEN_WALLET_FILES = recent
+        util.trigger_callback('recently_opened_wallets_update')

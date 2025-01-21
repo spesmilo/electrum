@@ -414,10 +414,11 @@ class NewWalletWizard(AbstractWizard):
 
     def keystore_from_data(self, wallet_type: str, data: dict):
         if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
+            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
             if data['seed_variant'] == 'electrum':
-                return keystore.from_seed(data['seed'], passphrase=data['seed_extra_words'], for_multisig=True)
+                return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=True)
             elif data['seed_variant'] == 'bip39':
-                root_seed = keystore.bip39_to_seed(data['seed'], passphrase=data['seed_extra_words'])
+                root_seed = keystore.bip39_to_seed(data['seed'], passphrase=seed_extension)
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 if wallet_type == 'multisig':
                     script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
@@ -425,7 +426,7 @@ class NewWalletWizard(AbstractWizard):
                     script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 return keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
             elif data['seed_variant'] == 'slip39':
-                root_seed = data['seed'].decrypt(data['seed_extra_words'])
+                root_seed = data['seed'].decrypt(seed_extension)
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 if wallet_type == 'multisig':
                     script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
@@ -524,6 +525,40 @@ class NewWalletWizard(AbstractWizard):
 
         return seed_valid, seed_type, validation_message, can_passphrase
 
+    def validate_master_key(self, key: str, wallet_type: str):
+        # TODO: deduplicate with master key check in create_storage()
+        validation_message = ''
+        key_valid = False
+
+        if not keystore.is_master_key(key):
+            validation_message = _('Not a master key')
+        else:
+            k = keystore.from_master_key(key)
+            if wallet_type == 'standard':
+                if isinstance(k, keystore.Xpub):  # has bip32 xpub
+                    t1 = xpub_type(k.xpub)
+                    if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:  # disallow Ypub/Zpub
+                        validation_message = '%s: %s' % (_('Wrong key type'), t1)
+                    else:
+                        key_valid = True
+                elif isinstance(k, keystore.Old_KeyStore):
+                    key_valid = True
+                else:
+                    self._logger.error(f"unexpected keystore type: {type(keystore)}")
+            elif wallet_type == 'multisig':
+                if not isinstance(k, keystore.Xpub):  # old mpk?
+                    validation_message = '%s: %s' % (_('Wrong key type'), "not bip32")
+                t1 = xpub_type(k.xpub)
+                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:  # disallow ypub/zpub
+                    validation_message = '%s: %s' % (_('Wrong key type'), t1)
+                else:
+                    key_valid = True
+            else:
+                validation_message = '%s: %s' % (_('Unsupported wallet type'), wallet_type)
+                self._logger.error(f'Unsupported wallet type: {wallet_type}')
+
+        return key_valid, validation_message
+
     def create_storage(self, path: str, data: dict):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
 
@@ -548,15 +583,16 @@ class NewWalletWizard(AbstractWizard):
                 for addr in data['address_list'].split():
                     addresses[addr] = {}
         elif data['keystore_type'] in ['createseed', 'haveseed']:
+            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
             if data['seed_type'] in ['old', 'standard', 'segwit']:
                 self._logger.debug('creating keystore from electrum seed')
-                k = keystore.from_seed(data['seed'], passphrase=data['seed_extra_words'], for_multisig=data['wallet_type'] == 'multisig')
+                k = keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=data['wallet_type'] == 'multisig')
             elif data['seed_type'] in ['bip39', 'slip39']:
                 self._logger.debug('creating keystore from %s seed' % data['seed_type'])
                 if data['seed_type'] == 'bip39':
-                    root_seed = keystore.bip39_to_seed(data['seed'], passphrase=data['seed_extra_words'])
+                    root_seed = keystore.bip39_to_seed(data['seed'], passphrase=seed_extension)
                 else:
-                    root_seed = data['seed'].decrypt(data['seed_extra_words'])
+                    root_seed = data['seed'].decrypt(seed_extension)
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 if data['wallet_type'] == 'multisig':
                     script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'

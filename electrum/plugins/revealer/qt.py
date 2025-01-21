@@ -25,17 +25,18 @@ import qrcode
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
 from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont,
-                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize)
+                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize, QPageLayout)
 from PyQt6.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit)
 
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.util import make_dir, InvalidPassword, UserCancelled
-from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path,
+from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path, internal_plugin_icon_path,
                                   WindowModalDialog, Buttons, CloseButton, OkButton)
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
+from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
 
 from .revealer import RevealerPlugin
 
@@ -69,6 +70,7 @@ class Plugin(RevealerPlugin):
 
         self.extension = False
         self._init_qt_received = False
+        self.icon_bytes = self.read_file("revealer.png")
 
     @hook
     def init_qt(self, gui: 'ElectrumGui'):
@@ -81,8 +83,10 @@ class Plugin(RevealerPlugin):
 
     @hook
     def create_status_bar(self, sb):
-        b = StatusBarButton(read_QIcon('revealer.png'), "Revealer "+_("Visual Cryptography Plugin"),
-                            partial(self.setup_dialog, sb), sb.height())
+        b = StatusBarButton(
+            read_QIcon_from_bytes(self.icon_bytes),
+            "Revealer "+_("Visual Cryptography Plugin"),
+            partial(self.setup_dialog, sb), sb.height())
         sb.addPermanentWidget(b)
 
     def requires_settings(self):
@@ -125,7 +129,7 @@ class Plugin(RevealerPlugin):
         logo_label = QLabel()
 
         # Set the logo label pixmap.
-        logo_label.setPixmap(QPixmap(icon_path('revealer.png')))
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
 
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -308,7 +312,7 @@ class Plugin(RevealerPlugin):
         logo_label = QLabel()
 
         # Set the logo label pixmap.
-        logo_label.setPixmap(QPixmap(icon_path('revealer.png')))
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
 
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -491,7 +495,7 @@ class Plugin(RevealerPlugin):
         img = img.convertToFormat(QImage.Format.Format_Mono)
         p = QPainter()
         p.begin(img)
-        p.setCompositionMode(26) #xor
+        p.setCompositionMode(QPainter.CompositionMode.RasterOp_SourceXorDestination) #xor
         p.drawImage(0, 0, rawnoise)
         p.end()
         cypherseed = self.pixelcode_2x2(img)
@@ -527,11 +531,11 @@ class Plugin(RevealerPlugin):
 
     def toPdf(self, image):
         printer = QPrinter()
-        printer.setPageSize(QPageSize(QSizeF(210, 297), QPrinter.Unit.Millimeter))
+        printer.setPageSize(QPageSize(QSizeF(210, 297), QPageSize.Unit.Millimeter))
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(self.get_path_to_revealer_file('.pdf'))
-        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPrinter.Unit.DevicePixel)
+        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
         painter = QPainter()
         painter.begin(printer)
 
@@ -552,11 +556,11 @@ class Plugin(RevealerPlugin):
 
     def calibration_pdf(self, image):
         printer = QPrinter()
-        printer.setPageSize(QPageSize(QSizeF(210, 297), QPrinter.Unit.Millimeter))
+        printer.setPageSize(QPageSize(QSizeF(210, 297), QPageSize.Unit.Millimeter))
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(self.get_path_to_calibration_file())
-        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPrinter.Unit.DevicePixel)
+        printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
 
         painter = QPainter()
         painter.begin(printer)
@@ -605,6 +609,7 @@ class Plugin(RevealerPlugin):
         img = QImage(img)
 
         painter = QPainter()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.begin(base_img)
 
         total_distance_h = round(base_img.width() / self.abstand_v)
@@ -670,7 +675,7 @@ class Plugin(RevealerPlugin):
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
 
                 painter.drawImage(((total_distance_h))+11, ((total_distance_h))+11,
-                                  QImage(icon_path('electrumb.png')).scaledToWidth(round(2.1*total_distance_h), Qt.TransformationMode.SmoothTransformation))
+                                  QImage(internal_plugin_icon_path(self.name, 'electrumb.png')).scaledToWidth(round(2.1*total_distance_h), Qt.TransformationMode.SmoothTransformation))
 
                 painter.setPen(QPen(Qt.GlobalColor.white, border_thick*8))
                 painter.drawLine(int(base_img.width()-total_distance_h-(border_thick*8)/2-(border_thick/2)-2),
@@ -696,8 +701,8 @@ class Plugin(RevealerPlugin):
                 painter.drawLine(dist_h, 0,  dist_h, base_img.height())
                 painter.drawLine(0, base_img.height()-dist_v, base_img.width(), base_img.height()-(dist_v))
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
-                logo = QImage(icon_path('revealer_c.png')).scaledToWidth(round(1.3*(total_distance_h)))
-                painter.drawImage(int(total_distance_h+border_thick), int(total_distance_h+border_thick), logo, Qt.TransformationMode.SmoothTransformation)
+                logo = QImage(internal_plugin_icon_path(self.name, 'revealer_c.png')).scaledToWidth(round(1.3*(total_distance_h)))
+                painter.drawImage(int(total_distance_h+border_thick), int(total_distance_h+border_thick), logo)
 
                 #frame around logo
                 painter.setPen(QPen(Qt.GlobalColor.black, border_thick))

@@ -45,7 +45,7 @@ Pane {
             font.pixelSize: constants.fontSizeLarge
             font.family: FixedFont
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
-            readOnly: true
+            readOnly: AppController.isAndroid()
 
             background: Rectangle {
                 color: constants.darkerBackground

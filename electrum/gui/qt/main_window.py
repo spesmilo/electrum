@@ -47,9 +47,11 @@ from PyQt6.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
                              QWidget, QSizePolicy, QStatusBar, QToolTip,
                              QMenu, QToolButton)
 
+import electrum_ecc as ecc
+
 import electrum
 from electrum.gui import messages
-from electrum import (keystore, ecc, constants, util, bitcoin, commands,
+from electrum import (keystore, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook, BasePlugin
@@ -70,7 +72,7 @@ from electrum.network import Network, UntrustedServerReturnedError, NetworkExcep
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.lnutil import extract_nodeid, ConnStringFormatError
+from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
 from electrum.submarine_swaps import SwapServerError
 
@@ -88,9 +90,10 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, BlockingWaitingDialog, font_height)
+                   getOpenFileName, getSaveFileName, font_height)
 from .util import ButtonsLineEdit, ShowQRLineEdit
 from .util import QtEventListener, qt_event_listener, event_listener
+from .util import scan_qr_from_screenshot
 from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -299,26 +302,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
-    def run_coroutine_dialog(self, coro, text, on_result, on_cancelled):
-        """ run coroutine in a waiting dialog, with a Cancel button that cancels the coroutine """
-        from electrum import util
-        loop = util.get_asyncio_loop()
-        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
-        future = asyncio.run_coroutine_threadsafe(coro, loop)
-        def task():
-            try:
-                return future.result()
-            except concurrent.futures.CancelledError:
-                on_cancelled()
-        try:
-            WaitingDialog(
-                self, text, task,
-                on_success=on_result,
-                on_error=self.on_error,
-                on_cancel=future.cancel)
-        except Exception as e:
-            self.show_error(str(e))
-            raise
+    def run_coroutine_dialog(self, coro, text):
+        """ run coroutine in a waiting dialog, with a Cancel button that cancels the coroutine"""
+        from .util import RunCoroutineDialog
+        d = RunCoroutineDialog(self, text, coro)
+        return d.run()
 
     def run_coroutine_from_thread(self, coro, name, on_result=None):
         if self._cleaned_up:
@@ -504,6 +492,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_proxy_set(self, *args):
         self.tor_button.setVisible(False)
 
+    @qt_event_listener
+    def on_event_recently_opened_wallets_update(self, *args):
+        self.update_recently_opened_menu()
+
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
@@ -511,7 +503,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     @profiler
     def load_wallet(self, wallet: Abstract_Wallet):
-        self.update_recently_visited(wallet.storage.path)
+        self.update_recently_opened_menu()
         if wallet.has_lightning():
             util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
@@ -576,6 +568,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
+
+    def require_full_encryption(self):
+        if self.wallet.has_keystore_encryption() and not self.wallet.has_storage_encryption():
+            msg = ' '.join([
+                _("Your wallet is password-protected, but the wallet file is not encrypted."),
+                _("This is no longer supported."),
+                _("Please enter your password in order to encrypt your wallet file."),
+            ])
+            while True:
+                password = self.password_dialog(msg)
+                if not password:
+                    self.close()
+                    raise UserCancelled()
+                try:
+                    self.wallet.update_password(password, password, encrypt_storage=True)
+                    break
+                except InvalidPassword as e:
+                    self.show_error(str(e))
 
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
@@ -656,24 +666,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.show_message(msg, title=_("Wallet backup created"))
         return True
 
-    def update_recently_visited(self, filename):
-        recent = self.config.RECENTLY_OPEN_WALLET_FILES or []
-        try:
-            sorted(recent)
-        except Exception:
-            recent = []
-        if filename in recent:
-            recent.remove(filename)
-        recent.insert(0, filename)
-        recent = [path for path in recent if os.path.exists(path)]
-        recent = recent[:5]
-        self.config.RECENTLY_OPEN_WALLET_FILES = recent
+    def update_recently_opened_menu(self):
+        recent = self.config.RECENTLY_OPEN_WALLET_FILES
         self.recently_visited_menu.clear()
-        for i, k in enumerate(sorted(recent)):
+        for i, k in enumerate(recent):
             b = os.path.basename(k)
+
             def loader(k):
                 return lambda: self.gui_object.new_window(k)
-            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
+            self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d" % (i+1)))
         self.recently_visited_menu.setEnabled(bool(len(recent)))
 
     def get_wallet_folder(self):
@@ -752,8 +753,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        if self.network and self.network.local_watchtower:
-            tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -1178,19 +1177,99 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
             return
-        def get_pairs_thread():
-            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
-        try:
-            BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
-        except SwapServerError as e:
-            self.show_error(str(e))
+
+        transport = self.create_sm_transport()
+        if not transport:
             return
-        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
-        try:
-            return d.run()
-        except InvalidSwapParameters as e:
-            self.show_error(str(e))
-            return
+
+        with transport:
+            if not self.initialize_swap_manager(transport):
+                return
+            d = SwapDialog(self, transport, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
+            try:
+                return d.run(transport)
+            except InvalidSwapParameters as e:
+                self.show_error(str(e))
+                return
+            except UserCancelled:
+                return
+
+    def create_sm_transport(self):
+        sm = self.wallet.lnworker.swap_manager
+        if sm.is_server:
+            self.show_error(_('Swap server is active'))
+            return False
+
+        if self.network is None:
+            return False
+
+        if not self.config.SWAPSERVER_URL and not self.config.SWAPSERVER_NPUB:
+            if not self.question('\n'.join([
+                    _('Electrum uses Nostr in order to find liquidity providers.'),
+                    _('Do you want to enable Nostr?'),
+            ])):
+                return False
+
+        return sm.create_transport()
+
+    def initialize_swap_manager(self, transport):
+        sm = self.wallet.lnworker.swap_manager
+        if not sm.is_initialized.is_set():
+            async def wait_until_initialized():
+                try:
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    return
+            try:
+                self.run_coroutine_dialog(wait_until_initialized(), _('Please wait...'))
+            except Exception as e:
+                self.show_error(str(e))
+                return False
+
+        if not self.config.SWAPSERVER_URL and not sm.is_initialized.is_set():
+            if not self.choose_swapserver_dialog(transport):
+                return False
+
+        assert sm.is_initialized.is_set()
+        return True
+
+    def choose_swapserver_dialog(self, transport):
+        if not transport.is_connected.is_set():
+            self.show_message(
+                '\n'.join([
+                    _('Could not connect to a Nostr relay.'),
+                    _('Please check your relays and network connection'),
+                ]))
+            return False
+        now = int(time.time())
+        recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < 3600]
+        if not recent_offers:
+            self.show_message(
+                '\n'.join([
+                    _('Could not find a swap provider.'),
+                ]))
+            return False
+        sm = self.wallet.lnworker.swap_manager
+        def descr(x):
+            last_seen = util.age(x['timestamp'])
+            return f"pubkey={x['pubkey'][0:10]},  fee={x['percentage_fee']}% + {x['reverse_mining_fee']} sats"
+        server_keys = [(x['pubkey'], descr(x)) for x in recent_offers]
+        msg = '\n'.join([
+            _("Please choose a server from this list."),
+            _("Note that fees may be updated frequently.")
+        ])
+        choice = self.query_choice(
+            msg = msg,
+            choices = server_keys,
+            title = _("Choose Swap Server"),
+            default_choice = self.config.SWAPSERVER_NPUB
+        )
+        if choice not in transport.offers:
+            return False
+        self.config.SWAPSERVER_NPUB = choice
+        pairs = transport.get_offer(choice)
+        sm.update_pairs(pairs)
+        return True
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
@@ -1328,11 +1407,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, allow_preview=False)
-        funding_tx = d.run()
+        funding_tx, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
         if not funding_tx:
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
+
+    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True):
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview)
+        if d.not_enough_funds:
+            # note: use confirmed_only=False here, regardless of config setting,
+            #       as the user needs to get to ConfirmTxDialog to change the config setting
+            if not d.can_pay_assuming_zero_fees(confirmed_only=False):
+                text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
+                self.show_message(text)
+                return
+        return d.run(), d.is_preview
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):
@@ -1601,7 +1690,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             'util': util,
             'bitcoin': bitcoin,
             'lnutil': lnutil,
-            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else []
+            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else [],
+            'scan_qr': scan_qr_from_screenshot,
         })
 
         c = commands.Commands(
@@ -2387,10 +2477,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         addresses = self.wallet.get_unused_addresses()
         if not addresses:
-            try:
-                addresses = self.wallet.get_receiving_addresses()
-            except AttributeError:
-                addresses = self.wallet.get_addresses()
+            addresses = self.wallet.get_receiving_addresses()
         h, address_e = address_field(addresses)
         vbox.addLayout(h)
 
@@ -2542,8 +2629,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.close_wallet()
 
         if self._update_check_thread:
-            self._update_check_thread.exit()
-            self._update_check_thread.wait()
+            self._update_check_thread.stop()
         if self.tray:
             self.tray = None
         self.gui_object.timer.timeout.disconnect(self.timer_actions)

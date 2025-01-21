@@ -47,6 +47,7 @@ import threading
 import enum
 import asyncio
 
+import electrum_ecc as ecc
 from aiorpcx import timeout_after, TaskTimeout, ignore_after, run_in_thread
 
 from .i18n import _
@@ -69,7 +70,7 @@ from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithM
 from .util import multisig_type, parse_max_spend
 from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
-from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
+from . import transaction, bitcoin, coinchooser, paymentrequest, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash)
 from .plugin import run_hook
@@ -92,6 +93,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .exchange_rate import FxThread
     from .submarine_swaps import SwapData
+    from .lnchannel import AbstractChannel
 
 
 _logger = get_logger(__name__)
@@ -204,7 +206,11 @@ async def sweep(
     return tx
 
 
-def get_locktime_for_new_transaction(network: 'Network') -> int:
+def get_locktime_for_new_transaction(
+    network: 'Network',
+    *,
+    include_random_component: bool = True,
+) -> int:
     # if no network or not up to date, just set locktime to zero
     if not network:
         return 0
@@ -223,8 +229,9 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     locktime = min(chain_height, server_height)
     # sometimes pick locktime a bit further back, to help privacy
     # of setups that need more time (offline/multisig/coinjoin/...)
-    if random.randint(0, 9) == 0:
-        locktime = max(0, locktime - random.randint(0, 99))
+    if include_random_component:
+        if random.randint(0, 9) == 0:
+            locktime = max(0, locktime - random.randint(0, 99))
     locktime = max(0, locktime)
     return locktime
 
@@ -409,6 +416,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.transaction_lock = self.adb.transaction_lock
         self._last_full_history = None
         self._tx_parents_cache = {}
+        self._default_labels = {}
 
         self.taskgroup = OldTaskGroup()
 
@@ -500,12 +508,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_lightning(self) -> bool:
         return bool(self.lnworker)
 
+    def has_channels(self):
+        return self.lnworker is not None and len(self.lnworker._channels) > 0
+
+    def requires_unlock(self):
+        return self.config.ENABLE_ANCHOR_CHANNELS and self.has_channels()
+
     def can_have_lightning(self) -> bool:
-        # we want static_remotekey to be a wallet address
-        return self.txin_type == 'p2wpkh'
+        if self.config.ENABLE_ANCHOR_CHANNELS:
+            # this excludes hardware wallets, watching-only wallets
+            return self.can_have_deterministic_lightning()
+        else:
+            # we want static_remotekey to be a wallet address
+            return self.txin_type == 'p2wpkh'
 
     def can_have_deterministic_lightning(self) -> bool:
-        if not self.can_have_lightning():
+        if not self.txin_type == 'p2wpkh':
             return False
         if not self.keystore:
             return False
@@ -1146,9 +1164,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
                 'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
+                'wanted_height': hist_item.tx_mined_status.wanted_height,
             }
-            if wanted_height := hist_item.tx_mined_status.wanted_height:
-                d['wanted_height'] = wanted_height
             yield d
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
@@ -1407,6 +1424,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     parent['date'] = timestamp_to_datetime(tx_item['timestamp'])
                     parent['height'] = tx_item['height']
                     parent['confirmations'] = tx_item['confirmations']
+                    parent['wanted_height'] = tx_item.get('wanted_height')
                 parent['children'].append(tx_item)
 
         now = time.time()
@@ -1613,11 +1631,33 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             label = request.get_message()
         return label
 
+    def set_default_label(self, key:str, value:str):
+        self._default_labels[key] = value
+
+    def get_label_for_outpoint(self, outpoint:str) -> str:
+        return self._labels.get(outpoint) or self._get_default_label_for_outpoint(outpoint)
+
+    def _get_default_label_for_outpoint(self, outpoint: str) -> str:
+        return self._default_labels.get(outpoint)
+
     def get_label_for_txid(self, tx_hash: str) -> str:
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
 
     def _get_default_label_for_txid(self, tx_hash: str) -> str:
+        if label := self._default_labels.get(tx_hash):
+            return label
         labels = []
+        tx = self.adb.get_transaction(tx_hash)
+        if tx:
+            for i in range(len(tx.outputs())):
+                outpoint = tx_hash + f':{i}'
+                if label := self.get_label_for_outpoint(outpoint):
+                    labels.append(label)
+            for txin in tx.inputs():
+                outpoint = txin.prevout.to_str()
+                if label := self.get_label_for_outpoint(outpoint):
+                    labels.append(label)
+
         # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
         if not self.db.get_txi_addresses(tx_hash):
             # no inputs are ismine -> likely incoming payment -> concat labels of output addresses
@@ -1630,8 +1670,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for invoice in self.get_relevant_invoices_for_tx(tx_hash):
                 if invoice.message:
                     labels.append(invoice.message)
-        if not labels and self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
-            labels.append(label)
+        #if not labels and self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
+        #    labels.append(label)
         return ', '.join(labels)
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
@@ -1811,21 +1851,28 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self, *,
             coins: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput],
+            inputs: Optional[List[PartialTxInput]] = None,
             fee=None,
             change_addr: str = None,
             is_sweep: bool = False,  # used by Wallet_2fa subclass
-            rbf: bool = True,
-            batch_rbf: Optional[bool] = None,
+            rbf: Optional[bool] = True,
+            BIP69_sort: Optional[bool] = True,
+            base_tx: Optional[PartialTransaction] = None,
             send_change_to_lightning: Optional[bool] = None,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
-        if not coins:  # any bitcoin tx must have at least 1 input by consensus
+        if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
-        if batch_rbf is None:
-            batch_rbf = self.config.WALLET_BATCH_RBF
+        if inputs is None:
+            inputs = []
+        if inputs:
+            input_set = set(txin.prevout for txin in inputs)
+            coins = [coin for coin in coins if (coin.prevout not in input_set)]
+        if base_tx is None and self.config.WALLET_BATCH_RBF:
+            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
         if send_change_to_lightning is None:
             send_change_to_lightning = self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
 
@@ -1844,8 +1891,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
-        for item in coins:
-            self.add_input_info(item)
+        for txin in coins:
+            self.add_input_info(txin)
+            nSequence = 0xffffffff - (2 if rbf else 1)
+            txin.nsequence = nSequence
 
         # Fee estimator
         if fee is None:
@@ -1864,13 +1913,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if batch_rbf else None
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
-                base_tx = PartialTransaction.from_tx(base_tx)
-                base_tx.add_info_from_wallet(self)
+                if not isinstance(base_tx, PartialTransaction):
+                    base_tx = PartialTransaction.from_tx(base_tx)
+                    base_tx.add_info_from_wallet(self)
+                else:
+                    # don't cast PartialTransaction, because it removes make_witness
+                    for txin in base_tx.inputs():
+                        txin.witness = None
                 base_tx_fee = base_tx.get_fee()
                 base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
@@ -1881,12 +1934,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     lower_bound_feerate = int(base_feerate * size) + 1
                     lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
                     return max(lower_bound, original_fee_estimator(size))
-                txi = base_tx.inputs()
+                txi = base_tx.inputs() + list(inputs)
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
                 rbf_merge_txid = base_tx.txid()
             else:
-                txi = []
+                txi = list(inputs)
                 txo = list(outputs)
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
@@ -1899,14 +1952,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 outputs=txo,
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
-                dust_threshold=self.dust_threshold())
+                dust_threshold=self.dust_threshold(),
+                BIP69_sort=BIP69_sort)
             if self.lnworker and send_change_to_lightning:
                 change = tx.get_change_outputs()
                 # do not use multiple change addresses
                 if len(change) == 1:
                     amount = change[0].value
-                    ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
-                    if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
+                    if amount <= self.lnworker.num_sats_can_receive():
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
         else:
             # "spend max" branch
@@ -1937,7 +1990,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
         tx.rbf_merge_txid = rbf_merge_txid
-        tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
         return tx
@@ -2032,13 +2084,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def set_reserved_state_of_address(self, addr: str, *, reserved: bool) -> None:
         if not self.is_mine(addr):
+            # silently ignore non-ismine addresses
             return
         with self.lock:
+            has_changed = (addr in self._reserved_addresses) != reserved
             if reserved:
                 self._reserved_addresses.add(addr)
             else:
                 self._reserved_addresses.discard(addr)
-            self.db.put('reserved_addresses', list(self._reserved_addresses))
+            if has_changed:
+                self.db.put('reserved_addresses', list(self._reserved_addresses))
+
+    def set_reserved_addresses_for_chan(self, chan: 'AbstractChannel', *, reserved: bool) -> None:
+        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
+            self.set_reserved_state_of_address(addr, reserved=reserved)
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
@@ -2546,6 +2605,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if sh_danger.needs_confirm() and not ignore_warnings:
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
 
+        # sign with make_witness
+        for i, txin in enumerate(tx.inputs()):
+            if hasattr(txin, 'make_witness'):
+                self.logger.info(f'sign_transaction: adding witness using make_witness')
+                privkey = txin.privkey
+                sig = tx.sign_txin(i, privkey)
+                txin.witness = txin.make_witness(sig)
+                assert txin.is_complete()
+
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
         tmp_tx = copy.deepcopy(tx)
@@ -2947,8 +3015,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.storage and self.storage.file_exists():
             self.db.write_and_force_consolidation()
         # if wallet was previously unlocked, update password in memory
-        if self._password_in_memory is not None:
-            self._password_in_memory = new_pw
+        if self.requires_unlock():
+            self.unlock(new_pw)
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -3057,9 +3125,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         password=None,
         locktime=None,
         tx_version: Optional[int] = None,
-        batch_rbf: Optional[bool] = None,
+        base_tx: Optional[PartialTransaction] = None,
+        inputs: Optional[List[PartialTxInput]] = None,
         send_change_to_lightning: Optional[bool] = None,
         nonlocal_only: bool = False,
+        BIP69_sort: bool = True,
     ) -> PartialTransaction:
         """Helper function for make_unsigned_transaction."""
         if fee is not None and feerate is not None:
@@ -3074,12 +3144,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee_estimator = fee
         tx = self.make_unsigned_transaction(
             coins=coins,
+            inputs=inputs,
             outputs=outputs,
             fee=fee_estimator,
             change_addr=change_addr,
-            batch_rbf=batch_rbf,
+            base_tx=base_tx,
             send_change_to_lightning=send_change_to_lightning,
             rbf=rbf,
+            BIP69_sort=BIP69_sort,
         )
         if locktime is not None:
             tx.locktime = locktime
@@ -3177,6 +3249,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx_size: int,
             fee: int) -> Optional[Tuple[bool, str, str]]:
 
+        assert invoice_amt >= 0, f"{invoice_amt=!r} must be non-negative satoshis"
+        assert fee >= 0, f"{fee=!r} must be non-negative satoshis"
         feerate = Decimal(fee) / tx_size  # sat/byte
         fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 0
         long_warning = None

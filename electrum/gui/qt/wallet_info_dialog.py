@@ -161,7 +161,10 @@ class WalletInfoDialog(WindowModalDialog):
 
         vbox.addStretch(1)
         btn_export_info = run_hook('wallet_info_buttons', window, self)
+        if btn_export_info is None:
+            btn_export_info = []
+
         btn_close = CloseButton(self)
-        btns = Buttons(btn_export_info, btn_close)
+        btns = Buttons(*btn_export_info, btn_close)
         vbox.addLayout(btns)
         self.setLayout(vbox)

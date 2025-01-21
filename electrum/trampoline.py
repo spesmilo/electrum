@@ -6,7 +6,8 @@ from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, 
 from .lnutil import LnFeatures, PaymentFeeBudget
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
-from .lnutil import NoPathFound, LNPeerAddr
+from .lnutil import NoPathFound
+from .lntransport import LNPeerAddr
 from . import constants
 from .logging import get_logger
 
@@ -29,7 +30,6 @@ TRAMPOLINE_NODES_TESTNET = {
 TRAMPOLINE_NODES_TESTNET4 = {}
 
 TRAMPOLINE_NODES_SIGNET = {
-    'lnd wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
     'eclair wakiyamap.dev': LNPeerAddr(host='signet-eclair.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('0271cf3881e6eadad960f47125434342e57e65b98a78afa99f9b4191c02dd7ab3b')),
 }
 

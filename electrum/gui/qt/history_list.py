@@ -111,6 +111,10 @@ class HistoryNode(CustomNode):
         window = self.model.window
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
+        if not is_lightning and 'txid' not in tx_item:
+            # this may happen if two lightning tx have the same group id
+            # and the group does not have an onchain tx
+            is_lightning = True
         timestamp = tx_item['timestamp']
         short_id = None
         if is_lightning:
@@ -364,7 +368,7 @@ class HistoryModel(CustomModel, Logger):
         fiat_fields = self.window.wallet.get_tx_item_fiat(
             tx_hash=txid, amount_sat=value, fx=self.window.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
-        self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ForegroundRole])
+        self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole])
 
     def update_tx_mined_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
         try:

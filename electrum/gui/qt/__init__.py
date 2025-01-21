@@ -41,6 +41,7 @@ except Exception as e:
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
+
 import PyQt6.QtCore as QtCore
 
 try:
@@ -71,13 +72,15 @@ from electrum.simple_config import SimpleConfig
 from electrum.storage import WalletStorage
 from electrum.wizard import WizardViewState
 from electrum.keystore import load_keystore
+from electrum.bip32 import is_xprv
+
+from electrum.gui.common_qt.i18n import ElectrumTranslator
 
 from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
-from .watchtower_dialog import WatchtowerDialog
 from .exception_window import Exception_Hook
 from .wizard.server_connect import QEServerConnectWizard
 from .wizard.wallet import QENewWalletWizard
@@ -110,12 +113,10 @@ class QElectrumApplication(QApplication):
     alias_received_signal = pyqtSignal()
 
 
-
 class ElectrumGui(BaseElectrumGui, Logger):
 
     network_dialog: Optional['NetworkDialog']
     lightning_dialog: Optional['LightningDialog']
-    watchtower_dialog: Optional['WatchtowerDialog']
 
     @profiler
     def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
@@ -137,6 +138,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
+        self.translator = ElectrumTranslator()
+        self.app.installTranslator(self.translator)
         self._cleaned_up = False
         # timer
         self.timer = QTimer(self.app)
@@ -145,7 +148,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
         self.network_dialog = None
         self.lightning_dialog = None
-        self.watchtower_dialog = None
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
         self.dark_icon = self.config.GUI_QT_DARK_TRAY_ICON
@@ -207,11 +209,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
             m = self.tray.contextMenu()
             m.clear()
         network = self.daemon.network
-        m.addAction(_("Network"), self.show_network_dialog)
+        if network:
+            m.addAction(_("Network"), self.show_network_dialog)
         if network and network.lngossip:
             m.addAction(_("Lightning Network"), self.show_lightning_dialog)
-        if network and network.local_watchtower:
-            m.addAction(_("Local Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -261,9 +262,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if self.lightning_dialog:
             self.lightning_dialog.close()
             self.lightning_dialog = None
-        if self.watchtower_dialog:
-            self.watchtower_dialog.close()
-            self.watchtower_dialog = None
         # Shut down the timer cleanly
         self.timer.stop()
         self.timer = None
@@ -297,11 +295,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
 
-    def show_watchtower_dialog(self):
-        if not self.watchtower_dialog:
-            self.watchtower_dialog = WatchtowerDialog(self)
-        self.watchtower_dialog.bring_to_top()
-
     def show_network_dialog(self):
         if self.network_dialog:
             self.network_dialog.on_event_network_updated()
@@ -319,6 +312,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         w.warn_if_testnet()
         w.warn_if_watching_only()
+        w.require_full_encryption()
         return w
 
     def count_wizards_in_progress(func):
@@ -388,6 +382,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                     break
             else:
                 window = self._create_window_for_wallet(wallet)
+        except UserCancelled:
+            return
         except Exception as e:
             self.logger.exception('')
             err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
@@ -463,6 +459,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 xprv = k1.get_master_private_key(d['password'])
             else:
                 xprv = db.get('x1')['xprv']
+                if not is_xprv(xprv):
+                    xprv = k1
             _wiz_data_updates = {
                 'wallet_name': wallet_file,
                 'xprv1': xprv,

@@ -28,10 +28,11 @@ import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
 from enum import IntEnum
 
-from . import ecc
-from .crypto import sha256, hmac_oneshot, chacha20_encrypt
+import electrum_ecc as ecc
+
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt, get_ecdh
 from .util import profiler, xor_bytes, bfh
-from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
+from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg
@@ -390,12 +391,16 @@ class OnionRoutingFailure(Exception):
 
 
 def construct_onion_error(
-        reason: OnionRoutingFailure,
+        error: OnionRoutingFailure,
         their_public_key: bytes,
         our_onion_private_key: bytes,
+        local_height: int
 ) -> bytes:
+    # add local height
+    if error.code == OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS:
+        error.data += local_height.to_bytes(4, byteorder="big")
     # create payload
-    failure_msg = reason.to_bytes()
+    failure_msg = error.to_bytes()
     failure_len = len(failure_msg)
     pad_len = 256 - failure_len
     assert pad_len >= 0

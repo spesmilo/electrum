@@ -1,3 +1,64 @@
+# Release 4.5.8 (Oct 23, 2024)
+ * Qt Desktop GUI:
+   - fix: regression: bump_fee and dscancel dialogs erroring (#9273)
+
+
+# Release 4.5.7 (Oct 21, 2024)
+ * General:
+   - new: add new historical exchange rate providers: Bitfinex and Bitstamp
+   - fix: wizard regression: 2fa wallet setup erroring (#9253)
+   - fix: python 3.13 compat: could not connect to some self-signed electrum
+     servers with weird TLS certs. As workaround, set pre-3.13 behaviour (#9258)
+ * Lightning:
+   - fix: send update_fee right away after channel_reestablish (3a465593)
+     This fixes a race that can result in a force-closure if we try sending
+     a payment very soon after reestablishing the channel.
+ * Qt Desktop GUI:
+   - fix: show fee warnings also in the transaction dialog (c4fe2796)
+
+
+# Release 4.5.6 (Oct 16, 2024)
+ * General:
+   - new: add support for testnet4 (#9197)
+   - fix: wizard: allow passphrase for some '2fa' seeds (#9088)
+   - fix: trustedcoin wallet wizard continuation if file has keystore-only encryption (#9237)
+   - fix: trustedcoin: sanitize error messages coming from 2fa server
+   - fix: new wizard did not set keystore password if storage was not encrypted (#9147)
+   - changed: set stricter UNIX permissions for log files (fa8595b1)
+ * QML GUI (Android):
+   - new: show seed passphrase in WalletDetails (#9204)
+   - new: set max screen brightness when displaying QR codes (79c08536)
+   - fix: crash due to ConcurrentModificationException (450b9a0)
+   - fix: issue deactivating PIN when no wallet loaded (#8366)
+   - fix: only allow Channel Backup import on Lightning-enabled wallets (8d9bcda)
+ * Qt Desktop GUI:
+   - fix: scanning multi (privkeys, addresses) from QR (4dc64e4)
+ * Hardware wallets:
+   - ColdCard: new: export multisig wallet to coldcard over USB (#7682)
+   - Trezor:
+     - new: add support for new device "Safe 5" (#9171)
+     - update: fix compat with and bump pinned library to 0.13.9 (#9141)
+   - Ledger:
+     - new: add support for new device "Flex" (#9179)
+     - update: bump pinned library to 0.3.0, raise max lib to <0.4 (719292f8)
+   - Jade: update: bump library to 1.0.31 (9a84bb32)
+ * CLI/RPC:
+   - changed: require wallet password for lnpay and similar commands (#9236)
+     (This is in addition to the wallet needing to be loaded,
+     and requiring read access to the config file)
+ * Builds/binaries:
+   - changed: include unit tests in tarballs (#9207)
+   - android:
+     - changed: set target_sdk_version to 34 (2917fde5)
+     - update: bump python version (3.8->3.10) (08127a60)
+     - work towards F-Droid inclusion:
+       - reproducible apks: strip file path prefix from .pyc files (6ebdbf04)
+       - add fastlane metadata for f-droid (#9211)
+       - change versionCode calculation (#9221)
+       - build.gradle: set android.dependenciesInfo.includeInApk=false (af18df10)
+       - contrib/release_www.sh: put android versionCode in "version" file (#9233)
+
+
 # Release 4.5.5 (May 30, 2024)
  * General:
    - fix: timeout error shadowed by aiorpcx cancellation bug (#8954)

@@ -79,15 +79,22 @@ class TestLightningSwapserver(TestLightning):
     agents = {
         'alice': {
             'use_gossip': 'false',
+            'swapserver_url': 'http://localhost:5455',
+            'nostr_relays': "''",
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'enable_plugin_swapserver': 'true',
+            'swapserver_port': '5455',
+            'nostr_relays': "''",
         }
     }
 
     def test_swapserver_success(self):
         self.run_shell(['swapserver_success'])
+
+    def test_swapserver_forceclose(self):
+        self.run_shell(['swapserver_forceclose'])
 
     def test_swapserver_refund(self):
         self.run_shell(['swapserver_refund'])
@@ -103,7 +110,7 @@ class TestLightningWatchtower(TestLightning):
             'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
         },
         'carol':{
-            'run_watchtower': 'true',
+            'enable_plugin_watchtower': 'true',
             'watchtower_user': 'wtuser',
             'watchtower_password': 'wtpassword',
             'watchtower_port': '12345',

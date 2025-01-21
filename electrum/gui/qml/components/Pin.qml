@@ -19,7 +19,7 @@ ElDialog {
     property string _pin
 
     title: authMessage ? authMessage : qsTr('PIN')
-    iconSource: '../../../icons/lock.png'
+    iconSource: Qt.resolvedUrl('../../icons/lock.png')
     width: parent.width * 3/4
     z: 1000
     focus: true
@@ -72,17 +72,21 @@ ElDialog {
 
         Label {
             text: [qsTr('Enter PIN'), qsTr('Enter New PIN'), qsTr('Re-enter New PIN')][_phase]
-            font.pixelSize: constants.fontSizeXXLarge
-            Layout.alignment: Qt.AlignHCenter
+            font.pixelSize: constants.fontSizeXLarge
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
         }
 
         TextField {
             id: pin
-            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
+            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6 + pin.leftPadding + pin.rightPadding
+            Layout.preferredHeight: fontMetrics.height + pin.topPadding + pin.bottomPadding
             Layout.alignment: Qt.AlignHCenter
             font.pixelSize: constants.fontSizeXXLarge
             maximumLength: 6
             inputMethodHints: Qt.ImhDigitsOnly
+
             echoMode: TextInput.Password
             focus: true
             onTextChanged: {

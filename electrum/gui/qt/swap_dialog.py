@@ -4,7 +4,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
@@ -33,7 +33,7 @@ class InvalidSwapParameters(Exception): pass
 
 class SwapDialog(WindowModalDialog, QtEventListener):
 
-    def __init__(self, window: 'ElectrumWindow', is_reverse=None, recv_amount_sat=None, channels=None):
+    def __init__(self, window: 'ElectrumWindow', transport, is_reverse=None, recv_amount_sat=None, channels=None):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
@@ -44,9 +44,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
-        menu.addConfig(
-            self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
+        menu.addToggle(
+            _('Zeroconf swap'), self.toggle_zeroconf
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
+        if not self.config.SWAPSERVER_URL:
+            menu.addAction(_('Choose swap server'), lambda: self.window.choose_swapserver_dialog(transport))
         vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -60,6 +62,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         # send_follows is used to know whether the send amount field / receive
         # amount field should be adjusted after the fee slider was moved
         self.send_follows = False
+        self.zeroconf = False
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
         self.toggle_button.clicked.connect(self.toggle_direction)
@@ -105,6 +108,15 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.needs_tx_update = True
         self.window.gui_object.timer.timeout.connect(self.timer_actions)
         self.register_callbacks()
+
+    def toggle_zeroconf(self):
+        self.zeroconf = not self.zeroconf
+        if self.zeroconf:
+            msg = "\n\n".join([
+                "Zero-confirmation swap: Your wallet will not wait until the funding transaction is confirmed.",
+                "Note that this option is risky: the server can steal your funds if they double-spend the funding transaction."
+            ])
+            self.window.show_warning(msg)
 
     def closeEvent(self, event):
         self.unregister_callbacks()
@@ -242,7 +254,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.fee_label.setText(fee_text)
         self.fee_label.repaint()  # macOS hack for #6269
 
-    def run(self):
+    def run(self, transport):
         """Can raise InvalidSwapParameters."""
         if not self.exec():
             return
@@ -251,14 +263,20 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             onchain_amount = self.recv_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
                 return
-            coro = self.swap_manager.reverse_swap(
+            sm = self.swap_manager
+            coro = sm.reverse_swap(
+                transport,
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+                zeroconf=self.zeroconf,
             )
-            self.window.run_coroutine_from_thread(
-                coro, _('Swapping funds'),
-                on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=True),
-            )
+            try:
+                # we must not leave the context, so we use run_couroutine_dialog
+                funding_txid = self.window.run_coroutine_dialog(coro, _('Initiating swap...'))
+            except Exception as e:
+                self.window.show_error(f"Reverse swap failed: {str(e)}")
+                return
+            self.window.on_swap_result(funding_txid, is_reverse=True)
             return True
         else:
             lightning_amount = self.recv_amount_e.get_amount()
@@ -268,7 +286,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             if lightning_amount > self.lnworker.num_sats_can_receive():
                 if not self.window.question(CANNOT_RECEIVE_WARNING):
                     return
-            self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
+            self.window.protect(self.do_normal_swap, (transport, lightning_amount, onchain_amount))
             return True
 
     def update_tx(self) -> None:
@@ -319,26 +337,34 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         recv_amount = self.recv_amount_e.get_amount()
         self.ok_button.setEnabled(bool(send_amount) and bool(recv_amount))
 
-    def do_normal_swap(self, lightning_amount, onchain_amount, password):
+    async def _do_normal_swap(self, transport, lightning_amount, onchain_amount, password):
         dummy_tx = self._create_tx(onchain_amount)
         assert dummy_tx
         sm = self.swap_manager
-        coro = sm.request_normal_swap(
+        swap, invoice = await sm.request_normal_swap(
+            transport=transport,
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
             channels=self.channels,
         )
+        self._current_swap = swap
+        tx = sm.create_funding_tx(swap, dummy_tx, password=password)
+        txid = await sm.wait_for_htlcs_and_broadcast(transport=transport, swap=swap, invoice=invoice, tx=tx)
+        return txid
+
+    def do_normal_swap(self, transport, lightning_amount, onchain_amount, password):
+        self._current_swap = None
+        coro = self._do_normal_swap(transport, lightning_amount, onchain_amount, password)
         try:
-            swap, invoice = self.network.run_from_another_thread(coro)
+            funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting swap payment...'))
+        except UserCancelled:
+            self.swap_manager.cancel_normal_swap(self._current_swap)
+            self.window.show_message(_('Swap cancelled'))
+            return
         except Exception as e:
             self.window.show_error(str(e))
             return
-        tx = sm.create_funding_tx(swap, dummy_tx, password=password)
-        coro2 = sm.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
-        self.window.run_coroutine_dialog(
-            coro2, _('Awaiting swap payment...'),
-            on_result=lambda funding_txid: self.window.on_swap_result(funding_txid, is_reverse=False),
-            on_cancelled=lambda: sm.cancel_normal_swap(swap))
+        self.window.on_swap_result(funding_txid, is_reverse=False)
 
     def get_description(self):
         onchain_funds = "onchain funds"
