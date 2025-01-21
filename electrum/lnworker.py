@@ -1132,7 +1132,7 @@ class LNWallet(LNWorker):
                 'txid': closing_txid,
                 'label': self.wallet.get_label_for_txid(closing_txid),
                 'type': 'channel_closure',
-                'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
+                'amount_msat': -chan.balance(LOCAL),
                 'direction': PaymentDirection.SENT,
                 'timestamp': tx_height.timestamp,
                 'monotonic_timestamp': tx_height.timestamp or TX_TIMESTAMP_INF,
@@ -1162,6 +1162,10 @@ class LNWallet(LNWorker):
         for item in out:
             balance_msat += item['amount_msat']
             item['balance_msat'] = balance_msat
+
+        lb = sum(chan.balance(LOCAL) if not chan.is_closed() else 0
+                for chan in self.channels.values())
+        assert balance_msat  == lb
         return out
 
     def channel_peers(self) -> List[bytes]:
