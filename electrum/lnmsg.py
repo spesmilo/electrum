@@ -420,23 +420,26 @@ class LNSerializer:
                 subtype_field_type = row[3]
                 subtype_field_count_str = row[4]
 
-                subtype_field_count = _resolve_field_count(subtype_field_count_str,
-                                                           vars_dict=record,
-                                                           allow_any=True)
+                subtype_field_count = _resolve_field_count(
+                    subtype_field_count_str,
+                    vars_dict=record,
+                    allow_any=True)
 
                 if subtype_field_name not in record:
                     raise Exception(f'complex field type {field_type} missing element {subtype_field_name}')
 
                 if subtype_field_type in self.subtypes:
-                    self._write_complex_field(fd=fd,
-                                              field_type=subtype_field_type,
-                                              count=subtype_field_count,
-                                              value=record[subtype_field_name])
+                    self._write_complex_field(
+                        fd=fd,
+                        field_type=subtype_field_type,
+                        count=subtype_field_count,
+                        value=record[subtype_field_name])
                 else:
-                    _write_field(fd=fd,
-                                 field_type=subtype_field_type,
-                                 count=subtype_field_count,
-                                 value=record[subtype_field_name])
+                    _write_field(
+                        fd=fd,
+                        field_type=subtype_field_type,
+                        count=subtype_field_count,
+                        value=record[subtype_field_name])
 
     def _read_complex_field(self, *, fd: io.BytesIO, field_type: str, count: Union[int, str])\
             -> Union[bytes, List[Dict[str, Any]], Dict[str, Any]]:
@@ -460,18 +463,21 @@ class LNSerializer:
                 subtype_field_type = row[3]
                 subtype_field_count_str = row[4]
 
-                subtype_field_count = _resolve_field_count(subtype_field_count_str,
-                                                           vars_dict=parsed,
-                                                           allow_any=True)
+                subtype_field_count = _resolve_field_count(
+                    subtype_field_count_str,
+                    vars_dict=parsed,
+                    allow_any=True)
 
                 if subtype_field_type in self.subtypes:
-                    parsed[subtype_field_name] = self._read_complex_field(fd=fd,
-                                                                          field_type=subtype_field_type,
-                                                                          count=subtype_field_count)
+                    parsed[subtype_field_name] = self._read_complex_field(
+                        fd=fd,
+                        field_type=subtype_field_type,
+                        count=subtype_field_count)
                 else:
-                    parsed[subtype_field_name] = _read_field(fd=fd,
-                                                             field_type=subtype_field_type,
-                                                             count=subtype_field_count)
+                    parsed[subtype_field_name] = _read_field(
+                        fd=fd,
+                        field_type=subtype_field_type,
+                        count=subtype_field_count)
             parsedlist.append(parsed)
 
         return parsedlist if count == '...' or count > 1 else parsedlist[0]
@@ -498,15 +504,17 @@ class LNSerializer:
                                                            allow_any=True)
                         field_value = kwargs[tlv_record_name][field_name]
                         if field_type in self.subtypes:
-                            self._write_complex_field(fd=tlv_record_fd,
-                                                      field_type=field_type,
-                                                      count=field_count,
-                                                      value=field_value)
+                            self._write_complex_field(
+                                fd=tlv_record_fd,
+                                field_type=field_type,
+                                count=field_count,
+                                value=field_value)
                         else:
-                            _write_field(fd=tlv_record_fd,
-                                         field_type=field_type,
-                                         count=field_count,
-                                         value=field_value)
+                            _write_field(
+                                fd=tlv_record_fd,
+                                field_type=field_type,
+                                count=field_count,
+                                value=field_value)
                     else:
                         raise Exception(f"unexpected row in scheme: {row!r}")
                 _write_tlv_record(fd=fd, tlv_type=tlv_record_type, tlv_val=tlv_record_fd.getvalue())
@@ -544,18 +552,21 @@ class LNSerializer:
                         field_name = row[3]
                         field_type = row[4]
                         field_count_str = row[5]
-                        field_count = _resolve_field_count(field_count_str,
-                                                           vars_dict=parsed[tlv_record_name],
-                                                           allow_any=True)
+                        field_count = _resolve_field_count(
+                            field_count_str,
+                            vars_dict=parsed[tlv_record_name],
+                            allow_any=True)
                         #print(f">> count={field_count}. parsed={parsed}")
                         if field_type in self.subtypes:
-                            parsed[tlv_record_name][field_name] = self._read_complex_field(fd=tlv_record_fd,
-                                                                                           field_type=field_type,
-                                                                                           count=field_count)
+                            parsed[tlv_record_name][field_name] = self._read_complex_field(
+                                fd=tlv_record_fd,
+                                field_type=field_type,
+                                count=field_count)
                         else:
-                            parsed[tlv_record_name][field_name] = _read_field(fd=tlv_record_fd,
-                                                                              field_type=field_type,
-                                                                              count=field_count)
+                            parsed[tlv_record_name][field_name] = _read_field(
+                                fd=tlv_record_fd,
+                                field_type=field_type,
+                                count=field_count)
                     else:
                         raise Exception(f"unexpected row in scheme: {row!r}")
                 if _num_remaining_bytes_to_read(tlv_record_fd) > 0:

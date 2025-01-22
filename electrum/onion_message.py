@@ -264,17 +264,18 @@ def send_onion_message_to(lnwallet: 'LNWallet', node_id_or_blinded_path: bytes, 
                         # final hop pre-ip, add next_blinding_override
                         final_hop_pre_ip = OnionHopsDataSingle(
                             tlv_stream_name='onionmsg_tlv',
-                            blind_fields={'next_node_id': {'node_id': introduction_point},
-                                          'next_blinding_override': {'blinding': blinded_path['blinding']},
-                                          }
+                            blind_fields={
+                                'next_node_id': {'node_id': introduction_point},
+                                'next_blinding_override': {'blinding': blinded_path['blinding']},
+                            }
                         )
-
                         hops_data.append(final_hop_pre_ip)
 
                         # encrypt encrypted_data_tlv here
                         for i in range(len(hops_data)):
-                            encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i],
-                                                                                  **hops_data[i].blind_fields)
+                            encrypted_recipient_data = encrypt_onionmsg_data_tlv(
+                                shared_secret=hop_shared_secrets[i],
+                                **hops_data[i].blind_fields)
                             hops_data[i].payload['encrypted_recipient_data'] = {
                                 'encrypted_recipient_data': encrypted_recipient_data
                             }
@@ -457,10 +458,11 @@ class OnionMessageManager(Logger):
                 self.logger.debug(f'error while sending {node_id=} e={e!r}')
                 self.forwardqueue.put_nowait((now() + FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
 
-    def submit_forward(self, *,
-                       onion_packet: OnionPacket,
-                       blinding: bytes,
-                       node_id: bytes):
+    def submit_forward(
+            self, *,
+            onion_packet: OnionPacket,
+            blinding: bytes,
+            node_id: bytes):
         if self.forwardqueue.qsize() >= FORWARD_MAX_QUEUE:
             self.logger.debug('forward queue full, dropping packet')
             return
@@ -534,10 +536,11 @@ class OnionMessageManager(Logger):
             requestreply['ev'].set()
             del self.pending[key]
 
-    def submit_requestreply(self, *,
-                            payload: dict,
-                            node_id_or_blinded_path: bytes,
-                            key: bytes = None) -> 'Task':
+    def submit_requestreply(
+            self, *,
+            payload: dict,
+            node_id_or_blinded_path: bytes,
+            key: bytes = None) -> 'Task':
         """Add onion message to queue for sending. Queued onion message payloads
            are supplied with a path_id and a reply_path to determine which request
            corresponds with arriving replies.
