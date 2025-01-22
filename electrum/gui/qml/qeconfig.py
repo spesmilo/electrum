@@ -189,6 +189,15 @@ class QEConfig(AuthMixin, QObject):
         self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = enable
         self.alwaysAllowScreenshotsChanged.emit()
 
+    setMaxBrightnessOnQrDisplayChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=setMaxBrightnessOnQrDisplayChanged)
+    def setMaxBrightnessOnQrDisplay(self):
+        return self.config.GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY
+
+    @setMaxBrightnessOnQrDisplay.setter
+    def setMaxBrightnessOnQrDisplay(self, enable):
+        self.config.GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = enable
+
     useRecoverableChannelsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useRecoverableChannelsChanged)
     def useRecoverableChannels(self):
