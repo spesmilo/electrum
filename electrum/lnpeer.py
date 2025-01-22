@@ -605,16 +605,17 @@ class Peer(Logger, EventListener):
         await self.querying.wait()
         self.querying.clear()
 
-    def query_short_channel_ids(self, ids, compressed=True):
+    def query_short_channel_ids(self, ids):
+        # compression MUST NOT be used according to updated bolt
+        # (https://github.com/lightning/bolts/pull/981)
         ids = sorted(ids)
         s = b''.join(ids)
-        encoded = zlib.compress(s) if compressed else s
-        prefix = b'\x01' if compressed else b'\x00'
+        prefix = b'\x00'  # uncompressed
         self.send_message(
             'query_short_channel_ids',
             chain_hash=constants.net.rev_genesis_bytes(),
-            len=1+len(encoded),
-            encoded_short_ids=prefix+encoded)
+            len=1+len(s),
+            encoded_short_ids=prefix+s)
 
     async def _message_loop(self):
         try:
