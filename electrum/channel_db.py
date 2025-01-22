@@ -699,6 +699,15 @@ class ChannelDB(SqlDB):
         self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         self.update_counts()
 
+    def get_youngest_policy_timestamp(self) -> int:
+        timestamp = 0
+        with self.lock:
+            _policies = self._policies.copy()
+        for policy in _policies.values():
+            if policy.timestamp > timestamp:
+                timestamp = policy.timestamp
+        return timestamp
+
     def get_old_policies(self, delta) -> Sequence[Tuple[bytes, ShortChannelID]]:
         with self.lock:
             _policies = self._policies.copy()

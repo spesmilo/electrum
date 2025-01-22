@@ -506,13 +506,19 @@ class Peer(Logger, EventListener):
             await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except Exception as e:
             raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
-        if self.lnworker == self.lnworker.network.lngossip:
-            try:
-                ids, complete = await util.wait_for2(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
-            except asyncio.TimeoutError as e:
-                raise GracefulDisconnect("query_channel_range timed out") from e
-            self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
-            await self.lnworker.add_new_ids(ids)
+        if self.lnworker == self.lnworker.network.lngossip and self.offers_gossip_queries:
+            self.request_gossip(self.request_gossip_timestamp())
+            if self.should_query_channels():
+                try:
+                    ids, complete = await util.wait_for2(
+                        self.get_channel_range(),
+                        LN_P2P_NETWORK_TIMEOUT)
+                except asyncio.TimeoutError as e:
+                    raise GracefulDisconnect("query_channel_range timed out") from e
+                self.logger.info(f'Received {len(ids)} channel ids. (complete: {complete})')
+                # wait a bit so we request fewer duplicates, request_gossip already delivers gossip
+                await asyncio.sleep(30)
+                await self.lnworker.add_new_ids(ids)
             while True:
                 todo = self.lnworker.get_ids_to_query()
                 if not todo:
@@ -560,7 +566,30 @@ class Peer(Logger, EventListener):
                     break
         return ids, complete
 
-    def request_gossip(self, timestamp=0):
+    def should_query_channels(self) -> bool:
+        """If we already have 10 peers and are well synced requesting
+        channels again would be wasting resources"""
+        lngossip = self.network.lngossip
+        if len(lngossip.peers) > 10:
+            _, _, percent_synced = lngossip.get_sync_progress_estimate()
+            if percent_synced >= 100:
+                return False
+        return True
+
+    def request_gossip_timestamp(self) -> int:
+        """Get a timestamp to use for gossip_timestamp_filter so we don't
+        have peers send us everything on every restart"""
+        lngossip = self.network.lngossip
+        youngest_policy_ts = lngossip.channel_db.get_youngest_policy_timestamp()
+        _, _, percent_synced = lngossip.get_sync_progress_estimate()
+        current_time = int(time.time())
+        if current_time - youngest_policy_ts > 7 * 24 * 60 * 60 or percent_synced < 80:
+            return 0  # request full gossip, ours is old or incomplete
+        else:
+            # request gossip from 2h before the last channel_update we got
+            return youngest_policy_ts - 120 * 60
+
+    def request_gossip(self, timestamp: int = 0):
         if timestamp == 0:
             self.logger.info('requesting whole channel graph')
         else:
@@ -644,6 +673,10 @@ class Peer(Logger, EventListener):
             pass
         self.lnworker.peer_closed(self)
         self.got_disconnected.set()
+
+    @property
+    def offers_gossip_queries(self) -> bool:
+        return self.their_features.supports(LnFeatures.GOSSIP_QUERIES_OPT)
 
     def is_shutdown_anysegwit(self):
         return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
