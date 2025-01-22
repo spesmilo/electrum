@@ -3,6 +3,7 @@ import io
 import os
 import time
 from functools import partial
+import logging
 
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
@@ -18,6 +19,7 @@ from electrum.lnutil import LnFeatures
 from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data, \
     OnionMessageManager, NoRouteFound, Timeout
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
+from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase, test_lnpeer
 from .test_lnpeer import PutIntoOthersQueueTransport, PeerInTests, keypair
@@ -278,6 +280,11 @@ class MockPeer:
 
 
 class TestOnionMessageManager(ElectrumTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        console_stderr_handler.setLevel(logging.DEBUG)
 
     def setUp(self):
         super().setUp()
