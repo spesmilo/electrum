@@ -14,7 +14,6 @@ from electrum.wallet import Standard_Wallet
 from electrum.wizard import NewWalletWizard
 from electrum.util import UserFacingException
 from electrum.crypto import hash_160, sha256d
-#from electrum.ecc import CURVE_ORDER, ecdsa_der_sig_from_r_and_s, get_r_and_s_from_ecdsa_der_sig
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 
