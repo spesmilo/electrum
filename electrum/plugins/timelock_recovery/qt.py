@@ -19,6 +19,7 @@ from PyQt6.QtGui import (QFontDatabase, QFont)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QScrollArea)
 
+from electrum import constants
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.util import make_dir
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumGui
 
 agreement_text = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
+alert_address_label = "Timelock Recovery Alert Address"
 
 class Plugin(TimelockRecoveryPlugin):
     def __init__(self, parent, config, name):
@@ -113,20 +115,20 @@ class Plugin(TimelockRecoveryPlugin):
         # Create the labels.
         instructions_label = QLabel(_(f'Please type in the textbox below:\n"{agreement_text}"'))
 
+        # Allow users to select text in the labels.
+        instructions_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
         # Create the noise scan QR text edit.
         self.agreement_textedit = QLineEdit()
 
         # Update the UI when the text changes.
         self.agreement_textedit.textChanged.connect(self.on_agreement_edit)
 
-        # Allow users to select text in the labels.
-        instructions_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-
         # Create the buttons.
         self.next_button = QPushButton(_("Next"), self.setup_dialog)
 
         # Initially disable the next button.
-        self.next_button.setEnabled(False)
+        self.next_button.setEnabled(constants.net.NET_NAME == 'regtest')
 
         # Handle clicks on the buttons.
         self.next_button.clicked.connect(self.setup_dialog.close)
@@ -145,11 +147,40 @@ class Plugin(TimelockRecoveryPlugin):
 
     def on_agreement_edit(self):
         text = self.agreement_textedit.text()
-        self.next_button.setEnabled(bool(text.lower() == agreement_text.lower()))
+        self.next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == agreement_text.lower())
+
+    def get_alert_address(self):
+        for addr in self.wallet.get_unused_addresses():
+            label = self.wallet.get_label_for_address(addr)
+            if label == alert_address_label:
+                return addr
+        for addr in self.wallet.get_unused_addresses():
+            label = self.wallet.get_label_for_address(addr)
+            if label == '':
+                self.wallet.set_label(addr, alert_address_label)
+                return addr
+        if self.wallet.is_deterministic():
+            addr = self.wallet.create_new_address(False)
+            self.wallet.set_label(addr, alert_address_label)
+        return None
+
 
     def create_step1_dialog(self, window):
         self.step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
         self.step1_dialog.setContentsMargins(11, 11, 1, 1)
+
+        self.alert_address = self.get_alert_address()
+        if not self.alert_address:
+            self.step1_dialog.show_error(''.join([
+                _('No more addresses in your wallet.'), ' ',
+                _('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
+                _('If you want to create new addresses, use a deterministic wallet instead.'),
+            ]))
+            self.step1_dialog.close()
+            return
+
+        self.alert_address_label = QLabel(_("Alert Address: ") + self.alert_address)
+        self.alert_address_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(self.step1_dialog)
@@ -165,6 +196,8 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
+
+        vbox_layout.addWidget(self.alert_address_label)
 
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
