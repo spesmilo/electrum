@@ -199,6 +199,9 @@ class LNTransportBase:
     privkey: bytes
     peer_addr: Optional[LNPeerAddr] = None
 
+    def __init__(self):
+        self.drain_write_lock = asyncio.Lock()
+
     def name(self) -> str:
         pubkey = self.remote_pubkey()
         pubkey_hex = pubkey.hex() if pubkey else pubkey
@@ -217,6 +220,12 @@ class LNTransportBase:
         assert len(lc) == 18
         assert len(c) == len(msg) + 16
         self.writer.write(lc+c)
+
+    async def send_bytes_and_drain(self, msg: bytes) -> None:
+        """Should be used when possible (in async scope), to avoid memory exhaustion."""
+        async with self.drain_write_lock:
+            self.send_bytes(msg)
+            await self.writer.drain()
 
     async def read_messages(self):
         buffer = bytearray()

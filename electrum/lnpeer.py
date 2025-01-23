@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable, List
 from datetime import datetime
 import functools
 
@@ -45,7 +45,8 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
                      ChannelType, LNProtocolWarning, validate_features,
-                     IncompatibleOrInsaneFeatures, FeeBudgetExceeded)
+                     IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
+                     GossipForwardingMessage, GossipTimestampFilter)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
 from .lnutil import serialize_htlc_key, Keypair
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
@@ -74,7 +75,9 @@ class Peer(Logger, EventListener):
     ORDERED_MESSAGES = (
         'accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'closing_signed')
     SPAMMY_MESSAGES = (
-        'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',)
+        'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',
+        'gossip_timestamp_filter', 'reply_channel_range', 'query_channel_range',
+        'query_short_channel_ids', 'reply_short_channel_ids', 'reply_short_channel_ids_end')
 
     DELAY_INC_MSG_PROCESSING_SLEEP = 0.01
 
@@ -106,6 +109,8 @@ class Peer(Logger, EventListener):
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
         self.gossip_queue = asyncio.Queue()
+        self.gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
+        self.outgoing_gossip_reply = False # type: bool
         self.ordered_message_queues = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue] # for messages that are ordered
         self.temp_id_to_id = {}  # type: Dict[bytes, Optional[bytes]]   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
@@ -168,8 +173,7 @@ class Peer(Logger, EventListener):
             await self.transport.handshake()
         self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
         features = self.features.for_init_message()
-        b = int.bit_length(features)
-        flen = b // 8 + int(bool(b % 8))
+        flen = features.min_len()
         self.send_message(
             "init", gflen=0, flen=flen,
             features=features,
@@ -240,6 +244,7 @@ class Peer(Logger, EventListener):
             # raw message is needed to check signature
             if message_type in ['node_announcement', 'channel_announcement', 'channel_update']:
                 payload['raw'] = message
+                payload['sender_node_id'] = self.pubkey
             # note: the message handler might be async or non-async. In either case, by default,
             #       we wait for it to complete before we return, i.e. before the next message is processed.
             if asyncio.iscoroutinefunction(f):
@@ -294,7 +299,7 @@ class Peer(Logger, EventListener):
             return
         raise GracefulDisconnect
 
-    async def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=False):
+    def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=False):
         """Sends a warning and disconnects if close_connection.
 
         Note:
@@ -313,7 +318,7 @@ class Peer(Logger, EventListener):
         if close_connection:
             raise GracefulDisconnect
 
-    async def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
+    def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
         """Sends an error message and force closes the channel.
 
         Note:
@@ -406,6 +411,42 @@ class Peer(Logger, EventListener):
         if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_update', payload))
 
+    def on_query_channel_range(self, payload):
+        if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
+            return
+        if not self._is_valid_channel_range_query(payload):
+            return self.send_warning(bytes(32), "received invalid query_channel_range")
+        if self.outgoing_gossip_reply:
+            return self.send_warning(bytes(32), "received multiple queries at the same time")
+        self.outgoing_gossip_reply = True
+        self.gossip_queue.put_nowait(('query_channel_range', payload))
+
+    def on_query_short_channel_ids(self, payload):
+        if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
+            return
+        if self.outgoing_gossip_reply:
+            return self.send_warning(bytes(32), "received multiple queries at the same time")
+        if not self._is_valid_short_channel_id_query(payload):
+            return self.send_warning(bytes(32), "invalid query_short_channel_ids")
+        self.outgoing_gossip_reply = True
+        self.gossip_queue.put_nowait(('query_short_channel_ids', payload))
+
+    def on_gossip_timestamp_filter(self, payload):
+        if self._should_forward_gossip():
+            self.set_gossip_timestamp_filter(payload)
+
+    def set_gossip_timestamp_filter(self, payload: dict) -> None:
+        """Set the gossip_timestamp_filter for this peer. If the peer requested historical gossip,
+        the request is put on the queue, otherwise only the forwarding loop will check the filter"""
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return
+        filter = GossipTimestampFilter.from_payload(payload)
+        self.gossip_timestamp_filter = filter
+        self.logger.debug(f"got gossip_ts_filter from peer {self.pubkey.hex()}: "
+                          f"{str(self.gossip_timestamp_filter)}")
+        if filter and not filter.only_forwarding:
+            self.gossip_queue.put_nowait(('gossip_timestamp_filter', None))
+
     def maybe_save_remote_update(self, payload):
         if not self.channels:
             return
@@ -424,6 +465,8 @@ class Peer(Logger, EventListener):
             # This code assumes gossip_queries is set. BOLT7: "if the
             # gossip_queries feature is negotiated, [a node] MUST NOT
             # send gossip it did not generate itself"
+            # NOTE: The definition of gossip_queries changed
+            # https://github.com/lightning/bolts/commit/fce8bab931674a81a9ea895c9e9162e559e48a65
             short_channel_id = ShortChannelID(payload['short_channel_id'])
             self.logger.info(f'received orphan channel update {short_channel_id}')
             self.orphan_channel_updates[short_channel_id] = payload
@@ -462,13 +505,14 @@ class Peer(Logger, EventListener):
     @handle_disconnect
     async def main_loop(self):
         async with self.taskgroup as group:
-            await group.spawn(self._message_loop())
             await group.spawn(self.htlc_switch())
-            await group.spawn(self.query_gossip())
-            await group.spawn(self.process_gossip())
-            await group.spawn(self.send_own_gossip())
+            await group.spawn(self._message_loop())
+            await group.spawn(self._query_gossip())
+            await group.spawn(self._process_gossip())
+            await group.spawn(self._send_own_gossip())
+            await group.spawn(self._forward_gossip())
 
-    async def process_gossip(self):
+    async def _process_gossip(self):
         while True:
             await asyncio.sleep(5)
             if not self.network.lngossip:
@@ -484,6 +528,12 @@ class Peer(Logger, EventListener):
                     chan_upds.append(payload)
                 elif name == 'node_announcement':
                     node_anns.append(payload)
+                elif name == 'query_channel_range':
+                    await self.taskgroup.spawn(self._send_reply_channel_range(payload))
+                elif name == 'query_short_channel_ids':
+                    await self.taskgroup.spawn(self._send_reply_short_channel_ids(payload))
+                elif name == 'gossip_timestamp_filter':
+                    await self.taskgroup.spawn(self._handle_historical_gossip_request())
                 else:
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
@@ -491,7 +541,7 @@ class Peer(Logger, EventListener):
             if self.network.lngossip:
                 await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
 
-    async def send_own_gossip(self):
+    async def _send_own_gossip(self):
         if self.lnworker == self.lnworker.network.lngossip:
             return
         await asyncio.sleep(10)
@@ -505,24 +555,145 @@ class Peer(Logger, EventListener):
                         self.maybe_send_channel_announcement(chan)
             await asyncio.sleep(600)
 
-    async def query_gossip(self):
+    def _should_forward_gossip(self) -> bool:
+        if (self.network.lngossip != self.lnworker
+                and not self.lnworker.uses_trampoline()
+                and self.features.supports(LnFeatures.GOSSIP_QUERIES_REQ)):
+            return True
+        return False
+
+    async def _forward_gossip(self):
+        if not self._should_forward_gossip():
+            return
+
+        lngossip = self.network.lngossip
+        last_gossip_batch_ts = 0
+        while True:
+            await asyncio.sleep(10)
+            if not self.gossip_timestamp_filter:
+                continue  # peer didn't request gossip
+
+            new_gossip, last_lngossip_refresh_ts = await lngossip.get_forwarding_gossip()
+            if not last_lngossip_refresh_ts > last_gossip_batch_ts:
+                continue  # no new batch available
+            last_gossip_batch_ts = last_lngossip_refresh_ts
+
+            await self.taskgroup.spawn(self._send_gossip_list(new_gossip, use_semaphore=True))
+
+    async def _handle_historical_gossip_request(self):
+        """Called when a peer requests historical gossip with a gossip_timestamp_filter query."""
+        filter = self.gossip_timestamp_filter
+        if not self._should_forward_gossip() or not filter or filter.only_forwarding:
+            return
+        async with self.network.lngossip.gossip_request_semaphore:
+            requested_gossip = self.lnworker.channel_db.get_gossip_in_timespan(filter)
+            filter.only_forwarding = True
+            await self._send_gossip_list(requested_gossip, use_semaphore=False)
+
+    async def _send_gossip_list(self, messages: List[GossipForwardingMessage], *, use_semaphore: bool):
+        if use_semaphore:
+            async with self.network.lngossip.gossip_request_semaphore:
+               amount_sent = await self._send_gossip_messages(messages)
+        else:
+            amount_sent = await self._send_gossip_messages(messages)
+        if amount_sent > 0:
+            self.logger.debug(f"forwarded {amount_sent} gossip messages to {self.pubkey.hex()}")
+
+    async def _send_gossip_messages(self, messages: List[GossipForwardingMessage]) -> int:
+        amount_sent = 0
+        for msg in messages:
+            if self.gossip_timestamp_filter.in_range(msg.timestamp) \
+                and self.pubkey != msg.sender_node_id:
+                await self.transport.send_bytes_and_drain(msg.msg)
+                amount_sent += 1
+                if amount_sent % 250 == 0:
+                    # this can be a lot of messages, completely blocking the event loop
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+        return amount_sent
+
+    async def _query_gossip(self):
         try:
             await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except Exception as e:
             raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
         if self.lnworker == self.lnworker.network.lngossip:
+            if not self.their_features.supports(LnFeatures.GOSSIP_QUERIES_OPT):
+                raise GracefulDisconnect("remote does not support gossip_queries, which we need")
             try:
                 ids, complete = await util.wait_for2(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
             await self.lnworker.add_new_ids(ids)
+            self.request_gossip(int(time.time()))
             while True:
                 todo = self.lnworker.get_ids_to_query()
                 if not todo:
                     await asyncio.sleep(1)
                     continue
                 await self.get_short_channel_ids(todo)
+
+    @staticmethod
+    def _is_valid_channel_range_query(payload: dict) -> bool:
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return False
+        if payload.get('first_blocknum', -1) < constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS:
+            return False
+        if payload.get('number_of_blocks', 0) < 1:
+            return False
+        return True
+
+    def _is_valid_short_channel_id_query(self, payload: dict) -> bool:
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return False
+        enc_short_ids = payload['encoded_short_ids']
+        if enc_short_ids[0] != 0:
+            self.logger.debug(f"got query_short_channel_ids with invalid encoding: {repr(enc_short_ids[0])}")
+            return False
+        if (len(enc_short_ids) - 1) % 8 != 0:
+            self.logger.debug(f"got query_short_channel_ids with invalid length")
+            return False
+        return True
+
+    async def _send_reply_channel_range(self, payload: dict):
+        """https://github.com/lightning/bolts/blob/acd383145dd8c3fecd69ce94e4a789767b984ac0/07-routing-gossip.md#requirements-5"""
+        first_blockheight: int = payload['first_blocknum']
+
+        async with self.network.lngossip.gossip_request_semaphore:
+            sorted_scids: List[ShortChannelID] = self.lnworker.channel_db.get_channels_in_range(
+                first_blockheight,
+                payload['number_of_blocks']
+            )
+            self.logger.debug(f"reply_channel_range to request "
+                              f"first_height={first_blockheight}, "
+                              f"num_blocks={payload['number_of_blocks']}, "
+                              f"sending {len(sorted_scids)} scids")
+
+            complete: bool = False
+            while not complete:
+                # create a 64800 byte chunk of skids, split the remaining scids
+                encoded_scids, sorted_scids = b''.join(sorted_scids[:8100]), sorted_scids[8100:]
+                complete = len(sorted_scids) == 0  # if there are no scids remaining we are done
+                # number of blocks covered by the scids in this chunk
+                if complete:
+                    # LAST MESSAGE MUST have first_blocknum plus number_of_blocks equal or greater than
+                    # the query_channel_range first_blocknum plus number_of_blocks.
+                    number_of_blocks = ((payload['first_blocknum'] + payload['number_of_blocks'])
+                                        - first_blockheight)
+                else:
+                    # we cover the range until the height of the first scid in the next chunk
+                    number_of_blocks = sorted_scids[0].block_height - first_blockheight
+                self.send_message('reply_channel_range',
+                    chain_hash=constants.net.rev_genesis_bytes(),
+                    first_blocknum=first_blockheight,
+                    number_of_blocks=number_of_blocks,
+                    sync_complete=complete,
+                    len=1+len(encoded_scids),
+                    encoded_short_ids=b'\x00' + encoded_scids)
+                if not complete:
+                    first_blockheight = sorted_scids[0].block_height
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+            self.outgoing_gossip_reply = False
 
     async def get_channel_range(self):
         first_block = constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS
@@ -544,6 +715,7 @@ class Peer(Logger, EventListener):
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 5344, complete True
+        # ADDENDUM (01/2025): now it's 'MUST set sync_complete to false if this is not the final reply_channel_range.'
         while True:
             index, num, complete, _ids = await self.reply_channel_range.get()
             ids.update(_ids)
@@ -599,8 +771,33 @@ class Peer(Logger, EventListener):
         complete = bool(int.from_bytes(payload['sync_complete'], 'big'))
         encoded = payload['encoded_short_ids']
         ids = self.decode_short_ids(encoded)
-        #self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, num_ids {len(ids)}, complete {repr(payload['complete'])}")
+        # self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, "
+        #                  f"num_ids {len(ids)}, complete {complete}")
         self.reply_channel_range.put_nowait((first, num, complete, ids))
+
+    async def _send_reply_short_channel_ids(self, payload: dict):
+        async with self.network.lngossip.gossip_request_semaphore:
+            requested_scids = payload['encoded_short_ids']
+            decoded_scids = [ShortChannelID.normalize(scid)
+                             for scid in self.decode_short_ids(requested_scids)]
+            self.logger.debug(f"serving query_short_channel_ids request: "
+                              f"requested {len(decoded_scids)} scids")
+            chan_db = self.lnworker.channel_db
+            response: Set[bytes] = set()
+            for scid in decoded_scids:
+                requested_msgs = chan_db.get_gossip_for_scid_request(scid)
+                response.update(requested_msgs)
+            self.logger.debug(f"found {len(response)} gossip messages to serve scid request")
+            for index, msg in enumerate(response):
+                await self.transport.send_bytes_and_drain(msg)
+                if index % 250 == 0:
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+            self.send_message(
+                'reply_short_channel_ids_end',
+                chain_hash=constants.net.rev_genesis_bytes(),
+                full_information=self.network.lngossip.is_synced()
+            )
+            self.outgoing_gossip_reply = False
 
     async def get_short_channel_ids(self, ids):
         self.logger.info(f'Querying {len(ids)} short_channel_ids')
@@ -982,7 +1179,7 @@ class Peer(Logger, EventListener):
         try:
             chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
-            await self.send_warning(channel_id, message=str(e), close_connection=True)
+            self.send_warning(channel_id, message=str(e), close_connection=True)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_state(ChannelState.OPENING)
         if zeroconf:
@@ -1179,7 +1376,7 @@ class Peer(Logger, EventListener):
         try:
             chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
-            await self.send_warning(channel_id, message=str(e), close_connection=True)
+            self.send_warning(channel_id, message=str(e), close_connection=True)
         sig_64, _ = chan.sign_next_commitment()
         self.send_message('funding_signed',
             channel_id=channel_id,
@@ -1509,8 +1706,7 @@ class Peer(Logger, EventListener):
         timestamp = int(time.time())
         node_id = privkey_to_pubkey(self.privkey)
         features = self.features.for_node_announcement()
-        b = int.bit_length(features)
-        flen = b // 8 + int(bool(b % 8))
+        flen = features.min_len()
         rgb_color = bytes.fromhex('000000')
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
@@ -2444,7 +2640,7 @@ class Peer(Logger, EventListener):
         # BOLT-02 check if they use the upfront shutdown script they advertised
         if self.is_upfront_shutdown_script() and their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
-                await self.send_warning(
+                self.send_warning(
                     chan.channel_id,
                     "remote didn't use upfront shutdown script it committed to in channel opening",
                     close_connection=True)
@@ -2455,7 +2651,7 @@ class Peer(Logger, EventListener):
             elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
                 pass
             else:
-                await self.send_warning(
+                self.send_warning(
                     chan.channel_id,
                     f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}',
                     close_connection=True)
