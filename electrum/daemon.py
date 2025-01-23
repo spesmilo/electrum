@@ -30,26 +30,24 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping, TYPE_CHECKING
+from typing import Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, TYPE_CHECKING
 from base64 import b64decode, b64encode
-from collections import defaultdict
 import json
 import socket
-from enum import IntEnum
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import timeout_after, TaskTimeout, ignore_after
+from aiorpcx import ignore_after
 
 from . import util
 from .network import Network
-from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
-from .invoices import PR_PAID, PR_EXPIRED
-from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
-from .util import EventListener, event_listener
+from .util import (
+    json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
+    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
+)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
-from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
+from .wallet_db import WalletDB, WalletUnfinished
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -67,8 +65,10 @@ _logger = get_logger(__name__)
 class DaemonNotRunning(Exception):
     pass
 
+
 def get_rpcsock_defaultpath(config: SimpleConfig):
     return os.path.join(config.path, 'daemon_rpc_socket')
+
 
 def get_rpcsock_default_type(config: SimpleConfig):
     if config.RPC_PORT:
@@ -80,8 +80,10 @@ def get_rpcsock_default_type(config: SimpleConfig):
         return 'unix'
     return 'tcp'
 
+
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
+
 
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
@@ -107,7 +109,6 @@ def get_file_descriptor(config: SimpleConfig):
             remove_lockfile(lockfile)
 
 
-
 def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] = 60):
     lockfile = get_lockfile(config)
     while True:
@@ -130,6 +131,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = util.get_asyncio_loop()
+
         async def request_coroutine(
             *, socktype=socktype, path=path, auth=auth, server_url=server_url, endpoint=endpoint,
         ):
@@ -142,6 +144,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
             async with aiohttp.ClientSession(auth=auth, connector=connector) as session:
                 c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
+
         try:
             fut = asyncio.run_coroutine_threadsafe(request_coroutine(), loop)
             return fut.result(timeout=timeout)
@@ -185,11 +188,14 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
 class AuthenticationError(Exception):
     pass
 
+
 class AuthenticationInvalidOrMissing(AuthenticationError):
     pass
 
+
 class AuthenticationCredentialsInvalid(AuthenticationError):
     pass
+
 
 class AuthenticatedServer(Logger):
 
@@ -360,9 +366,6 @@ class CommandsServer(AuthenticatedServer):
         # execute requested command now.  note: cmd can raise, the caller (self.handle) will wrap it.
         result = await func(*args, **kwargs)
         return result
-
-
-
 
 
 class Daemon(Logger):

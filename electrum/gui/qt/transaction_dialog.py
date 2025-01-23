@@ -24,39 +24,33 @@
 # SOFTWARE.
 
 import asyncio
-import sys
 import concurrent.futures
 import copy
 import datetime
-import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple, Mapping
+from typing import TYPE_CHECKING, Optional, List, Union, Mapping
 from functools import partial
 from decimal import Decimal
 
 from PyQt6.QtCore import QSize, Qt, QUrl, QPoint, pyqtSignal
 from PyQt6.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QTextCursor, QAction
-from PyQt6.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
-                             QTextEdit, QFrame, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
-                             QApplication, QSizePolicy)
+from PyQt6.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget,
+                             QToolButton, QMenu, QTextBrowser,
+                             QSizePolicy)
 import qrcode
 from qrcode import exceptions
 
-from electrum.simple_config import SimpleConfig
-from electrum.util import quantize_feerate
 from electrum import bitcoin
 
-from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX, DummyAddress
+from electrum.bitcoin import NLOCKTIME_BLOCKHEIGHT_MAX, DummyAddress
 from electrum.i18n import _
 from electrum.plugin import run_hook
-from electrum import simple_config
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
 from electrum.util import ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES
 from electrum.network import Network
 from electrum.wallet import TxSighashRiskLevel, TxSighashDanger
 
-from . import util
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
@@ -185,6 +179,7 @@ class TxInOutWidget(QWidget):
         lnk.setAnchor(True)
         lnk.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
+
         def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
             sm = self.wallet.lnworker.swap_manager if self.wallet.lnworker else None
@@ -643,9 +638,11 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def _add_slip_19_ownership_proofs_to_tx(self):
         assert isinstance(self.tx, PartialTransaction)
+
         def on_success(result):
             self._export_option_slip19.setEnabled(False)
             self.main_window.pop_top_level_window(self)
+
         def on_failure(exc_info):
             self._export_option_slip19.setChecked(False)
             self.main_window.on_error(exc_info)
@@ -1024,9 +1021,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         if self._fetch_txin_data_fut is not None:
             return
         network = self.wallet.network
+
         def progress_cb(prog: TxinDataFetchProgress):
             self._fetch_txin_data_progress = prog
             self.throttled_update_sig.emit()
+
         async def wrapper():
             try:
                 await tx.add_info_from_network(network, progress_cb=progress_cb)

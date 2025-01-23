@@ -808,8 +808,6 @@ def multisig_script(public_keys: Sequence[str], m: int) -> bytes:
     return construct_script([m, *public_keys, n, opcodes.OP_CHECKMULTISIG])
 
 
-
-
 class Transaction:
     _cached_network_ser: Optional[str]
 

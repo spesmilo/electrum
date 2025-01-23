@@ -6,22 +6,17 @@ from abc import abstractmethod, ABC
 
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtCore import Qt, QRect, QSize
-from PyQt6.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox, QCheckBox,
-                             QToolTip)
+from PyQt6.QtWidgets import QMenu, QLabel, QVBoxLayout, QGridLayout, QAbstractItemView, QCheckBox, QToolTip
 from PyQt6.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState, ChanCloseOption
+from electrum.lnchannel import AbstractChannel, ChannelBackup, Channel, ChanCloseOption
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
+from electrum.lnutil import LOCAL, REMOTE
 from electrum.lnworker import LNWallet
 from electrum.gui import messages
 
-from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
-from .amountedit import BTCAmountEdit, FreezableLineEdit
+from .util import WindowModalDialog, Buttons, OkButton, EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme
 from .util import read_QIcon, font_height
 from .my_treeview import MyTreeView
 
@@ -132,15 +127,19 @@ class ChannelsList(MyTreeView):
             return
         coro = self.lnworker.close_channel(channel_id)
         on_success = self.on_channel_closed
+
         def task():
             return self.network.run_from_another_thread(coro)
+
         WaitingDialog(self, _('Please wait...'), task, on_success, self.on_failure)
 
     def force_close(self, channel_id):
         self.save_backup = True
         backup_cb = QCheckBox('Create a backup now', checked=True)
+
         def on_checked(_x):
             self.save_backup = backup_cb.isChecked()
+
         backup_cb.stateChanged.connect(on_checked)
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
@@ -155,9 +154,11 @@ class ChannelsList(MyTreeView):
         if self.save_backup:
             if not self.main_window.backup_wallet():
                 return
+
         def task():
             coro = self.lnworker.force_close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
+
         WaitingDialog(self, _('Please wait...'), task, self.on_channel_closed, self.on_failure)
 
     def remove_channel(self, channel_id):
@@ -185,11 +186,14 @@ class ChannelsList(MyTreeView):
         msg += '\n\n' + messages.MSG_REQUEST_FORCE_CLOSE
         if not self.main_window.question(msg):
             return
+
         def task():
             coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
+
         def on_done(b):
             self.main_window.show_message(_('Request scheduled'))
+
         WaitingDialog(self, _('Please wait...'), task, on_done, self.on_failure)
 
     def set_frozen(self, chan, *, for_sending, value):

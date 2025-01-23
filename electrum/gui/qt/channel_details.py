@@ -20,15 +20,18 @@ from .util import QtEventListener, qt_event_listener, VLine
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
+
 class HTLCItem(QtGui.QStandardItem):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setEditable(False)
 
+
 class SelectableLabel(QtWidgets.QLabel):
     def __init__(self, text=''):
         super().__init__(text)
         self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+
 
 class LinkedLabel(QtWidgets.QLabel):
     def __init__(self, text, on_clicked):

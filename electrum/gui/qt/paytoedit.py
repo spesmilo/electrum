@@ -27,9 +27,9 @@ from functools import partial
 from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QTimer, QSize
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFontMetrics, QFont
-from PyQt6.QtWidgets import QApplication, QTextEdit, QWidget, QLineEdit, QStackedLayout, QSizePolicy
+from PyQt6.QtWidgets import QTextEdit, QWidget, QLineEdit, QStackedLayout
 
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger

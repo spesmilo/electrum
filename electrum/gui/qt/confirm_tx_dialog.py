@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional, Union, Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit, QToolButton, QMenu
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -42,9 +42,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.bitcoin import DummyAddress
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
-                   PasswordLineEdit, WWLabel, read_QIcon)
-
-from .fee_slider import FeeSlider, FeeComboBox
+                   WWLabel, read_QIcon)
 
 if TYPE_CHECKING:
     from electrum.simple_config import ConfigVarWithConfig
@@ -112,7 +110,6 @@ class TxEditor(WindowModalDialog):
         self.resize(self.layout().sizeHint())
 
         self.main_window.gui_object.timer.timeout.connect(self.timer_actions)
-
 
     def timer_actions(self):
         if self.needs_update:
@@ -379,18 +376,21 @@ class TxEditor(WindowModalDialog):
     def create_top_bar(self, text):
         self.pref_menu = QMenu()
         self.pref_menu.setToolTipsVisible(True)
+
         def add_pref_action(b, action, text, tooltip):
             m = self.pref_menu.addAction(text, action)
             m.setCheckable(True)
             m.setChecked(b)
             m.setToolTip(tooltip)
             return m
+
         def add_cv_action(configvar: 'ConfigVarWithConfig', action: Callable[[], None]):
             b = configvar.get()
             short_desc = configvar.get_short_desc()
             assert short_desc is not None, f"short_desc missing for {configvar}"
             tooltip = configvar.get_long_desc() or ""
             return add_pref_action(b, action, short_desc, tooltip)
+
         add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_IO, self.toggle_io_visibility)
         add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS, self.toggle_fee_details)
         add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, self.toggle_locktime)
@@ -607,7 +607,7 @@ class TxEditor(WindowModalDialog):
 
 
 class ConfirmTxDialog(TxEditor):
-    help_text = ''#_('Set the mining fee of your transaction')
+    help_text = ''  #_('Set the mining fee of your transaction')
 
     def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], allow_preview=True):
 

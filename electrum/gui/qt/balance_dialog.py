@@ -25,12 +25,9 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
-                             QLabel, QCompleter, QDialog, QStyledItemDelegate,
-                             QScrollArea, QWidget, QPushButton, QGridLayout, QToolButton)
-from PyQt6.QtCore import QRect, QEventLoop, Qt, pyqtSignal
-from PyQt6.QtGui import QPalette, QPen, QPainter, QPixmap
-
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget, QGridLayout, QToolButton
+from PyQt6.QtCore import QRect, Qt
+from PyQt6.QtGui import QPen, QPainter
 
 from electrum.i18n import _
 
@@ -51,6 +48,7 @@ COLOR_UNMATURED = Qt.GlobalColor.magenta
 COLOR_FROZEN = ColorScheme.BLUE.as_color(True)
 COLOR_LIGHTNING = Qt.GlobalColor.yellow
 COLOR_FROZEN_LIGHTNING = Qt.GlobalColor.cyan
+
 
 class PieChartObject:
 
@@ -77,6 +75,7 @@ class PieChartObject:
                 qp.drawPie(self.R, alpha, delta)
                 alpha += delta
         qp.end()
+
 
 class PieChartWidget(QWidget, PieChartObject):
 

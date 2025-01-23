@@ -88,9 +88,11 @@ class NotSynchronizedException(UserFacingException):
 def satoshis_or_max(amount):
     return satoshis(amount) if not parse_max_spend(amount) else amount
 
+
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
     return int(COIN*to_decimal(amount)) if amount is not None else None
+
 
 def format_satoshis(x):
     return str(to_decimal(x)/COIN) if x is not None else None
@@ -1448,6 +1450,7 @@ def eval_bool(x: str) -> bool:
     except Exception:
         return bool(x)
 
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
@@ -1548,7 +1551,6 @@ arg_types = {
 }
 
 config_variables = {
-
     'addrequest': {
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
@@ -1558,6 +1560,7 @@ config_variables = {
         'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     }
 }
+
 
 def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
@@ -1579,6 +1582,7 @@ def set_default_subparser(self, name, args=None):
                 sys.argv.insert(1, name)
             else:
                 args.insert(0, name)
+
 
 argparse.ArgumentParser.set_default_subparser = set_default_subparser
 
@@ -1608,6 +1612,7 @@ def subparser_call(self, parser, namespace, values, option_string=None):
         vars(namespace).setdefault(_UNRECOGNIZED_ARGS_ATTR, [])
         getattr(namespace, _UNRECOGNIZED_ARGS_ATTR).extend(arg_strings)
 
+
 argparse._SubParsersAction.__call__ = subparser_call
 
 
@@ -1630,6 +1635,7 @@ def add_network_options(parser):
     parser.add_argument("--skipmerklecheck", action="store_true", dest=SimpleConfig.NETWORK_SKIPMERKLECHECK.key(), default=None,
                         help="Tolerate invalid merkle proofs from server")
 
+
 def add_global_options(parser):
     group = parser.add_argument_group('global options')
     group.add_argument("-v", dest="verbosity", help="Set verbosity (log levels)", default='')
@@ -1645,9 +1651,11 @@ def add_global_options(parser):
     group.add_argument("--rpcuser", dest=SimpleConfig.RPC_USERNAME.key(), default=argparse.SUPPRESS, help="RPC user")
     group.add_argument("--rpcpassword", dest=SimpleConfig.RPC_PASSWORD.key(), default=argparse.SUPPRESS, help="RPC password")
 
+
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     parser.add_argument("--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=False, help="Forget config on exit")
+
 
 def get_parser():
     # create main parser

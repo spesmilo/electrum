@@ -29,7 +29,7 @@ import copy
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt6.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
+from PyQt6.QtWidgets import QAbstractItemView, QMenu
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -37,7 +37,7 @@ from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
 
-from .util import ColorScheme, MONOSPACE_FONT, EnterButton
+from .util import ColorScheme, MONOSPACE_FONT
 from .my_treeview import MyTreeView, MySortModel
 from .new_channel_dialog import NewChannelDialog
 from ..messages import MSG_FREEZE_ADDRESS, MSG_FREEZE_COIN

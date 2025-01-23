@@ -5,13 +5,9 @@
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QCheckBox, QLabel, QVBoxLayout, QGridLayout, QWidget,
-                             QPushButton, QHBoxLayout, QComboBox)
+from PyQt6.QtWidgets import QLabel, QGridLayout, QHBoxLayout, QComboBox
 
-from .amountedit import FeerateEdit
-from .fee_slider import FeeSlider, FeeComboBox
-from .util import (ColorScheme, WindowModalDialog, Buttons,
-                   OkButton, WWLabel, CancelButton)
+from .util import ColorScheme
 
 from electrum.i18n import _
 from electrum.transaction import PartialTransaction
@@ -22,6 +18,7 @@ if TYPE_CHECKING:
 
 
 from .confirm_tx_dialog import TxEditor, TxSizeLabel, HelpLabel
+
 
 class _BaseRBFDialog(TxEditor):
 
@@ -96,9 +93,11 @@ class _BaseRBFDialog(TxEditor):
         if self.is_preview:
             self.main_window.show_transaction(self.tx)
             return
+
         def sign_done(success):
             if success:
                 self.main_window.broadcast_or_show(self.tx)
+
         self.main_window.sign_tx(
             self.tx,
             callback=sign_done,

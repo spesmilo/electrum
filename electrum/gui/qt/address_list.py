@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
+from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QMenu
 
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler

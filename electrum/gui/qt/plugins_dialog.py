@@ -1,14 +1,12 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QSpacerItem, QWidget, QHBoxLayout, QScrollArea, QCheckBox, QFormLayout
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QCheckBox, QFormLayout
 
 from electrum.i18n import _
-from electrum.gui import messages
-from electrum.plugin import run_hook, BasePlugin
+from electrum.plugin import run_hook
 
-from . import util
-from .util import WindowModalDialog, Buttons, CloseButton, HelpButton, WWLabel, insert_spaces
+from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces
 
 
 if TYPE_CHECKING:

@@ -194,6 +194,7 @@ class ASN1_Node(bytes):
         except TypeError:
             return time.strptime(self.get_value_of_type(ii, 'GeneralizedTime').decode('ascii'), GENERALIZED_TIMESTAMP_FMT)
 
+
 class X509(object):
     def __init__(self, b):
 

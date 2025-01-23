@@ -6,10 +6,7 @@ import qrcode.exceptions
 from PyQt6.QtGui import QColor, QPen
 import PyQt6.QtGui as QtGui
 from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtWidgets import (
-    QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
-    QFileDialog,
-)
+from PyQt6.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
 
 from electrum.i18n import _
 from electrum.simple_config import SimpleConfig
@@ -53,7 +50,6 @@ class QRCodeWidget(QWidget):
             self.data = None
 
         self.update()
-
 
     def paintEvent(self, e):
         if not self.data:

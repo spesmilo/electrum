@@ -23,10 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import socket
-import time
 from enum import IntEnum
-from typing import Tuple, TYPE_CHECKING
 import threading
 
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
@@ -36,7 +33,7 @@ from PyQt6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, Q
 from PyQt6.QtGui import QIntValidator
 
 from electrum.i18n import _
-from electrum import constants, blockchain, util
+from electrum import blockchain
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum.network import Network
 from electrum.logging import get_logger
@@ -123,17 +120,21 @@ class NodesListWidget(QTreeWidget):
                 def do_set_server():
                     self.setServer.emit(str(server))
                 menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_set_server)
+
             def set_bookmark(*, add: bool):
                 self.network.set_server_bookmark(server, add=add)
                 self.update()
+
             if self.network.is_server_bookmarked(server):
                 menu.addAction(read_QIcon("bookmark_remove.png"), _("Remove from bookmarks"), lambda: set_bookmark(add=False))
             else:
                 menu.addAction(read_QIcon("bookmark_add.png"), _("Bookmark this server"), lambda: set_bookmark(add=True))
         elif item_type == self.ItemType.CHAIN:
             chain_id = item.data(0, self.CHAIN_ID_ROLE)
+
             def do_follow_chain():
                 self.followChain.emit(chain_id)
+
             menu.addAction(_("Follow this branch"), do_follow_chain)
         else:
             return

@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 import os
-import sys
 import time
 import datetime
 from datetime import date
@@ -34,18 +33,17 @@ import enum
 from decimal import Decimal
 
 from PyQt6.QtGui import QFont, QBrush, QColor
-from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
-from PyQt6.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
-                             QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
+from PyQt6.QtWidgets import (QMenu, QHeaderView, QLabel, QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
 from electrum.gui import messages
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
-                           Satoshis, Fiat, format_time)
+                           Satoshis, format_time)
 from electrum.logging import get_logger, Logger
 from electrum.simple_config import SimpleConfig
 
@@ -94,6 +92,7 @@ class HistorySortModel(QSortFilterProxyModel):
             return v1 < v2
         except Exception:
             return False
+
 
 def get_item_key(tx_item):
     return tx_item.get('txid') or tx_item['payment_hash']
@@ -350,6 +349,7 @@ class HistoryModel(CustomModel, Logger):
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.view.showColumn(col) if b else self.view.hideColumn(col)
+
         # txid
         set_visible(HistoryColumns.TXID, False)
         set_visible(HistoryColumns.SHORT_ID, False)
@@ -406,9 +406,9 @@ class HistoryModel(CustomModel, Logger):
         fiat_acq_title = 'n/a fiat acquisition price'
         fiat_cg_title = 'n/a fiat capital gains'
         if self.should_show_fiat():
-            fiat_title = '%s '%fx.ccy + _('Value')
-            fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
-            fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
+            fiat_title = '%s ' % fx.ccy + _('Value')
+            fiat_acq_title = '%s ' % fx.ccy + _('Acquisition price')
+            fiat_cg_title = '%s ' % fx.ccy + _('Capital Gains')
         return {
             HistoryColumns.STATUS: _('Date'),
             HistoryColumns.DESCRIPTION: _('Description'),
@@ -578,8 +578,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d.setMinimumSize(600, 150)
         d.date = None
         vbox = QVBoxLayout()
+
         def on_date(date):
             d.date = date
+
         cal = QCalendarWidget()
         cal.setGridVisible(True)
         cal.clicked[QDate].connect(on_date)
@@ -795,8 +797,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
                         .format(num_child_txs))
-        if not self.main_window.question(msg=question,
-                                    title=_("Please confirm")):
+        if not self.main_window.question(msg=question, title=_("Please confirm")):
             return
         self.wallet.adb.remove_transaction(tx_hash)
         self.wallet.save_db()

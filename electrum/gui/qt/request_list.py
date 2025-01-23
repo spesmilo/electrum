@@ -33,13 +33,11 @@ from PyQt6.QtCore import Qt, QItemSelectionModel, QModelIndex
 from electrum.i18n import _
 from electrum.util import format_time
 from electrum.plugin import run_hook
-from electrum.invoices import Invoice
 
-from .util import pr_icons, read_QIcon, webopen
+from .util import pr_icons, read_QIcon
 from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
     from .receive_tab import ReceiveTab
 
 
@@ -180,8 +178,8 @@ class RequestList(MyTreeView):
 
     def create_menu(self, position):
         items = self.selected_in_column(0)
-        if len(items)>1:
-            keys = [item.data(ROLE_KEY)  for item in items]
+        if len(items) > 1:
+            keys = [item.data(ROLE_KEY) for item in items]
             menu = QMenu(self)
             menu.addAction(_("Delete requests"), lambda: self.delete_requests(keys))
             menu.exec(self.viewport().mapToGlobal(position))

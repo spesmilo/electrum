@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox
 
 from electrum.i18n import _
 
+
 class FeeComboBox(QComboBox):
 
     def __init__(self, fee_slider):

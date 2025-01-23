@@ -23,36 +23,18 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import asyncio
-import contextlib
 import enum
-import os.path
-import time
-import sys
-import platform
-import queue
-import traceback
-import os
-import webbrowser
 from decimal import Decimal
-from functools import partial, lru_cache, wraps
-from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple, Type)
+from typing import (Optional, TYPE_CHECKING, Union, List, Dict, Any,
+                    Sequence, Iterable, Type)
 
-from PyQt6 import QtWidgets, QtCore
-from PyQt6.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage, QStandardItemModel,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent, QAction)
-from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
-                          QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
-                          QEvent, QRect, QPoint, QObject)
-from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
-                             QAbstractItemView, QVBoxLayout, QLineEdit,
-                             QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
-                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
+from PyQt6.QtGui import (QStandardItem, QStandardItemModel,
+                         QShowEvent, QPainter, QHelpEvent, QMouseEvent, QAction)
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QItemSelectionModel,
+                          QSortFilterProxyModel, QSize, QAbstractItemModel, QEvent, QPoint)
+from PyQt6.QtWidgets import (QLabel, QHBoxLayout, QAbstractItemView, QLineEdit,
+                             QWidget, QToolButton, QTreeView, QHeaderView, QStyledItemDelegate,
+                             QMenu, QStyleOptionViewItem)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -126,7 +108,6 @@ def create_toolbar_with_menu(config: 'SimpleConfig', title):
     return toolbar, menu
 
 
-
 class MySortModel(QSortFilterProxyModel):
     def __init__(self, parent, *, sort_role):
         super().__init__(parent)
@@ -147,16 +128,19 @@ class MySortModel(QSortFilterProxyModel):
         except Exception:
             return v1 < v2
 
+
 class ElectrumItemDelegate(QStyledItemDelegate):
     def __init__(self, tv: 'MyTreeView'):
         super().__init__(tv)
         self.tv = tv
         self.opened = None
+
         def on_closeEditor(editor: QLineEdit, hint):
             self.opened = None
             self.tv.is_editor_open = False
             if self.tv._pending_update:
                 self.tv.update()
+
         def on_commitData(editor: QLineEdit):
             new_text = editor.text()
             idx = QModelIndex(self.opened)
@@ -164,6 +148,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
             edit_key = self.tv.get_edit_key_from_coordinate(row, col)
             assert edit_key is not None, (idx.row(), idx.column())
             self.tv.on_edited(idx, edit_key=edit_key, text=new_text)
+
         self.closeEditor.connect(on_closeEditor)
         self.commitData.connect(on_commitData)
 
@@ -199,6 +184,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         else:
             default_size = super().sizeHint(option, idx)
             return custom_data.sizeHint(default_size)
+
 
 class MyTreeView(QTreeView):
 

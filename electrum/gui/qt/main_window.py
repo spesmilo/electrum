@@ -39,12 +39,9 @@ import concurrent.futures
 
 from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
 from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
-from PyQt6.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
-                             QMenuBar, QFileDialog, QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit,
-                             QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
-                             QMainWindow, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip,
+from PyQt6.QtWidgets import (QMessageBox, QTabWidget, QMenuBar, QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit, QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
+                             QMainWindow, QInputDialog, QWidget, QSizePolicy, QStatusBar, QToolTip,
                              QMenu, QToolButton)
 
 import electrum_ecc as ecc
@@ -54,7 +51,7 @@ from electrum.gui import messages
 from electrum import (keystore, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
-from electrum.plugin import run_hook, BasePlugin
+from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
                            UserFacingException, get_new_wallet_name, send_exception_to_crash_reporter,
@@ -68,13 +65,12 @@ from electrum.wallet import (Multisig_Wallet, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption,
                              CannotCPFP)
 from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network, UntrustedServerReturnedError, NetworkException
+from electrum.network import Network, UntrustedServerReturnedError
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
-from electrum.submarine_swaps import SwapServerError
 
 from .rate_limiter import rate_limited
 from .exception_window import Exception_Hook
@@ -86,14 +82,11 @@ from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
                    WindowModalDialog, HelpLabel, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
-                   CloseButton, HelpButton, MessageBoxMixin, EnterButton,
-                   import_meta_gui, export_meta_gui,
+                   CloseButton, MessageBoxMixin, EnterButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, font_height)
-from .util import ButtonsLineEdit, ShowQRLineEdit
-from .util import QtEventListener, qt_event_listener, event_listener
-from .util import scan_qr_from_screenshot
+                   getOpenFileName, getSaveFileName, ShowQRLineEdit, QtEventListener, qt_event_listener,
+                   event_listener, scan_qr_from_screenshot)
 from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -102,10 +95,10 @@ from .confirm_tx_dialog import ConfirmTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
 from .swap_dialog import SwapDialog, InvalidSwapParameters
-from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING
+from .balance_dialog import (BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED,
+                             COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING)
 
 if TYPE_CHECKING:
-    from electrum.simple_config import ConfigVarWithConfig
     from . import ElectrumGui
 
 

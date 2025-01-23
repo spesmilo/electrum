@@ -4,22 +4,17 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComb
 import electrum_ecc as ecc
 
 from electrum.i18n import _
-from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 
-from electrum.gui import messages
-from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel,
-                   char_width_in_lineedit)
+                   EnterButton, WWLabel, char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
 from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
-
 
 
 class NewChannelDialog(WindowModalDialog):

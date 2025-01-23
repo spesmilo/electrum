@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _

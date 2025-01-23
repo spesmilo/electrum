@@ -42,7 +42,6 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-
 class UTXODialog(WindowModalDialog):
 
     def __init__(self, window: 'ElectrumWindow', utxo: 'PartialTxInput'):
@@ -102,6 +101,7 @@ class UTXODialog(WindowModalDialog):
 
         self.parents_list.clear()
         self.num_reuse = 0
+
         def print_ascii_tree(_txid, prefix, is_last, is_uncle):
             if _txid not in parents:
                 return
