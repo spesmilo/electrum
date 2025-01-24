@@ -304,6 +304,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._historyModel = QETransactionListModel(self.wallet)
         return self._historyModel
 
+    @pyqtSlot(str, result=QETransactionListModel)
+    def historyModelForAddress(self, address):
+        self._hmfa = QETransactionListModel(self.wallet, onchain_domain=[address], include_lightning=False)
+        return self._hmfa
+
     addressCoinModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
     def addressCoinModel(self):
