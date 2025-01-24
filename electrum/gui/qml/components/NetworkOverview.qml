@@ -75,6 +75,25 @@ Pane {
                     text: Network.serverHeight + " " + (Network.serverHeight < Network.height ? "(lagging)" : "(syncing...)")
                     visible: Network.serverHeight != 0 && Network.serverHeight != Network.height
                 }
+                Label {
+                    text: qsTr('Chain tips:');
+                    color: Material.accentColor
+                    visible: opacity > 0
+                    opacity: Network.chaintips > 1 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 1000 } }
+                }
+                RowLayout {
+                    visible: opacity > 0
+                    opacity: Network.chaintips > 1 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 1000 } }
+                    OnchainNetworkStatusIndicator {
+                        sourceSize.width: constants.iconSizeSmall
+                        sourceSize.height: constants.iconSizeSmall
+                    }
+                    Label {
+                        text: Network.chaintips
+                    }
+                }
                 Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Mempool fees')
