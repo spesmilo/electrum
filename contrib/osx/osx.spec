@@ -35,6 +35,7 @@ datas = [
     (f"{PROJECT_ROOT}/{PYPKG}/lnwire/*.csv", f"{PYPKG}/lnwire"),
     (f"{PROJECT_ROOT}/{PYPKG}/wordlist/english.txt", f"{PYPKG}/wordlist"),
     (f"{PROJECT_ROOT}/{PYPKG}/wordlist/slip39.txt", f"{PYPKG}/wordlist"),
+    (f"{PROJECT_ROOT}/{PYPKG}/chains", f"{PYPKG}/chains"),
     (f"{PROJECT_ROOT}/{PYPKG}/locale", f"{PYPKG}/locale"),
     (f"{PROJECT_ROOT}/{PYPKG}/plugins", f"{PYPKG}/plugins"),
     (f"{PROJECT_ROOT}/{PYPKG}/gui/icons", f"{PYPKG}/gui/icons"),

@@ -32,12 +32,16 @@ from .util import inv_dict, all_subclasses
 from . import bitcoin
 
 
-def read_json(filename, default):
+def read_json(filename, default=None):
     path = os.path.join(os.path.dirname(__file__), filename)
     try:
         with open(path, 'r') as f:
             r = json.loads(f.read())
     except Exception:
+        if default is None:
+            # Sometimes it's better to hard-fail: the file might be missing
+            # due to a packaging issue, which might otherwise go unnoticed.
+            raise
         r = default
     return r
 
@@ -53,7 +57,7 @@ def create_fallback_node_list(fallback_nodes_dict: dict[str, dict]) -> List[LNPe
 
 GIT_REPO_URL = "https://github.com/spesmilo/electrum"
 GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
-BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
+BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json')
 
 
 class AbstractNet:
@@ -104,9 +108,9 @@ class BitcoinMainnet(AbstractNet):
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers.json'), {})
-    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_mainnet.json'), {}))
-    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints.json'), [])
+    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers.json'))
+    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_mainnet.json')))
+    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints.json'))
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
