@@ -71,6 +71,7 @@ class AbstractNet:
     LN_REALM_BYTE: int
     DEFAULT_PORTS: Mapping[str, str]
     DEFAULT_SERVERS: Mapping[str, Mapping[str, str]]
+    FALLBACK_LN_NODES: Sequence[LNPeerAddr]
     CHECKPOINTS: Sequence[Tuple[str, int]]
     LN_DNS_SEEDS: Sequence[str]
     XPRV_HEADERS: Mapping[str, int]
@@ -189,6 +190,7 @@ class BitcoinRegtest(BitcoinTestnet):
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    FALLBACK_LN_NODES = []
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
@@ -203,6 +205,7 @@ class BitcoinSimnet(BitcoinTestnet):
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    FALLBACK_LN_NODES = []
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 

@@ -424,17 +424,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 return [peer]
 
         # getting desperate... let's try hardcoded fallback list of peers
-        if constants.net in (constants.BitcoinTestnet4,):
-            fallback_list = constants.BitcoinTestnet4.FALLBACK_LN_NODES
-        elif constants.net in (constants.BitcoinTestnet,):
-            fallback_list = constants.BitcoinTestnet.FALLBACK_LN_NODES
-        elif constants.net in (constants.BitcoinMainnet,):
-            fallback_list = constants.BitcoinMainnet.FALLBACK_LN_NODES
-        elif constants.net in (constants.BitcoinSignet,):
-            fallback_list = constants.BitcoinSignet.FALLBACK_LN_NODES
-        else:
-            return []  # regtest??
-
+        fallback_list = constants.net.FALLBACK_LN_NODES
         fallback_list = [peer for peer in fallback_list if self._can_retry_addr(peer, now=now)]
         if fallback_list:
             return [random.choice(fallback_list)]
