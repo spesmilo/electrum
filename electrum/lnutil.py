@@ -450,13 +450,11 @@ class InvalidGossipMsg(Exception):
 
 class PaymentFailure(UserFacingException): pass
 class NoPathFound(PaymentFailure):
-    def __init__(self, message: Optional[str] = None, *, maybe_fee_related: Optional[bool] = False):
-        self.maybe_fee_related = maybe_fee_related
-        self._message = message
-        super().__init__(message)
-
     def __str__(self):
-        return self._message or _('No path found')
+        return _('No path found')
+class FeeBudgetExceeded(PaymentFailure):
+    def __str__(self):
+        return _('Fee budget exceeded')
 
 
 class LNProtocolError(Exception):

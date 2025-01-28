@@ -44,7 +44,8 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     ChannelType, LNProtocolWarning, validate_features, IncompatibleOrInsaneFeatures, NoPathFound)
+                     ChannelType, LNProtocolWarning, validate_features,
+                     IncompatibleOrInsaneFeatures, FeeBudgetExceeded)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
 from .lnutil import serialize_htlc_key, Keypair
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
@@ -2063,11 +2064,8 @@ class Peer(Logger, EventListener):
             )
         except OnionRoutingFailure as e:
             raise
-        except NoPathFound as e:
-            failure_code = (OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT
-                            if e.maybe_fee_related
-                            else OnionFailureCode.UNKNOWN_NEXT_PEER)
-            raise OnionRoutingFailure(code=failure_code, data=b'')
+        except FeeBudgetExceeded:
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
         except PaymentFailure as e:
             self.logger.debug(
                 f"maybe_forward_trampoline. PaymentFailure for {payment_hash.hex()=}, {payment_secret.hex()=}: {e!r}")
