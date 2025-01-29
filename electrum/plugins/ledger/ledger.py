@@ -41,11 +41,6 @@ try:
     # legacy imports
     # note: we could replace "btchip" with "ledger_bitcoin.btchip" but the latter does not support HW.1
     import hid
-    from btchip.btchipComm import HIDDongleHIDAPI
-    from btchip.btchip import btchip
-    from btchip.btchipUtils import compress_public_key
-    from btchip.bitcoinTransaction import bitcoinTransaction
-    from btchip.btchipException import BTChipException
 
     LEDGER_BITCOIN = True
 except ImportError as e:
