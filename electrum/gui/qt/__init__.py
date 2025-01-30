@@ -293,13 +293,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
 
-    def show_network_dialog(self):
+    def show_network_dialog(self, proxy_tab=False):
         if self.network_dialog:
-            self.network_dialog.show()
+            self.network_dialog.show(proxy_tab=proxy_tab)
             self.network_dialog.raise_()
             return
         self.network_dialog = NetworkDialog(network=self.daemon.network)
-        self.network_dialog.show()
+        self.network_dialog.show(proxy_tab=proxy_tab)
 
     def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
