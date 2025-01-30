@@ -1760,7 +1760,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.tor_button = StatusBarButton(
                 read_QIcon("tor_logo.png"),
                 _("Tor"),
-                self.gui_object.show_network_dialog,
+                partial(self.gui_object.show_network_dialog, proxy_tab=True),
                 sb_height,
             )
             sb.addPermanentWidget(self.tor_button)
