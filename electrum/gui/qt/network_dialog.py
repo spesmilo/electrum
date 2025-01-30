@@ -62,6 +62,10 @@ class NetworkDialog(QDialog, QtEventListener):
         vbox.addWidget(self.tabs)
         vbox.addLayout(Buttons(CloseButton(self)))
 
+    def show(self, *, proxy_tab: bool = False):
+        super().show()
+        self.tabs.setCurrentWidget(self._proxy_tab if proxy_tab else self._blockchain_tab)
+
 
 class NodesListWidget(QTreeWidget):
     """List of connected servers."""
