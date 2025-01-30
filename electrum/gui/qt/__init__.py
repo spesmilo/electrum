@@ -256,7 +256,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             window.clean_up()
         if self.network_dialog:
             self.network_dialog.close()
-            self.network_dialog.clean_up()
             self.network_dialog = None
         if self.lightning_dialog:
             self.lightning_dialog.close()
@@ -296,13 +295,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def show_network_dialog(self):
         if self.network_dialog:
-            self.network_dialog.on_event_network_updated()
             self.network_dialog.show()
             self.network_dialog.raise_()
             return
-        self.network_dialog = NetworkDialog(
-            network=self.daemon.network,
-            config=self.config)
+        self.network_dialog = NetworkDialog(network=self.daemon.network)
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
