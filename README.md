@@ -67,7 +67,10 @@ $ sudo apt-get install python3-cryptography
 If you would like hardware wallet support,
 [see this](https://github.com/spesmilo/electrum-docs/blob/master/hardware-linux.rst).
 
-
+Licence: MIT Licence
+Author: Thomas Voegtlin
+Language: Python (>= 3.10)
+Homepage: https://electrum.org/
 ### Running from tar.gz
 
 If you downloaded the official package (tar.gz), you can run
@@ -77,7 +80,8 @@ directory. To run Electrum from its root directory, just do:
 ```
 $ ./run_electrum
 ```
-
+$ sudo apt-get install libsecp256k1-dev
+$ ELECTRUM_ECC_DONT_COMPILE=1 python3 -m pip install --user ".[gui,crypto]"
 You can also install Electrum on your system, by running this command:
 ```
 $ sudo apt-get install python3-setuptools python3-pip
@@ -89,7 +93,7 @@ Electrum instead of using the 'packages' directory.
 It will also place an executable named `electrum` in `~/.local/bin`,
 so make sure that is on your `PATH` variable.
 
-
+$ sudo apt-get install libsecp256k1-dev
 ### Development version (git clone)
 
 _(For OS-specific instructions, see [here for Windows](contrib/build-wine/README_windows.md),
@@ -101,34 +105,38 @@ $ git clone https://github.com/spesmilo/electrum.git
 $ cd electrum
 $ git submodule update --init
 ```
-
+$ sudo apt-get install automake libtool
 Run install (this should install dependencies):
 ```
 $ python3 -m pip install --user -e .
 ```
-
+$ sudo apt-get install python3-pyqt6
 Create translations (optional):
 ```
 $ sudo apt-get install python3-requests gettext qttools5-dev-tools
 $ ./contrib/pull_locale
 ```
-
+$ sudo apt-get install libsecp256k1-dev
+$ ELECTRUM_ECC_DONT_COMPILE=1 python3 -m pip install --user ".[gui,crypto]"
 Finally, to start Electrum:
 ```
 $ ./run_electrum
 ```
-
+$ sudo apt-get install python3-pyqt6
 ### Run tests
 
 Run unit tests with `pytest`:
 ```
 $ pytest tests -v
-```
+`https://electrum.org/``
 
 To run a single file, specify it directly like this:
 ```
 $ pytest tests/test_bitcoin.py -v
-```
+`Licence: MIT Licence
+Author: Thomas Voegtlin
+Language: Python (>= 3.10)
+Homepage: https://electrum.org/``
 
 ## Creating Binaries
 
