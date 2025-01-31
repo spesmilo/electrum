@@ -124,7 +124,7 @@ class BaseCrashReporter(Logger):
             "python_version": sys.version,
             "os": describe_os_version(),
             "wallet_type": "unknown",
-            "locale": locale.getdefaultlocale()[0] or "?",
+            "locale": locale.getlocale()[0] or "?",
             "description": self.get_user_description()
         }
         try:
