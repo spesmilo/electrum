@@ -3356,6 +3356,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_unlocked_password(self):
         return self._password_in_memory
 
+    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+        text = _('Not enough funds')
+        frozen_str = self.get_frozen_balance_str()
+        if frozen_str:
+            text += ' ' + _('({} are frozen)').format(frozen_str)
+        return text
+
+    def get_frozen_balance_str(self) -> Optional[str]:
+        frozen_bal = sum(self.get_frozen_balance())
+        if not frozen_bal:
+            return None
+        return self.config.format_amount_and_units(frozen_bal)
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

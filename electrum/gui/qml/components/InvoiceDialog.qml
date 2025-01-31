@@ -230,9 +230,9 @@ ElDialog {
                                 Connections {
                                     target: invoice.amountOverride
                                     function onSatsIntChanged() {
-                                        console.log('amuontOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
+                                        console.log('amountOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
                                         if (amountMax.checked)  // amountOverride updated by max amount estimate
-                                            amountBtc.text = Config.formatSats(invoice.amountOverride.satsInt)
+                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
                                     }
                                 }
                             }

@@ -183,7 +183,7 @@ ElDialog {
                         target: channelopener.amount
                         function onSatsIntChanged() {
                             if (is_max.checked)  // amount updated by max amount estimate
-                                amountBtc.text = Config.formatSats(channelopener.amount.satsInt)
+                                amountBtc.text = Config.formatSatsForEditing(channelopener.amount.satsInt)
                         }
                     }
                 }
