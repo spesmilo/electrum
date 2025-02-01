@@ -17,13 +17,16 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import (QFontDatabase, QFont)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QLineEdit, QScrollArea)
+                             QPushButton, QLineEdit, QScrollArea, QGridLayout)
 
 from electrum import constants
+from electrum.gui.qt.paytoedit import PayToEdit
+from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
+from electrum.transaction import PartialTxOutput
 from electrum.util import make_dir
-from electrum.gui.qt.util import (WindowModalDialog, Buttons, CloseButton)
+from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, CloseButton, HelpLabel)
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
 
@@ -36,6 +39,11 @@ if TYPE_CHECKING:
 agreement_text = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
 alert_address_label = "Timelock Recovery Alert Address"
 
+def selectable_label(text):
+    label = QLabel(text)
+    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    return label
+
 class Plugin(TimelockRecoveryPlugin):
     def __init__(self, parent, config, name):
         TimelockRecoveryPlugin.__init__(self, parent, config, name)
@@ -46,6 +54,7 @@ class Plugin(TimelockRecoveryPlugin):
         self._init_qt_received = False
         self.icon_bytes = self.read_file("timelock_recovery.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
+        self.destinations = None
 
     @hook
     def init_qt(self, gui: 'ElectrumGui'):
@@ -60,21 +69,26 @@ class Plugin(TimelockRecoveryPlugin):
         b = StatusBarButton(
             read_QIcon_from_bytes(self.icon_bytes),
             "Timelock Recovery "+_("Plugin"),
-            partial(self.create_setup_dialog, sb), sb.height())
+            partial(self.start, sb), sb.height())
         sb.addPermanentWidget(b)
 
     def requires_settings(self):
         return False
 
-    def create_setup_dialog(self, window):
+    def start(self, window):
         self.wallet = window.parent().wallet
-        self.update_wallet_name(self.wallet)
+        self.wallet_name = str(self.wallet)
 
-        self.setup_dialog = WindowModalDialog(window, "Timelock Recovery")
-        self.setup_dialog.setContentsMargins(11,11,1,1)
+        if constants.net.NET_NAME == 'regtest':
+            return self.create_step1_dialog(window)
+        return self.create_intro_dialog(window)
+
+    def create_intro_dialog(self, window):
+        self.intro_dialog = WindowModalDialog(window, "Timelock Recovery")
+        self.intro_dialog.setContentsMargins(11,11,1,1)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
-        hbox_layout = QHBoxLayout(self.setup_dialog)
+        hbox_layout = QHBoxLayout(self.intro_dialog)
 
         # Create the logo label.
         logo_label = QLabel()
@@ -113,41 +127,38 @@ class Plugin(TimelockRecoveryPlugin):
         vbox_layout.addWidget(intro_wrapper)
 
         # Create the labels.
-        instructions_label = QLabel(_(f'Please type in the textbox below:\n"{agreement_text}"'))
-
-        # Allow users to select text in the labels.
-        instructions_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        instructions_label = selectable_label(_(f'Please type in the textbox below:\n"{agreement_text}"'))
 
         # Create the noise scan QR text edit.
-        self.agreement_textedit = QLineEdit()
+        self.intro_agreement_textedit = QLineEdit()
 
         # Update the UI when the text changes.
-        self.agreement_textedit.textChanged.connect(self.on_agreement_edit)
+        self.intro_agreement_textedit.textChanged.connect(self.on_agreement_edit)
 
         # Create the buttons.
-        self.next_button = QPushButton(_("Next"), self.setup_dialog)
+        self.intro_next_button = QPushButton(_("Next"), self.intro_dialog)
 
         # Initially disable the next button.
-        self.next_button.setEnabled(constants.net.NET_NAME == 'regtest')
+        self.intro_next_button.setEnabled(False)
 
         # Handle clicks on the buttons.
-        self.next_button.clicked.connect(self.setup_dialog.close)
-        self.next_button.clicked.connect(partial(self.create_step1_dialog, window))
+        self.intro_next_button.clicked.connect(self.intro_dialog.close)
+        self.intro_next_button.clicked.connect(partial(self.create_step1_dialog, window))
 
         # Populate the VBox layout.
         vbox_layout.addWidget(instructions_label)
-        vbox_layout.addWidget(self.agreement_textedit)
-        vbox_layout.addLayout(Buttons(self.next_button))
+        vbox_layout.addWidget(self.intro_agreement_textedit)
+        vbox_layout.addLayout(Buttons(self.intro_next_button))
 
         # Add stretches to the end of the layouts to prevent the contents from spreading when the dialog is enlarged.
         hbox_layout.addStretch(1)
         vbox_layout.addStretch(1)
 
-        return bool(self.setup_dialog.exec())
+        return bool(self.intro_dialog.exec())
 
     def on_agreement_edit(self):
-        text = self.agreement_textedit.text()
-        self.next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == agreement_text.lower())
+        text = self.intro_agreement_textedit.text()
+        self.intro_next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == agreement_text.lower())
 
     def get_alert_address(self):
         for addr in self.wallet.get_unused_addresses():
@@ -168,6 +179,7 @@ class Plugin(TimelockRecoveryPlugin):
     def create_step1_dialog(self, window):
         self.step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
         self.step1_dialog.setContentsMargins(11, 11, 1, 1)
+        self.step1_dialog.resize(800, self.step1_dialog.height())
 
         self.alert_address = self.get_alert_address()
         if not self.alert_address:
@@ -179,8 +191,33 @@ class Plugin(TimelockRecoveryPlugin):
             self.step1_dialog.close()
             return
 
-        self.alert_address_label = QLabel(_("Alert Address: ") + self.alert_address)
-        self.alert_address_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.step1_grid = QGridLayout()
+        self.step1_grid.setSpacing(8)
+        self.step1_grid.setColumnStretch(3, 1)
+        self.step1_grid.setRowStretch(2, 1)
+
+        self.step1_grid.addWidget(HelpLabel(
+            _("Alert Address"),
+            _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
+        ), 0, 0)
+        self.step1_grid.addWidget(selectable_label(self.alert_address), 0, 1, 1, 4)
+
+        self.payto_e = PayToEdit(window.parent().send_tab) # Reuse configuration from send tab
+        self.payto_e.toggle_paytomany()
+        self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
+        self.step1_grid.addWidget(HelpLabel(
+            _("Pay to"),
+            (
+                _("Final recipient(s) of the funds.")
+                + "\n\n"
+                + _("This field must contain a single Bitcoin address, or multiple lines in the format: 'address, amount'.") + "\n"
+                + "\n"
+                + _("If multiple lines are used, at least one line must be set to 'max', using the '!' special character.") + "\n"
+                + _("Integers weights can also be used in conjunction with '!', "
+                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60.")
+            ),
+        ), 1, 0)
+        self.step1_grid.addWidget(self.payto_e, 1, 1, 1, 4)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(self.step1_dialog)
@@ -197,21 +234,52 @@ class Plugin(TimelockRecoveryPlugin):
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
 
-        vbox_layout.addWidget(self.alert_address_label)
+        vbox_layout.addLayout(self.step1_grid, stretch=1)
+
+        self.step1_next_button = QPushButton(_("Next"), self.step1_dialog)
+        self.step1_next_button.clicked.connect(self.step1_dialog.close)
+        self.step1_next_button.setEnabled(False)
+        # self.step1_next_button.clicked.connect(partial(self.create_step2_dialog, window))
+
+        vbox_layout.addLayout(Buttons(self.step1_next_button))
 
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
         hbox_layout.addSpacing(16)
-        hbox_layout.addLayout(vbox_layout)
-
-        vbox_layout.addLayout(Buttons(CloseButton(self.step1_dialog)))
-
-        # Add stretches to the end of the layouts to prevent the contents from spreading when the dialog is enlarged.
-        hbox_layout.addStretch(1)
-        vbox_layout.addStretch(1)
+        hbox_layout.addLayout(vbox_layout, stretch=1)
 
         return bool(self.step1_dialog.exec())
 
-    def update_wallet_name(self, name):
-        self.wallet_name = str(name)
+    def _handle_payment_identifier(self):
+        self.destinations = None
+        pi = self.payto_e.payment_identifier
+        if not pi.is_valid():
+            # Don't make background red - maybe the user did not complete typing yet.
+            self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
+            self.payto_e.setToolTip((pi.get_error() or "Invalid address.") if pi.text else "")
+            self.step1_next_button.setEnabled(False)
+            return
+        elif pi.is_multiline():
+            if not pi.is_multiline_max():
+                self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                self.payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
+                self.step1_next_button.setEnabled(False)
+                return
+            self.destinations = pi.multiline_outputs
+        else:
+            if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
+                self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                self.payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
+                self.step1_next_button.setEnabled(False)
+                return
+            scriptpubkey, is_address = pi.parse_output(pi.text.strip())
+            if not is_address:
+                self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                self.payto_e.setToolTip("Must be a valid address, not a script.")
+                self.step1_next_button.setEnabled(False)
+                return
+            self.destinations = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
+        self.payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
+        self.payto_e.setToolTip("")
+        self.step1_next_button.setEnabled(True)
 
