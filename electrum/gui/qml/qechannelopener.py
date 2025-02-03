@@ -1,13 +1,14 @@
 import threading
 from concurrent.futures import CancelledError
 from asyncio.exceptions import TimeoutError
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
+import electrum_ecc as ecc
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.gui import messages
-from electrum.util import bfh
+from electrum.util import bfh, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
@@ -29,6 +30,7 @@ class QEChannelOpener(QObject, AuthMixin):
     channelOpenError = pyqtSignal([str], arguments=['message'])
     channelOpenSuccess = pyqtSignal([str, bool, int, bool],
                                     arguments=['cid', 'has_onchain_backup', 'min_depth', 'tx_complete'])
+    maxAmountMessage = pyqtSignal([str], arguments=['message'])
 
     dataChanged = pyqtSignal()  # generic notify signal
 
@@ -45,6 +47,8 @@ class QEChannelOpener(QObject, AuthMixin):
         self._finalizer = None
         self._node_pubkey = None
         self._connect_str_resolved = None
+
+        self._updating_max = False
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -228,3 +232,32 @@ class QEChannelOpener(QObject, AuthMixin):
     @pyqtSlot(str, result=str)
     def channelBackup(self, cid):
         return self._wallet.wallet.lnworker.export_channel_backup(bfh(cid))
+
+    @pyqtSlot()
+    def updateMaxAmount(self):
+        if self._updating_max:
+            return
+
+        self._updating_max = True
+
+        def calc_max():
+            try:
+                coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
+                dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
+                make_tx = lambda amt: self._wallet.wallet.lnworker.mktx_for_open_channel(
+                    coins=coins,
+                    funding_sat='!',
+                    node_id=dummy_nodeid,
+                    fee_est=None)
+
+                amount, message = self._wallet.determine_max(mktx=make_tx)
+                if amount is None:
+                    self._amount.isMax = False
+                else:
+                    self._amount.satsInt = amount
+                if message:
+                    self.maxAmountMessage.emit(message)
+            finally:
+                self._updating_max = False
+
+        threading.Thread(target=calc_max, daemon=True).start()

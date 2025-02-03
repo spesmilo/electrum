@@ -142,6 +142,7 @@ ElDialog {
                     Layout.alignment: Qt.AlignHCenter
 
                     leftPadding: constants.paddingXLarge
+                    rightPadding: constants.paddingXLarge
 
                     property bool editmode: false
 
@@ -216,10 +217,23 @@ ElDialog {
 
                             BtcField {
                                 id: amountBtc
+                                Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                                 fiatfield: amountFiat
-                                enabled: !amountMax.checked
+                                readOnly: amountMax.checked
+                                color: readOnly
+                                    ? Material.accentColor
+                                    : Material.foreground
                                 onTextAsSatsChanged: {
-                                    invoice.amountOverride = textAsSats
+                                    if (!amountMax.checked)
+                                        invoice.amountOverride.satsInt = textAsSats.satsInt
+                                }
+                                Connections {
+                                    target: invoice.amountOverride
+                                    function onSatsIntChanged() {
+                                        console.log('amountOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
+                                        if (amountMax.checked)  // amountOverride updated by max amount estimate
+                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
+                                    }
                                 }
                             }
 
@@ -239,23 +253,47 @@ ElDialog {
                                 visible: _canMax
                                 checked: false
                                 onCheckedChanged: {
-                                    if (activeFocus)
+                                    if (activeFocus) {
                                         invoice.amountOverride.isMax = checked
+                                        if (checked) {
+                                            maxAmountMessage.text = ''
+                                            invoice.updateMaxAmount()
+                                        }
+                                    }
                                 }
                             }
 
                             FiatField {
                                 id: amountFiat
+                                Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                                 btcfield: amountBtc
-                                visible: Daemon.fx.enabled && !amountMax.checked
-                                enabled: !amountMax.checked
+                                visible: Daemon.fx.enabled
+                                readOnly: amountMax.checked
+                                color: readOnly
+                                    ? Material.accentColor
+                                    : Material.foreground
                             }
 
                             Label {
                                 Layout.columnSpan: 2
-                                visible: Daemon.fx.enabled && !amountMax.checked
+                                visible: Daemon.fx.enabled
                                 text: Daemon.fx.fiatCurrency
                                 color: Material.accentColor
+                            }
+
+                            InfoTextArea {
+                                Layout.topMargin: constants.paddingMedium
+                                Layout.fillWidth: true
+                                Layout.columnSpan: 3
+                                id: maxAmountMessage
+                                visible: amountMax.checked && text
+                                compact: true
+                                Connections {
+                                    target: invoice
+                                    function onMaxAmountMessage(message) {
+                                        maxAmountMessage.text = message
+                                    }
+                                }
                             }
                         }
                     }
@@ -425,7 +463,9 @@ ElDialog {
                 enabled: !invoice.isSaved && invoice.canSave
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        if (amountMax.checked)
+                            invoice.amountOverride.isMax = true
                     }
                     invoice.saveInvoice()
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
@@ -440,7 +480,9 @@ ElDialog {
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        if (amountMax.checked)
+                            invoice.amountOverride.isMax = true
                     }
                     if (!invoice.isSaved) {
                         // save invoice if newly parsed
@@ -467,5 +509,10 @@ ElDialog {
                 doPay()
             }
         }
+    }
+
+    FontMetrics {
+        id: amountFontMetrics
+        font: amountBtc.font
     }
 }

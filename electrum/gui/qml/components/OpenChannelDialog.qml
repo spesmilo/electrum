@@ -167,11 +167,25 @@ ElDialog {
                 }
 
                 BtcField {
-                    id: amount
+                    id: amountBtc
                     fiatfield: amountFiat
-                    Layout.preferredWidth: parent.width /3
-                    onTextChanged: channelopener.amount = Config.unitsToSats(amount.text)
-                    enabled: !is_max.checked
+                    Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
+                    onTextAsSatsChanged: {
+                        if (!is_max.checked)
+                            channelopener.amount.satsInt = amountBtc.textAsSats.satsInt
+                    }
+                    readOnly: is_max.checked
+                    color: readOnly
+                        ? Material.accentColor
+                        : Material.foreground
+
+                    Connections {
+                        target: channelopener.amount
+                        function onSatsIntChanged() {
+                            if (is_max.checked)  // amount updated by max amount estimate
+                                amountBtc.text = Config.formatSatsForEditing(channelopener.amount.satsInt)
+                        }
+                    }
                 }
 
                 RowLayout {
@@ -184,7 +198,13 @@ ElDialog {
                         id: is_max
                         text: qsTr('Max')
                         onCheckedChanged: {
-                            channelopener.amount = checked ? MAX : Config.unitsToSats(amount.text)
+                            if (activeFocus) {
+                                channelopener.amount.isMax = checked
+                                if (checked) {
+                                    maxAmountMessage.text = ''
+                                    channelopener.updateMaxAmount()
+                                }
+                            }
                         }
                     }
                 }
@@ -193,10 +213,13 @@ ElDialog {
 
                 FiatField {
                     id: amountFiat
-                    btcfield: amount
+                    Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
+                    btcfield: amountBtc
                     visible: Daemon.fx.enabled
-                    Layout.preferredWidth: parent.width /3
-                    enabled: !is_max.checked
+                    readOnly: is_max.checked
+                    color: readOnly
+                        ? Material.accentColor
+                        : Material.foreground
                 }
 
                 Label {
@@ -207,6 +230,16 @@ ElDialog {
                 }
 
                 Item { visible: Daemon.fx.enabled ; height: 1; width: 1 }
+
+                InfoTextArea {
+                    Layout.topMargin: constants.paddingMedium
+                    Layout.fillWidth: true
+                    Layout.columnSpan: 3
+                    id: maxAmountMessage
+                    visible: is_max.checked && text
+                    compact: true
+                }
+
             }
         }
 
@@ -288,6 +321,13 @@ ElDialog {
             // TODO: handle incomplete TX
             root.close()
         }
+        onMaxAmountMessage: (message) => {
+            maxAmountMessage.text = message
+        }
     }
 
+    FontMetrics {
+        id: amountFontMetrics
+        font: amountBtc.font
+    }
 }
