@@ -3,7 +3,7 @@ import os
 import random
 from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any
 
-from .lnutil import LnFeatures, PaymentFeeBudget
+from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
 from .lnutil import NoPathFound
@@ -161,7 +161,7 @@ def _allocate_fee_along_route(
         assert trampoline_fee_level > 0
         MAX_LEVEL = 6
         if trampoline_fee_level > MAX_LEVEL:
-            raise NoPathFound()
+            raise FeeBudgetExceeded("highest trampoline fee level reached")
         budget_to_use = budget.fee_msat // (2 ** (MAX_LEVEL - trampoline_fee_level))
     _logger.debug(f"_allocate_fee_along_route(). {trampoline_fee_level=}, {budget.fee_msat=}, {budget_to_use=}")
     # replace placeholder fees
@@ -264,7 +264,7 @@ def create_trampoline_route(
         amount_msat_for_dest=amount_msat,
         cltv_delta_for_dest=min_final_cltv_delta,
     ):
-        raise NoPathFound("route exceeds budget")
+        raise FeeBudgetExceeded(f"route exceeds budget: budget: {budget}")
     return route
 
 

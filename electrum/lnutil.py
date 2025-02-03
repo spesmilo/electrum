@@ -452,6 +452,9 @@ class PaymentFailure(UserFacingException): pass
 class NoPathFound(PaymentFailure):
     def __str__(self):
         return _('No path found')
+class FeeBudgetExceeded(PaymentFailure):
+    def __str__(self):
+        return _('Fee budget exceeded')
 
 
 class LNProtocolError(Exception):

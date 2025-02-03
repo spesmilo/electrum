@@ -67,7 +67,7 @@ from .lnutil import (Outpoint,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
                      HtlcLog, derive_payment_secret_from_payment_preimage,
-                     NoPathFound, InvalidGossipMsg)
+                     NoPathFound, InvalidGossipMsg, FeeBudgetExceeded)
 from .lnutil import ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
@@ -1880,6 +1880,7 @@ class LNWallet(LNWorker):
         and mpp is supported by the receiver, we will split the payment."""
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.network.get_local_height()
+        fee_related_error = None  # type: Optional[FeeBudgetExceeded]
         if channels:
             my_active_channels = channels
         else:
@@ -1970,8 +1971,9 @@ class LNWallet(LNWorker):
                             )
                             routes.append((shi, per_trampoline_cltv_delta, trampoline_onion))
                         if per_trampoline_fees != 0:
-                            self.logger.info('not enough margin to pay trampoline fee')
-                            raise NoPathFound()
+                            e = 'not enough margin to pay trampoline fee'
+                            self.logger.info(e)
+                            raise FeeBudgetExceeded(e)
                 else:
                     # We atomically loop through a split configuration. If there was
                     # a failure to find a path for a single part, we try the next configuration
@@ -2004,9 +2006,14 @@ class LNWallet(LNWorker):
                             routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
             except NoPathFound:
                 continue
+            except FeeBudgetExceeded as e:
+                fee_related_error = e
+                continue
             for route in routes:
                 yield route
             return
+        if fee_related_error is not None:
+            raise fee_related_error
         raise NoPathFound()
 
     @profiler
@@ -2079,7 +2086,7 @@ class LNWallet(LNWorker):
             route, budget=budget, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=min_final_cltv_delta,
         ):
             self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
-            raise NoPathFound()
+            raise FeeBudgetExceeded()
         assert len(route) > 0
         if route[-1].end_node != invoice_pubkey:
             raise LNPathInconsistent("last node_id != invoice pubkey")
