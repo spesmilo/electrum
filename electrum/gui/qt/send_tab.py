@@ -25,7 +25,7 @@ from electrum.submarine_swaps import SwapServerError
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
-                   get_iconname_camera, read_QIcon, ColorScheme, icon_path)
+                   get_iconname_camera, read_QIcon, ColorScheme, icon_path, IconLabel)
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -126,6 +126,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.max_button.setCheckable(True)
         self.max_button.setEnabled(False)
         grid.addWidget(self.max_button, 3, 3)
+
+        invoice_error_icon = read_QIcon("warning.png")
+        self.invoice_error = IconLabel(reverse=True, hide_if_empty=True)
+        self.invoice_error.setIcon(invoice_error_icon)
+        grid.addWidget(self.invoice_error, 3, 4, Qt.AlignmentFlag.AlignRight)
 
         self.paste_button = QPushButton()
         self.paste_button.clicked.connect(self.do_paste)
@@ -367,6 +372,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setEnabled(False)
         self.window.update_status()
         self.paytomany_menu.setChecked(self.payto_e.multiline)
+        self.invoice_error.setText('')
 
         run_hook('do_clear', self)
 
@@ -464,8 +470,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         amount_valid = is_spk_script or bool(self.amount_e.get_amount())
 
         self.send_button.setEnabled(not pi_unusable and amount_valid and not pi.has_expired())
-        self.save_button.setEnabled(not pi_unusable and not is_spk_script and \
+        self.save_button.setEnabled(not pi_unusable and not is_spk_script and not pi.has_expired() and \
                                     pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
+
+        self.invoice_error.setText(_('Expired') if pi.has_expired() else '')
 
     def _handle_payment_identifier(self):
         self.update_fields()
