@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
+from electrum.bitcoin import DummyAddress
 from electrum.util import format_time, TxMinedInfo
 from electrum.transaction import tx_from_any, Transaction, PartialTxInput, Sighash, PartialTransaction, TxOutpoint
 from electrum.network import Network
@@ -277,12 +278,15 @@ class QETxDetails(QObject, QtEventListener):
             Network.run_from_another_thread(
                 self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
+        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.lnworker else None
+
         self._inputs = list(map(lambda x: {
             'short_id': x.prevout.short_name(),
             'value': x.value_sats(),
             'address': x.address,
             'is_mine': self._wallet.wallet.is_mine(x.address),
-            'is_change': self._wallet.wallet.is_change(x.address)
+            'is_change': self._wallet.wallet.is_change(x.address),
+            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.address) or x.address == DummyAddress.SWAP
         }, self._tx.inputs()))
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
@@ -290,7 +294,8 @@ class QETxDetails(QObject, QtEventListener):
             'short_id': '',  # TODO
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
             'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
-            'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str())
+            'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str()),
+            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.get_ui_address_str()) or x.get_ui_address_str() == DummyAddress.SWAP
         }, self._tx.outputs()))
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
