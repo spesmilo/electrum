@@ -44,6 +44,7 @@ Item {
     property color colorValidBackground: '#ff008000'
     property color colorInvalidBackground: '#ff800000'
     property color colorAcceptable: '#ff8080ff'
+    property color colorOk: colorDone
 
     property color colorLightningLocal: "#6060ff"
     property color colorLightningLocalReserve: "#0000a0"

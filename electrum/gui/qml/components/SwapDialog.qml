@@ -33,13 +33,15 @@ ElDialog {
             Layout.alignment: Qt.AlignHCenter
             visible: swaphelper.userinfo != ''
             text: swaphelper.userinfo
-            iconStyle: swaphelper.state == SwapHelper.Started
+            iconStyle: swaphelper.state == SwapHelper.Started || swaphelper.state == SwapHelper.Initializing
                 ? InfoTextArea.IconStyle.Spinner
                 : swaphelper.state == SwapHelper.Failed || swaphelper.state == SwapHelper.Cancelled
                     ? InfoTextArea.IconStyle.Error
                     : swaphelper.state == SwapHelper.Success
                         ? InfoTextArea.IconStyle.Done
-                        : InfoTextArea.IconStyle.Info
+                        : swaphelper.state == SwapHelper.NoService
+                            ? InfoTextArea.IconStyle.Warn
+                            : InfoTextArea.IconStyle.Info
         }
 
         GridLayout {
@@ -170,7 +172,7 @@ ElDialog {
             Layout.leftMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.leftVoid
             Layout.rightMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.rightVoid
 
-            property real scenter: -swapslider.from/(swapslider.to-swapslider.from)
+            property real scenter: -swapslider.from / (swapslider.to - swapslider.from)
 
             enabled: swaphelper.state == SwapHelper.ServiceReady || swaphelper.state == SwapHelper.Failed
 
@@ -193,21 +195,21 @@ ElDialog {
                     x: swapslider.visualPosition > swapslider.scenter
                         ? swapslider.scenter * parent.rangeWidth
                         : swapslider.visualPosition * parent.rangeWidth
+                    y: enabled ? -1 : 0
                     width: swapslider.visualPosition > swapslider.scenter
                         ? (swapslider.visualPosition-swapslider.scenter) * parent.rangeWidth
                         : (swapslider.scenter-swapslider.visualPosition) * parent.rangeWidth
-                    height: parent.height
+                    height: enabled ? parent.height + 2 : parent.height
                     color: enabled
-                        ? Material.accentColor
+                        ? constants.colorOk
                         : Material.sliderDisabledColor
-                    radius: 2
                 }
 
                 Rectangle {
                     x: - (swapslider.parent.width - 2 * constants.paddingXXLarge) * swaphelper.leftVoid
                     z: -1
                     // width makes rectangle go outside the control, into the Layout margins
-                    width: parent.width + (swapslider.parent.width - 2 * constants.paddingXXLarge) * swaphelper.rightVoid
+                    width: swapslider.parent.width - 2 * constants.paddingXXLarge - swapslider.leftPadding - swapslider.rightPadding
                     height: parent.height
                     color: Material.sliderDisabledColor
                 }
@@ -246,6 +248,34 @@ ElDialog {
                 text: qsTr('Add sending capacity') + ' -->'
                 font.pixelSize: constants.fontSizeXSmall
                 color: Material.accentColor
+            }
+        }
+
+
+        Pane {
+            Layout.alignment: Qt.AlignHCenter
+            visible: _swaphelper.isNostr()
+            background: Rectangle { color: constants.darkerDialogBackground }
+            padding: 0
+
+            FlatButton {
+                text: qsTr('Choose swap provider')
+                enabled: _swaphelper.state != SwapHelper.Initializing
+                    && _swaphelper.state != SwapHelper.Success
+                    && _swaphelper.availableSwapServers.count
+                onClicked: {
+                    var dialog = app.nostrSwapServersDialog.createObject(app, {
+                        swaphelper: _swaphelper,
+                        selectedPubkey: Config.swapServerNPub
+                    })
+                    dialog.accepted.connect(function() {
+                        if (Config.swapServerNPub != dialog.selectedPubkey) {
+                            Config.swapServerNPub = dialog.selectedPubkey
+                            _swaphelper.init_swap_manager()
+                        }
+                    })
+                    dialog.open()
+                }
             }
         }
 

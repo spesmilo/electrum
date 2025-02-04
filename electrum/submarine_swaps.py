@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import ssl
 from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple, Iterable
 from decimal import Decimal
 import math
@@ -24,7 +25,7 @@ from .bitcoin import (script_to_p2wsh, opcodes,
                       construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
-from .util import log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age
+from .util import log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -856,6 +857,7 @@ class SwapManager(Logger):
             "preimageHash": payment_hash.hex(),
             "claimPublicKey": our_pubkey.hex()
         }
+        self.logger.debug(f'rswap: sending request for {lightning_amount_sat}')
         data = await transport.send_request_to_server('createswap', request_data)
         invoice = data['invoice']
         fee_invoice = data.get('minerFeeInvoice')
@@ -864,6 +866,7 @@ class SwapManager(Logger):
         locktime = data['timeoutBlockHeight']
         onchain_amount = data["onchainAmount"]
         response_id = data['id']
+        self.logger.debug(f'rswap: {response_id=}')
         # verify redeem_script is built with our pubkey and preimage
         check_reverse_redeem_script(
             redeem_script=redeem_script,
@@ -1291,7 +1294,6 @@ class HttpTransport(Logger):
         self.sm.update_pairs(pairs)
 
 
-
 class NostrTransport(Logger):
     # uses nostr:
     #  - to advertise servers
@@ -1313,7 +1315,8 @@ class NostrTransport(Logger):
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
         self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
-        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key)
+        ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
         self.taskgroup = OldTaskGroup()
         self.is_connected = asyncio.Event()
         self.server_relays = None
@@ -1360,6 +1363,7 @@ class NostrTransport(Logger):
         self.sm.is_initialized.clear()
         await self.taskgroup.cancel_remaining()
         await self.relay_manager.close()
+        self.logger.info("nostr transport shut down")
 
     @property
     def relays(self):
@@ -1432,6 +1436,9 @@ class NostrTransport(Logger):
                 continue
             if content.get('network') != constants.net.NET_NAME:
                 continue
+            if now() - event.created_at > self.NOSTR_EVENT_TIMEOUT:
+                self.logger.debug(f'offer for swap server too old (pub={event.pubkey})')
+                continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
             ts = self.offers.get(pubkey, {}).get('timestamp', 0)
@@ -1456,6 +1463,9 @@ class NostrTransport(Logger):
             if content.get('version') != self.NOSTR_EVENT_VERSION:
                 continue
             if content.get('network') != constants.net.NET_NAME:
+                continue
+            if now() - event.created_at > self.NOSTR_EVENT_TIMEOUT:
+                self.logger.debug(f'pair for selected swap server too old (pub={event.pubkey})')
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
@@ -1492,7 +1502,7 @@ class NostrTransport(Logger):
         method = request.pop('method')
         event_id = request.pop('event_id')
         event_pubkey = request.pop('event_pubkey')
-        print(f'handle_request: id={event_id} {method} {request}')
+        self.logger.info(f'handle_request: id={event_id} {method} {request}')
         relays = request.pop('relays').split(',')
         if method == 'addswapinvoice':
             r = self.sm.server_add_swap_invoice(request)
