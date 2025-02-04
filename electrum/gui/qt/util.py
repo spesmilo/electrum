@@ -20,9 +20,10 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
                              QFrame)
 
 from electrum.i18n import _
-from electrum.util import FileImportFailed, FileExportFailed, resource_path
-from electrum.util import EventListener, event_listener, get_logger, UserCancelled, UserFacingException
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST
+from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener, event_listener,
+                           get_logger, UserCancelled, UserFacingException)
+from electrum.invoices import (PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING,
+                               PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST)
 from electrum.logging import Logger
 from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
 
@@ -1248,6 +1249,7 @@ def getSaveFileName(
 def icon_path(icon_basename: str):
     return resource_path('gui', 'icons', icon_basename)
 
+
 def internal_plugin_icon_path(plugin_name, icon_basename: str):
     return resource_path('plugins', plugin_name, icon_basename)
 
@@ -1256,10 +1258,12 @@ def internal_plugin_icon_path(plugin_name, icon_basename: str):
 def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
+
 def read_QPixmap_from_bytes(b: bytes) -> QPixmap:
     qp = QPixmap()
     qp.loadFromData(b)
     return qp
+
 
 def read_QIcon_from_bytes(b: bytes) -> QIcon:
     qp = read_QPixmap_from_bytes(b)
@@ -1473,9 +1477,11 @@ def qt_event_listener(func):
         self.qt_callback_signal.emit( (func,) + args)
     return decorator
 
+
 def insert_spaces(text: str, every_chars: int) -> str:
     '''Insert spaces at every Nth character to allow for WordWrap'''
     return ' '.join(text[i:i+every_chars] for i in range(0, len(text), every_chars))
+
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass

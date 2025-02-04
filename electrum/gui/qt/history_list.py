@@ -284,7 +284,8 @@ class HistoryModel(CustomModel, Logger):
         if selected:
             selected_row = selected.row()
         fx = self.window.fx
-        if fx: fx.history_used_spot = False
+        if fx:
+            fx.history_used_spot = False
         wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
@@ -397,7 +398,7 @@ class HistoryModel(CustomModel, Logger):
                 continue
             self.update_tx_mined_status(tx_hash, tx_mined_info)
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):
         assert orientation == Qt.Orientation.Horizontal
         if role != Qt.ItemDataRole.DisplayRole:
             return None
@@ -601,8 +602,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         fx = self.main_window.fx
         h = self.wallet.get_detailed_history(
-            from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
-            to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,
+            from_timestamp=time.mktime(self.start_date.timetuple()) if self.start_date else None,
+            to_timestamp=time.mktime(self.end_date.timetuple()) if self.end_date else None,
             fx=fx)
         summary = h['summary']
         if not summary:
@@ -691,7 +692,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         column = index.column()
         key = get_item_key(tx_item)
         if column == HistoryColumns.DESCRIPTION:
-            if self.wallet.set_label(key, text): #changed
+            if self.wallet.set_label(key, text):  # changed
                 self.hm.update_label(index)
                 self.main_window.update_completions()
         elif column == HistoryColumns.FIAT_VALUE:
@@ -764,7 +765,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         copy_menu.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
-            if self.isColumnHidden(c): continue
+            if self.isColumnHidden(c):
+                continue
             label = self.hm.headerData(c, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))

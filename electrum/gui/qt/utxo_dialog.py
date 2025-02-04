@@ -28,13 +28,11 @@ import copy
 
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QTextCharFormat, QFont
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
 
 from electrum.i18n import _
 
-from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT, WWLabel
-from .history_list import HistoryList, HistoryModel
-from .qrtextedit import ShowQRTextEdit
+from .util import WindowModalDialog, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT, WWLabel
 from .transaction_dialog import TxOutputColoring, QTextBrowserWithDefaultSize
 
 if TYPE_CHECKING:
@@ -56,7 +54,11 @@ class UTXODialog(WindowModalDialog):
         self.parents_list.anchorClicked.connect(self.open_tx)  # send links to our handler
         self.parents_list.setFont(QFont(MONOSPACE_FONT))
         self.parents_list.setReadOnly(True)
-        self.parents_list.setTextInteractionFlags(self.parents_list.textInteractionFlags() | Qt.TextInteractionFlag.LinksAccessibleByMouse | Qt.TextInteractionFlag.LinksAccessibleByKeyboard)
+        self.parents_list.setTextInteractionFlags(
+            self.parents_list.textInteractionFlags() |
+            Qt.TextInteractionFlag.LinksAccessibleByMouse |
+            Qt.TextInteractionFlag.LinksAccessibleByKeyboard
+        )
         self.txo_color_parent = TxOutputColoring(
             legend=_("Direct parent"), color=ColorScheme.BLUE, tooltip=_("Direct parent"))
         self.txo_color_uncle = TxOutputColoring(
