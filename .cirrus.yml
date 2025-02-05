@@ -107,11 +107,12 @@ task:
   install_script:
     - apt-get update
     - apt-get -y install curl jq bc
+    - python3 -m pip install --user --upgrade pip
     # install electrum
     - export ELECTRUM_ECC_DONT_COMPILE=1  # we build manually to make caching it easier
-    - pip3 install .[tests]
+    - python3 -m pip install .[tests]
     # install e-x some commits after 1.16.0 tag
-    - pip3 install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
+    - python3 -m pip install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
     - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
     - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
