@@ -212,9 +212,9 @@ class CKCCClient(HardwareClientBase):
         return self.dev.send_recv(CCProtocolPacker.version(), timeout=1000).split('\n')
 
     @runs_in_hwd_thread
-    def sign_message_start(self, path, msg):
+    def sign_message_start(self, path, msg, addr_fmt):
         # this starts the UX experience.
-        self.dev.send_recv(CCProtocolPacker.sign_message(msg, path), timeout=None)
+        self.dev.send_recv(CCProtocolPacker.sign_message(msg, path, addr_fmt), timeout=None)
 
     @runs_in_hwd_thread
     def sign_message_poll(self):
@@ -328,12 +328,18 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             return b''
 
         path = self.get_derivation_prefix() + ("/%d/%d" % sequence)
+
+        if script_type:
+            addr_fmt = self._encode_txin_type(script_type)
+        else:
+            addr_fmt = AF_CLASSIC
+
         try:
             cl = self.get_client()
             try:
                 self.handler.show_message("Signing message (using %s)..." % path)
 
-                cl.sign_message_start(path, msg)
+                cl.sign_message_start(path, msg, addr_fmt)
 
                 while 1:
                     # How to kill some time, without locking UI?
