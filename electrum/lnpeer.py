@@ -379,6 +379,9 @@ class Peer(Logger, EventListener):
         except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
             raise GracefulDisconnect(f"{str(e)}")
+        self.logger.info(
+            f"received INIT with features={str(self.their_features.get_names())}. "
+            f"negotiated={str(self.features)}")
         # check that they are on the same chain as us, if provided
         their_networks = payload["init_tlvs"].get("networks")
         if their_networks:
