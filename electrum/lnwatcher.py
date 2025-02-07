@@ -149,6 +149,7 @@ class LNWatcher(Logger, EventListener):
 
         Side-effécts:
           - sets defaults labels
+          - populates wallet._accounting_addresses
         """
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
@@ -175,10 +176,12 @@ class LNWatcher(Logger, EventListener):
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
                         keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
+                        self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
                     else:
                         keep_watching |= self.maybe_redeem(htlc_sweep_info)
                 keep_watching |= not self.adb.is_deeply_mined(spender_txid)
                 self.maybe_extract_preimage(chan, spender_tx, prevout)
+                self.maybe_add_accounting_address(spender_txid, sweep_info)
             else:
                 keep_watching |= self.maybe_redeem(sweep_info)
         return keep_watching
@@ -199,3 +202,33 @@ class LNWatcher(Logger, EventListener):
             spender_txin,
             is_deeply_mined=self.adb.is_deeply_mined(spender_tx.txid()),
         )
+
+    def maybe_add_accounting_address(self, spender_txid: str, sweep_info: 'SweepInfo'):
+        spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
+        if not spender_tx:
+            return
+        for i, txin in enumerate(spender_tx.inputs()):
+            if txin.prevout == sweep_info.txin.prevout:
+                break
+        else:
+            return
+        if sweep_info.name in ['first-stage-htlc', 'first-stage-htlc-anchors']:
+            # always consider ours
+            pass
+        else:
+            privkey = sweep_info.txin.privkey
+            witness = txin.witness_elements()
+            for sig in witness:
+                sig = witness[0]
+                # fixme: verify sig is ours
+                witness2 = sweep_info.txin.make_witness(sig)
+                if txin.witness == witness2:
+                    break
+            else:
+                self.logger.info(f"signature not found {sweep_info.name}, {txin.prevout.to_str()}")
+                return
+        self.logger.info(f'adding txin address {sweep_info.name}, {txin.prevout.to_str()}')
+        prev_txid, prev_index = txin.prevout.to_str().split(':')
+        prev_tx = self.adb.get_transaction(prev_txid)
+        txout = prev_tx.outputs()[int(prev_index)]
+        self.lnworker.wallet._accounting_addresses.add(txout.address)

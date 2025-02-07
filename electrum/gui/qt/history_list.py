@@ -255,7 +255,7 @@ class HistoryModel(CustomModel, Logger):
 
     def get_domain(self):
         """Overridden in address_dialog.py"""
-        return self.window.wallet.get_addresses()
+        return None
 
     def should_include_lightning_payments(self) -> bool:
         """Overridden in address_dialog.py"""

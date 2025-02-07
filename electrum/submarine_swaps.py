@@ -1186,6 +1186,7 @@ class SwapManager(Logger):
                         'group_label': group_label,
                         'label': _('Refund transaction'),
                     }
+                    self.wallet._accounting_addresses.add(swap.lockup_address)
         return d
 
     def get_group_id_for_payment_hash(self, payment_hash):
