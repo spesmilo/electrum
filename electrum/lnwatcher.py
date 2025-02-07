@@ -5,7 +5,7 @@
 from typing import TYPE_CHECKING
 from enum import IntEnum, auto
 
-from .util import log_exceptions, ignore_exceptions, TxMinedInfo, BelowDustLimit
+from .util import log_exceptions, TxMinedInfo, BelowDustLimit
 from .util import EventListener, event_listener
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint
@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from .lnsweep import SweepInfo
     from .lnworker import LNWallet
     from .lnchannel import AbstractChannel
+    from .simple_config import SimpleConfig
+
 
 class TxMinedDepth(IntEnum):
     """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
@@ -30,16 +32,19 @@ class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
-    def __init__(self, adb: 'AddressSynchronizer', network: 'Network'):
+    def __init__(self, adb: 'AddressSynchronizer', config: 'SimpleConfig'):
 
         Logger.__init__(self)
         self.adb = adb
-        self.config = network.config
-        self.callbacks = {} # address -> lambda: coroutine
-        self.network = network
+        self.config = config
+        self.callbacks = {}  # address -> lambda: coroutine
+        self.network = None
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
+
+    def start_network(self, network: 'Network'):
+        self.network = network
 
     async def stop(self):
         self.unregister_callbacks()
@@ -47,13 +52,7 @@ class LNWatcher(Logger, EventListener):
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 
-    def add_channel(self, outpoint: str, address: str) -> None:
-        assert isinstance(outpoint, str)
-        assert isinstance(address, str)
-        cb = lambda: self.check_onchain_situation(address, outpoint)
-        self.add_callback(address, cb)
-
-    async def unwatch_channel(self, address, funding_outpoint):
+    def unwatch_channel(self, address, funding_outpoint):
         self.logger.info(f'unwatching {funding_outpoint}')
         self.remove_callback(address)
 
@@ -93,46 +92,7 @@ class LNWatcher(Logger, EventListener):
             self.logger.info("synchronizer not set yet")
             return
         for address, callback in list(self.callbacks.items()):
-            await callback()
-
-    async def check_onchain_situation(self, address, funding_outpoint):
-        # early return if address has not been added yet
-        if not self.adb.is_mine(address):
-            return
-        # inspect_tx_candidate might have added new addresses, in which case we return early
-        if not self.adb.is_up_to_date():
-            return
-        funding_txid = funding_outpoint.split(':')[0]
-        funding_height = self.adb.get_tx_height(funding_txid)
-        closing_txid = self.get_spender(funding_outpoint)
-        closing_height = self.adb.get_tx_height(closing_txid)
-        if closing_txid:
-            closing_tx = self.adb.get_transaction(closing_txid)
-            if closing_tx:
-                keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
-            else:
-                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
-                keep_watching = True
-        else:
-            keep_watching = True
-        await self.update_channel_state(
-            funding_outpoint=funding_outpoint,
-            funding_txid=funding_txid,
-            funding_height=funding_height,
-            closing_txid=closing_txid,
-            closing_height=closing_height,
-            keep_watching=keep_watching)
-        if not keep_watching:
-            await self.unwatch_channel(address, funding_outpoint)
-
-    async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
-        raise NotImplementedError()  # implemented by subclasses
-
-    async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
-                                   funding_height: TxMinedInfo, closing_txid: str,
-                                   closing_height: TxMinedInfo, keep_watching: bool) -> None:
-        raise NotImplementedError()  # implemented by subclasses
-
+            callback()
 
     def get_spender(self, outpoint) -> str:
         """
@@ -181,10 +141,45 @@ class LNWatcher(Logger, EventListener):
 
 class LNWalletWatcher(LNWatcher):
 
-    def __init__(self, lnworker: 'LNWallet', network: 'Network'):
-        self.network = network
+    def __init__(self, lnworker: 'LNWallet'):
         self.lnworker = lnworker
-        LNWatcher.__init__(self, lnworker.wallet.adb, network)
+        LNWatcher.__init__(self, lnworker.wallet.adb, lnworker.config)
+
+    def add_channel(self, chan: 'AbstractChannel') -> None:
+        outpoint = chan.funding_outpoint.to_str()
+        address = chan.get_funding_address()
+        callback = lambda: self.check_onchain_situation(address, outpoint)
+        callback()  # run once, for side effects
+        if chan.need_to_subscribe():
+            self.add_callback(address, callback)
+
+    def check_onchain_situation(self, address, funding_outpoint):
+        # early return if address has not been added yet
+        if not self.adb.is_mine(address):
+            return
+        # inspect_tx_candidate might have added new addresses, in which case we return early
+        funding_txid = funding_outpoint.split(':')[0]
+        funding_height = self.adb.get_tx_height(funding_txid)
+        closing_txid = self.get_spender(funding_outpoint)
+        closing_height = self.adb.get_tx_height(closing_txid)
+        if closing_txid:
+            closing_tx = self.adb.get_transaction(closing_txid)
+            if closing_tx:
+                keep_watching = self.sweep_commitment_transaction(funding_outpoint, closing_tx)
+            else:
+                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
+                keep_watching = True
+        else:
+            keep_watching = True
+        self.update_channel_state(
+            funding_outpoint=funding_outpoint,
+            funding_txid=funding_txid,
+            funding_height=funding_height,
+            closing_txid=closing_txid,
+            closing_height=closing_height,
+            keep_watching=keep_watching)
+        if not keep_watching:
+            self.unwatch_channel(address, funding_outpoint)
 
     @event_listener
     async def on_event_blockchain_updated(self, *args):
@@ -199,11 +194,9 @@ class LNWalletWatcher(LNWatcher):
     def diagnostic_name(self):
         return f"{self.lnworker.wallet.diagnostic_name()}-LNW"
 
-    @ignore_exceptions
-    @log_exceptions
-    async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
-                                   funding_height: TxMinedInfo, closing_txid: str,
-                                   closing_height: TxMinedInfo, keep_watching: bool) -> None:
+    def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
+                             funding_height: TxMinedInfo, closing_txid: str,
+                             closing_height: TxMinedInfo, keep_watching: bool) -> None:
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return
@@ -213,15 +206,18 @@ class LNWalletWatcher(LNWatcher):
             closing_txid=closing_txid,
             closing_height=closing_height,
             keep_watching=keep_watching)
-        await self.lnworker.handle_onchain_state(chan)
+        self.lnworker.handle_onchain_state(chan)
 
-    @log_exceptions
-    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
+    def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
         """This function is called when a channel was closed. In this case
         we need to check for redeemable outputs of the commitment transaction
         or spenders down the line (HTLC-timeout/success transactions).
 
-        Returns whether we should continue to monitor."""
+        Returns whether we should continue to monitor.
+
+        Side-effécts:
+          - sets defaults labels
+        """
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False

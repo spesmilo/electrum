@@ -842,7 +842,7 @@ class LNWallet(LNWorker):
         if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
             features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
-        self.lnwatcher = None
+        self.lnwatcher = LNWalletWatcher(self)
         self.lnrater: LNRater = None
         self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
@@ -890,6 +890,13 @@ class LNWallet(LNWorker):
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         self.onion_message_manager = OnionMessageManager(self)
+        self.subscribe_to_channels()
+
+    def subscribe_to_channels(self):
+        for chan in self.channels.values():
+            self.lnwatcher.add_channel(chan)
+        for cb in self.channel_backups.values():
+            self.lnwatcher.add_channel(cb)
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -970,17 +977,10 @@ class LNWallet(LNWorker):
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
-        self.lnwatcher = LNWalletWatcher(self, network)
+        self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network)
         self.lnrater = LNRater(self, network)
         self.onion_message_manager.start_network(network=network)
-
-        for chan in self.channels.values():
-            if chan.need_to_subscribe():
-                self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
-        for cb in self.channel_backups.values():
-            if cb.need_to_subscribe():
-                self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
         for coro in [
                 self.maybe_listen(),
@@ -1193,15 +1193,15 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
-    async def handle_onchain_state(self, chan: Channel):
+    def handle_onchain_state(self, chan: Channel):
         if type(chan) is ChannelBackup:
             util.trigger_callback('channel', self.wallet, chan)
             return
 
         if (chan.get_state() in (ChannelState.OPEN, ChannelState.SHUTDOWN)
-                and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height())):
+                and chan.should_be_closed_due_to_expiring_htlcs(self.wallet.adb.get_local_height())):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.schedule_force_closing(chan.channel_id)
+            asyncio.ensure_future(self.schedule_force_closing(chan.channel_id))
 
         elif chan.get_state() == ChannelState.FUNDED:
             peer = self._peers.get(chan.node_id)
@@ -1220,7 +1220,7 @@ class LNWallet(LNWorker):
             height = self.lnwatcher.adb.get_tx_height(txid).height
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
-                await self.network.try_broadcasting(force_close_tx, 'force-close')
+                asyncio.ensure_future(self.network.try_broadcasting(force_close_tx, 'force-close'))
 
     def get_peer_by_static_jit_scid_alias(self, scid_alias: bytes) -> Optional[Peer]:
         for nodeid, peer in self.peers.items():
@@ -1363,7 +1363,7 @@ class LNWallet(LNWorker):
     def add_channel(self, chan: Channel):
         with self.lock:
             self._channels[chan.channel_id] = chan
-        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.lnwatcher.add_channel(chan)
 
     def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
@@ -1953,7 +1953,7 @@ class LNWallet(LNWorker):
         We first try to conduct the payment over a single channel. If that fails
         and mpp is supported by the receiver, we will split the payment."""
         trampoline_features = LnFeatures.VAR_ONION_OPT
-        local_height = self.network.get_local_height()
+        local_height = self.wallet.adb.get_local_height()
         fee_related_error = None  # type: Optional[FeeBudgetExceeded]
         if channels:
             my_active_channels = channels
@@ -3069,7 +3069,7 @@ class LNWallet(LNWorker):
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
-        self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+        self.lnwatcher.add_channel(cb)
 
     def has_conflicting_backup_with(self, remote_node_id: bytes):
         """ Returns whether we have an active channel with this node on another device, using same local node id. """
@@ -3186,7 +3186,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self._channel_backups[bfh(channel_id)] = cb
         util.trigger_callback('channels_updated', self.wallet)
-        self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+        self.lnwatcher.add_channel(cb)
 
     def save_forwarding_failure(
             self, payment_key:str, *,

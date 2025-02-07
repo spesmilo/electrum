@@ -75,8 +75,20 @@ class WatchTower(LNWatcher):
         await super().stop()
         await self.adb.stop()
 
+    def add_channel(self, outpoint: str, address: str) -> None:
+        callback = lambda: self.check_onchain_situation(address, outpoint)
+        self.add_callback(address, callback)
+
+    @log_exceptions
+    async def trigger_callbacks(self):
+        if not self.adb.synchronizer:
+            self.logger.info("synchronizer not set yet")
+            return
+        for address, callback in list(self.callbacks.items()):
+            await callback()
+
     def diagnostic_name(self):
-        return "local_tower"
+        return "watchtower"
 
     @log_exceptions
     async def start_watching(self):
@@ -84,6 +96,27 @@ class WatchTower(LNWatcher):
         lst = await self.sweepstore.list_channels()
         for outpoint, address in random_shuffled_copy(lst):
             self.add_channel(outpoint, address)
+
+    async def check_onchain_situation(self, address, funding_outpoint):
+        # early return if address has not been added yet
+        if not self.adb.is_mine(address):
+            return
+        # inspect_tx_candidate might have added new addresses, in which case we return early
+        funding_txid = funding_outpoint.split(':')[0]
+        funding_height = self.adb.get_tx_height(funding_txid)
+        closing_txid = self.get_spender(funding_outpoint)
+        closing_height = self.adb.get_tx_height(closing_txid)
+        if closing_txid:
+            closing_tx = self.adb.get_transaction(closing_txid)
+            if closing_tx:
+                keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
+            else:
+                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
+                keep_watching = True
+        else:
+            keep_watching = True
+        if not keep_watching:
+            await self.unwatch_channel(address, funding_outpoint)
 
     def inspect_tx_candidate(self, outpoint, n: int) -> Dict[str, str]:
         """
@@ -188,8 +221,6 @@ class WatchTower(LNWatcher):
         await self.sweepstore.remove_sweep_tx(funding_outpoint)
         await self.sweepstore.remove_channel(funding_outpoint)
 
-    async def update_channel_state(self, *args, **kwargs):
-        pass
 
 
 

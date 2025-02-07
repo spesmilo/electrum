@@ -108,8 +108,12 @@ class MockBlockchain:
 
 
 class MockADB:
+    def __init__(self):
+        self._blockchain = MockBlockchain()
     def add_transaction(self, tx):
         pass
+    def get_local_height(self):
+        return self._blockchain.height()
 
 class MockWallet:
     receive_requests = {}
