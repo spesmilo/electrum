@@ -186,6 +186,8 @@ class SimpleConfig(Logger):
                  read_user_dir_function=None):
         if options is None:
             options = {}
+        for config_key in options:
+            assert isinstance(config_key, str), f"{config_key=!r} has type={type(config_key)}, expected str"
 
         Logger.__init__(self)
 
