@@ -374,6 +374,7 @@ class SwapManager(Logger):
                         self.lnworker.preimages[swap.payment_hash.hex()] = preimage.hex()
                     else:
                         # this is our refund tx
+                        #self.wallet._accounting_addresses.add(swap.lockup_address)
                         if spent_height > 0:
                             self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
                             self._fail_swap(swap, 'refund tx confirmed')
@@ -1187,6 +1188,7 @@ class SwapManager(Logger):
                         'group_label': group_label,
                         'label': _('Refund transaction'),
                     }
+                    self.wallet._accounting_addresses.add(swap.lockup_address)
         return d
 
     def get_group_id_for_payment_hash(self, payment_hash):

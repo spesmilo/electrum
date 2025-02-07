@@ -420,6 +420,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._last_full_history = None
         self._tx_parents_cache = {}
         self._default_labels = {}
+        self._accounting_addresses = set() # addresses considerd mine after sweep
 
         self.taskgroup = OldTaskGroup()
 
@@ -870,6 +871,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
         return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
 
+    def is_accounting_address(self, addr):
+        """
+        Addresses from which we have been able to sweep funds.
+        We consider them 'ours' for accounting purposes, so that the
+        wallet history does not show funds going in and out of the wallet.
+        """
+        # must be a sweep utxo AND we swept (spending tx is a wallet tx)
+        return addr in self._accounting_addresses
+
     def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
         """Return the effect a transaction has on the wallet.
         This method must use self.is_mine, not self.adb.is_mine()
@@ -881,7 +891,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txin in tx.inputs():
                 addr = self.adb.get_txin_address(txin)
                 value = self.adb.get_txin_value(txin, address=addr)
-                if self.is_mine(addr):
+                if self.is_mine(addr) or self.is_accounting_address(addr):
                     num_input_ismine += 1
                     is_relevant = True
                     assert value is not None
@@ -892,7 +902,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     v_in += value
             for txout in tx.outputs():
                 v_out += txout.value
-                if self.is_mine(txout.address):
+                if self.is_mine(txout.address) or self.is_accounting_address(txout.address):
                     v_out_mine += txout.value
                     is_relevant = True
         delta = v_out_mine - v_in_mine
@@ -1165,6 +1175,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         groups = self.lnworker.get_groups_for_onchain_history() if self.lnworker else {}
         if domain is None:
             domain = self.get_addresses()
+            domain += list(self._accounting_addresses)
 
         now = time.time()
         transactions = OrderedDictWithIndex()
