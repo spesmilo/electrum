@@ -1246,7 +1246,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def descr(x):
             last_seen = util.age(x['timestamp'])
             return f"pubkey={x['pubkey'][0:10]},  fee={x['percentage_fee']}% + {x['reverse_mining_fee']} sats"
-        server_keys = [(x['pubkey'], descr(x)) for x in recent_offers]
+        pow_sorted_offers = sorted(recent_offers, key=lambda x: x['pow_bits'], reverse=True)
+        server_keys = [(x['pubkey'], descr(x)) for x in pow_sorted_offers]
         msg = '\n'.join([
             _("Please choose a server from this list."),
             _("Note that fees may be updated frequently.")
