@@ -24,11 +24,11 @@
 # SOFTWARE.
 from collections import defaultdict
 from math import floor, log10
-from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple, Mapping, Type, TYPE_CHECKING
+from typing import NamedTuple, List, Callable, Sequence, Dict, Tuple, Mapping, Type, TYPE_CHECKING
 from decimal import Decimal
 
 from .bitcoin import sha256, COIN, is_address
-from .transaction import Transaction, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput
+from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from .util import NotEnoughFunds
 from .logging import Logger
 
@@ -503,11 +503,13 @@ COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
 }  # type: Mapping[str, Type[CoinChooserBase]]
 
+
 def get_name(config: 'SimpleConfig') -> str:
     kind = config.WALLET_COIN_CHOOSER_POLICY
     if kind not in COIN_CHOOSERS:
         kind = config.cv.WALLET_COIN_CHOOSER_POLICY.get_default_value()
     return kind
+
 
 def get_coin_chooser(config: 'SimpleConfig') -> CoinChooserBase:
     klass = COIN_CHOOSERS[get_name(config)]

@@ -37,16 +37,13 @@ from enum import IntEnum
 import functools
 
 from aiorpcx import NetAddress
-import electrum_ecc as ecc
 from electrum_ecc import ECPubkey
 
 from .sql_db import SqlDB, sql
 from . import constants, util
 from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException, is_private_netaddress
-from .logging import Logger
 from .lntransport import LNPeerAddr
-from .lnutil import (format_short_channel_id, ShortChannelID,
-                     validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg)
+from .lnutil import ShortChannelID, validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 from .crypto import sha256d
@@ -238,6 +235,7 @@ class NodeInfo(NamedTuple):
     @staticmethod
     def parse_addresses_field(addresses_field):
         buf = addresses_field
+
         def read(n):
             nonlocal buf
             data, buf = buf[0:n], buf[n:]
@@ -286,6 +284,7 @@ class UpdateStatus(IntEnum):
     UNCHANGED  = 3
     GOOD       = 4
 
+
 class CategorizedChannelUpdates(NamedTuple):
     orphaned: List    # no channel announcement for channel update
     expired: List     # update older than two weeks
@@ -302,6 +301,7 @@ def get_mychannel_info(short_channel_id: ShortChannelID,
     raw_msg, _ = chan.construct_channel_announcement_without_sigs()
     ci = ChannelInfo.from_raw_msg(raw_msg)
     return ci._replace(capacity_sat=chan.constraints.capacity)
+
 
 def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,
                          my_channels: Dict[ShortChannelID, 'Channel']) -> Optional[Policy]:
@@ -583,7 +583,6 @@ class ChannelDB(SqlDB):
             unchanged=unchanged,
             good=good)
 
-
     def create_database(self):
         c = self.conn.cursor()
         c.execute(create_node_info)
@@ -802,6 +801,7 @@ class ChannelDB(SqlDB):
     def load_data(self):
         if self.data_loaded.is_set():
             return
+
         # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
         def maybe_abort():
             if self.stopping:
@@ -817,6 +817,7 @@ class ChannelDB(SqlDB):
             except Exception:
                 continue
             self._addresses[node_id][net_addr] = int(timestamp or 0)
+
         def newest_ts_for_node_id(node_id):
             newest_ts = 0
             for addr, ts in self._addresses[node_id].items():
