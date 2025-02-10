@@ -668,7 +668,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 """out of the QR code as it would not fit. This might cause issues if signing offline. """
                 """As a workaround, try exporting the tx as file or text instead.""")
         try:
-            self.main_window.show_qrcode(qr_data, 'Transaction', parent=self, help_text=help_text)
+            self.main_window.show_qrcode(qr_data, _("Transaction"), parent=self, help_text=help_text)
         except qrcode.exceptions.DataOverflowError:
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))

@@ -20,6 +20,8 @@ class QrCodeDataOverflow(qrcode.exceptions.DataOverflowError):
 
 class QRCodeWidget(QWidget):
 
+    MIN_BOXSIZE = 2  # min size in pixels of single black/white unit box of the qr code
+
     def __init__(self, data=None, *, manual_size: bool = False):
         QWidget.__init__(self)
         self.data = None
@@ -44,7 +46,8 @@ class QRCodeWidget(QWidget):
             self.data = data
             if not self._manual_size:
                 k = len(qr_matrix)
-                self.setMinimumSize(k * 5, k * 5)
+                size = min(k * 5, 150 + k * self.MIN_BOXSIZE)
+                self.setMinimumSize(size, size)
         else:
             self.qr = None
             self.data = None
@@ -79,9 +82,9 @@ class QRCodeWidget(QWidget):
         framesize = min(r.width(), r.height())
         self._framesize = framesize
         boxsize = int(framesize/(k + 2))
-        if boxsize < 2:
-            qp.drawText(0, 20, 'Cannot draw QR code:')
-            qp.drawText(0, 40, 'Boxsize too small')
+        if boxsize < self.MIN_BOXSIZE:
+            qp.drawText(0, 20, _("Cannot draw QR code")+":")
+            qp.drawText(0, 40, _("Not enough space available. Try increasing the window size."))
             qp.end()
             return
         size = k*boxsize
@@ -131,8 +134,7 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
 
-        qrw = QRCodeWidget(data, manual_size=True)
-        qrw.setMinimumSize(250, 250)
+        qrw = QRCodeWidget(data, manual_size=False)
         vbox.addWidget(qrw, 1)
 
         help_text = data if show_text else help_text
