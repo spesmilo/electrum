@@ -114,6 +114,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             },
             'have_seed': {
                 'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
+                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
                 'last': lambda d: self.is_single_password() and not
                                   (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d))
             },
