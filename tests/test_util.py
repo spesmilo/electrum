@@ -4,7 +4,8 @@ from decimal import Decimal
 from electrum import util
 from electrum.util import (format_satoshis, format_fee_satoshis, is_hash256_str, chunks, is_ip_address,
                            list_enabled_bits, format_satoshis_plain, is_private_netaddress, is_hex_str,
-                           is_integer, is_non_negative_integer, is_int_or_float, is_non_negative_int_or_float)
+                           is_integer, is_non_negative_integer, is_int_or_float, is_non_negative_int_or_float,
+                           ShortID)
 from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from . import ElectrumTestCase, as_testnet
 
@@ -449,4 +450,25 @@ class TestUtil(ElectrumTestCase):
         self.assertEqual("in over 3 years",
                          util.age(from_date=now.timestamp()+103012200, since_date=now))
 
+    def test_shortchannelid(self):
+        scid1 = ShortID.from_components(2, 45, 789)
+        self.assertEqual("2x45x789", str(scid1))
+        self.assertEqual(2, scid1.block_height)
+        self.assertEqual(45, scid1.txpos)
+        self.assertEqual(789, scid1.output_index)
+
+        scid2_raw = bytes([0, 0, 2, 0, 0, 45, 789 // 256, 789 % 256])
+        scid2 = ShortID(scid2_raw)
+        self.assertEqual(scid1, scid2_raw)
+        self.assertEqual(scid1, scid2)
+        self.assertEqual(scid1, ShortID.from_str(str(scid1)))
+        self.assertEqual(scid1, ShortID.normalize(scid1.hex()))
+        self.assertEqual(scid1, ShortID.normalize(bytes(scid1)))
+
+        self.assertTrue(ShortID.from_components(3, 30, 300) == ShortID.from_components(3, 30, 300))
+        self.assertTrue(ShortID.from_components(3, 30, 300) > ShortID.from_components(2, 999, 999))
+        self.assertTrue(ShortID.from_components(3, 30, 300) < ShortID.from_components(3, 999, 999))
+        self.assertTrue(ShortID.from_components(3, 30, 300) > ShortID.from_components(3, 1, 1))
+        self.assertTrue(ShortID.from_components(3, 30, 300) > ShortID.from_components(3, 1, 999))
+        self.assertTrue(ShortID.from_components(3, 30, 300) < ShortID.from_components(3, 999, 1))
 
