@@ -285,6 +285,17 @@ class QEConfig(AuthMixin, QObject):
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = lightningPaymentFeeMaxMillionths
             self.lightningPaymentFeeMaxMillionthsChanged.emit()
 
+    swapServerNPubChanged = pyqtSignal()
+    @pyqtProperty(str, notify=swapServerNPubChanged)
+    def swapServerNPub(self):
+        return self.config.SWAPSERVER_NPUB
+
+    @swapServerNPub.setter
+    def swapServerNPub(self, swapserver_npub):
+        if swapserver_npub != self.config.SWAPSERVER_NPUB:
+            self.config.SWAPSERVER_NPUB = swapserver_npub
+            self.swapServerNPubChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):
