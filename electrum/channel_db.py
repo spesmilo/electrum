@@ -547,7 +547,7 @@ class ChannelDB(SqlDB):
         return changed
 
     def add_channel_update(
-        self, payload, *, max_age=None, verify=True, verbose=True) -> UpdateStatus:
+            self, payload, *, max_age=None, verify=True, verbose=True) -> UpdateStatus:
         now = int(time.time())
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         timestamp = payload['timestamp']
@@ -579,7 +579,7 @@ class ChannelDB(SqlDB):
         if old_policy and not self.policy_changed(old_policy, policy, verbose):
             return UpdateStatus.UNCHANGED
         else:
-            if policy.message_flags == 1:  # check if its `dont_forward`
+            if policy.message_flags & 0b10 == 0:  # check if its `dont_forward`
                 with self.forwarding_lock:
                     if fwd_msg := GossipForwardingMessage.from_payload(payload):
                         self.fwd_channel_updates.append(fwd_msg)
@@ -1030,8 +1030,9 @@ class ChannelDB(SqlDB):
             self.fwd_channel_updates.clear()
             self.fwd_node_announcements.clear()
 
-    def filter_orphan_channel_anns(self, channel_anns: List[GossipForwardingMessage]) \
-        -> Tuple[List, List]:
+    def filter_orphan_channel_anns(
+        self, channel_anns: List[GossipForwardingMessage]
+    ) -> Tuple[List, List]:
         """Check if the channel announcements we want to forward have at least 1 update"""
         to_forward_anns = []
         orphaned_channel_anns = []
@@ -1101,7 +1102,7 @@ class ChannelDB(SqlDB):
             updates = []
             for policy in [chan_up_n1, chan_up_n2]:
                 if policy and policy.raw and timespan.in_range(policy.timestamp):
-                    if policy.message_flags == 1:  # check that its not "dont_forward"
+                    if policy.message_flags & 0b10 == 0:  # check that its not "dont_forward"
                         updates.append(GossipForwardingMessage(
                             msg=policy.raw,
                             timestamp=policy.timestamp))
@@ -1118,15 +1119,14 @@ class ChannelDB(SqlDB):
                     timestamp=node_ann.timestamp))
         return forwarding_gossip
 
-    def get_channels_in_range(self, first_blocknum: int, number_of_blocks: int) \
-        -> List[ShortChannelID]:
+    def get_channels_in_range(self, first_blocknum: int, number_of_blocks: int) -> List[ShortChannelID]:
         with self.lock:
             channels = self._channels.copy()
         scids: List[ShortChannelID] = []
         for scid in channels:
             if first_blocknum <= scid.block_height < first_blocknum + number_of_blocks:
                 scids.append(scid)
-        scids.sort(key=lambda x: x.block_height)
+        scids.sort()
         return scids
 
     def get_gossip_for_scid_request(self, scid: ShortChannelID) -> List[bytes]:

@@ -535,6 +535,12 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
 
 class LNGossip(LNWorker):
+    """The LNGossip class is a separate, unannounced Lightning node with random id that is just querying
+    gossip from other nodes. The LNGossip node does not satisfy gossip queries, this is done by the
+    LNWallet class(es). LNWallets are the advertised nodes used for actual payments and only satisfy
+    peer queries without fetching gossip themselves. This separation is done so that gossip can be queried
+    independently of the active LNWallets. LNGossip keeps a curated batch of gossip in _forwarding_gossip
+    that is fetched by the LNWallets for regular forwarding."""
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
@@ -578,7 +584,7 @@ class LNGossip(LNWorker):
             self.logger.debug(f"{len(self._forwarding_gossip)} gossip messages available to forward")
             await asyncio.sleep(60)
 
-    async def get_forwarding_gossip(self) -> (List[GossipForwardingMessage], int):
+    async def get_forwarding_gossip(self) -> tuple[List[GossipForwardingMessage], int]:
         async with self._forwarding_gossip_lock:
             return self._forwarding_gossip, self._last_gossip_batch_ts
 
@@ -838,9 +844,7 @@ class LNWallet(LNWorker):
             features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
         if self.config.ACCEPT_ZEROCONF_CHANNELS:
             features |= LnFeatures.OPTION_ZEROCONF_OPT
-        if (self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
-                or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
-                and self.config.LIGHTNING_USE_GOSSIP):
+        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
             features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = None

@@ -134,9 +134,6 @@ class Peer(Logger, EventListener):
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         assert type(message_name) is str
-        if message_name == 'raw':
-            self.transport.send_bytes(kwargs.get('message'))
-            return
         if message_name not in self.SPAMMY_MESSAGES:
             self.logger.debug(f"Sending {message_name.upper()}")
         if message_name.upper() != "INIT" and not self.is_initialized():
@@ -417,7 +414,7 @@ class Peer(Logger, EventListener):
     def on_query_channel_range(self, payload):
         if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
             return
-        if not self._valid_channel_range_query(payload):
+        if not self._is_valid_channel_range_query(payload):
             return self.send_warning(bytes(32), "received invalid query_channel_range")
         if self.outgoing_gossip_reply:
             return self.send_warning(bytes(32), "received multiple queries at the same time")
@@ -429,7 +426,7 @@ class Peer(Logger, EventListener):
             return
         if self.outgoing_gossip_reply:
             return self.send_warning(bytes(32), "received multiple queries at the same time")
-        if not self._valid_short_channel_id_query(payload):
+        if not self._is_valid_short_channel_id_query(payload):
             return self.send_warning(bytes(32), "invalid query_short_channel_ids")
         self.outgoing_gossip_reply = True
         self.gossip_queue.put_nowait(('query_short_channel_ids', payload))
@@ -578,26 +575,23 @@ class Peer(Logger, EventListener):
                 continue  # no new batch available, and no special request
             last_gossip_batch_ts = last_lngossip_refresh_ts
 
-            async with self.network.lngossip.gossip_request_semaphore:
-                if not self.gossip_timestamp_filter.only_forwarding:
-                    requested_gossip = chan_db.get_gossip_in_timespan(self.gossip_timestamp_filter)
-                    new_gossip = requested_gossip + new_gossip
-                    self.gossip_timestamp_filter.only_forwarding = True
-                try:
-                    await self.send_gossip_list(new_gossip)
-                except Exception as e:
-                    self.logger.debug(f"failed to forward gossip: {e}")
+            if not self.gossip_timestamp_filter.only_forwarding:
+                requested_gossip = chan_db.get_gossip_in_timespan(self.gossip_timestamp_filter)
+                new_gossip = requested_gossip + new_gossip
+                self.gossip_timestamp_filter.only_forwarding = True
+            await self.taskgroup.spawn(self.send_gossip_list(new_gossip))
 
     async def send_gossip_list(self, messages: List[GossipForwardingMessage]):
         amount_sent = 0
-        for msg in messages:
-            if self.gossip_timestamp_filter.in_range(msg.timestamp) \
-                    and self.pubkey != msg.sender_node_id:
-                self.send_message('raw', message=msg.msg)
-                amount_sent += 1
-                if amount_sent % 250 == 0:
-                    # this can be a lot of messages, completely blocking the event loop
-                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+        async with self.network.lngossip.gossip_request_semaphore:
+            for msg in messages:
+                if self.gossip_timestamp_filter.in_range(msg.timestamp) \
+                        and self.pubkey != msg.sender_node_id:
+                    self.transport.send_bytes(msg.msg)
+                    amount_sent += 1
+                    if amount_sent % 250 == 0:
+                        # this can be a lot of messages, completely blocking the event loop
+                        await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
         if amount_sent > 0:
             self.logger.debug(f"forwarded {amount_sent} gossip messages to {self.pubkey.hex()}")
 
@@ -624,7 +618,7 @@ class Peer(Logger, EventListener):
                 await self.get_short_channel_ids(todo)
 
     @staticmethod
-    def _valid_channel_range_query(payload: dict) -> bool:
+    def _is_valid_channel_range_query(payload: dict) -> bool:
         if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
             return False
         if payload.get('first_blocknum', -1) < constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS:
@@ -633,7 +627,7 @@ class Peer(Logger, EventListener):
             return False
         return True
 
-    def _valid_short_channel_id_query(self, payload: dict) -> bool:
+    def _is_valid_short_channel_id_query(self, payload: dict) -> bool:
         if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
             return False
         enc_short_ids = payload['encoded_short_ids']
@@ -646,7 +640,7 @@ class Peer(Logger, EventListener):
         return True
 
     async def _send_reply_channel_range(self, payload: dict):
-        """https://github.com/lightning/bolts/blob/master/07-routing-gossip.md#requirements-5"""
+        """https://github.com/lightning/bolts/blob/acd383145dd8c3fecd69ce94e4a789767b984ac0/07-routing-gossip.md#requirements-5"""
         first_blockheight: int = payload['first_blocknum']
         sorted_scids: List[ShortChannelID] = self.lnworker.channel_db.get_channels_in_range(
             first_blockheight,
@@ -769,20 +763,15 @@ class Peer(Logger, EventListener):
         self.logger.debug(f"serving query_short_channel_ids request: "
                           f"requested {len(decoded_scids)} scids")
         chan_db = self.lnworker.channel_db
-        response = set()
+        response: Set[bytes] = set()
         for scid in decoded_scids:
             requested_msgs = chan_db.get_gossip_for_scid_request(scid)
             response.update(requested_msgs)
         self.logger.debug(f"found {len(response)} gossip messages to serve scid request")
-        count = 0
-        for msg in response:
-            try:
-                self.send_message('raw', message=msg)
-                count += 1
-                if count % 250 == 0:
-                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
-            except Exception as e:
-                self.logger.debug(f"failed to send gossip message: {e}")
+        for index, msg in enumerate(response):
+            self.transport.send_bytes(msg)
+            if index % 250 == 0:
+                await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
         self.send_message(
             'reply_short_channel_ids_end',
             chain_hash=constants.net.rev_genesis_bytes(),

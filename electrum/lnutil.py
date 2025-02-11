@@ -1655,7 +1655,7 @@ class GossipTimestampFilter:
             timestamp_range = payload['timestamp_range']
         except KeyError:
             return None
-        if first_timestamp > 4294967294:
+        if first_timestamp >= 0xFFFFFFFF:
             return None
         return cls(first_timestamp, timestamp_range)
 
