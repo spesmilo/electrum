@@ -1931,8 +1931,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
-                    for txin in base_tx.inputs():
-                        txin.witness = None
+                    base_tx.remove_signatures()
                 base_tx_fee = base_tx.get_fee()
                 base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
@@ -1954,8 +1953,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
 
-            #if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
-            #    txo = transaction.merge_duplicate_tx_outputs(txo)
+            if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
+                txo = transaction.merge_duplicate_tx_outputs(txo)
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,

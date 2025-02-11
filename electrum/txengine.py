@@ -65,6 +65,7 @@ from .lnsweep import SweepInfo
 
 class TxEngine(Logger):
     SLEEP_INTERVAL = 1
+    RETRY_DELAY = 60
 
     def __init__(self, wallet):
         Logger.__init__(self)
@@ -190,10 +191,13 @@ class TxEngine(Logger):
             try:
                 tx = self.create_batch_tx(base_tx, to_sweep_now, to_pay, password)
             except Exception as e:
+                if base_tx:
+                    self.start_new_batch(base_tx)
                 self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
-                await asyncio.sleep(60) # retry later
+                await asyncio.sleep(self.RETRY_DELAY)
                 continue
             self.logger.info(f'created tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
+            self.logger.info(f'{str(tx)}')
             if await self.wallet.network.try_broadcasting(tx, 'batch'):
                 self.wallet.adb.add_transaction(tx)
                 if tx.has_change():

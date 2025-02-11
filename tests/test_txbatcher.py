@@ -98,6 +98,44 @@ class TestTxBatcher(ElectrumTestCase):
         assert output2 in tx.outputs()
         self.logger.info(f'{tx.outputs()}')
 
+    async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self):
+        """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
+        one 'recv' address (20k sats) and one 'change' (80k sats).
+        The user tries to create tx2, that pays an invoice for 90k sats.
+        Even if batch_rbf==True, no batching should be done. Instead, the outputs of tx1 should be used.
+        """
+        wallet = self.create_standard_wallet_from_seed(
+            'cause carbon luggage air humble mistake melt paper supreme sense gravity void',
+            config=self.config)
+        wallet.start_network(self.network)
+        wallet.txengine.SLEEP_INTERVAL = 0.01
+        wallet.txengine.RETRY_DELAY = 0.60
+        self.network.wallets.append(wallet)
+
+        # bootstrap wallet (incoming funding_tx0)
+        funding_tx = Transaction('020000000001021798e10f8b7220c57ea0d605316a52453ca9b3eed99996b5b7bdf4699548bb520000000000fdffffff277d82678d238ca45dd3490ac9fbb49272f0980b093b9197ff70ec8eb082cfb00100000000fdffffff028c360100000000001600147a9bfd90821be827275023849dd91ee80d494957a08601000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec024730440220354b2a74f5ac039cca3618f7ff98229d243b89ac40550c8b027894f2c5cb88ff022064cb5ab1539b4c5367c2e01a8362e0aa12c2732bc8d08c3fce6eab9e56b7fe19012103e0a1499cb3d8047492c60466722c435dfbcffae8da9b83e758fbd203d12728f502473044022073cef8b0cfb093aed5b8eaacbb58c2fa6a69405a8e266cd65e76b726c9151d7602204d5820b23ab96acc57c272aac96d94740a20a6b89c016aa5aed7c06d1e6b9100012102f09e50a265c6a0dcf7c87153ea73d7b12a0fbe9d7d0bbec5db626b2402c1e85c02fa2400')
+        funding_txid = funding_tx.txid()
+        await self.network.try_broadcasting(funding_tx, 'funding')
+        assert wallet.adb.get_transaction(funding_tx.txid()) is not None
+        self.logger.info(f'wallet balance1 {wallet.get_balance()}')
+
+        # to_self_payment tx1
+        output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
+        wallet.txengine.add_batch_payment(output1)
+        await self.network._tx_event.wait()
+        toself_tx = wallet.txengine.batch_tx
+        assert len(toself_tx.outputs()) == 2
+        assert output1 in toself_tx.outputs()
+
+        # outgoing payment tx2
+        output2 = PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)
+        wallet.txengine.add_batch_payment(output2)
+        await self.network._tx_event.wait()
+        tx2 = wallet.txengine.batch_tx
+        assert len(tx2.outputs()) == 2
+        assert output2 in tx2.outputs()
+
+
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_sweep_from_submarine_swap(self, mock_save_db):
         swap_funding_tx = "01000000000101500e9d67647481864edfb020b5c45e1c40d90f06b0130f9faed1a5149c6d26450000000000ffffffff0226080300000000002200205059c44bf57534303ab8f090f06b7bde58f5d2522440247a1ff6b41bdca9348df312c20100000000160014021d4f3b17921d790e1c022367a5bb078ce4deb402483045022100d41331089a2031396a1db8e4dec6dda9cacefe1288644b92f8e08a23325aa19b02204159230691601f7d726e4e6e0b7124d3377620f400d699a01095f0b0a09ee26a012102d60315c72c0cefd41c6d07883c20b88be3fc37aac7912f0052722a95de0de71600000000"
