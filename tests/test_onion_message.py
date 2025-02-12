@@ -194,7 +194,7 @@ class TestOnionMessage(ElectrumTestCase):
 
         # TODO: serialization test to test_lnmsg.py
         with io.BytesIO() as blinded_path_fd:
-            OnionWireSerializer._write_complex_field(
+            OnionWireSerializer.write_field(
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,

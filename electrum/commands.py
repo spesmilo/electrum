@@ -1516,7 +1516,7 @@ class Commands(Logger):
         blinded_path = create_blinded_path(session_key, path=path, final_recipient_data={}, dummy_hops=dummy_hops)
 
         with io.BytesIO() as blinded_path_fd:
-            OnionWireSerializer._write_complex_field(
+            OnionWireSerializer.write_field(
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
