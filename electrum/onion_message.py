@@ -28,7 +28,7 @@ import threading
 import time
 from random import random
 
-from typing import TYPE_CHECKING, Optional, List, Sequence, NamedTuple
+from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple
 
 import electrum_ecc as ecc
 
@@ -69,7 +69,7 @@ class NoRouteFound(Exception):
 
 def create_blinded_path(
         session_key: bytes,
-        path: List[bytes],
+        path: Sequence[bytes],
         final_recipient_data: dict,
         *,
         hop_extras: Optional[Sequence[dict]] = None,
@@ -138,7 +138,10 @@ def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bo
     return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
 
 
-def encrypt_onionmsg_tlv_hops_data(hops_data: List[OnionHopsDataSingle], hop_shared_secrets: List[bytes]) -> None:
+def encrypt_onionmsg_tlv_hops_data(
+        hops_data: Sequence[OnionHopsDataSingle],
+        hop_shared_secrets: Sequence[bytes]
+) -> None:
     """encrypt unencrypted onionmsg_tlv.encrypted_recipient_data for hops with blind_fields"""
     num_hops = len(hops_data)
     for i in range(num_hops):
@@ -148,7 +151,7 @@ def encrypt_onionmsg_tlv_hops_data(hops_data: List[OnionHopsDataSingle], hop_sha
             hops_data[i].payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
 
 
-def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> List[PathEdge]:
+def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Sequence[PathEdge]:
     """Constructs a route to the destination node_id, first by starting with peers with existing channels,
        and if no route found, opening a direct peer connection if node_id is found with an address in
        channel_db."""
@@ -367,7 +370,7 @@ def get_blinded_reply_paths(
         *,
         max_paths: int = REQUEST_REPLY_PATHS_MAX,
         preferred_node_id: bytes = None
-) -> List[dict]:
+) -> Sequence[dict]:
     """construct a list of blinded reply_paths.
        current logic:
        - uses current onion_message capable channel peers if exist
