@@ -2127,7 +2127,7 @@ def nostr_pow_worker(nonce, nostr_pubk, target_bits, hash_function, hash_len_bit
         # we cannot check is_set on each iteration as it has a lot of overhead, this way we can check
         # it with low overhead (just the additional range counter)
         for i in range(1000000):
-            digest = hash_function(hash_preimage + nonce.to_bytes(8, 'big')).digest()
+            digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
             if int.from_bytes(digest, 'big') < (1 << (hash_len_bits - target_bits)):
                 shutdown.set()
                 return hash, nonce
@@ -2141,7 +2141,7 @@ async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, i
     import multiprocessing  # not available on Android, so we import it here
     hash_function = hashlib.sha256
     hash_len_bits = 256
-    max_nonce = 0xFFFFFFFFFFFFFFFF  # 8 byte
+    max_nonce: int = (1 << (32 * 8)) - 1  # 32-byte nonce
     start_nonce = 0
 
     max_workers = max(multiprocessing.cpu_count() - 1, 1)  # use all but one CPU
@@ -2181,6 +2181,6 @@ def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
     hash_len_bits = 256
     hash_preimage = b'electrum-' + nostr_pubk
 
-    digest = hash_function(hash_preimage + nonce.to_bytes(8, 'big')).digest()
+    digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
     digest = int.from_bytes(digest, 'big')
     return hash_len_bits - digest.bit_length()

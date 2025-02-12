@@ -1413,7 +1413,7 @@ class NostrTransport(Logger):
             'min_amount': sm._min_amount,
             'max_amount': sm._max_amount,
             'relays': sm.config.NOSTR_RELAYS,
-            'pow_nonce': str(sm.config.SWAPSERVER_ANN_POW_NONCE),
+            'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
         }
         # the first value of a single letter tag is indexed and can be filtered for
         tags = [['d', f'electrum-swapserver-{self.NOSTR_EVENT_VERSION}'],
@@ -1470,7 +1470,13 @@ class NostrTransport(Logger):
             if event.created_at <= ts:
                 #print('skipping old event', pubkey[0:10], event.id)
                 continue
-            pow_bits = get_nostr_ann_pow_amount(bytes.fromhex(pubkey), int(content.get('pow_nonce', 0)))
+            try:
+                pow_bits = get_nostr_ann_pow_amount(
+                    bytes.fromhex(pubkey),
+                    int(content.get('pow_nonce', "0"), 16)
+                )
+            except ValueError:
+                continue
             if pow_bits < self.config.SWAPSERVER_POW_TARGET:
                 self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {content.get('pow_nonce', 0)}")
                 continue
