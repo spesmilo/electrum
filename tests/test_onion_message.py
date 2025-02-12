@@ -35,13 +35,19 @@ OnionMessageManager.FORWARD_RETRY_DELAY *= TIME_STEP
 path = os.path.join(os.path.dirname(__file__), 'blinded-onion-message-onion-test.json')
 test_vectors = read_json_file(path)
 ONION_MESSAGE_PACKET = bfh(test_vectors['onionmessage']['onion_message_packet'])
-ALICE_PUBKEY = bfh(test_vectors['route']['introduction_node_id'])
-BOB_PUBKEY =   bfh(test_vectors['generate']['hops'][0]['tlvs']['next_node_id'])
-CAROL_PUBKEY = bfh(test_vectors['generate']['hops'][1]['tlvs']['next_node_id'])
-DAVE_PUBKEY =  bfh(test_vectors['generate']['hops'][2]['tlvs']['next_node_id'])
+HOPS = test_vectors['generate']['hops']
+ALICE_TLVS = HOPS[0]['tlvs']
+BOB_TLVS =   HOPS[1]['tlvs']
+CAROL_TLVS = HOPS[2]['tlvs']
+DAVE_TLVS =  HOPS[3]['tlvs']
 
-BLINDING_SECRET = bfh(test_vectors['generate']['hops'][0]['blinding_secret'])
-BLINDING_OVERRIDE_SECRET = bfh(test_vectors['generate']['hops'][0]['tlvs']['blinding_override_secret'])
+ALICE_PUBKEY = bfh(test_vectors['route']['introduction_node_id'])
+BOB_PUBKEY =   bfh(ALICE_TLVS['next_node_id'])
+CAROL_PUBKEY = bfh(BOB_TLVS['next_node_id'])
+DAVE_PUBKEY =  bfh(CAROL_TLVS['next_node_id'])
+
+BLINDING_SECRET = bfh(HOPS[0]['blinding_secret'])
+BLINDING_OVERRIDE_SECRET = bfh(ALICE_TLVS['blinding_override_secret'])
 
 SESSION_KEY = bfh(test_vectors['generate']['session_key'])
 
@@ -56,40 +62,39 @@ class TestOnionMessage(ElectrumTestCase):
         blinded_node_ids = blinded_node_ids1 + blinded_node_ids2
 
         for i, ss in enumerate(hop_shared_secrets):
-            self.assertEqual(ss, bfh(test_vectors['generate']['hops'][i]['ss']))
+            self.assertEqual(ss, bfh(HOPS[i]['ss']))
         for i, ss in enumerate(blinded_node_ids):
-            self.assertEqual(ss, bfh(test_vectors['generate']['hops'][i]['blinded_node_id']))
+            self.assertEqual(ss, bfh(HOPS[i]['blinded_node_id']))
 
-        hops_tlvs = [x['tlvs'] for x in test_vectors['generate']['hops']]
         hops_data = [
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
                 blind_fields={
-                    'next_node_id': {'node_id': bfh(hops_tlvs[0]['next_node_id'])},
-                    'next_blinding_override': {'blinding': bfh(hops_tlvs[0]['next_blinding_override'])},
+                    'next_node_id': {'node_id': bfh(ALICE_TLVS['next_node_id'])},
+                    'next_blinding_override': {'blinding': bfh(ALICE_TLVS['next_blinding_override'])},
                 }
             ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
                 blind_fields={
-                    'next_node_id': {'node_id': bfh(hops_tlvs[1]['next_node_id'])},
-                    'unknown_tag_561': {'data': bfh(hops_tlvs[1]['unknown_tag_561'])},
+                    'next_node_id': {'node_id': bfh(BOB_TLVS['next_node_id'])},
+                    'unknown_tag_561': {'data': bfh(BOB_TLVS['unknown_tag_561'])},
                 }
             ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
                 blind_fields={
-                    'padding': {'padding': bfh(hops_tlvs[2]['padding'])},
-                    'next_node_id': {'node_id': bfh(hops_tlvs[2]['next_node_id'])},
+                    'padding': {'padding': bfh(CAROL_TLVS['padding'])},
+                    'next_node_id': {'node_id': bfh(CAROL_TLVS['next_node_id'])},
                 }
             ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                payload={'message': {'text': b'hello'}},
+                payload={'message': {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}},
                 blind_fields={
-                    'padding': {'padding': bfh(hops_tlvs[3]['padding'])},
-                    'path_id': {'data': bfh(hops_tlvs[3]['path_id'])},
-                    'unknown_tag_65535': {'data': bfh(hops_tlvs[3]['unknown_tag_65535'])},
+                    'padding': {'padding': bfh(DAVE_TLVS['padding'])},
+                    'path_id': {'data': bfh(DAVE_TLVS['path_id'])},
+                    'unknown_tag_65535': {'data': bfh(DAVE_TLVS['unknown_tag_65535'])},
                 }
             )
         ]
@@ -167,7 +172,7 @@ class TestOnionMessage(ElectrumTestCase):
         msgtype, data = decode_msg(bfh(onion_message_bob))
         self.assertEqual(msgtype, 'onion_message')
         self.assertEqual(data, {
-            'blinding': bfh(test_vectors['generate']['hops'][0]['tlvs']['next_blinding_override']),
+            'blinding': bfh(ALICE_TLVS['next_blinding_override']),
             'len': 1366,
             'onion_message_packet': p.next_packet.to_bytes(),
         })
@@ -204,13 +209,13 @@ class TestOnionMessage(ElectrumTestCase):
 
     def prepare_blinded_path_bob_to_dave(self):
         final_recipient_data = {
-            'padding': {'padding': b''},
-            'path_id': {'data': bfh('deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0')},
-            'unknown_tag_65535': {'data': bfh('06c1')}
+            'padding': {'padding': bfh(DAVE_TLVS['padding'])},
+            'path_id': {'data': bfh(DAVE_TLVS['path_id'])},
+            'unknown_tag_65535': {'data': bfh(DAVE_TLVS['unknown_tag_65535'])}
         }
         hop_extras = [
-            {'unknown_tag_561': {'data': bfh('123456')}},
-            {'padding': {'padding': bfh('0000000000')}}
+            {'unknown_tag_561': {'data': bfh(BOB_TLVS['unknown_tag_561'])}},
+            {'padding': {'padding': bfh(CAROL_TLVS['padding'])}}
         ]
         return create_blinded_path(BLINDING_OVERRIDE_SECRET, [BOB_PUBKEY, CAROL_PUBKEY, DAVE_PUBKEY], final_recipient_data, hop_extras=hop_extras)
 
@@ -222,7 +227,7 @@ class TestOnionMessage(ElectrumTestCase):
                 tlv_stream_name='onionmsg_tlv',
                 blind_fields={
                     'next_node_id': {'node_id': BOB_PUBKEY},
-                    'next_blinding_override': {'blinding': bfh('031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f')},
+                    'next_blinding_override': {'blinding': bfh(ALICE_TLVS['next_blinding_override'])},
                 }
             ),
         ]
@@ -237,7 +242,7 @@ class TestOnionMessage(ElectrumTestCase):
             payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.get('encrypted_recipient_data')}}
             if i == len(blinded_path_to_dave.get('path')) - 1:
                 # add final recipient payload
-                payload['message'] = {'text': b'hello'}
+                payload['message'] = {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}
             hops_data.append(
                 OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
