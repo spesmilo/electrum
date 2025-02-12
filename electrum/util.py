@@ -25,6 +25,7 @@ import concurrent.futures
 import logging
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
+from concurrent.futures.process import ProcessPoolExecutor
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
                     Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ import traceback
 import urllib
 import threading
 import hmac
+import hashlib
 import stat
 import locale
 import asyncio
@@ -2116,3 +2118,69 @@ def truncate_text(text: str, *, max_len: Optional[int]) -> str:
         return text
     else:
         return text[:max_len] + f"... (truncated. orig_len={len(text)})"
+
+
+def nostr_pow_worker(nonce, nostr_pubk, target_bits, hash_function, hash_len_bits, shutdown):
+    """Function to generate PoW for Nostr, to be spawned in a ProcessPoolExecutor."""
+    hash_preimage = b'electrum-' + nostr_pubk
+    while True:
+        # we cannot check is_set on each iteration as it has a lot of overhead, this way we can check
+        # it with low overhead (just the additional range counter)
+        for i in range(1000000):
+            digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
+            if int.from_bytes(digest, 'big') < (1 << (hash_len_bits - target_bits)):
+                shutdown.set()
+                return hash, nonce
+            nonce += 1
+        if shutdown.is_set():
+            return None, None
+
+
+async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, int]:
+    """Generate a PoW for a Nostr announcement. The PoW is hash[b'electrum-'+pubk+nonce]"""
+    import multiprocessing  # not available on Android, so we import it here
+    hash_function = hashlib.sha256
+    hash_len_bits = 256
+    max_nonce: int = (1 << (32 * 8)) - 1  # 32-byte nonce
+    start_nonce = 0
+
+    max_workers = max(multiprocessing.cpu_count() - 1, 1)  # use all but one CPU
+    manager = multiprocessing.Manager()
+    shutdown = manager.Event()
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        tasks = []
+        loop = asyncio.get_running_loop()
+        for task in range(0, max_workers):
+            task = loop.run_in_executor(
+                executor,
+                nostr_pow_worker,
+                start_nonce,
+                nostr_pubk,
+                target_bits,
+                hash_function,
+                hash_len_bits,
+                shutdown
+            )
+            tasks.append(task)
+            start_nonce += max_nonce // max_workers  # split the nonce range between the processes
+            if start_nonce > max_nonce:  # make sure we don't go over the max_nonce
+                start_nonce = random.randint(0, int(max_nonce * 0.75))
+
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        hash_res, nonce_res = done.pop().result()
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    return nonce_res, get_nostr_ann_pow_amount(nostr_pubk, nonce_res)
+
+
+def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
+    """Return the amount of leading zero bits for a nostr announcement PoW."""
+    if not nonce:
+        return 0
+    hash_function = hashlib.sha256
+    hash_len_bits = 256
+    hash_preimage = b'electrum-' + nostr_pubk
+
+    digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
+    digest = int.from_bytes(digest, 'big')
+    return hash_len_bits - digest.bit_length()

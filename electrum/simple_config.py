@@ -1197,11 +1197,15 @@ Warning: setting this to too low will result in lots of payment failures."""),
     SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
     SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
+    SWAPSERVER_ANN_POW_NONCE = ConfigVar('swapserver_ann_pow_nonce', default=0, type_=int)
+    SWAPSERVER_POW_TARGET = ConfigVar('swapserver_pow_target', default=30, type_=int)
 
     # nostr
     NOSTR_RELAYS = ConfigVar(
         'nostr_relays',
-        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
+        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom,'
+                'wss://relay.primal.net,wss://ftp.halifax.rwth-aachen.de/nostr,'
+                'wss://eu.purplerelay.com,wss://nostr.einundzwanzig.space',
         type_=str,
         short_desc=lambda: _("Nostr relays"),
         long_desc=lambda: ' '.join([

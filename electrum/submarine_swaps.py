@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import ssl
 from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple, Iterable
 from decimal import Decimal
 import math
@@ -13,6 +14,7 @@ import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
 import electrum_aionostr as aionostr
+from electrum_aionostr.event import Event
 from electrum_aionostr.util import to_nip19
 
 from collections import defaultdict
@@ -24,7 +26,8 @@ from .bitcoin import (script_to_p2wsh, opcodes,
                       construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
-from .util import log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age
+from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
+                   gen_nostr_ann_pow, get_nostr_ann_pow_amount)
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -231,6 +234,7 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def run_nostr_server(self):
+        await self.set_nostr_proof_of_work()
         with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
@@ -238,7 +242,7 @@ class SwapManager(Logger):
                 # todo: publish everytime fees have changed
                 self.server_update_pairs()
                 await transport.publish_offer(self)
-                await asyncio.sleep(600)
+                await asyncio.sleep(transport.OFFER_UPDATE_INTERVAL_SEC)
 
     @log_exceptions
     async def main_loop(self):
@@ -264,6 +268,23 @@ class SwapManager(Logger):
         else:
             keypair = self.lnworker.nostr_keypair if self.is_server else generate_random_keypair()
             return NostrTransport(self.config, self, keypair)
+
+    async def set_nostr_proof_of_work(self) -> None:
+        current_pow = get_nostr_ann_pow_amount(
+            self.lnworker.nostr_keypair.pubkey[1:],
+            self.config.SWAPSERVER_ANN_POW_NONCE
+        )
+        if current_pow >= self.config.SWAPSERVER_POW_TARGET:
+            self.logger.debug(f"Reusing existing PoW nonce for nostr announcement.")
+            return
+
+        self.logger.info(f"Generating PoW for nostr announcement. Target: {self.config.SWAPSERVER_POW_TARGET}")
+        nonce, pow_amount = await gen_nostr_ann_pow(
+            self.lnworker.nostr_keypair.pubkey[1:],  # pubkey without prefix
+            self.config.SWAPSERVER_POW_TARGET,
+        )
+        self.logger.debug(f"Found {pow_amount} bits of work for Nostr announcement.")
+        self.config.SWAPSERVER_ANN_POW_NONCE = nonce
 
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
@@ -1299,9 +1320,9 @@ class NostrTransport(Logger):
     #     (todo: we should use onion messages for that)
 
     NOSTR_DM = 4
-    NOSTR_SWAP_OFFER = 10943
-    NOSTR_EVENT_TIMEOUT = 60*60*24
-    NOSTR_EVENT_VERSION = 1
+    USER_STATUS_NIP38 = 30315
+    NOSTR_EVENT_VERSION = 2
+    OFFER_UPDATE_INTERVAL_SEC = 60 * 10
 
     def __init__(self, config, sm, keypair):
         Logger.__init__(self)
@@ -1313,7 +1334,8 @@ class NostrTransport(Logger):
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
         self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
-        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key)
+        ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
         self.taskgroup = OldTaskGroup()
         self.is_connected = asyncio.Event()
         self.server_relays = None
@@ -1384,9 +1406,6 @@ class NostrTransport(Logger):
     async def publish_offer(self, sm):
         assert self.sm.is_server
         offer = {
-            "type": "electrum-swap",
-            "version": self.NOSTR_EVENT_VERSION,
-            'network': constants.net.NET_NAME,
             'percentage_fee': sm.percentage,
             'normal_mining_fee': sm.normal_fee,
             'reverse_mining_fee': sm.lockup_fee,
@@ -1394,13 +1413,19 @@ class NostrTransport(Logger):
             'min_amount': sm._min_amount,
             'max_amount': sm._max_amount,
             'relays': sm.config.NOSTR_RELAYS,
+            'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
         }
-        self.logger.info(f'publishing swap offer..')
+        # the first value of a single letter tag is indexed and can be filtered for
+        tags = [['d', f'electrum-swapserver-{self.NOSTR_EVENT_VERSION}'],
+                ['r', 'net:' + constants.net.NET_NAME],
+                ['expiration', str(int(time.time() + self.OFFER_UPDATE_INTERVAL_SEC + 10))]]
         event_id = await aionostr._add_event(
             self.relay_manager,
-            kind=self.NOSTR_SWAP_OFFER,
+            kind=self.USER_STATUS_NIP38,
+            tags=tags,
             content=json.dumps(offer),
             private_key=self.nostr_private_key)
+        self.logger.info(f"published offer {event_id}")
 
     async def send_direct_message(self, pubkey: str, relays, content: str) -> str:
         event_id = await aionostr._add_event(
@@ -1422,15 +1447,22 @@ class NostrTransport(Logger):
 
     async def receive_offers(self):
         await self.is_connected.wait()
-        query = {"kinds": [self.NOSTR_SWAP_OFFER], "limit":10}
+        query = {
+            "kinds": [self.USER_STATUS_NIP38],
+            "limit":10,
+            "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
+            "#r": [f"net:{constants.net.NET_NAME}"],
+            "since": int(time.time()) - self.OFFER_UPDATE_INTERVAL_SEC
+        }
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
                 content = json.loads(event.content)
+                tags = {k: v for k, v in event.tags}
             except Exception as e:
                 continue
-            if content.get('version') != self.NOSTR_EVENT_VERSION:
+            if tags.get('d') != f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}":
                 continue
-            if content.get('network') != constants.net.NET_NAME:
+            if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
@@ -1438,24 +1470,44 @@ class NostrTransport(Logger):
             if event.created_at <= ts:
                 #print('skipping old event', pubkey[0:10], event.id)
                 continue
+            try:
+                pow_bits = get_nostr_ann_pow_amount(
+                    bytes.fromhex(pubkey),
+                    int(content.get('pow_nonce', "0"), 16)
+                )
+            except ValueError:
+                continue
+            if pow_bits < self.config.SWAPSERVER_POW_TARGET:
+                self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {content.get('pow_nonce', 0)}")
+                continue
+            content['pow_bits'] = pow_bits
             content['pubkey'] = pubkey
             content['timestamp'] = event.created_at
             self.offers[pubkey] = content
             # mirror event to other relays
-            #await man.add_event(event, check_response=False)
+            server_relays = content['relays'].split(',') if 'relays' in content else []
+            await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
 
     async def get_pairs(self):
         if self.config.SWAPSERVER_NPUB is None:
             return
-        query = {"kinds": [self.NOSTR_SWAP_OFFER], "authors": [self.config.SWAPSERVER_NPUB], "limit":1}
+        query = {
+            "kinds": [self.USER_STATUS_NIP38],
+            "authors": [self.config.SWAPSERVER_NPUB],
+            "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
+            "#r": [f"net:{constants.net.NET_NAME}"],
+            "since": int(time.time()) - self.OFFER_UPDATE_INTERVAL_SEC,
+            "limit": 1
+        }
         async for event in self.relay_manager.get_events(query, single_event=True, only_stored=False):
             try:
                 content = json.loads(event.content)
-            except Exception as e:
+                tags = {k: v for k, v in event.tags}
+            except Exception:
                 continue
-            if content.get('version') != self.NOSTR_EVENT_VERSION:
+            if tags.get('d') != f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}":
                 continue
-            if content.get('network') != constants.net.NET_NAME:
+            if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
@@ -1465,6 +1517,21 @@ class NostrTransport(Logger):
             pairs = self._parse_offer(content)
             self.sm.update_pairs(pairs)
             self.server_relays = content['relays'].split(',')
+
+    async def rebroadcast_event(self, event: Event, server_relays: Sequence[str]):
+        """If the relays of the origin server are different from our relays we rebroadcast the
+        event to our relays so it gets spread more widely."""
+        if not server_relays:
+            return
+        rebroadcast_relays = [relay for relay in self.relay_manager.relays if
+                              relay.url not in server_relays]
+        for relay in rebroadcast_relays:
+            try:
+                res = await relay.add_event(event, check_response=True)
+            except Exception as e:
+                self.logger.debug(f"failed to rebroadcast event to {relay.url}: {e}")
+                continue
+            self.logger.debug(f"rebroadcasted event to {relay.url}: {res}")
 
     @log_exceptions
     async def check_direct_messages(self):
