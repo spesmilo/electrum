@@ -193,7 +193,7 @@ def send_onion_message_to(
     if len(node_id_or_blinded_path) > 33:  # assume blinded path
         with io.BytesIO(node_id_or_blinded_path) as blinded_path_fd:
             try:
-                blinded_path = OnionWireSerializer._read_complex_field(
+                blinded_path = OnionWireSerializer.read_field(
                     fd=blinded_path_fd,
                     field_type='blinded_path',
                     count=1)
