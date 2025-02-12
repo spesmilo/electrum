@@ -293,7 +293,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 continue
             peers = await self._get_next_peers_to_try()
             for peer in peers:
-                if self._can_retry_addr(peer, now=now) and not self.is_our_lnwallet(peer.pubkey):
+                if self._can_retry_addr(peer, now=now):
                     try:
                         await self._add_peer(peer.host, peer.port, peer.pubkey)
                     except ErrorAddingPeer as e:
@@ -306,7 +306,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         peer_addr = LNPeerAddr(host, port, node_id)
         self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
-        if node_id == self.node_keypair.pubkey:
+        if node_id == self.node_keypair.pubkey or self.is_our_lnwallet(node_id):
             raise ErrorAddingPeer("cannot connect to self")
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
                                 e_proxy=ESocksProxy.from_network_settings(self.network))
