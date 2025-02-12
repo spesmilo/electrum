@@ -853,7 +853,7 @@ class TestLNUtil(ElectrumTestCase):
                             cltv_abs=test_htlc['expiry'],
                             htlc_id=None,
                             timestamp=0)
-                        # only add htlcs whose spending transaction creates above-dust ouputs
+                        # only add htlcs whose spending transaction creates above-dust outputs
                         # TODO: should we include this check in make_commitment?
                         if test_htlc['amount'] // 1000 >= (threshold_sat_received if test_htlc['incoming'] else threshold_sat_offered):
                             test_htlcs[test_index] = ScriptHtlc(htlc_script, update_add_htlc)
