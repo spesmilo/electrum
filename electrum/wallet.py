@@ -2611,6 +2611,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.logger.info(f'sign_transaction: adding witness using make_witness')
                 privkey = txin.privkey
                 sig = tx.sign_txin(i, privkey)
+                txin.script_sig = b''
                 txin.witness = txin.make_witness(sig)
                 assert txin.is_complete()
 
