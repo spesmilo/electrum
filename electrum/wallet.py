@@ -1408,6 +1408,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         'timestamp': 0,
                         'date': timestamp_to_datetime(0),
                         'fee_sat': 0,
+                        # fixme: there is no guarantee that there will be an onchain tx in the group
+                        'height': 0,
+                        'confirmations': 0,
+                        'txid': '----',
                     }
                     transactions[key] = parent
                 if 'bc_value' in tx_item:
