@@ -1460,6 +1460,8 @@ class NostrTransport(Logger):
                 tags = {k: v for k, v in event.tags}
             except Exception as e:
                 continue
+            if not event.verify():
+                continue
             if tags.get('d') != f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}":
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
@@ -1505,6 +1507,8 @@ class NostrTransport(Logger):
                 tags = {k: v for k, v in event.tags}
             except Exception:
                 continue
+            if not event.verify():
+                continue
             if tags.get('d') != f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}":
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
@@ -1543,6 +1547,7 @@ class NostrTransport(Logger):
                 content = json.loads(content)
             except Exception:
                 continue
+            if not event.verify(): continue
             content['event_id'] = event.id
             content['event_pubkey'] = event.pubkey
             if 'reply_to' in content:
