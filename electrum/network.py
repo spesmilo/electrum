@@ -43,6 +43,7 @@ from contextlib import nullcontext
 import aiorpcx
 from aiorpcx import ignore_after, NetAddress
 from aiohttp import ClientResponse
+from aiohttp_socks import ProxyConnector, ProxyType
 
 from . import util
 from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
@@ -1498,3 +1499,31 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         servers_dict = {k: v for k, v in hostmap.items()
                         if k in servers_replied}
         return servers_dict
+
+    def get_aiohttp_proxy_connector(self) -> Optional[ProxyConnector]:
+        """Construct a aihttp_socks ProxyConnector object from the proxy settings. To be used for
+        the websocket connection in the Nostr functionality."""
+        if not self.proxy:
+            return None
+
+        # get proxy mode
+        if self.proxy.get('mode') == "socks4":
+            mode = ProxyType.SOCKS4
+        elif self.proxy.get('mode') == "socks5":
+            mode = ProxyType.SOCKS5
+        else:
+            return None
+
+        host = self.proxy['host']
+        port = self.proxy['port']
+        user = self.proxy.get('user', "")
+        password = self.proxy.get('password', "")
+
+        return ProxyConnector(
+            proxy_type=mode,
+            host=host,
+            port=port,
+            username=user,
+            password=password,
+            rdns=True
+        )
