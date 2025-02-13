@@ -11,6 +11,7 @@ import attr
 import aiohttp
 
 import electrum_ecc as ecc
+from aiohttp_socks import ProxyConnector
 from electrum_ecc import ECPrivkey
 
 import electrum_aionostr as aionostr
@@ -1335,7 +1336,13 @@ class NostrTransport(Logger):
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
         self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
         ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
+        self.proxy: Optional[ProxyConnector] = sm.network.get_aiohttp_proxy_connector()
+        self.relay_manager = aionostr.Manager(
+            self.relays,
+            private_key=self.nostr_private_key,
+            log=self.logger,
+            ssl_context=ssl_context,
+            proxy=self.proxy)
         self.taskgroup = OldTaskGroup()
         self.is_connected = asyncio.Event()
         self.server_relays = None
