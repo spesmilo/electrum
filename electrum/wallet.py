@@ -1412,6 +1412,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         'timestamp': 0,
                         'date': timestamp_to_datetime(0),
                         'fee_sat': 0,
+                        # fixme: onchain tx not in history if there is no change address
+                        'height': 0,
+                        'confirmations':0,
+                        'txid':'ooo'
                     }
                     transactions[key] = parent
                 if 'bc_value' in tx_item:
