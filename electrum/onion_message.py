@@ -206,6 +206,12 @@ def send_onion_message_to(
                 raise
 
             introduction_point = blinded_path['first_node_id']
+            if len(introduction_point) != 33:
+                raise Exception('first_node_id not a nodeid but a sciddir, which is not supported')
+                # Note: blinded_path specifies type sciddir_or_nodeid for first_node_id
+                # but only nodeid is supported in onion_message context;
+                # https://github.com/lightning/bolts/blob/master/04-onion-routing.md
+                # "MUST set first_node_id to N0"
 
             hops_data = []
             blinded_node_ids = []
@@ -609,7 +615,9 @@ class OnionMessageManager(Logger):
         #     - `encrypted_data_tlv.allowed_features.features` contains an unknown feature bit (even if it is odd).
         #     - the message uses a feature not included in `encrypted_data_tlv.allowed_features.features`.
         if 'allowed_features' in recipient_data:
-            pass  # TODO
+            # Note: These checks will be usecase specific (e.g. BOLT12) and probably should be checked
+            # by consumers of the message.
+            self.logger.debug(f'allowed_features={recipient_data["allowed_features"].get("features", b"").hex()}')
 
         # - if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
         #   - if the onion message is not a reply to that previous onion:

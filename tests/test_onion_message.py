@@ -104,6 +104,10 @@ class TestOnionMessage(ElectrumTestCase):
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
 
     def test_onion_message_payload_size(self):
+        # Note: payload size is not _strictly_ limited to (1300+66, 32768+66), but Electrum only generates these sizes
+        # However, the spec allows for other payload sizes.
+        # https://github.com/lightning/bolts/blob/master/04-onion-routing.md
+        # "SHOULD set onion_message_packet len to 1366 or 32834."
         hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route([DAVE_PUBKEY], SESSION_KEY)
 
         def hops_data_for_message(message):
