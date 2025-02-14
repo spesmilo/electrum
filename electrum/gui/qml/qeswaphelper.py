@@ -1,7 +1,6 @@
 import asyncio
 import concurrent
 import threading
-import time
 from enum import IntEnum
 from typing import Union, Optional
 
@@ -68,17 +67,15 @@ class QESwapServerNPubListModel(QAbstractListModel):
     def initModel(self, items):
         self.beginInsertRows(QModelIndex(), len(items), len(items))
         self._services = [{
-                'npub': x['pubkey'],
-                'percentage_fee': x['percentage_fee'],
-                'normal_mining_fee': x['normal_mining_fee'],
-                'reverse_mining_fee': x['reverse_mining_fee'],
-                'claim_mining_fee': x['claim_mining_fee'],
-                'min_amount': x['min_amount'],
-                'max_amount': x['max_amount'],
-                'timestamp': age(x['timestamp']),
-            }
-            for x in items
-        ]
+            'npub': x['pubkey'],
+            'percentage_fee': x['percentage_fee'],
+            'normal_mining_fee': x['normal_mining_fee'],
+            'reverse_mining_fee': x['reverse_mining_fee'],
+            'claim_mining_fee': x['claim_mining_fee'],
+            'min_amount': x['min_amount'],
+            'max_amount': x['max_amount'],
+            'timestamp': age(x['timestamp']),
+        } for x in items]
         self.endInsertRows()
         self.countChanged.emit()
 
@@ -383,7 +380,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                         pass
 
                 if isinstance(transport, NostrTransport):
-                    now = int(time.time())
                     if not swap_manager.is_initialized.is_set():
                         if not transport.is_connected.is_set():
                             self.userinfo = _('Error') + ': ' + '\n'.join([
@@ -392,7 +388,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             ])
                             self.state = QESwapHelper.State.NoService
                             return
-                        self.recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < NostrTransport.NOSTR_EVENT_TIMEOUT]
+                        self.recent_offers = [x for x in transport.offers.values()]
                         if not self.recent_offers:
                             self.userinfo = _('Could not find a swap provider.')
                             self.state = QESwapHelper.State.NoService
@@ -402,7 +398,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                         self.undefinedNPub.emit()
                         return
                     else:
-                        self.recent_offers = [x for x in transport.offers.values() if now - x['timestamp'] < NostrTransport.NOSTR_EVENT_TIMEOUT]
+                        self.recent_offers = [x for x in transport.offers.values()]
                         if not self.recent_offers:
                             self.userinfo = _('Could not find a swap provider.')
                             self.state = QESwapHelper.State.NoService
@@ -438,7 +434,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             max_onchain_spend = 0
         reverse = int(min(lnworker.num_sats_can_send(),
                           swap_manager.get_max_amount()))
-        max_recv_amt_ln = int(lnworker.num_sats_can_receive())
+        max_recv_amt_ln = min(swap_manager.get_max_amount(), int(lnworker.num_sats_can_receive()))
         max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or 0
         forward = int(min(max_recv_amt_oc,
                           # maximally supported swap amount by provider
@@ -625,14 +621,15 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             swap_manager = self._wallet.wallet.lnworker.swap_manager
             loop = get_asyncio_loop()
             with self._wallet.wallet.lnworker.swap_manager.create_transport() as transport:
-                coro = swap_manager.reverse_swap(
-                    transport,
-                    lightning_amount_sat=lightning_amount,
-                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
-                )
+                async def coro():
+                    await swap_manager.is_initialized.wait()
+                    return await swap_manager.reverse_swap(
+                        transport,
+                        lightning_amount_sat=lightning_amount,
+                        expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
+                    )
                 try:
-                    time.sleep(1)  # FIXME: this is needed because transport hasn't finished initializing yet.
-                    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                    fut = asyncio.run_coroutine_threadsafe(coro(), loop)
                     self.userinfo = _('Performing swap...')
                     self.state = QESwapHelper.State.Started
                     txid = fut.result()
