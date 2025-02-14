@@ -1892,8 +1892,6 @@ class TestWalletSending(ElectrumTestCase):
     async def _rbf_batching(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
-        wallet.config.WALLET_BATCH_RBF = True
-
         # bootstrap wallet (incoming funding_tx1)
         funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid1 = funding_tx1.txid()
@@ -1943,7 +1941,7 @@ class TestWalletSending(ElectrumTestCase):
         # no new input will be needed. just a new output, and change decreased.
         outputs = [PartialTxOutput.from_address_and_value('tb1qy6xmdj96v5dzt3j08hgc05yk3kltqsnmw4r6ry', 2_500_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=20000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=20000, base_tx=tx)
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1974,7 +1972,7 @@ class TestWalletSending(ElectrumTestCase):
         # new input will be needed!
         outputs = [PartialTxOutput.from_address_and_value('2NCVwbmEpvaXKHpXUGJfJr9iB5vtRN3vcut', 6_000_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=100_000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=100_000, base_tx=tx)
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -2001,47 +1999,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 3_900_000, 0), wallet.get_balance())
 
-    async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self):
-        """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
-        one 'recv' address (20k sats) and one 'change' (80k sats).
-        The user tries to create tx2, that pays an invoice for 90k sats.
-        Even if batch_rbf==True, no batching should be done. Instead, the outputs of tx1 should be used.
-        """
-        wallet = self.create_standard_wallet_from_seed('cause carbon luggage air humble mistake melt paper supreme sense gravity void',
-                                                       config=self.config)
-
-        # bootstrap wallet (incoming funding_tx0)
-        funding_tx = Transaction('020000000001021798e10f8b7220c57ea0d605316a52453ca9b3eed99996b5b7bdf4699548bb520000000000fdffffff277d82678d238ca45dd3490ac9fbb49272f0980b093b9197ff70ec8eb082cfb00100000000fdffffff028c360100000000001600147a9bfd90821be827275023849dd91ee80d494957a08601000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec024730440220354b2a74f5ac039cca3618f7ff98229d243b89ac40550c8b027894f2c5cb88ff022064cb5ab1539b4c5367c2e01a8362e0aa12c2732bc8d08c3fce6eab9e56b7fe19012103e0a1499cb3d8047492c60466722c435dfbcffae8da9b83e758fbd203d12728f502473044022073cef8b0cfb093aed5b8eaacbb58c2fa6a69405a8e266cd65e76b726c9151d7602204d5820b23ab96acc57c272aac96d94740a20a6b89c016aa5aed7c06d1e6b9100012102f09e50a265c6a0dcf7c87153ea73d7b12a0fbe9d7d0bbec5db626b2402c1e85c02fa2400')
-        funding_txid = funding_tx.txid()
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
-
-        # to_self_payment tx1
-        toself_tx = Transaction('02000000000101ce05b8ae96fe8d2875fd1efcb591b6fb5c5d924bf05d75d880a0e44498fe14b80100000000fdffffff02204e0000000000001600142266c890fad71396f106319368107d5b2a1146feb837010000000000160014b113a47f3718da3fd161339a6681c150fef2cfe3024730440220197bfea1bc5c86c35d68029422342de97c1e5d9adc12e48d99ae359940211a660220770ddb228ae75698f827e2fddc574f0c8eb2a3e109678a2a2b6bc9cbb9593b1c012102b07ca318381fcef5998f34ee4197e96c17aa19867cbe99c544d321807db95ed2f1f92400')
-        toself_txid = toself_tx.txid()
-        wallet.adb.receive_tx_callback(toself_tx, TX_HEIGHT_UNCONFIRMED)
-
-        # create outgoing tx2
-        outputs = [PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)]
-        for batch_rbf in (False, True):
-            with self.subTest(batch_rbf=batch_rbf):
-                coins = wallet.get_spendable_coins(domain=None)
-                self.assertEqual(2, len(coins))
-
-                wallet.config.WALLET_BATCH_RBF = batch_rbf
-                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
-                tx.set_rbf(True)
-                tx.locktime = 2423302
-                tx.version = 2
-                wallet.sign_transaction(tx, password=None)
-                self.assertEqual('02000000000102bbef0182c2c746bd28517b6fd27ba9eef9c7fb5982efd27bd612cc5a28615a3a0000000000fdffffffbbef0182c2c746bd28517b6fd27ba9eef9c7fb5982efd27bd612cc5a28615a3a0100000000fdffffff02602200000000000016001413fabce9be995554a722fc4e1c5ae53ebfd58164905f010000000000160014b266f4f1b9f0bc72f090573d049df66d4efa082c0247304402205c50b9ddb1b3ead6214d7d9707c74ba29ff547880d017aae2459db156bf85b9b022041134562fffa3dccf1ac05d9b07da62a8d57dd158d25d22d1965a011325e64aa012102c72b815ba00ccb0b469cc61a0ceb843d974e630cf34abcfac178838f1974f68f02473044022049774c32b0ad046b7acdb4acc38107b6b1be57c0d167643a48cbc045850c86c202205189ed61342fc52a377c2865a879c4c2606de98eebd6bf4d73874d62329668c70121033484c8ed83c359d1c3e569accb04b77988daab9408fc82869051c10d0749ac2006fa2400',
-                                 str(tx))
-
     async def test_rbf_batching__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""
         wallet = self.create_standard_wallet_from_seed('response era cable net spike again observe dumb wage wonder sail tortoise',
                                                        config=self.config)
-        wallet.config.WALLET_BATCH_RBF = True
-
         # bootstrap wallet (incoming funding_tx0): for 500k sat
         funding_tx = Transaction('02000000000101013548c9019890e27ce9e58766de05f18ea40ede70751fb6cd7a3a1715ece0a30100000000fdffffff0220a1070000000000160014542266519a44eb9b903761d40c6fe1055d33fa05485a080000000000160014bc69f7d82c403a9f35dfb6d1a4531d6b19cab0e3024730440220346b200f21c3024e1d51fb4ecddbdbd68bd24ae7b9dfd501519f6dcbeb7c052402200617e3ce7b0eb308e30caf23894fb0388b68fb1c15dd0681dd13ae5e735f148101210360d0c9ef15b8b6a16912d341ad218a4e4e4e07e9347f4a2dbc7ca8d974f8bc9ec1ad2600')
         funding_txid = funding_tx.txid()
@@ -2066,11 +2027,12 @@ class TestWalletSending(ElectrumTestCase):
         # second payment to dest_addr  (merged)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000)
+        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000, base_tx=tx1)
         tx2.set_rbf(True)
         tx2.locktime = 2534850
         tx2.version = 2
         wallet.sign_transaction(tx2, password=None)
+        self.maxDiff = None
         self.assertEqual(2, len(tx2.outputs()))
         self.assertEqual('020000000001019264597cffcce8f0c17b16a02adca7a95ae90f2ea51bd4b4df60c76dfe86686e0000000000fdffffff0288010300000000001600144e1b662f616fe134430054e29295ea6e5c18f173e09304000000000016001458aee0f1201d1ae12dbd241209bbe92ed45e39b60247304402201b5856f572a70f667392f000780044a6c6677eadadd5b56d2b15d1f90a8bf4b7022046566836d7e1e1a099ff72b4ecb09d6b24e701e12c0fb4c5667172d47d9b54520121029b1a61d66896486ab893741b38dbafb9673b91a82237d6e4ca0da3cda7cbeb7cc2ad2600',
                          str(tx2))
@@ -2085,7 +2047,7 @@ class TestWalletSending(ElectrumTestCase):
         # second payment to dest_addr  (not merged, just duplicate outputs)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx3 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000)
+        tx3 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000, base_tx=tx1)
         tx3.set_rbf(True)
         tx3.locktime = 2534850
         tx3.version = 2
