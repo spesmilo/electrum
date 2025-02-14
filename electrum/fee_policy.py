@@ -243,13 +243,12 @@ class FeePolicy(Logger):
     ) -> int:
         if self.method == FeeMethod.FIXED:
             return self.value
-        if network is None and self.use_dynamic_estimates:
+        fee_per_kb = self.fee_per_kb(network)
+        if fee_per_kb is None and self.use_dynamic_estimates:
             if allow_fallback_to_static_rates:
                 fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
             else:
                 raise NoDynamicFeeEstimates()
-        else:
-            fee_per_kb = self.fee_per_kb(network)
 
         return self.estimate_fee_for_feerate(fee_per_kb, size)
 

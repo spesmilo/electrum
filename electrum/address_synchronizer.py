@@ -360,7 +360,7 @@ class AddressSynchronizer(Logger, EventListener):
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             if is_new:
-                util.trigger_callback('adb_added_tx', self, tx_hash, tx)
+                util.trigger_callback('adb_added_tx', self, tx_hash, tx, conflicting_txns)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
