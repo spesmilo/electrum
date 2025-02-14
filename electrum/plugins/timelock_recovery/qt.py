@@ -15,17 +15,18 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (QFontDatabase, QFont)
+from PyQt6.QtGui import (QFontDatabase, QFont, QIntValidator)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout)
 
 from electrum import constants
 from electrum.gui.qt.paytoedit import PayToEdit
+from electrum.bitcoin import address_to_script, DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.transaction import PartialTxOutput
-from electrum.util import make_dir
+from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.util import make_dir, bfh
 from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, CloseButton, HelpLabel)
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
@@ -38,6 +39,10 @@ if TYPE_CHECKING:
 
 agreement_text = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
 alert_address_label = "Timelock Recovery Alert Address"
+anchor_output_amount_sats = 600
+min_locktime_days = 2
+# 0xFFFF * 512 seconds = 388.36 days.
+max_locktime_days = 388
 
 def selectable_label(text):
     label = QLabel(text)
@@ -204,7 +209,13 @@ class Plugin(TimelockRecoveryPlugin):
 
         self.payto_e = PayToEdit(window.parent().send_tab) # Reuse configuration from send tab
         self.payto_e.toggle_paytomany()
-        self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
+        self.payto_e.paymentIdentifierChanged.connect(self._verify_step1_details)
+        self.timelock_days = 90
+        self.timelock_days_widget = QLineEdit()
+        self.timelock_days_widget.setValidator(QIntValidator(2, 388))
+        self.timelock_days_widget.setText(str(self.timelock_days))
+        self.timelock_days_widget.textChanged.connect(self._verify_step1_details)
+
         self.step1_grid.addWidget(HelpLabel(
             _("Pay to"),
             (
@@ -218,6 +229,14 @@ class Plugin(TimelockRecoveryPlugin):
             ),
         ), 1, 0)
         self.step1_grid.addWidget(self.payto_e, 1, 1, 1, 4)
+        self.step1_grid.addWidget(HelpLabel(
+            _("Cancellation time-window (days)"),
+            (
+                _("After broadcasting the Alert Transaction, you have a limited time to cancel the transaction.") + "\n"
+                + _("Value must be between {} and {} days.").format(min_locktime_days, max_locktime_days)
+            )
+        ), 2, 0)
+        self.step1_grid.addWidget(self.timelock_days_widget, 2, 1, 1, 4)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(self.step1_dialog)
@@ -238,8 +257,8 @@ class Plugin(TimelockRecoveryPlugin):
 
         self.step1_next_button = QPushButton(_("Next"), self.step1_dialog)
         self.step1_next_button.clicked.connect(self.step1_dialog.close)
+        self.step1_next_button.clicked.connect(partial(self.create_alert_fee_dialog, window))
         self.step1_next_button.setEnabled(False)
-        # self.step1_next_button.clicked.connect(partial(self.create_step2_dialog, window))
 
         vbox_layout.addLayout(Buttons(self.step1_next_button))
 
@@ -250,9 +269,26 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(self.step1_dialog.exec())
 
-    def _handle_payment_identifier(self):
+    def _verify_step1_details(self):
         self.destinations = None
+        self.timelock_days = None
+        try:
+            timelock_days_str = self.timelock_days_widget.text()
+            timelock_days = int(timelock_days_str)
+            if str(timelock_days) != timelock_days_str or timelock_days < min_locktime_days or timelock_days > max_locktime_days:
+                raise ValueError("Value not in range.")
+            self.timelock_days = timelock_days
+            self.timelock_days_widget.setStyleSheet(None)
+            self.timelock_days_widget.setToolTip("")
+        except ValueError:
+            self.timelock_days_widget.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+            self.timelock_days_widget.setToolTip("Value must be between {} and {} days.".format(min_locktime_days, max_locktime_days))
+            self.step1_next_button.setEnabled(False)
+            return
         pi = self.payto_e.payment_identifier
+        if not pi:
+            self.step1_next_button.setEnabled(False)
+            return
         if not pi.is_valid():
             # Don't make background red - maybe the user did not complete typing yet.
             self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
@@ -265,7 +301,7 @@ class Plugin(TimelockRecoveryPlugin):
                 self.payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
                 self.step1_next_button.setEnabled(False)
                 return
-            self.destinations = pi.multiline_outputs
+            self.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 self.payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
@@ -278,8 +314,100 @@ class Plugin(TimelockRecoveryPlugin):
                 self.payto_e.setToolTip("Must be a valid address, not a script.")
                 self.step1_next_button.setEnabled(False)
                 return
-            self.destinations = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
+            self.outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
         self.payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
         self.payto_e.setToolTip("")
         self.step1_next_button.setEnabled(True)
 
+    def create_alert_fee_dialog(self, window):
+        alert_transaction_outputs = [
+            PartialTxOutput(scriptpubkey=address_to_script(self.alert_address), value='!'),
+        ] + [
+            PartialTxOutput(scriptpubkey=output.scriptpubkey, value=anchor_output_amount_sats)
+            for output in self.outputs
+        ]
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            coins=window.parent().get_coins(nonlocal_only=False, confirmed_only=confirmed_only),
+            outputs=alert_transaction_outputs,
+            fee=fee_est,
+            is_sweep=False,
+        )
+        tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
+        if tx is None or is_preview or tx.has_dummy_output(DummyAddress.SWAP):
+            return
+        if not tx.is_segwit():
+            window.parent().show_error(_("Alert transaction is not segwit. This extension only works with segwit addresses."))
+            return
+        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
+            window.parent().show_error(_("All of the Alert transaction inputs must be segwit."))
+            return
+        txid = tx.txid()
+        def sign_done(success):
+            if not success:
+                return
+            if tx.txid() != txid:
+                window.parent().show_error(_("Alert transaction has been modified."))
+                return
+            if not tx.is_complete():
+                window.parent().show_error(_("Alert transaction is not complete."))
+                return
+            self.alert_tx = tx
+            self.create_recovery_fee_dialog(window)
+        window.parent().sign_tx(
+            tx,
+            callback=sign_done,
+            external_keypairs=None)
+
+    def create_recovery_fee_dialog(self, window):
+        prevouts = [
+            (index, tx_output) for index, tx_output in enumerate(self.alert_tx.outputs())
+            if tx_output.address == self.alert_address and tx_output.value != anchor_output_amount_sats
+        ]
+        if len(prevouts) != 1:
+            window.parent().show_error(_("Expected 1 output from the Alert transaction to the Alert Address, but got %d." % len(prevouts)))
+            return
+        (prevout_index, prevout) = prevouts[0]
+
+        nsequence = round(self.timelock_days * 24 * 60 * 60 / 512)
+        if nsequence > 0xFFFF:
+            # Safety check - not expected to happen
+            raise ValueError("Sequence number is too large")
+        nsequence += 0x00400000 # time based lock instead of block-height based lock
+
+        tx_input = PartialTxInput(
+            prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
+        )
+        tx_input.witness_utxo = prevout
+        tx_input.nsequence=nsequence
+
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            coins=[tx_input],
+            outputs=self.outputs,
+            fee=fee_est,
+            is_sweep=False,
+        )
+        tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
+        if tx is None or is_preview or tx.has_dummy_output(DummyAddress.SWAP):
+            return
+        if not tx.is_segwit():
+            window.parent().show_error(_("Recovery transaction is not segwit. This extension only works with segwit addresses."))
+            return
+        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
+            window.parent().show_error(_("All of the transaction inputs must be segwit."))
+            return
+        txid = tx.txid()
+        def sign_done(success):
+            if not success:
+                return
+            if tx.txid() != txid:
+                window.parent().show_error(_("Recovery transaction has been modified."))
+                return
+            if not tx.is_complete():
+                window.parent().show_error(_("Recovery transaction is not complete."))
+                return
+            self.recovery_tx = tx
+            import pdb; pdb.set_trace()
+        window.parent().sign_tx(
+            tx,
+            callback=sign_done,
+            external_keypairs=None)
