@@ -1,7 +1,7 @@
 from electrum import SimpleConfig
 from electrum.util import bfh
 from electrum.transaction import PartialTxInput, TxOutpoint
-from electrum.submarine_swaps import SwapManager, SwapData
+from electrum.submarine_swaps import SwapData, create_claim_tx
 
 from . import ElectrumTestCase
 
@@ -35,7 +35,7 @@ class TestSwapTxs(ElectrumTestCase):
             prevout=TxOutpoint(txid=bfh(swap_data.funding_txid), out_idx=0),
         )
         txin._trusted_value_sats = swap_data.onchain_amount
-        tx = SwapManager._create_and_sign_claim_tx(
+        tx = create_claim_tx(
             txin=txin,
             swap=swap_data,
             config=self.config,
@@ -65,7 +65,7 @@ class TestSwapTxs(ElectrumTestCase):
             prevout=TxOutpoint(txid=bfh(swap_data.funding_txid), out_idx=0),
         )
         txin._trusted_value_sats = swap_data.onchain_amount
-        tx = SwapManager._create_and_sign_claim_tx(
+        tx = create_claim_tx(
             txin=txin,
             swap=swap_data,
             config=self.config,

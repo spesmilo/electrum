@@ -2509,8 +2509,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
         if not is_mine:
-            if self.lnworker:
-                self.lnworker.swap_manager.add_txin_info(txin)
             return
         txin.script_descriptor = self.get_script_descriptor_for_address(address)
         txin.is_mine = True
@@ -2596,11 +2594,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
             raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
-        # note: swap signing does not require the password
-        swap = self.get_swap_by_claim_tx(tx)
-        if swap:
-            self.lnworker.swap_manager.sign_tx(tx, swap)
-            return tx
 
         # check if signing is dangerous
         sh_danger = self.check_sighash(tx)

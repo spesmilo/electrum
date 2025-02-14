@@ -161,22 +161,31 @@ class SwapData(StoredObject):
     def payment_hash(self) -> bytes:
         return self._payment_hash
 
+    def is_funded(self) -> bool:
+        return self.funding_txid is not None
+
+
 def create_claim_tx(
         *,
         txin: PartialTxInput,
-        witness_script: bytes,
-        address: str,
-        amount_sat: int,
-        locktime: int,
+        swap: SwapData,
+        config: 'SimpleConfig',
 ) -> PartialTransaction:
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
-    txin.nsequence = 0xffffffff - 2
-    txin.script_sig = b''
-    txin.witness_script = witness_script
-    txout = PartialTxOutput.from_address_and_value(address, amount_sat)
+    # FIXME the mining fee should depend on swap.is_reverse.
+    #       the txs are not the same size...
+    amount_sat = txin.value_sats() - SwapManager._get_fee(size=CLAIM_FEE_SIZE, config=config)
+    if amount_sat < dust_threshold():
+        raise BelowDustLimit()
+    txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=swap, config=config)
+    txout = PartialTxOutput.from_address_and_value(swap.receive_address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
+    sig = tx.sign_txin(0, txin.privkey)
+    txin.script_sig = b''
+    txin.witness = txin.make_witness(sig)
+    assert tx.is_complete()
     return tx
 
 
@@ -316,7 +325,7 @@ class SwapManager(Logger):
         """ we must not have broadcast the funding tx """
         if swap is None:
             return
-        if swap.funding_txid is not None:
+        if swap.is_funded():
             self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
             return
         self._fail_swap(swap, 'user cancelled')
@@ -330,7 +339,7 @@ class SwapManager(Logger):
             e = OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             self.lnworker.save_forwarding_failure(payment_key.hex(), failure_message=e)
         self.lnwatcher.remove_callback(swap.lockup_address)
-        if swap.funding_txid is None:
+        if not swap.is_funded():
             self.swaps.pop(swap.payment_hash.hex())
 
     @log_exceptions
@@ -443,7 +452,7 @@ class SwapManager(Logger):
             if spent_height is not None and not should_bump_fee:
                 return
             try:
-                tx = self._create_and_sign_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
+                tx = create_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
@@ -485,7 +494,7 @@ class SwapManager(Logger):
         key = payment_hash.hex()
         if key in self.swaps:
             swap = self.swaps[key]
-            if swap.funding_txid is None:
+            if not swap.is_funded():
                 password = self.wallet.get_unlocked_password()
                 for batch_rbf in [False]:
                     # FIXME: tx batching is disabled, because extra logic is needed to handle
@@ -795,6 +804,9 @@ class SwapManager(Logger):
             await asyncio.sleep(0.1)
         return swap.funding_txid
 
+    def create_funding_output(self, swap):
+        return PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
+
     def create_funding_tx(
         self,
         swap: SwapData,
@@ -806,7 +818,7 @@ class SwapManager(Logger):
         # note: rbf must not decrease payment
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
         if tx is None:
-            funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
+            funding_output = self.create_funding_output(swap)
             tx = self.wallet.create_transaction(
                 outputs=[funding_output],
                 rbf=True,
@@ -1089,13 +1101,11 @@ class SwapManager(Logger):
     def is_lockup_address_for_a_swap(self, addr: str) -> bool:
         return bool(self._swaps_by_lockup_address.get(addr))
 
-    def add_txin_info(self, txin: PartialTxInput) -> None:
+    @classmethod
+    def add_txin_info(cls, swap, txin: PartialTxInput) -> None:
         """Add some info to a claim txin.
         note: even without signing, this is useful for tx size estimation.
         """
-        swap = self.get_swap_by_claim_txin(txin)
-        if not swap:
-            return
         preimage = swap.preimage if swap.is_reverse else 0
         witness_script = swap.redeem_script
         txin.script_sig = b''
@@ -1106,45 +1116,27 @@ class SwapManager(Logger):
         txin.nsequence = 0xffffffff - 2
 
     @classmethod
-    def sign_tx(cls, tx: PartialTransaction, swap: SwapData) -> None:
-        preimage = swap.preimage if swap.is_reverse else 0
-        witness_script = swap.redeem_script
-        txin = tx.inputs()[0]
-        assert len(tx.inputs()) == 1, f"expected 1 input for swap claim tx. found {len(tx.inputs())}"
-        assert txin.prevout.txid.hex() == swap.funding_txid
-        txin.script_sig = b''
-        txin.witness_script = witness_script
-        sig = tx.sign_txin(0, swap.privkey)
-        witness = [sig, preimage, witness_script]
-        txin.witness = construct_witness(witness)
-
-    @classmethod
-    def _create_and_sign_claim_tx(
+    def create_claim_txin(
         cls,
         *,
         txin: PartialTxInput,
         swap: SwapData,
         config: 'SimpleConfig',
     ) -> PartialTransaction:
-        # FIXME the mining fee should depend on swap.is_reverse.
-        #       the txs are not the same size...
-        amount_sat = txin.value_sats() - cls._get_fee(size=CLAIM_FEE_SIZE, config=config)
-        if amount_sat < dust_threshold():
-            raise BelowDustLimit()
         if swap.is_reverse:  # successful reverse swap
             locktime = 0
             # preimage will be set in sign_tx
         else:  # timing out forward swap
             locktime = swap.locktime
-        tx = create_claim_tx(
-            txin=txin,
-            witness_script=swap.redeem_script,
-            address=swap.receive_address,
-            amount_sat=amount_sat,
-            locktime=locktime,
-        )
-        cls.sign_tx(tx, swap)
-        return tx
+        cls.add_txin_info(swap, txin)
+        txin.privkey = swap.privkey
+        def make_witness(sig):
+            # preimae not known yet
+            preimage = swap.preimage if swap.is_reverse else 0
+            witness_script = swap.redeem_script
+            return construct_witness([sig, preimage, witness_script])
+        txin.make_witness = make_witness
+        return txin, locktime
 
     def max_amount_forward_swap(self) -> Optional[int]:
         """ returns None if we cannot swap """
