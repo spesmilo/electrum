@@ -461,6 +461,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.console.showMessage(args[0])
 
     @qt_event_listener
+    def on_event_adb_set_future_tx(self, adb, txid):
+        if adb == self.wallet.adb:
+            self.history_model.refresh('set_future_tx')
+
+    @qt_event_listener
     def on_event_verified(self, *args):
         wallet, tx_hash, tx_mined_status = args
         if wallet == self.wallet:
@@ -1417,7 +1422,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
-        return d.run(), d.is_preview
+        return d.run(), d.is_preview, d.is_batching()
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):
