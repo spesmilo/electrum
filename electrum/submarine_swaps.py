@@ -1277,11 +1277,10 @@ class NostrTransport(SwapServerTransport):
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
-        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
+        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[str, asyncio.Future]
         ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
         self.taskgroup = OldTaskGroup()
-        self.server_relays = None
 
     def __enter__(self):
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
@@ -1329,7 +1328,11 @@ class NostrTransport(SwapServerTransport):
 
     @property
     def relays(self):
-        return self.network.config.NOSTR_RELAYS.split(',')
+        our_relays = self.config.NOSTR_RELAYS.split(',') if self.config.NOSTR_RELAYS else []
+        if self.sm.is_server:
+            return our_relays
+        last_swapserver_relays = self.config.LAST_SWAPSERVER_RELAYS.split(',') if self.config.LAST_SWAPSERVER_RELAYS else []
+        return list(set(our_relays + last_swapserver_relays))
 
     def get_offer(self, pubkey):
         offer = self._offers.get(pubkey)
@@ -1377,7 +1380,7 @@ class NostrTransport(SwapServerTransport):
             private_key=self.nostr_private_key)
         self.logger.info(f"published offer {event_id}")
 
-    async def send_direct_message(self, pubkey: str, relays, content: str) -> str:
+    async def send_direct_message(self, pubkey: str, content: str) -> str:
         event_id = await aionostr._add_event(
             self.relay_manager,
             kind=self.NOSTR_DM,
@@ -1388,10 +1391,13 @@ class NostrTransport(SwapServerTransport):
 
     @log_exceptions
     async def send_request_to_server(self, method: str, request_data: dict) -> dict:
+        # this ensures that we are also connected to the server relays when we
+        # just selected it (no previous get_pairs call)
+        self.logger.debug(f"sending request to server. Triggering relay update: {self.relays}")
+        await self.relay_manager.update_relays(self.relays)
         request_data['method'] = method
-        request_data['relays'] = self.config.NOSTR_RELAYS
         server_pubkey = self.config.SWAPSERVER_NPUB
-        event_id = await self.send_direct_message(server_pubkey, self.server_relays, json.dumps(request_data))
+        event_id = await self.send_direct_message(server_pubkey, json.dumps(request_data))
         response = await self.dm_replies[event_id]
         return response
 
@@ -1402,13 +1408,15 @@ class NostrTransport(SwapServerTransport):
             "limit":10,
             "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
             "#r": [f"net:{constants.net.NET_NAME}"],
-            "since": int(time.time()) - self.OFFER_UPDATE_INTERVAL_SEC
+            "since": int(time.time()) - 60 * 60,
+            "until": int(time.time()) + 60 * 60,
         }
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
                 content = json.loads(event.content)
                 tags = {k: v for k, v in event.tags}
             except Exception as e:
+                self.logger.debug(f"failed to parse event: {e}")
                 continue
             if tags.get('d') != f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}":
                 continue
@@ -1417,8 +1425,9 @@ class NostrTransport(SwapServerTransport):
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
             ts = self._offers.get(pubkey, {}).get('timestamp', 0)
-            if event.created_at <= ts:
-                #print('skipping old event', pubkey[0:10], event.id)
+            if (event.created_at <= ts
+                    or event.created_at > time.time() + 60 * 60
+                    or event.created_at < time.time() - 60 * 60):
                 continue
             try:
                 pow_bits = get_nostr_ann_pow_amount(
@@ -1433,9 +1442,10 @@ class NostrTransport(SwapServerTransport):
             content['pow_bits'] = pow_bits
             content['pubkey'] = pubkey
             content['timestamp'] = event.created_at
-            self._offers[pubkey] = content
             # mirror event to other relays
             server_relays = content['relays'].split(',') if 'relays' in content else []
+            content['relays'] = ','.join(server_relays[:10])  # limit to 10 relays
+            self._offers[pubkey] = content
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
 
     async def get_pairs(self):
@@ -1446,7 +1456,8 @@ class NostrTransport(SwapServerTransport):
             "authors": [self.config.SWAPSERVER_NPUB],
             "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
             "#r": [f"net:{constants.net.NET_NAME}"],
-            "since": int(time.time()) - self.OFFER_UPDATE_INTERVAL_SEC,
+            "since": int(time.time()) - 60 * 60,
+            "until": int(time.time()) + 60 * 60,
             "limit": 1
         }
         async for event in self.relay_manager.get_events(query, single_event=True, only_stored=False):
@@ -1459,14 +1470,18 @@ class NostrTransport(SwapServerTransport):
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
-            # check if this is the most recent event for this pubkey
-            pubkey = event.pubkey
-            content['pubkey'] = pubkey
+            if (event.created_at > time.time() + 60 * 60
+                    or event.created_at < time.time() - 60 * 60):
+                continue
+            content['pubkey'] = event.pubkey
             content['timestamp'] = event.created_at
             self.logger.info(f'received offer from {age(event.created_at)}')
             pairs = self._parse_offer(content)
+            server_relays = content['relays'].split(',')[:10] if 'relays' in content else []
+            if server_relays:
+                self.config.LAST_SWAPSERVER_RELAYS = ','.join(server_relays)
+                await self.relay_manager.update_relays(self.relays)
             self.sm.update_pairs(pairs)
-            self.server_relays = content['relays'].split(',')
 
     async def rebroadcast_event(self, event: Event, server_relays: Sequence[str]):
         """If the relays of the origin server are different from our relays we rebroadcast the
@@ -1509,8 +1524,7 @@ class NostrTransport(SwapServerTransport):
         method = request.pop('method')
         event_id = request.pop('event_id')
         event_pubkey = request.pop('event_pubkey')
-        self.logger.info(f'handle_request: id={event_id} {method} {request}')
-        relays = request.pop('relays').split(',')
+        print(f'handle_request: id={event_id} {method} {request}')
         if method == 'addswapinvoice':
             r = self.sm.server_add_swap_invoice(request)
         elif method == 'createswap':
@@ -1521,4 +1535,4 @@ class NostrTransport(SwapServerTransport):
             raise Exception(method)
         r['reply_to'] = event_id
         self.logger.info(f'sending response id={event_id}')
-        await self.send_direct_message(event_pubkey, relays, json.dumps(r))
+        await self.send_direct_message(event_pubkey, json.dumps(r))

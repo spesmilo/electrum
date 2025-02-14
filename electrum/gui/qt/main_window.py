@@ -1269,6 +1269,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if choice is None:
             return False
         self.config.SWAPSERVER_NPUB = choice
+        self.config.LAST_SWAPSERVER_RELAYS = transport._offers[choice]['relays']
         pairs = transport.get_offer(choice)
         sm.update_pairs(pairs)
         return True
