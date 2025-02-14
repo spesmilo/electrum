@@ -1246,7 +1246,7 @@ class TestPeerDirect(TestPeer):
         async def action():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
-            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+            p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(GracefulDisconnect):
             await gath
@@ -1258,7 +1258,7 @@ class TestPeerDirect(TestPeer):
         async def action():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
-            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
             assert alice_channel.is_closed()
             gath.cancel()
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
