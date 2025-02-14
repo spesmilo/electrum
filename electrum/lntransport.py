@@ -198,7 +198,9 @@ class LNTransportBase:
     writer: StreamWriter
     privkey: bytes
     peer_addr: Optional[LNPeerAddr] = None
-    drain_write_lock = asyncio.Lock()
+
+    def __init__(self):
+        self.drain_write_lock = asyncio.Lock()
 
     def name(self) -> str:
         pubkey = self.remote_pubkey()
