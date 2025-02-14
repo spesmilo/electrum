@@ -967,14 +967,16 @@ class SwapManager(Logger):
         self._max_amount = pairs.max_amount
         self.is_initialized.set()
 
-    def get_max_amount(self):
+    def get_max_amount(self) -> int:
+        """in satoshis"""
         return self._max_amount
 
-    def get_min_amount(self):
+    def get_min_amount(self) -> int:
+        """in satoshis"""
         return self._min_amount
 
-    def check_invoice_amount(self, x):
-        return x >= self.get_min_amount() and x <= self.get_max_amount()
+    def check_invoice_amount(self, x) -> bool:
+        return self.get_min_amount() <= x <= self.get_max_amount()
 
     def _get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
         """For a given swap direction and amount we send, returns how much we will receive.
