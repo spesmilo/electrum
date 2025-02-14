@@ -675,7 +675,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
 
-    FEE_POLICY = ConfigVar('fee_policy', default='eta:2', type_=str)
+    FEE_POLICY = ConfigVar('fee_policy', default='eta:2', type_=str) # exposed to GUI
+    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy_lightning', default='eta:2', type_=str) # for txbatcher (sweeping)
+    FEE_POLICY_SWAPS = ConfigVar('fee_policy_swaps', default='eta:2', type_=str) # for txbatcher (sweeping and sending if we are a swapserver)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)
