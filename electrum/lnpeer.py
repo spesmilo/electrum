@@ -604,7 +604,7 @@ class Peer(Logger, EventListener):
         for msg in messages:
             if self.gossip_timestamp_filter.in_range(msg.timestamp) \
                 and self.pubkey != msg.sender_node_id:
-                self.transport.send_bytes(msg.msg)
+                await self.transport.send_bytes_and_drain(msg.msg)
                 amount_sent += 1
                 if amount_sent % 250 == 0:
                     # this can be a lot of messages, completely blocking the event loop
@@ -789,7 +789,7 @@ class Peer(Logger, EventListener):
                 response.update(requested_msgs)
             self.logger.debug(f"found {len(response)} gossip messages to serve scid request")
             for index, msg in enumerate(response):
-                self.transport.send_bytes(msg)
+                await self.transport.send_bytes_and_drain(msg)
                 if index % 250 == 0:
                     await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
             self.send_message(
