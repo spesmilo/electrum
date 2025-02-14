@@ -261,7 +261,7 @@ class SwapManager(Logger):
     async def stop(self):
         await self.taskgroup.cancel_remaining()
 
-    def create_transport(self):
+    def create_transport(self) -> 'SwapServerTransport':
         from .lnutil import generate_random_keypair
         if self.config.SWAPSERVER_URL:
             return HttpTransport(self.config, self)
@@ -1266,16 +1266,33 @@ class SwapManager(Logger):
                 return swap.funding_txid
 
 
+class SwapServerTransport(Logger):
 
-class HttpTransport(Logger):
-
-    def __init__(self, config, sm):
+    def __init__(self, *, config: 'SimpleConfig', sm: 'SwapManager'):
         Logger.__init__(self)
         self.sm = sm
         self.network = sm.network
-        self.api_url = config.SWAPSERVER_URL
         self.config = config
         self.is_connected = asyncio.Event()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, ex_type, ex, tb):
+        pass
+
+    async def send_request_to_server(self, method: str, request_data: Optional[dict]) -> dict:
+        pass
+
+    async def get_pairs(self) -> None:
+        pass
+
+
+class HttpTransport(SwapServerTransport):
+
+    def __init__(self, config, sm):
+        SwapServerTransport.__init__(self, config=config, sm=sm)
+        self.api_url = config.SWAPSERVER_URL
         self.is_connected.set()
 
     def __enter__(self):
@@ -1314,7 +1331,7 @@ class HttpTransport(Logger):
         self.sm.update_pairs(pairs)
 
 
-class NostrTransport(Logger):
+class NostrTransport(SwapServerTransport):
     # uses nostr:
     #  - to advertise servers
     #  - for client-server RPCs (using DMs)
@@ -1326,11 +1343,8 @@ class NostrTransport(Logger):
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
 
     def __init__(self, config, sm, keypair):
-        Logger.__init__(self)
-        self.config = config
-        self.network = sm.network
-        self.sm = sm
-        self.offers = {}
+        SwapServerTransport.__init__(self, config=config, sm=sm)
+        self._offers = {}  # type: Dict[str, Dict]
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
@@ -1338,7 +1352,6 @@ class NostrTransport(Logger):
         ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
         self.taskgroup = OldTaskGroup()
-        self.is_connected = asyncio.Event()
         self.server_relays = None
 
     def __enter__(self):
@@ -1390,8 +1403,18 @@ class NostrTransport(Logger):
         return self.network.config.NOSTR_RELAYS.split(',')
 
     def get_offer(self, pubkey):
-        offer = self.offers.get(pubkey)
+        offer = self._offers.get(pubkey)
         return self._parse_offer(offer)
+
+    def get_recent_offers(self) -> Sequence[Dict]:
+        # filter to fresh timestamps
+        now = int(time.time())
+        recent_offers = [x for x in self._offers.values() if now - x['timestamp'] < 3600]
+        # sort by proof-of-work
+        recent_offers = sorted(recent_offers, key=lambda x: x['pow_bits'], reverse=True)
+        # cap list size
+        recent_offers = recent_offers[:20]
+        return recent_offers
 
     def _parse_offer(self, offer):
         return SwapFees(
@@ -1439,11 +1462,11 @@ class NostrTransport(Logger):
         return event_id
 
     @log_exceptions
-    async def send_request_to_server(self, method: str, request: dict) -> dict:
-        request['method'] = method
-        request['relays'] = self.config.NOSTR_RELAYS
+    async def send_request_to_server(self, method: str, request_data: dict) -> dict:
+        request_data['method'] = method
+        request_data['relays'] = self.config.NOSTR_RELAYS
         server_pubkey = self.config.SWAPSERVER_NPUB
-        event_id = await self.send_direct_message(server_pubkey, self.server_relays, json.dumps(request))
+        event_id = await self.send_direct_message(server_pubkey, self.server_relays, json.dumps(request_data))
         response = await self.dm_replies[event_id]
         return response
 
@@ -1468,7 +1491,7 @@ class NostrTransport(Logger):
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
-            ts = self.offers.get(pubkey, {}).get('timestamp', 0)
+            ts = self._offers.get(pubkey, {}).get('timestamp', 0)
             if event.created_at <= ts:
                 #print('skipping old event', pubkey[0:10], event.id)
                 continue
@@ -1485,7 +1508,7 @@ class NostrTransport(Logger):
             content['pow_bits'] = pow_bits
             content['pubkey'] = pubkey
             content['timestamp'] = event.created_at
-            self.offers[pubkey] = content
+            self._offers[pubkey] = content
             # mirror event to other relays
             server_relays = content['relays'].split(',') if 'relays' in content else []
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))

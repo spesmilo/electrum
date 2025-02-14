@@ -12,7 +12,7 @@ from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age
-from electrum.submarine_swaps import NostrTransport
+from electrum.submarine_swaps import NostrTransport, SwapServerTransport
 
 from electrum.gui import messages
 
@@ -354,7 +354,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
 
         swap_transport = swap_manager.create_transport()
 
-        def query_task(transport):
+        def query_task(transport: SwapServerTransport):
             with transport:
                 try:
                     async def wait_initialized():
@@ -388,7 +388,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             ])
                             self.state = QESwapHelper.State.NoService
                             return
-                        self.recent_offers = [x for x in transport.offers.values()]
+                        self.recent_offers = [x for x in transport.get_recent_offers()]
                         if not self.recent_offers:
                             self.userinfo = _('Could not find a swap provider.')
                             self.state = QESwapHelper.State.NoService
@@ -398,7 +398,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                         self.undefinedNPub.emit()
                         return
                     else:
-                        self.recent_offers = [x for x in transport.offers.values()]
+                        self.recent_offers = [x for x in transport.get_recent_offers()]
                         if not self.recent_offers:
                             self.userinfo = _('Could not find a swap provider.')
                             self.state = QESwapHelper.State.NoService
