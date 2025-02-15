@@ -378,14 +378,19 @@ class Plugin(TimelockRecoveryPlugin):
             prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
         )
         tx_input.witness_utxo = prevout
-        tx_input.nsequence=nsequence
 
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
-            coins=[tx_input],
-            outputs=self.outputs,
-            fee=fee_est,
-            is_sweep=False,
-        )
+        def make_tx(fee_est, *, confirmed_only=False):
+            unsigned_tx = self.wallet.make_unsigned_transaction(
+                coins=[tx_input],
+                outputs=self.outputs,
+                fee=fee_est,
+                is_sweep=False,
+            )
+            unsigned_tx.inputs()[0].nsequence = nsequence
+            # Skip overriding the nsequence when set_rbf is called
+            unsigned_tx.set_rbf = lambda rbf: unsigned_tx.invalidate_ser_cache()
+            return unsigned_tx
+
         tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
         if tx is None or is_preview or tx.has_dummy_output(DummyAddress.SWAP):
             return
