@@ -601,11 +601,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.main_window.show_message(_("Enable fiat exchange rate with history."))
             return
         fx = self.main_window.fx
-        h = self.wallet.get_detailed_history(
+        summary = self.wallet.get_onchain_capital_gains(
             from_timestamp=time.mktime(self.start_date.timetuple()) if self.start_date else None,
             to_timestamp=time.mktime(self.end_date.timetuple()) if self.end_date else None,
             fx=fx)
-        summary = h['summary']
         if not summary:
             self.main_window.show_message(_("Nothing to summarize."))
             return
@@ -738,7 +737,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # can happen e.g. before list is populated for the first time
             return
         tx_item = idx.internalPointer().get_data()
-        if tx_item.get('lightning') and tx_item['type'] == 'payment':
+        if tx_item.get('lightning'):
             menu = QMenu()
             menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)

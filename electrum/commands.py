@@ -816,26 +816,26 @@ class Commands:
             await self.addtransaction(result, wallet=wallet)
         return result
 
-    @command('w')
-    async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet: Abstract_Wallet = None,
-                              from_height=None, to_height=None):
-        """Wallet onchain history. Returns the transaction history of your wallet."""
-        kwargs = {
-            'show_addresses': show_addresses,
-            'from_height': from_height,
-            'to_height': to_height,
-        }
+    def get_year_timestamps(self, year:int):
+        kwargs = {}
         if year:
             import time
             start_date = datetime.datetime(year, 1, 1)
             end_date = datetime.datetime(year+1, 1, 1)
             kwargs['from_timestamp'] = time.mktime(start_date.timetuple())
             kwargs['to_timestamp'] = time.mktime(end_date.timetuple())
-        if show_fiat:
-            from .exchange_rate import FxThread
-            kwargs['fx'] = self.daemon.fx if self.daemon else FxThread(config=self.config)
+        return kwargs
 
-        return json_normalize(wallet.get_detailed_history(**kwargs))
+    @command('w')
+    async def onchain_capital_gains(self, year=None, wallet: Abstract_Wallet = None):
+        """
+        Capital gains, using utxo pricing.
+        This cannot be used with lightning.
+        """
+        kwargs = self.get_year_timestamps(year)
+        from .exchange_rate import FxThread
+        fx = self.daemon.fx if self.daemon else FxThread(config=self.config)
+        return json_normalize(wallet.get_onchain_capital_gains(fx, **kwargs))
 
     @command('wp')
     async def bumpfee(self, tx, new_fee_rate, from_coins=None, decrease_payment=False, password=None, unsigned=False, wallet: Abstract_Wallet = None):
@@ -867,11 +867,34 @@ class Commands:
             wallet.sign_transaction(new_tx, password)
         return new_tx.serialize()
 
+    @command('w')
+    async def onchain_history(self, show_fiat=False, year=None, show_addresses=False, wallet: Abstract_Wallet = None):
+        """Wallet onchain history. Returns the transaction history of your wallet."""
+        kwargs = self.get_year_timestamps(year)
+        onchain_history = wallet.get_onchain_history(**kwargs)
+        out = [x.to_dict() for x in onchain_history.values()]
+        if show_fiat:
+            from .exchange_rate import FxThread
+            fx = self.daemon.fx if self.daemon else FxThread(config=self.config)
+        else:
+            fx = None
+        for item in out:
+            if show_addresses:
+                tx = wallet.db.get_transaction(item['txid'])
+                item['inputs'] = list(map(lambda x: x.to_json(), tx.inputs()))
+                item['outputs'] = list(map(lambda x: {'address': x.get_ui_address_str(), 'value_sat': x.value},
+                                           tx.outputs()))
+            if fx:
+                fiat_fields = wallet.get_tx_item_fiat(tx_hash=item['txid'], amount_sat=item['amount_sat'], fx=fx, tx_fee=item['fee_sat'])
+                item.update(fiat_fields)
+        return json_normalize(out)
+
     @command('wl')
-    async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
-        """ lightning history """
-        lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
-        return json_normalize(lightning_history)
+    async def lightning_history(self, wallet: Abstract_Wallet = None):
+        """ lightning history. """
+        lightning_history = wallet.lnworker.get_lightning_history() if wallet.lnworker else {}
+        sorted_hist= sorted(lightning_history.values(), key=lambda x: x.timestamp)
+        return json_normalize([x.to_dict() for x in sorted_hist])
 
     @command('w')
     async def setlabel(self, key, label, wallet: Abstract_Wallet = None):

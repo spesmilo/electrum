@@ -127,15 +127,14 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         #self._logger.debug(str(tx_item))
         item = tx_item
 
-        item['key'] = item['txid'] if 'txid' in item else item['payment_hash']
+        item['key'] = item.get('txid') or item.get('group_id') or item['payment_hash']
 
         if 'lightning' not in item:
             item['lightning'] = False
 
         if item['lightning']:
             item['value'] = QEAmount(amount_sat=item['value'].value, amount_msat=item['amount_msat'])
-            if item['type'] == 'payment':
-                item['incoming'] = True if item['direction'] == 'received' else False
+            item['incoming'] = True if item['amount_msat'] > 0 else False
             item['confirmations'] = 0
         else:
             item['value'] = QEAmount(amount_sat=item['value'].value)

@@ -36,7 +36,7 @@ from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
     make_aiohttp_session, timestamp_to_datetime, random_shuffled_copy, is_private_netaddress,
-    UnrelatedTransactionException
+    UnrelatedTransactionException, LightningHistoryItem
 )
 from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
@@ -48,7 +48,6 @@ from .transaction import (
 from .crypto import (
     sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 )
-
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid, ConnStringFormatError
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
@@ -983,7 +982,11 @@ class LNWallet(LNWorker):
         timestamp = min([htlc_with_status.htlc.timestamp for htlc_with_status in plist])
         return direction, amount_msat, fee_msat, timestamp
 
-    def get_lightning_history(self):
+    def get_lightning_history(self) -> Dict[str, LightningHistoryItem]:
+        """
+        side effect: sets defaults labels
+        note that the result is not ordered
+        """
         out = {}
         for payment_hash, plist in self.get_payments(status='settled').items():
             if len(plist) == 0:
@@ -995,94 +998,94 @@ class LNWallet(LNWorker):
             if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
-            item = {
-                'type': 'payment',
-                'label': label,
-                'timestamp': timestamp or 0,
-                'date': timestamp_to_datetime(timestamp),
-                'direction': direction,
-                'amount_msat': amount_msat,
-                'fee_msat': fee_msat,
-                'payment_hash': key,
-                'preimage': preimage,
-            }
-            item['group_id'] = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
+            group_id = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
+            item = LightningHistoryItem(
+                type = 'payment',
+                payment_hash = payment_hash.hex(),
+                preimage = preimage,
+                amount_msat = amount_msat,
+                fee_msat = fee_msat,
+                group_id = group_id,
+                timestamp = timestamp or 0,
+                label=label,
+            )
             out[payment_hash] = item
+        for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
+            item = chan.get_funding_height()
+            if item is None:
+                continue
+            funding_txid, funding_height, funding_timestamp = item
+            label = _('Open channel') + ' ' + chan.get_id_for_log()
+            self.wallet.set_default_label(funding_txid, label)
+            self.wallet.set_group_label(funding_txid, label)
+            item = LightningHistoryItem(
+                type = 'channel_opening',
+                label = label,
+                group_id = funding_txid,
+                timestamp = funding_timestamp,
+                amount_msat = chan.balance(LOCAL, ctn=0),
+                fee_msat = None,
+                payment_hash = None,
+                preimage = None,
+            )
+            out[funding_txid] = item
+            item = chan.get_closing_height()
+            if item is None:
+                continue
+            closing_txid, closing_height, closing_timestamp = item
+            label = _('Close channel') + ' ' + chan.get_id_for_log()
+            self.wallet.set_default_label(closing_txid, label)
+            self.wallet.set_group_label(closing_txid, label)
+            item = LightningHistoryItem(
+                type = 'channel_closing',
+                label = label,
+                group_id = closing_txid,
+                timestamp = closing_timestamp,
+                amount_msat = -chan.balance(LOCAL),
+                fee_msat = None,
+                payment_hash = None,
+                preimage = None,
+            )
+            out[closing_txid] = item
+
+        # sanity check
+        balance_msat = sum([x.amount_msat for x in out.values()])
+        lb = sum(chan.balance(LOCAL) if not chan.is_closed() else 0
+                for chan in self.channels.values())
+        assert balance_msat  == lb
         return out
 
-    def get_onchain_history(self):
-        out = {}
+    def get_groups_for_onchain_history(self) -> Dict[str, str]:
+        """
+        returns dict: txid -> group_id
+        side effect: sets default labels
+        """
+        groups = {}
         # add funding events
         for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
             item = chan.get_funding_height()
             if item is None:
                 continue
             funding_txid, funding_height, funding_timestamp = item
-            tx_height = self.wallet.adb.get_tx_height(funding_txid)
-            self.wallet.set_default_label(chan.funding_outpoint.to_str(), _('Open channel') + ' ' + chan.get_id_for_log())
-            item = {
-                'channel_id': chan.channel_id.hex(),
-                'type': 'channel_opening',
-                'label': self.wallet.get_label_for_txid(funding_txid),
-                'txid': funding_txid,
-                'amount_msat': chan.balance(LOCAL, ctn=0),
-                'direction': PaymentDirection.RECEIVED,
-                'timestamp': tx_height.timestamp,
-                'monotonic_timestamp': tx_height.timestamp or TX_TIMESTAMP_INF,
-                'date': timestamp_to_datetime(tx_height.timestamp),
-                'fee_sat': None,
-                'fee_msat': None,
-                'height': tx_height.height,
-                'confirmations': tx_height.conf,
-                'txpos_in_block': tx_height.txpos,
-            }  # FIXME this data structure needs to be kept in ~sync with wallet.get_onchain_history
-            out[funding_txid] = item
+            groups[funding_txid] = funding_txid
             item = chan.get_closing_height()
             if item is None:
                 continue
             closing_txid, closing_height, closing_timestamp = item
-            tx_height = self.wallet.adb.get_tx_height(closing_txid)
-            self.wallet.set_default_label(closing_txid, _('Close channel') + ' ' + chan.get_id_for_log())
-            item = {
-                'channel_id': chan.channel_id.hex(),
-                'txid': closing_txid,
-                'label': self.wallet.get_label_for_txid(closing_txid),
-                'type': 'channel_closure',
-                'amount_msat': -chan.balance(LOCAL),
-                'direction': PaymentDirection.SENT,
-                'timestamp': tx_height.timestamp,
-                'monotonic_timestamp': tx_height.timestamp or TX_TIMESTAMP_INF,
-                'date': timestamp_to_datetime(tx_height.timestamp),
-                'fee_sat': None,
-                'fee_msat': None,
-                'height': tx_height.height,
-                'confirmations': tx_height.conf,
-                'txpos_in_block': tx_height.txpos,
-            }  # FIXME this data structure needs to be kept in ~sync with wallet.get_onchain_history
-            out[closing_txid] = item
+            groups[closing_txid] = closing_txid
 
         d = self.swap_manager.get_groups_for_onchain_history()
-        for k,v in d.items():
-            group_id = v.get('group_id')
-            group_label = v.get('group_label')
-            if group_id and group_label:
-                self.wallet.set_default_label(group_id, group_label)
-        out.update(d)
-        return out
+        for txid, v in d.items():
+            group_id = v['group_id']
+            label = v.get('label')
+            group_label = v.get('group_label') or label
+            groups[txid] = group_id
+            if label:
+                self.wallet.set_default_label(txid, label)
+            if group_label:
+                self.wallet.set_group_label(group_id, group_label)
 
-    def get_history(self):
-        out = list(self.get_lightning_history().values()) + list(self.get_onchain_history().values())
-        # sort by timestamp
-        out.sort(key=lambda x: (x.get('timestamp') or float("inf")))
-        balance_msat = 0
-        for item in out:
-            balance_msat += item['amount_msat']
-            item['balance_msat'] = balance_msat
-
-        lb = sum(chan.balance(LOCAL) if not chan.is_closed() else 0
-                for chan in self.channels.values())
-        assert balance_msat  == lb
-        return out
+        return groups
 
     def channel_peers(self) -> List[bytes]:
         node_ids = [chan.node_id for chan in self.channels.values() if not chan.is_closed()]

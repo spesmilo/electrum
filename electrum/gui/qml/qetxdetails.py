@@ -330,20 +330,13 @@ class QETxDetails(QObject, QtEventListener):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
         if self._wallet.wallet.lnworker:
-            # Calling lnworker.get_onchain_history and wallet.get_full_history here
-            # is inefficient. We should probably pass the tx_item to the constructor.
-            lnworker_history = self._wallet.wallet.lnworker.get_onchain_history()
-            if self._txid in lnworker_history:
-                item = lnworker_history[self._txid]
-                group_id = item.get('group_id')
-                if group_id:
-                    full_history = self._wallet.wallet.get_full_history()
-                    group_item = full_history['group:' + group_id]
-                    self._lnamount.satsInt = int(group_item['ln_value'].value)
-                else:
-                    self._lnamount.satsInt = int(item['amount_msat'] / 1000)
-            else:
-                self._lnamount.satsInt = 0
+            # Calling wallet.get_full_history here is inefficient.
+            # We should probably pass the tx_item to the constructor.
+            full_history = self._wallet.wallet.get_full_history()
+            item = full_history.get('group:' + self._txid)
+            self._lnamount.satsInt = int(item['ln_value'].value) if item else 0
+        else:
+            self._lnamount.satsInt = 0
 
         self._is_complete = self._tx.is_complete()
         self._is_rbf_enabled = self._tx.is_rbf_enabled()

@@ -2184,3 +2184,56 @@ def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
     digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
     digest = int.from_bytes(digest, 'big')
     return hash_len_bits - digest.bit_length()
+
+
+class OnchainHistoryItem(NamedTuple):
+    txid: str
+    amount_sat: int
+    fee_sat: int
+    balance_sat: int
+    tx_mined_status: TxMinedInfo
+    group_id: Optional[str]
+    label: str
+    monotonic_timestamp: int
+    group_id: Optional[str]
+    def to_dict(self):
+        return {
+            'txid': self.txid,
+            'amount_sat': self.amount_sat,
+            'fee_sat': self.fee_sat,
+            'height': self.tx_mined_status.height,
+            'confirmations': self.tx_mined_status.conf,
+            'timestamp': self.tx_mined_status.timestamp,
+            'monotonic_timestamp': self.monotonic_timestamp,
+            'incoming': True if self.amount_sat>0 else False,
+            'bc_value': Satoshis(self.amount_sat),
+            'bc_balance': Satoshis(self.balance_sat),
+            'date': timestamp_to_datetime(self.tx_mined_status.timestamp),
+            'txpos_in_block': self.tx_mined_status.txpos,
+            'wanted_height': self.tx_mined_status.wanted_height,
+            'label': self.label,
+            'group_id': self.group_id,
+        }
+
+class LightningHistoryItem(NamedTuple):
+    payment_hash: str
+    preimage: str
+    amount_msat: int
+    fee_msat: Optional[int]
+    type: str
+    group_id: Optional[str]
+    timestamp: int
+    label: str
+    def to_dict(self):
+        return {
+            'type': self.type,
+            'label': self.label,
+            'timestamp': self.timestamp or 0,
+            'date': timestamp_to_datetime(self.timestamp),
+            'amount_msat': self.amount_msat,
+            'fee_msat': self.fee_msat,
+            'payment_hash': self.payment_hash,
+            'preimage': self.preimage,
+            'group_id': self.group_id,
+            'ln_value': Satoshis(Decimal(self.amount_msat) / 1000),
+        }

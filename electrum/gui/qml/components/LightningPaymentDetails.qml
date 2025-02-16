@@ -144,11 +144,13 @@ Pane {
                 Layout.topMargin: constants.paddingSmall
                 text: qsTr('Payment hash')
                 color: Material.accentColor
+                visible: lnpaymentdetails.paymentHash
             }
 
             TextHighlightPane {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
+                visible: lnpaymentdetails.paymentHash
 
                 RowLayout {
                     width: parent.width
@@ -177,11 +179,13 @@ Pane {
                 Layout.topMargin: constants.paddingSmall
                 text: qsTr('Preimage')
                 color: Material.accentColor
+                visible: lnpaymentdetails.preimage
             }
 
             TextHighlightPane {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
+                visible: lnpaymentdetails.preimage
 
                 RowLayout {
                     width: parent.width

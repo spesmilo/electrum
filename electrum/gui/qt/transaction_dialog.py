@@ -808,14 +808,15 @@ class TxDialog(QDialog, MessageBoxMixin):
         if txid is not None and fx.is_enabled() and amount is not None:
             tx_item_fiat = self.wallet.get_tx_item_fiat(
                 tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
-        lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
-        if txid in lnworker_history:
-            item = lnworker_history[txid]
-            ln_amount = item['amount_msat'] / 1000
-            if amount is None:
-                tx_mined_status = self.wallet.adb.get_tx_height(txid)
+
+        if self.wallet.lnworker:
+            # if it is a group, collect ln amount
+            full_history = self.wallet.get_full_history()
+            item = full_history.get('group:' + txid)
+            ln_amount = item['ln_value'].value if item else None
         else:
             ln_amount = None
+
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))

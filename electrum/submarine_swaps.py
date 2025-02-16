@@ -1234,8 +1234,6 @@ class SwapManager(Logger):
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             d[txid] = {
                 'group_id': txid,
-                'amount_msat': 0, # must be zero for onchain tx
-                'type': 'swap',
                 'label': label,
                 'group_label': group_label,
             }
@@ -1244,8 +1242,7 @@ class SwapManager(Logger):
                 # to the group (see wallet.get_full_history)
                 d[swap.spending_txid] = {
                     'group_id': txid,
-                    'amount_msat': 0, # must be zero for onchain tx
-                    'type': 'swap',
+                    'group_label': group_label,
                     'label': _('Refund transaction'),
                 }
         return d
@@ -1254,10 +1251,7 @@ class SwapManager(Logger):
         # add group_id to swap transactions
         swap = self.get_swap(payment_hash)
         if swap:
-            if swap.is_reverse:
-                return swap.spending_txid
-            else:
-                return swap.funding_txid
+            return swap.spending_txid if swap.is_reverse else swap.funding_txid
 
 
 class SwapServerTransport(Logger):
