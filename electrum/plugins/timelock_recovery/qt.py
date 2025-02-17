@@ -44,6 +44,19 @@ min_locktime_days = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 max_locktime_days = 388
 
+class PartialTxInputWithFixedNsequence(PartialTxInput):
+    def __init__(self, *args, nsequence=0xffffffff - 1, **kwargs):
+        self._fixed_nsequence = nsequence
+        super().__init__(*args, **kwargs)
+
+    @property
+    def nsequence(self):
+        return self._fixed_nsequence
+
+    @nsequence.setter
+    def nsequence(self, value):
+        pass # ignore override attempts
+
 def selectable_label(text):
     label = QLabel(text)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -374,8 +387,9 @@ class Plugin(TimelockRecoveryPlugin):
             raise ValueError("Sequence number is too large")
         nsequence += 0x00400000 # time based lock instead of block-height based lock
 
-        tx_input = PartialTxInput(
+        tx_input = PartialTxInputWithFixedNsequence(
             prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
+            nsequence=nsequence,
         )
         tx_input.witness_utxo = prevout
 
@@ -386,9 +400,6 @@ class Plugin(TimelockRecoveryPlugin):
                 fee=fee_est,
                 is_sweep=False,
             )
-            unsigned_tx.inputs()[0].nsequence = nsequence
-            # Skip overriding the nsequence when set_rbf is called
-            unsigned_tx.set_rbf = lambda rbf: unsigned_tx.invalidate_ser_cache()
             return unsigned_tx
 
         tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
