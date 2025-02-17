@@ -7,16 +7,14 @@ import os
 from decimal import Decimal
 import random
 import time
-import operator
-import enum
-from enum import IntEnum, Enum
-from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
-                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict, Callable, Awaitable)
+from enum import IntEnum
+from typing import (
+    Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING, NamedTuple, Mapping, Any, Iterable, AsyncGenerator,
+    Callable, Awaitable
+)
 import threading
 import socket
-import json
-from datetime import datetime, timezone
-from functools import partial, cached_property
+from functools import partial
 from collections import defaultdict
 import concurrent
 from concurrent import futures
@@ -27,67 +25,54 @@ import aiohttp
 import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
-from electrum_ecc import ecdsa_der_sig_from_ecdsa_sig64
+
+from .logging import Logger
+from .i18n import _
+from .json_db import stored_in
+from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util
-from . import keystore
-from .util import profiler, chunks, OldTaskGroup, ESocksProxy
-from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
-from .invoices import BaseInvoice
-from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
-from .util import EventListener, event_listener
-from .keystore import BIP32_KeyStore
-from .bitcoin import COIN
-from .bitcoin import opcodes, make_op_return, address_to_scripthash
-from .transaction import Transaction
-from .transaction import get_script_type_from_output_script
-from .crypto import sha256
+from .util import (
+    profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
+    event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
+    make_aiohttp_session, timestamp_to_datetime, random_shuffled_copy, is_private_netaddress,
+    UnrelatedTransactionException
+)
+from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
+from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
 from .bip32 import BIP32Node
-from .util import bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .crypto import chacha20_encrypt, chacha20_decrypt
-from .util import ignore_exceptions, make_aiohttp_session
-from .util import timestamp_to_datetime, random_shuffled_copy
-from .util import MyEncoder, is_private_netaddress, UnrelatedTransactionException
-from .logging import Logger
+from .address_synchronizer import TX_HEIGHT_LOCAL, TX_TIMESTAMP_INF
+from .transaction import (
+    Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
+)
+from .crypto import (
+    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
+)
+
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid, ConnStringFormatError
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
-from .lnchannel import Channel, AbstractChannel
-from .lnchannel import ChannelState, PeerState, HTLCWithStatus
+from .lnchannel import Channel, AbstractChannel, ChannelState, PeerState, HTLCWithStatus, ChannelBackup
 from .lnrater import LNRater
-from . import lnutil
-from .lnutil import funding_output_script
-from .lnutil import serialize_htlc_key, deserialize_htlc_key
-from .bitcoin import DummyAddress
-from .lnutil import (Outpoint,
-                     get_compressed_pubkey_from_bech32,
-                     PaymentFailure,
-                     generate_keypair, LnKeyFamily, LOCAL, REMOTE,
-                     MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
-                     NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
-                     UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
-                     HtlcLog, derive_payment_secret_from_payment_preimage,
-                     NoPathFound, InvalidGossipMsg, FeeBudgetExceeded)
-from .lnutil import ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget
-from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
+from .lnutil import (
+    get_compressed_pubkey_from_bech32, serialize_htlc_key, deserialize_htlc_key, PaymentFailure, generate_keypair,
+    LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
+    ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
+    OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE
+)
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
-from .i18n import _
-from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget,
-                       NoChannelPolicy, LNPathInconsistent)
-from .address_synchronizer import TX_HEIGHT_LOCAL, TX_TIMESTAMP_INF
-from . import lnsweep
+from .lnrouter import (
+    RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget, NoChannelPolicy, LNPathInconsistent
+)
 from .lnwatcher import LNWalletWatcher
-from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
-from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
-from .lnchannel import ChannelBackup
-from .channel_db import UpdateStatus, ChannelDBNotLoaded
-from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
-from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits, SplitConfigRating
-from .trampoline import create_trampoline_route_and_onion, is_legacy_relay
-from .json_db import stored_in
+from .trampoline import (
+    create_trampoline_route_and_onion, is_legacy_relay, trampolines_by_id, hardcoded_trampoline_nodes,
+    is_hardcoded_trampoline
+)
 
 if TYPE_CHECKING:
     from .network import Network
@@ -96,7 +81,7 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
+SAVED_PR_STATUS = [PR_PAID, PR_UNPAID]  # status that are persisted
 
 NUM_PEERS_TARGET = 4
 
@@ -104,9 +89,6 @@ NUM_PEERS_TARGET = 4
 CB_VERSION = 0
 CB_MAGIC_BYTES = bytes([0, 0, 0, CB_VERSION])
 NODE_ID_PREFIX_LEN = 16
-
-
-from .trampoline import trampolines_by_id, hardcoded_trampoline_nodes, is_hardcoded_trampoline
 
 
 class PaymentDirection(IntEnum):
@@ -139,11 +121,12 @@ class ReceivedMPPStatus(NamedTuple):
 
     @stored_in('received_mpp_htlcs', tuple)
     def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid,x) in htlc_list])
+        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
         return ReceivedMPPStatus(
             resolution=RecvMPPResolution(resolution),
             expected_msat=expected_msat,
             htlc_set=htlc_set)
+
 
 SentHtlcKey = Tuple[bytes, ShortChannelID, int]  # RHASH, scid, htlc_id
 
@@ -219,10 +202,10 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.register_callbacks()
 
     @property
-    def channel_db(self):
+    def channel_db(self) -> 'ChannelDB':
         return self.network.channel_db if self.network else None
 
-    def uses_trampoline(self):
+    def uses_trampoline(self) -> bool:
         return not bool(self.channel_db)
 
     @property
@@ -259,6 +242,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 self.logger.error(f"failed to parse config key '{self.config.cv.LIGHTNING_LISTEN.key()}'. got: {e!r}")
                 return
             addr = str(netaddr.host)
+
             async def cb(reader, writer):
                 transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 try:
@@ -598,12 +582,14 @@ class LNGossip(LNWorker):
         #       and disconnect only from that peer
         await self.channel_db.data_loaded.wait()
         self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
+
         # channel announcements
         def process_chan_anns():
             for payload in chan_anns:
                 self.channel_db.verify_channel_announcement(payload)
             self.channel_db.add_channel_announcements(chan_anns)
         await run_in_thread(process_chan_anns)
+
         # node announcements
         def process_node_anns():
             for payload in node_anns:
@@ -1494,7 +1480,7 @@ class LNWallet(LNWorker):
             fwd_trampoline_onion: OnionPacket = None,
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
-            fw_payment_key = None,# for forwarding
+            fw_payment_key: str = None,  # for forwarding
     ) -> None:
 
         assert budget
@@ -1791,7 +1777,7 @@ class LNWallet(LNWorker):
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
         # check cltv
-        if addr.get_min_final_cltv_delta() > lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+        if addr.get_min_final_cltv_delta() > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
@@ -2435,7 +2421,6 @@ class LNWallet(LNWorker):
             if len(fw_htlcs) == 0 and not paysession_active:
                 self.notify_upstream_peer(htlc_key)
 
-
     def htlc_failed(
             self,
             chan: Channel,
@@ -2597,6 +2582,7 @@ class LNWallet(LNWorker):
         """
         if deltas is None:
             deltas = {}
+
         def send_capacity(chan):
             if chan in deltas:
                 delta_msat = deltas[chan] * 1000
@@ -2653,6 +2639,7 @@ class LNWallet(LNWorker):
         """
         if deltas is None:
             deltas = {}
+
         def recv_capacity(chan):
             if chan in deltas:
                 delta_msat = deltas[chan] * 1000
@@ -2668,7 +2655,6 @@ class LNWallet(LNWorker):
             return Decimal(0)
         can_receive_msat = max(recv_chan_msats)
         return Decimal(can_receive_msat) / 1000
-
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """
@@ -2753,7 +2739,7 @@ class LNWallet(LNWorker):
             swap_output = PartialTxOutput.from_address_and_value(DummyAddress.SWAP, int(swap_funding_sat))
             if not self.wallet.can_pay_onchain([swap_output], coins=coins):
                 continue
-            return (chan, swap_recv_amount)
+            return chan, swap_recv_amount
 
     def suggest_swap_to_receive(self, amount_sat):
         assert amount_sat > self.num_sats_can_receive()
@@ -2762,7 +2748,7 @@ class LNWallet(LNWorker):
         except NotEnoughFunds:
             return
         for chan, swap_recv_amount in suggestions:
-            return (chan, swap_recv_amount)
+            return chan, swap_recv_amount
 
     async def rebalance_channels(self, chan1: Channel, chan2: Channel, *, amount_msat: int):
         if chan1 == chan2:
@@ -3100,4 +3086,3 @@ class LNWallet(LNWorker):
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
-
