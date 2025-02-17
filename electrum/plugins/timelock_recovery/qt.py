@@ -11,6 +11,8 @@ file LICENCE or http://www.opensource.org/licenses/mit-license.php
 '''
 
 import os
+import uuid
+from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -503,5 +505,80 @@ class Plugin(TimelockRecoveryPlugin):
             external_keypairs=None)
 
     def create_download_dialog(self, window):
-        import pdb; pdb.set_trace()
+        self.recovery_plan_id = str(uuid.uuid4())
+        self.recovery_plan_created_at = datetime.now()
+        self.download_dialog = WindowModalDialog(window, "Timelock Recovery - Download")
+        self.download_dialog.setContentsMargins(11, 11, 1, 1)
+        self.download_dialog.resize(800, self.download_dialog.height())
+
+        # Create an HBox layout. The logo will be on the left and the rest of the dialog on the right.
+        hbox_layout = QHBoxLayout(self.download_dialog)
+
+        # Create the logo label
+        logo_label = QLabel()
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Create a VBox layout for the main contents
+        vbox_layout = QVBoxLayout()
+
+        # Create and populate the grid
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnStretch(3, 1)
+
+        # Add Recovery Plan ID row
+        grid.addWidget(HelpLabel(
+            _("Recovery Plan ID"),
+            _("Unique identifier for this recovery plan"),
+        ), 0, 0)
+        grid.addWidget(selectable_label(self.recovery_plan_id), 0, 1, 1, 4)
+
+        # Add Creation Date row
+        grid.addWidget(HelpLabel(
+            _("Created At"),
+            _("Date and time when this recovery plan was created"),
+        ), 1, 0)
+        grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S")), 1, 1, 1, 4)
+
+        # Create buttons
+        buttons_hbox = QHBoxLayout()
+
+        save_recovery_button = QPushButton(_("Save Recovery Plan"))
+        save_recovery_button.clicked.connect(self._save_recovery_plan)
+
+        save_cancel_button = QPushButton(_("Save Cancellation Plan"))
+        save_cancel_button.clicked.connect(self._save_cancellation_plan)
+
+        close_button = QPushButton(_("Close"))
+        close_button.clicked.connect(self.download_dialog.close)
+
+        buttons_hbox.addStretch(1)
+        buttons_hbox.addWidget(save_recovery_button)
+        if self.cancellation_tx is not None:
+            buttons_hbox.addWidget(save_cancel_button)
+        buttons_hbox.addWidget(close_button)
+        buttons_hbox.addStretch(1)
+
+        # Add buttons to grid spanning full width
+        grid.addLayout(buttons_hbox, 2, 0, 1, 5)
+
+        # Add layouts to main vbox
+        vbox_layout.addLayout(grid)
+
+        # Populate the main hbox
+        hbox_layout.addWidget(logo_label)
+        hbox_layout.addSpacing(16)
+        hbox_layout.addLayout(vbox_layout)
+
+        # Add final stretches
+        hbox_layout.addStretch(1)
+        vbox_layout.addStretch(1)
+
+        self.download_dialog.exec()
+
+    def _save_recovery_plan(self):
+        pass
+
+    def _save_cancellation_plan(self):
         pass
