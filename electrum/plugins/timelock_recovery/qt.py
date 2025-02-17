@@ -15,15 +15,19 @@ import uuid
 from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
+from decimal import Decimal
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (QFontDatabase, QFont, QIntValidator)
+import qrcode
+from PyQt6.QtPrintSupport import QPrinter
+from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
+from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont, QIntValidator,
+                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize, QPageLayout, QFontMetrics)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QLineEdit, QScrollArea, QGridLayout)
+                             QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
 from electrum import constants
 from electrum.gui.qt.paytoedit import PayToEdit
-from electrum.bitcoin import address_to_script, DummyAddress
+from electrum.bitcoin import COIN, address_to_script, DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
@@ -64,6 +68,9 @@ def selectable_label(text):
     label = QLabel(text)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     return label
+
+def format_sats_as_btc(value):
+    return f"{(Decimal(value) / Decimal(COIN)):.8f}"
 
 class Plugin(TimelockRecoveryPlugin):
     def __init__(self, parent, config, name):
@@ -527,44 +534,67 @@ class Plugin(TimelockRecoveryPlugin):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
+        line_number = 0
+
         # Add Recovery Plan ID row
         grid.addWidget(HelpLabel(
             _("Recovery Plan ID"),
             _("Unique identifier for this recovery plan"),
         ), 0, 0)
-        grid.addWidget(selectable_label(self.recovery_plan_id), 0, 1, 1, 4)
-
+        grid.addWidget(selectable_label(self.recovery_plan_id), line_number, 1, 1, 4)
+        line_number += 1
         # Add Creation Date row
         grid.addWidget(HelpLabel(
             _("Created At"),
             _("Date and time when this recovery plan was created"),
         ), 1, 0)
-        grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S")), 1, 1, 1, 4)
+        grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S")), line_number, 1, 1, 4)
+        line_number += 1
 
         # Create buttons
-        buttons_hbox = QHBoxLayout()
-
-        save_recovery_button = QPushButton(_("Save Recovery Plan"))
+        # Save Recovery Plan button row
+        save_recovery_hbox = QHBoxLayout()
+        save_recovery_button = QPushButton(_("Save Recovery Plan..."), self.download_dialog)
         save_recovery_button.clicked.connect(self._save_recovery_plan)
+        save_recovery_hbox.addWidget(save_recovery_button)
+        save_recovery_hbox.addStretch(1)
+        grid.addLayout(save_recovery_hbox, line_number, 0, 1, 5)
+        line_number += 1
 
-        save_cancel_button = QPushButton(_("Save Cancellation Plan"))
-        save_cancel_button.clicked.connect(self._save_cancellation_plan)
-
-        close_button = QPushButton(_("Close"))
-        close_button.clicked.connect(self.download_dialog.close)
-
-        buttons_hbox.addStretch(1)
-        buttons_hbox.addWidget(save_recovery_button)
+        # Save Cancellation Plan button row (if applicable)
         if self.cancellation_tx is not None:
-            buttons_hbox.addWidget(save_cancel_button)
-        buttons_hbox.addWidget(close_button)
-        buttons_hbox.addStretch(1)
-
-        # Add buttons to grid spanning full width
-        grid.addLayout(buttons_hbox, 2, 0, 1, 5)
+            save_cancel_hbox = QHBoxLayout()
+            save_cancel_button = QPushButton(_("Save Cancellation Plan..."), self.download_dialog)
+            save_cancel_button.clicked.connect(self._save_cancellation_plan)
+            save_cancel_hbox.addWidget(save_cancel_button)
+            save_cancel_hbox.addStretch(1)
+            grid.addLayout(save_cancel_hbox, line_number, 0, 1, 5)
+            line_number += 1
 
         # Add layouts to main vbox
         vbox_layout.addLayout(grid)
+
+        close_button = QPushButton(_("Close"), self.download_dialog)
+        close_button.clicked.connect(self.download_dialog.close)
+
+        vbox_layout.addLayout(Buttons(close_button))
+
+        # Populate the HBox layout.
+        hbox_layout.addWidget(logo_label)
+        hbox_layout.addSpacing(16)
+        hbox_layout.addLayout(vbox_layout, stretch=1)
+
+        return bool(self.download_dialog.exec())
+
+
+
+        # Close button row (right-aligned)
+        close_hbox = QHBoxLayout()
+        close_button = QPushButton(_("Close"))
+        close_button.clicked.connect(self.download_dialog.close)
+        close_hbox.addStretch(1)
+        close_hbox.addWidget(close_button)
+        vbox_layout.addLayout(close_hbox)
 
         # Populate the main hbox
         hbox_layout.addWidget(logo_label)
@@ -573,12 +603,147 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Add final stretches
         hbox_layout.addStretch(1)
-        vbox_layout.addStretch(1)
+        # No stretch needed since we want the grid to expand
 
-        self.download_dialog.exec()
+        
 
     def _save_recovery_plan(self):
-        pass
+        # Open a Save As dialog to get the file path
+        file_path, _selected_filter = QFileDialog.getSaveFileName(
+            self.download_dialog,
+            _("Save Recovery Plan PDF..."),
+            "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
+            _("PDF files (*.pdf)")
+        )
+        if not file_path:
+            return
+        # Create PDF printer
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(file_path)
+        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+
+        # Create painter
+        painter = QPainter()
+        if not painter.begin(printer):
+            return
+
+        # Set up fonts
+        header_font = QFont("DejaVu Sans Mono", 9)
+        title_font = QFont("DejaVu Sans Mono", 18, QFont.Weight.Bold)
+        subtitle_font = QFont("DejaVu Sans Mono", 10)
+        body_font = QFont("DejaVu Sans Mono", 10)
+        step_font = QFont("DejaVu Sans Mono", 16, QFont.Weight.Bold)
+
+        # Get page dimensions
+        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        page_width = page_rect.width()
+        page_height = page_rect.height()
+
+        current_height = 30
+        page_number = 1
+
+        # Header
+        painter.setFont(header_font)
+        header_text = f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+        painter.drawText(QRectF(0, current_height, page_width, 20), Qt.AlignmentFlag.AlignCenter, header_text)
+        current_height += 40
+
+        # Title
+        painter.setFont(title_font)
+        painter.drawText(QRectF(0, current_height, page_width, 30), Qt.AlignmentFlag.AlignCenter, "Timelock-Recovery Guide")
+        current_height += 30
+
+        # Subtitle
+        painter.setFont(subtitle_font)
+        painter.drawText(QRectF(0, current_height, page_width, 20), Qt.AlignmentFlag.AlignCenter, "v1.0")
+        current_height += 40
+
+        # Main content
+        painter.setFont(body_font)
+        intro_text = (
+            f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
+            f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
+            f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
+            f"{', '.join([
+                f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
+                for output in self.recovery_tx.outputs()
+            ])}\n\n"
+            "Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE WALLET OF THIS ADDRESS. "
+            "The simplest way to do so is to send a small amount to the address, and then trying "
+            "to send all funds from that wallet to a different wallet. Also important: make sure that the "
+            "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
+            "the funds the moment they reach their destination.\n\n"
+            "For more information, visit: https://timelockrecovery.com\n"
+        )
+
+        # Draw wrapped text
+        metrics = QFontMetrics(body_font)
+        line_spacing = metrics.lineSpacing()
+        max_width = page_width - 40  # Margins
+        words = intro_text.split()
+        current_line = ""
+        x = 20  # Left margin
+
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            width = metrics.horizontalAdvance(test_line)
+
+            if width <= max_width:
+                current_line = test_line
+            else:
+                painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
+                current_height += line_spacing
+                current_line = word
+
+        if current_line:
+            painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
+            current_height += line_spacing * 2
+
+        # Step 1
+        painter.setFont(step_font)
+        painter.drawText(QRectF(20, current_height, page_width-40, 30), Qt.AlignmentFlag.AlignLeft, "Step 1 - Broadcasting the Alert transaction")
+        current_height += 40
+
+        # Add QR code for alert transaction
+        qr = qrcode.QRCode()
+        qr.add_data(self.alert_tx.serialize())
+        qr_image = self.paintQR(qr)
+
+        target = QRectF((page_width-300)/2, current_height, 300, 300)
+        painter.drawImage(target, qr_image)
+        current_height += 320
+
+        # Add raw transaction text
+        painter.setFont(body_font)
+        painter.drawText(QRectF(20, current_height, page_width-40, 60), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
+                        f"Alert Transaction ID: {self.alert_tx.txid()}\n{self.alert_tx.serialize()}")
+
+        painter.end()
+
+    def paintQR(self, qr):
+        if not qr:
+            return
+        matrix = qr.get_matrix()
+        k = len(matrix)
+        border_color = Qt.GlobalColor.white
+        base_img = QImage(k * 5, k * 5, QImage.Format.Format_ARGB32)
+        base_img.fill(border_color)
+        qrpainter = QPainter()
+        qrpainter.begin(base_img)
+        boxsize = 5
+        size = k * boxsize
+        left = (base_img.width() - size)//2
+        top = (base_img.height() - size)//2
+        qrpainter.setBrush(Qt.GlobalColor.black)
+        qrpainter.setPen(Qt.GlobalColor.black)
+
+        for r in range(k):
+            for c in range(k):
+                if matrix[r][c]:
+                    qrpainter.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+        qrpainter.end()
+        return base_img
 
     def _save_cancellation_plan(self):
         pass
