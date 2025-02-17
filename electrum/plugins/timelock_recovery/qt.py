@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 agreement_text = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
 alert_address_label = "Timelock Recovery Alert Address"
+cancellation_address_label = "Timelock Recovery Cancellation Address"
 anchor_output_amount_sats = 600
 min_locktime_days = 2
 # 0xFFFF * 512 seconds = 388.36 days.
@@ -178,28 +179,27 @@ class Plugin(TimelockRecoveryPlugin):
         text = self.intro_agreement_textedit.text()
         self.intro_next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == agreement_text.lower())
 
-    def get_alert_address(self):
+    def get_address_by_label(self, label):
         for addr in self.wallet.get_unused_addresses():
             label = self.wallet.get_label_for_address(addr)
-            if label == alert_address_label:
+            if label == label:
                 return addr
         for addr in self.wallet.get_unused_addresses():
             label = self.wallet.get_label_for_address(addr)
             if label == '':
-                self.wallet.set_label(addr, alert_address_label)
+                self.wallet.set_label(addr, label)
                 return addr
         if self.wallet.is_deterministic():
             addr = self.wallet.create_new_address(False)
-            self.wallet.set_label(addr, alert_address_label)
+            self.wallet.set_label(addr, label)
         return None
-
 
     def create_step1_dialog(self, window):
         self.step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
         self.step1_dialog.setContentsMargins(11, 11, 1, 1)
         self.step1_dialog.resize(800, self.step1_dialog.height())
 
-        self.alert_address = self.get_alert_address()
+        self.alert_address = self.get_address_by_label(alert_address_label)
         if not self.alert_address:
             self.step1_dialog.show_error(''.join([
                 _('No more addresses in your wallet.'), ' ',
@@ -393,14 +393,12 @@ class Plugin(TimelockRecoveryPlugin):
         )
         tx_input.witness_utxo = prevout
 
-        def make_tx(fee_est, *, confirmed_only=False):
-            unsigned_tx = self.wallet.make_unsigned_transaction(
-                coins=[tx_input],
-                outputs=self.outputs,
-                fee=fee_est,
-                is_sweep=False,
-            )
-            return unsigned_tx
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            coins=[tx_input],
+            outputs=self.outputs,
+            fee=fee_est,
+            is_sweep=False,
+        )
 
         tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
         if tx is None or is_preview or tx.has_dummy_output(DummyAddress.SWAP):
@@ -422,8 +420,88 @@ class Plugin(TimelockRecoveryPlugin):
                 window.parent().show_error(_("Recovery transaction is not complete."))
                 return
             self.recovery_tx = tx
-            import pdb; pdb.set_trace()
+            self.create_cancellation_dialog(window)
         window.parent().sign_tx(
             tx,
             callback=sign_done,
             external_keypairs=None)
+
+    def create_cancellation_dialog(self, window):
+        answer = window.parent().question('\n'.join([
+            _("Do you want to also create a Cancellation transaction?"),
+            _(
+                "If the Alert transaction is has been broadcasted against your intention," +
+                " you will be able to broadcast the Cancellation transaction within {} days," +
+                " to invalidate the Recovery transaction and keep the funds in this wallet" +
+                " - without the need to restore the seed of this wallet (i.e. in case you have split or hidden it)."
+            ).format(self.timelock_days),
+            _(
+                "However, if the seed of this wallet is lost, broadcasting the Cancellation transaction" +
+                " might lock the funds on this wallet forever."
+            )
+        ]))
+        if not answer:
+            self.cancellation_tx = None
+            return self.create_download_dialog(window)
+        cancellation_address = self.get_address_by_label(cancellation_address_label)
+        if not cancellation_address:
+            window.parent().show_error(''.join([
+                _("No more addresses in your wallet."), " ",
+                _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
+                _("If you want to create new addresses, use a deterministic wallet instead."),
+            ]))
+            self.cancellation_tx = None
+            return self.create_download_dialog(window)
+
+        prevouts = [
+            (index, tx_output) for index, tx_output in enumerate(self.alert_tx.outputs())
+            if tx_output.address == self.alert_address and tx_output.value != anchor_output_amount_sats
+        ]
+        if len(prevouts) != 1:
+            window.parent().show_error(_("Expected 1 output from the Alert transaction to the Alert Address, but got %d." % len(prevouts)))
+            return
+        (prevout_index, prevout) = prevouts[0]
+
+        tx_input = PartialTxInput(
+            prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
+        )
+        tx_input.witness_utxo = prevout
+
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            coins=[tx_input],
+            outputs=[
+                PartialTxOutput(scriptpubkey=address_to_script(self.alert_address), value='!'),
+            ],
+            fee=fee_est,
+            is_sweep=False,
+        )
+
+        tx, is_preview = window.parent().confirm_tx_dialog(make_tx, '!', allow_preview=False)
+        if tx is None or is_preview or tx.has_dummy_output(DummyAddress.SWAP):
+            return
+        if not tx.is_segwit():
+            window.parent().show_error(_("Recovery transaction is not segwit. This extension only works with segwit addresses."))
+            return
+        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
+            window.parent().show_error(_("All of the transaction inputs must be segwit."))
+            return
+        txid = tx.txid()
+        def sign_done(success):
+            if not success:
+                return
+            if tx.txid() != txid:
+                window.parent().show_error(_("Recovery transaction has been modified."))
+                return
+            if not tx.is_complete():
+                window.parent().show_error(_("Recovery transaction is not complete."))
+                return
+            self.cancellation_tx = tx
+            self.create_download_dialog(window)
+        window.parent().sign_tx(
+            tx,
+            callback=sign_done,
+            external_keypairs=None)
+
+    def create_download_dialog(self, window):
+        import pdb; pdb.set_trace()
+        pass
