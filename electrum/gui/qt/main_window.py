@@ -1029,9 +1029,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             name = ''
         elif num_tasks == 1:
             with self._coroutines_scheduled_lock:
-                name = list(self._coroutines_scheduled.values())[0]  + '...'
+                name = list(self._coroutines_scheduled.values())[0] + '...'
         else:
-            name = "%d"%num_tasks + _('tasks')  + '...'
+            name = f"{num_tasks} " + _('tasks') + '...'
         self.tasks_label.setText(name)
         self.tasks_label.setVisible(num_tasks > 0)
 
