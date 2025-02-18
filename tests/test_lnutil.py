@@ -7,15 +7,18 @@ import electrum_ecc as ecc
 
 from electrum import bitcoin
 from electrum.json_db import StoredDict
-from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
-                             make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
-                             make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
+from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed,
+                             make_offered_htlc,
+                             make_received_htlc, make_commitment, make_htlc_tx_witness,
+                             make_htlc_tx_output,
+                             make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
+                             derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32,
                              ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
                              ln_compare_features, IncompatibleLightningFeatures, ChannelType,
                              offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-                             ImportedChannelBackupStorage)
+                             ImportedChannelBackupStorage, list_enabled_ln_feature_bits)
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
@@ -1007,6 +1010,10 @@ class TestLNUtil(ElectrumTestCase):
                          LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |
                          LnFeatures.VAR_ONION_OPT,
                          ln_compare_features(f2, f1))
+
+    def test_list_enabled_ln_feature_bits(self):
+        self.assertEqual((0, 2, 6), list_enabled_ln_feature_bits(77))
+        self.assertEqual((), list_enabled_ln_feature_bits(0))
 
     def test_ln_features_supports(self):
         f_null = LnFeatures(0)
