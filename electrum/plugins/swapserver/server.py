@@ -77,18 +77,20 @@ class HttpSwapServer(Logger, EventListener):
                         "percentage": sm.percentage,
                         "minerFees": {
                             "baseAsset": {
-                                "normal": sm.normal_fee,
+                                "normal": sm.mining_fee,
                                 "reverse": {
-                                    "claim": sm.claim_fee,
-                                    "lockup": sm.lockup_fee
-                                }
+                                    "claim": sm.mining_fee,
+                                    "lockup": sm.mining_fee
+                                },
+                                "mining_fee": sm.mining_fee
                             },
                             "quoteAsset": {
-                                "normal": sm.normal_fee,
+                                "normal": sm.mining_fee,
                                 "reverse": {
-                                    "claim": sm.claim_fee,
-                                    "lockup": sm.lockup_fee
-                                }
+                                    "claim": sm.mining_fee,
+                                    "lockup": sm.mining_fee
+                                },
+                                "mining_fee": sm.mining_fee
                             }
                         }
                     }

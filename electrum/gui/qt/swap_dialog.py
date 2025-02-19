@@ -239,7 +239,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.recv_label.setIcon(recv_icon)
         self.description_label.setText(self.get_description())
         self.description_label.repaint()  # macOS hack for #6269
-        server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
+        server_mining_fee = sm.mining_fee
         server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
         self.server_fee_label.setText(server_fee_str)
         self.server_fee_label.repaint()  # macOS hack for #6269
@@ -249,7 +249,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         """Updates self.fee_label. No other side-effects."""
         if self.is_reverse:
             sm = self.swap_manager
-            fee = sm.get_claim_fee()
+            fee = sm.get_swap_tx_fee()
         else:
             fee = tx.get_fee() if tx else None
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
@@ -269,7 +269,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             coro = sm.reverse_swap(
                 transport,
                 lightning_amount_sat=lightning_amount,
-                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_swap_tx_fee(),
                 zeroconf=self.zeroconf,
             )
             try:

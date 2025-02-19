@@ -1414,7 +1414,7 @@ class Commands:
                 funding_txid = None
             else:
                 lightning_amount_sat = satoshis(lightning_amount)
-                claim_fee = sm.get_claim_fee()
+                claim_fee = sm.get_swap_tx_fee()
                 onchain_amount_sat = satoshis(onchain_amount) + claim_fee
                 funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                     transport,
