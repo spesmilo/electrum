@@ -79,6 +79,8 @@ from .lnutil import MIN_FUNDING_SAT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
+from .util import OnchainHistoryItem, LightningHistoryItem, GroupHistoryItem
+
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1398,31 +1400,25 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         onchain_history = self.get_onchain_history(domain=onchain_domain)
         for tx_item in onchain_history.values():
             txid = tx_item.txid
-            transactions_tmp[txid] = tx_item.to_dict()
-            transactions_tmp[txid]['lightning'] = False
+            transactions_tmp[txid] = tx_item
+            #transactions_tmp[txid]['lightning'] = False
 
         # add lightning_transactions
         lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
         for tx_item in lightning_history.values():
             key = tx_item.payment_hash or 'ln:' + tx_item.group_id
-            transactions_tmp[key] = tx_item.to_dict()
-            transactions_tmp[key]['lightning'] = True
+            transactions_tmp[key] = tx_item
+            #transactions_tmp[key]['lightning'] = True
 
         # sort on-chain and LN stuff into new dict, by timestamp
         # (we rely on this being a *stable* sort)
+        # create groups
         def sort_key(x):
             txid, tx_item = x
-            ts = tx_item.get('monotonic_timestamp') or tx_item.get('timestamp') or float('inf')
-            height = self.adb.tx_height_to_sort_height(tx_item.get('height'))
-            return ts, height
-        # create groups
+            return tx_item.sort_key()
         transactions = OrderedDictWithIndex()
         for k, tx_item in sorted(list(transactions_tmp.items()), key=sort_key):
-            if 'ln_value' not in tx_item:
-                tx_item['ln_value'] = Satoshis(0)
-            if 'bc_value' not in tx_item:
-                tx_item['bc_value'] = Satoshis(0)
-            group_id = tx_item.get('group_id')
+            group_id = tx_item.group_id
             if not group_id:
                 transactions[k] = tx_item
             else:
@@ -1430,58 +1426,61 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 parent = transactions.get(key)
                 group_label = self.get_label_for_group(group_id)
                 if parent is None:
-                    parent = {
-                        'label': group_label,
-                        'fiat_value': Fiat(Decimal(0), fx.ccy) if fx else None,
-                        'bc_value': Satoshis(0),
-                        'ln_value': Satoshis(0),
-                        'value': Satoshis(0),
-                        'children': [],
-                        'timestamp': 0,
-                        'date': timestamp_to_datetime(0),
-                        'fee_sat': 0,
+                    parent = GroupHistoryItem(
+                        group_id = group_id,
+                        label = group_label,
+                        #'fiat_value': Fiat(Decimal(0), fx.ccy) if fx else None,
+                        #'bc_value': Satoshis(0),
+                        #'ln_value': Satoshis(0),
+                        #'value': Satoshis(0),
+                        children = [],
+                        timestamp = 0,
+                        #'date': timestamp_to_datetime(0),
+                        #'fee_sat': 0,
                         # fixme: there is no guarantee that there will be an onchain tx in the group
-                        'height': 0,
-                        'confirmations': 0,
-                        'txid': '----',
-                    }
+                        #'height': 0,
+                        #'confirmations': 0,
+                        #'txid': '----',
+                    )
                     transactions[key] = parent
-                parent['bc_value'] += tx_item['bc_value']
-                parent['ln_value'] += tx_item['ln_value']
-                parent['value'] = parent['bc_value'] + parent['ln_value']
-                if 'fiat_value' in tx_item:
-                    parent['fiat_value'] += tx_item['fiat_value']
-                if tx_item.get('txid') == group_id:
-                    parent['lightning'] = False
-                    parent['txid'] = tx_item['txid']
-                    parent['timestamp'] = tx_item['timestamp']
-                    parent['date'] = timestamp_to_datetime(tx_item['timestamp'])
-                    parent['height'] = tx_item['height']
-                    parent['confirmations'] = tx_item['confirmations']
-                    parent['wanted_height'] = tx_item.get('wanted_height')
-                parent['children'].append(tx_item)
+
+                #if 'bc_value' in tx_item:
+                #    parent['bc_value'] += tx_item['bc_value']
+                #if 'ln_value' in tx_item:
+                #    parent['ln_value'] += tx_item['ln_value']
+                #parent['value'] = parent['bc_value'] + parent['ln_value']
+                #if 'fiat_value' in tx_item:
+                #    parent['fiat_value'] += tx_item['fiat_value']
+                #if not tx_item.is_lightning() and tx_item.txid == group_id:
+                #    parent.lightning = False
+                #    parent['txid'] = tx_item['txid']
+                #    parent['timestamp'] = tx_item['timestamp']
+                #    parent['date'] = timestamp_to_datetime(tx_item['timestamp'])
+                #    parent['height'] = tx_item['height']
+                #    parent['confirmations'] = tx_item['confirmations']
+                #    parent['wanted_height'] = tx_item.get('wanted_height')
+                parent.children.append(tx_item)
 
         now = time.time()
         for key, item in transactions.items():
-            children = item.get('children', [])
-            if len(children) == 1:
-                transactions[key] = children[0]
+            if isinstance(item, GroupHistoryItem) and len(item.children) == 1:
+                transactions[key] = item.children[0]
             # add on-chain and lightning values
             # note: 'value' has msat precision (as LN has msat precision)
-            item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
-            for child in item.get('children', []):
-                child['value'] = child.get('bc_value', Satoshis(0)) + child.get('ln_value', Satoshis(0))
-            if include_fiat:
-                value = item['value'].value
-                txid = item.get('txid')
-                if not item.get('lightning') and txid:
-                    fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
-                    item.update(fiat_fields)
-                else:
-                    timestamp = item['timestamp'] or now
-                    fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
-                    item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-                    item['fiat_default'] = True
+            #item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
+            #for child in item.get('children', []):
+            #    child['value'] = child.get('bc_value', Satoshis(0)) + child.get('ln_value', Satoshis(0))
+            #if include_fiat:
+            #    value = item['value'].value
+            #    txid = item.get('txid')
+            #    if not item.get('lightning') and txid:
+            #        fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
+            #        item.update(fiat_fields)
+            #    else:
+            #        timestamp = item['timestamp'] or now
+            #        fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
+            #        item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+            #        item['fiat_default'] = True
         return transactions
 
     @profiler

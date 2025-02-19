@@ -44,6 +44,7 @@ from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
                            Satoshis, format_time)
+from electrum.util import GroupHistoryItem
 from electrum.logging import get_logger, Logger
 from electrum.simple_config import SimpleConfig
 
@@ -109,12 +110,8 @@ class HistoryNode(CustomNode):
         col = index.column()
         window = self.model.window
         tx_item = self.get_data()
-        is_lightning = tx_item.get('lightning', False)
-        if not is_lightning and 'txid' not in tx_item:
-            # this may happen if two lightning tx have the same group id
-            # and the group does not have an onchain tx
-            is_lightning = True
-        timestamp = tx_item['timestamp']
+        is_lightning = tx_item.is_lightning()
+        timestamp = tx_item.timestamp
         short_id = None
         if is_lightning:
             status = 0
@@ -123,11 +120,12 @@ class HistoryNode(CustomNode):
             else:
                 status_str = format_time(int(timestamp))
         else:
-            tx_hash = tx_item['txid']
-            txpos_in_block = tx_item.get('txpos_in_block')
+            tx_hash = tx_item.txid
+            txpos_in_block = tx_item.tx_mined_status.txpos_in_block
+            height = tx_item.tx_mined_status.height
             if txpos_in_block is not None and txpos_in_block >= 0:
-                short_id = f"{tx_item['height']}x{txpos_in_block}"
-            conf = tx_item['confirmations']
+                short_id = f"{height}x{txpos_in_block}"
+            conf = tx_item.tx_mined_status.confirmations
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
             except KeyError:
@@ -140,12 +138,12 @@ class HistoryNode(CustomNode):
                     # respect sort order of self.transactions (wallet.get_full_history)
                     -index.row(),
                 HistoryColumns.DESCRIPTION:
-                    tx_item['label'] if 'label' in tx_item else None,
+                    tx_item.label,
                 HistoryColumns.AMOUNT:
-                    (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
-                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
+                    tx_item.bc_value() + tx_item.ln_value(),
                 HistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0),
+                    0,
+                 #   (tx_item['balance'].value if 'balance' in tx_item else 0),
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 HistoryColumns.FIAT_ACQ_PRICE:
@@ -201,7 +199,7 @@ class HistoryNode(CustomNode):
         if col == HistoryColumns.STATUS:
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION and 'label' in tx_item:
-            return QVariant(tx_item['label'])
+            return QVariant(tx_item.label)
         elif col == HistoryColumns.AMOUNT:
             bc_value = tx_item['bc_value'].value if 'bc_value' in tx_item else 0
             ln_value = tx_item['ln_value'].value if 'ln_value' in tx_item else 0
@@ -306,10 +304,11 @@ class HistoryModel(CustomModel, Logger):
         for tx_item in transactions.values():
             node = HistoryNode(self, tx_item)
             self._root.addChild(node)
-            for child_item in tx_item.get('children', []):
-                child_node = HistoryNode(self, child_item)
-                # add child to parent
-                node.addChild(child_node)
+            if isinstance(tx_item, GroupHistoryItem):
+                for child_item in tx_item.children:
+                    child_node = HistoryNode(self, child_item)
+                    # add child to parent
+                    node.addChild(child_node)
 
         # compute balance once all children have been added
         balance = 0
@@ -332,14 +331,14 @@ class HistoryModel(CustomModel, Logger):
             start_date = date.today()
             end_date = date.today()
             if len(self.transactions) > 0:
-                start_date = self.transactions.value_from_pos(0).get('date') or start_date
-                end_date = self.transactions.value_from_pos(len(self.transactions) - 1).get('date') or end_date
+                start_date = self.transactions.value_from_pos(0).date() or start_date
+                end_date = self.transactions.value_from_pos(len(self.transactions) - 1).date() or end_date
             self.view.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.view.period_combo.insertItems(1, self.view.years)
         # update tx_status_cache
         self.tx_status_cache.clear()
         for txid, tx_item in self.transactions.items():
-            if not tx_item.get('lightning', False):
+            if not tx_item.is_lightning():
                 tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
                 self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
         # update counter

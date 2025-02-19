@@ -2286,6 +2286,19 @@ class OnchainHistoryItem(NamedTuple):
     label: str
     monotonic_timestamp: int
     group_id: Optional[str]
+    def is_lightning(self):
+        return False
+    def date(self):
+        return timestamp_to_datetime(self.tx_mined_status.timestamp)
+    def ln_value(self):
+        return 0
+    def bc_value(self):
+        return Satoshis(self.amount_sat)
+    def sort_key(self):
+        from .address_synchronizer import AddressSynchronizer
+        ts = self.monotonic_timestamp or self.timestamp or float('inf')
+        height = AddressSynchronizer.tx_height_to_sort_height(self.tx_mined_status.height)
+        return ts, height
     def to_dict(self):
         return {
             'txid': self.txid,
@@ -2296,8 +2309,8 @@ class OnchainHistoryItem(NamedTuple):
             'timestamp': self.tx_mined_status.timestamp,
             'monotonic_timestamp': self.monotonic_timestamp,
             'incoming': True if self.amount_sat>0 else False,
-            'bc_value': Satoshis(self.amount_sat),
-            'bc_balance': Satoshis(self.balance_sat),
+            #'bc_value': Satoshis(self.amount_sat),
+            #'bc_balance': Satoshis(self.balance_sat),
             'date': timestamp_to_datetime(self.tx_mined_status.timestamp),
             'txpos_in_block': self.tx_mined_status.txpos,
             'wanted_height': self.tx_mined_status.wanted_height,
@@ -2316,6 +2329,17 @@ class LightningHistoryItem(NamedTuple):
     timestamp: int
     label: str
     direction: Optional[int]
+
+    def is_lightning(self):
+        return True
+    def ln_value(self):
+        return Satoshis(Decimal(self.amount_msat) / 1000)
+    def bc_value(self):
+        return 0
+    def sort_key(self):
+        ts = self.timestamp or float('inf')
+        return ts, 0
+
     def to_dict(self):
         return {
             'type': self.type,
@@ -2337,3 +2361,18 @@ class ChoiceItem:
     key: Any
     label: str  # user facing string
     extra_data: Any = None
+
+
+class GroupHistoryItem(NamedTuple):
+    children: Sequence[NamedTuple]
+    group_id: str
+    label: str
+    timestamp: int
+    def is_lightning(self):
+        return not any([not x.is_lightning() for x in self.children])
+    def ln_value(self):
+        return sum(x.ln_value() for x in self.children)
+    def bc_value(self):
+        return sum(x.bc_value() for x in self.children)
+
+
