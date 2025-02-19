@@ -945,8 +945,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = (is_any_input_ismine or is_swap) and tx.is_rbf_enabled()
-                    can_dscancel = (is_any_input_ismine and tx.is_rbf_enabled()
+                    can_bump = (is_any_input_ismine or is_swap) and self.can_rbf_tx(tx)
+                    can_dscancel = (is_any_input_ismine and self.can_rbf_tx(tx, is_dscancel=True)
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                     try:
                         self.cpfp(tx, 0)
@@ -960,7 +960,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         num_blocks_remainining = max(0, num_blocks_remainining)
                         status = _('Local (future: {})').format(_('in {} blocks').format(num_blocks_remainining))
                     can_broadcast = self.network is not None
-                    can_bump = (is_any_input_ismine or is_swap) and tx.is_rbf_enabled()
+                    can_bump = (is_any_input_ismine or is_swap) and self.can_rbf_tx(tx)
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -979,7 +979,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount = None
 
         if is_lightning_funding_tx:
-            can_bump = False  # would change txid
+            assert not can_bump  # would change txid
 
         return TxWalletDetails(
             txid=tx_hash,
@@ -1747,11 +1747,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # all inputs should be is_mine
             if not all([self.is_mine(self.adb.get_txin_address(txin)) for txin in tx.inputs()]):
                 continue
-            # do not mutate LN funding txs, as that would change their txid
-            if self.is_lightning_funding_tx(txid):
-                continue
             # tx must have opted-in for RBF (even if local, for consistency)
-            if not tx.is_rbf_enabled():
+            if not self.can_rbf_tx(tx):
                 continue
             # reject merge if we need to spend outputs from the base tx
             remaining_amount = sum(c.value_sats() for c in coins if c.prevout.txid.hex() != tx.txid())
@@ -2129,7 +2126,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
         tx.remove_signatures()
-        if not tx.is_rbf_enabled():
+        if not self.can_rbf_tx(tx):
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
@@ -2351,6 +2348,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return True
 
+    def can_rbf_tx(self, tx: Transaction, *, is_dscancel: bool = False) -> bool:
+        # do not mutate LN funding txs, as that would change their txid
+        if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
+            return False
+        return tx.is_rbf_enabled()
+
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         assert tx
         txid = tx.txid()
@@ -2394,7 +2397,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert isinstance(tx, PartialTransaction)
         tx.remove_signatures()
 
-        if not tx.is_rbf_enabled():
+        if not self.can_rbf_tx(tx, is_dscancel=True):
             raise CannotDoubleSpendTx(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
