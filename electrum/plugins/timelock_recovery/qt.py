@@ -100,7 +100,7 @@ class Plugin(TimelockRecoveryPlugin):
             TLR_STATE = os.getenv("TLR_STATE")
             if TLR_STATE is None:
                 return self.create_step1_dialog(window)
-            (self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name) = pickle.loads(bytes.fromhex(TLR_STATE))
+            (self.alert_address, self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name) = pickle.loads(bytes.fromhex(TLR_STATE))
             return self.create_download_dialog(window)
         return self.create_intro_dialog(window)
 
@@ -396,7 +396,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=[tx_input],
-            outputs=self.outputs,
+            outputs=[output for output in self.outputs if output.value != 0],
             fee=fee_est,
             is_sweep=False,
         )
@@ -505,7 +505,7 @@ class Plugin(TimelockRecoveryPlugin):
         )
 
     def create_download_dialog(self, window):
-        print(pickle.dumps((self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name)).hex())
+        print(pickle.dumps((self.alert_address, self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name)).hex())
         self.recovery_plan_id = str(uuid.uuid4())
         self.recovery_plan_created_at = datetime.now()
         self.download_dialog = WindowModalDialog(window, "Timelock Recovery - Download")
@@ -703,8 +703,118 @@ class Plugin(TimelockRecoveryPlugin):
         )
         current_height += step_line_spacing + 20
 
+        painter.setFont(body_font)
+        # Calculate number of anchors
+        num_anchors = len(self.alert_tx.outputs()) - 1
+
+        # Split alert tx into parts if needed
+        alert_raw = self.alert_tx.serialize()
+        if len(alert_raw) < 2300:
+            alert_raw_parts = [alert_raw]
+        else:
+            alert_raw_parts = []
+            for i in range(0, len(alert_raw), 2100):
+                alert_raw_parts.append(alert_raw[i:i+2100])
+
+        # Step 1 explanation text
+        step1_text = (
+            f"The first step is to broadcast the Alert transaction. "
+            f"This transaction will keep most funds in the same wallet {self.wallet_name}, "
+        )
+
+        if num_anchors > 0:
+            step1_text += (
+                f"except for 600 sats that will be sent to "
+                f"{'each of the following addresses' if num_anchors > 1 else 'the following address'} "
+                f"(and can be used in case you need to accelerate the transaction via Child-Pay-For-Parent, "
+                f"as we'll explain later):\n"
+            )
+            for output in self.alert_tx.outputs():
+                if output.address != self.alert_address and output.value == anchor_output_amount_sats:
+                    step1_text += f"• {output.address}\n"
+        else:
+            step1_text += "except for a small fee.\n"
+
+        step1_text += (
+            f"\nTo broadcast the Alert transaction, "
+            f"{'scan the QR code on the next page' if len(alert_raw_parts) <= 1 else f'scan the QR codes on the next {len(alert_raw_parts)} pages, concatenate the contents of the QR codes (without spaces),'} "
+            f"and paste the content in one of the following Bitcoin block-explorer websites:\n"
+            "• https://mempool.space/tx/push\n"
+            "• https://blockstream.info/tx/push\n" 
+            "• https://coinb.in/#broadcast\n\n"
+            f"You should then see a success message for broadcasting transaction-id: {self.alert_tx.txid()}"
+        )
+
+        drawn_rect = painter.drawText(
+            QRectF(0, current_height, page_width, page_height - current_height),
+            Qt.TextFlag.TextWordWrap,
+            step1_text
+        )
+        current_height += drawn_rect.height() + 20
+
+        # Generate QR pages for alert tx parts
+        for i, alert_part in enumerate(alert_raw_parts):
+            # Add new page
+            printer.newPage()
+            current_height = 20
+
+            # Header
+            painter.setFont(header_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, header_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                f"Recovery-Guide  Date: {datetime.now().strftime('%Y-%m-%d')}  Page: {i+2}"
+            )
+            current_height += header_line_spacing + 20
+
+            # Title
+            painter.setFont(title_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, title_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                "Alert Transaction"
+            )
+            current_height += title_line_spacing + 20
+
+            # Transaction ID
+            painter.setFont(subtitle_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, subtitle_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                f"Transaction Id: {self.alert_tx.txid()}"
+            )
+            current_height += subtitle_line_spacing + 20
+
+            # Part number if multiple parts
+            if len(alert_raw_parts) > 1:
+                painter.drawText(
+                    QRectF(0, current_height, page_width, subtitle_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    f"Part {i+1} of {len(alert_raw_parts)}"
+                )
+                current_height += subtitle_line_spacing + 20
+
+            # QR Code
+            qr = qrcode.QRCode()
+            qr.add_data(alert_part)
+            qr.make()
+            qr_image = self.paintQR(qr)
+
+            # Calculate QR position to center it
+            qr_width = 400
+            qr_x = (page_width - qr_width) / 2
+            painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+            current_height += qr_width + 40
+
+            # Raw text below QR
+            painter.setFont(body_font)
+            painter.drawText(
+                QRectF(20, current_height, page_width-40, page_height-current_height),
+                Qt.TextFlag.TextWordWrap,
+                alert_part
+            )
+
         painter.end()
-        import pdb; pdb.set_trace()
 
 
     def paintQR(self, qr):
