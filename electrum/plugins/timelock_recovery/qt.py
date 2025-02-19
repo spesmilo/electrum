@@ -78,7 +78,8 @@ class Plugin(TimelockRecoveryPlugin):
             return
         self._init_qt_received = True
         # load custom fonts (note: here, and not in __init__, as it needs the QApplication to be created)
-        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'PTMono-Regular.ttf'))
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'PTMono-Bold.ttf'))
 
     @hook
     def create_status_bar(self, sb):
@@ -128,7 +129,6 @@ class Plugin(TimelockRecoveryPlugin):
         hbox_layout.addLayout(vbox_layout)
 
         title_label = QLabel(_("What Is Timelock Recovery?"))
-        title_label.setFont(QFont('DejaVu Sans Mono', 20, QFont.Weight.Bold))
         vbox_layout.addWidget(title_label)
 
         intro_label = QLabel(self.intro_text)
@@ -629,14 +629,15 @@ class Plugin(TimelockRecoveryPlugin):
         pixels_per_point = printer.resolution() / 72.0
 
         # Set up fonts
-        header_font = QFont("DejaVu Sans Mono", 9)
+        header_font = QFont("PT Mono", 9)
         header_line_spacing = QFontMetrics(header_font).lineSpacing() * pixels_per_point
-        title_font = QFont("DejaVu Sans Mono", 18, QFont.Weight.Bold)
+        title_font = QFont("PT Mono", 18, QFont.Weight.Bold)
         title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
-        subtitle_font = QFont("DejaVu Sans Mono", 10)
+        subtitle_font = QFont("PT Mono", 10)
         subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
-        body_font = QFont("DejaVu Sans Mono", 10)
-        step_font = QFont("DejaVu Sans Mono", 16, QFont.Weight.Bold)
+        body_font = QFont("PT Mono", 10)
+        step_font = QFont("PT Mono", 16, QFont.Weight.Bold)
+        step_line_spacing = QFontMetrics(step_font).height() * pixels_per_point
 
         # Get page dimensions
         page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
@@ -663,73 +664,47 @@ class Plugin(TimelockRecoveryPlugin):
         painter.setFont(subtitle_font)
         painter.drawText(
             QRectF(0, current_height, page_width, subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
-            f"Electrum Version: {version.ELECTRUM_VERSION}, Plugin Version: {self.VERSION}"
+            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.VERSION}"
         )
-        current_height += subtitle_line_spacing + 40
+        current_height += subtitle_line_spacing + 60
+
+        # Main content
+        painter.setFont(body_font)
+        intro_text = (
+            f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
+            f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
+            f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
+            f"{', '.join([
+                f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
+                for output in self.recovery_tx.outputs()
+            ])}\n\n"
+            f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {"WALLET OF THIS ADDRESS" if len(self.outputs) == 1 else "WALLETS OF THESE ADDRESSES"}, "
+            f"OR TRUST THE {"OWNER OF THIS ADDRESS" if len(self.outputs) == 1 else "OWNERS OF THESE ADDRESSES"}. "
+            "The simplest way to do so is to send a small amount to the address, and then trying "
+            "to send all funds from that wallet to a different wallet. Also important: make sure that the "
+            "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
+            "the funds the moment they reach their destination.\n\n"
+            "For more information, visit: https://timelockrecovery.com\n"
+        )
+
+        drawn_rect = painter.drawText(
+            QRectF(0, current_height, page_width, page_height - current_height),
+            Qt.TextFlag.TextWordWrap,
+            intro_text,
+        )
+        current_height += drawn_rect.height() + 20
+
+
+        # Step 1
+        painter.setFont(step_font)
+        painter.drawText(
+            QRectF(0, current_height, page_width, step_line_spacing + 20),Qt.AlignmentFlag.AlignLeft,
+            "Step 1 - Broadcasting the Alert transaction",
+        )
+        current_height += step_line_spacing + 20
 
         painter.end()
         import pdb; pdb.set_trace()
-
-
-        # # Main content
-        # painter.setFont(body_font)
-        # intro_text = (
-        #     f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
-        #     f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
-        #     f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
-        #     f"{', '.join([
-        #         f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
-        #         for output in self.recovery_tx.outputs()
-        #     ])}\n\n"
-        #     "Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE WALLET OF THIS ADDRESS. "
-        #     "The simplest way to do so is to send a small amount to the address, and then trying "
-        #     "to send all funds from that wallet to a different wallet. Also important: make sure that the "
-        #     "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
-        #     "the funds the moment they reach their destination.\n\n"
-        #     "For more information, visit: https://timelockrecovery.com\n"
-        # )
-
-        # # Draw wrapped text
-        # metrics = QFontMetrics(body_font)
-        # line_spacing = metrics.lineSpacing()
-        # max_width = page_width - 40  # Margins
-        # words = intro_text.split()
-        # current_line = ""
-        # x = 20  # Left margin
-
-        # for word in words:
-        #     test_line = current_line + " " + word if current_line else word
-        #     width = metrics.horizontalAdvance(test_line)
-
-        #     if width <= max_width:
-        #         current_line = test_line
-        #     else:
-        #         painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
-        #         current_height += line_spacing
-        #         current_line = word
-
-        # if current_line:
-        #     painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
-        #     current_height += line_spacing * 2
-
-        # # Step 1
-        # painter.setFont(step_font)
-        # painter.drawText(QRectF(20, current_height, page_width-40, 30), Qt.AlignmentFlag.AlignLeft, "Step 1 - Broadcasting the Alert transaction")
-        # current_height += 40
-
-        # # Add QR code for alert transaction
-        # qr = qrcode.QRCode()
-        # qr.add_data(self.alert_tx.serialize())
-        # qr_image = self.paintQR(qr)
-
-        # target = QRectF((page_width-300)/2, current_height, 300, 300)
-        # painter.drawImage(target, qr_image)
-        # current_height += 320
-
-        # # Add raw transaction text
-        # painter.setFont(body_font)
-        # painter.drawText(QRectF(20, current_height, page_width-40, 60), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
-        #                 f"Alert Transaction ID: {self.alert_tx.txid()}\n{self.alert_tx.serialize()}")
 
 
     def paintQR(self, qr):

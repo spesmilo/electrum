@@ -1956,6 +1956,21 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self._unknown.update(other_txout._unknown)
 
 
+class PartialTxInputWithFixedNsequence(PartialTxInput):
+    def __init__(self, *args, nsequence=0xffffffff - 1, **kwargs):
+        self._fixed_nsequence = nsequence
+        super().__init__(*args, **kwargs)
+
+    @property
+    def nsequence(self):
+        return self._fixed_nsequence
+
+    @nsequence.setter
+    def nsequence(self, value):
+        pass # ignore override attempts
+
+
+
 class PartialTransaction(Transaction):
 
     def __init__(self):
