@@ -1,0 +1,30 @@
+name: Issue
+description: Submit a new issue.
+#labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Read this first!
+
+        * This issue tracker is for bug reports and development, not general questions.
+        * There is no private support! Scammers will reply to you here and tell you to go to their external website or contact them privately in email/telegram/whatsapp/etc.
+          They will try to **steal** your coins!
+          Be extremely suspicious of anyone offering help in a non-public way. Scammers will want to chat with you in private as then other people will not get a chance to point out the scam.
+        * Do not post issues about non-**Bitcoin** versions of Electrum.
+
+        ----
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this already?
+      #description: Please search to see if this issue is already being tracked.
+      options:
+      - label: I have searched the existing issues
+        required: true
+  - type: textarea
+    id: main-text-body
+    attributes:
+      label: Description
+      #description: Tell us what went wrong
+    validations:
+      required: true
