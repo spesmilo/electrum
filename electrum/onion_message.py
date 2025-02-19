@@ -20,6 +20,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import asyncio
 import copy
 import io
@@ -43,7 +44,6 @@ from electrum.lnutil import LnFeatures
 from electrum.util import OldTaskGroup, log_exceptions
 
 
-# do not use util.now, because it rounds to integers
 def now():
     return time.time()
 
@@ -411,12 +411,6 @@ def get_blinded_reply_paths(
 class Timeout(Exception): pass
 
 
-class OnionMessageRequest(NamedTuple):
-    future: asyncio.Future
-    payload: bytes
-    node_id_or_blinded_path: bytes
-
-
 class OnionMessageManager(Logger):
     """handle state around onion message sends and receives.
     - one instance per (ln)wallet
@@ -437,12 +431,17 @@ class OnionMessageManager(Logger):
     FORWARD_RETRY_DELAY = 2
     FORWARD_MAX_QUEUE = 3
 
+    class Request(NamedTuple):
+        future: asyncio.Future
+        payload: dict
+        node_id_or_blinded_path: bytes
+
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
         self.network = None  # type: Optional['Network']
         self.taskgroup = None  # type: OldTaskGroup
         self.lnwallet = lnwallet
-        self.pending = {}  # type: dict[bytes, OnionMessageRequest]
+        self.pending = {}  # type: dict[bytes, OnionMessageManager.Request]
         self.pending_lock = threading.Lock()
         self.send_queue = asyncio.PriorityQueue()
         self.forward_queue = asyncio.PriorityQueue()
@@ -559,7 +558,7 @@ class OnionMessageManager(Logger):
 
         self.logger.debug(f'submit_send {key=} {payload=} {node_id_or_blinded_path=}')
 
-        req = OnionMessageRequest(
+        req = OnionMessageManager.Request(
             future=asyncio.Future(),
             payload=payload,
             node_id_or_blinded_path=node_id_or_blinded_path
@@ -608,6 +607,19 @@ class OnionMessageManager(Logger):
         # TODO: use payload to determine prefix?
         return b'electrum' + key
 
+    def _get_request_for_path_id(self, recipient_data: dict) -> Request:
+        path_id = recipient_data.get('path_id', {}).get('data')
+        if not path_id:
+            return None
+        if not path_id[:8] == b'electrum':
+            self.logger.warning('not a reply to our request (unknown path_id prefix)')
+            return None
+        key = path_id[8:]
+        req = self.pending.get(key)
+        if req is None:
+            self.logger.warning('not a reply to our request (unknown request)')
+        return req
+
     def on_onion_message_received(self, recipient_data: dict, payload: dict) -> None:
         # we are destination, sanity checks
         # - if `encrypted_data_tlv` contains `allowed_features`:
@@ -622,25 +634,16 @@ class OnionMessageManager(Logger):
         # - if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
         #   - if the onion message is not a reply to that previous onion:
         #     - MUST ignore the onion message
-        # TODO: store path_id and lookup here
-        if 'path_id' not in recipient_data:
+        req = self._get_request_for_path_id(recipient_data)
+        if req is None:
             # unsolicited onion_message
             self.on_onion_message_received_unsolicited(recipient_data, payload)
         else:
-            self.on_onion_message_received_reply(recipient_data, payload)
+            self.on_onion_message_received_reply(req, recipient_data, payload)
 
-    def on_onion_message_received_reply(self, recipient_data: dict, payload: dict) -> None:
-        # check if this reply is associated with a known request
-        correl_data = recipient_data['path_id'].get('data')
-        if not correl_data[:8] == b'electrum':
-            self.logger.warning('not a reply to our request (unknown path_id prefix)')
-            return
-        key = correl_data[8:]
-        req = self.pending.get(key)
-        if req is None:
-            self.logger.warning('not a reply to our request (unknown request)')
-            return
-        req.future.set_result((recipient_data, payload))
+    def on_onion_message_received_reply(self, request: Request, recipient_data: dict, payload: dict) -> None:
+        assert request is not None, 'Request is mandatory'
+        request.future.set_result((recipient_data, payload))
 
     def on_onion_message_received_unsolicited(self, recipient_data: dict, payload: dict) -> None:
         self.logger.debug('unsolicited onion_message received')

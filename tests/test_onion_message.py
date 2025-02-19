@@ -14,8 +14,8 @@ from electrum.lnonion import (
     process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE,
     HOPS_DATA_SIZE, InvalidPayloadSize)
-from electrum.crypto import get_ecdh
-from electrum.lnutil import LnFeatures
+from electrum.crypto import get_ecdh, privkey_to_pubkey
+from electrum.lnutil import LnFeatures, Keypair
 from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data, \
     OnionMessageManager, NoRouteFound, Timeout
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
@@ -304,21 +304,21 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.alice = ECPrivkey(privkey_bytes=b'\x41'*32)
-        self.alice_pub = self.alice.get_public_key_bytes(compressed=True)
-        self.bob = ECPrivkey(privkey_bytes=b'\x42'*32)
-        self.bob_pub = self.bob.get_public_key_bytes(compressed=True)
-        self.carol = ECPrivkey(privkey_bytes=b'\x43'*32)
-        self.carol_pub = self.carol.get_public_key_bytes(compressed=True)
-        self.dave = ECPrivkey(privkey_bytes=b'\x44'*32)
-        self.dave_pub = self.dave.get_public_key_bytes(compressed=True)
-        self.eve = ECPrivkey(privkey_bytes=b'\x45'*32)
-        self.eve_pub = self.eve.get_public_key_bytes(compressed=True)
+
+        def keypair(privkey: ECPrivkey):
+            priv = privkey.get_secret_bytes()
+            return Keypair(pubkey=privkey_to_pubkey(priv), privkey=priv)
+
+        self.alice = keypair(ECPrivkey(privkey_bytes=b'\x41'*32))
+        self.bob = keypair(ECPrivkey(privkey_bytes=b'\x42'*32))
+        self.carol = keypair(ECPrivkey(privkey_bytes=b'\x43'*32))
+        self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
+        self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
 
     async def run_test1(self, t):
         t1 = t.submit_send(
             payload={'message': {'text': 'alice_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.alice_pub)
+            node_id_or_blinded_path=self.alice.pubkey)
 
         with self.assertRaises(Timeout):
             await t1
@@ -326,7 +326,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test2(self, t):
         t2 = t.submit_send(
             payload={'message': {'text': 'bob_slow_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.bob_pub)
+            node_id_or_blinded_path=self.bob.pubkey)
 
         with self.assertRaises(Timeout):
             await t2
@@ -334,7 +334,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test3(self, t, rkey):
         t3 = t.submit_send(
             payload={'message': {'text': 'carol_with_immediate_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.carol_pub,
+            node_id_or_blinded_path=self.carol.pubkey,
             key=rkey)
 
         t3_result = await t3
@@ -343,7 +343,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test4(self, t, rkey):
         t4 = t.submit_send(
             payload={'message': {'text': 'dave_with_slow_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.dave_pub,
+            node_id_or_blinded_path=self.dave.pubkey,
             key=rkey)
 
         t4_result = await t4
@@ -352,34 +352,34 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test5(self, t):
         t5 = t.submit_send(
             payload={'message': {'text': 'no_peer'.encode('utf-8')}},
-            node_id_or_blinded_path=self.eve_pub)
+            node_id_or_blinded_path=self.eve.pubkey)
 
         with self.assertRaises(NoRouteFound):
             await t5
 
-    async def test_manager(self):
+    async def test_request_and_reply(self):
         n = MockNetwork()
         k = keypair()
         q1, q2 = asyncio.Queue(), asyncio.Queue()
-        lnw = MockLNWallet(local_keypair=k, chans=[], tx_queue=q1, name='test', has_anchors=False)
+        lnw = MockLNWallet(local_keypair=k, chans=[], tx_queue=q1, name='test_request_and_reply', has_anchors=False)
 
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
 
         def withreply(key, *args, **kwargs):
-            t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
+            t.on_onion_message_received({'path_id': {'data': b'electrum' + key}}, {})
 
         def slowwithreply(key, *args, **kwargs):
             time.sleep(2*TIME_STEP)
-            t.on_onion_message_received_reply({'path_id': {'data': b'electrum' + key}}, {})
+            t.on_onion_message_received({'path_id': {'data': b'electrum' + key}}, {})
 
         rkey1 = bfh('0102030405060708')
         rkey2 = bfh('0102030405060709')
 
-        lnw.peers[self.alice_pub] = MockPeer(self.alice_pub)
-        lnw.peers[self.bob_pub] = MockPeer(self.bob_pub, on_send_message=slow)
-        lnw.peers[self.carol_pub] = MockPeer(self.carol_pub, on_send_message=partial(withreply, rkey1))
-        lnw.peers[self.dave_pub] = MockPeer(self.dave_pub, on_send_message=partial(slowwithreply, rkey2))
+        lnw.peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+        lnw.peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
+        lnw.peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
+        lnw.peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
@@ -398,6 +398,69 @@ class TestOnionMessageManager(ElectrumTestCase):
                 await group.spawn(self.run_test3(t, rkey1))
                 await group.spawn(self.run_test4(t, rkey2))
                 await group.spawn(self.run_test5(t))
+        finally:
+            await asyncio.sleep(TIME_STEP)
+
+            self.logger.debug('stopping manager')
+            await t.stop()
+            await lnw.stop()
+
+    async def test_forward(self):
+        n = MockNetwork()
+        q1 = asyncio.Queue()
+        lnw = MockLNWallet(local_keypair=self.alice, chans=[], tx_queue=q1, name='alice', has_anchors=False)
+
+        self.was_sent = False
+
+        def on_send(to: str, *args, **kwargs):
+            self.assertEqual(to, 'bob')
+            self.was_sent = True
+            # validate what's sent to bob
+            self.assertEqual(bfh(HOPS[1]['E']), kwargs['blinding'])
+            message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
+            self.assertEqual(message_type, 'onion_message')
+            self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
+
+        lnw.peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=partial(on_send, 'bob'))
+        lnw.peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(on_send, 'carol'))
+        t = OnionMessageManager(lnw)
+        t.start_network(network=n)
+
+        onionmsg = bfh(test_vectors['onionmessage']['onion_message_packet'])
+        try:
+            t.on_onion_message({
+                'blinding': bfh(test_vectors['route']['blinding']),
+                'len': len(onionmsg),
+                'onion_message_packet': onionmsg
+            })
+        finally:
+            await asyncio.sleep(TIME_STEP)
+
+            self.logger.debug('stopping manager')
+            await t.stop()
+            await lnw.stop()
+
+        self.assertTrue(self.was_sent)
+
+    async def test_receive_unsolicited(self):
+        n = MockNetwork()
+        q1 = asyncio.Queue()
+        lnw = MockLNWallet(local_keypair=self.dave, chans=[], tx_queue=q1, name='dave', has_anchors=False)
+
+        t = OnionMessageManager(lnw)
+        t.start_network(network=n)
+
+        self.received_unsolicited = False
+
+        def my_on_onion_message_received_unsolicited(*args, **kwargs):
+            self.received_unsolicited = True
+
+        t.on_onion_message_received_unsolicited = my_on_onion_message_received_unsolicited
+        packet = bfh(test_vectors['decrypt']['hops'][3]['onion_message'])
+        message_type, payload = decode_msg(packet)
+        try:
+            t.on_onion_message(payload)
+            self.assertTrue(self.received_unsolicited)
         finally:
             await asyncio.sleep(TIME_STEP)
 
