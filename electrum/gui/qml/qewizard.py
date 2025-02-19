@@ -119,34 +119,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'can_passphrase': can_passphrase
         }
 
-    def _wallet_path_from_wallet_name(self, wallet_name: str) -> str:
-        return os.path.join(self._qedaemon.daemon.config.get_datadir_wallet_path(), wallet_name)
-
     @pyqtSlot(str, result=bool)
     def isValidNewWalletName(self, wallet_name: str) -> bool:
-        if not wallet_name:
-            return False
-        if self._qedaemon.availableWallets.wallet_name_exists(wallet_name):
-            return False
-        wallet_path = self._wallet_path_from_wallet_name(wallet_name)
-        # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
-        # try to prevent sketchy path traversals:
-        for forbidden_char in ("/", "\\", ):
-            if forbidden_char in wallet_name:
-                return False
-        if os.path.basename(wallet_name) != wallet_name:
-            return False
-        # validate that the path looks sane to the filesystem:
-        try:
-            temp_storage = WalletStorage(wallet_path)
-        except (StorageReadWriteError, WalletFileException) as e:
-            return False
-        except Exception as e:
-            self._logger.exception("")
-            return False
-        if temp_storage.file_exists():
-            return False
-        return True
+        return self._qedaemon.isValidNewWalletName(wallet_name)
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
@@ -157,7 +132,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             data['encrypt'] = True
             data['password'] = single_password
 
-        path = self._wallet_path_from_wallet_name(data['wallet_name'])
+        path = self._qedaemon.wallet_path_from_wallet_name(data['wallet_name'])
 
         try:
             self.create_storage(path, data)
