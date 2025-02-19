@@ -16,6 +16,7 @@ from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 from decimal import Decimal
+import pickle
 
 import qrcode
 from PyQt6.QtPrintSupport import QPrinter
@@ -25,13 +26,13 @@ from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
-from electrum import constants
+from electrum import constants, version
 from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.bitcoin import COIN, address_to_script, DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint, PartialTxInputWithFixedNsequence
 from electrum.util import make_dir, bfh
 from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, CloseButton, HelpLabel)
 from electrum.gui.qt.main_window import StatusBarButton
@@ -50,19 +51,6 @@ anchor_output_amount_sats = 600
 min_locktime_days = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 max_locktime_days = 388
-
-class PartialTxInputWithFixedNsequence(PartialTxInput):
-    def __init__(self, *args, nsequence=0xffffffff - 1, **kwargs):
-        self._fixed_nsequence = nsequence
-        super().__init__(*args, **kwargs)
-
-    @property
-    def nsequence(self):
-        return self._fixed_nsequence
-
-    @nsequence.setter
-    def nsequence(self, value):
-        pass # ignore override attempts
 
 def selectable_label(text):
     label = QLabel(text)
@@ -108,7 +96,11 @@ class Plugin(TimelockRecoveryPlugin):
         self.wallet_name = str(self.wallet)
 
         if constants.net.NET_NAME == 'regtest':
-            return self.create_step1_dialog(window)
+            TLR_STATE = os.getenv("TLR_STATE")
+            if TLR_STATE is None:
+                return self.create_step1_dialog(window)
+            (self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name) = pickle.loads(bytes.fromhex(TLR_STATE))
+            return self.create_download_dialog(window)
         return self.create_intro_dialog(window)
 
     def create_intro_dialog(self, window):
@@ -509,9 +501,11 @@ class Plugin(TimelockRecoveryPlugin):
         window.parent().sign_tx(
             tx,
             callback=sign_done,
-            external_keypairs=None)
+            external_keypairs=None,
+        )
 
     def create_download_dialog(self, window):
+        print(pickle.dumps((self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name)).hex())
         self.recovery_plan_id = str(uuid.uuid4())
         self.recovery_plan_created_at = datetime.now()
         self.download_dialog = WindowModalDialog(window, "Timelock Recovery - Download")
@@ -551,10 +545,32 @@ class Plugin(TimelockRecoveryPlugin):
         grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S")), line_number, 1, 1, 4)
         line_number += 1
 
+        grid.addWidget(HelpLabel(
+            _("Alert Transaction ID"),
+            _("ID of the Alert transaction"),
+        ), 2, 0)
+        grid.addWidget(selectable_label(self.alert_tx.txid()), line_number, 1, 1, 4)
+        line_number += 1
+
+        grid.addWidget(HelpLabel(
+            _("Recovery Transaction ID"),
+            _("ID of the Recovery transaction"),
+        ), 3, 0)
+        grid.addWidget(selectable_label(self.recovery_tx.txid()), line_number, 1, 1, 4)
+        line_number += 1
+
+        if self.cancellation_tx is not None:
+            grid.addWidget(HelpLabel(
+                _("Cancellation Transaction ID"),
+                _("ID of the Cancellation transaction"),
+            ), 4, 0)
+            grid.addWidget(selectable_label(self.cancellation_tx.txid()), line_number, 1, 1, 4)
+            line_number += 1
+
         # Create buttons
         # Save Recovery Plan button row
         save_recovery_hbox = QHBoxLayout()
-        save_recovery_button = QPushButton(_("Save Recovery Plan..."), self.download_dialog)
+        save_recovery_button = QPushButton(_("Save Recovery Plan PDF..."), self.download_dialog)
         save_recovery_button.clicked.connect(self._save_recovery_plan)
         save_recovery_hbox.addWidget(save_recovery_button)
         save_recovery_hbox.addStretch(1)
@@ -564,7 +580,7 @@ class Plugin(TimelockRecoveryPlugin):
         # Save Cancellation Plan button row (if applicable)
         if self.cancellation_tx is not None:
             save_cancel_hbox = QHBoxLayout()
-            save_cancel_button = QPushButton(_("Save Cancellation Plan..."), self.download_dialog)
+            save_cancel_button = QPushButton(_("Save Cancellation Plan PDF..."), self.download_dialog)
             save_cancel_button.clicked.connect(self._save_cancellation_plan)
             save_cancel_hbox.addWidget(save_cancel_button)
             save_cancel_hbox.addStretch(1)
@@ -586,140 +602,135 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(self.download_dialog.exec())
 
-
-
-        # Close button row (right-aligned)
-        close_hbox = QHBoxLayout()
-        close_button = QPushButton(_("Close"))
-        close_button.clicked.connect(self.download_dialog.close)
-        close_hbox.addStretch(1)
-        close_hbox.addWidget(close_button)
-        vbox_layout.addLayout(close_hbox)
-
-        # Populate the main hbox
-        hbox_layout.addWidget(logo_label)
-        hbox_layout.addSpacing(16)
-        hbox_layout.addLayout(vbox_layout)
-
-        # Add final stretches
-        hbox_layout.addStretch(1)
-        # No stretch needed since we want the grid to expand
-
-        
-
     def _save_recovery_plan(self):
         # Open a Save As dialog to get the file path
-        file_path, _selected_filter = QFileDialog.getSaveFileName(
-            self.download_dialog,
-            _("Save Recovery Plan PDF..."),
-            "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
-            _("PDF files (*.pdf)")
-        )
+        # file_path, _selected_filter = QFileDialog.getSaveFileName(
+        #     self.download_dialog,
+        #     _("Save Recovery Plan PDF..."),
+        #     "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
+        #     _("PDF files (*.pdf)")
+        # )
+        file_path = f"/Users/oren/Downloads/timelock-recovery-plan-{self.recovery_plan_id}.pdf"
         if not file_path:
             return
         # Create PDF printer
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer = QPrinter()
+        printer.setResolution(600)
+        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(file_path)
-        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        printer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Point)
 
         # Create painter
         painter = QPainter()
         if not painter.begin(printer):
             return
 
+        pixels_per_point = printer.resolution() / 72.0
+
         # Set up fonts
         header_font = QFont("DejaVu Sans Mono", 9)
+        header_line_spacing = QFontMetrics(header_font).lineSpacing() * pixels_per_point
         title_font = QFont("DejaVu Sans Mono", 18, QFont.Weight.Bold)
+        title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
         subtitle_font = QFont("DejaVu Sans Mono", 10)
+        subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
         body_font = QFont("DejaVu Sans Mono", 10)
         step_font = QFont("DejaVu Sans Mono", 16, QFont.Weight.Bold)
 
         # Get page dimensions
-        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
         page_width = page_rect.width()
         page_height = page_rect.height()
 
-        current_height = 30
+        current_height = 0
         page_number = 1
 
         # Header
         painter.setFont(header_font)
         header_text = f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
-        painter.drawText(QRectF(0, current_height, page_width, 20), Qt.AlignmentFlag.AlignCenter, header_text)
-        current_height += 40
+        painter.drawText(QRectF(0, 0, page_width, header_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, header_text)
+        current_height += header_line_spacing + 40
 
         # Title
         painter.setFont(title_font)
-        painter.drawText(QRectF(0, current_height, page_width, 30), Qt.AlignmentFlag.AlignCenter, "Timelock-Recovery Guide")
-        current_height += 30
+        painter.drawText(QRectF(0, current_height, page_width, title_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, "Timelock-Recovery Guide")
+        current_height += title_line_spacing + 20
+
+        # Get Electrum version
 
         # Subtitle
         painter.setFont(subtitle_font)
-        painter.drawText(QRectF(0, current_height, page_width, 20), Qt.AlignmentFlag.AlignCenter, "v1.0")
-        current_height += 40
-
-        # Main content
-        painter.setFont(body_font)
-        intro_text = (
-            f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
-            f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
-            f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
-            f"{', '.join([
-                f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
-                for output in self.recovery_tx.outputs()
-            ])}\n\n"
-            "Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE WALLET OF THIS ADDRESS. "
-            "The simplest way to do so is to send a small amount to the address, and then trying "
-            "to send all funds from that wallet to a different wallet. Also important: make sure that the "
-            "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
-            "the funds the moment they reach their destination.\n\n"
-            "For more information, visit: https://timelockrecovery.com\n"
+        painter.drawText(
+            QRectF(0, current_height, page_width, subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
+            f"Electrum Version: {version.ELECTRUM_VERSION}, Plugin Version: {self.VERSION}"
         )
-
-        # Draw wrapped text
-        metrics = QFontMetrics(body_font)
-        line_spacing = metrics.lineSpacing()
-        max_width = page_width - 40  # Margins
-        words = intro_text.split()
-        current_line = ""
-        x = 20  # Left margin
-
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            width = metrics.horizontalAdvance(test_line)
-
-            if width <= max_width:
-                current_line = test_line
-            else:
-                painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
-                current_height += line_spacing
-                current_line = word
-
-        if current_line:
-            painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
-            current_height += line_spacing * 2
-
-        # Step 1
-        painter.setFont(step_font)
-        painter.drawText(QRectF(20, current_height, page_width-40, 30), Qt.AlignmentFlag.AlignLeft, "Step 1 - Broadcasting the Alert transaction")
-        current_height += 40
-
-        # Add QR code for alert transaction
-        qr = qrcode.QRCode()
-        qr.add_data(self.alert_tx.serialize())
-        qr_image = self.paintQR(qr)
-
-        target = QRectF((page_width-300)/2, current_height, 300, 300)
-        painter.drawImage(target, qr_image)
-        current_height += 320
-
-        # Add raw transaction text
-        painter.setFont(body_font)
-        painter.drawText(QRectF(20, current_height, page_width-40, 60), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
-                        f"Alert Transaction ID: {self.alert_tx.txid()}\n{self.alert_tx.serialize()}")
+        current_height += subtitle_line_spacing + 40
 
         painter.end()
+        import pdb; pdb.set_trace()
+
+
+        # # Main content
+        # painter.setFont(body_font)
+        # intro_text = (
+        #     f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
+        #     f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
+        #     f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
+        #     f"{', '.join([
+        #         f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
+        #         for output in self.recovery_tx.outputs()
+        #     ])}\n\n"
+        #     "Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE WALLET OF THIS ADDRESS. "
+        #     "The simplest way to do so is to send a small amount to the address, and then trying "
+        #     "to send all funds from that wallet to a different wallet. Also important: make sure that the "
+        #     "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
+        #     "the funds the moment they reach their destination.\n\n"
+        #     "For more information, visit: https://timelockrecovery.com\n"
+        # )
+
+        # # Draw wrapped text
+        # metrics = QFontMetrics(body_font)
+        # line_spacing = metrics.lineSpacing()
+        # max_width = page_width - 40  # Margins
+        # words = intro_text.split()
+        # current_line = ""
+        # x = 20  # Left margin
+
+        # for word in words:
+        #     test_line = current_line + " " + word if current_line else word
+        #     width = metrics.horizontalAdvance(test_line)
+
+        #     if width <= max_width:
+        #         current_line = test_line
+        #     else:
+        #         painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
+        #         current_height += line_spacing
+        #         current_line = word
+
+        # if current_line:
+        #     painter.drawText(QRectF(x, current_height, max_width, line_spacing), Qt.AlignmentFlag.AlignLeft, current_line)
+        #     current_height += line_spacing * 2
+
+        # # Step 1
+        # painter.setFont(step_font)
+        # painter.drawText(QRectF(20, current_height, page_width-40, 30), Qt.AlignmentFlag.AlignLeft, "Step 1 - Broadcasting the Alert transaction")
+        # current_height += 40
+
+        # # Add QR code for alert transaction
+        # qr = qrcode.QRCode()
+        # qr.add_data(self.alert_tx.serialize())
+        # qr_image = self.paintQR(qr)
+
+        # target = QRectF((page_width-300)/2, current_height, 300, 300)
+        # painter.drawImage(target, qr_image)
+        # current_height += 320
+
+        # # Add raw transaction text
+        # painter.setFont(body_font)
+        # painter.drawText(QRectF(20, current_height, page_width-40, 60), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, 
+        #                 f"Alert Transaction ID: {self.alert_tx.txid()}\n{self.alert_tx.serialize()}")
+
 
     def paintQR(self, qr):
         if not qr:
