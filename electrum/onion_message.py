@@ -758,5 +758,7 @@ class OnionMessageManager(Logger):
 
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
-        else:
+        elif self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
             self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
+        else:
+            self.logger.info('onion_message dropped')

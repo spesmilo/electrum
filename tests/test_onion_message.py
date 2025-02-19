@@ -8,6 +8,7 @@ import logging
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
+from electrum import SimpleConfig
 from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket,
@@ -16,15 +17,17 @@ from electrum.lnonion import (
     HOPS_DATA_SIZE, InvalidPayloadSize)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.lnutil import LnFeatures, Keypair
-from electrum.onion_message import blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data, \
+from electrum.onion_message import (
+    blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data,
     OnionMessageManager, NoRouteFound, Timeout
+)
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase, test_lnpeer
 from .test_lnpeer import PutIntoOthersQueueTransport, PeerInTests, keypair
 
-TIME_STEP = 0.01 # run tests 100 x faster
+TIME_STEP = 0.01  # run tests 100 x faster
 OnionMessageManager.SLEEP_DELAY *= TIME_STEP
 OnionMessageManager.REQUEST_REPLY_TIMEOUT *= TIME_STEP
 OnionMessageManager.REQUEST_REPLY_RETRY_DELAY *= TIME_STEP
@@ -263,6 +266,8 @@ class MockNetwork:
     def __init__(self):
         self.asyncio_loop = get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
+        self.config = SimpleConfig()
+        self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
 
 
 class MockWallet:
