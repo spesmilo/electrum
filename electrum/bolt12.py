@@ -26,12 +26,15 @@
 import copy
 import io
 import os
+from decimal import Decimal
 
 from typing import Union, Optional, List, Tuple
 
 import electrum_ecc as ecc
 
 from . import constants
+from .bitcoin import COIN
+from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
 from .onion_message import Timeout
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits
@@ -113,6 +116,34 @@ def encode_invoice(data: dict, signing_key: bytes) -> bytes:
     with io.BytesIO() as fd:
         OnionWireSerializer.write_tlv_stream(fd=fd, tlv_stream_name='invoice', signing_key=signing_key, **data)
         return fd.getvalue()
+
+
+def to_lnaddr(data: dict) -> LnAddr:
+    # FIXME: abusing BOLT11 oriented LnAddr for BOLT12 fields
+    net = constants.net
+    addr = LnAddr()
+
+    pubkey = data.get('invoice_node_id').get('node_id')
+
+    class WrappedBytesKey:
+        serialize = lambda: pubkey
+    addr.pubkey = WrappedBytesKey
+    addr.net = net
+    addr.date = data.get('invoice_created_at').get('timestamp')
+    addr.paymenthash = data.get('invoice_payment_hash').get('payment_hash')
+    addr.payment_secret = b'\x00' * 32  # Note: payment secret is not needed, recipient can use path_id in encrypted_recipient_data
+    msat = data.get('invoice_amount', {}).get('msat', None)
+    if msat is not None:
+        addr.amount = Decimal(msat) / COIN / 1000
+    fallbacks = data.get('invoice_fallbacks', [])
+    fallbacks = list(filter(lambda x: x['version'] <= 16 and 2 <= len(x['address'] <= 40), fallbacks))
+    if fallbacks:
+        addr.tags['f'] = fallbacks[0]
+    exp = data.get('invoice_relative_expiry', {}).get('seconds_from_creation', 0)
+    if exp:
+        addr.tags['x'] = int(exp)
+
+    return addr
 
 
 async def request_invoice(
