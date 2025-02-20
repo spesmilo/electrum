@@ -35,8 +35,8 @@ from .lnrouter import RouteEdge
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
                       OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
-                      OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
+                      OnionFailureCodeMetaFlag, calc_hops_data_for_blinded_payment)
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -1964,6 +1964,7 @@ class Peer(Logger, EventListener):
             min_final_cltv_delta: int,
             payment_secret: bytes,
             trampoline_onion: Optional[OnionPacket] = None,
+            bolt12_invoice: Optional[dict] = None,
         ) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1977,7 +1978,8 @@ class Peer(Logger, EventListener):
             payment_hash=payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=payment_secret,
-            trampoline_onion=trampoline_onion
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=bolt12_invoice,
         )
         htlc = self.send_htlc(
             chan=chan,
