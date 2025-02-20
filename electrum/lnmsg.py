@@ -27,6 +27,7 @@ class UnknownMandatoryTLVRecordType(MalformedMsg): pass
 class MsgTrailingGarbage(MalformedMsg): pass
 class MsgInvalidFieldOrder(MalformedMsg): pass
 class UnexpectedFieldSizeForEncoder(MalformedMsg): pass
+class MsgInvalidSignature(MalformedMsg): pass
 
 
 def _num_remaining_bytes_to_read(fd: io.BytesIO) -> int:
@@ -653,7 +654,7 @@ class LNSerializer:
                     assert isinstance(signing_key, bytes)
                     correct = ecc.ECPubkey(signing_key).schnorr_verify(signature, tagh)
                     if not correct:
-                        raise Exception('invalid signature')
+                        raise MsgInvalidSignature(f"invalid signature in {'.'.join(signing_key_path)}")
                 else:
                     sign_over_tlvs.append((tlv_record_type, rawbytes))
             parsed[tlv_record_name] = {}
