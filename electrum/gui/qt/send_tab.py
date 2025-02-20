@@ -719,7 +719,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not self.question(msg):
             return
         self.save_pending_invoice()
-        coro = lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
+        coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
         self.window.run_coroutine_from_thread(coro, _('Sending payment'))
 
     def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):

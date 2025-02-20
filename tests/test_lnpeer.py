@@ -41,7 +41,7 @@ from electrum.lnworker import PaymentInfo, RECEIVED
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure
 from electrum.lnutil import UpdateAddHtlc
 from electrum.lnutil import LOCAL, REMOTE
-from electrum.invoices import PR_PAID, PR_UNPAID
+from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates
@@ -291,7 +291,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     get_preimage = LNWallet.get_preimage
     create_route_for_single_htlc = LNWallet.create_route_for_single_htlc
     create_routes_for_payment = LNWallet.create_routes_for_payment
-    _check_invoice = LNWallet._check_invoice
+    _check_bolt11_invoice = LNWallet._check_bolt11_invoice
     pay_to_route = LNWallet.pay_to_route
     pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice
@@ -536,7 +536,7 @@ class TestPeer(ElectrumTestCase):
             payment_hash: bytes = None,
             invoice_features: LnFeatures = None,
             min_final_cltv_delta: int = None,
-    ) -> Tuple[LnAddr, str]:
+    ) -> Tuple[LnAddr, Invoice]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
             payment_preimage = os.urandom(32)
@@ -571,7 +571,7 @@ class TestPeer(ElectrumTestCase):
         )
         invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
         lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
-        return lnaddr2, invoice
+        return lnaddr2, Invoice.from_bech32(invoice)
 
     async def _activate_trampoline(self, w: MockLNWallet):
         if w.network.channel_db:
@@ -1349,7 +1349,7 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         lnaddr, pay_req = self.prepare_invoice(w2)
 
-        lnaddr = w1._check_invoice(pay_req)
+        lnaddr = w1._check_bolt11_invoice(pay_req.lightning_invoice)
         shi = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0]
         route, amount_msat = shi.route, shi.amount_msat
         assert amount_msat == lnaddr.get_amount_msat()
