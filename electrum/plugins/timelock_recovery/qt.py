@@ -12,6 +12,8 @@ file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
 import uuid
+import json
+import hashlib
 from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
@@ -508,7 +510,7 @@ class Plugin(TimelockRecoveryPlugin):
     def create_download_dialog(self, window):
         print(pickle.dumps((self.alert_address, self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name)).hex())
         self.recovery_plan_id = str(uuid.uuid4())
-        self.recovery_plan_created_at = datetime.now()
+        self.recovery_plan_created_at = datetime.now().astimezone()
         self.download_dialog = WindowModalDialog(window, "Timelock Recovery - Download")
         self.download_dialog.setContentsMargins(11, 11, 1, 1)
         self.download_dialog.resize(800, self.download_dialog.height())
@@ -543,7 +545,7 @@ class Plugin(TimelockRecoveryPlugin):
             _("Created At"),
             _("Date and time when this recovery plan was created"),
         ), 1, 0)
-        grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S")), line_number, 1, 1, 4)
+        grid.addWidget(selectable_label(self.recovery_plan_created_at.strftime("%Y-%m-%d %H:%M:%S %Z (%z)")), line_number, 1, 1, 4)
         line_number += 1
 
         grid.addWidget(HelpLabel(
@@ -571,9 +573,12 @@ class Plugin(TimelockRecoveryPlugin):
         # Create buttons
         # Save Recovery Plan button row
         save_recovery_hbox = QHBoxLayout()
-        save_recovery_button = QPushButton(_("Save Recovery Plan PDF..."), self.download_dialog)
-        save_recovery_button.clicked.connect(self._save_recovery_plan_pdf)
-        save_recovery_hbox.addWidget(save_recovery_button)
+        save_recovery_pdf_button = QPushButton(_("Save Recovery Plan PDF..."), self.download_dialog)
+        save_recovery_pdf_button.clicked.connect(lambda: self._save_recovery_plan_pdf(window))
+        save_recovery_hbox.addWidget(save_recovery_pdf_button)
+        save_recovery_json_button = QPushButton(_("Save Recovery Plan JSON..."), self.download_dialog)
+        save_recovery_json_button.clicked.connect(lambda: self._save_recovery_plan_json(window))
+        save_recovery_hbox.addWidget(save_recovery_json_button)
         save_recovery_hbox.addStretch(1)
         grid.addLayout(save_recovery_hbox, line_number, 0, 1, 5)
         line_number += 1
@@ -603,382 +608,422 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(self.download_dialog.exec())
 
-    def _save_recovery_plan_pdf(self):
-        # Open a Save As dialog to get the file path
-        file_path, _selected_filter = QFileDialog.getSaveFileName(
-            self.download_dialog,
-            _("Save Recovery Plan PDF..."),
-            "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
-            _("PDF files (*.pdf)")
-        )
-        if not file_path:
-            return
-        # Create PDF printer
-        printer = QPrinter()
-        printer.setResolution(600)
-        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printer.setOutputFileName(file_path)
-        printer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Point)
+    def _save_recovery_plan_json(self, window):
+        try:
+            # Open a Save As dialog to get the file path
+            file_path, _selected_filter = QFileDialog.getSaveFileName(
+                self.download_dialog,
+                _("Save Recovery Plan JSON..."),
+                "timelock-recovery-plan-{}.json".format(self.recovery_plan_id),
+                _("JSON files (*.json)")
+            )
+            if not file_path:
+                return
+            with open(file_path, "w") as f:
+                json_data = {
+                    "kind": "timelock-recovery-plan",
+                    "id": self.recovery_plan_id,
+                    "created_at": self.recovery_plan_created_at.isoformat(),
+                    "plugin_version": self.VERSION,
+                    "wallet_kind": "electrum",
+                    "wallet_version": version.ELECTRUM_VERSION,
+                    "wallet_name": self.wallet_name,
+                    "timelock_days": self.timelock_days,
+                    "alert_address": self.alert_address,
+                    "alert_tx": self.alert_tx.serialize(),
+                    "alert_txid": self.alert_tx.txid(),
+                    "recovery_tx": self.recovery_tx.serialize(),
+                    "recovery_txid": self.recovery_tx.txid(),
+                }
+                # Simple checksum to ensure the file is not corrupted by foolish users
+                json_data["checksum"] = hashlib.sha256(json.dumps(sorted(json_data.items()), separators=(',', ':')).encode()).hexdigest()
+                json.dump(json_data, f, indent=2)
+            window.parent().show_message(_("File saved successfully"))
+        except Exception as e:
+            self.logger.exception(repr(e))
+            window.parent().show_error(_("Error saving file"))
 
-        # Create painter
-        painter = QPainter()
-        if not painter.begin(printer):
-            return
+    def _save_recovery_plan_pdf(self, window):
+        try:
+            # Open a Save As dialog to get the file path
+            file_path, _selected_filter = QFileDialog.getSaveFileName(
+                self.download_dialog,
+                _("Save Recovery Plan PDF..."),
+                "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
+                _("PDF files (*.pdf)")
+            )
+            if not file_path:
+                return
+            # Create PDF printer
+            printer = QPrinter()
+            printer.setResolution(600)
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path)
+            printer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Point)
 
-        pixels_per_point = printer.resolution() / 72.0
+            # Create painter
+            painter = QPainter()
+            if not painter.begin(printer):
+                return
 
-        # Set up fonts
-        header_font = QFont("PT Mono", 9)
-        header_line_spacing = QFontMetrics(header_font).lineSpacing() * pixels_per_point
-        title_font = QFont("PT Mono", 18, QFont.Weight.Bold)
-        title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
-        subtitle_font = QFont("PT Mono", 10)
-        subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
-        body_font = QFont("PT Mono", 10)
-        body_small_font = QFont("PT Mono", 8)
-        body_small_line_spacing = QFontMetrics(body_small_font).lineSpacing() * pixels_per_point
-        step_font = QFont("PT Mono", 16, QFont.Weight.Bold)
-        step_line_spacing = QFontMetrics(step_font).height() * pixels_per_point
+            pixels_per_point = printer.resolution() / 72.0
 
-        # Get page dimensions
-        page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
-        page_width = page_rect.width()
-        page_height = page_rect.height()
+            # Set up fonts
+            header_font = QFont("PT Mono", 8)
+            header_line_spacing = QFontMetrics(header_font).lineSpacing() * pixels_per_point
+            title_font = QFont("PT Mono", 18, QFont.Weight.Bold)
+            title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
+            subtitle_font = QFont("PT Mono", 10)
+            subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
+            body_font = QFont("PT Mono", 9)
+            body_small_font = QFont("PT Mono", 8)
+            body_small_line_spacing = QFontMetrics(body_small_font).lineSpacing() * pixels_per_point
+            title_small_font = QFont("PT Mono", 16, QFont.Weight.Bold)
+            title_small_line_spacing = QFontMetrics(title_small_font).height() * pixels_per_point
 
-        current_height = 0
-        page_number = 1
+            # Get page dimensions
+            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+            page_width = page_rect.width()
+            page_height = page_rect.height()
 
-        # Header
-        painter.setFont(header_font)
-        painter.drawText(
-            QRectF(0, 0, page_width, header_line_spacing + 20),
-            Qt.AlignmentFlag.AlignHCenter,
-            f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}",
-        )
-        current_height += header_line_spacing + 40
+            current_height = 0
+            page_number = 1
 
-        # Add logo image
-        logo_pixmap = read_QPixmap_from_bytes(self.large_logo_bytes)
-        logo_size = int(page_width / 10)
-        scaled_logo = logo_pixmap.scaled(
-            logo_size,
-            logo_size,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
+            # Header
+            painter.setFont(header_font)
+            painter.drawText(
+                QRectF(0, 0, page_width, header_line_spacing + 20),
+                Qt.AlignmentFlag.AlignHCenter,
+                f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}",
+            )
+            current_height += header_line_spacing + 40
 
-        # Center the logo horizontally and draw at current_height
-        logo_x = (page_width - scaled_logo.width()) / 2
-        painter.drawPixmap(int(logo_x), int(current_height), scaled_logo)
-        current_height += scaled_logo.height() + 40  # Add padding below logo
+            # Add logo image
+            logo_pixmap = read_QPixmap_from_bytes(self.large_logo_bytes)
+            logo_size = int(page_width / 10)
+            scaled_logo = logo_pixmap.scaled(
+                logo_size,
+                logo_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
 
-        # Title
-        painter.setFont(title_font)
-        painter.drawText(QRectF(0, current_height, page_width, title_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, "Timelock-Recovery Guide")
-        current_height += title_line_spacing + 20
+            # Center the logo horizontally and draw at current_height
+            logo_x = (page_width - scaled_logo.width()) / 2
+            painter.drawPixmap(int(logo_x), int(current_height), scaled_logo)
+            current_height += scaled_logo.height() + 40  # Add padding below logo
 
-        # Get Electrum version
+            # Title
+            painter.setFont(title_font)
+            painter.drawText(QRectF(0, current_height, page_width, title_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, "Timelock-Recovery Guide")
+            current_height += title_line_spacing + 20
 
-        # Subtitle
-        painter.setFont(subtitle_font)
-        painter.drawText(
-            QRectF(0, current_height, page_width, subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
-            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.VERSION}"
-        )
-        current_height += subtitle_line_spacing + 60
+            # Get Electrum version
 
-        # Main content
-        recovery_tx_outputs = self.recovery_tx.outputs()
-        painter.setFont(body_font)
-        intro_text = (
-            f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
-            f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
-            f"to the following {"address" if len(recovery_tx_outputs) == 1 else "addresses"}:\n\n"
-            f"{', '.join([
-                f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
-                for output in recovery_tx_outputs
-            ])}\n\n"
-            f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {"WALLET OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "WALLETS OF THESE ADDRESSES"}, "
-            f"OR TRUST THE {"OWNER OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "OWNERS OF THESE ADDRESSES"}. "
-            "The simplest way to do so is to send a small amount to the address, and then trying "
-            "to send all funds from that wallet to a different wallet. Also important: make sure that the "
-            "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
-            "the funds the moment they reach their destination.\n\n"
-            "For more information, visit: https://timelockrecovery.com\n"
-        )
+            # Subtitle
+            painter.setFont(subtitle_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
+                f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.VERSION}"
+            )
+            current_height += subtitle_line_spacing + 60
 
-        drawn_rect = painter.drawText(
-            QRectF(0, current_height, page_width, page_height - current_height),
-            Qt.TextFlag.TextWordWrap,
-            intro_text,
-        )
-        current_height += drawn_rect.height() + 20
+            # Main content
+            recovery_tx_outputs = self.recovery_tx.outputs()
+            painter.setFont(body_font)
+            intro_text = (
+                f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
+                f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
+                f"to the following {"address" if len(recovery_tx_outputs) == 1 else "addresses"}:\n\n"
+                f"{', '.join([
+                    f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
+                    for output in recovery_tx_outputs
+                ])}\n\n"
+                f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {"WALLET OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "WALLETS OF THESE ADDRESSES"}, "
+                f"OR TRUST THE {"OWNER OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "OWNERS OF THESE ADDRESSES"}. "
+                "The simplest way to do so is to send a small amount to the address, and then trying "
+                "to send all funds from that wallet to a different wallet. Also important: make sure that the "
+                "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
+                "the funds the moment they reach their destination.\n\n"
+                "For more information, visit: https://timelockrecovery.com\n"
+            )
 
+            drawn_rect = painter.drawText(
+                QRectF(0, current_height, page_width, page_height - current_height),
+                Qt.TextFlag.TextWordWrap,
+                intro_text,
+            )
+            current_height += drawn_rect.height() + 20
 
-        # Step 1
-        painter.setFont(step_font)
-        painter.drawText(
-            QRectF(0, current_height, page_width, step_line_spacing + 20),Qt.AlignmentFlag.AlignLeft,
-            "Step 1 - Broadcasting the Alert transaction",
-        )
-        current_height += step_line_spacing + 20
+            # Step 1
+            painter.setFont(title_small_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, title_small_line_spacing + 20),Qt.AlignmentFlag.AlignLeft,
+                "Step 1 - Broadcasting the Alert transaction",
+            )
+            current_height += title_small_line_spacing + 20
 
-        painter.setFont(body_font)
-        # Calculate number of anchors
-        num_anchors = len(self.alert_tx.outputs()) - 1
+            painter.setFont(body_font)
+            # Calculate number of anchors
+            num_anchors = len(self.alert_tx.outputs()) - 1
 
-        # Split alert tx into parts if needed
-        alert_raw = self.alert_tx.serialize()
-        if len(alert_raw) < 2300:
-            alert_raw_parts = [alert_raw]
-        else:
-            alert_raw_parts = []
-            for i in range(0, len(alert_raw), 2100):
-                alert_raw_parts.append(alert_raw[i:i+2100])
+            # Split alert tx into parts if needed
+            alert_raw = self.alert_tx.serialize()
+            if len(alert_raw) < 2300:
+                alert_raw_parts = [alert_raw]
+            else:
+                alert_raw_parts = []
+                for i in range(0, len(alert_raw), 2100):
+                    alert_raw_parts.append(alert_raw[i:i+2100])
 
-        # Step 1 explanation text
-        step1_text = (
-            f"The first step is to broadcast the Alert transaction. "
-            f"This transaction will keep most funds in the same wallet {self.wallet_name}, "
-        )
+            # Step 1 explanation text
+            step1_text = (
+                f"The first step is to broadcast the Alert transaction. "
+                f"This transaction will keep most funds in the same wallet {self.wallet_name}, "
+            )
 
-        if num_anchors > 0:
+            if num_anchors > 0:
+                step1_text += (
+                    f"except for 600 sats that will be sent to "
+                    f"{'each of the following addresses' if num_anchors > 1 else 'the following address'} "
+                    f"(and can be used in case you need to accelerate the transaction via Child-Pay-For-Parent, "
+                    f"as we'll explain later):\n"
+                )
+                for output in self.alert_tx.outputs():
+                    if output.address != self.alert_address and output.value == anchor_output_amount_sats:
+                        step1_text += f"• {output.address}\n"
+            else:
+                step1_text += "except for a small fee.\n"
+
             step1_text += (
-                f"except for 600 sats that will be sent to "
-                f"{'each of the following addresses' if num_anchors > 1 else 'the following address'} "
-                f"(and can be used in case you need to accelerate the transaction via Child-Pay-For-Parent, "
-                f"as we'll explain later):\n"
+                f"\nTo broadcast the Alert transaction, "
+                f"{'scan the QR code on the next page' if len(alert_raw_parts) <= 1 else f'scan the QR codes on the next {len(alert_raw_parts)} pages, concatenate the contents of the QR codes (without spaces),'} "
+                f"and paste the content in one of the following Bitcoin block-explorer websites:\n"
+                "• https://mempool.space/tx/push\n"
+                "• https://blockstream.info/tx/push\n"
+                "• https://coinb.in/#broadcast\n\n"
+                f"You should then see a success message for broadcasting transaction-id: {self.alert_tx.txid()}"
             )
-            for output in self.alert_tx.outputs():
-                if output.address != self.alert_address and output.value == anchor_output_amount_sats:
-                    step1_text += f"• {output.address}\n"
-        else:
-            step1_text += "except for a small fee.\n"
 
-        step1_text += (
-            f"\nTo broadcast the Alert transaction, "
-            f"{'scan the QR code on the next page' if len(alert_raw_parts) <= 1 else f'scan the QR codes on the next {len(alert_raw_parts)} pages, concatenate the contents of the QR codes (without spaces),'} "
-            f"and paste the content in one of the following Bitcoin block-explorer websites:\n"
-            "• https://mempool.space/tx/push\n"
-            "• https://blockstream.info/tx/push\n" 
-            "• https://coinb.in/#broadcast\n\n"
-            f"You should then see a success message for broadcasting transaction-id: {self.alert_tx.txid()}"
-        )
+            drawn_rect = painter.drawText(
+                QRectF(0, current_height, page_width, page_height - current_height),
+                Qt.TextFlag.TextWordWrap,
+                step1_text
+            )
+            current_height += drawn_rect.height() + 20
 
-        drawn_rect = painter.drawText(
-            QRectF(0, current_height, page_width, page_height - current_height),
-            Qt.TextFlag.TextWordWrap,
-            step1_text
-        )
-        current_height += drawn_rect.height() + 20
+            # Generate QR pages for alert tx parts
+            for i, alert_part in enumerate(alert_raw_parts):
+                # Add new page
+                printer.newPage()
+                page_number += 1
+                current_height = 20
 
-        # Generate QR pages for alert tx parts
-        for i, alert_part in enumerate(alert_raw_parts):
-            # Add new page
+                # Header
+                painter.setFont(header_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, header_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+                )
+                current_height += header_line_spacing + 20
+
+                # Title
+                painter.setFont(title_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, title_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    "Alert Transaction"
+                )
+                current_height += title_line_spacing + 20
+
+                # Transaction ID
+                painter.setFont(subtitle_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, subtitle_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    f"Transaction Id: {self.alert_tx.txid()}"
+                )
+                current_height += subtitle_line_spacing + 20
+
+                # Part number if multiple parts
+                if len(alert_raw_parts) > 1:
+                    painter.setFont(subtitle_font)
+                    painter.drawText(
+                        QRectF(0, current_height, page_width, subtitle_line_spacing),
+                        Qt.AlignmentFlag.AlignCenter,
+                        f"Part {i+1} of {len(alert_raw_parts)}"
+                    )
+                    current_height += subtitle_line_spacing + 20
+
+                # QR Code
+                qr = qrcode.QRCode()
+                qr.add_data(alert_part)
+                qr.make()
+                qr_image = self._paint_qr(qr)
+
+                # Calculate QR position to center it
+                qr_width = int(page_width * 0.6)
+                qr_x = (page_width - qr_width) / 2
+                painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+                current_height += qr_width + 40
+
+                # Raw text below QR
+                painter.setFont(body_font)
+                painter.drawText(
+                    QRectF(20, current_height, page_width, page_height - current_height),
+                    Qt.TextFlag.TextWrapAnywhere,
+                    alert_part
+                )
+
             printer.newPage()
             page_number += 1
             current_height = 20
-
             # Header
             painter.setFont(header_font)
             painter.drawText(
                 QRectF(0, current_height, page_width, header_line_spacing),
                 Qt.AlignmentFlag.AlignCenter,
-                f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+                f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}"
             )
             current_height += header_line_spacing + 20
 
-            # Title
-            painter.setFont(title_font)
-            painter.drawText(
-                QRectF(0, current_height, page_width, title_line_spacing),
-                Qt.AlignmentFlag.AlignCenter,
-                "Alert Transaction"
-            )
-            current_height += title_line_spacing + 20
+            # Step 2 page
+            painter.setFont(title_small_font)
+            painter.drawText(QRectF(20, current_height, page_width, title_small_line_spacing), Qt.AlignmentFlag.AlignLeft, "Step 2 - Waiting for the Alert transaction confirmation")
+            current_height += title_small_line_spacing + 20
 
-            # Transaction ID
-            painter.setFont(subtitle_font)
-            painter.drawText(
-                QRectF(0, current_height, page_width, subtitle_line_spacing),
-                Qt.AlignmentFlag.AlignCenter,
-                f"Transaction Id: {self.alert_tx.txid()}"
-            )
+            painter.setFont(body_font)
+            painter.drawText(QRectF(20, current_height, page_width, subtitle_line_spacing), Qt.AlignmentFlag.AlignLeft, "You can follow the Alert transaction via any of the following links:")
             current_height += subtitle_line_spacing + 20
 
-            # Part number if multiple parts
-            if len(alert_raw_parts) > 1:
+            # QR codes and links for transaction tracking
+            for link in [f"https://mempool.space/tx/{self.alert_tx.txid()}", f"https://blockstream.info/tx/{self.alert_tx.txid()}"]:
+                qr = qrcode.QRCode()
+                qr.add_data(link)
+                qr.make()
+                qr_image = self._paint_qr(qr)
+
+                qr_width = int(page_width * 0.2)
+                qr_x = (page_width - qr_width) / 2
+                painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+                current_height += qr_width + 20
+
+                painter.setFont(body_small_font)
+                painter.drawText(QRectF(0, current_height, page_width, body_small_line_spacing), Qt.AlignmentFlag.AlignCenter, link)
+                current_height += body_small_line_spacing + 20
+
+            # Explanation text
+            painter.setFont(body_font)
+            explanation_text = (
+                "Please wait for a while until the transaction is marked as \"confirmed\" (number of confirmations greater than 0). "
+                "The time that takes a transaction to confirm depends on the fee that it pays, compared to the fee that other "
+                "pending transactions are willing to pay. At the time this document was created, it was hard to predict what a "
+                "reasonable fee would be today. If the transaction is not confirmed after 24 hours, you may try paying to a "
+                "Transaction Acceleration service, such as the one offered by: https://mempool.space.com ."
+            )
+            if len(self.outputs) > 0:
+                explanation_text += (
+                    f" Another solution, which may be cheaper but requires more technical skill, would be to use"
+                    f"{' one of the wallets that receive 600 sats (addresses mentioned in Step 1),' if len(self.outputs) > 1 else ' the wallet that receive 600 sats (address mentioned in Step 1),'}"
+                    " and send a high-fee transaction that includes that 600 sats UTXO (this transaction could also be from the"
+                    " wallet to itself). For more information, visit: https://timelockrecovery.com ."
+                )
+
+            drawn_rect = painter.drawText(QRectF(20, current_height, page_width, page_height - current_height), Qt.TextFlag.TextWordWrap, explanation_text)
+            current_height += drawn_rect.height() + 40
+
+            # Step 3 header
+            painter.setFont(title_small_font)
+            painter.drawText(QRectF(20, current_height, page_width, title_small_line_spacing), Qt.AlignmentFlag.AlignLeft, "Step 3 - Broadcasting the Recovery transaction")
+            current_height += title_small_line_spacing + 20
+
+            # Split recovery transaction if needed
+            recovery_raw = str(self.recovery_tx)
+            recovery_raw_parts = [recovery_raw[i:i+2100] for i in range(0, len(recovery_raw), 2100)] if len(recovery_raw) > 2300 else [recovery_raw]
+
+            # Step 3 explanation
+            painter.setFont(body_font)
+            step3_text = (
+                f"Approximately {self.timelock_days} days after the Alert transaction has been confirmed, you "
+                "will be able to broadcast the second Recovery transaction that will send the funds to the final"
+                f"{' destinations,' if len(recovery_tx_outputs) > 1 else ' destination,'} mentioned on the first page. This can be done using the same websites mentioned in Step 1, but "
+                f"this time you will need to {'scan the QR code on page ' + str(page_number + 1) if len(recovery_raw_parts) <= 1 else 'scan the QR codes on pages ' + str(page_number + 1) + '-' + str(page_number + len(recovery_raw_parts)) + ' and concatenate their content (without spaces)'}. If this transaction remains unconfirmed for a "
+                "long time, you should use the Transaction Acceleration service mentioned on Step 2, or use the "
+                "Child-Pay-For-Parent technique."
+            )
+            painter.drawText(QRectF(20, current_height, page_width, page_height - current_height), Qt.TextFlag.TextWordWrap, step3_text)
+
+            # Recovery transaction pages
+            for i, recovery_part in enumerate(recovery_raw_parts):
+                printer.newPage()
+                page_number += 1
+                current_height = 20
+
+                # Header
+                painter.setFont(header_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, header_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+                )
+                current_height += header_line_spacing + 20
+
+                # Title
+                painter.setFont(title_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, title_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    "Recovery Transaction"
+                )
+                current_height += title_line_spacing + 20
+
+                # Transaction ID
                 painter.setFont(subtitle_font)
                 painter.drawText(
                     QRectF(0, current_height, page_width, subtitle_line_spacing),
                     Qt.AlignmentFlag.AlignCenter,
-                    f"Part {i+1} of {len(alert_raw_parts)}"
+                    f"Transaction Id: {self.recovery_tx.txid()}"
                 )
                 current_height += subtitle_line_spacing + 20
 
-            # QR Code
-            qr = qrcode.QRCode()
-            qr.add_data(alert_part)
-            qr.make()
-            qr_image = self._paint_qr(qr)
+                # Part number if multiple parts
+                if len(recovery_raw_parts) > 1:
+                    painter.setFont(subtitle_font)
+                    painter.drawText(
+                        QRectF(0, current_height, page_width, subtitle_line_spacing),
+                        Qt.AlignmentFlag.AlignCenter,
+                        f"Part {i+1} of {len(recovery_raw_parts)}"
+                    )
+                    current_height += subtitle_line_spacing + 20
 
-            # Calculate QR position to center it
-            qr_width = int(page_width * 0.6)
-            qr_x = (page_width - qr_width) / 2
-            painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
-            current_height += qr_width + 40
+                # QR Code
+                qr = qrcode.QRCode()
+                qr.add_data(recovery_part)
+                qr.make()
+                qr_image = self._paint_qr(qr)
 
-            # Raw text below QR
-            painter.setFont(body_font)
-            painter.drawText(
-                QRectF(20, current_height, page_width, page_height-current_height),
-                Qt.TextFlag.TextWrapAnywhere,
-                alert_part
-            )
+                # Calculate QR position to center it
+                qr_width = int(page_width * 0.6)
+                qr_x = (page_width - qr_width) / 2
+                painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+                current_height += qr_width + 40
 
-        printer.newPage()
-        page_number += 1
-        current_height = 20
-        # Header
-        painter.setFont(header_font)
-        painter.drawText(
-            QRectF(0, current_height, page_width, header_line_spacing),
-            Qt.AlignmentFlag.AlignCenter,
-            f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
-        )
-        current_height += header_line_spacing + 20
-
-        # Step 2 page
-        painter.setFont(step_font)
-        painter.drawText(QRectF(20, current_height, page_width, step_line_spacing), Qt.AlignmentFlag.AlignLeft, "Step 2 - Waiting for the Alert transaction confirmation")
-        current_height += step_line_spacing + 20
-
-        painter.setFont(body_font)
-        painter.drawText(QRectF(20, current_height, page_width, subtitle_line_spacing), Qt.AlignmentFlag.AlignLeft, "You can follow the Alert transaction via any of the following links:")
-        current_height += subtitle_line_spacing + 20
-
-        # QR codes and links for transaction tracking
-        for link in [f"https://mempool.space/tx/{self.alert_tx.txid()}", f"https://blockstream.info/tx/{self.alert_tx.txid()}"]:
-            qr = qrcode.QRCode()
-            qr.add_data(link)
-            qr.make()
-            qr_image = self._paint_qr(qr)
-
-            qr_width = int(page_width * 0.2)
-            qr_x = (page_width - qr_width) / 2
-            painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
-            current_height += qr_width + 20
-
-            painter.setFont(body_small_font)
-            painter.drawText(QRectF(0, current_height, page_width, body_small_line_spacing), Qt.AlignmentFlag.AlignCenter, link)
-            current_height += body_small_line_spacing + 20
-
-        # Explanation text
-        painter.setFont(body_font)
-        explanation_text = (
-            "Please wait for a while until the transaction is marked as \"confirmed\" (number of confirmations greater than 0). "
-            "The time that takes a transaction to confirm depends on the fee that it pays, compared to the fee that other "
-            "pending transactions are willing to pay. At the time this document was created, it was hard to predict what a "
-            "reasonable fee would be today. If the transaction is not confirmed after 24 hours, you may try paying to a "
-            "Transaction Acceleration service, such as the one offered by: https://mempool.space.com ."
-        )
-        if len(self.outputs) > 0:
-            explanation_text += (
-                f" Another solution, which may be cheaper but requires more technical skill, would be to use"
-                f"{' one of the wallets that receive 600 sats (addresses mentioned in Step 1),' if len(self.outputs) > 1 else ' the wallet that receive 600 sats (address mentioned in Step 1),'}"
-                " and send a high-fee transaction that includes that 600 sats UTXO (this transaction could also be from the"
-                " wallet to itself). For more information, visit: https://timelockrecovery.com ."
-            )
-
-        drawn_rect = painter.drawText(QRectF(20, current_height, page_width, page_height), Qt.TextFlag.TextWordWrap, explanation_text)
-        current_height += drawn_rect.height() + 20
-
-        # Step 3 header
-        painter.setFont(step_font)
-        painter.drawText(QRectF(20, current_height, page_width, step_line_spacing), Qt.AlignmentFlag.AlignLeft, "Step 3 - Broadcasting the Recovery transaction")
-        current_height += step_line_spacing + 20
-
-        # Split recovery transaction if needed
-        recovery_raw = str(self.recovery_tx)
-        recovery_raw_parts = [recovery_raw[i:i+2100] for i in range(0, len(recovery_raw), 2100)] if len(recovery_raw) > 2300 else [recovery_raw]
-
-        # Step 3 explanation
-        painter.setFont(body_font)
-        step3_text = (
-            f"Approximately {self.timelock_days} days after the Alert transaction has been confirmed, you "
-            "will be able to broadcast the second Recovery transaction that will send the funds to the final"
-            f"{' destinations,' if len(recovery_tx_outputs) > 1 else ' destination,'} mentioned on the first page. This can be done using the same websites mentioned in Step 1, but "
-            f"this time you will need to {'scan the QR code on page ' + str(page_number + 1) if len(recovery_raw_parts) <= 1 else 'scan the QR codes on pages ' + str(page_number + 1) + '-' + str(page_number + len(recovery_raw_parts)) + ' and concatenate their content (without spaces)'}. If this transaction remains unconfirmed for a "
-            "long time, you should use the Transaction Acceleration service mentioned on Step 2, or use the "
-            "Child-Pay-For-Parent technique."
-        )
-        painter.drawText(QRectF(20, current_height, page_width, page_height), Qt.TextFlag.TextWordWrap, step3_text)
-
-        # Recovery transaction pages
-        for i, recovery_part in enumerate(recovery_raw_parts):
-            printer.newPage()
-            page_number += 1
-            current_height = 20
-
-            # Header
-            painter.setFont(header_font)
-            painter.drawText(
-                QRectF(0, current_height, page_width, header_line_spacing),
-                Qt.AlignmentFlag.AlignCenter,
-                f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
-            )
-            current_height += header_line_spacing + 20
-
-            # Title
-            painter.setFont(title_font)
-            painter.drawText(
-                QRectF(0, current_height, page_width, title_line_spacing),
-                Qt.AlignmentFlag.AlignCenter,
-                "Recovery Transaction"
-            )
-            current_height += title_line_spacing + 20
-
-            # Transaction ID
-            painter.setFont(subtitle_font)
-            painter.drawText(
-                QRectF(0, current_height, page_width, subtitle_line_spacing),
-                Qt.AlignmentFlag.AlignCenter,
-                f"Transaction Id: {self.recovery_tx.txid()}"
-            )
-            current_height += subtitle_line_spacing + 20
-
-            # Part number if multiple parts
-            if len(recovery_raw_parts) > 1:
-                painter.setFont(subtitle_font)
+                # Raw text below QR
+                painter.setFont(body_font)
                 painter.drawText(
-                    QRectF(0, current_height, page_width, subtitle_line_spacing),
-                    Qt.AlignmentFlag.AlignCenter,
-                    f"Part {i+1} of {len(recovery_raw_parts)}"
+                    QRectF(20, current_height, page_width, page_height - current_height),
+                    Qt.TextFlag.TextWrapAnywhere,
+                    recovery_part
                 )
-                current_height += subtitle_line_spacing + 20
 
-            # QR Code
-            qr = qrcode.QRCode()
-            qr.add_data(recovery_part)
-            qr.make()
-            qr_image = self._paint_qr(qr)
+            painter.end()
 
-            # Calculate QR position to center it
-            qr_width = int(page_width * 0.6)
-            qr_x = (page_width - qr_width) / 2
-            painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
-            current_height += qr_width + 40
-
-            # Raw text below QR
-            painter.setFont(body_font)
-            painter.drawText(
-                QRectF(20, current_height, page_width, page_height-current_height),
-                Qt.TextFlag.TextWrapAnywhere,
-                recovery_part
-            )
-
-        painter.end()
+            window.parent().show_message(_("File saved successfully"))
+        except Exception as e:
+            self.logger.exception(repr(e))
+            window.parent().show_error(_("Error saving file"))
 
 
     def _paint_qr(self, qr):
