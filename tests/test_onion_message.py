@@ -439,7 +439,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 'onion_message_packet': onionmsg
             })
         finally:
-            await asyncio.sleep(TIME_STEP)
+            await asyncio.sleep(2*TIME_STEP)
 
             self.logger.debug('stopping manager')
             await t.stop()
