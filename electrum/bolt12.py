@@ -27,7 +27,7 @@ import copy
 import io
 import os
 
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
 import electrum_ecc as ecc
 
@@ -115,10 +115,15 @@ def encode_invoice(data: dict, signing_key: bytes) -> bytes:
         return fd.getvalue()
 
 
-async def request_invoice(lnwallet: 'LNWallet', bolt12_offer: dict, amount_msat: int, *,
-                          note: Optional[str] = None,
-                          reply_paths: List[bytes] = None) -> dict:
-    #   - if it chooses to sends an `invoice_request`, it sends an onion message:
+async def request_invoice(
+        lnwallet: 'LNWallet',
+        bolt12_offer: dict,
+        amount_msat: int,
+        *,
+        note: Optional[str] = None,
+        reply_paths: List[bytes] = None
+) -> Tuple[dict, bytes]:
+    #   - if it chooses to send an `invoice_request`, it sends an onion message:
     #     - if `offer_paths` is set:
     #       - MUST send the onion message via any path in `offer_paths` to the final `onion_msg_hop`.`blinded_node_id` in that path
     #     - otherwise:
@@ -152,7 +157,7 @@ async def request_invoice(lnwallet: 'LNWallet', bolt12_offer: dict, amount_msat:
     })
 
     if note:
-        invreq_data['invreq_payer_note'] = {'note': note.encode('utf-8')}
+        invreq_data['invreq_payer_note'] = {'note': note}
 
     if constants.net != constants.BitcoinMainnet:
         invreq_data['invreq_chain'] = {'chain': constants.net.rev_genesis_bytes()}
@@ -164,14 +169,19 @@ async def request_invoice(lnwallet: 'LNWallet', bolt12_offer: dict, amount_msat:
 
     try:
         lnwallet.logger.info(f'requesting bolt12 invoice')
-        rcpt_data, payload = await lnwallet.onion_message_manager.submit_send(payload=req_payload, node_id_or_blinded_path=node_id)
+        rcpt_data, payload = await lnwallet.onion_message_manager.submit_send(
+            payload=req_payload, node_id_or_blinded_path=node_id
+        )
         lnwallet.logger.debug(f'{rcpt_data=} {payload=}')
+        if 'invoice_error' in payload:
+            return _raise_invoice_error(payload)
         if 'invoice' not in payload:
             raise Exception('reply is not an invoice')
         invoice_tlv = payload['invoice']['invoice']
         with io.BytesIO(invoice_tlv) as fd:
-            invoice_data = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice',
-                                                               signing_key_path=('invoice_node_id', 'node_id'))
+            invoice_data = OnionWireSerializer.read_tlv_stream(
+                fd=fd, tlv_stream_name='invoice', signing_key_path=('invoice_node_id', 'node_id')
+            )
         lnwallet.logger.info('received bolt12 invoice')
         lnwallet.logger.debug(f'invoice_data: {invoice_data!r}')
     except Timeout:
@@ -182,8 +192,10 @@ async def request_invoice(lnwallet: 'LNWallet', bolt12_offer: dict, amount_msat:
         raise
 
     # validation https://github.com/lightning/bolts/blob/master/12-offer-encoding.md
-    if any(invoice_data.get(x) is None for x in ['invoice_amount', 'invoice_created_at', 'invoice_payment_hash',
-                                                 'invoice_node_id', 'invoice_paths', 'invoice_blindedpay']):
+    if any(invoice_data.get(x) is None for x in [
+            'invoice_amount', 'invoice_created_at', 'invoice_payment_hash',
+            'invoice_node_id', 'invoice_paths', 'invoice_blindedpay'
+    ]):
         raise Exception('invalid bolt12 invoice')
     # TODO:
     # - invreq is equal checks
@@ -199,4 +211,15 @@ async def request_invoice(lnwallet: 'LNWallet', bolt12_offer: dict, amount_msat:
     # - fallback address checks
     # - MUST reject the invoice if it did not arrive via one of the paths in invreq_paths
 
-    return invoice_data
+    return invoice_data, invoice_tlv
+
+
+# wraps remote invoice_error
+class Bolt12InvoiceError(Exception): pass
+
+
+def _raise_invoice_error(payload):
+    invoice_error_tlv = payload['invoice_error']['invoice_error']
+    with io.BytesIO(invoice_error_tlv) as fd:
+        invoice_error = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice_error')
+    raise Bolt12InvoiceError(invoice_error.get('error', {}).get('msg'))
