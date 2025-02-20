@@ -1968,6 +1968,7 @@ class Peer(Logger, EventListener):
             min_final_cltv_delta: int,
             payment_secret: bytes,
             trampoline_onion: Optional[OnionPacket] = None,
+            bolt12_invoice: Optional[dict] = None,
         ) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1981,7 +1982,8 @@ class Peer(Logger, EventListener):
             payment_hash=payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=payment_secret,
-            trampoline_onion=trampoline_onion
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=bolt12_invoice,
         )
         htlc = self.send_htlc(
             chan=chan,
