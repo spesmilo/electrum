@@ -31,7 +31,7 @@ from .i18n import _
 from .json_db import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
-from . import constants, util
+from . import constants, util, bolt12
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
@@ -42,7 +42,8 @@ from .fee_policy import (
     FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
     FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET
 )
-from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
+from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice, \
+    BOLT12_INVOICE_PREFIX
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
 from .bip32 import BIP32Node
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -1524,8 +1525,11 @@ class LNWallet(LNWorker):
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
-        bolt11 = invoice.lightning_invoice
-        lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
+        if bolt12_invoice_tlv := invoice.bolt12_invoice_tlv():
+            bolt12_invoice = bolt12.decode_invoice(bolt12_invoice_tlv)
+            lnaddr = self._check_bolt12_invoice(bolt12_invoice, amount_msat=amount_msat)
+        elif bolt11 := invoice.lightning_invoice:
+            lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
         min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -1904,6 +1908,33 @@ class LNWallet(LNWorker):
                 f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
         # check features
         addr.validate_and_compare_features(self.features)
+        return addr
+
+    def _check_bolt12_invoice(self, invoice: dict, *, amount_msat: int = None) -> LnAddr:
+        """Parses and validates a bolt12 invoice dict into a LnAddr.
+        Includes pre-payment checks external to the parser.
+        """
+        addr = bolt12.to_lnaddr(invoice)
+
+        # # blind copy below, unchecked
+        # if addr.is_expired():
+        #     raise InvoiceError(_("This invoice has expired"))
+        # # check amount
+        # if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices
+        #     existing_amt_msat = addr.get_amount_msat()
+        #     if existing_amt_msat and amount_msat < existing_amt_msat:
+        #         raise Exception("cannot pay lower amt than what is originally in LN invoice")
+        #     addr.amount = Decimal(amount_msat) / COIN / 1000
+        # if addr.amount is None:
+        #     raise InvoiceError(_("Missing amount"))
+        # # check cltv
+        # if addr.get_min_final_cltv_delta() > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+        #     raise InvoiceError("{}\n{}".format(
+        #         _("Invoice wants us to risk locking funds for unreasonably long."),
+        #         f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
+        # # check features
+        # addr.validate_and_compare_features(self.features)
+
         return addr
 
     def is_trampoline_peer(self, node_id: bytes) -> bool:
