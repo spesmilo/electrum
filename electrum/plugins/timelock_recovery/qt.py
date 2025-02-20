@@ -650,8 +650,11 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Header
         painter.setFont(header_font)
-        header_text = f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
-        painter.drawText(QRectF(0, 0, page_width, header_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, header_text)
+        painter.drawText(
+            QRectF(0, 0, page_width, header_line_spacing + 20),
+            Qt.AlignmentFlag.AlignHCenter,
+            f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}",
+        )
         current_height += header_line_spacing + 40
 
         # Add logo image
@@ -773,6 +776,7 @@ class Plugin(TimelockRecoveryPlugin):
         for i, alert_part in enumerate(alert_raw_parts):
             # Add new page
             printer.newPage()
+            page_number += 1
             current_height = 20
 
             # Header
@@ -780,7 +784,7 @@ class Plugin(TimelockRecoveryPlugin):
             painter.drawText(
                 QRectF(0, current_height, page_width, header_line_spacing),
                 Qt.AlignmentFlag.AlignCenter,
-                f"Recovery-Guide  Date: {datetime.now().strftime('%Y-%m-%d')}  Page: {i+2}"
+                f"Recovery-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S')}  ID: {self.recovery_plan_id}  Page: {page_number}"
             )
             current_height += header_line_spacing + 20
 
@@ -804,6 +808,7 @@ class Plugin(TimelockRecoveryPlugin):
 
             # Part number if multiple parts
             if len(alert_raw_parts) > 1:
+                painter.setFont(subtitle_font)
                 painter.drawText(
                     QRectF(0, current_height, page_width, subtitle_line_spacing),
                     Qt.AlignmentFlag.AlignCenter,
@@ -818,7 +823,7 @@ class Plugin(TimelockRecoveryPlugin):
             qr_image = self.paintQR(qr)
 
             # Calculate QR position to center it
-            qr_width = 400
+            qr_width = int(page_width * 0.6)
             qr_x = (page_width - qr_width) / 2
             painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
             current_height += qr_width + 40
@@ -827,7 +832,7 @@ class Plugin(TimelockRecoveryPlugin):
             painter.setFont(body_font)
             painter.drawText(
                 QRectF(20, current_height, page_width-40, page_height-current_height),
-                Qt.TextFlag.TextWordWrap,
+                Qt.TextFlag.TextWrapAnywhere,
                 alert_part
             )
 
