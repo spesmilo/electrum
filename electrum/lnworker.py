@@ -1009,7 +1009,7 @@ class LNWallet(LNWorker):
                 timestamp = timestamp or 0,
                 label=label,
             )
-            out[payment_hash] = item
+            out[payment_hash.hex()] = item
         for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
             item = chan.get_funding_height()
             if item is None:

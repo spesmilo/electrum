@@ -127,7 +127,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         #self._logger.debug(str(tx_item))
         item = tx_item
 
-        item['key'] = item.get('txid') or item.get('group_id') or item['payment_hash']
+        item['key'] = item.get('txid') or item['payment_hash'] or item['group_id'] # fixme: this is fragile
 
         if 'lightning' not in item:
             item['lightning'] = False
