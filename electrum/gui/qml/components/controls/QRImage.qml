@@ -15,7 +15,7 @@ Item {
 
     Rectangle {
         id: r
-        width: _qrprops.modules * _qrprops.box_size
+        width: _qrprops.qr_pixelsize
         height: width
         color: 'white'
     }
@@ -29,8 +29,8 @@ Item {
             color: 'white'
             x: (parent.width - width) / 2
             y: (parent.height - height) / 2
-            width: _qrprops.icon_modules * _qrprops.box_size
-            height: _qrprops.icon_modules * _qrprops.box_size
+            width: _qrprops.icon_pixelsize
+            height: _qrprops.icon_pixelsize
 
             Image {
                 visible: _qrprops.valid

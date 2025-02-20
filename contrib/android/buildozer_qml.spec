@@ -76,7 +76,6 @@ requirements =
     cryptography,
     pyqt6sip,
     pyqt6,
-    pillow,
     libzbar
 
 # (str) Presplash of the application

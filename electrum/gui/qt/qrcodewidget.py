@@ -3,13 +3,13 @@ from typing import Optional
 import qrcode
 import qrcode.exceptions
 
-from PyQt6.QtGui import QColor, QPen
 import PyQt6.QtGui as QtGui
-from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtCore import QRect
 from PyQt6.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
 
 from electrum.i18n import _
 from electrum.simple_config import SimpleConfig
+from electrum.gui.common_qt.util import draw_qr
 
 from .util import WindowModalDialog, WWLabel, getSaveFileName
 
@@ -34,8 +34,7 @@ class QRCodeWidget(QWidget):
         if data:
             qr = qrcode.QRCode(
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=0,
+                border=1,
             )
             try:
                 qr.add_data(data)
@@ -57,53 +56,12 @@ class QRCodeWidget(QWidget):
     def paintEvent(self, e):
         if not self.data:
             return
-
-        black = QColor(0, 0, 0, 255)
-        grey  = QColor(196, 196, 196, 255)
-        white = QColor(255, 255, 255, 255)
-        black_pen = QPen(black) if self.isEnabled() else QPen(grey)
-        black_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-
-        if not self.qr:
-            qp = QtGui.QPainter()
-            qp.begin(self)
-            qp.setBrush(white)
-            qp.setPen(white)
-            r = qp.viewport()
-            qp.drawRect(0, 0, r.width(), r.height())
-            qp.end()
-            return
-
-        matrix = self.qr.get_matrix()
-        k = len(matrix)
-        qp = QtGui.QPainter()
-        qp.begin(self)
-        r = qp.viewport()
-        framesize = min(r.width(), r.height())
-        self._framesize = framesize
-        boxsize = int(framesize/(k + 2))
-        if boxsize < self.MIN_BOXSIZE:
-            qp.drawText(0, 20, _("Cannot draw QR code")+":")
-            qp.drawText(0, 40, _("Not enough space available. Try increasing the window size."))
-            qp.end()
-            return
-        size = k*boxsize
-        left = (framesize - size)/2
-        top = (framesize - size)/2
-        # Draw white background with margin
-        qp.setBrush(white)
-        qp.setPen(white)
-        qp.drawRect(0, 0, framesize, framesize)
-        # Draw qr code
-        qp.setBrush(black if self.isEnabled() else grey)
-        qp.setPen(black_pen)
-        for r in range(k):
-            for c in range(k):
-                if matrix[r][c]:
-                    qp.drawRect(
-                        int(left+c*boxsize), int(top+r*boxsize),
-                        boxsize - 1, boxsize - 1)
-        qp.end()
+        draw_qr(
+            qr=self.qr,
+            paint_device=self,
+            is_enabled=self.isEnabled(),
+            min_boxsize=self.MIN_BOXSIZE,
+        )
 
     def grab(self) -> QtGui.QPixmap:
         """Overrides QWidget.grab to only include the QR code itself,
