@@ -68,7 +68,8 @@ class Plugin(TimelockRecoveryPlugin):
 
         self.extension = False
         self._init_qt_received = False
-        self.icon_bytes = self.read_file("timelock_recovery.png")
+        self.small_logo_bytes = self.read_file("timelock_recovery_60.png")
+        self.large_logo_bytes = self.read_file("timelock_recovery_820.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
         self.destinations = None
 
@@ -84,7 +85,7 @@ class Plugin(TimelockRecoveryPlugin):
     @hook
     def create_status_bar(self, sb):
         b = StatusBarButton(
-            read_QIcon_from_bytes(self.icon_bytes),
+            read_QIcon_from_bytes(self.small_logo_bytes),
             "Timelock Recovery "+_("Plugin"),
             partial(self.start, sb), sb.height())
         sb.addPermanentWidget(b)
@@ -115,7 +116,7 @@ class Plugin(TimelockRecoveryPlugin):
         logo_label = QLabel()
 
         # Set the logo label pixmap.
-        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
 
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -259,7 +260,7 @@ class Plugin(TimelockRecoveryPlugin):
         logo_label = QLabel()
 
         # Set the logo label pixmap.
-        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
 
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -517,7 +518,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Create the logo label
         logo_label = QLabel()
-        logo_label.setPixmap(read_QPixmap_from_bytes(self.icon_bytes))
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Create a VBox layout for the main contents
@@ -653,6 +654,21 @@ class Plugin(TimelockRecoveryPlugin):
         painter.drawText(QRectF(0, 0, page_width, header_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, header_text)
         current_height += header_line_spacing + 40
 
+        # Add logo image
+        logo_pixmap = read_QPixmap_from_bytes(self.large_logo_bytes)
+        logo_size = int(page_width / 10)
+        scaled_logo = logo_pixmap.scaled(
+            logo_size,
+            logo_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        # Center the logo horizontally and draw at current_height
+        logo_x = (page_width - scaled_logo.width()) / 2
+        painter.drawPixmap(int(logo_x), int(current_height), scaled_logo)
+        current_height += scaled_logo.height() + 40  # Add padding below logo
+
         # Title
         painter.setFont(title_font)
         painter.drawText(QRectF(0, current_height, page_width, title_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, "Timelock-Recovery Guide")
@@ -669,14 +685,15 @@ class Plugin(TimelockRecoveryPlugin):
         current_height += subtitle_line_spacing + 60
 
         # Main content
+        recovery_tx_outputs = self.recovery_tx.outputs()
         painter.setFont(body_font)
         intro_text = (
             f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
             f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
-            f"to the following {"address" if len(self.outputs) == 1 else "addresses"}:\n\n"
+            f"to the following {"address" if len(recovery_tx_outputs) == 1 else "addresses"}:\n\n"
             f"{', '.join([
                 f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
-                for output in self.recovery_tx.outputs()
+                for output in recovery_tx_outputs
             ])}\n\n"
             f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {"WALLET OF THIS ADDRESS" if len(self.outputs) == 1 else "WALLETS OF THESE ADDRESSES"}, "
             f"OR TRUST THE {"OWNER OF THIS ADDRESS" if len(self.outputs) == 1 else "OWNERS OF THESE ADDRESSES"}. "
