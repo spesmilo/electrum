@@ -273,7 +273,7 @@ def sweep_our_htlctx(
 def sweep_our_ctx(
         *, chan: 'AbstractChannel',
         ctx: Transaction,
-        actual_htlc_tx: Transaction=None, # if passed, second stage
+        actual_htlc_tx: Transaction=None, # if passed, return second stage htlcs
 ) -> Dict[str, SweepInfo]:
 
     """Handle the case where we force-close unilaterally with our latest ctx.
@@ -324,7 +324,7 @@ def sweep_our_ctx(
     txs = {}  # type: Dict[str, SweepInfo]
 
     # local anchor
-    if chan.has_anchors():
+    if actual_htlc_tx is None and chan.has_anchors():
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='local_anchor',
