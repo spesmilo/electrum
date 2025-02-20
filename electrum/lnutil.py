@@ -9,6 +9,7 @@ from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
 import sys
+import time
 
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig, ECPubkey, string_to_number
@@ -1502,6 +1503,10 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
+    def min_len(self) -> int:
+        b = int.bit_length(self)
+        return b // 8 + int(bool(b % 8))
+
     def supports(self, feature: 'LnFeatures') -> bool:
         """Returns whether given feature is enabled.
 
@@ -1626,6 +1631,56 @@ def get_ln_flag_pair_of_bit(flag_bit: int) -> int:
     else:
         return flag_bit - 1
 
+
+class GossipTimestampFilter:
+    def __init__(self, first_timestamp: int, timestamp_range: int):
+        self.first_timestamp = first_timestamp
+        self.timestamp_range = timestamp_range
+        # True once we sent them the requested gossip and only forward
+        self.only_forwarding = False
+        if first_timestamp >= int(time.time()) - 20:
+            self.only_forwarding = True
+
+    def __str__(self):
+        return (f"GossipTimestampFilter | first_timestamp={self.first_timestamp} | "
+                f"timestamp_range={self.timestamp_range}")
+
+    def in_range(self, timestamp: int) -> bool:
+        return self.first_timestamp <= timestamp < self.first_timestamp + self.timestamp_range
+
+    @classmethod
+    def from_payload(cls, payload) -> Optional['GossipTimestampFilter']:
+        try:
+            first_timestamp = payload['first_timestamp']
+            timestamp_range = payload['timestamp_range']
+        except KeyError:
+            return None
+        if first_timestamp >= 0xFFFFFFFF:
+            return None
+        return cls(first_timestamp, timestamp_range)
+
+
+class GossipForwardingMessage:
+    def __init__(self,
+                 msg: bytes,
+                 scid: Optional[ShortChannelID] = None,
+                 timestamp: Optional[int] = None,
+                 sender_node_id: Optional[bytes] = None):
+        self.scid: Optional[ShortChannelID] = scid
+        self.sender_node_id: Optional[bytes] = sender_node_id
+        self.msg = msg
+        self.timestamp = timestamp
+
+    @classmethod
+    def from_payload(cls, payload: dict) -> Optional['GossipForwardingMessage']:
+        try:
+            msg = payload['raw']
+            scid = ShortChannelID.normalize(payload.get('short_channel_id'))
+            sender_node_id = payload.get('sender_node_id')
+            timestamp = payload.get('timestamp')
+        except KeyError:
+            return None
+        return cls(msg, scid, timestamp, sender_node_id)
 
 def list_enabled_ln_feature_bits(features: int) -> tuple[int, ...]:
     """Returns a list of enabled feature bits. If both opt and req are set, only
