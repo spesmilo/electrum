@@ -607,7 +607,7 @@ class OnionMessageManager(Logger):
         # TODO: use payload to determine prefix?
         return b'electrum' + key
 
-    def _get_request_for_path_id(self, recipient_data: dict) -> Request:
+    def _get_request_for_path_id(self, recipient_data: dict) -> Optional[Request]:
         path_id = recipient_data.get('path_id', {}).get('data')
         if not path_id:
             return None
