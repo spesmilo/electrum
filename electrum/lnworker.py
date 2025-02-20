@@ -48,6 +48,8 @@ from .transaction import (
 from .crypto import (
     sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 )
+
+from .onion_message import OnionMessageManager
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid, ConnStringFormatError
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
@@ -817,6 +819,7 @@ class LNWallet(LNWorker):
 
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+        self.onion_message_manager = OnionMessageManager(self)
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -900,6 +903,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.swap_manager.start_network(network)
         self.lnrater = LNRater(self, network)
+        self.onion_message_manager.start_network(network=network)
 
         for chan in self.channels.values():
             if chan.need_to_subscribe():
@@ -929,6 +933,8 @@ class LNWallet(LNWorker):
             self.lnwatcher = None
         if self.swap_manager and self.swap_manager.network:  # may not be present in tests
             await self.swap_manager.stop()
+        if self.onion_message_manager:
+            await self.onion_message_manager.stop()
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):
         assert self.stopping_soon is True
