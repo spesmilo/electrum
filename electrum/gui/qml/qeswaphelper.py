@@ -29,8 +29,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'normal_mining_fee', 'reverse_mining_fee', 'claim_mining_fee',
-                  'min_amount', 'max_amount')
+    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'mining_fee', 'min_amount', 'max_amount')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -69,9 +68,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
         self._services = [{
             'npub': x['pubkey'],
             'percentage_fee': x['percentage_fee'],
-            'normal_mining_fee': x['normal_mining_fee'],
-            'reverse_mining_fee': x['reverse_mining_fee'],
-            'claim_mining_fee': x['claim_mining_fee'],
+            'mining_fee': x['mining_fee'],
             'min_amount': x['min_amount'],
             'max_amount': x['max_amount'],
             'timestamp': age(x['timestamp']),
@@ -378,7 +375,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                         self._logger.error(str(e))
                     except RuntimeError:
                         pass
-
                 if isinstance(transport, NostrTransport):
                     if not swap_manager.is_initialized.is_set():
                         if not transport.is_connected.is_set():
@@ -502,7 +498,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.toreceive = QEAmount(amount_sat=self._receive_amount)
         # fee breakdown
         self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-        server_miningfee = swap_manager.lockup_fee if self.isReverse else swap_manager.normal_fee
+        server_miningfee = swap_manager.mining_fee
         self.serverMiningfee = QEAmount(amount_sat=server_miningfee)
         if self.isReverse:
             self.check_valid(self._send_amount, self._receive_amount)
@@ -626,7 +622,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     return await swap_manager.reverse_swap(
                         transport,
                         lightning_amount_sat=lightning_amount,
-                        expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
+                        expected_onchain_amount_sat=onchain_amount + swap_manager.get_swap_tx_fee(),
                     )
                 try:
                     fut = asyncio.run_coroutine_threadsafe(coro(), loop)

@@ -55,8 +55,7 @@ if TYPE_CHECKING:
 
 
 
-CLAIM_FEE_SIZE = 136
-LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
+SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 
 MIN_LOCKTIME_DELTA = 60
 LOCKTIME_DELTA_REFUND = 70
@@ -130,9 +129,7 @@ def now():
 @attr.s
 class SwapFees:
     percentage = attr.ib(type=int)
-    normal_fee = attr.ib(type=int)
-    lockup_fee = attr.ib(type=int)
-    claim_fee = attr.ib(type=int)
+    mining_fee = attr.ib(type=int)
     min_amount = attr.ib(type=int)
     max_amount = attr.ib(type=int)
 
@@ -176,7 +173,7 @@ def create_claim_tx(
     """
     # FIXME the mining fee should depend on swap.is_reverse.
     #       the txs are not the same size...
-    amount_sat = txin.value_sats() - SwapManager._get_fee(size=CLAIM_FEE_SIZE, config=config)
+    amount_sat = txin.value_sats() - SwapManager._get_fee(size=SWAP_TX_SIZE, config=config)
     if amount_sat < dust_threshold():
         raise BelowDustLimit()
     txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=swap, config=config)
@@ -196,9 +193,7 @@ class SwapManager(Logger):
 
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
-        self.normal_fee = None
-        self.lockup_fee = None
-        self.claim_fee = None # part of the boltz prococol, not used by Electrum
+        self.mining_fee = None
         self.percentage = None
         self._min_amount = None
         self._max_amount = None
@@ -417,7 +412,7 @@ class SwapManager(Logger):
                         else:
                             claim_tx.add_info_from_wallet(self.wallet)
                             claim_tx_fee = claim_tx.get_fee()
-                            recommended_fee = self.get_claim_fee()
+                            recommended_fee = self.get_swap_tx_fee()
                             if claim_tx_fee * 1.1 < recommended_fee:
                                 should_bump_fee = True
                                 self.logger.info(f'claim tx fee too low {claim_tx_fee} < {recommended_fee}. we will bump the fee')
@@ -465,8 +460,8 @@ class SwapManager(Logger):
                 except TxBroadcastError:
                     self.logger.info(f'error broadcasting claim tx {txin.spent_txid}')
 
-    def get_claim_fee(self):
-        return self.get_fee(CLAIM_FEE_SIZE)
+    def get_swap_tx_fee(self):
+        return self.get_fee(SWAP_TX_SIZE)
 
     def get_fee(self, size):
         # note: 'size' is in vbytes
@@ -546,7 +541,7 @@ class SwapManager(Logger):
     ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
         if prepay:
-            prepay_amount_sat = self.get_claim_fee() * 2
+            prepay_amount_sat = self.get_swap_tx_fee() * 2
             invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
         else:
             invoice_amount_sat = lightning_amount_sat
@@ -965,15 +960,11 @@ class SwapManager(Logger):
         self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000
         self._min_amount = 20000
         self._max_amount = 10000000
-        self.normal_fee = self.get_fee(CLAIM_FEE_SIZE)
-        self.lockup_fee = self.get_fee(LOCKUP_FEE_SIZE)
-        self.claim_fee = self.get_fee(CLAIM_FEE_SIZE)
+        self.mining_fee = self.get_fee(SWAP_TX_SIZE)
 
     def update_pairs(self, pairs):
         self.logger.info(f'updating fees {pairs}')
-        self.normal_fee = pairs.normal_fee
-        self.lockup_fee = pairs.lockup_fee
-        self.claim_fee = pairs.claim_fee
+        self.mining_fee = pairs.mining_fee
         self.percentage = pairs.percentage
         self._min_amount = pairs.min_amount
         self._max_amount = pairs.max_amount
@@ -1006,13 +997,13 @@ class SwapManager(Logger):
             # see/ref:
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L948
             percentage_fee = math.ceil(percentage * x / 100)
-            base_fee = self.lockup_fee
+            base_fee = self.mining_fee
             x -= percentage_fee + base_fee
             x = math.floor(x)
             if x < dust_threshold():
                 return
         else:
-            x -= self.normal_fee
+            x -= self.mining_fee
             percentage_fee = math.ceil(x * percentage / (100 + percentage))
             x -= percentage_fee
             if not self.check_invoice_amount(x):
@@ -1034,7 +1025,7 @@ class SwapManager(Logger):
             # see/ref:
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L928
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L958
-            base_fee = self.lockup_fee
+            base_fee = self.mining_fee
             x += base_fee
             x = math.ceil(x / ((100 - percentage) / 100))
             if not self.check_invoice_amount(x):
@@ -1046,7 +1037,7 @@ class SwapManager(Logger):
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L708
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/rates/FeeProvider.ts#L90
             percentage_fee = math.ceil(percentage * x / 100)
-            x += percentage_fee + self.normal_fee
+            x += percentage_fee + self.mining_fee
         x = int(x)
         return x
 
@@ -1062,13 +1053,13 @@ class SwapManager(Logger):
                                 f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_send_amount={inverted_send_amount}")
         # second, add on-chain claim tx fee
         if is_reverse and recv_amount is not None:
-            recv_amount -= self.get_claim_fee()
+            recv_amount -= self.get_swap_tx_fee()
         return recv_amount
 
     def get_send_amount(self, recv_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
         # first, add on-chain claim tx fee
         if is_reverse and recv_amount is not None:
-            recv_amount += self.get_claim_fee()
+            recv_amount += self.get_swap_tx_fee()
         # second, add percentage fee
         send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted
@@ -1310,9 +1301,7 @@ class HttpTransport(SwapServerTransport):
         limits = response['pairs']['BTC/BTC']['limits']
         pairs = SwapFees(
             percentage = fees['percentage'],
-            normal_fee = fees['minerFees']['baseAsset']['normal'],
-            lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup'],
-            claim_fee = fees['minerFees']['baseAsset']['reverse']['claim'],
+            mining_fee = fees['minerFees']['baseAsset']['mining_fee'],
             min_amount = limits['minimal'],
             max_amount = limits['maximal'],
         )
@@ -1327,7 +1316,7 @@ class NostrTransport(SwapServerTransport):
 
     NOSTR_DM = 4
     USER_STATUS_NIP38 = 30315
-    NOSTR_EVENT_VERSION = 2
+    NOSTR_EVENT_VERSION = 3
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
 
     def __init__(self, config, sm, keypair):
@@ -1407,9 +1396,7 @@ class NostrTransport(SwapServerTransport):
     def _parse_offer(self, offer):
         return SwapFees(
             percentage = offer['percentage_fee'],
-            normal_fee = offer['normal_mining_fee'],
-            lockup_fee = offer['reverse_mining_fee'],
-            claim_fee = offer['claim_mining_fee'],
+            mining_fee = offer['mining_fee'],
             min_amount = offer['min_amount'],
             max_amount = offer['max_amount'],
         )
@@ -1420,9 +1407,7 @@ class NostrTransport(SwapServerTransport):
         assert self.sm.is_server
         offer = {
             'percentage_fee': sm.percentage,
-            'normal_mining_fee': sm.normal_fee,
-            'reverse_mining_fee': sm.lockup_fee,
-            'claim_mining_fee': sm.claim_fee,
+            'mining_fee': sm.mining_fee,
             'min_amount': sm._min_amount,
             'max_amount': sm._max_amount,
             'relays': sm.config.NOSTR_RELAYS,
@@ -1502,7 +1487,7 @@ class NostrTransport(SwapServerTransport):
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
 
     async def get_pairs(self):
-        if self.config.SWAPSERVER_NPUB is None:
+        if not self.config.SWAPSERVER_NPUB:
             return
         query = {
             "kinds": [self.USER_STATUS_NIP38],
