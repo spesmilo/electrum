@@ -247,15 +247,15 @@ def sweep_their_htlctx_justice(
         )
     index_to_sweepinfo = {}
     for output_idx in htlc_outputs_idxs:
-        prevout = htlc_tx.txid() + f':{output_idx}'
-        index_to_sweepinfo[prevout] = SweepInfo(
-            name=f'second-stage-htlc:{output_idx}',
-            csv_delay=0,
-            cltv_abs=None,
-            txin=justice_txin(output_idx),
-            txout=None
-        )
-
+        if txin := justice_txin(output_idx):
+            prevout = htlc_tx.txid() + f':{output_idx}'
+            index_to_sweepinfo[prevout] = SweepInfo(
+                name=f'second-stage-htlc:{output_idx}',
+                csv_delay=0,
+                cltv_abs=None,
+                txin=txin,
+                txout=None
+            )
     return index_to_sweepinfo
 
 
@@ -338,22 +338,23 @@ def sweep_our_ctx(
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
     if actual_htlc_tx is None and output_idxs:
         output_idx = output_idxs.pop()
-        txin = sweep_ctx_to_local(
-            ctx=ctx,
-            output_idx=output_idx,
-            witness_script=to_local_witness_script,
-            privkey=our_localdelayed_privkey.get_secret_bytes(),
-            is_revocation=False,
-            to_self_delay=to_self_delay,
-            config=chan.lnworker.config)
-        prevout = ctx.txid() + ':%d'%output_idx
-        txs[prevout] = SweepInfo(
-            name='our_ctx_to_local',
-            csv_delay=to_self_delay,
-            cltv_abs=None,
-            txin=txin,
-            txout=None,
-        )
+        if txin := sweep_ctx_to_local(
+                ctx=ctx,
+                output_idx=output_idx,
+                witness_script=to_local_witness_script,
+                privkey=our_localdelayed_privkey.get_secret_bytes(),
+                is_revocation=False,
+                to_self_delay=to_self_delay,
+                config=chan.lnworker.config,
+        ):
+            prevout = ctx.txid() + ':%d'%output_idx
+            txs[prevout] = SweepInfo(
+                name='our_ctx_to_local',
+                csv_delay=to_self_delay,
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
         chan.logger.info(f"(lnsweep) we breached. txid: {ctx.txid()}")
@@ -393,21 +394,22 @@ def sweep_our_ctx(
             address = bitcoin.script_to_p2wsh(htlctx_witness_script)
             output_idxs = actual_htlc_tx.get_output_idxs_from_address(address)
             for output_idx in output_idxs:
-                sweep_txin = sweep_htlctx_output(
-                    to_self_delay=to_self_delay,
-                    htlc_tx=actual_htlc_tx,
-                    output_idx=output_idx,
-                    htlctx_witness_script=htlctx_witness_script,
-                    privkey=our_localdelayed_privkey.get_secret_bytes(),
-                    is_revocation=False,
-                    config=chan.lnworker.config)
-                txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
-                    name=f'second-stage-htlc:{output_idx}',
-                    csv_delay=to_self_delay,
-                    cltv_abs=0,
-                    txin=sweep_txin,
-                    txout=None,
-                )
+                if sweep_txin := sweep_htlctx_output(
+                        to_self_delay=to_self_delay,
+                        htlc_tx=actual_htlc_tx,
+                        output_idx=output_idx,
+                        htlctx_witness_script=htlctx_witness_script,
+                        privkey=our_localdelayed_privkey.get_secret_bytes(),
+                        is_revocation=False,
+                        config=chan.lnworker.config
+                ):
+                    txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
+                        name=f'second-stage-htlc:{output_idx}',
+                        csv_delay=to_self_delay,
+                        cltv_abs=0,
+                        txin=sweep_txin,
+                        txout=None,
+                    )
 
     # offered HTLCs, in our ctx --> "timeout"
     # received HTLCs, in our ctx --> "success"
@@ -553,20 +555,20 @@ def sweep_their_ctx_to_remote_backup(
     if output_idxs:
         output_idx = output_idxs.pop()
         prevout = ctx.txid() + ':%d' % output_idx
-        txin = sweep_their_ctx_to_remote(
-            ctx=ctx,
-            output_idx=output_idx,
-            our_payment_privkey=our_payment_privkey,
-            config=chan.lnworker.config,
-            has_anchors=True
-        )
-        txs[prevout] = SweepInfo(
-            name='their_ctx_to_remote_backup',
-            csv_delay=csv_delay,
-            cltv_abs=None,
-            txin=txin,
-            txout=None,
-        )
+        if txin := sweep_their_ctx_to_remote(
+                ctx=ctx,
+                output_idx=output_idx,
+                our_payment_privkey=our_payment_privkey,
+                config=chan.lnworker.config,
+                has_anchors=True
+        ):
+            txs[prevout] = SweepInfo(
+                name='their_ctx_to_remote_backup',
+                csv_delay=csv_delay,
+                cltv_abs=None,
+                txin=txin,
+                txout=None,
+            )
     return txs
 
 
@@ -628,8 +630,7 @@ def sweep_their_ctx(
     # to_local is handled by lnwatcher
     if is_revocation:
         our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
-        txin = sweep_their_ctx_justice(chan, ctx, per_commitment_secret)
-        if txin:
+        if txin := sweep_their_ctx_justice(chan, ctx, per_commitment_secret):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
                 csv_delay=0,
@@ -655,20 +656,20 @@ def sweep_their_ctx(
         if output_idxs:
             output_idx = output_idxs.pop()
             prevout = ctx.txid() + ':%d' % output_idx
-            txin = sweep_their_ctx_to_remote(
-                ctx=ctx,
-                output_idx=output_idx,
-                our_payment_privkey=our_payment_privkey,
-                config=chan.lnworker.config,
-                has_anchors=chan.has_anchors()
-            )
-            txs[prevout] = SweepInfo(
-                name='their_ctx_to_remote',
-                csv_delay=csv_delay,
-                cltv_abs=None,
-                txin=txin,
-                txout=None,
-            )
+            if txin := sweep_their_ctx_to_remote(
+                    ctx=ctx,
+                    output_idx=output_idx,
+                    our_payment_privkey=our_payment_privkey,
+                    config=chan.lnworker.config,
+                    has_anchors=chan.has_anchors()
+            ):
+                txs[prevout] = SweepInfo(
+                    name='their_ctx_to_remote',
+                    csv_delay=csv_delay,
+                    cltv_abs=None,
+                    txin=txin,
+                    txout=None,
+                )
 
     # HTLCs
     our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
@@ -691,24 +692,24 @@ def sweep_their_ctx(
         cltv_abs = htlc.cltv_abs if is_received_htlc and not is_revocation else 0
         csv_delay = 1 if chan.has_anchors() else 0
         prevout = ctx.txid() + ':%d'%ctx_output_idx
-        txin = sweep_their_ctx_htlc(
-            ctx=ctx,
-            witness_script=htlc_output_witness_script,
-            preimage=preimage,
-            output_idx=ctx_output_idx,
-            privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
-            is_revocation=is_revocation,
-            cltv_abs=cltv_abs,
-            config=chan.lnworker.config,
-            has_anchors=chan.has_anchors(),
-        )
-        txs[prevout] = SweepInfo(
-            name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
-            csv_delay=csv_delay,
-            cltv_abs=cltv_abs,
-            txin=txin,
-            txout=None,
-        )
+        if txin := sweep_their_ctx_htlc(
+                ctx=ctx,
+                witness_script=htlc_output_witness_script,
+                preimage=preimage,
+                output_idx=ctx_output_idx,
+                privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
+                is_revocation=is_revocation,
+                cltv_abs=cltv_abs,
+                config=chan.lnworker.config,
+                has_anchors=chan.has_anchors(),
+        ):
+            txs[prevout] = SweepInfo(
+                name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
+                csv_delay=csv_delay,
+                cltv_abs=cltv_abs,
+                txin=txin,
+                txout=None,
+            )
     # received HTLCs, in their ctx --> "timeout"
     # offered HTLCs, in their ctx --> "success"
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
