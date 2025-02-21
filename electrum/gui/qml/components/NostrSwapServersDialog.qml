@@ -96,7 +96,7 @@ ElDialog {
                             }
                             Label {
                                 Layout.fillWidth: true
-                                text: model.percentage_fee + '%'
+                                text: model.percentage_fee + '% + ' + model.mining_fee + ' sat'
                             }
                             Label {
                                 text: qsTr('last seen')
