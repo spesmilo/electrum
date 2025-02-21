@@ -8,6 +8,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.i18n import _
+from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
 from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
@@ -235,13 +236,11 @@ class TxFeeSlider(FeeSlider):
     def update_inputs_from_tx(self, tx):
         inputs = []
         for inp in tx.inputs():
-            # addr
             # addr = self.wallet.adb.get_txin_address(txin)
             addr = inp.address
             address_str = '<address unknown>' if addr is None else addr
 
             txin_value = inp.value_sats() if inp.value_sats() else 0
-            #self.wallet.adb.get_txin_value(txin)
 
             inputs.append({
                 'address': address_str,
@@ -250,11 +249,14 @@ class TxFeeSlider(FeeSlider):
                 'is_coinbase': inp.is_coinbase_input(),
                 'is_mine': self._wallet.wallet.is_mine(addr),
                 'is_change': self._wallet.wallet.is_change(addr),
-                'prevout_txid': inp.prevout.txid.hex()
+                'prevout_txid': inp.prevout.txid.hex(),
+                'is_swap': False
             })
         self.inputs = inputs
 
     def update_outputs_from_tx(self, tx):
+        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.lnworker else None
+
         outputs = []
         for idx, o in enumerate(tx.outputs()):
             outputs.append({
@@ -263,7 +265,8 @@ class TxFeeSlider(FeeSlider):
                 'short_id': str(TxOutpoint(bytes.fromhex(tx.txid()), idx).short_name()) if tx.txid() else '',
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
-                'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str())
+                'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str()),
+                'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(o.get_ui_address_str()) or o.get_ui_address_str() == DummyAddress.SWAP
             })
         self.outputs = outputs
 
