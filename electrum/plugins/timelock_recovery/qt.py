@@ -22,9 +22,9 @@ import pickle
 
 import qrcode
 from PyQt6.QtPrintSupport import QPrinter
-from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
-from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont, QIntValidator,
-                         QColor, QDesktopServices, qRgba, QPainterPath, QPageSize, QPageLayout, QFontMetrics)
+from PyQt6.QtCore import Qt, QRectF, QMarginsF
+from PyQt6.QtGui import (QImage, QPainter, QFontDatabase, QFont, QIntValidator,
+                         QPageSize, QPageLayout, QFontMetrics)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
@@ -36,7 +36,7 @@ from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint, PartialTxInputWithFixedNsequence
 from electrum.util import make_dir, bfh
-from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, CloseButton, HelpLabel)
+from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, HelpLabel)
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
 
@@ -68,12 +68,10 @@ class Plugin(TimelockRecoveryPlugin):
         self.base_dir = os.path.join(config.electrum_path(), 'timelock_recovery')
         make_dir(self.base_dir)
 
-        self.extension = False
         self._init_qt_received = False
         self.small_logo_bytes = self.read_file("timelock_recovery_60.png")
         self.large_logo_bytes = self.read_file("timelock_recovery_820.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
-        self.destinations = None
 
     @hook
     def init_qt(self, gui: 'ElectrumGui'):
@@ -285,7 +283,6 @@ class Plugin(TimelockRecoveryPlugin):
         return bool(step1_dialog.exec())
 
     def _verify_step1_details(self):
-        self.destinations = None
         self.timelock_days = None
         try:
             timelock_days_str = self.timelock_days_widget.text()
@@ -615,7 +612,7 @@ class Plugin(TimelockRecoveryPlugin):
             file_path, _selected_filter = QFileDialog.getSaveFileName(
                 self.download_dialog,
                 _("Save Recovery Plan JSON..."),
-                "timelock-recovery-plan-{}.json".format(self.recovery_plan_id),
+                os.path.join(self.base_dir, "timelock-recovery-plan-{}.json".format(self.recovery_plan_id)),
                 _("JSON files (*.json)")
             )
             if not file_path:
@@ -650,7 +647,7 @@ class Plugin(TimelockRecoveryPlugin):
             file_path, _selected_filter = QFileDialog.getSaveFileName(
                 self.download_dialog,
                 _("Save Cancellation Plan JSON..."),
-                "timelock-cancellation-plan-{}.json".format(self.recovery_plan_id),
+                os.path.join(self.base_dir, "timelock-cancellation-plan-{}.json".format(self.recovery_plan_id)),
                 _("JSON files (*.json)")
             )
             if not file_path:
@@ -684,7 +681,7 @@ class Plugin(TimelockRecoveryPlugin):
             file_path, _selected_filter = QFileDialog.getSaveFileName(
                 self.download_dialog,
                 _("Save Recovery Plan PDF..."),
-                "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id),
+                os.path.join(self.base_dir, "timelock-recovery-plan-{}.pdf".format(self.recovery_plan_id)),
                 _("PDF files (*.pdf)")
             )
             if not file_path:
@@ -1077,7 +1074,7 @@ class Plugin(TimelockRecoveryPlugin):
             file_path, _selected_filter = QFileDialog.getSaveFileName(
                 self.download_dialog,
                 _("Save Cancellation Plan PDF..."),
-                "timelock-cancellation-plan-{}.pdf".format(self.recovery_plan_id),
+                os.path.join(self.base_dir, "timelock-cancellation-plan-{}.pdf".format(self.recovery_plan_id)),
                 _("PDF files (*.pdf)")
             )
             if not file_path:
