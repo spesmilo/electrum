@@ -891,7 +891,9 @@ class Plugin(TimelockRecoveryPlugin):
                     current_height += subtitle_line_spacing + 20
 
                 # QR Code
-                qr = qrcode.QRCode()
+                qr = qrcode.QRCode(
+                    error_correction=qrcode.constants.ERROR_CORRECT_Q,
+                )
                 qr.add_data(alert_part)
                 qr.make()
                 qr_image = self._paint_qr(qr)
@@ -933,7 +935,9 @@ class Plugin(TimelockRecoveryPlugin):
 
             # QR codes and links for transaction tracking
             for link in [f"https://mempool.space/tx/{self.alert_tx.txid()}", f"https://blockstream.info/tx/{self.alert_tx.txid()}"]:
-                qr = qrcode.QRCode()
+                qr = qrcode.QRCode(
+                    error_correction=qrcode.constants.ERROR_CORRECT_H,
+                )
                 qr.add_data(link)
                 qr.make()
                 qr_image = self._paint_qr(qr)
@@ -1032,7 +1036,9 @@ class Plugin(TimelockRecoveryPlugin):
                     current_height += subtitle_line_spacing + 20
 
                 # QR Code
-                qr = qrcode.QRCode()
+                qr = qrcode.QRCode(
+                    error_correction=qrcode.constants.ERROR_CORRECT_Q,
+                )
                 qr.add_data(recovery_part)
                 qr.make()
                 qr_image = self._paint_qr(qr)
@@ -1174,7 +1180,9 @@ class Plugin(TimelockRecoveryPlugin):
 
             # QR codes and links for transaction tracking
             for link in [f"https://mempool.space/tx/{self.alert_tx.txid()}", f"https://blockstream.info/tx/{self.alert_tx.txid()}"]:
-                qr = qrcode.QRCode()
+                qr = qrcode.QRCode(
+                    error_correction=qrcode.constants.ERROR_CORRECT_H,
+                )
                 qr.add_data(link)
                 qr.make()
                 qr_image = self._paint_qr(qr)
@@ -1256,7 +1264,9 @@ class Plugin(TimelockRecoveryPlugin):
             current_height += subtitle_line_spacing + 20
 
             # QR Code for cancellation transaction
-            qr = qrcode.QRCode()
+            qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_Q,
+            )
             qr.add_data(cancellation_raw)
             qr.make()
             qr_image = self._paint_qr(qr)
