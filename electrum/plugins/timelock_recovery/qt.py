@@ -108,11 +108,11 @@ class Plugin(TimelockRecoveryPlugin):
         return self.create_intro_dialog(window)
 
     def create_intro_dialog(self, window):
-        self.intro_dialog = WindowModalDialog(window, "Timelock Recovery")
-        self.intro_dialog.setContentsMargins(11,11,1,1)
+        intro_dialog = WindowModalDialog(window, "Timelock Recovery")
+        intro_dialog.setContentsMargins(11,11,1,1)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
-        hbox_layout = QHBoxLayout(self.intro_dialog)
+        hbox_layout = QHBoxLayout(intro_dialog)
 
         # Create the logo label.
         logo_label = QLabel()
@@ -159,13 +159,13 @@ class Plugin(TimelockRecoveryPlugin):
         self.intro_agreement_textedit.textChanged.connect(self.on_agreement_edit)
 
         # Create the buttons.
-        self.intro_next_button = QPushButton(_("Next"), self.intro_dialog)
+        self.intro_next_button = QPushButton(_("Next"), intro_dialog)
 
         # Initially disable the next button.
         self.intro_next_button.setEnabled(False)
 
         # Handle clicks on the buttons.
-        self.intro_next_button.clicked.connect(self.intro_dialog.close)
+        self.intro_next_button.clicked.connect(intro_dialog.close)
         self.intro_next_button.clicked.connect(partial(self.create_step1_dialog, window))
 
         # Populate the VBox layout.
@@ -177,7 +177,7 @@ class Plugin(TimelockRecoveryPlugin):
         hbox_layout.addStretch(1)
         vbox_layout.addStretch(1)
 
-        return bool(self.intro_dialog.exec())
+        return bool(intro_dialog.exec())
 
     def on_agreement_edit(self):
         text = self.intro_agreement_textedit.text()
