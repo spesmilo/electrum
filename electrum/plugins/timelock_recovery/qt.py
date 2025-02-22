@@ -477,8 +477,8 @@ class Plugin(TimelockRecoveryPlugin):
         if not answer:
             self.cancellation_tx = None
             return self.create_download_dialog(window)
-        cancellation_address = self.get_address_by_label(cancellation_address_label)
-        if not cancellation_address:
+        self.cancellation_address = self.get_address_by_label(cancellation_address_label)
+        if not self.cancellation_address:
             window.parent().show_error(''.join([
                 _("No more addresses in your wallet."), " ",
                 _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
@@ -487,6 +487,76 @@ class Plugin(TimelockRecoveryPlugin):
             self.cancellation_tx = None
             return self.create_download_dialog(window)
 
+        cancel_dialog = WindowModalDialog(window, "Timelock Recovery")
+        cancel_dialog.setContentsMargins(11, 11, 1, 1)
+        cancel_dialog.resize(800, cancel_dialog.height())
+
+        self.alert_address = self.get_address_by_label(alert_address_label)
+        if not self.alert_address:
+            cancel_dialog.show_error(''.join([
+                _("No more addresses in your wallet."), " ",
+                _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
+                _("If you want to create new addresses, use a deterministic wallet instead."),
+            ]))
+            cancel_dialog.close()
+            return
+
+        cancel_grid = QGridLayout()
+        cancel_grid.setSpacing(8)
+        grid_row = 0
+
+        cancel_grid.addWidget(HelpLabel(
+            _("Cancellation Address"),
+            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcasted."),
+        ), grid_row, 0)
+        cancel_grid.addWidget(selectable_label(self.cancellation_address), grid_row, 1, 1, 4)
+        grid_row += 1
+
+        fake_menu = QMenu()
+        fake_menu.addAction(_("Copy Address"), lambda: window.parent().do_copy(self.cancellation_address))
+        run_hook('receive_menu', fake_menu, [self.cancellation_address], self.wallet)
+
+        fake_menu_actions = list(fake_menu.actions())
+        menu_actions_hbox = QHBoxLayout()
+        # Add stretch at the end to prevent buttons from stretching across the hbox
+        for action in fake_menu_actions:
+            action_button = QPushButton(action.text(), cancel_dialog)
+            action_button.clicked.connect(action.triggered)
+            menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        cancel_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
+        grid_row += 1
+
+        # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
+        hbox_layout = QHBoxLayout(cancel_dialog)
+
+        # Create the logo label.
+        logo_label = QLabel()
+
+        # Set the logo label pixmap.
+        logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
+
+        # Align the logo label to the top left.
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Create a VBox layout for the main contents of the dialog.
+        vbox_layout = QVBoxLayout()
+
+        vbox_layout.addLayout(cancel_grid, stretch=1)
+
+        self.step1_next_button = QPushButton(_("Next"), cancel_dialog)
+        self.step1_next_button.clicked.connect(cancel_dialog.close)
+        self.step1_next_button.clicked.connect(partial(self.create_cancellation_fee_dialog, window))
+
+        vbox_layout.addLayout(Buttons(self.step1_next_button))
+
+        # Populate the HBox layout.
+        hbox_layout.addWidget(logo_label)
+        hbox_layout.addSpacing(16)
+        hbox_layout.addLayout(vbox_layout, stretch=1)
+
+        return bool(cancel_dialog.exec())
+
+    def create_cancellation_fee_dialog(self, window):
         prevouts = [
             (index, tx_output) for index, tx_output in enumerate(self.alert_tx.outputs())
             if tx_output.address == self.alert_address and tx_output.value != anchor_output_amount_sats
@@ -504,7 +574,7 @@ class Plugin(TimelockRecoveryPlugin):
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=[tx_input],
             outputs=[
-                PartialTxOutput(scriptpubkey=address_to_script(cancellation_address), value='!'),
+                PartialTxOutput(scriptpubkey=address_to_script(self.cancellation_address), value='!'),
             ],
             fee=fee_est,
             is_sweep=False,
@@ -698,6 +768,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "timelock_days": self.timelock_days,
                     "alert_address": self.alert_address,
                     "alert_txid": self.alert_tx.txid(),
+                    "cancellation_address": self.cancellation_address,
                     "cancellation_tx": self.cancellation_tx.serialize().upper(),
                     "cancellation_txid": self.cancellation_tx.txid(),
                 }
