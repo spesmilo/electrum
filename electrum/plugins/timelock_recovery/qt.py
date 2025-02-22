@@ -572,10 +572,10 @@ class Plugin(TimelockRecoveryPlugin):
         # Save Recovery Plan button row
         save_recovery_hbox = QHBoxLayout()
         save_recovery_pdf_button = QPushButton(_("Save Recovery Plan PDF..."), self.download_dialog)
-        save_recovery_pdf_button.clicked.connect(lambda: self._save_recovery_plan_pdf(window))
+        save_recovery_pdf_button.clicked.connect(self._save_recovery_plan_pdf)
         save_recovery_hbox.addWidget(save_recovery_pdf_button)
         save_recovery_json_button = QPushButton(_("Save Recovery Plan JSON..."), self.download_dialog)
-        save_recovery_json_button.clicked.connect(lambda: self._save_recovery_plan_json(window))
+        save_recovery_json_button.clicked.connect(self._save_recovery_plan_json)
         save_recovery_hbox.addWidget(save_recovery_json_button)
         save_recovery_hbox.addStretch(1)
         grid.addLayout(save_recovery_hbox, line_number, 0, 1, 5)
@@ -585,9 +585,9 @@ class Plugin(TimelockRecoveryPlugin):
         if self.cancellation_tx is not None:
             save_cancel_hbox = QHBoxLayout()
             save_cancel_button = QPushButton(_("Save Cancellation Plan PDF..."), self.download_dialog)
-            save_cancel_button.clicked.connect(lambda: self._save_cancellation_plan_pdf(window))
+            save_cancel_button.clicked.connect(self._save_cancellation_plan_pdf)
             save_cancellation_json_button = QPushButton(_("Save Cancellation Plan JSON..."), self.download_dialog)
-            save_cancellation_json_button.clicked.connect(lambda: self._save_cancellation_plan_json(window))
+            save_cancellation_json_button.clicked.connect(self._save_cancellation_plan_json)
             save_cancel_hbox.addWidget(save_cancel_button)
             save_cancel_hbox.addWidget(save_cancellation_json_button)
             save_cancel_hbox.addStretch(1)
@@ -609,7 +609,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(self.download_dialog.exec())
 
-    def _save_recovery_plan_json(self, window):
+    def _save_recovery_plan_json(self):
         try:
             # Open a Save As dialog to get the file path
             file_path, _selected_filter = QFileDialog.getSaveFileName(
@@ -639,12 +639,12 @@ class Plugin(TimelockRecoveryPlugin):
                 # Simple checksum to ensure the file is not corrupted by foolish users
                 json_data["checksum"] = hashlib.sha256(json.dumps(sorted(json_data.items()), separators=(',', ':')).encode()).hexdigest()
                 json.dump(json_data, f, indent=2)
-            window.parent().show_message(_("File saved successfully"))
+            self.download_dialog.show_message(_("File saved successfully"))
         except Exception as e:
             self.logger.exception(repr(e))
-            window.parent().show_error(_("Error saving file"))
+            self.download_dialog.show_error(_("Error saving file"))
 
-    def _save_cancellation_plan_json(self, window):
+    def _save_cancellation_plan_json(self):
         try:
             # Open a Save As dialog to get the file path
             file_path, _selected_filter = QFileDialog.getSaveFileName(
@@ -673,12 +673,12 @@ class Plugin(TimelockRecoveryPlugin):
                 # Simple checksum to ensure the file is not corrupted by foolish users
                 json_data["checksum"] = hashlib.sha256(json.dumps(sorted(json_data.items()), separators=(',', ':')).encode()).hexdigest()
                 json.dump(json_data, f, indent=2)
-            window.parent().show_message(_("File saved successfully"))
+            self.download_dialog.show_message(_("File saved successfully"))
         except Exception as e:
             self.logger.exception(repr(e))
-            window.parent().show_error(_("Error saving file"))
+            self.download_dialog.show_error(_("Error saving file"))
 
-    def _save_recovery_plan_pdf(self, window):
+    def _save_recovery_plan_pdf(self):
         try:
             # Open a Save As dialog to get the file path
             file_path, _selected_filter = QFileDialog.getSaveFileName(
@@ -1059,13 +1059,13 @@ class Plugin(TimelockRecoveryPlugin):
 
             painter.end()
 
-            window.parent().show_message(_("File saved successfully"))
+            self.download_dialog.show_message(_("File saved successfully"))
         except Exception as e:
             self.logger.exception(repr(e))
-            window.parent().show_error(_("Error saving file"))
+            self.download_dialog.show_error(_("Error saving file"))
 
 
-    def _save_cancellation_plan_pdf(self, window):
+    def _save_cancellation_plan_pdf(self):
         try:
             cancellation_raw = self.cancellation_tx.serialize().upper()
             if len(cancellation_raw) > 2300:
@@ -1286,10 +1286,10 @@ class Plugin(TimelockRecoveryPlugin):
 
             painter.end()
 
-            window.parent().show_message(_("File saved successfully"))
+            self.download_dialog.show_message(_("File saved successfully"))
         except Exception as e:
             self.logger.exception(repr(e))
-            window.parent().show_error(_("Error saving file"))
+            self.download_dialog.show_error(_("Error saving file"))
 
     def _paint_qr(self, qr):
         matrix = qr.get_matrix()
