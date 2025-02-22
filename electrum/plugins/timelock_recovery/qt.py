@@ -24,14 +24,14 @@ from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QMarginsF
 from PyQt6.QtGui import (QImage, QPainter, QFontDatabase, QFont, QIntValidator,
                          QPageSize, QPageLayout, QFontMetrics)
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
 from electrum import constants, version
 from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.bitcoin import COIN, address_to_script, DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
-from electrum.plugin import hook
+from electrum.plugin import hook, run_hook
 from electrum.i18n import _
 from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.util import make_dir, bfh
@@ -229,14 +229,28 @@ class Plugin(TimelockRecoveryPlugin):
 
         step1_grid = QGridLayout()
         step1_grid.setSpacing(8)
-        step1_grid.setColumnStretch(3, 1)
-        step1_grid.setRowStretch(2, 1)
+        grid_row = 0
 
         step1_grid.addWidget(HelpLabel(
             _("Alert Address"),
             _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
-        ), 0, 0)
-        step1_grid.addWidget(selectable_label(self.alert_address), 0, 1, 1, 4)
+        ), grid_row, 0)
+        step1_grid.addWidget(selectable_label(self.alert_address), grid_row, 1, 1, 4)
+        grid_row += 1
+
+        fake_menu = QMenu()
+        fake_menu.addAction(_("Copy Address"), lambda: window.parent().do_copy(self.alert_address))
+        run_hook('receive_menu', fake_menu, [self.alert_address], self.wallet)
+
+        fake_menu_actions = list(fake_menu.actions())
+        menu_actions_hbox = QHBoxLayout()
+        # Add stretch at the end to prevent buttons from stretching across the hbox
+        for action in fake_menu_actions:
+            action_button = QPushButton(action.text(), step1_dialog)
+            action_button.clicked.connect(action.triggered)
+            menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        step1_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
+        grid_row += 1
 
         self.payto_e = PayToEdit(window.parent().send_tab) # Reuse configuration from send tab
         self.payto_e.toggle_paytomany()
@@ -258,16 +272,19 @@ class Plugin(TimelockRecoveryPlugin):
                 + _("Integers weights can also be used in conjunction with '!', "
                     "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60.")
             ),
-        ), 1, 0)
-        step1_grid.addWidget(self.payto_e, 1, 1, 1, 4)
+        ), grid_row, 0)
+        step1_grid.addWidget(self.payto_e, grid_row, 1, 1, 4)
+        grid_row += 1
+
         step1_grid.addWidget(HelpLabel(
             _("Cancellation time-window (days)"),
             (
                 _("After broadcasting the Alert Transaction, you have a limited time to cancel the transaction.") + "\n"
                 + _("Value must be between {} and {} days.").format(min_locktime_days, max_locktime_days)
             )
-        ), 2, 0)
-        step1_grid.addWidget(self.timelock_days_widget, 2, 1, 1, 4)
+        ), grid_row, 0)
+        step1_grid.addWidget(self.timelock_days_widget, grid_row, 1, 1, 4)
+        grid_row += 1
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(step1_dialog)
