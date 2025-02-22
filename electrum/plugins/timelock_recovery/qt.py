@@ -191,18 +191,26 @@ class Plugin(TimelockRecoveryPlugin):
         text = self.intro_agreement_textedit.text()
         self.intro_next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == agreement_text.lower())
 
-    def get_address_by_label(self, label):
-        for addr in self.wallet.get_unused_addresses():
-            if self.wallet.get_label_for_address(addr) ==label:
+    def _get_address_by_label(self, label):
+        unused_addresses = list(self.wallet.get_unused_addresses())
+        for addr in unused_addresses:
+            if self.wallet.get_label_for_address(addr) == label:
                 return addr
-        for addr in self.wallet.get_unused_addresses():
-            if self.wallet.get_label_for_address(addr) == '':
+        for addr in unused_addresses:
+            if not self.wallet.is_address_reserved(addr) and not self.wallet.get_label_for_address(addr):
                 self.wallet.set_label(addr, label)
                 return addr
         if self.wallet.is_deterministic():
             addr = self.wallet.create_new_address(False)
             self.wallet.set_label(addr, label)
+            return addr
         return None
+
+    def get_address_by_label(self, label):
+        addr = self._get_address_by_label(label)
+        if addr:
+            self.wallet.set_reserved_state_of_address(addr, reserved=True)
+        return addr
 
     def create_step1_dialog(self, window):
         step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
