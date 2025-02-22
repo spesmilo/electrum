@@ -197,30 +197,30 @@ class Plugin(TimelockRecoveryPlugin):
         return None
 
     def create_step1_dialog(self, window):
-        self.step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
-        self.step1_dialog.setContentsMargins(11, 11, 1, 1)
-        self.step1_dialog.resize(800, self.step1_dialog.height())
+        step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
+        step1_dialog.setContentsMargins(11, 11, 1, 1)
+        step1_dialog.resize(800, step1_dialog.height())
 
         self.alert_address = self.get_address_by_label(alert_address_label)
         if not self.alert_address:
-            self.step1_dialog.show_error(''.join([
+            step1_dialog.show_error(''.join([
                 _('No more addresses in your wallet.'), ' ',
                 _('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
                 _('If you want to create new addresses, use a deterministic wallet instead.'),
             ]))
-            self.step1_dialog.close()
+            step1_dialog.close()
             return
 
-        self.step1_grid = QGridLayout()
-        self.step1_grid.setSpacing(8)
-        self.step1_grid.setColumnStretch(3, 1)
-        self.step1_grid.setRowStretch(2, 1)
+        step1_grid = QGridLayout()
+        step1_grid.setSpacing(8)
+        step1_grid.setColumnStretch(3, 1)
+        step1_grid.setRowStretch(2, 1)
 
-        self.step1_grid.addWidget(HelpLabel(
+        step1_grid.addWidget(HelpLabel(
             _("Alert Address"),
             _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
         ), 0, 0)
-        self.step1_grid.addWidget(selectable_label(self.alert_address), 0, 1, 1, 4)
+        step1_grid.addWidget(selectable_label(self.alert_address), 0, 1, 1, 4)
 
         self.payto_e = PayToEdit(window.parent().send_tab) # Reuse configuration from send tab
         self.payto_e.toggle_paytomany()
@@ -231,7 +231,7 @@ class Plugin(TimelockRecoveryPlugin):
         self.timelock_days_widget.setText(str(self.timelock_days))
         self.timelock_days_widget.textChanged.connect(self._verify_step1_details)
 
-        self.step1_grid.addWidget(HelpLabel(
+        step1_grid.addWidget(HelpLabel(
             _("Pay to"),
             (
                 _("Final recipient(s) of the funds.")
@@ -243,18 +243,18 @@ class Plugin(TimelockRecoveryPlugin):
                     "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60.")
             ),
         ), 1, 0)
-        self.step1_grid.addWidget(self.payto_e, 1, 1, 1, 4)
-        self.step1_grid.addWidget(HelpLabel(
+        step1_grid.addWidget(self.payto_e, 1, 1, 1, 4)
+        step1_grid.addWidget(HelpLabel(
             _("Cancellation time-window (days)"),
             (
                 _("After broadcasting the Alert Transaction, you have a limited time to cancel the transaction.") + "\n"
                 + _("Value must be between {} and {} days.").format(min_locktime_days, max_locktime_days)
             )
         ), 2, 0)
-        self.step1_grid.addWidget(self.timelock_days_widget, 2, 1, 1, 4)
+        step1_grid.addWidget(self.timelock_days_widget, 2, 1, 1, 4)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
-        hbox_layout = QHBoxLayout(self.step1_dialog)
+        hbox_layout = QHBoxLayout(step1_dialog)
 
         # Create the logo label.
         logo_label = QLabel()
@@ -268,10 +268,10 @@ class Plugin(TimelockRecoveryPlugin):
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
 
-        vbox_layout.addLayout(self.step1_grid, stretch=1)
+        vbox_layout.addLayout(step1_grid, stretch=1)
 
-        self.step1_next_button = QPushButton(_("Next"), self.step1_dialog)
-        self.step1_next_button.clicked.connect(self.step1_dialog.close)
+        self.step1_next_button = QPushButton(_("Next"), step1_dialog)
+        self.step1_next_button.clicked.connect(step1_dialog.close)
         self.step1_next_button.clicked.connect(partial(self.create_alert_fee_dialog, window))
         self.step1_next_button.setEnabled(False)
 
@@ -282,7 +282,7 @@ class Plugin(TimelockRecoveryPlugin):
         hbox_layout.addSpacing(16)
         hbox_layout.addLayout(vbox_layout, stretch=1)
 
-        return bool(self.step1_dialog.exec())
+        return bool(step1_dialog.exec())
 
     def _verify_step1_details(self):
         self.destinations = None
