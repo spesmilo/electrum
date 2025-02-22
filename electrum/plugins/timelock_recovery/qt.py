@@ -220,9 +220,9 @@ class Plugin(TimelockRecoveryPlugin):
         self.alert_address = self.get_address_by_label(alert_address_label)
         if not self.alert_address:
             step1_dialog.show_error(''.join([
-                _('No more addresses in your wallet.'), ' ',
-                _('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
-                _('If you want to create new addresses, use a deterministic wallet instead.'),
+                _("No more addresses in your wallet."), " ",
+                _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
+                _("If you want to create new addresses, use a deterministic wallet instead."),
             ]))
             step1_dialog.close()
             return
