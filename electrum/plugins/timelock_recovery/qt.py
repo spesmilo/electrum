@@ -185,12 +185,10 @@ class Plugin(TimelockRecoveryPlugin):
 
     def get_address_by_label(self, label):
         for addr in self.wallet.get_unused_addresses():
-            label = self.wallet.get_label_for_address(addr)
-            if label == label:
+            if self.wallet.get_label_for_address(addr) ==label:
                 return addr
         for addr in self.wallet.get_unused_addresses():
-            label = self.wallet.get_label_for_address(addr)
-            if label == '':
+            if self.wallet.get_label_for_address(addr) == '':
                 self.wallet.set_label(addr, label)
                 return addr
         if self.wallet.is_deterministic():
@@ -474,7 +472,7 @@ class Plugin(TimelockRecoveryPlugin):
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=[tx_input],
             outputs=[
-                PartialTxOutput(scriptpubkey=address_to_script(self.alert_address), value='!'),
+                PartialTxOutput(scriptpubkey=address_to_script(cancellation_address), value='!'),
             ],
             fee=fee_est,
             is_sweep=False,
@@ -587,8 +585,11 @@ class Plugin(TimelockRecoveryPlugin):
         if self.cancellation_tx is not None:
             save_cancel_hbox = QHBoxLayout()
             save_cancel_button = QPushButton(_("Save Cancellation Plan PDF..."), self.download_dialog)
-            save_cancel_button.clicked.connect(self._save_cancellation_plan)
+            save_cancel_button.clicked.connect(lambda: self._save_cancellation_plan_pdf(window))
+            save_cancellation_json_button = QPushButton(_("Save Cancellation Plan JSON..."), self.download_dialog)
+            save_cancellation_json_button.clicked.connect(lambda: self._save_cancellation_plan_json(window))
             save_cancel_hbox.addWidget(save_cancel_button)
+            save_cancel_hbox.addWidget(save_cancellation_json_button)
             save_cancel_hbox.addStretch(1)
             grid.addLayout(save_cancel_hbox, line_number, 0, 1, 5)
             line_number += 1
@@ -630,10 +631,44 @@ class Plugin(TimelockRecoveryPlugin):
                     "wallet_name": self.wallet_name,
                     "timelock_days": self.timelock_days,
                     "alert_address": self.alert_address,
-                    "alert_tx": self.alert_tx.serialize(),
+                    "alert_tx": self.alert_tx.serialize().upper(),
                     "alert_txid": self.alert_tx.txid(),
-                    "recovery_tx": self.recovery_tx.serialize(),
+                    "recovery_tx": self.recovery_tx.serialize().upper(),
                     "recovery_txid": self.recovery_tx.txid(),
+                }
+                # Simple checksum to ensure the file is not corrupted by foolish users
+                json_data["checksum"] = hashlib.sha256(json.dumps(sorted(json_data.items()), separators=(',', ':')).encode()).hexdigest()
+                json.dump(json_data, f, indent=2)
+            window.parent().show_message(_("File saved successfully"))
+        except Exception as e:
+            self.logger.exception(repr(e))
+            window.parent().show_error(_("Error saving file"))
+
+    def _save_cancellation_plan_json(self, window):
+        try:
+            # Open a Save As dialog to get the file path
+            file_path, _selected_filter = QFileDialog.getSaveFileName(
+                self.download_dialog,
+                _("Save Cancellation Plan JSON..."),
+                "timelock-cancellation-plan-{}.json".format(self.recovery_plan_id),
+                _("JSON files (*.json)")
+            )
+            if not file_path:
+                return
+            with open(file_path, "w") as f:
+                json_data = {
+                    "kind": "timelock-cancellation-plan",
+                    "id": self.recovery_plan_id,
+                    "created_at": self.recovery_plan_created_at.isoformat(),
+                    "plugin_version": self.VERSION,
+                    "wallet_kind": "electrum",
+                    "wallet_version": version.ELECTRUM_VERSION,
+                    "wallet_name": self.wallet_name,
+                    "timelock_days": self.timelock_days,
+                    "alert_address": self.alert_address,
+                    "alert_txid": self.alert_tx.txid(),
+                    "cancellation_tx": self.cancellation_tx.serialize().upper(),
+                    "cancellation_txid": self.cancellation_tx.txid(),
                 }
                 # Simple checksum to ensure the file is not corrupted by foolish users
                 json_data["checksum"] = hashlib.sha256(json.dumps(sorted(json_data.items()), separators=(',', ':')).encode()).hexdigest()
@@ -676,11 +711,11 @@ class Plugin(TimelockRecoveryPlugin):
             title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
             subtitle_font = QFont("PT Mono", 10)
             subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
+            title_small_font = QFont("PT Mono", 16, QFont.Weight.Bold)
+            title_small_line_spacing = QFontMetrics(title_small_font).height() * pixels_per_point
             body_font = QFont("PT Mono", 9)
             body_small_font = QFont("PT Mono", 8)
             body_small_line_spacing = QFontMetrics(body_small_font).lineSpacing() * pixels_per_point
-            title_small_font = QFont("PT Mono", 16, QFont.Weight.Bold)
-            title_small_line_spacing = QFontMetrics(title_small_font).height() * pixels_per_point
 
             # Get page dimensions
             page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
@@ -718,8 +753,6 @@ class Plugin(TimelockRecoveryPlugin):
             painter.setFont(title_font)
             painter.drawText(QRectF(0, current_height, page_width, title_line_spacing + 20), Qt.AlignmentFlag.AlignHCenter, "Timelock-Recovery Guide")
             current_height += title_line_spacing + 20
-
-            # Get Electrum version
 
             # Subtitle
             painter.setFont(subtitle_font)
@@ -769,7 +802,7 @@ class Plugin(TimelockRecoveryPlugin):
             num_anchors = len(self.alert_tx.outputs()) - 1
 
             # Split alert tx into parts if needed
-            alert_raw = self.alert_tx.serialize()
+            alert_raw = self.alert_tx.serialize().upper()
             if len(alert_raw) < 2300:
                 alert_raw_parts = [alert_raw]
             else:
@@ -940,7 +973,7 @@ class Plugin(TimelockRecoveryPlugin):
             current_height += title_small_line_spacing + 20
 
             # Split recovery transaction if needed
-            recovery_raw = str(self.recovery_tx)
+            recovery_raw = self.recovery_tx.serialize().upper()
             recovery_raw_parts = [recovery_raw[i:i+2100] for i in range(0, len(recovery_raw), 2100)] if len(recovery_raw) > 2300 else [recovery_raw]
 
             # Step 3 explanation
@@ -1026,9 +1059,229 @@ class Plugin(TimelockRecoveryPlugin):
             window.parent().show_error(_("Error saving file"))
 
 
+    def _save_cancellation_plan_pdf(self, window):
+        try:
+            cancellation_raw = self.cancellation_tx.serialize().upper()
+            if len(cancellation_raw) > 2300:
+                # Splitting the cancellation transaction into multiple QR codes is not implemented
+                # because it is unexpected to happen anyways.
+                raise Exception("Cancellation transaction is too large to be saved as a single QR code")
+
+            # Open a Save As dialog to get the file path
+            file_path, _selected_filter = QFileDialog.getSaveFileName(
+                self.download_dialog,
+                _("Save Cancellation Plan PDF..."),
+                "timelock-cancellation-plan-{}.pdf".format(self.recovery_plan_id),
+                _("PDF files (*.pdf)")
+            )
+            if not file_path:
+                return
+
+            printer = QPrinter()
+            printer.setResolution(600)
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path)
+            printer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Point)
+
+            # Create painter
+            painter = QPainter()
+            if not painter.begin(printer):
+                return
+
+            pixels_per_point = printer.resolution() / 72.0
+
+            # Setup fonts
+            header_font = QFont("PT Mono", 8)
+            header_line_spacing = QFontMetrics(header_font).lineSpacing() * pixels_per_point
+            title_font = QFont("PT Mono", 18, QFont.Weight.Bold)
+            title_line_spacing = QFontMetrics(title_font).height() * pixels_per_point
+            subtitle_font = QFont("PT Mono", 10)
+            subtitle_line_spacing = QFontMetrics(subtitle_font).height() * pixels_per_point
+            body_font = QFont("PT Mono", 9)
+            body_small_font = QFont("PT Mono", 8)
+            body_small_line_spacing = QFontMetrics(body_small_font).lineSpacing() * pixels_per_point
+
+            # Start painting
+            painter = QPainter()
+            painter.begin(printer)
+
+            # Get page dimensions
+            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+            page_width = page_rect.width()
+            page_height = page_rect.height()
+
+            current_height = 0
+            page_number = 1
+
+            # Header
+            painter.setFont(header_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, header_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                f"Cancellation-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+            )
+            current_height += header_line_spacing + 40
+
+            # Add logo image
+            logo_pixmap = read_QPixmap_from_bytes(self.large_logo_bytes)
+            logo_size = int(page_width / 10)
+            scaled_logo = logo_pixmap.scaled(
+                logo_size,
+                logo_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+
+            # Center the logo horizontally and draw at current_height
+            logo_x = (page_width - scaled_logo.width()) / 2
+            painter.drawPixmap(int(logo_x), int(current_height), scaled_logo)
+            current_height += scaled_logo.height() + 40  # Add padding below logo
+
+
+            # Title
+            painter.setFont(title_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, title_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                "Timelock-Recovery Cancellation Guide"
+            )
+            current_height += title_line_spacing + 20
+
+            # Subtitle
+            painter.setFont(subtitle_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
+                f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.VERSION}"
+            )
+            current_height += subtitle_line_spacing + 60
+
+            # Main text
+            painter.setFont(body_font)
+            explanation_text = (
+                f"This document is intended solely for the eyes of the owner of wallet: {self.wallet_name}. "
+                f"The Recovery Guide (the other document) will allow to transfer the funds from this wallet to "
+                f"a different wallet within {self.timelock_days} days. To prevent this from happening accidentally "
+                f"or maliciously by someone who found that document, you should periodically check if the Alert "
+                f"transaction has been broadcasted, using a Bitcoin block-explorer website such as:"
+            )
+            drawn_rect = painter.drawText(
+                QRectF(20, current_height, page_width - 40, page_height),
+                Qt.TextFlag.TextWordWrap,
+                explanation_text
+            )
+            current_height += drawn_rect.height() + 40
+
+            # QR codes and links for transaction tracking
+            for link in [f"https://mempool.space/tx/{self.alert_tx.txid()}", f"https://blockstream.info/tx/{self.alert_tx.txid()}"]:
+                qr = qrcode.QRCode()
+                qr.add_data(link)
+                qr.make()
+                qr_image = self._paint_qr(qr)
+
+                qr_width = int(page_width * 0.2)
+                qr_x = (page_width - qr_width) / 2
+                painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+                current_height += qr_width + 20
+
+                painter.setFont(body_small_font)
+                painter.drawText(
+                    QRectF(0, current_height, page_width, body_small_line_spacing),
+                    Qt.AlignmentFlag.AlignCenter,
+                    link
+                )
+                current_height += body_small_line_spacing + 20
+
+            # Watch tower text
+            painter.setFont(body_font)
+            drawn_rect = painter.drawText(
+                QRectF(20, current_height, page_width - 40, page_height - current_height),
+                Qt.TextFlag.TextWordWrap,
+                "It is also recommended to use a Watch-Tower service that will notify you immediately if the"
+                " Alert transaction has been broadcasted. For more details, visit: https://timelockrecovery.com ."
+            )
+            current_height += drawn_rect.height() + 40
+
+            # Cancellation transaction section
+            cancellation_text = (
+                "In case the Alert transaction has been broadcasted, and you want to stop the funds from "
+                "leaving this wallet, you can scan the QR code on page 2, and broadcast "
+                "the content using one of the following Bitcoin block-explorer websites:\n\n"
+                "• https://mempool.space/tx/push\n"
+                "• https://blockstream.info/tx/push\n"
+                "• https://coinb.in/#broadcast\n\n"
+                "If the transaction is not confirmed within reasonable time due to a low fee, you will have "
+                "to access the wallet and use Replace-By-Fee/Child-Pay-For-Parent to move the funds to a new "
+                "address on your wallet. (you can also pay to an Acceleration Service such as the one offered "
+                "by https://mempool.space)\n\n"
+                f"IMPORTANT NOTICE: If you lost the keys to access wallet {self.wallet_name} - do not broadcast the "
+                "transaction on page 2! In this case it is recommended to destroy all copies of this document."
+            )
+            painter.drawText(
+                QRectF(20, current_height, page_width - 40, page_height),
+                Qt.TextFlag.TextWordWrap,
+                cancellation_text
+            )
+
+            # New page for cancellation transaction
+            printer.newPage()
+            page_number += 1
+            current_height = 20
+
+            # Header
+            painter.setFont(header_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, header_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                f"Cancellation-Guide  Date: {self.recovery_plan_created_at.strftime('%Y-%m-%d %H:%M:%S %Z (%z)')}  ID: {self.recovery_plan_id}  Page: {page_number}"
+            )
+            current_height += header_line_spacing + 20
+
+            # Cancellation transaction title
+            painter.setFont(title_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, title_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                "Cancellation Transaction"
+            )
+            current_height += title_line_spacing + 20
+
+            # Transaction ID
+            painter.setFont(subtitle_font)
+            painter.drawText(
+                QRectF(0, current_height, page_width, subtitle_line_spacing),
+                Qt.AlignmentFlag.AlignCenter,
+                f"Transaction Id: {self.cancellation_tx.txid()}"
+            )
+            current_height += subtitle_line_spacing + 20
+
+            # QR Code for cancellation transaction
+            qr = qrcode.QRCode()
+            qr.add_data(cancellation_raw)
+            qr.make()
+            qr_image = self._paint_qr(qr)
+
+            qr_width = int(page_width * 0.6)
+            qr_x = (page_width - qr_width) / 2
+            painter.drawImage(QRectF(qr_x, current_height, qr_width, qr_width), qr_image)
+            current_height += qr_width + 40
+
+            # Raw transaction text
+            painter.setFont(body_font)
+            painter.drawText(
+                QRectF(20, current_height, page_width - 40, page_height),
+                Qt.TextFlag.TextWrapAnywhere,
+                cancellation_raw
+            )
+
+            painter.end()
+
+            window.parent().show_message(_("File saved successfully"))
+        except Exception as e:
+            self.logger.exception(repr(e))
+            window.parent().show_error(_("Error saving file"))
+
     def _paint_qr(self, qr):
-        if not qr:
-            return
         matrix = qr.get_matrix()
         k = len(matrix)
         border_color = Qt.GlobalColor.white
@@ -1050,5 +1303,3 @@ class Plugin(TimelockRecoveryPlugin):
         qrpainter.end()
         return base_img
 
-    def _save_cancellation_plan(self):
-        pass
