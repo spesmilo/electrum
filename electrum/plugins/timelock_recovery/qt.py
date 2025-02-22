@@ -112,7 +112,7 @@ class Plugin(TimelockRecoveryPlugin):
         self.wallet_name = str(self.wallet)
 
         if constants.net.NET_NAME == 'regtest':
-            return self.create_step1_dialog(window)
+            return self.create_plan_dialog(window)
         return self.create_intro_dialog(window)
 
     def create_intro_dialog(self, window):
@@ -174,7 +174,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Handle clicks on the buttons.
         self.intro_next_button.clicked.connect(intro_dialog.close)
-        self.intro_next_button.clicked.connect(partial(self.create_step1_dialog, window))
+        self.intro_next_button.clicked.connect(partial(self.create_plan_dialog, window))
 
         # Populate the VBox layout.
         vbox_layout.addWidget(instructions_label)
@@ -212,30 +212,30 @@ class Plugin(TimelockRecoveryPlugin):
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         return addr
 
-    def create_step1_dialog(self, window):
-        step1_dialog = WindowModalDialog(window, "Timelock Recovery - Step 1")
-        step1_dialog.setContentsMargins(11, 11, 1, 1)
-        step1_dialog.resize(800, step1_dialog.height())
+    def create_plan_dialog(self, window):
+        plan_dialog = WindowModalDialog(window, "Timelock Recovery")
+        plan_dialog.setContentsMargins(11, 11, 1, 1)
+        plan_dialog.resize(800, plan_dialog.height())
 
         self.alert_address = self.get_address_by_label(alert_address_label)
         if not self.alert_address:
-            step1_dialog.show_error(''.join([
+            plan_dialog.show_error(''.join([
                 _("No more addresses in your wallet."), " ",
                 _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
                 _("If you want to create new addresses, use a deterministic wallet instead."),
             ]))
-            step1_dialog.close()
+            plan_dialog.close()
             return
 
-        step1_grid = QGridLayout()
-        step1_grid.setSpacing(8)
+        plan_grid = QGridLayout()
+        plan_grid.setSpacing(8)
         grid_row = 0
 
-        step1_grid.addWidget(HelpLabel(
+        plan_grid.addWidget(HelpLabel(
             _("Alert Address"),
             _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
         ), grid_row, 0)
-        step1_grid.addWidget(selectable_label(self.alert_address), grid_row, 1, 1, 4)
+        plan_grid.addWidget(selectable_label(self.alert_address), grid_row, 1, 1, 4)
         grid_row += 1
 
         fake_menu = QMenu()
@@ -246,10 +246,10 @@ class Plugin(TimelockRecoveryPlugin):
         menu_actions_hbox = QHBoxLayout()
         # Add stretch at the end to prevent buttons from stretching across the hbox
         for action in fake_menu_actions:
-            action_button = QPushButton(action.text(), step1_dialog)
+            action_button = QPushButton(action.text(), plan_dialog)
             action_button.clicked.connect(action.triggered)
             menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        step1_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
+        plan_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
         grid_row += 1
 
         self.payto_e = PayToEdit(window.parent().send_tab) # Reuse configuration from send tab
@@ -261,7 +261,7 @@ class Plugin(TimelockRecoveryPlugin):
         self.timelock_days_widget.setText(str(self.timelock_days))
         self.timelock_days_widget.textChanged.connect(self._verify_step1_details)
 
-        step1_grid.addWidget(HelpLabel(
+        plan_grid.addWidget(HelpLabel(
             _("Pay to"),
             (
                 _("Final recipient(s) of the funds.")
@@ -273,21 +273,21 @@ class Plugin(TimelockRecoveryPlugin):
                     "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60.")
             ),
         ), grid_row, 0)
-        step1_grid.addWidget(self.payto_e, grid_row, 1, 1, 4)
+        plan_grid.addWidget(self.payto_e, grid_row, 1, 1, 4)
         grid_row += 1
 
-        step1_grid.addWidget(HelpLabel(
+        plan_grid.addWidget(HelpLabel(
             _("Cancellation time-window (days)"),
             (
                 _("After broadcasting the Alert Transaction, you have a limited time to cancel the transaction.") + "\n"
                 + _("Value must be between {} and {} days.").format(min_locktime_days, max_locktime_days)
             )
         ), grid_row, 0)
-        step1_grid.addWidget(self.timelock_days_widget, grid_row, 1, 1, 4)
+        plan_grid.addWidget(self.timelock_days_widget, grid_row, 1, 1, 4)
         grid_row += 1
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
-        hbox_layout = QHBoxLayout(step1_dialog)
+        hbox_layout = QHBoxLayout(plan_dialog)
 
         # Create the logo label.
         logo_label = QLabel()
@@ -301,10 +301,10 @@ class Plugin(TimelockRecoveryPlugin):
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
 
-        vbox_layout.addLayout(step1_grid, stretch=1)
+        vbox_layout.addLayout(plan_grid, stretch=1)
 
-        self.step1_next_button = QPushButton(_("Next"), step1_dialog)
-        self.step1_next_button.clicked.connect(step1_dialog.close)
+        self.step1_next_button = QPushButton(_("Next"), plan_dialog)
+        self.step1_next_button.clicked.connect(plan_dialog.close)
         self.step1_next_button.clicked.connect(partial(self.create_alert_fee_dialog, window))
         self.step1_next_button.setEnabled(False)
 
@@ -315,7 +315,7 @@ class Plugin(TimelockRecoveryPlugin):
         hbox_layout.addSpacing(16)
         hbox_layout.addLayout(vbox_layout, stretch=1)
 
-        return bool(step1_dialog.exec())
+        return bool(plan_dialog.exec())
 
     def _verify_step1_details(self):
         self.timelock_days = None
