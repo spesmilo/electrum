@@ -18,7 +18,6 @@ from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 from decimal import Decimal
-import pickle
 
 import qrcode
 from PyQt6.QtPrintSupport import QPrinter
@@ -34,7 +33,7 @@ from electrum.bitcoin import COIN, address_to_script, DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint, PartialTxInputWithFixedNsequence
+from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.util import make_dir, bfh
 from electrum.gui.qt.util import (ColorScheme, WindowModalDialog, Buttons, HelpLabel)
 from electrum.gui.qt.main_window import StatusBarButton
@@ -61,6 +60,21 @@ def selectable_label(text):
 
 def format_sats_as_btc(value):
     return f"{(Decimal(value) / Decimal(COIN)):.8f}"
+
+
+class PartialTxInputWithFixedNsequence(PartialTxInput):
+    def __init__(self, *args, nsequence=0xffffffff - 1, **kwargs):
+        self._fixed_nsequence = nsequence
+        super().__init__(*args, **kwargs)
+
+    @property
+    def nsequence(self):
+        return self._fixed_nsequence
+
+    @nsequence.setter
+    def nsequence(self, value):
+        pass # ignore override attempts
+
 
 class Plugin(TimelockRecoveryPlugin):
     def __init__(self, parent, config, name):
@@ -98,11 +112,7 @@ class Plugin(TimelockRecoveryPlugin):
         self.wallet_name = str(self.wallet)
 
         if constants.net.NET_NAME == 'regtest':
-            TLR_STATE = os.getenv("TLR_STATE")
-            if TLR_STATE is None:
-                return self.create_step1_dialog(window)
-            (self.alert_address, self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name) = pickle.loads(bytes.fromhex(TLR_STATE))
-            return self.create_download_dialog(window)
+            return self.create_step1_dialog(window)
         return self.create_intro_dialog(window)
 
     def create_intro_dialog(self, window):
@@ -503,7 +513,6 @@ class Plugin(TimelockRecoveryPlugin):
         )
 
     def create_download_dialog(self, window):
-        print(pickle.dumps((self.alert_address, self.alert_tx, self.recovery_tx, self.cancellation_tx, self.outputs, self.timelock_days, self.wallet_name)).hex())
         self.recovery_plan_id = str(uuid.uuid4())
         self.recovery_plan_created_at = datetime.now().astimezone()
         self.download_dialog = WindowModalDialog(window, "Timelock Recovery - Download")
