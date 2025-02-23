@@ -425,6 +425,7 @@ class Plugin(TimelockRecoveryPlugin):
             prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
             nsequence=nsequence,
         )
+        tx_input.utxo = self.alert_tx
         tx_input.witness_utxo = prevout
 
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
@@ -569,6 +570,7 @@ class Plugin(TimelockRecoveryPlugin):
         tx_input = PartialTxInput(
             prevout=TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=prevout_index),
         )
+        tx_input.utxo = self.alert_tx
         tx_input.witness_utxo = prevout
 
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
