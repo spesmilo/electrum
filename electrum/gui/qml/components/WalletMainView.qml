@@ -126,9 +126,9 @@ Item {
         dialog.open()
     }
 
-    function createRequest(lightning_only, reuse_address) {
+    function createRequest(lightning, reuse_address) {
         var qamt = Config.unitsToSats(_request_amount)
-        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
     }
 
     function startSweep() {
@@ -596,7 +596,7 @@ Item {
                 _request_amount = _receiveDetailsDialog.amount
                 _request_description = _receiveDetailsDialog.description
                 _request_expiry = _receiveDetailsDialog.expiry
-                createRequest(false, false)
+                createRequest(_receiveDetailsDialog.isLightning, false)
             }
             onRejected: {
                 console.log('rejected')

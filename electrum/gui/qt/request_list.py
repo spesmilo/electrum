@@ -157,6 +157,7 @@ class RequestList(MyTreeView):
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
             items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
+            items[self.Columns.DATE].setIcon(read_QIcon("lightning" if req.is_lightning() else "bitcoin"))
             items[self.Columns.AMOUNT].setData(amount_str_nots.strip(), self.ROLE_CLIPBOARD_DATA)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.std_model.insertRow(self.std_model.rowCount(), items)

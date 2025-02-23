@@ -664,24 +664,25 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
-    def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning: bool = False, reuse_address: bool = False):
         self.deleteExpiredRequests()
         try:
             amount = amount.satsInt
-            addr = self.wallet.get_unused_address()
-            if addr is None:
-                if reuse_address:
-                    addr = self.wallet.get_receiving_address()
-                elif lightning_only:
-                    addr = None
-                else:
-                    msg = [
-                        _('No address available.'),
-                        _('All your addresses are used in pending requests.'),
-                        _('To see the list, press and hold the Receive button.'),
-                    ]
-                    self.requestCreateError.emit(' '.join(msg))
-                    return
+            if not lightning:
+                addr = self.wallet.get_unused_address()
+                if addr is None:
+                    if reuse_address:
+                        addr = self.wallet.get_receiving_address()
+                    else:
+                        msg = [
+                            _('No address available.'),
+                            _('All your addresses are used in pending requests.'),
+                            _('To see the list, press and hold the Receive button.'),
+                        ]
+                        self.requestCreateError.emit(' '.join(msg))
+                        return
+            else:
+                addr = None
 
             key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:

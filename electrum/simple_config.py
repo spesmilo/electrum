@@ -1097,7 +1097,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
         'gui_qt_tx_dialog_export_include_global_xpubs', default=False, type_=bool,
         short_desc=lambda: _('For hardware device; include xpubs'),
     )
-    GUI_QT_RECEIVE_TABS_INDEX = ConfigVar('receive_tabs_index', default=0, type_=int)
     GUI_QT_RECEIVE_TAB_QR_VISIBLE = ConfigVar('receive_qr_visible', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_IO = ConfigVar(
         'show_tx_io', default=False, type_=bool,

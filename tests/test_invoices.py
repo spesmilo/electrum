@@ -45,7 +45,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertTrue(wallet1.has_lightning())
         # create payreq
         addr = wallet1.get_unused_address()
-        pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
+        pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=None, exp_delay=86400)
         pr = wallet1.get_request(pr_key)
         self.assertIsNotNone(pr)
         self.assertTrue(pr.is_lightning())
@@ -66,7 +66,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
         pr = wallet1.get_request(pr_key)
         self.assertIsNotNone(pr)
-        self.assertTrue(pr.is_lightning())
+        self.assertTrue(not pr.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
         self.assertEqual(1000, pr.height)
         # get paid onchain
@@ -126,7 +126,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
         pr = wallet1.get_request(pr_key)
         self.assertIsNotNone(pr)
-        self.assertTrue(pr.is_lightning())
+        self.assertTrue(not pr.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
         self.assertEqual(1000, pr.height)
         # get paid onchain
@@ -143,59 +143,6 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
 
-    async def test_wallet_reuse_unused_fallback_onchain_addr_when_getting_paid_with_lightning(self):
-        text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=5, config=self.config)
-        wallet1 = d['wallet']  # type: Standard_Wallet
-        self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
-        # create payreq1
-        addr1 = wallet1.get_unused_address()
-        pr1_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr1, exp_delay=86400)
-        pr1 = wallet1.get_request(pr1_key)
-        self.assertTrue(pr1.is_lightning())
-        self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr1))
-        self.assertEqual(addr1, pr1.get_address())
-        self.assertFalse(pr1.has_expired())
-
-        # create payreq2
-        addr2 = wallet1.get_unused_address()
-        self.assertNotEqual(addr1, addr2)
-        pr2_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr2, exp_delay=86400)
-        pr2 = wallet1.get_request(pr2_key)
-        self.assertTrue(pr2.is_lightning())
-        self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr2))
-        self.assertEqual(addr2, pr2.get_address())
-
-        # pr1 gets paid on LN
-        wallet1.lnworker.set_request_status(bytes.fromhex(pr1.rhash), PR_PAID)
-        self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr1))
-
-        # create payreq3, which should auto-reuse addr1
-        addr3 = wallet1.get_unused_address()
-        self.assertEqual(addr1, addr3)
-        pr3_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr3, exp_delay=86400)
-        pr3 = wallet1.get_request(pr3_key)
-        self.assertTrue(pr3.is_lightning())
-        self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr3))
-        self.assertEqual(addr3, pr3.get_address())
-
-        # pr2 gets paid onchain
-        wallet2 = self.create_wallet2()  # type: Standard_Wallet
-        outputs = [PartialTxOutput.from_address_and_value(pr2.get_address(), pr2.get_amount_sat())]
-        tx = wallet2.create_transaction(outputs=outputs, fee=5000)
-        wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
-        self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr2))
-
-        # create payreq4, which should not reuse addr2
-        addr4 = wallet1.get_unused_address()
-        self.assertEqual(3, len({addr1, addr2, addr3, addr4}))
-        pr4_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr4, exp_delay=86400)
-        pr4 = wallet1.get_request(pr4_key)
-        self.assertTrue(pr4.is_lightning())
-        self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr4))
-        self.assertEqual(addr4, pr4.get_address())
-
     async def test_wallet_reuse_addr_of_expired_request(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=3, config=self.config)
@@ -206,7 +153,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         addr1 = wallet1.get_unused_address()
         pr1_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr1, exp_delay=86400)
         pr1 = wallet1.get_request(pr1_key)
-        self.assertTrue(pr1.is_lightning())
+        self.assertTrue(not pr1.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr1))
         self.assertEqual(addr1, pr1.get_address())
         self.assertFalse(pr1.has_expired())
@@ -219,7 +166,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(addr1, addr2)
         pr2_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr2, exp_delay=86400)
         pr2 = wallet1.get_request(pr2_key)
-        self.assertTrue(pr2.is_lightning())
+        self.assertTrue(not pr2.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr2))
         self.assertEqual(addr2, pr2.get_address())
         self.assertFalse(pr2.has_expired())

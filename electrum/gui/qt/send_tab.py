@@ -109,12 +109,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                + _('Keyboard shortcut: type "!" to send all your coins.'))
         amount_label = HelpLabel(_('Amount'), msg)
         grid.addWidget(amount_label, 3, 0)
-        grid.addWidget(self.amount_e, 3, 1)
+
+        amount_widgets = QHBoxLayout()
+        amount_widgets.addWidget(self.amount_e)
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
-        grid.addWidget(self.fiat_send_e, 3, 2)
+        amount_widgets.addWidget(self.fiat_send_e)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
@@ -125,20 +127,20 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.max_button.setFixedWidth(btn_width)
         self.max_button.setCheckable(True)
         self.max_button.setEnabled(False)
-        grid.addWidget(self.max_button, 3, 3)
+        amount_widgets.addWidget(self.max_button)
+        amount_widgets.addStretch(1)
+        grid.addLayout(amount_widgets, 3, 1, 1, -1)
 
         invoice_error_icon = read_QIcon("warning.png")
         self.invoice_error = IconLabel(reverse=True, hide_if_empty=True)
         self.invoice_error.setIcon(invoice_error_icon)
         grid.addWidget(self.invoice_error, 3, 4, Qt.AlignmentFlag.AlignRight)
 
-        self.paste_button = QPushButton()
+        self.paste_button = QPushButton(_('Paste'))
         self.paste_button.clicked.connect(self.do_paste)
         self.paste_button.setIcon(read_QIcon('copy.png'))
         self.paste_button.setToolTip(_('Paste invoice from clipboard'))
-        self.paste_button.setMaximumWidth(35)
         self.paste_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        grid.addWidget(self.paste_button, 0, 5)
 
         self.spinner = QMovie(icon_path('spinner.gif'))
         self.spinner.setScaledSize(QSize(24, 24))
@@ -155,10 +157,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.send_button.setEnabled(False)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
 
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
+        #buttons1 = QHBoxLayout()
+        #buttons1.addWidget(self.paste_button)
+        #buttons1.addWidget(self.clear_button)
+        #buttons1.addStretch(1)
+        #grid.addLayout(buttons1, 0, 1, 1, 4)
 
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.paste_button)
         buttons.addWidget(self.clear_button)
+        buttons.addStretch(1)
         buttons.addWidget(self.save_button)
         buttons.addWidget(self.send_button)
         grid.addLayout(buttons, 6, 1, 1, 4)

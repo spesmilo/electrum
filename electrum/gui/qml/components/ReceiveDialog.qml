@@ -109,63 +109,6 @@ ElDialog {
                                 }
                             }
                         }
-
-                        ButtonContainer {
-                            Layout.fillWidth: true
-                            showSeparator: false
-                            Component {
-                                id: _ind
-                                Rectangle {
-                                    color: Material.dialogColor
-                                    opacity: parent.checked ? 1 : 0
-                                    radius: 5
-                                    width: parent.width
-                                    height: parent.height
-
-                                    Behavior on opacity {
-                                        NumberAnimation { duration: 200 }
-                                    }
-                                }
-                            }
-                            TabButton {
-                                id: bolt11Button
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('Lightning')
-                                enabled: _bolt11
-                                checked: rootLayout.state == 'bolt11'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'bolt11'
-                                    Config.preferredRequestType = 'bolt11'
-                                }
-                            }
-                            TabButton {
-                                id: bip21Button
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('URI')
-                                enabled: _bip21uri
-                                checked: rootLayout.state == 'bip21uri'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'bip21uri'
-                                    Config.preferredRequestType = 'bip21uri'
-                                }
-                            }
-                            TabButton {
-                                id: addressButton
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('Address')
-                                checked: rootLayout.state == 'address'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'address'
-                                    Config.preferredRequestType = 'address'
-                                }
-                            }
-                        }
                     }
                 }
 
