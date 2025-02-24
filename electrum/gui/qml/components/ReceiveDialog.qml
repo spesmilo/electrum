@@ -48,21 +48,6 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                states: [
-                    State {
-                        name: 'bolt11'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                    },
-                    State {
-                        name: 'bip21uri'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                    },
-                    State {
-                        name: 'address'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                    }
-                ]
-
                 TextHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.fillWidth: true
@@ -80,33 +65,15 @@ ElDialog {
 
                             color: 'white'
 
-                            Loader {
-                                id: qrloader
+                            QRImage {
                                 anchors.centerIn: parent
-                                Component {
-                                    id: qri_bolt11
-                                    QRImage {
-                                        qrdata: _bolt11
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
-                                Component {
-                                    id: qri_bip21uri
-                                    QRImage {
-                                        qrdata: _bip21uri
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
-                                Component {
-                                    id: qri_address
-                                    QRImage {
-                                        qrdata: _address
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
+                                qrdata: _bolt11
+                                    ? _bolt11
+                                    : _bip21uri
+                                        ? _bip21uri
+                                        : _address
+                                render: _render_qr
+                                enableToggleText: true
                             }
                         }
                     }
@@ -250,22 +217,6 @@ ElDialog {
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet
-        onDetailsChanged: {
-            var req_type = Config.preferredRequestType
-            if (bolt11 && req_type == 'bolt11') {
-                rootLayout.state = 'bolt11'
-            } else if (bip21 && req_type == 'bip21uri') {
-                rootLayout.state = 'bip21uri'
-            } else if (req_type == 'address') {
-                rootLayout.state = 'address'
-            } else if (bolt11) {
-                rootLayout.state = 'bolt11'
-            } else if (bip21) {
-                rootLayout.state = 'bip21uri'
-            } else {
-                rootLayout.state = 'address'
-            }
-        }
         onStatusChanged: {
             if (status == RequestDetails.Paid || status == RequestDetails.Unconfirmed) {
                 _ispaid = true

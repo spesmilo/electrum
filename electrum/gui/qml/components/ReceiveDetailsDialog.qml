@@ -106,6 +106,7 @@ ElDialog {
             }
             FlatButton {
                 Layout.fillWidth: true
+                enabled: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
                 onClicked: { dialog.isLightning = true; doAccept() }
