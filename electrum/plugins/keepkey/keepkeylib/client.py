@@ -568,7 +568,7 @@ class ProtocolMixin(object):
 
     @session
     def ethereum_sign_tx(self, n, nonce, gas_price, gas_limit, value, to=None, to_n=None, address_type=None, exchange_type=None, data=None, chain_id=None, token_shortcut=None, token_value=None, token_to=None):
-        from keepkeylib.tools import int_to_big_endian
+        from .tools import int_to_big_endian
 
         n = self._convert_prime(n)
         if address_type == types.TRANSFER:   #Ethereum transfer transaction

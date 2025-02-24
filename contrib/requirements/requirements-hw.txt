@@ -7,7 +7,11 @@ trezor[hidapi]>=0.13.0,<0.14
 safet>=0.1.5
 
 # device plugin: keepkey
-keepkey>=6.3.1
+ecdsa>=0.9
+protobuf>=3.0.0
+mnemonic>=0.8
+hidapi>=0.7.99.post15
+libusb1>=1.6
 
 # device plugin: ledger
 # note: btchip-python only needed for "legacy" protocol and HW.1 support
