@@ -1,7 +1,4 @@
 from . import messages_pb2 as proto
-from . import messages_eos_pb2 as eos_proto
-from . import messages_nano_pb2 as nano_proto
-from . import messages_cosmos_pb2 as cosmos_proto
 
 map_type_to_class = {}
 map_class_to_type = {}
@@ -9,14 +6,7 @@ map_class_to_type = {}
 def build_map():
     for msg_type, i in proto.MessageType.items():
         msg_name = msg_type.replace('MessageType_', '')
-        if msg_type.startswith('MessageType_Eos'):
-            msg_class = getattr(eos_proto, msg_name)
-        elif msg_type.startswith('MessageType_Nano'):
-            msg_class = getattr(nano_proto, msg_name)
-        elif msg_type.startswith('MessageType_Cosmos'):
-            msg_class = getattr(cosmos_proto, msg_name)
-        else:
-            msg_class = getattr(proto, msg_name)
+        msg_class = getattr(proto, msg_name)
 
         map_type_to_class[i] = msg_class
         map_class_to_type[msg_class] = i
