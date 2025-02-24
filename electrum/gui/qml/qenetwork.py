@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
 from electrum.logging import get_logger
 from electrum import constants
 from electrum.interface import ServerAddr
-from electrum.simple_config import FEERATE_DEFAULT_RELAY
+from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
@@ -135,23 +135,7 @@ class QENetwork(QObject, QtEventListener):
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
-        if not histogram:
-            histogram = [[FEERATE_DEFAULT_RELAY/1000,1]]
-        # cap the histogram to a limited number of megabytes
-        bytes_limit = 10*1000*1000
-        bytes_current = 0
-        capped_histogram = []
-        for item in sorted(histogram, key=lambda x: x[0], reverse=True):
-            if bytes_current >= bytes_limit:
-                break
-            slot = min(item[1], bytes_limit-bytes_current)
-            bytes_current += slot
-            capped_histogram.append([
-                max(FEERATE_DEFAULT_RELAY/1000, item[0]),  # clamped to [FEERATE_DEFAULT_RELAY/1000,inf[
-                slot,  # width of bucket
-                bytes_current,  # cumulative depth at far end of bucket
-            ])
-
+        capped_histogram, bytes_current = histogram.get_capped_data()
         # add clamping attributes for the GUI
         self._fee_histogram = {
             'histogram': capped_histogram,

@@ -38,6 +38,8 @@ from .util import (
     make_aiohttp_session, timestamp_to_datetime, random_shuffled_copy, is_private_netaddress,
     UnrelatedTransactionException, LightningHistoryItem
 )
+from .fee_policy import FeePolicy, FixedFeePolicy
+from .fee_policy import FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
 from .bip32 import BIP32Node
@@ -1300,11 +1302,12 @@ class LNWallet(LNWorker):
             self.wallet.unlock(password)
         coins = self.wallet.get_spendable_coins(None)
         node_id = peer.pubkey
+        fee_policy = FeePolicy(self.config.FEE_POLICY)
         funding_tx = self.mktx_for_open_channel(
             coins=coins,
             funding_sat=funding_sat,
             node_id=node_id,
-            fee_est=None)
+            fee_policy=fee_policy)
         chan, funding_tx = await self._open_channel_coroutine(
             peer=peer,
             funding_tx=funding_tx,
@@ -1387,7 +1390,8 @@ class LNWallet(LNWorker):
             coins: Sequence[PartialTxInput],
             funding_sat: int,
             node_id: bytes,
-            fee_est=None) -> PartialTransaction:
+            fee_policy: FeePolicy,
+    ) -> PartialTransaction:
         from .wallet import get_locktime_for_new_transaction
 
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.CHANNEL, funding_sat)]
@@ -1397,7 +1401,7 @@ class LNWallet(LNWorker):
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             outputs=outputs,
-            fee=fee_est)
+            fee_policy=fee_policy)
         tx.set_rbf(False)
         # rm randomness from locktime, as we use the locktime as entropy for deriving the funding_privkey
         # (and it would be confusing to get a collision as a consequence of the randomness)
@@ -1413,16 +1417,16 @@ class LNWallet(LNWorker):
         min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
         if min_funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             return
-        fee_est = partial(self.config.estimate_fee, allow_fallback_to_static_rates=True)  # to avoid NoDynamicFeeEstimates
+        fee_policy = FeePolicy(f'feerate:{FEERATE_FALLBACK_STATIC_FEE}')
         try:
-            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_est=fee_est)
+            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
             funding_sat = min_funding_sat
         except NotEnoughFunds:
             return
         # if available, suggest twice that amount:
         if 2 * min_funding_sat <= self.config.LIGHTNING_MAX_FUNDING_SAT:
             try:
-                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=fee_est)
+                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
                 funding_sat = 2 * min_funding_sat
             except NotEnoughFunds:
                 pass
@@ -2966,23 +2970,17 @@ class LNWallet(LNWorker):
                     await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
 
     def current_target_feerate_per_kw(self) -> int:
-        from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
-        from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
-        if constants.net is constants.BitcoinRegtest:
-            feerate_per_kvbyte = self.network.config.FEE_EST_STATIC_FEERATE
+        if self.network.fee_estimates.has_data():
+            feerate_per_kvbyte = self.network.fee_estimates.eta_target_to_fee(FEE_LN_ETA_TARGET)
         else:
-            feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-            if feerate_per_kvbyte is None:
-                feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
+            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
     def current_low_feerate_per_kw(self) -> int:
-        from .simple_config import FEE_LN_LOW_ETA_TARGET
-        from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
         if constants.net is constants.BitcoinRegtest:
             feerate_per_kvbyte = 0
         else:
-            feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_LOW_ETA_TARGET) or 0
+            feerate_per_kvbyte = self.network.fee_estimates.eta_target_to_fee(FEE_LN_LOW_ETA_TARGET) or 0
         low_feerate_per_kw = max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
         # make sure this is never higher than the target feerate:
         low_feerate_per_kw = min(low_feerate_per_kw, self.current_target_feerate_per_kw())

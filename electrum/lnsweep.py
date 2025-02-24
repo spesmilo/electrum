@@ -8,7 +8,7 @@ import electrum_ecc as ecc
 
 from .util import bfh, UneconomicFee
 from .crypto import privkey_to_pubkey
-from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
+from .bitcoin import redeem_script_to_address, construct_witness
 from . import descriptor
 from . import bitcoin
 
@@ -23,7 +23,6 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened)
 from .transaction import (Transaction, TxInput, PartialTxInput,
                           PartialTxOutput, TxOutpoint, script_GetOp, match_script_against_template)
-from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
@@ -79,7 +78,7 @@ def sweep_their_ctx_watchtower(
             witness_script=witness_script,
             privkey=watcher_revocation_privkey,
             is_revocation=True,
-            config=chan.lnworker.config)
+        )
         if txin:
             txins.append(txin)
 
@@ -107,7 +106,6 @@ def sweep_their_ctx_watchtower(
             privkey=watcher_revocation_privkey,
             is_revocation=True,
             cltv_abs=cltv_abs,
-            config=chan.lnworker.config,
             has_anchors=chan.has_anchors()
         )
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
@@ -150,7 +148,7 @@ def sweep_their_ctx_watchtower(
             htlctx_witness_script=htlc_tx_witness_script,
             privkey=watcher_revocation_privkey,
             is_revocation=True,
-            config=chan.lnworker.config)
+        )
 
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
         chan=chan,
@@ -195,7 +193,7 @@ def sweep_their_ctx_justice(
             witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True,
-            config=chan.lnworker.config)
+        )
         return sweep_txin
     return None
 
@@ -243,7 +241,6 @@ def sweep_their_htlctx_justice(
             htlctx_witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True,
-            config=chan.lnworker.config
         )
     index_to_sweepinfo = {}
     for output_idx in htlc_outputs_idxs:
@@ -345,7 +342,6 @@ def sweep_our_ctx(
                 privkey=our_localdelayed_privkey.get_secret_bytes(),
                 is_revocation=False,
                 to_self_delay=to_self_delay,
-                config=chan.lnworker.config,
         ):
             prevout = ctx.txid() + ':%d'%output_idx
             txs[prevout] = SweepInfo(
@@ -401,7 +397,6 @@ def sweep_our_ctx(
                         htlctx_witness_script=htlctx_witness_script,
                         privkey=our_localdelayed_privkey.get_secret_bytes(),
                         is_revocation=False,
-                        config=chan.lnworker.config
                 ):
                     txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
                         name=f'second-stage-htlc:{output_idx}',
@@ -559,7 +554,6 @@ def sweep_their_ctx_to_remote_backup(
                 ctx=ctx,
                 output_idx=output_idx,
                 our_payment_privkey=our_payment_privkey,
-                config=chan.lnworker.config,
                 has_anchors=True
         ):
             txs[prevout] = SweepInfo(
@@ -660,7 +654,6 @@ def sweep_their_ctx(
                     ctx=ctx,
                     output_idx=output_idx,
                     our_payment_privkey=our_payment_privkey,
-                    config=chan.lnworker.config,
                     has_anchors=chan.has_anchors()
             ):
                 txs[prevout] = SweepInfo(
@@ -700,7 +693,6 @@ def sweep_their_ctx(
                 privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
                 is_revocation=is_revocation,
                 cltv_abs=cltv_abs,
-                config=chan.lnworker.config,
                 has_anchors=chan.has_anchors(),
         ):
             txs[prevout] = SweepInfo(
@@ -778,7 +770,6 @@ def sweep_their_ctx_htlc(
         preimage: Optional[bytes], output_idx: int,
         privkey: bytes, is_revocation: bool,
         cltv_abs: int,
-        config: SimpleConfig,
         has_anchors: bool,
 ) -> Optional[PartialTxInput]:
     """Deals with normal (non-CSV timelocked) HTLC output sweeps."""
@@ -792,11 +783,6 @@ def sweep_their_ctx_htlc(
     txin.witness_script = witness_script
     txin.script_sig = b''
     txin.nsequence = 1 if has_anchors else 0xffffffff - 2
-    tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
     txin.privkey = privkey
     if not is_revocation:
         txin.make_witness = lambda sig: construct_witness([sig, preimage, witness_script])
@@ -810,7 +796,6 @@ def sweep_their_ctx_htlc(
 def sweep_their_ctx_to_remote(
         ctx: Transaction, output_idx: int,
         our_payment_privkey: ecc.ECPrivkey,
-        config: SimpleConfig,
         has_anchors: bool,
 ) -> Optional[PartialTxInput]:
     assert has_anchors is True
@@ -826,11 +811,6 @@ def sweep_their_ctx_to_remote(
     txin.script_sig = b''
     txin.witness_script = witness_script
     txin.nsequence = 1
-    tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
     txin.privkey = our_payment_privkey.get_secret_bytes()
     txin.make_witness = lambda sig: construct_witness([sig, witness_script])
     return txin
@@ -859,7 +839,7 @@ def sweep_ctx_anchor(*, ctx: Transaction, multisig_key: Keypair) -> Optional[Par
 
 def sweep_ctx_to_local(
         *, ctx: Transaction, output_idx: int, witness_script: bytes,
-        privkey: bytes, is_revocation: bool, config: SimpleConfig,
+        privkey: bytes, is_revocation: bool,
         to_self_delay: int = None) -> Optional[PartialTxInput]:
     """Create a txin that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
@@ -877,11 +857,6 @@ def sweep_ctx_to_local(
     if not is_revocation:
         assert isinstance(to_self_delay, int)
         txin.nsequence = to_self_delay
-    tx_size_bytes = 121  # approx size of to_local -> p2wpkh
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
     txin.privkey = privkey
     assert txin.witness_script
     txin.make_witness = lambda sig: construct_witness([sig, int(is_revocation), witness_script])
@@ -895,7 +870,7 @@ def sweep_htlctx_output(
         privkey: bytes,
         is_revocation: bool,
         to_self_delay: int = None,
-        config: SimpleConfig) -> Optional[PartialTxInput]:
+) -> Optional[PartialTxInput]:
     """Create a txn that sweeps the output of a first stage htlc tx
     (i.e. sweeps from an HTLC-Timeout or an HTLC-Success tx).
     """
@@ -908,5 +883,4 @@ def sweep_htlctx_output(
         privkey=privkey,
         is_revocation=is_revocation,
         to_self_delay=to_self_delay,
-        config=config,
     )

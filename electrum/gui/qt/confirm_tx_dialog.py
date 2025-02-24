@@ -40,6 +40,7 @@ from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
 from electrum.bitcoin import DummyAddress
+from electrum.fee_policy import FeePolicy, FixedFeePolicy
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    WWLabel, read_QIcon)
@@ -71,6 +72,8 @@ class TxEditor(WindowModalDialog):
         self.error = ''   # set by side effect
 
         self.config = window.config
+        self.network = window.network
+        self.fee_policy = FeePolicy(self.config.FEE_POLICY)
         self.wallet = window.wallet
         self.feerounding_sats = 0
         self.not_enough_funds = False
@@ -124,23 +127,14 @@ class TxEditor(WindowModalDialog):
     def stop_editor_updates(self):
         self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
 
-    def set_fee_config(self, dyn, pos, fee_rate):
-        if dyn:
-            if self.config.use_mempool_fees():
-                self.config.cv.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS.set(pos, save=False)
-            else:
-                self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
-        else:
-            self.config.cv.FEE_EST_STATIC_FEERATE.set(fee_rate, save=False)
-
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error
         raise NotImplementedError()
 
     def update_fee_target(self):
-        text = self.fee_slider.get_dynfee_target()
+        text = self.fee_slider.fee_policy.get_target_text()
         self.fee_target.setText(text)
-        self.fee_target.setVisible(bool(text)) # hide in static mode
+        # self.fee_target.setVisible(self.fee_slider.fee_policy.use_dynamic_estimates) # hide in static mode
 
     def update_feerate_label(self):
         self.feerate_label.setText(self.feerate_e.text() + ' ' + self.feerate_e.base_unit())
@@ -164,7 +158,7 @@ class TxEditor(WindowModalDialog):
         self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 0)
-        self.feerate_e.setAmount(self.config.fee_per_byte())
+        self.feerate_e.setAmount(self.fee_policy.fee_per_byte(self.network))
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
         self.update_feerate_label()
@@ -180,7 +174,7 @@ class TxEditor(WindowModalDialog):
         self.feerate_e.textChanged.connect(self.entry_changed)
 
         self.fee_target = QLabel('')
-        self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
+        self.fee_slider = FeeSlider(self, self.fee_policy, self.fee_slider_callback)
         self.fee_combo = FeeComboBox(self.fee_slider)
         self.fee_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -229,8 +223,8 @@ class TxEditor(WindowModalDialog):
         self._update_widgets()
         self.needs_update = True
 
-    def fee_slider_callback(self, dyn, pos, fee_rate):
-        self.set_fee_config(dyn, pos, fee_rate)
+    def fee_slider_callback(self, fee_rate):
+        self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         self.fee_slider.activate()
         if fee_rate:
             fee_rate = Decimal(fee_rate)
@@ -258,13 +252,13 @@ class TxEditor(WindowModalDialog):
             # because that event is emitted when we press OK
             self.trigger_update()
 
-    def is_send_fee_frozen(self):
+    def is_send_fee_frozen(self) -> bool:
         return self.fee_e.isVisible() and self.fee_e.isModified() \
-               and (self.fee_e.text() or self.fee_e.hasFocus())
+               and (bool(self.fee_e.text()) or self.fee_e.hasFocus())
 
-    def is_send_feerate_frozen(self):
+    def is_send_feerate_frozen(self) -> bool:
         return self.feerate_e.isVisible() and self.feerate_e.isModified() \
-               and (self.feerate_e.text() or self.feerate_e.hasFocus())
+               and (bool(self.feerate_e.text()) or self.feerate_e.hasFocus())
 
     def feerounding_text(self):
         return (_('Additional {} satoshis are going to be added.').format(self.feerounding_sats))
@@ -274,17 +268,17 @@ class TxEditor(WindowModalDialog):
         self.feerounding_icon.setIcon(read_QIcon('info.png') if b else QIcon())
         self.feerounding_icon.setEnabled(b)
 
-    def get_fee_estimator(self):
-        if self.is_send_fee_frozen() and self.fee_e.get_amount() is not None:
-            fee_estimator = self.fee_e.get_amount()
-        elif self.is_send_feerate_frozen() and self.feerate_e.get_amount() is not None:
-            amount = self.feerate_e.get_amount()  # sat/byte feerate
-            amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
-            fee_estimator = partial(
-                SimpleConfig.estimate_fee_for_feerate, amount)
+    def get_fee_policy(self):
+        feerate = self.feerate_e.get_amount()
+        fee_amount = self.fee_e.get_amount()
+        if self.is_send_fee_frozen() and fee_amount is not None:
+            fee_policy = FixedFeePolicy(fee_amount)
+        elif self.is_send_feerate_frozen() and feerate is not None:
+            feerate_per_kb = int(feerate * 1000)
+            fee_policy = FeePolicy(f'static:{feerate_per_kb}')
         else:
-            fee_estimator = None
-        return fee_estimator
+            fee_policy = self.fee_slider.get_policy()
+        return fee_policy
 
     def entry_changed(self):
         # blue color denotes auto-filled values
@@ -635,10 +629,10 @@ class ConfirmTxDialog(TxEditor):
         self.amount_label.setText(amount_str)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
-        fee_estimator = self.get_fee_estimator()
+        fee_policy = self.get_fee_policy()
         confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
         try:
-            self.tx = self.make_tx(fee_estimator, confirmed_only=confirmed_only)
+            self.tx = self.make_tx(fee_policy, confirmed_only=confirmed_only)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
         except NotEnoughFunds:
@@ -646,16 +640,17 @@ class ConfirmTxDialog(TxEditor):
             self.tx = None
             if fallback_to_zero_fee:
                 try:
-                    self.tx = self.make_tx(0, confirmed_only=confirmed_only)
+                    self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
                 except BaseException:
                     return
             else:
                 return
         except NoDynamicFeeEstimates:
+            # is this still needed?
             self.no_dynfee_estimates = True
             self.tx = None
             try:
-                self.tx = self.make_tx(0, confirmed_only=confirmed_only)
+                self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 return
@@ -670,7 +665,7 @@ class ConfirmTxDialog(TxEditor):
     def can_pay_assuming_zero_fees(self, confirmed_only) -> bool:
         # called in send_tab.py
         try:
-            tx = self.make_tx(0, confirmed_only=confirmed_only)
+            tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
         except NotEnoughFunds:
             return False
         else:

@@ -266,10 +266,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         outputs = pi.get_onchain_outputs('!')
         if not outputs:
             return
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            fee_policy=fee_policy,
             coins=self.window.get_coins(),
             outputs=outputs,
-            fee=fee_est,
             is_sweep=False)
         try:
             try:
@@ -325,10 +325,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
             get_coins = self.window.get_coins
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
+            fee_policy=fee_policy,
             outputs=outputs,
-            fee=fee_est,
             is_sweep=is_sweep)
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
@@ -667,7 +667,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         lnworker = self.wallet.lnworker
         if lnworker is None or not lnworker.can_pay_invoice(invoice):
             coins = self.window.get_coins(nonlocal_only=True)
-            can_pay_onchain = invoice.can_be_paid_onchain() and self.wallet.can_pay_onchain(invoice.get_outputs(), coins=coins)
             can_pay_with_new_channel = False
             can_pay_with_swap = False
             can_rebalance = False
@@ -695,19 +694,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     _('You will be able to pay once the swap is confirmed.')
                 ])
                 choices.append(('swap', msg))
-            if can_pay_onchain:
-                msg = ''.join([
-                    _('Pay onchain'), '\n',
-                    _('Funds will be sent to the invoice fallback address.')
-                ])
-                choices.append(('onchain', msg))
             msg = _('You cannot pay that invoice using Lightning.')
             if lnworker and lnworker.channels:
                 num_sats_can_send = int(lnworker.num_sats_can_send())
                 msg += '\n' + _('Your channels can send {}.').format(self.format_amount(num_sats_can_send) + ' ' + self.base_unit())
             if not choices:
-                if not can_pay_onchain:
-                    msg += '\n' + _('Also, you have insufficient funds to pay on-chain.')
                 self.window.show_error(msg)
                 return
             r = self.window.query_choice(msg, choices)

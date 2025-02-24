@@ -44,7 +44,7 @@ from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
-
+from electrum.fee_policy import FeeTimeEstimates
 
 
 from .test_lnchannel import create_test_channels
@@ -68,6 +68,7 @@ class MockNetwork:
         self.callbacks = defaultdict(list)
         self.lnwatcher = None
         self.interface = None
+        self.fee_estimates = FeeTimeEstimates()
         self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
@@ -1282,10 +1283,8 @@ class TestPeerDirect(TestPeer):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = b''
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.FEE_EST_DYNAMIC = False
-        w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
+        w1.network.config.FEE_POLICY = 'feerate:5000'
+        w2.network.config.FEE_POLICY = 'feerate:1000'
 
         async def test():
             async def close():
@@ -1316,10 +1315,8 @@ class TestPeerDirect(TestPeer):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.FEE_EST_DYNAMIC = False
-        w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
+        w1.network.config.FEE_POLICY = 'feerate:5000'
+        w2.network.config.FEE_POLICY = 'feerate:1000'
 
         async def test():
             async def close():

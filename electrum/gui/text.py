@@ -764,14 +764,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def settings_dialog(self):
-        fee = str(Decimal(self.config.fee_per_kb()) / COIN)
+        from electrum.fee_policy import FeePolicy
         out = self.run_dialog('Settings', [
-            {'label':'Default fee', 'type':'satoshis', 'value': fee}
-            ], buttons = 1)
+            {'label':'Fee policy', 'type':'str', 'value': self.config.FEE_POLICY}
+        ], buttons = 1)
         if out:
-            if out.get('Default fee'):
-                fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.FEE_EST_STATIC_FEERATE = fee
+            if descr := out.get('Fee policy'):
+                fee_policy = FeePolicy(descr)
+                self.config.FEE_POLICY = fee_policy.get_descriptor()
 
     def password_dialog(self):
         out = self.run_dialog('Password', [

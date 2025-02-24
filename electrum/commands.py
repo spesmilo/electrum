@@ -70,6 +70,7 @@ from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import Invoice
+from .fee_policy import FeePolicy
 from . import submarine_swaps
 from . import GuiImportError
 from . import crypto
@@ -237,7 +238,7 @@ class Commands(Logger):
             'auto_connect': net_params.auto_connect,
             'version': ELECTRUM_VERSION,
             'default_wallet': self.config.get_wallet_path(),
-            'fee_per_kb': self.config.fee_per_kb(),
+            'fee_estimates': self.network.fee_estimates.get_data()
         }
         return response
 
@@ -728,21 +729,20 @@ class Commands(Logger):
         return out['address']
 
     @command('n')
-    async def sweep(self, privkey, destination, fee=None, nocheck=False, imax=100):
+    async def sweep(self, privkey, destination, fee=None, feerate=None, nocheck=False, imax=100):
         """Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction is not
         broadcasted."""
         from .wallet import sweep
-        tx_fee = satoshis(fee)
+        fee_policy = self._get_fee_policy(fee, feerate)
         privkeys = privkey.split()
         self.nocheck = nocheck
         #dest = self._resolver(destination)
         tx = await sweep(
             privkeys,
             network=self.network,
-            config=self.config,
             to_address=destination,
-            fee=tx_fee,
+            fee_policy=fee_policy,
             imax=imax,
         )
         return tx.serialize() if tx else None
@@ -761,12 +761,25 @@ class Commands(Logger):
         message = util.to_bytes(message)
         return bitcoin.verify_usermessage_with_address(address, sig, message)
 
+    def _get_fee_policy(self, fee, feerate):
+        if fee is not None and feerate is not None:
+            raise Exception('Cannot set both fee and feerate')
+        if fee is not None:
+            fee_sats = satoshis(fee)
+            fee_policy = FeePolicy(f'fixed:{fee_sats}')
+        elif feerate is not None:
+            feerate_per_byte = 1000 * feerate
+            fee_policy = FeePolicy(f'feerate:{feerate_per_byte}')
+        else:
+            fee_policy = FeePolicy(self.config.FEE_POLICY)
+        return fee_policy
+
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                     nocheck=False, unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a transaction. """
         self.nocheck = nocheck
-        tx_fee = satoshis(fee)
+        fee_policy = self._get_fee_policy(fee, feerate)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
         change_addr = self._resolver(change_addr, wallet)
@@ -775,8 +788,7 @@ class Commands(Logger):
         outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
         tx = wallet.create_transaction(
             outputs,
-            fee=tx_fee,
-            feerate=feerate,
+            fee_policy=fee_policy,
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
@@ -794,7 +806,7 @@ class Commands(Logger):
                         nocheck=False, unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
         self.nocheck = nocheck
-        tx_fee = satoshis(fee)
+        fee_policy = self._get_fee_policy(fee, feerate)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
         change_addr = self._resolver(change_addr, wallet)
@@ -806,8 +818,7 @@ class Commands(Logger):
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
         tx = wallet.create_transaction(
             final_outputs,
-            fee=tx_fee,
-            feerate=feerate,
+            fee_policy=fee_policy,
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
@@ -1142,22 +1153,22 @@ class Commands(Logger):
         """ return wallet synchronization status """
         return wallet.is_up_to_date()
 
-    @command('')
+    @command('n')
     async def getfeerate(self):
-        """Return current fee rate settings and current estimate (in sat/kvByte).
         """
-        method, value, feerate, tooltip = self.config.getfeerate()
+        Return current fee estimate given network conditions (in sat/kvByte).
+        To change the fee policy, use 'getconfig/setconfig fee_policy'
+        """
+        fee_policy = FeePolicy(self.config.FEE_POLICY)
+        description = fee_policy.get_target_text()
+        feerate = fee_policy.fee_per_kb(self.network)
+        tooltip = fee_policy.get_estimate_text(self.network)
         return {
-            'method': method,
-            'value': value,
+            'policy': fee_policy.get_descriptor(),
+            'description': description,
             'sat/kvB': feerate,
             'tooltip': tooltip,
         }
-
-    @command('')
-    async def setfeerate(self, method, value):
-        """Set fee rate estimation method and value"""
-        self.config.setfeerate(method, value)
 
     @command('w')
     async def removelocaltx(self, txid, wallet: Abstract_Wallet = None):
