@@ -1,0 +1,47 @@
+/*
+ * Exchange communication
+ *
+ */
+
+syntax = "proto2";
+
+// Sugar for easier handling in Java
+option java_package = "com.keepkey.device-protocol";
+option java_outer_classname = "KeepKeyExchange";
+
+/**
+ * Structure representing address for various coin types (BTC, LTC, and etc).
+ * @used in ExchangeResponse
+ */
+message ExchangeAddress {
+    optional string coin_type = 1;
+    optional string address = 2;
+    optional string dest_tag = 3;
+    // formerly rs_address = 4;
+}
+
+enum OrderType {
+    Precise = 0;
+    Quick = 1;
+}
+
+message ExchangeResponseV2 {
+    optional ExchangeAddress deposit_address = 1;
+    optional bytes deposit_amount = 2;
+    optional int64  expiration = 3;
+    optional bytes quoted_rate = 4;
+    optional ExchangeAddress withdrawal_address = 5;
+    optional bytes withdrawal_amount = 6;
+    optional ExchangeAddress return_address = 7;
+    optional bytes api_key = 8;
+    optional bytes miner_fee = 9;
+    optional bytes order_id = 10;
+    optional OrderType type = 11 [default=Precise];
+}
+
+message SignedExchangeResponse {
+    // Formerly response = 1;
+    optional bytes signature = 2;
+    optional ExchangeResponseV2 responseV2 = 3;
+}
+
