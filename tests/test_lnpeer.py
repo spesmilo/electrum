@@ -44,7 +44,7 @@ from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
-
+from electrum.fee_policy import FeeTimeEstimates
 
 
 from .test_lnchannel import create_test_channels
@@ -68,6 +68,7 @@ class MockNetwork:
         self.callbacks = defaultdict(list)
         self.lnwatcher = None
         self.interface = None
+        self.fee_estimates = FeeTimeEstimates()
         self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)

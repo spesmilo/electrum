@@ -58,6 +58,7 @@ from . import constants
 from .i18n import _
 from .logging import Logger
 from .transaction import Transaction
+from .fee_policy import FEE_ETA_TARGETS
 
 if TYPE_CHECKING:
     from .network import Network
@@ -736,7 +737,6 @@ class Interface(Logger):
             await self.session.send_request('server.ping')
 
     async def request_fee_estimates(self):
-        from .simple_config import FEE_ETA_TARGETS
         while True:
             async with OldTaskGroup() as group:
                 fee_tasks = []

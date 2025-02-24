@@ -14,6 +14,7 @@ from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacing
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
 from electrum.plugin import run_hook
+from electrum.fee_policy import FeePolicy, FeeMethod
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -30,9 +31,10 @@ class FeeSlider(QObject):
         self._wallet = None  # type: Optional[QEWallet]
         self._sliderSteps = 0
         self._sliderPos = 0
-        self._method = -1
+        #self._method = -1
         self._target = ''
         self._config = None  # type: Optional[SimpleConfig]
+        self._fee_policy = None # FeePolicy(self._config.FEE_POLICY)
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -67,20 +69,16 @@ class FeeSlider(QObject):
     methodChanged = pyqtSignal()
     @pyqtProperty(int, notify=methodChanged)
     def method(self):
-        return self._method
+        return int(self._fee_policy.method) - 1
 
     @method.setter
     def method(self, method):
-        if self._method != method:
-            self._method = method
+        method = FeeMethod(method + 1)
+        if self._fee_policy.method != method:
+            self._fee_policy.set_method(method)
             self.update_slider()
             self.methodChanged.emit()
             self.save_config()
-
-    def get_method(self):
-        dynfees = self._method > 0
-        mempool = self._method == 2
-        return dynfees, mempool
 
     targetChanged = pyqtSignal()
     @pyqtProperty(str, notify=targetChanged)
@@ -94,21 +92,18 @@ class FeeSlider(QObject):
             self.targetChanged.emit()
 
     def update_slider(self):
-        dynfees, mempool = self.get_method()
-        maxp, pos, fee_rate = self._config.get_fee_slider(dynfees, mempool)
+        maxp, pos = self._fee_policy.get_slider()
         self._sliderSteps = maxp
         self._sliderPos = pos
         self.sliderStepsChanged.emit()
         self.sliderPosChanged.emit()
 
     def update_target(self):
-        target, tooltip, dyn = self._config.get_fee_target()
-        self.target = target
+        # why isnt it setting self._target?
+        self.target = self._fee_policy.get_target_text()
 
     def read_config(self):
-        mempool = self._config.use_mempool_fees()
-        dynfees = self._config.is_dynfee()
-        self._method = (2 if mempool else 1) if dynfees else 0
+        self._fee_policy = FeePolicy(self._config.FEE_POLICY)
         self.update_slider()
         self.methodChanged.emit()
         self.update_target()
@@ -116,16 +111,8 @@ class FeeSlider(QObject):
 
     def save_config(self):
         value = int(self._sliderPos)
-        dynfees, mempool = self.get_method()
-        self._config.FEE_EST_DYNAMIC = dynfees
-        self._config.FEE_EST_USE_MEMPOOL = mempool
-        if dynfees:
-            if mempool:
-                self._config.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = value
-            else:
-                self._config.FEE_EST_DYNAMIC_ETA_SLIDERPOS = value
-        else:
-            self._config.FEE_EST_STATIC_FEERATE = self._config.static_fee(value)
+        self._fee_policy.set_value_from_slider_pos(value)
+        #self._config.FEE_POLICY = self._fee_policy.get_descriptor()
         self.update_target()
         self.update()
 
@@ -362,7 +349,11 @@ class QETxFinalizer(TxFeeSlider):
             # default impl
             coins = self._wallet.wallet.get_spendable_coins(None)
             outputs = [PartialTxOutput.from_address_and_value(self.address, amount)]
-            tx = self._wallet.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=None, rbf=self._rbf)
+            tx = self._wallet.wallet.make_unsigned_transaction(
+                coins=coins,
+                outputs=outputs,
+                fee_policy=self._fee_policy,
+                rbf=self._rbf)
 
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
 
@@ -587,7 +578,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
             # not initialized yet
             return
 
-        fee_per_kb = self._config.fee_per_kb()
+        fee_per_kb = self._fee_policy.fee_per_kb(self._wallet.wallet.network)
         if fee_per_kb is None:
             # dynamic method and no network
             self._logger.debug('no fee_per_kb')

@@ -15,6 +15,7 @@ from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_sh
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint, PartialTransaction
 from .logging import Logger
+from .bitcoin import dust_threshold
 
 
 if TYPE_CHECKING:
@@ -39,6 +40,8 @@ class TxMinedDepth(IntEnum):
 
 
 from .util import EventListener, event_listener
+from .fee_policy import FeePolicy
+
 
 class LNWatcher(Logger, EventListener):
 
@@ -54,6 +57,7 @@ class LNWatcher(Logger, EventListener):
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
+        self.fee_policy = FeePolicy('eta:2')
 
     async def stop(self):
         self.unregister_callbacks()
@@ -290,6 +294,7 @@ class LNWalletWatcher(LNWatcher):
             # password is needed for 1st stage htlc tx with anchors because we add inputs
             password = self.lnworker.wallet.get_unlocked_password()
             new_tx = self.lnworker.wallet.create_transaction(
+                fee_policy = self.fee_policy,
                 inputs = inputs,
                 outputs = outputs,
                 password = password,

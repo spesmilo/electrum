@@ -843,7 +843,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
         elif exp_n is not None:
-            self.date_label.setText(_('Position in mempool: {}').format(self.config.depth_tooltip(exp_n)))
+            from electrum.fee_policy import FeePolicy
+            self.date_label.setText(_('Position in mempool: {}').format(FeePolicy.depth_tooltip(exp_n)))
             self.date_label.show()
         else:
             self.date_label.hide()

@@ -59,7 +59,8 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
-from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
+from .simple_config import SimpleConfig
+from .fee_policy import FeePolicy, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .bitcoin import DummyAddress, DummyAddressUsedInTxException
@@ -941,10 +942,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.adb.get_tx_fee(tx_hash)
-                    if fee and self.network and self.config.has_fee_mempool():
+                    if fee and self.network and self.network.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
-                        exp_n = self.config.fee_to_depth(fee_per_byte)
+                        exp_n = self.network.mempool_fees.fee_to_depth(fee_per_byte)
                     can_bump = (is_any_input_ismine or is_swap) and self.can_rbf_tx(tx)
                     can_dscancel = (is_any_input_ismine and self.can_rbf_tx(tx, is_dscancel=True)
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
@@ -1695,10 +1696,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 fee_per_byte = fee / size
                 extra.append(format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VB}")
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
-               and self.config.has_fee_mempool():
-                exp_n = self.config.fee_to_depth(fee_per_byte)
+               and self.network and self.network.has_fee_mempool():
+                exp_n = self.network.mempool_fees.fee_to_depth(fee_per_byte)
                 if exp_n is not None:
-                    extra.append(self.config.get_depth_mb_str(exp_n))
+                    extra.append(FeePolicy.get_depth_mb_str(exp_n))
             if height == TX_HEIGHT_LOCAL:
                 status = 3
             elif height == TX_HEIGHT_UNCONF_PARENT:
@@ -1838,7 +1839,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coins: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
-            fee=None,
+            fee = None,
+            fee_policy: FeePolicy = None,
             change_addr: str = None,
             is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: Optional[bool] = True,
@@ -1847,6 +1849,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             send_change_to_lightning: Optional[bool] = None,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
+        if fee is not None:
+            assert fee_policy is None
+            fee_policy = FeePolicy(f'constant:{fee}')
 
         if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
@@ -1874,23 +1879,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 i_max_sum += weight
                 i_max.append((weight, i))
 
-        if fee is None and self.config.fee_per_kb() is None:
-            raise NoDynamicFeeEstimates()
-
         for txin in coins:
             self.add_input_info(txin)
             nSequence = 0xffffffff - (2 if rbf else 1)
             txin.nsequence = nSequence
 
-        # Fee estimator
-        if fee is None:
-            fee_estimator = self.config.estimate_fee
-        elif isinstance(fee, Number):
-            fee_estimator = lambda size: fee
-        elif callable(fee):
-            fee_estimator = fee
-        else:
-            raise Exception(f'Invalid argument fee: {fee}')
+        fee_estimator = partial(fee_policy.estimate_fee, self.network)
 
         # set if we merge with another transaction
         rbf_merge_txid = None
@@ -2215,7 +2209,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for item in coins:
             self.add_input_info(item)
         def fee_estimator(size):
-            return self.config.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
+            return FeePolicy.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
         coin_chooser = coinchooser.get_coin_chooser(self.config)
         try:
             return coin_chooser.make_tx(
@@ -3098,41 +3092,37 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def create_transaction(
-        self,
-        outputs,
-        *,
-        fee=None,
-        feerate=None,
-        change_addr=None,
-        domain_addr=None,
-        domain_coins=None,
-        sign=True,
-        rbf=True,
-        password=None,
-        locktime=None,
-        tx_version: Optional[int] = None,
-        base_tx: Optional[PartialTransaction] = None,
-        inputs: Optional[List[PartialTxInput]] = None,
-        send_change_to_lightning: Optional[bool] = None,
-        nonlocal_only: bool = False,
-        BIP69_sort: bool = True,
+            self,
+            outputs,
+            *,
+            fee=None,
+            fee_policy: FeePolicy=None,
+            change_addr=None,
+            domain_addr=None,
+            domain_coins=None,
+            sign=True,
+            rbf=True,
+            password=None,
+            locktime=None,
+            tx_version: Optional[int] = None,
+            base_tx: Optional[PartialTransaction] = None,
+            inputs: Optional[List[PartialTxInput]] = None,
+            send_change_to_lightning: Optional[bool] = None,
+            nonlocal_only: bool = False,
+            BIP69_sort: bool = True,
     ) -> PartialTransaction:
         """Helper function for make_unsigned_transaction."""
-        if fee is not None and feerate is not None:
-            raise UserFacingException("Cannot specify both 'fee' and 'feerate' at the same time!")
         coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        if feerate is not None:
-            fee_per_kb = 1000 * Decimal(feerate)
-            fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
-        else:
-            fee_estimator = fee
+        if fee is not None:
+            assert fee_policy is None
+            fee_policy = FeePolicy(f'constant:{fee}')
         tx = self.make_unsigned_transaction(
             coins=coins,
             inputs=inputs,
             outputs=outputs,
-            fee=fee_estimator,
+            fee_policy=fee_policy,
             change_addr=change_addr,
             base_tx=base_tx,
             send_change_to_lightning=send_change_to_lightning,

@@ -1384,11 +1384,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         WaitingDialog(self, msg, task, on_success, on_failure)
 
     def mktx_for_open_channel(self, *, funding_sat, node_id):
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.lnworker.mktx_for_open_channel(
+        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.lnworker.mktx_for_open_channel(
             coins = self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
             funding_sat=funding_sat,
             node_id=node_id,
-            fee_est=fee_est)
+            fee_policy=fee_policy)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):

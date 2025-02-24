@@ -792,11 +792,11 @@ def sweep_their_ctx_htlc(
     txin.witness_script = witness_script
     txin.script_sig = b''
     txin.nsequence = 1 if has_anchors else 0xffffffff - 2
-    tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
+    #tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
+    #fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
+    #outvalue = val - fee
+    #if outvalue <= dust_threshold():
+    #    return None
     txin.privkey = privkey
     if not is_revocation:
         txin.make_witness = lambda sig: construct_witness([sig, preimage, witness_script])
@@ -826,11 +826,11 @@ def sweep_their_ctx_to_remote(
     txin.script_sig = b''
     txin.witness_script = witness_script
     txin.nsequence = 1
-    tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
+    #tx_size_bytes = 196  # approx size of p2wsh->p2wpkh
+    #fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
+    #outvalue = val - fee
+    #if outvalue <= dust_threshold():
+    #    return None
     txin.privkey = our_payment_privkey.get_secret_bytes()
     txin.make_witness = lambda sig: construct_witness([sig, witness_script])
     return txin
@@ -877,11 +877,11 @@ def sweep_ctx_to_local(
     if not is_revocation:
         assert isinstance(to_self_delay, int)
         txin.nsequence = to_self_delay
-    tx_size_bytes = 121  # approx size of to_local -> p2wpkh
-    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
-    outvalue = val - fee
-    if outvalue <= dust_threshold():
-        return None
+    #tx_size_bytes = 121  # approx size of to_local -> p2wpkh
+    #fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
+    #outvalue = val - fee
+    #if outvalue <= dust_threshold():
+    #    return None
     txin.privkey = privkey
     assert txin.witness_script
     txin.make_witness = lambda sig: construct_witness([sig, int(is_revocation), witness_script])

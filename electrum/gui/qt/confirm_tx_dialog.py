@@ -40,6 +40,7 @@ from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
 from electrum.bitcoin import DummyAddress
+from electrum.fee_policy import FeePolicy
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    WWLabel, read_QIcon)
@@ -71,6 +72,8 @@ class TxEditor(WindowModalDialog):
         self.error = ''   # set by side effect
 
         self.config = window.config
+        self.network = window.network
+        self.fee_policy = FeePolicy(self.config.FEE_POLICY)
         self.wallet = window.wallet
         self.feerounding_sats = 0
         self.not_enough_funds = False
@@ -124,15 +127,6 @@ class TxEditor(WindowModalDialog):
     def stop_editor_updates(self):
         self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
 
-    def set_fee_config(self, dyn, pos, fee_rate):
-        if dyn:
-            if self.config.use_mempool_fees():
-                self.config.cv.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS.set(pos, save=False)
-            else:
-                self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
-        else:
-            self.config.cv.FEE_EST_STATIC_FEERATE.set(fee_rate, save=False)
-
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error
         raise NotImplementedError()
@@ -164,7 +158,7 @@ class TxEditor(WindowModalDialog):
         self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 0)
-        self.feerate_e.setAmount(self.config.fee_per_byte())
+        self.feerate_e.setAmount(self.fee_policy.fee_per_byte(self.network))
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
         self.update_feerate_label()
@@ -180,7 +174,7 @@ class TxEditor(WindowModalDialog):
         self.feerate_e.textChanged.connect(self.entry_changed)
 
         self.fee_target = QLabel('')
-        self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
+        self.fee_slider = FeeSlider(self, self.fee_policy, self.fee_slider_callback)
         self.fee_combo = FeeComboBox(self.fee_slider)
         self.fee_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -230,7 +224,8 @@ class TxEditor(WindowModalDialog):
         self.needs_update = True
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
-        self.set_fee_config(dyn, pos, fee_rate)
+        # todo: do not always save config
+        self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         self.fee_slider.activate()
         if fee_rate:
             fee_rate = Decimal(fee_rate)
@@ -283,7 +278,9 @@ class TxEditor(WindowModalDialog):
             fee_estimator = partial(
                 SimpleConfig.estimate_fee_for_feerate, amount)
         else:
+            # read values in slider. do not return None
             fee_estimator = None
+            fee_estimator = self.fee_slider.get_policy()
         return fee_estimator
 
     def entry_changed(self):
@@ -507,6 +504,8 @@ class TxEditor(WindowModalDialog):
         cancelled = not self.exec()
         self.stop_editor_updates()
         self.deleteLater()  # see #3956
+        if not cancelled:
+            self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         return self.tx if not cancelled else None
 
     def on_send(self):

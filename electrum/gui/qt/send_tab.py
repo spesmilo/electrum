@@ -266,10 +266,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         outputs = pi.get_onchain_outputs('!')
         if not outputs:
             return
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            fee_policy=fee_policy,
             coins=self.window.get_coins(),
             outputs=outputs,
-            fee=fee_est,
             is_sweep=False)
         try:
             try:
@@ -325,10 +325,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
             get_coins = self.window.get_coins
-        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
+            fee_policy=fee_policy,
             outputs=outputs,
-            fee=fee_est,
             is_sweep=is_sweep)
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)

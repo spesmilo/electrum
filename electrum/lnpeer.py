@@ -2502,9 +2502,10 @@ class Peer(Logger, EventListener):
         if config.TEST_SHUTDOWN_FEE:
             our_fee = config.TEST_SHUTDOWN_FEE
         else:
-            fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            fee_rate_per_kb = self.network.fee_estimates.eta_target_to_fee(FEE_LN_ETA_TARGET)
             if fee_rate_per_kb is None:  # fallback
-                fee_rate_per_kb = self.network.config.fee_per_kb()
+                from .fee_policy import FeePolicy
+                fee_rate_per_kb = FeePolicy(config.FEE_POLICY).fee_per_kb(self.network)
             if fee_rate_per_kb is not None:
                 our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
             # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?

@@ -211,6 +211,7 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_payto(self, mock_save_db):
+        self.maxDiff = None
         wallet = restore_wallet_from_text('disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
                                           gap_limit=2,
                                           path='if_this_exists_mocking_failed_648151893',

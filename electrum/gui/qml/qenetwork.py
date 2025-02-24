@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
 from electrum.logging import get_logger
 from electrum import constants
 from electrum.interface import ServerAddr
-from electrum.simple_config import FEERATE_DEFAULT_RELAY
+from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
