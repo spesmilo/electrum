@@ -285,7 +285,7 @@ class Plugin(TimelockRecoveryPlugin):
         ), grid_row, 0)
         plan_grid.addWidget(self.timelock_days_widget, grid_row, 1, 1, 4)
         grid_row += 1
-
+        plan_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(plan_dialog)
 
@@ -512,7 +512,6 @@ class Plugin(TimelockRecoveryPlugin):
         ), grid_row, 0)
         cancel_grid.addWidget(selectable_label(self.cancellation_address), grid_row, 1, 1, 4)
         grid_row += 1
-
         fake_menu = QMenu()
         fake_menu.addAction(_("Copy Address"), lambda: window.parent().do_copy(self.cancellation_address))
         run_hook('receive_menu', fake_menu, [self.cancellation_address], self.wallet)
@@ -526,6 +525,7 @@ class Plugin(TimelockRecoveryPlugin):
             menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
         cancel_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
         grid_row += 1
+        cancel_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(cancel_dialog)
