@@ -64,11 +64,6 @@ enum MessageType {
 	MessageType_SignIdentity = 53 [(wire_in) = true];
 	MessageType_SignedIdentity = 54 [(wire_out) = true];
 	MessageType_GetFeatures = 55 [(wire_in) = true];
-	MessageType_EthereumGetAddress = 56 [(wire_in) = true];
-	MessageType_EthereumAddress = 57 [(wire_out) = true];
-	MessageType_EthereumSignTx = 58 [(wire_in) = true];
-	MessageType_EthereumTxRequest = 59 [(wire_out) = true];
-	MessageType_EthereumTxAck = 60 [(wire_in) = true];
 	MessageType_CharacterRequest = 80 [(wire_out) = true];
 	MessageType_CharacterAck = 81 [(wire_in) = true];
 	MessageType_RawTxAck = 82 [(wire_in) = true];
@@ -87,30 +82,6 @@ enum MessageType {
 	MessageType_DebugLinkFillConfig = 105 [(wire_debug_out) = true];
 	MessageType_GetCoinTable = 106 [(wire_in) = true];
 	MessageType_CoinTable = 107 [(wire_out) = true];
-	MessageType_EthereumSignMessage = 108 [(wire_in) = true];
-	MessageType_EthereumVerifyMessage = 109 [(wire_in) = true];
-	MessageType_EthereumMessageSignature = 110 [(wire_out) = true];
-
-	// EOS
-	MessageType_EosGetPublicKey = 600 [(wire_in) = true];
-	MessageType_EosPublicKey = 601 [(wire_out) = true];
-	MessageType_EosSignTx = 602 [(wire_in) = true];
-	MessageType_EosTxActionRequest = 603 [(wire_out) = true];
-	MessageType_EosTxActionAck = 604 [(wire_in) = true];
-	MessageType_EosSignedTx = 605 [(wire_out) = true];
-
-	// Nano
-	MessageType_NanoGetAddress = 700 [(wire_in) = true];
-	MessageType_NanoAddress = 701 [(wire_out) = true];
-	MessageType_NanoSignTx = 702 [(wire_in) = true];
-	MessageType_NanoSignedTx = 703 [(wire_out) = true];
-
-	MessageType_CosmosGetAddress = 900 [(wire_in) = true];
-	MessageType_CosmosAddress = 901 [(wire_out) = true];
-	MessageType_CosmosSignTx = 902 [(wire_in) = true];
-	MessageType_CosmosMsgRequest = 903 [(wire_out) = true];
-	MessageType_CosmosMsgAck = 904 [(wire_in) = true];
-	MessageType_CosmosSignedTx = 905 [(wire_out) = true];
 }
 
 ////////////////////
@@ -352,31 +323,11 @@ message GetAddress {
 }
 
 /**
- * Request: Ask device for Ethereum address corresponding to address_n path
- * @next PassphraseRequest
- * @next EthereumAddress
- * @next Failure
- */
-message EthereumGetAddress {
-	repeated uint32 address_n = 1;			// BIP-32 path to derive the key from master node
-	optional bool show_display = 2;			// optionally show on display before sending the result
-}
-
-/**
  * Response: Contains address derived from device private seed
  * @prev GetAddress
  */
 message Address {
 	required string address = 1;		// Coin address in Base58 encoding
-}
-
-/**
- * Response: Contains an Ethereum address derived from device private seed
- * @prev EthereumGetAddress
- */
-message EthereumAddress {
-	required bytes address = 1;		// Coin address as an Ethereum 160 bit hash
-	optional string address_str = 2;
 }
 
 /**
@@ -658,93 +609,6 @@ message TxAck {
  */
 message RawTxAck {
 	optional RawTransactionType tx = 1;
-}
-
-/**
- * Request: Ask device to sign transaction
- * All fields are optional from the protocol's point of view. Each field defaults to value `0` if missing.
- * Note: the first at most 1024 bytes of data MUST be transmitted as part of this message.
- * @next PassphraseRequest
- * @next PinMatrixRequest
- * @next EthereumTxRequest
- * @next Failure
- */
-message EthereumSignTx {
-	repeated uint32 address_n = 1;			// BIP-32 path to derive the key from master node
-	optional bytes nonce = 2;			// <=256 bit unsigned big endian
-	optional bytes gas_price = 3;			// <=256 bit unsigned big endian (in wei)
-	optional bytes gas_limit = 4;			// <=256 bit unsigned big endian
-	optional bytes to = 5;				// 160 bit address hash
-	optional bytes value = 6;			// <=256 bit unsigned big endian (in wei)
-	optional bytes data_initial_chunk = 7;		// The initial data chunk (<= 1024 bytes)
-	optional uint32 data_length = 8;		// Length of transaction payload
-	repeated uint32 to_address_n = 9;               // BIP-32 path to derive key for fund transfer
-	optional OutputAddressType address_type = 10;	// output address type 
-	optional ExchangeType exchange_type = 11;	// exchange type data        
-	optional uint32 chain_id = 12;			// Chain Id for EIP 155
-	optional bytes token_value = 100;		// How many tokens to send
-	optional bytes  token_to = 101;			// 160 bit address hash to send tokens to
-	optional string token_shortcut = 102; 		// 3 or 4 character token identifier
-	optional uint32 tx_type = 103;		// (only for Wanchain)
-}
-
-/**
- * Response: Device asks for more data from transaction payload, or returns the signature.
- * If data_length is set, device awaits that many more bytes of payload.
- * Otherwise, the signature_* fields contain the computed transaction signature. All three fields will be present.
- * @prev EthereumSignTx
- * @next EthereumTxAck
- */
-message EthereumTxRequest {
-	optional uint32 data_length = 1;  // Number of bytes being requested (<= 1024)
-	optional uint32 signature_v = 2;  // Computed signature (recovery parameter, limited to 27 or 28)
-	optional bytes signature_r = 3;	  // Computed signature R component (256 bit)
-	optional bytes signature_s = 4;	  // Computed signature S component (256 bit)
-	optional bytes hash = 5;	  // Computed hash using SHA3 (keccak_ctx)
-        optional bytes signature_der = 6; // Computed signature in DER format
-}
-
-/**
- * Request: Transaction payload data.
- * @prev EthereumTxRequest
- * @next EthereumTxRequest
- */
-message EthereumTxAck {
-	optional bytes data_chunk = 1;			// Bytes from transaction payload (<= 1024 bytes)
-}
-
-////////////////////////////////////////
-// Ethereum: Message signing messages //
-////////////////////////////////////////
-
-/**
- * Request: Ask device to sign message
- * @next EthereumMessageSignature
- * @next Failure
- */
-message EthereumSignMessage {
-	repeated uint32 address_n = 1;				// BIP-32 path to derive the key from master node
-	required bytes message = 2;				// message to be signed
-}
-
-/**
- * Request: Ask device to verify message
- * @next Success
- * @next Failure
- */
-message EthereumVerifyMessage {
-	optional bytes address = 1;				// address to verify
-	optional bytes signature = 2;				// signature to verify
-	optional bytes message = 3;				// message to verify
-}
-
-/**
- * Response: Signed message
- * @prev EthereumSignMessage
- */
-message EthereumMessageSignature {
-	optional bytes address = 1;				// address used to sign the message
-	optional bytes signature = 2;				// signature of the message
 }
 
 ///////////////////////
