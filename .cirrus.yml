@@ -153,7 +153,7 @@ task:
   install_script:
     - pip install "flake8==7.0.0" "flake8-bugbear==24.1.16"
   flake8_script:
-    - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "*_pb2.py,electrum/_vendor/"
+    - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "$ELECTRUM_EXCLUDE"
   env:
     ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
@@ -166,6 +166,7 @@ task:
         # - https://github.com/PyCQA/flake8-bugbear/tree/8c0e7eb04217494d48d0ab093bf5b31db0921989#list-of-warnings
         ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,E722,F63,F7,F82,W191,W29,B
         ELECTRUM_LINTERS_IGNORE: B007,B009,B010,B019,B036
+        ELECTRUM_EXCLUDE: "*_pb2.py,electrum/_vendor/,electrum/plugins/keepkey/keepkeylib/"
     - name: "linter: Flake8 Non-Mandatory"
       env:
         ELECTRUM_LINTERS: E,F,W,C90,B
