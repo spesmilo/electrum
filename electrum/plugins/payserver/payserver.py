@@ -125,14 +125,22 @@ class PayServer(Logger, EventListener):
         params = await request.post()
         wallet = self.wallet
         if 'amount_sat' not in params or not params['amount_sat'].isdigit():
-            raise web.HTTPUnsupportedMediaType()
+            raise web.HTTPBadRequest(reason='No amount provided')
+        if 'onchain' in params:
+            address = wallet.get_unused_address()
+            if not address:
+                raise web.HTTPBadRequest(reason='wallet does not have any unused address')
+        else:
+            if not wallet.has_lightning():
+                raise web.HTTPBadRequest(reason='wallet does not support lightning')
+            address = None
         amount = int(params['amount_sat'])
         message = params['message'] or "donation"
         key = wallet.create_request(
             amount_sat=amount,
             message=message,
             exp_delay=3600,
-            address=None)
+            address=address)
         raise web.HTTPFound(self.root + '/pay?id=' + key)
 
     async def get_request(self, r):
