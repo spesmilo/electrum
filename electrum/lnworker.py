@@ -60,7 +60,7 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -162,7 +162,6 @@ LNWALLET_FEATURES = (
     BASE_FEATURES
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
-    | LnFeatures.GOSSIP_QUERIES_REQ
     | LnFeatures.VAR_ONION_REQ
     | LnFeatures.PAYMENT_SECRET_REQ
     | LnFeatures.BASIC_MPP_OPT
@@ -175,8 +174,10 @@ LNWALLET_FEATURES = (
 
 LNGOSSIP_FEATURES = (
     BASE_FEATURES
-    | LnFeatures.GOSSIP_QUERIES_OPT
+    # LNGossip doesn't serve gossip but weirdly have to signal so
+    # that peers satisfy our queries
     | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.GOSSIP_QUERIES_OPT
 )
 
 
@@ -290,7 +291,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         peer_addr = LNPeerAddr(host, port, node_id)
         self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
-        if node_id == self.node_keypair.pubkey:
+        if node_id == self.node_keypair.pubkey or self.is_our_lnwallet(node_id):
             raise ErrorAddingPeer("cannot connect to self")
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
                                 e_proxy=ESocksProxy.from_network_settings(self.network))
@@ -326,6 +327,14 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
+
+    def is_our_lnwallet(self, node_id: bytes) -> bool:
+        """Check if node_id is one of our own wallets"""
+        wallets = self.network.daemon.get_wallets()
+        for wallet in wallets.values():
+            if wallet.lnworker and wallet.lnworker.node_keypair.pubkey == node_id:
+                return True
+        return False
 
     def start_network(self, network: 'Network'):
         assert network
@@ -511,6 +520,12 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
 
 class LNGossip(LNWorker):
+    """The LNGossip class is a separate, unannounced Lightning node with random id that is just querying
+    gossip from other nodes. The LNGossip node does not satisfy gossip queries, this is done by the
+    LNWallet class(es). LNWallets are the advertised nodes used for actual payments and only satisfy
+    peer queries without fetching gossip themselves. This separation is done so that gossip can be queried
+    independently of the active LNWallets. LNGossip keeps a curated batch of gossip in _forwarding_gossip
+    that is fetched by the LNWallets for regular forwarding."""
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
@@ -521,12 +536,17 @@ class LNGossip(LNWorker):
         node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         LNWorker.__init__(self, node_keypair, LNGOSSIP_FEATURES, config=config)
         self.unknown_ids = set()
+        self._forwarding_gossip = []  # type: List[GossipForwardingMessage]
+        self._last_gossip_batch_ts = 0  # type: int
+        self._forwarding_gossip_lock = asyncio.Lock()
+        self.gossip_request_semaphore = asyncio.Semaphore(5)
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
         for coro in [
                 self._maintain_connectivity(),
                 self.maintain_db(),
+                self._maintain_forwarding_gossip()
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
@@ -538,6 +558,20 @@ class LNGossip(LNWorker):
                 self.channel_db.prune_old_policies(self.max_age)
                 self.channel_db.prune_orphaned_channels()
             await asyncio.sleep(120)
+
+    async def _maintain_forwarding_gossip(self):
+        await self.channel_db.data_loaded.wait()
+        await self.wait_for_sync()
+        while True:
+            async with self._forwarding_gossip_lock:
+                self._forwarding_gossip = self.channel_db.get_forwarding_gossip_batch()
+                self._last_gossip_batch_ts = int(time.time())
+            self.logger.debug(f"{len(self._forwarding_gossip)} gossip messages available to forward")
+            await asyncio.sleep(60)
+
+    async def get_forwarding_gossip(self) -> tuple[List[GossipForwardingMessage], int]:
+        async with self._forwarding_gossip_lock:
+            return self._forwarding_gossip, self._last_gossip_batch_ts
 
     async def add_new_ids(self, ids: Iterable[bytes]):
         known = self.channel_db.get_channel_ids()
@@ -563,12 +597,19 @@ class LNGossip(LNWorker):
             return None, None, None
         nchans_with_0p, nchans_with_1p, nchans_with_2p = self.channel_db.get_num_channels_partitioned_by_policy_count()
         num_db_channels = nchans_with_0p + nchans_with_1p + nchans_with_2p
+        num_nodes = self.channel_db.num_nodes
+        num_nodes_associated_to_chans = max(len(self.channel_db._channels_for_node.keys()), 1)
         # some channels will never have two policies (only one is in gossip?...)
         # so if we have at least 1 policy for a channel, we consider that channel "complete" here
         current_est = num_db_channels - nchans_with_0p
         total_est = len(self.unknown_ids) + num_db_channels
 
-        progress = current_est / total_est if total_est and current_est else 0
+        progress_chans = current_est / total_est if total_est and current_est else 0
+        # consider that we got at least 10% of the node anns of node ids we know about
+        progress_nodes = min((num_nodes / num_nodes_associated_to_chans) * 10, 1)
+        progress = (progress_chans * 3 + progress_nodes) / 4  # weigh the channel progress higher
+        # self.logger.debug(f"Sync process chans: {progress_chans} | Progress nodes: {progress_nodes} | "
+        #                   f"Total progress: {progress} | NUM_NODES: {num_nodes} / {num_nodes_associated_to_chans}")
         progress_percent = (1.0 / 0.95 * progress) * 100
         progress_percent = min(progress_percent, 100)
         progress_percent = round(progress_percent)
@@ -582,8 +623,8 @@ class LNGossip(LNWorker):
         # note: we run in the originating peer's TaskGroup, so we can safely raise here
         #       and disconnect only from that peer
         await self.channel_db.data_loaded.wait()
-        self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
-
+        self.logger.debug(f'process_gossip ca: {len(chan_anns)} na: {len(node_anns)} '
+                          f'cu: {len(chan_upds)}')
         # channel announcements
         def process_chan_anns():
             for payload in chan_anns:
@@ -609,6 +650,24 @@ class LNGossip(LNWorker):
             await self.add_new_ids(orphaned_ids)
         if categorized_chan_upds.good:
             self.logger.debug(f'process_gossip: {len(categorized_chan_upds.good)}/{len(chan_upds)}')
+
+    def is_synced(self) -> bool:
+        _, _, percentage_synced = self.get_sync_progress_estimate()
+        if percentage_synced is not None and percentage_synced >= 100:
+            return True
+        return False
+
+    async def wait_for_sync(self, times_to_check: int = 3):
+        """Check if we have 100% sync progress `times_to_check` times in a row (because the
+        estimate often jumps back after some seconds when doing initial sync)."""
+        while True:
+            if self.is_synced():
+                times_to_check -= 1
+                if times_to_check <= 0:
+                    return
+            await asyncio.sleep(10)
+            # flush the gossip queue so we don't forward old gossip after sync is complete
+            self.channel_db.get_forwarding_gossip_batch()
 
 
 class PaySession(Logger):
@@ -771,6 +830,8 @@ class LNWallet(LNWorker):
             features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
         if self.config.ACCEPT_ZEROCONF_CHANNELS:
             features |= LnFeatures.OPTION_ZEROCONF_OPT
+        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
+            features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = None
         self.lnrater: LNRater = None
