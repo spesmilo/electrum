@@ -2833,6 +2833,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return invoice
 
     def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):
+        """ will create a lightning request if address is None """
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
@@ -2841,9 +2842,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(Request._get_cur_time())
-        payment_hash = None  # type: Optional[bytes]
-        if self.has_lightning():
+        if address is None:
+            assert self.has_lightning()
             payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat, write_to_disk=False)
+        else:
+            payment_hash = None
         outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
         req = Request(

@@ -1074,17 +1074,20 @@ class Commands(Logger):
         return wallet.get_unused_address()
 
     @command('w')
-    async def add_request(self, amount, memo='', expiry=3600, force=False, wallet: Abstract_Wallet = None):
+    async def add_request(self, amount, memo='', expiry=3600, lightning=False, force=False, wallet: Abstract_Wallet = None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
-        addr = wallet.get_unused_address()
-        if addr is None:
-            if force:
-                addr = wallet.create_new_address(False)
-            else:
-                return False
         amount = satoshis(amount)
+        if not lightning:
+            addr = wallet.get_unused_address()
+            if addr is None:
+                if force:
+                    addr = wallet.create_new_address(False)
+                else:
+                    return False
+        else:
+            addr = None
         expiry = int(expiry) if expiry else None
         key = wallet.create_request(amount, memo, expiry, addr)
         req = wallet.get_request(key)
@@ -1586,6 +1589,8 @@ command_options = {
     'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
+    'amount':      (None, "Requested amount (in btc)"),
+    'lightning':   (None, "Create lightning request"),
     'expiry':      (None, "Time in seconds"),
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),

@@ -344,8 +344,9 @@ class Request(BaseInvoice):
     ) -> Optional[str]:
         addr = self.get_address()
         amount = self.get_amount_sat()
-        if amount is not None:
-            amount = int(amount)
+        if amount is None:
+            return
+        amount = int(amount)
         message = self.message
         extra = {}
         if self.time and self.exp:

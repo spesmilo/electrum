@@ -69,13 +69,21 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.do_clear)
-        self.create_invoice_button = QPushButton(_('Create Request'))
-        self.create_invoice_button.clicked.connect(lambda: self.create_invoice())
+        text = _('Onchain') if self.wallet.has_lightning() else _('Request')
+        self.create_onchain_invoice_button = QPushButton(text)
+        self.create_onchain_invoice_button.setIcon(read_QIcon("bitcoin.png"))
+        self.create_onchain_invoice_button.clicked.connect(lambda: self.create_invoice(False))
+        self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+        self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
+        self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
+        self.create_lightning_invoice_button.setVisible(self.wallet.has_lightning())
+
         self.receive_buttons = buttons = QHBoxLayout()
-        buttons.addStretch(1)
         buttons.addWidget(self.clear_invoice_button)
-        buttons.addWidget(self.create_invoice_button)
-        grid.addLayout(buttons, 4, 0, 1, -1)
+        buttons.addStretch(1)
+        buttons.addWidget(self.create_onchain_invoice_button)
+        buttons.addWidget(self.create_lightning_invoice_button)
+        grid.addLayout(buttons, 4, 1, 1, -1)
 
         self.receive_e = QTextEdit()
         self.receive_e.setFont(QFont(MONOSPACE_FONT))
@@ -116,6 +124,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.receive_widget = ReceiveWidget(
             self, self.receive_e, self.receive_qr, self.receive_help_widget)
+        #self.receive_widget.mouseReleaseEvent = lambda x: self.toggle_receive_qr()
 
         receive_widget_sp = QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
         receive_widget_sp.setRetainSizeWhenHidden(True)
@@ -138,12 +147,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.toggle_qr_button.setEnabled(False)
         self.toolbar.insertWidget(2, self.toggle_qr_button)
 
-        self.toggle_view_button = QPushButton('')
-        self.toggle_view_button.setToolTip(_('switch between view'))
-        self.toggle_view_button.clicked.connect(self.toggle_view)
-        self.toggle_view_button.setEnabled(False)
-        self.update_view_button()
-        self.toolbar.insertWidget(2, self.toggle_view_button)
         # menu
         menu.addConfig(self.config.cv.WALLET_BOLT11_FALLBACK, callback=self.on_toggle_bolt11_fallback)
         menu.addConfig(self.config.cv.WALLET_BIP21_LIGHTNING, callback=self.update_current_request)
@@ -204,24 +207,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.wallet.lnworker.clear_invoices_cache()
         self.update_current_request()
 
-    def update_view_button(self):
-        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
-        if i == 0:
-            icon, text = read_QIcon("link.png"), _('Bitcoin URI')
-        elif i == 1:
-            icon, text = read_QIcon("bitcoin.png"), _('Address')
-        elif i == 2:
-            icon, text = read_QIcon("lightning.png"), _('Lightning')
-        self.toggle_view_button.setText(text)
-        self.toggle_view_button.setIcon(icon)
-
-    def toggle_view(self):
-        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
-        i = (i + 1) % (3 if self.wallet.has_lightning() else 2)
-        self.config.GUI_QT_RECEIVE_TABS_INDEX = i
-        self.update_current_request()
-        self.update_view_button()
-
     def on_tab_changed(self):
         text, data, help_text, title = self.get_tab_data()
         self.window.do_copy(text, title=title)
@@ -277,16 +262,14 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         # always show
         self.receive_widget.setVisible(True)
         self.toggle_qr_button.setEnabled(True)
-        self.toggle_view_button.setEnabled(True)
         self.update_receive_qr_window()
 
     def get_tab_data(self):
-        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
-        if i == 0:
+        if self.URI:
             out = self.URI, self.URI, self.URI_help, _('Bitcoin URI')
-        elif i == 1:
+        elif self.addr:
             out = self.addr, self.addr, self.address_help, _('Address')
-        elif i == 2:
+        else:
             # encode lightning invoices as uppercase so QR encoding can use
             # alphanumeric mode; resulting in smaller QR codes
             out = self.lnaddr, self.lnaddr.upper(), self.ln_help, _('Lightning Request')
@@ -297,17 +280,16 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             text, data, help_text, title = self.get_tab_data()
             self.window.qr_window.qrw.setData(data)
 
-    def create_invoice(self):
+    def create_invoice(self, is_lightning: bool):
         amount_sat = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-
-        if amount_sat and amount_sat < self.wallet.dust_threshold():
+        if is_lightning:
             address = None
-            if not self.wallet.has_lightning():
+        else:
+            if amount_sat and amount_sat < self.wallet.dust_threshold():
                 self.show_error(_('Amount too small to be received onchain'))
                 return
-        else:
             address = self.get_bitcoin_address_for_request(amount_sat)
             if not address:
                 return
@@ -358,7 +340,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.address_help = self.URI_help = self.ln_help = ''
         self.receive_widget.setVisible(False)
         self.toggle_qr_button.setEnabled(False)
-        self.toggle_view_button.setEnabled(False)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.request_list.clearSelection()

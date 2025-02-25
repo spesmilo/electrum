@@ -48,21 +48,6 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                states: [
-                    State {
-                        name: 'bolt11'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                    },
-                    State {
-                        name: 'bip21uri'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                    },
-                    State {
-                        name: 'address'
-                        PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                    }
-                ]
-
                 TextHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.fillWidth: true
@@ -80,90 +65,15 @@ ElDialog {
 
                             color: 'white'
 
-                            Loader {
-                                id: qrloader
+                            QRImage {
                                 anchors.centerIn: parent
-                                Component {
-                                    id: qri_bolt11
-                                    QRImage {
-                                        qrdata: _bolt11
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
-                                Component {
-                                    id: qri_bip21uri
-                                    QRImage {
-                                        qrdata: _bip21uri
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
-                                Component {
-                                    id: qri_address
-                                    QRImage {
-                                        qrdata: _address
-                                        render: _render_qr
-                                        enableToggleText: true
-                                    }
-                                }
-                            }
-                        }
-
-                        ButtonContainer {
-                            Layout.fillWidth: true
-                            showSeparator: false
-                            Component {
-                                id: _ind
-                                Rectangle {
-                                    color: Material.dialogColor
-                                    opacity: parent.checked ? 1 : 0
-                                    radius: 5
-                                    width: parent.width
-                                    height: parent.height
-
-                                    Behavior on opacity {
-                                        NumberAnimation { duration: 200 }
-                                    }
-                                }
-                            }
-                            TabButton {
-                                id: bolt11Button
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('Lightning')
-                                enabled: _bolt11
-                                checked: rootLayout.state == 'bolt11'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'bolt11'
-                                    Config.preferredRequestType = 'bolt11'
-                                }
-                            }
-                            TabButton {
-                                id: bip21Button
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('URI')
-                                enabled: _bip21uri
-                                checked: rootLayout.state == 'bip21uri'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'bip21uri'
-                                    Config.preferredRequestType = 'bip21uri'
-                                }
-                            }
-                            TabButton {
-                                id: addressButton
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                text: qsTr('Address')
-                                checked: rootLayout.state == 'address'
-                                indicator: _ind.createObject()
-                                onClicked: {
-                                    rootLayout.state = 'address'
-                                    Config.preferredRequestType = 'address'
-                                }
+                                qrdata: _bolt11
+                                    ? _bolt11
+                                    : _bip21uri
+                                        ? _bip21uri
+                                        : _address
+                                render: _render_qr
+                                enableToggleText: true
                             }
                         }
                     }
@@ -307,22 +217,6 @@ ElDialog {
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet
-        onDetailsChanged: {
-            var req_type = Config.preferredRequestType
-            if (bolt11 && req_type == 'bolt11') {
-                rootLayout.state = 'bolt11'
-            } else if (bip21 && req_type == 'bip21uri') {
-                rootLayout.state = 'bip21uri'
-            } else if (req_type == 'address') {
-                rootLayout.state = 'address'
-            } else if (bolt11) {
-                rootLayout.state = 'bolt11'
-            } else if (bip21) {
-                rootLayout.state = 'bip21uri'
-            } else {
-                rootLayout.state = 'address'
-            }
-        }
         onStatusChanged: {
             if (status == RequestDetails.Paid || status == RequestDetails.Unconfirmed) {
                 _ispaid = true

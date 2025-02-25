@@ -11,12 +11,13 @@ import "controls"
 ElDialog {
     id: dialog
 
-    title: qsTr('Receive payment')
+    title: qsTr('Create Invoice')
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     property alias amount: amountBtc.text
     property alias description: message.text
     property alias expiry: expires.currentValue
+    property bool isLightning: false
 
     padding: 0
 
@@ -93,11 +94,23 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Create request')
-            icon.source: '../../icons/confirmed.png'
-            onClicked: doAccept()
+        GridLayout {
+            width: parent.width
+	    columns: 2
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Onchain')
+                icon.source: '../../icons/bitcoin.png'
+                onClicked: { dialog.isLightning = false; doAccept() }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                enabled: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt
+                text: qsTr('Lightning')
+                icon.source: '../../icons/lightning.png'
+                onClicked: { dialog.isLightning = true; doAccept() }
+            }
         }
     }
 
