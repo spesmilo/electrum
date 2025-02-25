@@ -949,6 +949,15 @@ class SimpleConfig(Logger):
             _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
             _('This will save fees, but might have unwanted effects in terms of privacy')),
     )
+    WALLET_FULLRBF = ConfigVar(
+        'wallet_fullrbf', default=False, type_=bool,
+        short_desc=lambda: _('Allow replacing non-RBF transactions'),
+        long_desc=lambda: (
+            _("Allow replacing any transaction, not just those that signal BIP-125 replace-by-fee.\n"
+              "Note that to broadcast replacements for non-RBF transactions, you need to connect\n"
+              "to an electrum server that allows as such. Further, only a small percentage of miners\n"
+              "accept such replacements, so it might take a long time for the transaction to get mined.")),
+    )
     WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
         'wallet_merge_duplicate_outputs', default=False, type_=bool,
         short_desc=lambda: _('Merge duplicate outputs'),

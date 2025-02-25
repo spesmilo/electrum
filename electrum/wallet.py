@@ -2352,6 +2352,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # do not mutate LN funding txs, as that would change their txid
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
             return False
+        if self.config.WALLET_FULLRBF:
+            return True
         return tx.is_rbf_enabled()
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
