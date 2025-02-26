@@ -1212,15 +1212,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
 
     # connect to remote WT
-    WATCHTOWER_CLIENT_ENABLED = ConfigVar(
-        'use_watchtower', default=False, type_=bool,
-        short_desc=lambda: _("Use a remote watchtower"),
-        long_desc=lambda: ' '.join([
-            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
-            _("If you have private a watchtower, enter its URL here."),
-            _("Check our online documentation if you want to configure Electrum as a watchtower."),
-        ]),
-    )
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
     # run WT locally

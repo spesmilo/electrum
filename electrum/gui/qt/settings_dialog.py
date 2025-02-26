@@ -144,22 +144,6 @@ class SettingsDialog(QDialog, QtEventListener):
             self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
         legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
 
-        remote_wt_cb = checkbox_from_configvar(self.config.cv.WATCHTOWER_CLIENT_ENABLED)
-        remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
-
-        def on_remote_wt_checked(_x):
-            self.config.WATCHTOWER_CLIENT_ENABLED = remote_wt_cb.isChecked()
-            self.watchtower_url_e.setEnabled(remote_wt_cb.isChecked())
-        remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
-        watchtower_url = self.config.WATCHTOWER_CLIENT_URL
-        self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.WATCHTOWER_CLIENT_ENABLED)
-
-        def on_wt_url():
-            url = self.watchtower_url_e.text() or None
-            self.config.WATCHTOWER_CLIENT_URL = url
-        self.watchtower_url_e.editingFinished.connect(on_wt_url)
-
         lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
 
@@ -411,7 +395,6 @@ class SettingsDialog(QDialog, QtEventListener):
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
         lightning_widgets.append((legacy_add_trampoline_cb, None))
-        lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
         lightning_widgets.append((lnfee_hlabel, lnfee_hbox_w))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
