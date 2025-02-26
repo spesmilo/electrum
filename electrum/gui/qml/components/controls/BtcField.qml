@@ -31,4 +31,6 @@ TextField {
                 : ''
         }
     }
+
+    Component.onCompleted: textAsSats = Config.unitsToSats('')
 }
