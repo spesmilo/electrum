@@ -417,7 +417,7 @@ class SwapManager(Logger):
                 txout=None,
                 name='swap claim',
             )
-            self.wallet.txbatcher.add_sweep_info(sweep_info)
+            self.wallet.txbatcher.add_sweep_info(sweep_info, 'default')
 
     def get_swap_tx_fee(self):
         return self.get_fee(SWAP_TX_SIZE)
@@ -450,7 +450,7 @@ class SwapManager(Logger):
             swap = self.swaps[key]
             if not swap.is_funded():
                 output = self.create_funding_output(swap)
-                self.wallet.txbatcher.add_batch_payment(output)
+                self.wallet.txbatcher.add_batch_payment(output, 'default')
                 swap._payment_pending = True
         else:
             self.logger.info(f'key not in swaps {key}')
@@ -737,7 +737,7 @@ class SwapManager(Logger):
             if tx:
                 await self.broadcast_funding_tx(swap, tx)
             else:
-                self.wallet.txbatcher.add_batch_payment(output)
+                self.wallet.txbatcher.add_batch_payment(output, 'default')
 
         self.lnworker.register_hold_invoice(payment_hash, callback)
 

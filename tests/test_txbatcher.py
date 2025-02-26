@@ -40,8 +40,13 @@ class MockNetwork(Logger):
             w.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
 
         self._tx_event.set()
+        self._tx = tx
         self._tx_event.clear()
         return tx.txid()
+
+    async def next_tx(self):
+        await self._tx_event.wait()
+        return self._tx
 
 
 WALLET_SEED = 'cause carbon luggage air humble mistake melt paper supreme sense gravity void'
@@ -98,15 +103,13 @@ class TestTxBatcher(ElectrumTestCase):
         self.logger.info(f'wallet balance {wallet.get_balance()}')
         # payment 1 -> tx1(output1)
         output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
-        wallet.txbatcher.add_batch_payment(output1)
-        await self.network._tx_event.wait()
-        tx1 = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_batch_payment(output1, 'default')
+        tx1 = await self.network.next_tx()
         assert output1 in tx1.outputs()
         # payment 2 -> tx2(output1, output2)
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
-        wallet.txbatcher.add_batch_payment(output2)
-        await self.network._tx_event.wait()
-        tx1_prime = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_batch_payment(output2, 'default')
+        tx1_prime = await self.network.next_tx()
         assert wallet.adb.get_transaction(tx1_prime.txid()) is not None
         assert len(tx1_prime.outputs()) == 3
         assert output1 in tx1_prime.outputs()
@@ -118,8 +121,7 @@ class TestTxBatcher(ElectrumTestCase):
         assert wallet.adb.get_transaction(tx1.txid()) is not None
         assert wallet.adb.get_transaction(tx1_prime.txid()) is None
         # txbatcher creates tx2
-        await self.network._tx_event.wait()
-        tx2 = wallet.txbatcher.get_base_tx()
+        tx2 = await self.network.next_tx()
         assert output1 in tx1.outputs()
         assert output2 in tx2.outputs()
         # check that tx2 is child of tx1
@@ -148,17 +150,15 @@ class TestTxBatcher(ElectrumTestCase):
 
         # to_self_payment tx1
         output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
-        wallet.txbatcher.add_batch_payment(output1)
-        await self.network._tx_event.wait()
-        toself_tx = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_batch_payment(output1, 'default')
+        toself_tx = await self.network.next_tx()
         assert len(toself_tx.outputs()) == 2
         assert output1 in toself_tx.outputs()
 
         # outgoing payment tx2
         output2 = PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)
-        wallet.txbatcher.add_batch_payment(output2)
-        await self.network._tx_event.wait()
-        tx2 = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_batch_payment(output2, 'default')
+        tx2 = await self.network.next_tx()
         assert len(tx2.outputs()) == 2
         assert output2 in tx2.outputs()
 
@@ -200,17 +200,15 @@ class TestTxBatcher(ElectrumTestCase):
             txout=None,
             name='swap claim',
         )
-        wallet.txbatcher.add_sweep_info(sweep_info)
-        await self.network._tx_event.wait()
-        tx = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_sweep_info(sweep_info, 'default')
+        tx = await self.network.next_tx()
         txid = tx.txid()
         self.assertEqual(SWAP_CLAIM_TX, str(tx))
         # add a new payment, reusing the same input
         # this tests that txin.make_witness() can be called more than once
         output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
-        wallet.txbatcher.add_batch_payment(output1)
-        await self.network._tx_event.wait()
-        new_tx = wallet.txbatcher.get_base_tx()
+        wallet.txbatcher.add_batch_payment(output1, 'default')
+        new_tx = await self.network.next_tx()
         # check that we batched with previous tx
         assert new_tx.inputs()[0].prevout == tx.inputs()[0].prevout == txin.prevout
         assert output1 in new_tx.outputs()

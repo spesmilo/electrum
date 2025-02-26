@@ -286,4 +286,4 @@ class LNWalletWatcher(LNWatcher):
             # careful, this prevents revocation as well
             if not self.lnworker.enable_htlc_settle_onchain:
                 return
-        self.lnworker.wallet.txbatcher.add_sweep_info(sweep_info)
+        self.lnworker.wallet.txbatcher.add_sweep_info(sweep_info, 'default')

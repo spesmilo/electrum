@@ -1724,8 +1724,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def get_unconfirmed_base_tx_for_batching(self, outputs, coins) -> Optional[Transaction]:
-        candidate = None
+    def get_unconfirmed_base_tx_for_batching(self, outputs, coins) -> Sequence[Transaction]:
+        candidates = []
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
             # tx should not be mined yet
@@ -1735,15 +1735,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                                                         TX_HEIGHT_UNCONF_PARENT,
                                                         TX_HEIGHT_LOCAL):
                 continue
-            # tx should be "outgoing" from wallet
-            if hist_item.delta >= 0:
-                continue
             tx = self.db.get_transaction(hist_item.txid)
             if not tx:
                 continue
+            txid = tx.txid()
+            if self.txbatcher.is_mine(txid):
+                candidates.append(tx)
+                continue
+            # tx should be "outgoing" from wallet
+            if hist_item.delta >= 0:
+                continue
             # is_mine outputs should not be spent yet
             # to avoid cancelling our own dependent transactions
-            txid = tx.txid()
             if any([self.is_mine(o.address) and self.db.get_spent_outpoint(txid, output_idx)
                     for output_idx, o in enumerate(tx.outputs())]):
                 continue
@@ -1759,12 +1762,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             output_amount = sum(o.value for o in outputs)
             if output_amount > remaining_amount + change_amount:
                 continue
+            candidates.append(tx)
             # prefer txns already in mempool (vs local)
-            if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
-                candidate = tx
-                continue
-            return tx
-        return candidate
+            #if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
+            #    candidate = tx
+            #    continue
+            #return tx
+        return candidates
 
     def get_change_addresses_for_new_transaction(
             self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,

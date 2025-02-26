@@ -326,9 +326,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if get_coins is None:
             get_coins = self.window.get_coins
 
-        def make_tx(fee_est, *, confirmed_only=False, is_batching=False):
-            base_tx = self.wallet.txbatcher.get_base_tx() if is_batching else None
-            merge_duplicate_outputs = self.config.WALLET_MERGE_DUPLICATE_OUTPUTS if not is_batching else False
+        def make_tx(fee_est, *, confirmed_only=False, base_tx=None):
+            merge_duplicate_outputs = self.config.WALLET_MERGE_DUPLICATE_OUTPUTS if not base_tx else False
             coins = get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only)
             return self.wallet.make_unsigned_transaction(
                 coins=coins,
@@ -344,7 +343,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         is_max = any(parse_max_spend(outval) for outval in output_values)
         output_value = '!' if is_max else sum(output_values)
 
-        tx, is_preview, is_batching = self.window.confirm_tx_dialog(make_tx, output_value)
+        tx, is_preview, base_tx = self.window.confirm_tx_dialog(make_tx, output_value)
         if tx is None:
             # user cancelled
             return
@@ -361,7 +360,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     self.show_error(str(e))
                     return
 
-                if is_batching:
+                if base_tx:
                     self.save_pending_invoice()
                     funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap_dummy_output.value)
                     coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=invoice, output=funding_output)
@@ -378,10 +377,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     tx.swap_invoice = invoice
                     tx.swap_payment_hash = swap.payment_hash
 
-        if is_batching:
+        if base_tx:
             self.save_pending_invoice()
+            key = self.wallet.txbatcher.find_key_of_txid(tx.txid())
             for output in outputs:
-                self.wallet.txbatcher.add_batch_payment(output)
+                self.wallet.txbatcher.add_batch_payment(output, key)
             return
 
         if is_preview:

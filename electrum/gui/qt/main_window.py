@@ -1422,7 +1422,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
-        return d.run(), d.is_preview, d.is_batching()
+        return d.run(), d.is_preview, d._base_tx
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):

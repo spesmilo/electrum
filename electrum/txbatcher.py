@@ -70,26 +70,80 @@ from typing import Optional
 # In order to generalize that logic to payments, callers would need to pass a unique ID along with
 # the payment output, so that we can prevent paying twice.
 
-from .json_db import locked
+from .json_db import locked  # todo: move to util.py
+
+
+class FeePolicy:
+    # todo: fee slider should have an instance of this object instead of side-effecting config
+    def estimate_fee(self, size: int, allow_fallback_to_static_rates=True):
+        return 42
 
 class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
-    RETRY_DELAY = 60
 
     def __init__(self, wallet):
+        self.batch_txids = wallet.db.get_stored_item("tx_batches", { })
+        self.txbatchers = {}
+        self.wallet = wallet
+        for key in self.batch_txids.keys():
+            self._maybe_create_batch(key, policy=FeePolicy())
+
+    def _maybe_create_batch(self, key, policy):
+        if key not in self.txbatchers:
+            self.txbatchers[key] = TxBatch(self.wallet, policy, self.batch_txids, key)
+
+    def add_batch_payment(self, output: 'PartialTxOutput', key):
+        self._maybe_create_batch(key, policy=FeePolicy())
+        self.txbatchers[key].add_batch_payment(output)
+
+    def add_sweep_info(self, sweep_info: 'SweepInfo', key):
+        self._maybe_create_batch(key, policy=FeePolicy())
+        self.txbatchers[key].add_sweep_info(sweep_info)
+
+    def find_batch_of_txid(self, txid) -> str:
+        # used by gui
+        for k, v in self.batch_txids.items():
+            if txid in v:
+                return k
+        return 'batch:' + txid
+
+    def is_mine(self, txid):
+        for k, v in self.batch_txids.items():
+            if txid in v:
+                return True
+        return False
+
+    @log_exceptions
+    async def run(self):
+        while True:
+            await asyncio.sleep(self.SLEEP_INTERVAL)
+            password = self.wallet.get_unlocked_password()
+            if self.wallet.has_keystore_encryption() and not password:
+                continue
+            for txbatcher in self.txbatchers.values():
+                await txbatcher.run_iteration(password)
+
+class TxBatch(Logger):
+
+    RETRY_DELAY = 60
+
+    def __init__(self, wallet, fee_policy, batch_txids, key):
         Logger.__init__(self)
         self.wallet = wallet
-        self.config = wallet.config
+        self.key = key
+        self.fee_policy = fee_policy
         self.lock = threading.RLock()
         self.batch_payments = []       # list of payments we need to make
         self.batch_inputs = {}         # list of inputs we need to sweep
         # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
-        self._batch_txids = wallet.db.get_stored_item("batch_txids", [])
+        self._batch_txids = batch_txids # fixme: check persistence
+        if self.key not in self._batch_txids:
+            self._batch_txids[self.key] = []
         self._base_tx = None           # current batch tx. last element of batch_txids
 
-        if self._batch_txids:
-            last_txid = self._batch_txids[-1]
+        if self._batch_txids[self.key]:
+            last_txid = self._batch_txids[self.key][-1]
             tx = self.wallet.adb.get_transaction(last_txid)
             if tx:
                 tx = PartialTransaction.from_tx(tx)
@@ -101,7 +155,7 @@ class TxBatcher(Logger):
         self._unconfirmed_sweeps = set()  # list of inputs we are sweeping (until spending tx is confirmed)
 
     def is_mine(self, txid):
-        return txid in self._batch_txids
+        return txid in self._batch_txids[self.key]
 
     @locked
     def add_batch_payment(self, output: 'PartialTxOutput'):
@@ -139,7 +193,7 @@ class TxBatcher(Logger):
         return self._base_tx
 
     def _find_confirmed_base_tx(self) -> Optional[Transaction]:
-        for txid in self._batch_txids:
+        for txid in self._batch_txids[self.key]:
             tx_mined_status = self.wallet.adb.get_tx_height(txid)
             if tx_mined_status.conf > 0:
                 tx = self.wallet.adb.get_transaction(txid)
@@ -184,19 +238,14 @@ class TxBatcher(Logger):
         if not self.is_mine(base_tx.txid()):
             return False
         base_tx_fee = base_tx.get_fee()
-        recommended_fee = self.config.estimate_fee(base_tx.estimated_size(), allow_fallback_to_static_rates=True)
+        recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), allow_fallback_to_static_rates=True)
         should_bump_fee = base_tx_fee * 1.1 < recommended_fee
         if should_bump_fee:
             self.logger.info(f'base tx fee too low {base_tx_fee} < {recommended_fee}. we will bump the fee')
         return should_bump_fee
 
-    @log_exceptions
-    async def run(self):
-        while True:
-            await asyncio.sleep(self.SLEEP_INTERVAL)
-            password = self.wallet.get_unlocked_password()
-            if self.wallet.has_keystore_encryption() and not password:
-                continue
+
+    async def run_iteration(self, password):
             await self._maybe_broadcast_legacy_htlc_txs()
             tx = self._find_confirmed_base_tx()
             if tx:
@@ -214,22 +263,24 @@ class TxBatcher(Logger):
                 else:
                     self.wallet.add_future_tx(v, wanted_height)
             if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
-                continue
+                return
             try:
                 tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay, password)
             except Exception as e:
                 self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
                 if base_tx:
                     self._start_new_batch(base_tx)
-                    continue
-                await asyncio.sleep(self.RETRY_DELAY)
-                continue
+                    return
+                else:
+                    raise
+                #await asyncio.sleep(self.RETRY_DELAY)
+                #return
             self.logger.info(f'created tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
             self.logger.info(f'{str(tx)}')
             if await self.wallet.network.try_broadcasting(tx, 'batch'):
                 self.wallet.adb.add_transaction(tx)
                 if tx.has_change():
-                    self._batch_txids.append(tx.txid())
+                    self._batch_txids[self.key].append(tx.txid())
                     self._base_tx = tx
                 else:
                     self.logger.info(f'starting new batch because current base tx does not have change')
@@ -288,7 +339,7 @@ class TxBatcher(Logger):
         use_change = tx and tx.has_change() and any([txout in self.batch_payments for txout in tx.outputs()])
         self.batch_payments = self._to_pay_after(tx)
         self.batch_inputs = self._to_sweep_after(tx)
-        self._batch_txids.clear()
+        self._batch_txids[self.key] = []
         self._base_tx = None
         self._parent_tx = tx if use_change else None
 
