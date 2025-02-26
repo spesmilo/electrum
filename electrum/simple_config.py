@@ -970,15 +970,6 @@ class SimpleConfig(Logger):
             _('If enabled, at most 100 satoshis might be lost due to this, per transaction.')),
     )
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
-    WALLET_BIP21_LIGHTNING = ConfigVar(
-        'bip21_lightning', default=False, type_=bool,
-        short_desc=lambda: _('Add lightning requests to bitcoin URIs'),
-        long_desc=lambda: _('This may result in large QR codes'),
-    )
-    WALLET_BOLT11_FALLBACK = ConfigVar(
-        'bolt11_fallback', default=True, type_=bool,
-        short_desc=lambda: _('Add on-chain fallback to lightning requests'),
-    )
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings

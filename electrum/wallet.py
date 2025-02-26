@@ -2671,10 +2671,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         raise UserFacingException("this wallet cannot delete addresses")
 
     def get_request_URI(self, req: Request) -> Optional[str]:
-        lightning_invoice = None
-        if self.config.WALLET_BIP21_LIGHTNING:
-            lightning_invoice = self.get_bolt11_invoice(req)
-        return req.get_bip21_URI(lightning_invoice=lightning_invoice)
+        return req.get_bip21_URI(lightning_invoice=None)
 
     def check_expired_status(self, r: BaseInvoice, status):
         #if r.is_lightning() and r.exp == 0:
@@ -2829,7 +2826,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_msat=amount_msat,
             message=req.message,
             expiry=req.exp,
-            fallback_address=req.get_address() if self.config.WALLET_BOLT11_FALLBACK else None)
+            fallback_address=None)
         return invoice
 
     def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):

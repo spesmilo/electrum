@@ -153,16 +153,6 @@ class QEConfig(AuthMixin, QObject):
         self.config.LIGHTNING_USE_GOSSIP = gossip
         self.useGossipChanged.emit()
 
-    useFallbackAddressChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=useFallbackAddressChanged)
-    def useFallbackAddress(self):
-        return self.config.WALLET_BOLT11_FALLBACK
-
-    @useFallbackAddress.setter
-    def useFallbackAddress(self, use_fallback):
-        self.config.WALLET_BOLT11_FALLBACK = use_fallback
-        self.useFallbackAddressChanged.emit()
-
     enableDebugLogsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=enableDebugLogsChanged)
     def enableDebugLogs(self):

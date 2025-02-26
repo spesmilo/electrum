@@ -148,8 +148,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.toolbar.insertWidget(2, self.toggle_qr_button)
 
         # menu
-        menu.addConfig(self.config.cv.WALLET_BOLT11_FALLBACK, callback=self.on_toggle_bolt11_fallback)
-        menu.addConfig(self.config.cv.WALLET_BIP21_LIGHTNING, callback=self.update_current_request)
         self.qr_menu_action = menu.addToggle(_("Show detached QR code window"), self.window.toggle_qr_window)
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
@@ -200,12 +198,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v
         self.update_expiry_text()
-
-    def on_toggle_bolt11_fallback(self):
-        if not self.wallet.lnworker:
-            return
-        self.wallet.lnworker.clear_invoices_cache()
-        self.update_current_request()
 
     def on_tab_changed(self):
         text, data, help_text, title = self.get_tab_data()

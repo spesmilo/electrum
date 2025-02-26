@@ -381,24 +381,6 @@ Pane {
                         }
                     }
 
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Switch {
-                            id: useFallbackAddress
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.useFallbackAddress = checked
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Create lightning invoices with on-chain fallback address')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Advanced')
@@ -460,7 +442,6 @@ Pane {
         fiatEnable.checked = Daemon.fx.enabled
         spendUnconfirmed.checked = Config.spendUnconfirmed
         useTrampolineRouting.checked = !Config.useGossip
-        useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
         alwaysAllowScreenshots.checked = Config.alwaysAllowScreenshots
         setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
