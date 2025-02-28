@@ -615,7 +615,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_removed_tx(self, adb, txid: str, tx: Transaction):
         if self.adb != adb:
             return
-        if not self.tx_is_related(tx):
+        if not tx or not self.tx_is_related(tx):
             return
         self.clear_tx_parents_cache()
         util.trigger_callback('removed_transaction', self, tx)
