@@ -1870,7 +1870,7 @@ class Peer(Logger, EventListener):
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
 
         if self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-            next_peer = self.lnworker.get_peer_by_scid_alias(next_chan_scid)
+            next_peer = self.lnworker.get_peer_by_static_jit_scid_alias(next_chan_scid)
         else:
             next_peer = None
 
