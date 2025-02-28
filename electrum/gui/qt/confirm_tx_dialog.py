@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional, Union, Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu, QComboBox
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -77,8 +77,10 @@ class TxEditor(WindowModalDialog):
         self.no_dynfee_estimates = False
         self.needs_update = False
         # preview is disabled for lightning channel funding
-        self.allow_preview = allow_preview
+        self._allow_preview = allow_preview
         self.is_preview = False
+        self._base_tx = None # for batching
+        self.batching_candidates = self.wallet.get_unconfirmed_base_tx_for_batching([], []) # todo: update it
 
         self.locktime_e = LockTimeEdit(self)
         self.locktime_e.valueEdited.connect(self.trigger_update)
@@ -103,13 +105,19 @@ class TxEditor(WindowModalDialog):
         vbox.addStretch(1)
         vbox.addLayout(buttons)
 
-        self.set_io_visible(self.config.GUI_QT_TX_EDITOR_SHOW_IO)
+        self.set_io_visible()
         self.set_fee_edit_visible(self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS)
         self.set_locktime_visible(self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME)
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
         self.main_window.gui_object.timer.timeout.connect(self.timer_actions)
+
+    def is_batching(self):
+        return self._base_tx and not self.main_window.utxo_list.is_coincontrol_active()
+
+    def should_show_io(self):
+        return self.config.GUI_QT_TX_EDITOR_SHOW_IO
 
     def timer_actions(self):
         if self.needs_update:
@@ -144,6 +152,12 @@ class TxEditor(WindowModalDialog):
 
     def update_feerate_label(self):
         self.feerate_label.setText(self.feerate_e.text() + ' ' + self.feerate_e.base_unit())
+
+    def update_fee_controls(self):
+        self.fee_slider.setEnabled(not self.is_batching())
+        self.fee_combo.setEnabled(not self.is_batching())
+        self.fee_slider.setVisible(not self.is_batching())
+        self.fee_combo.setVisible(not self.is_batching())
 
     def create_fee_controls(self):
 
@@ -363,14 +377,26 @@ class TxEditor(WindowModalDialog):
         # feerate_label needs to be updated from feerate_e
         self.update_feerate_label()
 
+    def allow_preview(self):
+        return self._allow_preview and not self.is_batching()
+
     def create_buttons_bar(self):
         self.preview_button = QPushButton(_('Preview'))
         self.preview_button.clicked.connect(self.on_preview)
-        self.preview_button.setVisible(self.allow_preview)
+        self.preview_button.setVisible(self.allow_preview())
         self.ok_button = QPushButton(_('OK'))
         self.ok_button.clicked.connect(self.on_send)
         self.ok_button.setDefault(True)
         buttons = Buttons(CancelButton(self), self.preview_button, self.ok_button)
+
+        if self.batching_candidates:
+            batching_combo = QComboBox()
+            batching_combo.addItems([_('Not batching')] + [_('Batch with') + ' ' + x.txid()[0:10] for x in self.batching_candidates])
+            buttons.insertWidget(0, batching_combo)
+            def on_batching_combo(x):
+                self._base_tx = self.batching_candidates[x - 1] if x > 0 else None
+                self.update_batching()
+            batching_combo.currentIndexChanged.connect(on_batching_combo)
         return buttons
 
     def create_top_bar(self, text):
@@ -410,7 +436,6 @@ class TxEditor(WindowModalDialog):
                 _('This may result in higher transactions fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
-        add_cv_action(self.config.cv.WALLET_BATCH_RBF, self.toggle_batch_rbf)
         add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
@@ -447,10 +472,12 @@ class TxEditor(WindowModalDialog):
         self.wallet.db.put('multiple_change', self.wallet.multiple_change)
         self.trigger_update()
 
-    def toggle_batch_rbf(self):
-        b = not self.config.WALLET_BATCH_RBF
-        self.config.WALLET_BATCH_RBF = b
+    def update_batching(self):
+        self.update_fee_controls()
+        self.set_io_visible()
+        self.resize_to_fit_content()
         self.trigger_update()
+        self.preview_button.setVisible(self.allow_preview())
 
     def toggle_merge_duplicate_outputs(self):
         b = not self.config.WALLET_MERGE_DUPLICATE_OUTPUTS
@@ -470,7 +497,7 @@ class TxEditor(WindowModalDialog):
     def toggle_io_visibility(self):
         b = not self.config.GUI_QT_TX_EDITOR_SHOW_IO
         self.config.GUI_QT_TX_EDITOR_SHOW_IO = b
-        self.set_io_visible(b)
+        self.set_io_visible()
         self.resize_to_fit_content()
 
     def toggle_fee_details(self):
@@ -485,7 +512,8 @@ class TxEditor(WindowModalDialog):
         self.set_locktime_visible(b)
         self.resize_to_fit_content()
 
-    def set_io_visible(self, b):
+    def set_io_visible(self):
+        b = self.should_show_io()
         self.io_widget.setVisible(b)
 
     def set_fee_edit_visible(self, b):
@@ -552,31 +580,33 @@ class TxEditor(WindowModalDialog):
         assert fee is not None
         amount = self.tx.output_value() if self.output_value == '!' else self.output_value
         tx_size = self.tx.estimated_size()
-        fee_warning_tuple = self.wallet.get_tx_fee_warning(
-            invoice_amt=amount, tx_size=tx_size, fee=fee)
-        if fee_warning_tuple:
-            allow_send, long_warning, short_warning = fee_warning_tuple
-            if not allow_send:
-                self.error = long_warning
-            else:
-                messages.append(long_warning)
-        if self.tx.has_dummy_output(DummyAddress.SWAP):
+        if not self.is_batching():
+            fee_warning_tuple = self.wallet.get_tx_fee_warning(
+                invoice_amt=amount, tx_size=tx_size, fee=fee)
+            if fee_warning_tuple:
+                allow_send, long_warning, short_warning = fee_warning_tuple
+                if not allow_send:
+                    self.error = long_warning
+                else:
+                    messages.append(long_warning)
+        if self.tx.get_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
         # warn if we merge from mempool
-        if self.tx.rbf_merge_txid:
-            messages.append(_('This payment will be merged with another existing transaction.'))
-        # warn if we use multiple change outputs
-        num_change = sum(int(o.is_change) for o in self.tx.outputs())
-        num_ismine = sum(int(o.is_mine) for o in self.tx.outputs())
-        if num_change > 1:
-            messages.append(_('This transaction has {} change outputs.'.format(num_change)))
-        # warn if there is no ismine output, as it might be problematic to RBF the tx later.
-        # (though RBF is still possible by adding new inputs, if the wallet has more utxos)
-        if num_ismine == 0:
-            messages.append(_('Make sure you pay enough mining fees; you will not be able to bump the fee later.'))
+        if self.is_batching():
+            messages.append(_('Transaction batching is active. The fee policy of the selected batch will be used'))
+        else:
+            # warn if we use multiple change outputs
+            num_change = sum(int(o.is_change) for o in self.tx.outputs())
+            num_ismine = sum(int(o.is_mine) for o in self.tx.outputs())
+            if num_change > 1:
+                messages.append(_('This transaction has {} change outputs.'.format(num_change)))
+            # warn if there is no ismine output, as it might be problematic to RBF the tx later.
+            # (though RBF is still possible by adding new inputs, if the wallet has more utxos)
+            if num_ismine == 0:
+                messages.append(_('Make sure you pay enough mining fees; you will not be able to bump the fee later.'))
 
         # TODO: warn if we send change back to input address
         return messages
@@ -637,8 +667,9 @@ class ConfirmTxDialog(TxEditor):
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         fee_estimator = self.get_fee_estimator()
         confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
+        base_tx = self._base_tx
         try:
-            self.tx = self.make_tx(fee_estimator, confirmed_only=confirmed_only)
+            self.tx = self.make_tx(fee_estimator, confirmed_only=confirmed_only, base_tx=base_tx)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
         except NotEnoughFunds:
@@ -646,7 +677,7 @@ class ConfirmTxDialog(TxEditor):
             self.tx = None
             if fallback_to_zero_fee:
                 try:
-                    self.tx = self.make_tx(0, confirmed_only=confirmed_only)
+                    self.tx = self.make_tx(0, confirmed_only=confirmed_only, base_tx=base_tx)
                 except BaseException:
                     return
             else:
@@ -655,7 +686,7 @@ class ConfirmTxDialog(TxEditor):
             self.no_dynfee_estimates = True
             self.tx = None
             try:
-                self.tx = self.make_tx(0, confirmed_only=confirmed_only)
+                self.tx = self.make_tx(0, confirmed_only=confirmed_only, base_tx=base_tx)
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 return
@@ -670,7 +701,7 @@ class ConfirmTxDialog(TxEditor):
     def can_pay_assuming_zero_fees(self, confirmed_only) -> bool:
         # called in send_tab.py
         try:
-            tx = self.make_tx(0, confirmed_only=confirmed_only)
+            tx = self.make_tx(0, confirmed_only=confirmed_only, base_tx=None)
         except NotEnoughFunds:
             return False
         else:
@@ -693,7 +724,7 @@ class ConfirmTxDialog(TxEditor):
         grid.addWidget(HelpLabel(_("Mining Fee") + ": ", msg), 1, 0)
         grid.addLayout(self.fee_hbox, 1, 1, 1, 3)
 
-        grid.addWidget(HelpLabel(_("Fee target") + ": ", self.fee_combo.help_msg), 3, 0)
+        grid.addWidget(HelpLabel(_("Fee policy") + ": ", self.fee_combo.help_msg), 3, 0)
         grid.addLayout(self.fee_target_hbox, 3, 1, 1, 3)
 
         grid.setColumnStretch(4, 1)
