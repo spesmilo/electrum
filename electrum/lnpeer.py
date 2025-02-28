@@ -387,7 +387,9 @@ class Peer(Logger, EventListener):
         if their_networks:
             their_chains = list(chunks(their_networks["chains"], 32))
             if constants.net.rev_genesis_bytes() not in their_chains:
-                raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
+                raise GracefulDisconnect(f"no common chain found with remote. "
+                                         f"(they sent: {[chain.hex() for chain in their_chains]}),"
+                                         f" our chain: {constants.net.rev_genesis_bytes().hex()}")
         # all checks passed
         self.lnworker.on_peer_successfully_established(self)
         self._received_init = True
@@ -963,6 +965,7 @@ class Peer(Logger, EventListener):
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
         chan.storage['has_onchain_backup'] = has_onchain_backup
+        chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
@@ -1023,27 +1026,13 @@ class Peer(Logger, EventListener):
 
         Channel configurations are initialized in this method.
         """
-        if self.lnworker.has_recoverable_channels():
-            # FIXME: we might want to keep the connection open
-            raise Exception('not accepting channels')
+
         # <- open_channel
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
-        funding_sat = payload['funding_satoshis']
-        push_msat = payload['push_msat']
-        feerate = payload['feerate_per_kw']  # note: we are not validating this
-        temp_chan_id = payload['temporary_channel_id']
-        # store the temp id now, so that it is recognized for e.g. 'error' messages
-        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
-        self.temp_id_to_id[temp_chan_id] = None
 
         open_channel_tlvs = payload.get('open_channel_tlvs')
         channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
-
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
-            pass
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
         if self.is_channel_type() and channel_type is None:
@@ -1054,6 +1043,26 @@ class Peer(Logger, EventListener):
             channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
+        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
+        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+
+        if self.lnworker.has_recoverable_channels() and not is_zeroconf:
+            # FIXME: we might want to keep the connection open
+            raise Exception('not accepting channels')
+        funding_sat = payload['funding_satoshis']
+        push_msat = payload['push_msat']
+        feerate = payload['feerate_per_kw']  # note: we are not validating this
+        temp_chan_id = payload['temporary_channel_id']
+        # store the temp id now, so that it is recognized for e.g. 'error' messages
+        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
+        self.temp_id_to_id[temp_chan_id] = None
+
+
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        if channel_opening_fee:
+            # todo check that the fee is reasonable
+            pass
 
         if self.use_anchors():
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
@@ -1115,9 +1124,6 @@ class Peer(Logger, EventListener):
         per_commitment_point_first = secret_to_pubkey(
             int.from_bytes(per_commitment_secret_first, 'big'))
 
-        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
-        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
@@ -1870,7 +1876,7 @@ class Peer(Logger, EventListener):
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
 
         if self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-            next_peer = self.lnworker.get_peer_by_scid_alias(next_chan_scid)
+            next_peer = self.lnworker.get_peer_by_static_jit_scid_alias(next_chan_scid)
         else:
             next_peer = None
 
@@ -1881,6 +1887,9 @@ class Peer(Logger, EventListener):
                 if next_chan.can_pay(next_amount_msat_htlc):
                     break
             else:
+                htlc_id = serialize_htlc_key(incoming_chan.get_scid_or_local_alias(), htlc.htlc_id)
+                # prevent settling the htlc until the channel opening was successfull so we can fail it if needed
+                self.lnworker.dont_settle_htlc_keys[htlc_id] = None
                 return await self.lnworker.open_channel_just_in_time(
                     next_peer=next_peer,
                     next_amount_msat_htlc=next_amount_msat_htlc,
@@ -1954,6 +1963,7 @@ class Peer(Logger, EventListener):
             outer_onion: ProcessedOnionPacket,
             trampoline_onion: ProcessedOnionPacket,
             fw_payment_key: str,
+            inc_htlc_key: str,
     ) -> None:
 
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
@@ -2016,7 +2026,7 @@ class Peer(Logger, EventListener):
 
         # do we have a connection to the node?
         next_peer = self.lnworker.peers.get(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
+        if next_peer and next_peer.accepts_zeroconf() and self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
@@ -2043,6 +2053,7 @@ class Peer(Logger, EventListener):
                     payment_secret=payment_secret,
                     trampoline_onion=next_trampoline_onion,
                 )
+                self.lnworker.dont_settle_htlc_keys[inc_htlc_key] = None
                 await self.lnworker.open_channel_just_in_time(
                     next_peer=next_peer,
                     next_amount_msat_htlc=amt_to_forward,
@@ -2182,16 +2193,16 @@ class Peer(Logger, EventListener):
         Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
         Return (preimage, (payment_key, callback)) with at most a single element not None.
         """
+        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
         if not processed_onion.are_we_final:
             if not self.lnworker.enable_htlc_forwarding:
                 return None, None
             # use the htlc key if we are forwarding
-            payment_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
             callback = lambda: self.maybe_forward_htlc(
                 incoming_chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
-            return None, (payment_key, callback)
+            return None, (htlc_key, callback)
 
         def log_fail_reason(reason: str):
             self.logger.info(
@@ -2260,7 +2271,8 @@ class Peer(Logger, EventListener):
                     inc_cltv_abs=htlc.cltv_abs, # TODO: use max or enforce same value across mpp parts
                     outer_onion=processed_onion,
                     trampoline_onion=trampoline_onion,
-                    fw_payment_key=payment_key)
+                    fw_payment_key=payment_key,
+                    inc_htlc_key=htlc_key)
                 return None, (payment_key, callback)
 
         # TODO don't accept payments twice for same invoice
@@ -2853,10 +2865,11 @@ class Peer(Logger, EventListener):
                         forwarding_coro = forwarding_callback()
                         try:
                             next_htlc = await forwarding_coro
-                            if next_htlc:
+                            if next_htlc and payment_key in self.lnworker.active_forwardings:
                                 htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
                                 self.lnworker.active_forwardings[payment_key].append(next_htlc)
                                 self.lnworker.downstream_to_upstream_htlc[next_htlc] = htlc_key
+                                self.lnworker.dont_settle_htlc_keys.pop(htlc_key, None)
                         except OnionRoutingFailure as e:
                             if len(self.lnworker.active_forwardings[payment_key]) == 0:
                                 self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
@@ -2890,7 +2903,7 @@ class Peer(Logger, EventListener):
                 return None, None, error_bytes
             if error_reason:
                 raise error_reason
-            if preimage:
+            if preimage and forwarding_key not in self.lnworker.dont_settle_htlc_keys:
                 return preimage, None, None
             return None, None, None
 

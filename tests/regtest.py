@@ -135,8 +135,17 @@ class TestLightningJIT(TestLightning):
         }
     }
 
-    def test_just_in_time(self):
-        self.run_shell(['just_in_time'])
+    def test_just_in_time_no_channel(self):
+        # jit payment to node without existing channels
+        self.run_shell(['just_in_time_no_channel'])
+
+    def test_just_in_time_existing_channels(self):
+        # payment should not open additional channels as there is already a sufficient channel
+        self.run_shell(['just_in_time_existing_channels'])
+
+    def test_just_in_time_failed_htlc(self):
+        # jit client fails htlc, LSP doesn't get preimage. No channel should be opened.
+        self.run_shell(['just_in_time_failed_htlc'])
 
 
 class TestLightningJITTrampoline(TestLightningJIT):

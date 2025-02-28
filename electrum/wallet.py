@@ -615,7 +615,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_removed_tx(self, adb, txid: str, tx: Transaction):
         if self.adb != adb:
             return
-        if not self.tx_is_related(tx):
+        if not tx or not self.tx_is_related(tx):
             return
         self.clear_tx_parents_cache()
         util.trigger_callback('removed_transaction', self, tx)
@@ -2063,6 +2063,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         util.trigger_callback('status')
         if write_to_disk:
             self.save_db()
+
+    def set_frozen_state_of_tx_inputs(self, tx: PartialTransaction, freeze: bool = True):
+        """Freeze/Unfreeze all inputs of a tx."""
+        utxos = tx.inputs()
+        utxo_strs = {utxo.prevout.to_str() for utxo in utxos}
+        self.set_frozen_state_of_coins(utxo_strs, freeze)
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
