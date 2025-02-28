@@ -227,21 +227,21 @@ Pane {
                     color: Material.accentColor
                 }
                 Label {
-                    text: 'mode' in Network.proxy ? qsTr('enabled') : qsTr('disabled')
+                    text: Network.proxy.enabled ? qsTr('enabled') : qsTr('disabled')
                 }
 
                 Label {
-                    visible: 'mode' in Network.proxy
+                    visible: Network.proxy.enabled
                     text: qsTr('Proxy server:');
                     color: Material.accentColor
                 }
                 Label {
-                    visible: 'mode' in Network.proxy
-                    text: Network.proxy['host'] ? Network.proxy['host'] + ':' + Network.proxy['port'] : ''
+                    visible: Network.proxy.enabled
+                    text: Network.proxy.host ? Network.proxy.host + ':' + Network.proxy.port : ''
                 }
 
                 Label {
-                    visible: 'mode' in Network.proxy
+                    visible: Network.proxy.enabled
                     text: qsTr('Proxy type:');
                     color: Material.accentColor
                 }
@@ -253,8 +253,8 @@ Pane {
                         source: '../../icons/tor_logo.png'
                     }
                     Label {
-                        visible: 'mode' in Network.proxy
-                        text: Network.isProxyTor ? 'TOR' : (Network.proxy['mode'] || '')
+                        visible: Network.proxy.enabled
+                        text: Network.isProxyTor ? 'TOR' : (Network.proxy.mode || '')
                     }
                 }
 

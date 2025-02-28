@@ -22,14 +22,12 @@ Item {
     function toProxyDict() {
         var p = {}
         p['enabled'] = pc.proxy_enabled
-        if (pc.proxy_enabled) {
-            var type = proxy_type_map[pc.proxy_type]['value']
-            p['mode'] = type
-            p['host'] = pc.proxy_address
-            p['port'] = pc.proxy_port
-            p['user'] = pc.username
-            p['password'] = pc.password
-        }
+        var type = proxy_type_map[pc.proxy_type]['value']
+        p['mode'] = type
+        p['host'] = pc.proxy_address
+        p['port'] = pc.proxy_port
+        p['user'] = pc.username
+        p['password'] = pc.password
         return p
     }
 

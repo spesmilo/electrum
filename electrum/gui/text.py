@@ -23,7 +23,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.storage import WalletStorage
-from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
+from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed, ProxySettings
 from electrum.interface import ServerAddr
 from electrum.invoices import Invoice
 
@@ -753,10 +753,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                         self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
             if out.get('server') or out.get('proxy') or out.get('proxy user') or out.get('proxy pass'):
-                new_proxy_config = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
-                if new_proxy_config:
-                    new_proxy_config['user'] = out.get('proxy user') if 'proxy user' in out else proxy_config['user']
-                    new_proxy_config['pass'] = out.get('proxy pass') if 'proxy pass' in out else proxy_config['pass']
+                if out.get('proxy'):
+                    new_proxy_config = ProxySettings()
+                    new_proxy_config.deserialize_proxy_cfgstr(out.get('proxy'))
+                    new_proxy_config.user = out.get('proxy user', proxy_config.user)
+                    new_proxy_config.password = out.get('proxy pass', proxy_config.password)
+                    new_proxy_config.enabled = True
+                else:
+                    new_proxy_config = proxy_config
                 net_params = NetworkParameters(
                     server=server_addr,
                     proxy=new_proxy_config,
