@@ -872,13 +872,10 @@ class Plugin(TimelockRecoveryPlugin):
             intro_text = (
                 f"This document will guide you through the process of recovering the funds on wallet: {self.wallet_name}. "
                 f"The process will take at least {self.timelock_days} days, and will eventually send the following amount "
-                f"to the following {"address" if len(recovery_tx_outputs) == 1 else "addresses"}:\n\n"
-                f"{', '.join([
-                    f'• {output.address}: {format_sats_as_btc(output.value)} BTC'
-                    for output in recovery_tx_outputs
-                ])}\n\n"
-                f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {"WALLET OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "WALLETS OF THESE ADDRESSES"}, "
-                f"OR TRUST THE {"OWNER OF THIS ADDRESS" if len(recovery_tx_outputs) == 1 else "OWNERS OF THESE ADDRESSES"}. "
+                f"to the following {'address' if len(recovery_tx_outputs) == 1 else 'addresses'}:\n\n"
+                + '\n'.join(f'• {output.address}: {format_sats_as_btc(output.value)} BTC' for output in recovery_tx_outputs) + "\n\n"
+                f"Before proceeding, MAKE SURE THAT YOU HAVE ACCESS TO THE {'WALLET OF THIS ADDRESS' if len(recovery_tx_outputs) == 1 else 'WALLETS OF THESE ADDRESSES'}, "
+                f"OR TRUST THE {'OWNER OF THIS ADDRESS' if len(recovery_tx_outputs) == 1 else 'OWNERS OF THESE ADDRESSES'}. "
                 "The simplest way to do so is to send a small amount to the address, and then trying "
                 "to send all funds from that wallet to a different wallet. Also important: make sure that the "
                 "seed-phrase of this wallet has not been compromised, or else a malicious actor could steal "
