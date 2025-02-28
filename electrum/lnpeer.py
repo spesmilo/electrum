@@ -1943,6 +1943,7 @@ class Peer(Logger, EventListener):
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), next_htlc.htlc_id)
         return htlc_key
 
@@ -2296,6 +2297,9 @@ class Peer(Logger, EventListener):
                 raise exc_incorrect_or_unknown_pd
             else:
                 return None, None
+
+        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
+            return None, None
 
         chan.opening_fee = None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
