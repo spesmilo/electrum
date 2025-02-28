@@ -151,7 +151,7 @@ class SPV(NetworkJobOnDefaultServer):
         index = leaf_pos_in_tree
         for item in merkle_branch_bytes:
             if len(item) != 32:
-                raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
+                raise MerkleVerificationFailure('all merkle branch items have to be 32 bytes long')
             inner_node = (item + h) if (index & 1) else (h + item)
             cls._raise_if_valid_tx(inner_node.hex())
             h = sha256d(inner_node)
