@@ -25,13 +25,16 @@ import locale
 import traceback
 import sys
 import queue
-from typing import NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple, Optional
 
 from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session, error_text_str_to_safe_str
 from .logging import describe_os_version, Logger, get_git_version
+
+if TYPE_CHECKING:
+    from .network import ProxySettings
 
 
 class CrashReportResponse(NamedTuple):
@@ -69,7 +72,7 @@ class BaseCrashReporter(Logger):
         Logger.__init__(self)
         self.exc_args = (exctype, value, tb)
 
-    def send_report(self, asyncio_loop, proxy, *, timeout=None) -> CrashReportResponse:
+    def send_report(self, asyncio_loop, proxy: 'ProxySettings', *, timeout=None) -> CrashReportResponse:
         # FIXME the caller needs to catch generic "Exception", as this method does not have a well-defined API...
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
@@ -98,7 +101,7 @@ class BaseCrashReporter(Logger):
         )
         return ret
 
-    async def do_post(self, proxy, url, data) -> str:
+    async def do_post(self, proxy: 'ProxySettings', url, data) -> str:
         async with make_aiohttp_session(proxy) as session:
             async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()

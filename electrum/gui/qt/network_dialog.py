@@ -34,7 +34,7 @@ from PyQt6.QtGui import QIntValidator
 from electrum.i18n import _
 from electrum import blockchain
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
-from electrum.network import Network, deserialize_proxy
+from electrum.network import Network, ProxySettings
 from electrum.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
@@ -229,7 +229,7 @@ class ProxyWidget(QWidget):
 
         # proxy setting.
         self.proxy_cb = QCheckBox(_('Use proxy'))
-        self.proxy_cb.stateChanged.connect(self.on_proxy_settings_changed)
+        self.proxy_cb.stateChanged.connect(self.on_proxy_enable_toggle)
         self.proxy_mode = QComboBox()
         for k, v in self.PROXY_MODES.items():
             self.proxy_mode.addItem(v, k)
@@ -275,33 +275,22 @@ class ProxyWidget(QWidget):
         for item in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
             item.setEnabled(enabled)
 
+        if not self.proxy_port.hasAcceptableInput():
+            return
+
         net_params = self.network.get_parameters()
-        if self.proxy_cb.isChecked():
-            if not self.proxy_port.hasAcceptableInput():
-                return
-            proxy = {'mode': str(self.proxy_mode.currentData()),
-                     'host': str(self.proxy_host.text()),
-                     'port': str(self.proxy_port.text()),
-                     'user': str(self.proxy_user.text()),
-                     'password': str(self.proxy_password.text())}
-        else:
-            proxy = None
+        proxy = self.get_proxy_settings()
         net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def update_from_config(self):
-        proxy_config = deserialize_proxy(self.config.NETWORK_PROXY)
-        if not proxy_config:
-            proxy_config = {"mode": "none", "host": "localhost", "port": "9050"}
-
-        use_proxy = proxy_config.get('mode') != 'none'
-        self.proxy_cb.setChecked(use_proxy)
-
-        self.proxy_mode.setCurrentText(self.PROXY_MODES.get(proxy_config.get("mode")))
-        self.proxy_host.setText(proxy_config.get('host'))
-        self.proxy_port.setText(proxy_config.get('port'))
-        self.proxy_user.setText(self.config.NETWORK_PROXY_USER)
-        self.proxy_password.setText(self.config.NETWORK_PROXY_PASSWORD)
+        proxy = ProxySettings.from_config(self.config)
+        self.proxy_cb.setChecked(proxy.enabled)
+        self.proxy_mode.setCurrentText(self.PROXY_MODES.get(proxy.mode))
+        self.proxy_host.setText(proxy.host)
+        self.proxy_port.setText(proxy.port)
+        self.proxy_user.setText(proxy.user)
+        self.proxy_password.setText(proxy.password)
 
         if not self.config.cv.NETWORK_PROXY.is_modifiable():
             for w in [
@@ -310,18 +299,26 @@ class ProxyWidget(QWidget):
             ]:
                 w.setEnabled(False)
 
+    def on_proxy_enable_toggle(self):
+        # probe if enabled and no pre-existing settings
+        if self.proxy_cb.isChecked():
+            # self._
+            pass
+        self.update()
+
     def on_proxy_settings_changed(self):
         self.update()
 
     def get_proxy_settings(self):
-        return {
-            'enabled': self.proxy_cb.isChecked(),
-            'mode': self.proxy_mode.currentData(),
-            'host': self.proxy_host.text(),
-            'port': self.proxy_port.text(),
-            'user': self.proxy_user.text(),
-            'password': self.proxy_password.text()
-        }
+        proxy = ProxySettings()
+        proxy.enabled = self.proxy_cb.isChecked()
+        proxy.mode = self.proxy_mode.currentData()
+        proxy.host = self.proxy_host.text()
+        proxy.port = self.proxy_port.text()
+        proxy.user = self.proxy_user.text()
+        proxy.password = self.proxy_password.text()
+
+        return proxy
 
 
 class ServerWidget(QWidget, QtEventListener):

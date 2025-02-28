@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
 
 from electrum.logging import get_logger
 from electrum import constants
+from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
 from electrum.simple_config import FEERATE_DEFAULT_RELAY
 
@@ -253,14 +254,21 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
         net_params = self.network.get_parameters()
-        return net_params.proxy if net_params.proxy else {}
+        proxy = net_params.proxy
+        return {
+            'enabled': proxy.enabled,
+            'mode': proxy.mode,
+            'host': proxy.host,
+            'port': proxy.port,
+            'user': proxy.user,
+            'password': proxy.password
+        }
 
     @proxy.setter
-    def proxy(self, proxy_settings):
+    def proxy(self, proxy_dict):
         net_params = self.network.get_parameters()
-        if not proxy_settings['enabled']:
-            proxy_settings = None
-        net_params = net_params._replace(proxy=proxy_settings)
+        proxy = ProxySettings.from_dict(proxy_dict)
+        net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
 
