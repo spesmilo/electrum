@@ -1056,7 +1056,7 @@ class LNWallet(LNWorker):
 
         # sanity check
         balance_msat = sum([x.amount_msat for x in out.values()])
-        lb = sum(chan.balance(LOCAL) if not chan.is_closed() else 0
+        lb = sum(chan.balance(LOCAL) if not chan.is_closed_or_closing() else 0
                 for chan in self.channels.values())
         assert balance_msat  == lb
         return out

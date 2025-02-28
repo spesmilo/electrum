@@ -235,6 +235,10 @@ class AbstractChannel(Logger, ABC):
         # the closing txid has been saved
         return self.get_state() >= ChannelState.CLOSING
 
+    def is_closed_or_closing(self):
+        # related: self.get_state_for_GUI
+        return self.is_closed() or self.unconfirmed_closing_txid is not None
+
     def is_redeemed(self) -> bool:
         return self.get_state() == ChannelState.REDEEMED
 
