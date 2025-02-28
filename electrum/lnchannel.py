@@ -394,6 +394,10 @@ class AbstractChannel(Logger, ABC):
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+            if self.is_zeroconf():
+                # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
+                # us to remove a channel later in update_unfunded_state by omitting its funding tx
+                self.remove_zeroconf_flag()
         if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(ChannelState.FUNDED)
@@ -433,6 +437,10 @@ class AbstractChannel(Logger, ABC):
 
     @abstractmethod
     def is_zeroconf(self) -> bool:
+        pass
+
+    @abstractmethod
+    def remove_zeroconf_flag(self) -> None:
         pass
 
     @abstractmethod
@@ -691,6 +699,9 @@ class ChannelBackup(AbstractChannel):
     def is_zeroconf(self) -> bool:
         return False
 
+    def remove_zeroconf_flag(self) -> None:
+        pass
+
     def get_local_pubkey(self) -> bytes:
         cb = self.cb
         assert isinstance(cb, ChannelBackupStorage)
@@ -932,6 +943,12 @@ class Channel(AbstractChannel):
     def is_zeroconf(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_ZEROCONF)
+
+    def remove_zeroconf_flag(self) -> None:
+        if not self.is_zeroconf():
+            return
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        self.storage['channel_type'] = channel_type & ~ChannelType.OPTION_ZEROCONF
 
     def get_sweep_address(self) -> str:
         # TODO: in case of unilateral close with pending HTLCs, this address will be reused
