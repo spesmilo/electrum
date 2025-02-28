@@ -62,7 +62,7 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, ZEROCONF_TIMEOUT, MIN_FUNDING_SAT
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -76,6 +76,7 @@ from .trampoline import (
     create_trampoline_route_and_onion, is_legacy_relay, trampolines_by_id, hardcoded_trampoline_nodes,
     is_hardcoded_trampoline
 )
+from .network import TxBroadcastServerReturnedError
 
 if TYPE_CHECKING:
     from .network import Network
@@ -892,6 +893,11 @@ class LNWallet(LNWorker):
         self.onion_message_manager = OnionMessageManager(self)
         self.subscribe_to_channels()
 
+        # to keep track of the channels we sold as just-in-time provider
+        if self.config.ACCEPT_ZEROCONF_CHANNELS:
+            # channel_id -> revenue sat (opening fee - funding tx fee)
+            self.sold_just_in_time_channels = self.db.get_dict('sold_just_in_time_channels')  # type: Dict[str, int]
+
     def subscribe_to_channels(self):
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan)
@@ -1249,7 +1255,6 @@ class LNWallet(LNWorker):
     def get_static_jit_scid_alias(self) -> bytes:
         return self._scid_alias_of_node(self.node_keypair.pubkey)
 
-    @log_exceptions
     async def open_channel_just_in_time(
         self,
         *,
@@ -1258,36 +1263,65 @@ class LNWallet(LNWorker):
         next_cltv_abs: int,
         payment_hash: bytes,
         next_onion: OnionPacket,
-    ) -> str:
+    ) -> Optional[str]:
+        """Wrapper around __open_channel_just_in_time to allow for cleaner htlc locking and preimage deletion"""
+
+        # prevent settling the htlc until the channel opening was successfully so we can fail it if needed
+        self.dont_settle_htlcs[payment_hash.hex()] = None
+        try:
+            return await self.__open_channel_just_in_time(
+                next_peer=next_peer,
+                next_amount_msat_htlc=next_amount_msat_htlc,
+                next_cltv_abs=next_cltv_abs,
+                payment_hash=payment_hash,
+                next_onion=next_onion,
+            )
+        except Exception:
+            # ensure that we don't keep a preimage on exception
+            self.preimages.pop(payment_hash.hex(), None)
+            raise
+        finally:
+            self.logger.debug(f"allowing settling of htlc for payment {payment_hash.hex()}")
+            del self.dont_settle_htlcs[payment_hash.hex()]
+
+    @log_exceptions
+    async def __open_channel_just_in_time(
+        self,
+        *,
+        next_peer: Peer,
+        next_amount_msat_htlc: int,
+        next_cltv_abs: int,
+        payment_hash: bytes,
+        next_onion: OnionPacket,
+    ) -> Optional[str]:
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
+        assert 0 < self.config.ZEROCONF_RELATIVE_OPENING_FEE_PPM <= 100_000, "insane relative JIT opening fee configured"
+        assert 0 < self.config.ZEROCONF_MIN_OPENING_FEE_SAT <= 50000, "insane absolute JIT opening fee configured"
 
-        # prevent settling the htlc until the channel opening was successfull so we can fail it if needed
-        self.dont_settle_htlcs[payment_hash.hex()] = None
+        next_chan = None
         try:
             funding_sat = 2 * (next_amount_msat_htlc // 1000) # try to fully spend htlcs
             password = self.wallet.get_unlocked_password() if self.wallet.has_password() else None
-            channel_opening_fee = next_amount_msat_htlc // 100
-            if channel_opening_fee // 1000 < self.config.ZEROCONF_MIN_OPENING_FEE:
-                self.logger.info(f'rejecting JIT channel: payment too low')
-                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'payment too low')
-            self.logger.info(f'channel opening fee (sats): {channel_opening_fee//1000}')
+            rel_channel_opening_base_fee_msat = (next_amount_msat_htlc * self.config.ZEROCONF_RELATIVE_OPENING_FEE_PPM) // 1_000_000
+            channel_opening_base_fee_msat = max(rel_channel_opening_base_fee_msat, self.config.ZEROCONF_MIN_OPENING_FEE_SAT * 1000)
+            self.logger.debug(f'jit channel opening fee (sats): {channel_opening_base_fee_msat//1000}')
             next_chan, funding_tx = await self.open_channel_with_peer(
                 next_peer, funding_sat,
                 push_sat=0,
                 zeroconf=True,
                 public=False,
-                opening_fee=channel_opening_fee,
+                opening_base_fee_msat=channel_opening_base_fee_msat,
                 password=password,
             )
             async def wait_for_channel():
                 while not next_chan.is_open():
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0.1)
             await util.wait_for2(wait_for_channel(), LN_P2P_NETWORK_TIMEOUT)
-            next_chan.save_remote_scid_alias(self._scid_alias_of_node(next_peer.pubkey))
-            self.logger.info(f'JIT channel is open')
-            next_amount_msat_htlc -= channel_opening_fee
-            # fixme: some checks are missing
+            self.logger.debug(f'JIT channel is open (funding not broadcasted yet)')
+            # add the funding tx fee to the fees so the client has to cover them
+            channel_opening_fee_msat: int = channel_opening_base_fee_msat + funding_tx.get_fee() * 1000
+            next_amount_msat_htlc -= channel_opening_fee_msat
             htlc = next_peer.send_htlc(
                 chan=next_chan,
                 payment_hash=payment_hash,
@@ -1296,21 +1330,73 @@ class LNWallet(LNWorker):
                 onion=next_onion)
             async def wait_for_preimage():
                 while self.get_preimage(payment_hash) is None:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0.1)
             await util.wait_for2(wait_for_preimage(), LN_P2P_NETWORK_TIMEOUT)
-
-            # We have been paid and can broadcast
-            # todo: if broadcasting raise an exception, we should try to rebroadcast
-            await self.network.broadcast_transaction(funding_tx)
         except OnionRoutingFailure:
             raise
         except Exception:
+            if next_chan:
+                # the chan was already established, so it has to get cleaned up again
+                await self.cleanup_failed_jit_channel(next_chan)
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+
+        disable_zeroconf = True
+        try:
+            # after 10 mins `update_unfunded_state` will remove the channel on client side so we can fail here too
+            await util.wait_for2(self.broadcast_jit_channel_and_wait_for_mempool(next_chan, funding_tx), ZEROCONF_TIMEOUT - 30)
+            disable_zeroconf = False
+        except Exception:
+            # the risk of the funding tx getting mined later is low as we weren't able to get it into the mempool
+            await self.cleanup_failed_jit_channel(next_chan)
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         finally:
-            del self.dont_settle_htlcs[payment_hash.hex()]
+            if disable_zeroconf:
+                self.logger.warning(f"disabling zeroconf channels to prevent further issues. Check your wallet for consistency.")
+                self.config.ACCEPT_ZEROCONF_CHANNELS = False
+                self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
 
+        self.sold_just_in_time_channels[funding_tx.txid()] = channel_opening_base_fee_msat // 1000
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         return htlc_key
+
+    async def cleanup_failed_jit_channel(self, chan: Channel):
+        """Closes a channel that has no published funding tx (e.g. in case of a failed jit open)"""
+        try:
+            # try to send shutdown to signal peer that channel is dead
+            await util.wait_for2(self.close_channel(chan.channel_id), LN_P2P_NETWORK_TIMEOUT)
+        except Exception:
+            self.logger.debug(f"chan shutdown to failed zeroconf peer failed ", exc_info=True)
+        funding_height = chan.get_funding_height()
+        if funding_height is not None and funding_height[1] > TX_HEIGHT_LOCAL:
+            # check to prevent forgetting a channel that somehow is already in the mempool
+            return
+        chan.set_state(ChannelState.REDEEMED, force=True)
+        self.lnwatcher.adb.remove_transaction(chan.funding_outpoint.txid)
+        self.lnwatcher.unwatch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
+        self.remove_channel(chan.channel_id)
+
+    async def broadcast_jit_channel_and_wait_for_mempool(self, channel: Channel, funding_tx: Transaction) -> None:
+        last_broadcast_attempt = 0
+        while True:
+            if time.time() - last_broadcast_attempt > 60:
+                try:
+                    await self.network.broadcast_transaction(funding_tx)
+                    self.logger.info(f"broadcasted jit channel open txid: {funding_tx.txid()}")
+                except TxBroadcastServerReturnedError:
+                    self.logger.error(f"we constructed a weird JIT funding tx. Reverting channel again.", exc_info=True)
+                    raise
+                except Exception:
+                    self.logger.warning(f"Broadcasting jit channel open tx {funding_tx.txid()} failed.", exc_info=True)
+                last_broadcast_attempt = time.time()
+
+            # check if the funding tx is at least in the mempool by now
+            funding_info = channel.get_funding_height()
+            if funding_info is not None:
+                _, height, _ = funding_info
+                if height > TX_HEIGHT_LOCAL:
+                    return
+
+            await asyncio.sleep(1)
 
     @log_exceptions
     async def open_channel_with_peer(
@@ -1318,8 +1404,8 @@ class LNWallet(LNWorker):
             push_sat: int = 0,
             public: bool = False,
             zeroconf: bool = False,
-            opening_fee: int = None,
-            password=None):
+            opening_base_fee_msat: int = None,
+            password=None) -> Tuple[Channel, PartialTransaction]:
         if self.config.ENABLE_ANCHOR_CHANNELS:
             self.wallet.unlock(password)
         coins = self.wallet.get_spendable_coins(None)
@@ -1330,6 +1416,11 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             node_id=node_id,
             fee_policy=fee_policy)
+        if opening_base_fee_msat:
+            # add the funding tx fee to the tx so the client has to pay for (funding) mining fees
+            opening_fee_msat = opening_base_fee_msat + funding_tx.get_fee() * 1000
+        else:
+            opening_fee_msat = None
         chan, funding_tx = await self._open_channel_coroutine(
             peer=peer,
             funding_tx=funding_tx,
@@ -1337,7 +1428,7 @@ class LNWallet(LNWorker):
             push_sat=push_sat,
             public=public,
             zeroconf=zeroconf,
-            opening_fee=opening_fee,
+            opening_fee_msat=opening_fee_msat,
             password=password)
         return chan, funding_tx
 
@@ -1350,7 +1441,7 @@ class LNWallet(LNWorker):
             push_sat: int,
             public: bool,
             zeroconf=False,
-            opening_fee=None,
+            opening_fee_msat=None,
             password: Optional[str],
     ) -> Tuple[Channel, PartialTransaction]:
 
@@ -1365,7 +1456,7 @@ class LNWallet(LNWorker):
             push_msat=push_sat * 1000,
             public=public,
             zeroconf=zeroconf,
-            opening_fee=opening_fee,
+            opening_fee_msat=opening_fee_msat,
             temp_channel_id=os.urandom(32))
         chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
@@ -2282,10 +2373,13 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
+    def get_preimage(self, payment_hash: bytes, only_settleable: bool = False) -> Optional[bytes]:
+        """only_settleable: only return preimage if it is allowed to be settled (payment hash not in dont_settle_htlcs)"""
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         preimage_hex = self.preimages.get(payment_hash.hex())
         if preimage_hex is None:
+            return None
+        if only_settleable and preimage_hex in self.dont_settle_htlcs:
             return None
         preimage_bytes = bytes.fromhex(preimage_hex)
         if sha256(preimage_bytes) != payment_hash:

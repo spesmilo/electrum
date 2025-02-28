@@ -393,7 +393,9 @@ class Peer(Logger, EventListener):
         if their_networks:
             their_chains = list(chunks(their_networks["chains"], 32))
             if constants.net.rev_genesis_bytes() not in their_chains:
-                raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
+                raise GracefulDisconnect(f"no common chain found with remote. "
+                                         f"(they sent: {[chain.hex() for chain in their_chains]}),"
+                                         f" our chain: {constants.net.rev_genesis_bytes().hex()}")
         # all checks passed
         self.lnworker.on_peer_successfully_established(self)
         self._received_init = True
@@ -967,7 +969,7 @@ class Peer(Logger, EventListener):
             public: bool,
             zeroconf: bool = False,
             temp_channel_id: bytes,
-            opening_fee: int = None,
+            opening_fee_msat: int = None,
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
 
@@ -1033,10 +1035,10 @@ class Peer(Logger, EventListener):
         open_channel_tlvs['upfront_shutdown_script'] = {
             'shutdown_scriptpubkey': local_config.upfront_shutdown_script
         }
-        if opening_fee:
+        if opening_fee_msat:
             # todo: maybe add payment hash
             open_channel_tlvs['channel_opening_fee'] = {
-                'channel_opening_fee': opening_fee
+                'channel_opening_fee': opening_fee_msat
             }
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(
@@ -1269,10 +1271,13 @@ class Peer(Logger, EventListener):
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         # TODO: this is never cleaned up; the dict grows unbounded until disconnect
         self.temp_id_to_id[temp_chan_id] = None
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
-            pass
+        channel_opening_fee_tlv = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None  # type: Optional[dict]
+        if channel_opening_fee_tlv:
+            channel_opening_fee_msat = channel_opening_fee_tlv['channel_opening_fee']
+            # reject channel if fee is > 10% of funding amount (e.g. >40k sat on 400k incoming channel)
+            # the opening fee depends on the LSP and mempool situation
+            if channel_opening_fee_msat // 1000 > funding_sat * 0.1:
+                raise Exception(f"Channel opening fee is too expensive, rejecting channel")
 
         if self.use_anchors():
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
@@ -1386,7 +1391,7 @@ class Peer(Logger, EventListener):
             chan_dict,
             lnworker=self.lnworker,
             initial_feerate=feerate,
-            opening_fee = channel_opening_fee,
+            opening_fee_tlv = channel_opening_fee_tlv,
         )
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
@@ -2244,7 +2249,7 @@ class Peer(Logger, EventListener):
 
         # do we have a connection to the node?
         next_peer = self.lnworker.peers.get(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
+        if next_peer and next_peer.accepts_zeroconf() and self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
@@ -2356,8 +2361,8 @@ class Peer(Logger, EventListener):
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        if chan.opening_fee:
-            channel_opening_fee = chan.opening_fee['channel_opening_fee']
+        if chan.opening_fee_tlv:
+            channel_opening_fee = chan.opening_fee_tlv['channel_opening_fee']
             total_msat -= channel_opening_fee
             amt_to_forward -= channel_opening_fee
         else:
@@ -2411,7 +2416,7 @@ class Peer(Logger, EventListener):
         Return (preimage, (payment_key, callback)) with at most a single element not None.
         """
         if not processed_onion.are_we_final:
-            if not self.lnworker.enable_htlc_forwarding:
+            if not self.lnworker.enable_htlc_forwarding or already_forwarded:
                 return None, None
             # use the htlc key if we are forwarding
             payment_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
@@ -2498,7 +2503,7 @@ class Peer(Logger, EventListener):
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
 
-        preimage = self.lnworker.get_preimage(payment_hash)
+        preimage = self.lnworker.get_preimage(payment_hash, only_settleable=True)
         expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
         if preimage:
             expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
@@ -2525,10 +2530,7 @@ class Peer(Logger, EventListener):
             else:
                 return None, None
 
-        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
-            return None, None
-
-        chan.opening_fee = None
+        chan.opening_fee_tlv = None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         return preimage, None
 
@@ -3120,7 +3122,7 @@ class Peer(Logger, EventListener):
             # HTLC we are supposed to forward, and have already forwarded
             # for final trampoline onions, forwarding failures are stored with forwarding_key (which is the inner key)
             payment_key = forwarding_key
-            preimage = self.lnworker.get_preimage(payment_hash)
+            preimage = self.lnworker.get_preimage(payment_hash, only_settleable=True)
             error_bytes, error_reason = self.lnworker.get_forwarding_failure(payment_key)
             if error_bytes:
                 return None, None, error_bytes

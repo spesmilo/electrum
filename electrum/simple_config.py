@@ -845,7 +845,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # zeroconf channels
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
-    ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    ZEROCONF_MIN_OPENING_FEE_SAT = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    # fee deducted from the amount to be forwarded in ppm when opening a zeroconf channel, 1% == 100000 ppm
+    ZEROCONF_RELATIVE_OPENING_FEE_PPM = ConfigVar('zeroconf_relative_opening_fee', default=10000, type_=float)
     LN_UTXO_RESERVE = ConfigVar(
         'ln_utxo_reserve',
         default=10000,
