@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Set
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
-from PyQt6.QtGui import QGuiApplication, QFontDatabase
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 
 import electrum
@@ -20,6 +20,7 @@ from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
 from electrum.plugin import run_hook
+from electrum.gui.common_qt.util import get_font_id
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
@@ -426,8 +427,8 @@ class ElectrumQmlApplication(QGuiApplication):
 
         # add a monospace font as we can't rely on device having one
         self.fixedFont = 'PT Mono'
-        not_loaded = QFontDatabase.addApplicationFont('electrum/gui/fonts/PTMono-Regular.ttf') < 0
-        not_loaded = QFontDatabase.addApplicationFont('electrum/gui/fonts/PTMono-Bold.ttf') < 0 and not_loaded
+        not_loaded = get_font_id('PTMono-Regular.ttf') < 0
+        not_loaded = get_font_id('PTMono-Bold.ttf') < 0 and not_loaded
         if not_loaded:
             self.logger.warning('Could not load font PT Mono')
             self.fixedFont = 'Monospace' # hope for the best
