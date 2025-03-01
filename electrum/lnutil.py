@@ -12,6 +12,7 @@ import sys
 
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig, ECPubkey, string_to_number
+from electrum_ecc.util import bip340_tagged_hash
 import attr
 
 from .util import bfh, inv_dict, UserFacingException
@@ -641,7 +642,7 @@ def derive_multisig_funding_key_if_we_opened(
     assert isinstance(nlocktime, int)
     nlocktime_bytes = int.to_bytes(nlocktime, length=4, byteorder="little", signed=False)
     node_id_prefix = remote_node_id_or_prefix[0:NODE_ID_PREFIX_LEN]
-    funding_key = ecc.ECPrivkey(bitcoin.bip340_tagged_hash(
+    funding_key = ecc.ECPrivkey(bip340_tagged_hash(
         tag=b"electrum/ln_multisig_funding_key/we_opened",
         msg=funding_root_secret + node_id_prefix + nlocktime_bytes,
     ))
@@ -665,7 +666,7 @@ def derive_multisig_funding_key_if_they_opened(
     assert isinstance(remote_funding_pubkey, bytes)
     assert len(remote_funding_pubkey) == 33
     node_id_prefix = remote_node_id_or_prefix[0:NODE_ID_PREFIX_LEN]
-    funding_key = ecc.ECPrivkey(bitcoin.bip340_tagged_hash(
+    funding_key = ecc.ECPrivkey(bip340_tagged_hash(
         tag=b"electrum/ln_multisig_funding_key/they_opened",
         msg=funding_root_secret + node_id_prefix + remote_funding_pubkey,
     ))

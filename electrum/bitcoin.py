@@ -28,6 +28,7 @@ import enum
 from enum import IntEnum, Enum
 
 import electrum_ecc as ecc
+from electrum_ecc.util import bip340_tagged_hash
 
 from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str, classproperty
 from . import segwit_addr
@@ -811,12 +812,6 @@ def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
 #  - a list of two elements, each with the same structure as TapTree itself
 TapTreeLeaf = Tuple[int, bytes]
 TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
-
-
-# FIXME just use electrum_ecc.util.bip340_tagged_hash instead
-def bip340_tagged_hash(tag: bytes, msg: bytes) -> bytes:
-    # note: _libsecp256k1.secp256k1_tagged_sha256 benchmarks about 70% slower than this (on my machine)
-    return sha256(sha256(tag) + sha256(tag) + msg)
 
 
 def taproot_tree_helper(script_tree: TapTree):
