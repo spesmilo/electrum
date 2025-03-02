@@ -3,7 +3,7 @@ import os.path
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase
+from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase, QImage
 import qrcode
 
 from electrum.i18n import _
@@ -86,4 +86,33 @@ def draw_qr(
                     int(left + c * boxsize), int(top + r * boxsize),
                     boxsize - 1, boxsize - 1)
     qp.end()
+
+
+def paintQR(data) -> Optional[QImage]:
+    if not data:
+        return None
+
+    # Create QR code
+    qr = qrcode.QRCode()
+    qr.add_data(data)
+
+    # Create a QImage to draw on
+    matrix = qr.get_matrix()
+    k = len(matrix)
+    boxsize = 5
+    size = k * boxsize
+
+    # Create the image with appropriate size
+    base_img = QImage(size, size, QImage.Format.Format_ARGB32)
+
+    # Use draw_qr to paint on the image
+    draw_qr(
+        qr=qr,
+        paint_device=base_img,
+        is_enabled=True,
+        min_boxsize=boxsize
+    )
+
+    return base_img
+
 
