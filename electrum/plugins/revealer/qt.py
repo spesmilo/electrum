@@ -21,7 +21,6 @@ from functools import partial
 import sys
 from typing import TYPE_CHECKING
 
-import qrcode
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
 from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont,
@@ -37,6 +36,7 @@ from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path, i
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
+from electrum.gui.common_qt.util import paintQR
 
 from .revealer import RevealerPlugin
 
@@ -741,7 +741,7 @@ class Plugin(RevealerPlugin):
                                        base_img.height()-total_distance_h - border_thick), Qt.AlignmentFlag.AlignRight, self.versioned_seed.checksum)
 
                 # draw qr code
-                qr_qt = self.paintQR(self.versioned_seed.get_ui_string_version_plus_seed()
+                qr_qt = paintQR(self.versioned_seed.get_ui_string_version_plus_seed()
                                      + self.versioned_seed.checksum)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
@@ -813,32 +813,6 @@ class Plugin(RevealerPlugin):
             cal_painter.end()
             base_img = cal_img
 
-        return base_img
-
-    def paintQR(self, data):
-        if not data:
-            return
-        qr = qrcode.QRCode()
-        qr.add_data(data)
-        matrix = qr.get_matrix()
-        k = len(matrix)
-        border_color = Qt.GlobalColor.white
-        base_img = QImage(k * 5, k * 5, QImage.Format.Format_ARGB32)
-        base_img.fill(border_color)
-        qrpainter = QPainter()
-        qrpainter.begin(base_img)
-        boxsize = 5
-        size = k * boxsize
-        left = (base_img.width() - size)//2
-        top = (base_img.height() - size)//2
-        qrpainter.setBrush(Qt.GlobalColor.black)
-        qrpainter.setPen(Qt.GlobalColor.black)
-
-        for r in range(k):
-            for c in range(k):
-                if matrix[r][c]:
-                    qrpainter.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
-        qrpainter.end()
         return base_img
 
     def calibration_dialog(self, window):
