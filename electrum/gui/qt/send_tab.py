@@ -339,18 +339,19 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             # user cancelled
             return
 
-        if tx.has_dummy_output(DummyAddress.SWAP):
+        if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
             sm = self.wallet.lnworker.swap_manager
             with self.window.create_sm_transport() as transport:
                 if not self.window.initialize_swap_manager(transport):
                     return
-                coro = sm.request_swap_for_tx(transport, tx)
+                coro = sm.request_swap_for_amount(transport, swap_dummy_output.value)
                 try:
-                    swap, invoice, tx = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+                    swap, invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
                 except SwapServerError as e:
                     self.show_error(str(e))
                     return
-                assert not tx.has_dummy_output(DummyAddress.SWAP)
+                tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
+                assert tx.get_dummy_output(DummyAddress.SWAP) is None
                 tx.swap_invoice = invoice
                 tx.swap_payment_hash = swap.payment_hash
 

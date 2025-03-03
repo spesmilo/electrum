@@ -1247,8 +1247,13 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
-    def has_dummy_output(self, dummy_addr: str) -> bool:
-        return len(self.get_output_idxs_from_address(dummy_addr)) == 1
+    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
+        idxs = self.get_output_idxs_from_address(dummy_addr)
+        if not idxs:
+            return
+        assert len(idxs) == 1
+        for i in idxs:
+            return self.outputs()[i]
 
     def output_value_for_address(self, addr):
         # assumes exactly one output has that address

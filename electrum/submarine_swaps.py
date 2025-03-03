@@ -826,21 +826,14 @@ class SwapManager(Logger):
         return tx
 
     @log_exceptions
-    async def request_swap_for_tx(self, transport, tx: 'PartialTransaction') -> Optional[Tuple[SwapData, str, PartialTransaction]]:
-        for o in tx.outputs():
-            if o.address == self.dummy_address:
-                change_amount = o.value
-                break
-        else:
-            return
+    async def request_swap_for_amount(self, transport, onchain_amount) -> Optional[Tuple[SwapData, str]]:
         await self.is_initialized.wait()
-        lightning_amount_sat = self.get_recv_amount(change_amount, is_reverse=False)
+        lightning_amount_sat = self.get_recv_amount(onchain_amount, is_reverse=False)
         swap, invoice = await self.request_normal_swap(
             transport,
-            lightning_amount_sat = lightning_amount_sat,
-            expected_onchain_amount_sat=change_amount)
-        tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
-        return swap, invoice, tx
+            lightning_amount_sat=lightning_amount_sat,
+            expected_onchain_amount_sat=onchain_amount)
+        return swap, invoice
 
     @log_exceptions
     async def broadcast_funding_tx(self, swap: SwapData, tx: Transaction) -> None:

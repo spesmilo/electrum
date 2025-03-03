@@ -560,7 +560,7 @@ class TxEditor(WindowModalDialog):
                 self.error = long_warning
             else:
                 messages.append(long_warning)
-        if self.tx.has_dummy_output(DummyAddress.SWAP):
+        if self.tx.get_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
