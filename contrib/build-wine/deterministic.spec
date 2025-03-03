@@ -36,6 +36,7 @@ datas = [
     (f"{PROJECT_ROOT}/{PYPKG}/locale", f"{PYPKG}/locale"),
     (f"{PROJECT_ROOT}/{PYPKG}/plugins", f"{PYPKG}/plugins"),
     (f"{PROJECT_ROOT}/{PYPKG}/gui/icons", f"{PYPKG}/gui/icons"),
+    (f"{PROJECT_ROOT}/{PYPKG}/gui/fonts", f"{PYPKG}/gui/fonts"),
 ]
 datas += collect_data_files(f"{PYPKG}.plugins")
 datas += collect_data_files('trezorlib')  # TODO is this needed? and same question for other hww libs
