@@ -53,6 +53,7 @@ from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .crypto import sha256
 from . import util
+from .lntransport import extract_nodeid
 from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore_exceptions,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
@@ -60,6 +61,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FixedFeePolicy, FeeMethod, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
+from .lnutil import MIN_FUNDING_SAT
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .bitcoin import DummyAddress, DummyAddressUsedInTxException
@@ -346,12 +348,16 @@ class ReceiveRequestHelp(NamedTuple):
 
     ln_swap_suggestion: Optional[Any] = None
     ln_rebalance_suggestion: Optional[Any] = None
+    ln_zeroconf_suggestion: bool = False
 
     def can_swap(self) -> bool:
         return bool(self.ln_swap_suggestion)
 
     def can_rebalance(self) -> bool:
         return bool(self.ln_rebalance_suggestion)
+
+    def can_zeroconf(self) -> bool:
+        return self.ln_zeroconf_suggestion
 
 
 class TxWalletDelta(NamedTuple):
@@ -3250,12 +3256,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         ln_is_error = False
         ln_swap_suggestion = None
         ln_rebalance_suggestion = None
+        ln_zeroconf_suggestion = False
         URI = self.get_request_URI(req) or ''
         lightning_has_channels = (
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
         can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
+        try:
+            zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
+        except Exception:
+            zeroconf_nodeid = None
+        can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
+                                        and zeroconf_nodeid in self.lnworker.peers)
         status = self.get_invoice_status(req)
 
         if status == PR_EXPIRED:
@@ -3281,21 +3294,33 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 address_help = URI_help = (_("This address has already been used. "
                                              "For better privacy, do not reuse it for new payments."))
             if req.is_lightning():
-                if not lightning_has_channels:
+                if not lightning_has_channels and not can_get_zeroconf_channel:
                     ln_is_error = True
                     ln_help = _("You must have an open Lightning channel to receive payments.")
                 elif not lightning_online:
                     ln_is_error = True
                     ln_help = _('You must be online to receive Lightning payments.')
-                elif not can_receive_lightning:
-                    ln_is_error = True
+                elif not can_receive_lightning or (amount_sat <= 0 and not lightning_has_channels):
                     ln_rebalance_suggestion = self.lnworker.suggest_rebalance_to_receive(amount_sat)
                     ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(amount_sat)
-                    ln_help = _('You do not have the capacity to receive this amount with Lightning.')
-                    if bool(ln_rebalance_suggestion):
-                        ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
-                    elif bool(ln_swap_suggestion):
-                        ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
+                    # prefer to use swaps over JIT channels if possible
+                    if can_get_zeroconf_channel and not bool(ln_rebalance_suggestion) and not bool(ln_swap_suggestion):
+                        if amount_sat < MIN_FUNDING_SAT:
+                            ln_is_error = True
+                            ln_help = (_('Cannot receive this payment. Request at least {} '
+                                        'to purchase a Lightning channel from your service provider.')
+                                       .format(self.config.format_amount_and_units(amount_sat=MIN_FUNDING_SAT)))
+                        else:
+                            ln_zeroconf_suggestion = True
+                            ln_help = _(f'Receiving this payment will purchase a payment channel from your '
+                                        f'service provider. Service fees are deducted from the incoming payment.')
+                    else:
+                        ln_is_error = True
+                        ln_help = _('You do not have the capacity to receive this amount with Lightning.')
+                        if bool(ln_rebalance_suggestion):
+                            ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
+                        elif bool(ln_swap_suggestion):
+                            ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
                 # for URI that has LN part but no onchain part, copy error:
                 if not addr and ln_is_error:
                     URI_is_error = ln_is_error
@@ -3309,6 +3334,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ln_is_error=ln_is_error,
             ln_rebalance_suggestion=ln_rebalance_suggestion,
             ln_swap_suggestion=ln_swap_suggestion,
+            ln_zeroconf_suggestion=ln_zeroconf_suggestion
         )
 
 
