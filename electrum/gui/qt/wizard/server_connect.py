@@ -93,11 +93,10 @@ class WCProxyConfig(WizardComponent):
         self.pw.proxy_host.setText('localhost')
         self.pw.proxy_port.setText('9050')
         self.layout().addWidget(self.pw)
-        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
-        self.wizard_data['proxy'] = self.pw.get_proxy_settings()
+        self.wizard_data['proxy'] = self.pw.get_proxy_settings().to_dict()
 
 
 class WCServerConfig(WizardComponent):

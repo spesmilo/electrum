@@ -31,7 +31,10 @@ import threading
 import socket
 import json
 import sys
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar
+from typing import (
+    NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar,
+    Callable
+)
 import traceback
 import concurrent
 from concurrent import futures
@@ -48,7 +51,7 @@ from . import util
 from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
                    bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
-                   error_text_str_to_safe_str)
+                   error_text_str_to_safe_str, detect_tor_socks_proxy)
 from .bitcoin import COIN, DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain
@@ -156,65 +159,129 @@ def pick_random_server(hostmap=None, *, allowed_protocols: Iterable[str],
     return random.choice(eligible) if eligible else None
 
 
-class NetworkParameters(NamedTuple):
-    server: ServerAddr
-    proxy: Optional[dict]
-    auto_connect: bool
-    oneserver: bool = False
+class ProxySettings:
+    MODES = ['socks4', 'socks5']
 
+    probe_thread = None
 
-proxy_modes = ['socks4', 'socks5']
+    def __init__(self):
+        self.enabled = False
+        self.mode = 'socks5'
+        self.host = ''
+        self.port = ''
+        self.user = None
+        self.password = None
 
+    def set_defaults(self):
+        self.__init__()  # call __init__ for default values
 
-def serialize_proxy(p):
-    if not isinstance(p, dict):
-        return None
-    return ':'.join([p.get('mode'), p.get('host'), p.get('port')])
+    def serialize_proxy_cfgstr(self):
+        return ':'.join([self.mode, self.host, self.port])
 
+    def deserialize_proxy_cfgstr(self, s: Optional[str], user: str = None, password: str = None) -> Optional[dict]:
+        if s is None or not isinstance(s, str) or s.lower() == 'none':
+            self.set_defaults()
+            self.user = user
+            self.password = password
+            return
 
-def deserialize_proxy(s: Optional[str], user: str = None, password: str = None) -> Optional[dict]:
-    if not isinstance(s, str):
-        return None
-    if s.lower() == 'none':
-        return None
-    proxy = {"mode": "socks5", "host": "localhost"}
+        args = s.split(':')
+        if args[0] in ProxySettings.MODES:
+            self.mode = args[0]
+            args = args[1:]
 
-    args = s.split(':')
-    if args[0] in proxy_modes:
-        proxy['mode'] = args[0]
-        args = args[1:]
+        def is_valid_port(ps: str):
+            try:
+                return 0 < int(ps) < 65535
+            except ValueError:
+                return False
 
-    def is_valid_port(ps: str):
-        try:
-            return 0 < int(ps) < 65535
-        except ValueError:
-            return False
+        def is_valid_host(ph: str):
+            try:
+                NetAddress(ph, '1')
+            except ValueError:
+                return False
+            return True
 
-    def is_valid_host(ph: str):
-        try:
-            NetAddress(ph, '1')
-        except ValueError:
-            return False
-        return True
+        # detect migrate from old settings
+        if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
+            self.host = args[0]
+            self.port = args[1]
+            self.user = args[2]
+            self.password = args[3]
+        else:
+            self.host = ':'.join(args[:-1])
+            self.port = args[-1]
+            self.user = user
+            self.password = password
 
-    # detect migrate from old settings
-    if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
-        proxy['host'] = args[0]
-        proxy['port'] = args[1]
-        proxy['user'] = args[2]
-        proxy['password'] = args[3]
+        if not is_valid_host(self.host) or not is_valid_port(self.port):
+            self.enabled = False
+
+    def to_dict(self):
+        return {
+            'enabled': self.enabled,
+            'mode': self.mode,
+            'host': self.host,
+            'port': self.port,
+            'user': self.user,
+            'password': self.password
+        }
+
+    @classmethod
+    def from_config(cls, config: 'SimpleConfig') -> 'ProxySettings':
+        proxy = ProxySettings()
+        proxy.deserialize_proxy_cfgstr(
+            config.NETWORK_PROXY, config.NETWORK_PROXY_USER, config.NETWORK_PROXY_PASSWORD
+        )
+        proxy.enabled = config.NETWORK_ENABLE_PROXY
         return proxy
 
-    proxy['host'] = ':'.join(args[:-1])
-    proxy['port'] = args[-1]
+    @classmethod
+    def from_dict(cls, d: dict) -> 'ProxySettings':
+        proxy = ProxySettings()
+        proxy.enabled = d.get('enabled', proxy.enabled)
+        proxy.mode = d.get('mode', proxy.mode)
+        proxy.host = d.get('host', proxy.host)
+        proxy.port = d.get('port', proxy.port)
+        proxy.user = d.get('user', proxy.user)
+        proxy.password = d.get('password', proxy.password)
+        return proxy
 
-    if not is_valid_host(proxy['host']) or not is_valid_port(proxy['port']):
-        return None
+    @classmethod
+    def probe_tor(cls, on_finished: Callable[[str | None, int | None], None]):
+        def detect_task(finished: Callable[[str | None, int | None], None]):
+            net_addr = detect_tor_socks_proxy()
+            if net_addr is None:
+                finished(None, None)
+            else:
+                host = net_addr[0]
+                port = net_addr[1]
+                finished(host, port)
+            cls.probe_thread = None
 
-    proxy['user'] = user
-    proxy['password'] = password
+        if cls.probe_thread:  # don't spam threads
+            return
+        cls.probe_thread = threading.Thread(target=detect_task, args=[on_finished], daemon=True)
+        cls.probe_thread.start()
 
-    return proxy
+    def __eq__(self, other):
+        return self.enabled == other.enabled \
+            and self.mode == other.mode \
+            and self.host == other.host \
+            and self.port == other.port \
+            and self.user == other.user \
+            and self.password == other.password
+
+    def __str__(self):
+        return f'{self.enabled=} {self.mode=} {self.host=} {self.port=} {self.user=}'
+
+
+class NetworkParameters(NamedTuple):
+    server: ServerAddr
+    proxy: ProxySettings
+    auto_connect: bool
+    oneserver: bool = False
 
 
 class BestEffortRequestFailed(NetworkException): pass
@@ -323,7 +390,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
-        self.proxy = None  # type: Optional[dict]
+        self.proxy = ProxySettings()
         self.is_proxy_tor = None
         self._init_parameters_from_config()
 
@@ -363,7 +430,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._set_status(ConnectionState.DISCONNECTED)
         self._has_ever_managed_to_connect_to_server = False
         self._was_started = False
-
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""
@@ -513,8 +579,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         dns_hacks.configure_dns_resolver()
         self.auto_connect = self.config.NETWORK_AUTO_CONNECT
         self._set_default_server()
-        self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY, self.config.NETWORK_PROXY_USER,
-                                          self.config.NETWORK_PROXY_PASSWORD))
+        self._set_proxy(ProxySettings.from_config(self.config))
         self._maybe_set_oneserver()
 
     def get_donation_address(self):
@@ -637,7 +702,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
-    def _set_proxy(self, proxy: Optional[dict]):
+    def _set_proxy(self, proxy: ProxySettings):
         if self.proxy == proxy:
             return
 
@@ -653,7 +718,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _detect_if_proxy_is_tor(self) -> None:
         def tor_probe_task(p):
             assert p is not None
-            is_tor = util.is_tor_socks_port(p['host'], int(p['port']))
+            is_tor = util.is_tor_socks_port(p.host, int(p.port))
             if self.proxy == p:  # is this the proxy we probed?
                 if self.is_proxy_tor != is_tor:
                     self.logger.info(f'Proxy is {"" if is_tor else "not "}TOR')
@@ -661,32 +726,38 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 util.trigger_callback('tor_probed', is_tor)
 
         proxy = self.proxy
-        if proxy and proxy['mode'] == 'socks5':
+        if proxy and proxy.enabled and proxy.mode == 'socks5':
             t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
             t.start()
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
-        proxy_str = serialize_proxy(proxy)
-        proxy_user = proxy['user'] if proxy else None
-        proxy_pass = proxy['password'] if proxy else None
+        proxy_str = proxy.serialize_proxy_cfgstr()
+        proxy_enabled = proxy.enabled
+        proxy_user = proxy.user
+        proxy_pass = proxy.password
         server = net_params.server
         # sanitize parameters
         try:
             if proxy:
-                proxy_modes.index(proxy['mode']) + 1
-                int(proxy['port'])
+                # proxy_modes.index(proxy['mode']) + 1
+                ProxySettings.MODES.index(proxy.mode) + 1
+                # int(proxy['port'])
+                int(proxy.port)
         except Exception:
-            return
+            proxy.enabled = False
+            # return
         self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
         self.config.NETWORK_ONESERVER = net_params.oneserver
+        self.config.NETWORK_ENABLE_PROXY = proxy_enabled
         self.config.NETWORK_PROXY = proxy_str
         self.config.NETWORK_PROXY_USER = proxy_user
         self.config.NETWORK_PROXY_PASSWORD = proxy_pass
         self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
         if self.config.NETWORK_SERVER != str(server) \
+                or self.config.NETWORK_ENABLE_PROXY != proxy_enabled \
                 or self.config.NETWORK_PROXY != proxy_str \
                 or self.config.NETWORK_PROXY_USER != proxy_user \
                 or self.config.NETWORK_PROXY_PASSWORD != proxy_pass \
@@ -863,7 +934,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             return self.config.NETWORK_TIMEOUT
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
-        if self.proxy:
+        if self.proxy and self.proxy.enabled:
             return request_type.RELAXED
         return request_type.NORMAL
 

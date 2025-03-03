@@ -7,6 +7,7 @@ from electrum.i18n import _
 from electrum.interface import ServerAddr
 from electrum.keystore import hardware_keystore
 from electrum.logging import get_logger
+from electrum.network import ProxySettings
 from electrum.plugin import run_hook
 from electrum.slip39 import EncryptedSeed
 from electrum.storage import WalletStorage, StorageEncryptionVersion
@@ -731,9 +732,8 @@ class ServerConnectWizard(AbstractWizard):
             return
         self._logger.debug(f'configuring proxy: {proxy_settings!r}')
         net_params = self._daemon.network.get_parameters()
-        if not proxy_settings['enabled']:
-            proxy_settings = None
-        net_params = net_params._replace(proxy=proxy_settings, auto_connect=bool(wizard_data['autoconnect']))
+        proxy = ProxySettings.from_dict(proxy_settings)
+        net_params = net_params._replace(proxy=proxy, auto_connect=bool(wizard_data['autoconnect']))
         self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
 
     def do_configure_server(self, wizard_data: dict):

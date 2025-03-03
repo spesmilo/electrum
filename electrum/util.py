@@ -67,7 +67,7 @@ from .i18n import _
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
-    from .network import Network
+    from .network import Network, ProxySettings
     from .interface import Interface
     from .simple_config import SimpleConfig
     from .paymentrequest import PaymentRequest
@@ -1313,7 +1313,7 @@ def format_short_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
-def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
+def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
@@ -1324,13 +1324,13 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
         timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
-    if proxy:
+    if proxy and proxy.enabled:
         connector = ProxyConnector(
-            proxy_type=ProxyType.SOCKS5 if proxy['mode'] == 'socks5' else ProxyType.SOCKS4,
-            host=proxy['host'],
-            port=int(proxy['port']),
-            username=proxy.get('user', None),
-            password=proxy.get('password', None),
+            proxy_type=ProxyType.SOCKS5 if proxy.mode == 'socks5' else ProxyType.SOCKS4,
+            host=proxy.host,
+            port=int(proxy.port),
+            username=proxy.user,
+            password=proxy.password,
             rdns=True,  # needed to prevent DNS leaks over proxy
             ssl=ssl_context,
         )
@@ -1551,6 +1551,7 @@ def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
     # Probable ports for Tor to listen at
     candidates = [
         ("127.0.0.1", 9050),
+        ("127.0.0.1", 9051),
         ("127.0.0.1", 9150),
     ]
     for net_addr in candidates:
@@ -1969,10 +1970,10 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
 
     @classmethod
     def from_network_settings(cls, network: Optional['Network']) -> Optional['ESocksProxy']:
-        if not network or not network.proxy:
+        if not network or not network.proxy or not network.proxy.enabled:
             return None
         proxy = network.proxy
-        username, pw = proxy.get('user'), proxy.get('password')
+        username, pw = proxy.user, proxy.password
         if not username or not pw:
             # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
             if network.is_proxy_tor:
@@ -1981,10 +1982,10 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
                 auth = None
         else:
             auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
-        addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
-        if proxy['mode'] == "socks4":
+        addr = aiorpcx.NetAddress(proxy.host, proxy.port)
+        if proxy.mode == "socks4":
             ret = cls(addr, aiorpcx.socks.SOCKS4a, auth)
-        elif proxy['mode'] == "socks5":
+        elif proxy.mode == "socks5":
             ret = cls(addr, aiorpcx.socks.SOCKS5, auth)
         else:
             raise NotImplementedError  # http proxy not available with aiorpcx
