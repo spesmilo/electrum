@@ -575,13 +575,6 @@ class SimpleConfig(Logger):
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
     NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
-    WALLET_BATCH_RBF = ConfigVar(
-        'batch_rbf', default=False, type_=bool,
-        short_desc=lambda: _('Batch unconfirmed transactions'),
-        long_desc=lambda: (
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
-            _('This will save fees, but might have unwanted effects in terms of privacy')),
-    )
     WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
         'wallet_merge_duplicate_outputs', default=False, type_=bool,
         short_desc=lambda: _('Merge duplicate outputs'),

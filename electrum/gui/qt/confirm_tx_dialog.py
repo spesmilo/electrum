@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional, Union, Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu, QComboBox
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -57,11 +57,14 @@ from .locktimeedit import LockTimeEdit
 
 class TxEditor(WindowModalDialog):
 
-    def __init__(self, *, title='',
-                 window: 'ElectrumWindow',
-                 make_tx,
-                 output_value: Union[int, str],
-                 allow_preview=True):
+    def __init__(
+            self, *, title='',
+            window: 'ElectrumWindow',
+            make_tx,
+            output_value: Union[int, str],
+            allow_preview=True,
+            batching_candidates=None,
+    ):
 
         WindowModalDialog.__init__(self, window, title=title)
         self.main_window = window
@@ -82,6 +85,8 @@ class TxEditor(WindowModalDialog):
         # preview is disabled for lightning channel funding
         self.allow_preview = allow_preview
         self.is_preview = False
+        self._base_tx = None # for batching
+        self.batching_candidates = batching_candidates
 
         self.locktime_e = LockTimeEdit(self)
         self.locktime_e.valueEdited.connect(self.trigger_update)
@@ -106,13 +111,16 @@ class TxEditor(WindowModalDialog):
         vbox.addStretch(1)
         vbox.addLayout(buttons)
 
-        self.set_io_visible(self.config.GUI_QT_TX_EDITOR_SHOW_IO)
+        self.set_io_visible()
         self.set_fee_edit_visible(self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS)
         self.set_locktime_visible(self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME)
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
         self.main_window.gui_object.timer.timeout.connect(self.timer_actions)
+
+    def is_batching(self) -> bool:
+        return self._base_tx is not None
 
     def timer_actions(self):
         if self.needs_update:
@@ -365,6 +373,15 @@ class TxEditor(WindowModalDialog):
         self.ok_button.clicked.connect(self.on_send)
         self.ok_button.setDefault(True)
         buttons = Buttons(CancelButton(self), self.preview_button, self.ok_button)
+
+        if self.batching_candidates is not None and len(self.batching_candidates) > 0:
+            batching_combo = QComboBox()
+            batching_combo.addItems([_('Do not batch')] + [_('Batch with') + ' ' + tx.txid()[0:10] for tx in self.batching_candidates])
+            buttons.insertWidget(0, batching_combo)
+            def on_batching_combo(x):
+                self._base_tx = self.batching_candidates[x - 1] if x > 0 else None
+                self.update_batching()
+            batching_combo.currentIndexChanged.connect(on_batching_combo)
         return buttons
 
     def create_top_bar(self, text):
@@ -404,7 +421,6 @@ class TxEditor(WindowModalDialog):
                 _('This may result in higher transactions fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
-        add_cv_action(self.config.cv.WALLET_BATCH_RBF, self.toggle_batch_rbf)
         add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
@@ -441,9 +457,7 @@ class TxEditor(WindowModalDialog):
         self.wallet.db.put('multiple_change', self.wallet.multiple_change)
         self.trigger_update()
 
-    def toggle_batch_rbf(self):
-        b = not self.config.WALLET_BATCH_RBF
-        self.config.WALLET_BATCH_RBF = b
+    def update_batching(self):
         self.trigger_update()
 
     def toggle_merge_duplicate_outputs(self):
@@ -462,9 +476,8 @@ class TxEditor(WindowModalDialog):
         self.trigger_update()
 
     def toggle_io_visibility(self):
-        b = not self.config.GUI_QT_TX_EDITOR_SHOW_IO
-        self.config.GUI_QT_TX_EDITOR_SHOW_IO = b
-        self.set_io_visible(b)
+        self.config.GUI_QT_TX_EDITOR_SHOW_IO = not self.config.GUI_QT_TX_EDITOR_SHOW_IO
+        self.set_io_visible()
         self.resize_to_fit_content()
 
     def toggle_fee_details(self):
@@ -479,8 +492,8 @@ class TxEditor(WindowModalDialog):
         self.set_locktime_visible(b)
         self.resize_to_fit_content()
 
-    def set_io_visible(self, b):
-        self.io_widget.setVisible(b)
+    def set_io_visible(self):
+        self.io_widget.setVisible(self.config.GUI_QT_TX_EDITOR_SHOW_IO)
 
     def set_fee_edit_visible(self, b):
         detailed = [self.feerounding_icon, self.feerate_e, self.fee_e]
@@ -560,7 +573,7 @@ class TxEditor(WindowModalDialog):
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
         # warn if we merge from mempool
-        if self.tx.rbf_merge_txid:
+        if self.is_batching():
             messages.append(_('This payment will be merged with another existing transaction.'))
         # warn if we use multiple change outputs
         num_change = sum(int(o.is_change) for o in self.tx.outputs())
@@ -603,7 +616,7 @@ class TxEditor(WindowModalDialog):
 class ConfirmTxDialog(TxEditor):
     help_text = ''  #_('Set the mining fee of your transaction')
 
-    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], allow_preview=True):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], allow_preview=True, batching_candidates=None):
 
         TxEditor.__init__(
             self,
@@ -611,8 +624,9 @@ class ConfirmTxDialog(TxEditor):
             make_tx=make_tx,
             output_value=output_value,
             title=_("New Transaction"), # todo: adapt title for channel funding tx, swaps
-            allow_preview=allow_preview)
-
+            allow_preview=allow_preview, # false for channel funding
+            batching_candidates=batching_candidates,
+        )
         self.trigger_update()
 
     def _update_amount_label(self):
@@ -631,8 +645,9 @@ class ConfirmTxDialog(TxEditor):
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         fee_policy = self.get_fee_policy()
         confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
+        base_tx = self._base_tx
         try:
-            self.tx = self.make_tx(fee_policy, confirmed_only=confirmed_only)
+            self.tx = self.make_tx(fee_policy, confirmed_only=confirmed_only, base_tx=base_tx)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
         except NotEnoughFunds:
@@ -640,7 +655,7 @@ class ConfirmTxDialog(TxEditor):
             self.tx = None
             if fallback_to_zero_fee:
                 try:
-                    self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
+                    self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only, base_tx=base_tx)
                 except BaseException:
                     return
             else:
@@ -650,7 +665,7 @@ class ConfirmTxDialog(TxEditor):
             self.no_dynfee_estimates = True
             self.tx = None
             try:
-                self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
+                self.tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only, base_tx=base_tx)
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 return
@@ -665,7 +680,7 @@ class ConfirmTxDialog(TxEditor):
     def can_pay_assuming_zero_fees(self, confirmed_only) -> bool:
         # called in send_tab.py
         try:
-            tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only)
+            tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only, base_tx=None)
         except NotEnoughFunds:
             return False
         else:
@@ -688,7 +703,7 @@ class ConfirmTxDialog(TxEditor):
         grid.addWidget(HelpLabel(_("Mining Fee") + ": ", msg), 1, 0)
         grid.addLayout(self.fee_hbox, 1, 1, 1, 3)
 
-        grid.addWidget(HelpLabel(_("Fee target") + ": ", self.fee_combo.help_msg), 3, 0)
+        grid.addWidget(HelpLabel(_("Fee policy") + ": ", self.fee_combo.help_msg), 3, 0)
         grid.addLayout(self.fee_target_hbox, 3, 1, 1, 3)
 
         grid.setColumnStretch(4, 1)

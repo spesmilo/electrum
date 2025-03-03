@@ -1385,11 +1385,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         WaitingDialog(self, msg, task, on_success, on_failure)
 
     def mktx_for_open_channel(self, *, funding_sat, node_id):
-        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.lnworker.mktx_for_open_channel(
-            coins = self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
-            funding_sat=funding_sat,
-            node_id=node_id,
-            fee_policy=fee_policy)
+        def make_tx(fee_policy, *, confirmed_only=False, base_tx=None):
+            assert base_tx is None
+            return self.wallet.lnworker.mktx_for_open_channel(
+                coins = self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
+                funding_sat=funding_sat,
+                node_id=node_id,
+                fee_policy=fee_policy)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
@@ -1409,8 +1411,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
 
-    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True):
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview)
+    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True, batching_candidates=None):
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview, batching_candidates=batching_candidates)
         if d.not_enough_funds:
             # note: use confirmed_only=False here, regardless of config setting,
             #       as the user needs to get to ConfirmTxDialog to change the config setting

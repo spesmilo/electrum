@@ -325,16 +325,23 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
             get_coins = self.window.get_coins
-        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
-            coins=get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
-            fee_policy=fee_policy,
-            outputs=outputs,
-            is_sweep=is_sweep)
+
+        def make_tx(fee_policy, *, confirmed_only=False, base_tx=False):
+            coins = get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only)
+            return self.wallet.make_unsigned_transaction(
+                fee_policy=fee_policy,
+                coins=coins,
+                outputs=outputs,
+                base_tx=base_tx,
+                is_sweep=is_sweep,
+                send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
+            )
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
         output_value = '!' if is_max else sum(output_values)
 
-        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value)
+        candidates = self.wallet.get_candidates_for_batching(outputs, []) # coins not used
+        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value, batching_candidates=candidates)
         if tx is None:
             # user cancelled
             return

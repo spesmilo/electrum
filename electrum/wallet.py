@@ -1718,16 +1718,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def get_unconfirmed_base_tx_for_batching(self, outputs, coins) -> Optional[Transaction]:
-        candidate = None
+    def get_candidates_for_batching(self, outputs, coins) -> Sequence[Transaction]:
+        candidates = []
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
             # tx should not be mined yet
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
-            if hist_item.tx_mined_status.height not in (TX_HEIGHT_UNCONFIRMED,
-                                                        TX_HEIGHT_UNCONF_PARENT,
-                                                        TX_HEIGHT_LOCAL):
+            if hist_item.tx_mined_status.height not in (
+                    TX_HEIGHT_UNCONFIRMED,
+                    TX_HEIGHT_UNCONF_PARENT,
+                    TX_HEIGHT_LOCAL):
                 continue
             # tx should be "outgoing" from wallet
             if hist_item.delta >= 0:
@@ -1753,12 +1754,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             output_amount = sum(o.value for o in outputs)
             if output_amount > remaining_amount + change_amount:
                 continue
-            # prefer txns already in mempool (vs local)
-            if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
-                candidate = tx
-                continue
-            return tx
-        return candidate
+            candidates.append(tx)
+        return candidates
 
     def get_change_addresses_for_new_transaction(
             self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,
@@ -1843,8 +1840,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if inputs:
             input_set = set(txin.prevout for txin in inputs)
             coins = [coin for coin in coins if (coin.prevout not in input_set)]
-        if base_tx is None and self.config.WALLET_BATCH_RBF:
-            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
 
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
