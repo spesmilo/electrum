@@ -244,6 +244,8 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+        self._init_done = True
+
     def list_config_vars(self) -> Sequence[str]:
         return list(sorted(_config_var_from_key.keys()))
 
@@ -896,6 +898,21 @@ class SimpleConfig(Logger):
 
     def get_decimal_point(self):
         return self.decimal_point
+
+    def __setattr__(self, name, value):
+        """Disallows setting instance attributes outside __init__.
+
+        The point is to make the following code raise:
+        >>> config.NETORK_AUTO_CONNECTT = False
+        (i.e. catch mistyped or non-existent ConfigVars)
+        """
+        # If __init__ not finished yet, or this field already exists, set it:
+        if not getattr(self, "_init_done", False) or hasattr(self, name):
+            return super().__setattr__(name, value)
+        raise AttributeError(
+            f"Tried to define new instance attribute for config: {name=!r}. "
+            "Did you perhaps mistype a ConfigVar?"
+        )
 
     @cached_property
     def cv(config):
