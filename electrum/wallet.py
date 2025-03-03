@@ -1398,6 +1398,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # create groups
         transactions = OrderedDictWithIndex()
         for k, tx_item in sorted(list(transactions_tmp.items()), key=sort_key):
+            if 'ln_value' not in tx_item:
+                tx_item['ln_value'] = Satoshis(0)
+            if 'bc_value' not in tx_item:
+                tx_item['bc_value'] = Satoshis(0)
             group_id = tx_item.get('group_id')
             if not group_id:
                 transactions[k] = tx_item
@@ -1422,10 +1426,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         'txid': '----',
                     }
                     transactions[key] = parent
-                if 'bc_value' in tx_item:
-                    parent['bc_value'] += tx_item['bc_value']
-                if 'ln_value' in tx_item:
-                    parent['ln_value'] += tx_item['ln_value']
+                parent['bc_value'] += tx_item['bc_value']
+                parent['ln_value'] += tx_item['ln_value']
                 parent['value'] = parent['bc_value'] + parent['ln_value']
                 if 'fiat_value' in tx_item:
                     parent['fiat_value'] += tx_item['fiat_value']
