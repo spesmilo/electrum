@@ -1,12 +1,26 @@
 from typing import Optional
+import os.path
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPen, QPaintDevice
+from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase
 import qrcode
 
 from electrum.i18n import _
 
+
+_cached_font_ids: dict[str, int] = {}
+
+def get_font_id(filename: str) -> int:
+    font_id = _cached_font_ids.get(filename)
+    if font_id is not None:
+        return font_id
+    # font_id will be negative on error
+    font_id = QFontDatabase.addApplicationFont(
+        os.path.join(os.path.dirname(__file__), '..', 'fonts', filename)
+    )
+    _cached_font_ids[filename] = font_id
+    return font_id
 
 def draw_qr(
     *,
