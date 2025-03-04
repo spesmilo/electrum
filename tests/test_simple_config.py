@@ -136,6 +136,12 @@ class Test_SimpleConfig(ElectrumTestCase):
             # revert:
             config.NETWORK_SERVER = None
 
+    def test_configvars_setter_catches_typo(self):
+        config = SimpleConfig(self.options)
+        assert not hasattr(config, "NETORK_AUTO_CONNECTT")
+        with self.assertRaises(AttributeError):
+            config.NETORK_AUTO_CONNECTT = False
+
     def test_configvars_get_default_value(self):
         config = SimpleConfig(self.options)
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.get_default_value())
