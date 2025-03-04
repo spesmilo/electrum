@@ -2193,7 +2193,7 @@ class LNWallet(LNWorker):
         timestamp = int(time.time())
         needs_jit: bool = self.receive_requires_jit_channel(amount_msat)
         routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels, needs_jit=needs_jit)
-        self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}, jit: {needs_jit}")
+        self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}, jit: {needs_jit}, sat: {amount_msat or 0 // 1000}")
         invoice_features = self.features.for_invoice()
         if not self.uses_trampoline():
             invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
@@ -2756,16 +2756,26 @@ class LNWallet(LNWorker):
         """Returns true if we cannot receive the amount and have set up a trusted LSP node.
         Cannot work reliably with 0 amount invoices as we don't know if we are able to receive it.
         """
-        # a trusted zeroconf node is configured
-        if (self.config.ZEROCONF_TRUSTED_NODE
-                # the zeroconf node is a peer, it doesn't make sense to request a channel from an offline LSP
-                and extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0] in self.peers
+        # zeroconf provider is configured and connected
+        if (self.can_get_zeroconf_channel()
                 # we cannot receive the amount specified
                 and ((amount_msat and self.num_sats_can_receive() < (amount_msat // 1000))
                     # or we cannot receive anything, and it's a 0 amount invoice
                     or (not amount_msat and self.num_sats_can_receive() < 1))):
             return True
         return False
+
+    def can_get_zeroconf_channel(self) -> bool:
+        if not self.config.ACCEPT_ZEROCONF_CHANNELS and self.config.ZEROCONF_TRUSTED_NODE:
+            # check if zeroconf is accepted and client has trusted zeroconf node configured
+            return False
+        try:
+            node_id = extract_nodeid(self.wallet.config.ZEROCONF_TRUSTED_NODE)[0]
+        except ConnStringFormatError:
+            # invalid connection string
+            return False
+        # only return True if we are connected to the zeroconf provider
+        return node_id in self.peers
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """

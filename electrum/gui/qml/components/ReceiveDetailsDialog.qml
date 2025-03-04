@@ -106,10 +106,42 @@ ElDialog {
             }
             FlatButton {
                 Layout.fillWidth: true
-                enabled: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt
+                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
+                            > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
-                onClicked: { dialog.isLightning = true; doAccept() }
+                onClicked: {
+                    if (Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt) {
+                        // can receive on existing channel
+                        dialog.isLightning = true
+                        doAccept()
+                    } else if (Daemon.currentWallet.canGetZeroconfChannel && amountBtc.textAsSats.satsInt
+                                >= Daemon.currentWallet.minChannelFunding.satsInt) {
+                        // ask for confirmation of zeroconf channel to prevent fee surprise
+                        var confirmdialog = app.messageDialog.createObject(dialog, {
+                            title: qsTr('Confirm just-in-time channel'),
+                            text: [qsTr('Receiving this payment will purchase a Lightning channel from your service provider.'),
+                                   qsTr('Fees will be deducted from the payment.'),
+                                   qsTr('Do you want to continue?')].join(' '),
+                            yesno: true
+                        })
+                        confirmdialog.accepted.connect(function () {
+                            dialog.isLightning = true
+                            doAccept()
+                        })
+                        confirmdialog.open()
+                    } else {
+                        // show error that amnt > 200k is neccessary to get zeroconf channel
+                        var confirmdialog = app.messageDialog.createObject(dialog, {
+                            title: qsTr("Amount too low"),
+                            text: [qsTr("You don't have channels with enough inbound liquidity to receive this payment."),
+                                   qsTr("Request at least %1 to open a channel just-in-time.").arg(
+                                       Config.formatSats(Daemon.currentWallet.minChannelFunding.satsInt, true))].join(' ')
+                        })
+                        confirmdialog.open()
+                    }
+                    // can't get zeroconf channel and doesn't have enough inbound liquidity
+                }
             }
         }
     }
