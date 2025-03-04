@@ -43,7 +43,8 @@ from .sql_db import SqlDB, sql
 from . import constants, util
 from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException, is_private_netaddress
 from .lntransport import LNPeerAddr
-from .lnutil import ShortChannelID, validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg
+from .lnutil import (ShortChannelID, validate_features, IncompatibleOrInsaneFeatures,
+                     InvalidGossipMsg, GossipForwardingMessage, GossipTimestampFilter)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 from .crypto import sha256d
@@ -68,6 +69,7 @@ class ChannelInfo(NamedTuple):
     node1_id: bytes
     node2_id: bytes
     capacity_sat: Optional[int]
+    raw: Optional[bytes] = None
 
     @staticmethod
     def from_msg(payload: dict) -> 'ChannelInfo':
@@ -82,12 +84,14 @@ class ChannelInfo(NamedTuple):
             short_channel_id = ShortChannelID.normalize(channel_id),
             node1_id = node_id_1,
             node2_id = node_id_2,
-            capacity_sat = capacity_sat
+            capacity_sat = capacity_sat,
+            raw = payload.get('raw')
         )
 
     @staticmethod
     def from_raw_msg(raw: bytes) -> 'ChannelInfo':
         payload_dict = decode_msg(raw)[1]
+        payload_dict['raw'] = raw
         return ChannelInfo.from_msg(payload_dict)
 
     @staticmethod
@@ -111,6 +115,7 @@ class Policy(NamedTuple):
     channel_flags: int
     message_flags: int
     timestamp: int
+    raw: Optional[bytes] = None
 
     @staticmethod
     def from_msg(payload: dict) -> 'Policy':
@@ -124,12 +129,14 @@ class Policy(NamedTuple):
             message_flags               = int.from_bytes(payload['message_flags'], "big"),
             channel_flags               = int.from_bytes(payload['channel_flags'], "big"),
             timestamp                   = payload['timestamp'],
+            raw                         = payload.get('raw'),
         )
 
     @staticmethod
-    def from_raw_msg(key:bytes, raw: bytes) -> 'Policy':
+    def from_raw_msg(key: bytes, raw: bytes) -> 'Policy':
         payload = decode_msg(raw)[1]
         payload['start_node'] = key[8:]
+        payload['raw'] = raw
         return Policy.from_msg(payload)
 
     @staticmethod
@@ -163,6 +170,7 @@ class NodeInfo(NamedTuple):
     features: int
     timestamp: int
     alias: str
+    raw: Optional[bytes]
 
     @staticmethod
     def from_msg(payload) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
@@ -182,12 +190,18 @@ class NodeInfo(NamedTuple):
         except Exception:
             alias = ''
         timestamp = payload['timestamp']
-        node_info = NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias)
+        node_info = NodeInfo(
+            node_id=node_id,
+            features=features,
+            timestamp=timestamp,
+            alias=alias,
+            raw=payload.get('raw'))
         return node_info, peer_addrs
 
     @staticmethod
     def from_raw_msg(raw: bytes) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         payload_dict = decode_msg(raw)[1]
+        payload_dict['raw'] = raw
         return NodeInfo.from_msg(payload_dict)
 
     @staticmethod
@@ -240,6 +254,7 @@ class NodeInfo(NamedTuple):
             nonlocal buf
             data, buf = buf[0:n], buf[n:]
             return data
+
         addresses = []
         while buf:
             atype = ord(read(1))
@@ -389,6 +404,12 @@ class ChannelDB(SqlDB):
         self._chans_with_1_policies = set()  # type: Set[ShortChannelID]
         self._chans_with_2_policies = set()  # type: Set[ShortChannelID]
 
+        self.forwarding_lock = threading.RLock()
+        self.fwd_channels = []  # type: List[GossipForwardingMessage]
+        self.fwd_orphan_channels = [] # type: List[GossipForwardingMessage]
+        self.fwd_channel_updates = []  # type: List[GossipForwardingMessage]
+        self.fwd_node_announcements = []  # type: List[GossipForwardingMessage]
+
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
 
@@ -487,6 +508,9 @@ class ChannelDB(SqlDB):
         self._update_num_policies_for_chan(channel_info.short_channel_id)
         if 'raw' in msg:
             self._db_save_channel(channel_info.short_channel_id, msg['raw'])
+        with self.forwarding_lock:
+            if fwd_msg := GossipForwardingMessage.from_payload(msg):
+                self.fwd_channels.append(fwd_msg)
 
     def policy_changed(self, old_policy: Policy, new_policy: Policy, verbose: bool) -> bool:
         changed = False
@@ -555,6 +579,10 @@ class ChannelDB(SqlDB):
         if old_policy and not self.policy_changed(old_policy, policy, verbose):
             return UpdateStatus.UNCHANGED
         else:
+            if policy.message_flags & 0b10 == 0:  # check if its `dont_forward`
+                with self.forwarding_lock:
+                    if fwd_msg := GossipForwardingMessage.from_payload(payload):
+                        self.fwd_channel_updates.append(fwd_msg)
             return UpdateStatus.GOOD
 
     def add_channel_updates(self, payloads, max_age=None) -> CategorizedChannelUpdates:
@@ -667,7 +695,7 @@ class ChannelDB(SqlDB):
         # note: signatures have already been verified.
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
-        new_nodes = {}
+        new_nodes = set()  # type: Set[bytes]
         for msg_payload in msg_payloads:
             try:
                 node_info, node_addresses = NodeInfo.from_msg(msg_payload)
@@ -681,9 +709,7 @@ class ChannelDB(SqlDB):
             node = self._nodes.get(node_id)
             if node and node.timestamp >= node_info.timestamp:
                 continue
-            node = new_nodes.get(node_id)
-            if node and node.timestamp >= node_info.timestamp:
-                continue
+            new_nodes.add(node_id)
             # save
             with self.lock:
                 self._nodes[node_id] = node_info
@@ -694,6 +720,9 @@ class ChannelDB(SqlDB):
                     net_addr = NetAddress(addr.host, addr.port)
                     self._addresses[node_id][net_addr] = self._addresses[node_id].get(net_addr) or 0
             self._db_save_node_addresses(node_addresses)
+            with self.forwarding_lock:
+                if fwd_msg := GossipForwardingMessage.from_payload(msg_payload):
+                    self.fwd_node_announcements.append(fwd_msg)
 
         self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         self.update_counts()
@@ -994,6 +1023,127 @@ class ChannelDB(SqlDB):
                 if k.startswith(prefix):
                     return k
         raise Exception('node not found')
+
+    def clear_forwarding_gossip(self) -> None:
+        with self.forwarding_lock:
+            self.fwd_channels.clear()
+            self.fwd_channel_updates.clear()
+            self.fwd_node_announcements.clear()
+
+    def filter_orphan_channel_anns(
+        self, channel_anns: List[GossipForwardingMessage]
+    ) -> Tuple[List, List]:
+        """Check if the channel announcements we want to forward have at least 1 update"""
+        to_forward_anns = []
+        orphaned_channel_anns = []
+        for channel in channel_anns:
+            if channel.scid is None:
+                continue
+            elif (channel.scid in self._chans_with_1_policies
+                  or channel.scid in self._chans_with_2_policies):
+                to_forward_anns.append(channel)
+                continue
+            orphaned_channel_anns.append(channel)
+        return to_forward_anns, orphaned_channel_anns
+
+    def set_fwd_channel_anns_ts(self, channel_anns: List[GossipForwardingMessage]) \
+        -> List[GossipForwardingMessage]:
+        """Set the timestamps of the passed channel announcements from the corresponding policies"""
+        timestamped_chan_anns: List[GossipForwardingMessage] = []
+        with self.lock:
+            policies = self._policies.copy()
+            channels = self._channels.copy()
+
+        for chan_ann in channel_anns:
+            if chan_ann.timestamp is not None:
+                timestamped_chan_anns.append(chan_ann)
+                continue
+
+            scid = chan_ann.scid
+            if (channel_info := channels.get(scid)) is None:
+                continue
+
+            policy1 = policies.get((channel_info.node1_id, scid))
+            policy2 = policies.get((channel_info.node2_id, scid))
+            potential_timestamps = []
+            for policy in [policy1, policy2]:
+                if policy is not None:
+                    potential_timestamps.append(policy.timestamp)
+            if not potential_timestamps:
+                continue
+            chan_ann.timestamp = min(potential_timestamps)
+            timestamped_chan_anns.append(chan_ann)
+        return timestamped_chan_anns
+
+    def get_forwarding_gossip_batch(self) -> List[GossipForwardingMessage]:
+        with self.forwarding_lock:
+            fwd_gossip = self.fwd_channel_updates + self.fwd_node_announcements
+            channel_anns = self.fwd_channels.copy()
+            self.clear_forwarding_gossip()
+
+        fwd_chan_anns1, _ = self.filter_orphan_channel_anns(self.fwd_orphan_channels)
+        fwd_chan_anns2, self.fwd_orphan_channels = self.filter_orphan_channel_anns(channel_anns)
+        channel_anns = self.set_fwd_channel_anns_ts(fwd_chan_anns1 + fwd_chan_anns2)
+        return channel_anns + fwd_gossip
+
+    def get_gossip_in_timespan(self, timespan: GossipTimestampFilter) \
+        -> List[GossipForwardingMessage]:
+        """Return a list of gossip messages matching the requested timespan."""
+        forwarding_gossip = []
+        with self.lock:
+            chans = self._channels.copy()
+            policies = self._policies.copy()
+            nodes = self._nodes.copy()
+
+        for short_id, chan in chans.items():
+            # fetching the timestamp from the channel update (according to BOLT-07)
+            chan_up_n1 = policies.get((chan.node1_id, short_id))
+            chan_up_n2 = policies.get((chan.node2_id, short_id))
+            updates = []
+            for policy in [chan_up_n1, chan_up_n2]:
+                if policy and policy.raw and timespan.in_range(policy.timestamp):
+                    if policy.message_flags & 0b10 == 0:  # check that its not "dont_forward"
+                        updates.append(GossipForwardingMessage(
+                            msg=policy.raw,
+                            timestamp=policy.timestamp))
+            if not updates or chan.raw is None:
+                continue
+            chan_ann_ts = min(update.timestamp for update in updates)
+            channel_announcement = GossipForwardingMessage(msg=chan.raw, timestamp=chan_ann_ts)
+            forwarding_gossip.extend([channel_announcement] + updates)
+
+        for node_ann in nodes.values():
+            if timespan.in_range(node_ann.timestamp) and node_ann.raw:
+                forwarding_gossip.append(GossipForwardingMessage(
+                    msg=node_ann.raw,
+                    timestamp=node_ann.timestamp))
+        return forwarding_gossip
+
+    def get_channels_in_range(self, first_blocknum: int, number_of_blocks: int) -> List[ShortChannelID]:
+        with self.lock:
+            channels = self._channels.copy()
+        scids: List[ShortChannelID] = []
+        for scid in channels:
+            if first_blocknum <= scid.block_height < first_blocknum + number_of_blocks:
+                scids.append(scid)
+        scids.sort()
+        return scids
+
+    def get_gossip_for_scid_request(self, scid: ShortChannelID) -> List[bytes]:
+        requested_gossip = []
+
+        chan_ann = self._channels.get(scid)
+        if not chan_ann or not chan_ann.raw:
+            return []
+        chan_up1 = self._policies.get((chan_ann.node1_id, scid))
+        chan_up2 = self._policies.get((chan_ann.node2_id, scid))
+        node_ann1 = self._nodes.get(chan_ann.node1_id)
+        node_ann2 = self._nodes.get(chan_ann.node2_id)
+
+        for msg in [chan_ann, chan_up1, chan_up2, node_ann1, node_ann2]:
+            if msg and msg.raw:
+                requested_gossip.append(msg.raw)
+        return requested_gossip
 
     def to_dict(self) -> dict:
         """ Generates a graph representation in terms of a dictionary.
