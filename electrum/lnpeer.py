@@ -1041,9 +1041,12 @@ class Peer(Logger, EventListener):
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
 
-        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
-        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        if self.is_channel_type():
+            is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
+            if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+                raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        else:
+            is_zeroconf = False
 
         if self.lnworker.has_recoverable_channels() and not is_zeroconf:
             # FIXME: we might want to keep the connection open
