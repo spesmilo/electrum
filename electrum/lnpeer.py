@@ -566,6 +566,12 @@ class Peer(Logger, EventListener):
         if not self._should_forward_gossip():
             return
 
+        async def send_new_gossip_with_semaphore(gossip: List[GossipForwardingMessage]):
+            async with self.network.lngossip.gossip_request_semaphore:
+                sent = await self._send_gossip_messages(gossip)
+            if sent > 0:
+                self.logger.debug(f"forwarded {sent} gossip messages to {self.pubkey.hex()}")
+
         lngossip = self.network.lngossip
         last_gossip_batch_ts = 0
         while True:
@@ -578,7 +584,7 @@ class Peer(Logger, EventListener):
                 continue  # no new batch available
             last_gossip_batch_ts = last_lngossip_refresh_ts
 
-            await self.taskgroup.spawn(self._send_gossip_list(new_gossip, use_semaphore=True))
+            await self.taskgroup.spawn(send_new_gossip_with_semaphore(new_gossip))
 
     async def _handle_historical_gossip_request(self):
         """Called when a peer requests historical gossip with a gossip_timestamp_filter query."""
@@ -588,16 +594,9 @@ class Peer(Logger, EventListener):
         async with self.network.lngossip.gossip_request_semaphore:
             requested_gossip = self.lnworker.channel_db.get_gossip_in_timespan(filter)
             filter.only_forwarding = True
-            await self._send_gossip_list(requested_gossip, use_semaphore=False)
-
-    async def _send_gossip_list(self, messages: List[GossipForwardingMessage], *, use_semaphore: bool):
-        if use_semaphore:
-            async with self.network.lngossip.gossip_request_semaphore:
-               amount_sent = await self._send_gossip_messages(messages)
-        else:
-            amount_sent = await self._send_gossip_messages(messages)
-        if amount_sent > 0:
-            self.logger.debug(f"forwarded {amount_sent} gossip messages to {self.pubkey.hex()}")
+            sent = await self._send_gossip_messages(requested_gossip)
+            if sent > 0:
+                self.logger.debug(f"forwarded {sent} historical gossip messages to {self.pubkey.hex()}")
 
     async def _send_gossip_messages(self, messages: List[GossipForwardingMessage]) -> int:
         amount_sent = 0
