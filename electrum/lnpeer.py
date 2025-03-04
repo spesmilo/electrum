@@ -1042,7 +1042,7 @@ class Peer(Logger, EventListener):
                 raise Exception("sender has sent a channel type we don't support")
 
         if self.is_channel_type():
-            is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
+            is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
             if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
                 raise Exception(f"not accepting zeroconf from node {self.pubkey}")
         else:
