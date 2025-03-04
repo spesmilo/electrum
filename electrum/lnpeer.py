@@ -1219,27 +1219,13 @@ class Peer(Logger, EventListener):
 
         Channel configurations are initialized in this method.
         """
-        if self.lnworker.has_recoverable_channels():
-            # FIXME: we might want to keep the connection open
-            raise Exception('not accepting channels')
+
         # <- open_channel
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
-        funding_sat = payload['funding_satoshis']
-        push_msat = payload['push_msat']
-        feerate = payload['feerate_per_kw']  # note: we are not validating this
-        temp_chan_id = payload['temporary_channel_id']
-        # store the temp id now, so that it is recognized for e.g. 'error' messages
-        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
-        self.temp_id_to_id[temp_chan_id] = None
 
         open_channel_tlvs = payload.get('open_channel_tlvs')
         channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
-
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
-            pass
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
         if self.is_channel_type() and channel_type is None:
@@ -1250,6 +1236,29 @@ class Peer(Logger, EventListener):
             channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
+
+        if self.is_channel_type():
+            is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
+            if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+                raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        else:
+            is_zeroconf = False
+
+        if self.lnworker.has_recoverable_channels() and not is_zeroconf:
+            # FIXME: we might want to keep the connection open
+            raise Exception('not accepting channels')
+
+        funding_sat = payload['funding_satoshis']
+        push_msat = payload['push_msat']
+        feerate = payload['feerate_per_kw']  # note: we are not validating this
+        temp_chan_id = payload['temporary_channel_id']
+        # store the temp id now, so that it is recognized for e.g. 'error' messages
+        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
+        self.temp_id_to_id[temp_chan_id] = None
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        if channel_opening_fee:
+            # todo check that the fee is reasonable
+            pass
 
         if self.use_anchors():
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
@@ -1311,9 +1320,6 @@ class Peer(Logger, EventListener):
         per_commitment_point_first = secret_to_pubkey(
             int.from_bytes(per_commitment_secret_first, 'big'))
 
-        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
-        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
