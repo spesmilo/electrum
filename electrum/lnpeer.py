@@ -130,6 +130,7 @@ class Peer(Logger, EventListener):
         self.received_commitsig_event = asyncio.Event()
         self.downstream_htlc_resolved_event = asyncio.Event()
         self.register_callbacks()
+        self._num_gossip_messages_forwarded = 0
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -596,7 +597,8 @@ class Peer(Logger, EventListener):
             filter.only_forwarding = True
             sent = await self._send_gossip_messages(requested_gossip)
             if sent > 0:
-                self.logger.debug(f"forwarded {sent} historical gossip messages to {self.pubkey.hex()}")
+                self._num_gossip_messages_forwarded += sent
+                #self.logger.debug(f"forwarded {sent} historical gossip messages to {self.pubkey.hex()}")
 
     async def _send_gossip_messages(self, messages: List[GossipForwardingMessage]) -> int:
         amount_sent = 0
@@ -799,7 +801,7 @@ class Peer(Logger, EventListener):
             self.outgoing_gossip_reply = False
 
     async def get_short_channel_ids(self, ids):
-        self.logger.info(f'Querying {len(ids)} short_channel_ids')
+        #self.logger.info(f'Querying {len(ids)} short_channel_ids')
         assert not self.querying.is_set()
         self.query_short_channel_ids(ids)
         await self.querying.wait()

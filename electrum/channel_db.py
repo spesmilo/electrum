@@ -493,7 +493,6 @@ class ChannelDB(SqlDB):
                 added += self.ca_verifier.add_new_channel_info(short_channel_id, msg)
 
         self.update_counts()
-        self.logger.debug('add_channel_announcement: %d/%d'%(added, len(msg_payloads)))
 
     def add_verified_channel_info(self, msg: dict, *, capacity_sat: int = None) -> None:
         try:
@@ -724,7 +723,6 @@ class ChannelDB(SqlDB):
                 if fwd_msg := GossipForwardingMessage.from_payload(msg_payload):
                     self.fwd_node_announcements.append(fwd_msg)
 
-        self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         self.update_counts()
 
     def get_old_policies(self, delta) -> Sequence[Tuple[bytes, ShortChannelID]]:
