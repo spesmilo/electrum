@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 
@@ -471,4 +472,31 @@ class TestUtil(ElectrumTestCase):
         self.assertTrue(ShortID.from_components(3, 30, 300) > ShortID.from_components(3, 1, 1))
         self.assertTrue(ShortID.from_components(3, 30, 300) > ShortID.from_components(3, 1, 999))
         self.assertTrue(ShortID.from_components(3, 30, 300) < ShortID.from_components(3, 999, 1))
+
+    async def test_custom_task_factory(self):
+        loop = util.get_running_loop()
+        # set our factory.  note: this does not leak into other unit tests
+        util._set_custom_task_factory(loop)
+
+        evt = asyncio.Event()
+        async def foo():
+            await evt.wait()
+
+        fut = asyncio.ensure_future(foo())
+        self.assertTrue(fut in util._running_asyncio_tasks)
+        fut = asyncio.create_task(foo())
+        self.assertTrue(fut in util._running_asyncio_tasks)
+        fut = loop.create_task(foo())
+        self.assertTrue(fut in util._running_asyncio_tasks)
+        #fut = asyncio.run_coroutine_threadsafe(foobar(), loop=loop)
+        #self.assertTrue(fut in util._running_asyncio_tasks)
+
+        # we should have stored one ref for each above.
+        # (though what if test framework is doing stuff ~concurrently?)
+        self.assertEqual(3, len(util._running_asyncio_tasks))
+        evt.set()
+        for _ in range(10):  # wait a few event loop iterations
+            await asyncio.sleep(0)
+        # refs should be cleaned up by now:
+        self.assertEqual(0, len(util._running_asyncio_tasks))
 

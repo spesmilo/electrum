@@ -1652,6 +1652,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             _asyncio_event_loop = None
 
     loop.set_exception_handler(on_exception)
+    _set_custom_task_factory(loop)
     # loop.set_debug(True)
     stopping_fut = loop.create_future()
     loop_thread = threading.Thread(
@@ -1668,6 +1669,42 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
         if time.monotonic() - t0 > 5:
             raise Exception("been waiting for 5 seconds but asyncio loop would not start!")
     return loop, stopping_fut, loop_thread
+
+
+_running_asyncio_tasks = set()  # type: Set[asyncio.Future]
+def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
+    """Wrap task creation to track pending and running tasks.
+    When tasks are created, asyncio only maintains a weak reference to them.
+    Hence, the garbage collector might destroy the task mid-execution.
+    To avoid this, we store a strong reference for the task until it completes.
+
+    Without this, a lot of APIs are basically Heisenbug-generators... e.g.:
+    - "asyncio.create_task"
+    - "loop.create_task"
+    - "asyncio.ensure_future"
+    - what about "asyncio.run_coroutine_threadsafe"? not sure if that is safe.
+
+    related:
+        - https://bugs.python.org/issue44665
+        - https://github.com/python/cpython/issues/88831
+        - https://github.com/python/cpython/issues/91887
+        - https://textual.textualize.io/blog/2023/02/11/the-heisenbug-lurking-in-your-async-code/
+        - https://github.com/python/cpython/issues/91887#issuecomment-1434816045
+        - "Task was destroyed but it is pending!"
+    """
+
+    platform_task_factory = loop.get_task_factory()
+
+    def factory(loop_, coro, **kwargs):
+        if platform_task_factory is not None:
+            task = platform_task_factory(loop_, coro, **kwargs)
+        else:
+            task = asyncio.Task(coro, loop=loop_, **kwargs)
+        _running_asyncio_tasks.add(task)
+        task.add_done_callback(_running_asyncio_tasks.discard)
+        return task
+
+    loop.set_task_factory(factory)
 
 
 class OrderedDictWithIndex(OrderedDict):
