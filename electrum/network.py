@@ -258,14 +258,16 @@ class ProxySettings:
     @classmethod
     def probe_tor(cls, on_finished: Callable[[str | None, int | None], None]):
         async def detect_task(finished: Callable[[str | None, int | None], None]):
-            net_addr = await detect_tor_socks_proxy()
-            if net_addr is None:
-                finished('', -1)
-            else:
-                host = net_addr[0]
-                port = net_addr[1]
-                finished(host, port)
-            cls.probe_fut = None
+            try:
+                net_addr = await detect_tor_socks_proxy()
+                if net_addr is None:
+                    finished('', -1)
+                else:
+                    host = net_addr[0]
+                    port = net_addr[1]
+                    finished(host, port)
+            finally:
+                cls.probe_fut = None
 
         if cls.probe_fut:  # one probe at a time
             return
@@ -397,7 +399,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
         self.proxy = ProxySettings()
-        self.is_proxy_tor = None
+        self.is_proxy_tor = None  # type: Optional[bool]  # tri-state. None means unknown.
         self._init_parameters_from_config()
 
         self.taskgroup = None
@@ -440,7 +442,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.mempool_fees = FeeHistogram()
         self.fee_estimates = FeeTimeEstimates()
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
-
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""
