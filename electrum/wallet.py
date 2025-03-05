@@ -1845,8 +1845,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coins = [coin for coin in coins if (coin.prevout not in input_set)]
         if base_tx is None and self.config.WALLET_BATCH_RBF:
             base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins)
-        if send_change_to_lightning is None:
-            send_change_to_lightning = self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
 
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
@@ -1886,8 +1884,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
-                    for txin in base_tx.inputs():
-                        txin.witness = None
+                    base_tx.remove_signatures()
                 base_tx_fee = base_tx.get_fee()
                 base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
                 relayfeerate = Decimal(self.relayfee()) / 1000
