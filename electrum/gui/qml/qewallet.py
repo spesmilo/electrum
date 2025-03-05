@@ -15,6 +15,7 @@ from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTransaction, Transaction
 from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, \
     NoDynamicFeeEstimates
+from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -26,6 +27,7 @@ from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+from ...lntransport import extract_nodeid
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -458,6 +460,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canSignMessage(self):
         return not isinstance(self.wallet, Multisig_Wallet) and not self.wallet.is_watching_only()
 
+    canGetZeroconfChannelChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canGetZeroconfChannelChanged)
+    def canGetZeroconfChannel(self) -> bool:
+        return self.wallet.lnworker and self.wallet.lnworker.can_get_zeroconf_channel()
+
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
@@ -504,6 +511,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self.isLightning:
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
+
+    @pyqtProperty(int, notify=dataChanged)
+    def minChannelFundingSat(self):
+        return MIN_FUNDING_SAT
 
     @pyqtProperty(int, notify=peersUpdated)
     def lightningNumPeers(self):
