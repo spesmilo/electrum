@@ -37,6 +37,7 @@ from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .i18n import _
+from .fee_policy import FeePolicy
 
 from .bitcoin import construct_script
 from .crypto import ripemd
@@ -166,17 +167,18 @@ def create_claim_tx(
         *,
         txin: PartialTxInput,
         swap: SwapData,
-        config: 'SimpleConfig',
+        network: 'Network',
+        fee_policy: FeePolicy,
 ) -> PartialTransaction:
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
     # FIXME the mining fee should depend on swap.is_reverse.
     #       the txs are not the same size...
-    amount_sat = txin.value_sats() - SwapManager._get_fee(size=SWAP_TX_SIZE, config=config)
+    amount_sat = txin.value_sats() - SwapManager._get_fee(size=SWAP_TX_SIZE, fee_policy=fee_policy, network=network)
     if amount_sat < dust_threshold():
         raise BelowDustLimit()
-    txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=swap, config=config)
+    txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=swap)
     txout = PartialTxOutput.from_address_and_value(swap.receive_address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
     sig = tx.sign_txin(0, txin.privkey)
@@ -200,6 +202,7 @@ class SwapManager(Logger):
 
         self.wallet = wallet
         self.config = wallet.config
+        self.fee_policy = FeePolicy(wallet.config.FEE_POLICY)
         self.lnworker = lnworker
         self.config = wallet.config
         self.taskgroup = OldTaskGroup()
@@ -447,7 +450,7 @@ class SwapManager(Logger):
             if spent_height is not None and not should_bump_fee:
                 return
             try:
-                tx = create_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
+                tx = create_claim_tx(txin=txin, swap=swap, fee_policy=self.fee_policy, network=self.network)
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
@@ -465,11 +468,11 @@ class SwapManager(Logger):
 
     def get_fee(self, size):
         # note: 'size' is in vbytes
-        return self._get_fee(size=size, config=self.wallet.config)
+        return self._get_fee(size=size, fee_policy=self.fee_policy, network=self.network)
 
     @classmethod
-    def _get_fee(cls, *, size, config: 'SimpleConfig'):
-        return config.estimate_fee(size, allow_fallback_to_static_rates=True)
+    def _get_fee(cls, *, size, fee_policy: FeePolicy, network: 'Network'):
+        return fee_policy.estimate_fee(size, network=network, allow_fallback_to_static_rates=True)
 
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
@@ -818,6 +821,7 @@ class SwapManager(Logger):
                 outputs=[funding_output],
                 rbf=True,
                 password=password,
+                fee_policy=self.fee_policy,
             )
         else:
             tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
@@ -1101,11 +1105,10 @@ class SwapManager(Logger):
 
     @classmethod
     def create_claim_txin(
-        cls,
-        *,
-        txin: PartialTxInput,
-        swap: SwapData,
-        config: 'SimpleConfig',
+            cls,
+            *,
+            txin: PartialTxInput,
+            swap: SwapData,
     ) -> PartialTransaction:
         if swap.is_reverse:  # successful reverse swap
             locktime = 0

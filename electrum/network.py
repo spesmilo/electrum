@@ -62,6 +62,8 @@ from .interface import (Interface, PREFERRED_NETWORK_PROTOCOL,
 from .version import PROTOCOL_VERSION
 from .i18n import _
 from .logging import get_logger, Logger
+from .fee_policy import FeeHistogram, FeeTimeEstimates, FEE_ETA_TARGETS
+
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -364,6 +366,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
         self._was_started = False
 
+        self.mempool_fees = FeeHistogram()
+        self.fee_estimates = FeeTimeEstimates()
+        self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
+
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""
@@ -497,11 +503,27 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             await group.spawn(self._request_fee_estimates(interface))
 
     async def _request_fee_estimates(self, interface):
-        self.config.requested_fee_estimates()
+        self.requested_fee_estimates()
         histogram = await interface.get_fee_histogram()
-        self.config.mempool_fees = histogram
+        self.mempool_fees.set_data(histogram)
         self.logger.info(f'fee_histogram {len(histogram)}')
-        util.trigger_callback('fee_histogram', self.config.mempool_fees)
+        util.trigger_callback('fee_histogram', self.mempool_fees)
+
+    def is_fee_estimates_update_required(self):
+        """Checks time since last requested and updated fee estimates.
+        Returns True if an update should be requested.
+        """
+        now = time.time()
+        return now - self.last_time_fee_estimates_requested > 60
+
+    def has_fee_etas(self):
+        return self.fee_estimates.has_data()
+
+    def has_fee_mempool(self) -> bool:
+        return self.mempool_fees.has_data()
+
+    def requested_fee_estimates(self):
+        self.last_time_fee_estimates_requested = time.time()
 
     def get_parameters(self) -> NetworkParameters:
         return NetworkParameters(server=self.default_server,
@@ -532,11 +554,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def get_fee_estimates(self):
         from statistics import median
-        from .simple_config import FEE_ETA_TARGETS
         if self.auto_connect:
             with self.interfaces_lock:
                 out = {}
-                for n in FEE_ETA_TARGETS:
+                for n in FEE_ETA_TARGETS[0:-1]:
                     try:
                         out[n] = int(median(filter(None, [i.fee_estimates_eta.get(n) for i in self.interfaces.values()])))
                     except Exception:
@@ -551,11 +572,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if fee_est is None:
             fee_est = self.get_fee_estimates()
         for nblock_target, fee in fee_est.items():
-            self.config.update_fee_estimates(nblock_target, fee)
+            self.fee_estimates.set_data(nblock_target, fee)
         if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != fee_est:
             self._prev_fee_est = copy.copy(fee_est)
             self.logger.info(f'fee_estimates {fee_est}')
-        util.trigger_callback('fee', self.config.fee_estimates)
+        util.trigger_callback('fee', self.fee_estimates)
+
 
     @with_recent_servers_lock
     def get_servers(self):
@@ -1404,7 +1426,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
-                if self.config.is_fee_estimates_update_required():
+                if self.is_fee_estimates_update_required():
                     await self.interface.taskgroup.spawn(self._request_fee_estimates, self.interface)
 
         while True:

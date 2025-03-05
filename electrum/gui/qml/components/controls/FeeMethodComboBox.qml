@@ -12,9 +12,9 @@ ElComboBox {
     valueRole: 'value'
 
     model: [
-        { text: qsTr('ETA'), value: 1 },
-        { text: qsTr('Mempool'), value: 2 },
-        { text: qsTr('Static'), value: 0 }
+        { text: qsTr('ETA'), value: FeeSlider.FSMethod.ETA },
+        { text: qsTr('Mempool'), value: FeeSlider.FSMethod.MEMPOOL },
+        { text: qsTr('Feerate'), value: FeeSlider.FSMethod.FEERATE }
     ]
     onCurrentValueChanged: {
         if (activeFocus)

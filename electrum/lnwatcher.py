@@ -3,18 +3,19 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from typing import NamedTuple, Iterable, TYPE_CHECKING
-import os
 import copy
 import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 
 from . import util
-from .wallet_db import WalletDB
-from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
+from .util import log_exceptions, ignore_exceptions, TxMinedInfo
+from .util import EventListener, event_listener
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint, PartialTransaction
 from .logging import Logger
+from .bitcoin import dust_threshold
+from .fee_policy import FeePolicy
 
 
 if TYPE_CHECKING:
@@ -36,10 +37,6 @@ class TxMinedDepth(IntEnum):
     FREE = auto()
 
 
-
-
-from .util import EventListener, event_listener
-
 class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
@@ -54,6 +51,7 @@ class LNWatcher(Logger, EventListener):
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
+        self.fee_policy = FeePolicy('eta:2')
 
     async def stop(self):
         self.unregister_callbacks()
@@ -219,6 +217,18 @@ class LNWalletWatcher(LNWatcher):
             keep_watching=keep_watching)
         await self.lnworker.handle_onchain_state(chan)
 
+    def is_dust(self, sweep_info):
+        if sweep_info.name in ['local_anchor', 'remote_anchor']:
+            return False
+        if sweep_info.txout is not None:
+            return False
+        value = sweep_info.txin._trusted_value_sats
+        witness_size = len(sweep_info.txin.make_witness(71*b'\x00'))
+        tx_size_vbytes = 84 + witness_size//4     # assumes no batching, sweep to p2wpkh
+        self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}')
+        fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.network, allow_fallback_to_static_rates=True)
+        return value - fee <= dust_threshold()
+
     @log_exceptions
     async def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
         """This function is called when a channel was closed. In this case
@@ -229,7 +239,6 @@ class LNWalletWatcher(LNWatcher):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
-        chan_id_for_log = chan.get_id_for_log()
         # detect who closed and get information about how to claim outputs
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         self.logger.info(f"do_breach_remedy: {[x.name for x in sweep_info_dict.values()]}")
@@ -237,6 +246,8 @@ class LNWalletWatcher(LNWatcher):
 
         # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
+            if self.is_dust(sweep_info):
+                continue
             prev_txid, prev_index = prevout.split(':')
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             self.lnworker.wallet.set_default_label(prevout, name)
@@ -290,6 +301,7 @@ class LNWalletWatcher(LNWatcher):
             # password is needed for 1st stage htlc tx with anchors because we add inputs
             password = self.lnworker.wallet.get_unlocked_password()
             new_tx = self.lnworker.wallet.create_transaction(
+                fee_policy = self.fee_policy,
                 inputs = inputs,
                 outputs = outputs,
                 password = password,

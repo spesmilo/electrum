@@ -7,6 +7,7 @@ from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.fee_policy import FeePolicy
 
 from electrum.gui import messages
 from . import util
@@ -76,7 +77,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.send_amount_e.setEnabled(recv_amount_sat is None)
         self.recv_amount_e.setEnabled(recv_amount_sat is None)
         self.max_button.setEnabled(recv_amount_sat is None)
-        fee_slider = FeeSlider(self.window, self.config, self.fee_slider_callback)
+        self.fee_policy = FeePolicy(self.config.FEE_POLICY)
+        fee_slider = FeeSlider(self.window, self.fee_policy, self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
         self.fee_label = QLabel()
@@ -147,14 +149,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             recv_amount_sat = max(recv_amount_sat, self.swap_manager.get_min_amount())
             self.recv_amount_e.setAmount(recv_amount_sat)
 
-    def fee_slider_callback(self, dyn, pos, fee_rate):
-        if dyn:
-            if self.config.use_mempool_fees():
-                self.config.cv.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS.set(pos, save=False)
-            else:
-                self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
-        else:
-            self.config.cv.FEE_EST_STATIC_FEERATE.set(fee_rate, save=False)
+    def fee_slider_callback(self, fee_rate):
+        self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         if self.send_follows:
             self.on_recv_edited()
         else:
@@ -319,6 +315,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         try:
             tx = self.window.wallet.make_unsigned_transaction(
+                fee_policy=self.fee_policy,
                 coins=coins,
                 outputs=outputs,
                 send_change_to_lightning=False,

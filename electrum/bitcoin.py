@@ -318,7 +318,7 @@ def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=No
 
 def relayfee(network: 'Network' = None) -> int:
     """Returns feerate in sat/kbyte."""
-    from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    from .fee_policy import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:

@@ -34,6 +34,7 @@ from .lnaddr import lndecode
 from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream, OPPushDataGeneric
 from .logging import get_logger
+from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 
 if TYPE_CHECKING:
@@ -206,7 +207,6 @@ class ChannelConfig(StoredObject):
             raise Exception(
                 "both to_local and to_remote amounts for the initial commitment "
                 "transaction are less than or equal to channel_reserve_satoshis")
-        from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
         if initial_feerate_per_kw < FEERATE_PER_KW_MIN_RELAY_LIGHTNING:
             raise Exception(f"feerate lower than min relay fee. {initial_feerate_per_kw} sat/kw.")
 

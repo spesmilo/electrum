@@ -16,6 +16,7 @@ from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_W
                              TransactionPotentiallyDangerousException, TransactionDangerousException,
                              TxSighashRiskLevel)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
+from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
 from electrum.mnemonic import calc_seed_type
 from electrum.network import Network
@@ -872,7 +873,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value(wallet2.get_receiving_address(), 250000)]
-        tx = wallet1.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet1.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
 
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
@@ -891,7 +892,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 -> wallet1
         outputs = [PartialTxOutput.from_address_and_value(wallet1.get_receiving_address(), 100000)]
-        tx = wallet2.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet2.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
 
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
@@ -944,7 +945,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value(wallet2.get_receiving_address(), 370000)]
-        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
         partial_tx = tx.serialize_as_bytes().hex()
         self.assertEqual("70736274ff01007501000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb20100000000feffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000000100e0010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300220202afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f284730440220751ee3599e59debb8b2aeef61bb5f574f26379cd961caf382d711a507bc632390220598d53e62557c4a5ab8cfb2f8948f37cca06a861714b55c781baf2c3d7a580b501010469522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae220602afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f280c0036e9ac00000000000000002206030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf0c48adc7a00000000000000000220603e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000000100695221022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be21024238f21f90527dc87e945f389f3d1711943b06f0a738d5baab573fc0ab6c98582102b7139e93747d7c77f62af5a38b8a2b009f3456aa94dea9bf21f73a6298c867a253ae2202022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be0cdb69242701000000000000002202024238f21f90527dc87e945f389f3d1711943b06f0a738d5baab573fc0ab6c98580c0036e9ac0100000000000000220202b7139e93747d7c77f62af5a38b8a2b009f3456aa94dea9bf21f73a6298c867a20c48adc7a0010000000000000000",
                          partial_tx)
@@ -969,7 +970,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 -> wallet1
         outputs = [PartialTxOutput.from_address_and_value(wallet1a.get_receiving_address(), 100000)]
-        tx = wallet2.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False, sign=False)
+        tx = wallet2.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False, sign=False)
         self.assertEqual(
             "pkh(045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25ed)",
             tx.inputs()[0].script_descriptor.to_string_no_checksum())
@@ -1043,7 +1044,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value(wallet2a.get_receiving_address(), 165000)]
-        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False, sign=False)
+        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False, sign=False)
         self.assertEqual((0, 2), tx.signature_count())
         self.assertEqual(
             "wsh(sortedmulti(2,[b2e35a7d/1h]tpubD9aPYLPPYw8MxU3cD57LwpV5v7GomHxdv62MSbPcRkp47zwXx69ACUFsKrj8xzuzRrij9FWVhfvkvNqtqsr8ZtefkDsGZ9GLuHzoS6bXyk1/0/0,[53b77ddb/1h]tpubD8spLJysN7v7V1KHvkZ7AwjnXShKafopi7Vu3Ahs2S46FxBPTode8DgGxDo55k4pJvETGScZFwnM5f2Y31EUjteJdhxR73sjr9ieydgah2U/0/0,[43067d63/1h]tpubD8khd1g1tzFeKeaU59QV811hyvhwn9KDfy5sqFJ5m2wJLw6rUt4AZviqutRPXTUAK4SpU2we3y2WBP916Ma8Em4qFGcbYkFvXVfpGYV3oZR/0/0))",
@@ -1078,7 +1079,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 -> wallet1
         outputs = [PartialTxOutput.from_address_and_value(wallet1a.get_receiving_address(), 100000)]
-        tx = wallet2a.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet2a.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
         self.assertEqual((1, 2), tx.signature_count())
         self.assertEqual(
             "sh(wsh(sortedmulti(2,[d1dbcc21]tpubDDsv4RpsGViZeEVwivuj3aaKhFQSv1kYsz64mwRoHkqBfw8qBSYEmc8TtyVGotJb44V3pviGzefP9m9hidRg9dPPaDWL2yoRpMW3hdje3Rk/0/0,[17cea914]tpubDCZU2kACPGACYDvAXvZUXQ7cE7msFfCtpah5QCuaz8iarKMLTgR4c2u8RGKdFhbb3YJxzmktDd1rCtF58ksyVgFw28pchY55uwkDiXjY9hU/0/0)))",
@@ -1140,7 +1141,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value(wallet2.get_receiving_address(), 1000000)]
-        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet1a.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
 
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
@@ -1159,7 +1160,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 -> wallet1
         outputs = [PartialTxOutput.from_address_and_value(wallet1a.get_receiving_address(), 300000)]
-        tx = wallet2.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet2.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
 
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
@@ -1266,7 +1267,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2500000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325501
         tx.version = 1
@@ -1526,7 +1527,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2500000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1706,7 +1707,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         if simulate_moving_txs:
@@ -1767,7 +1768,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1831,7 +1832,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1904,7 +1905,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2_500_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1943,7 +1944,7 @@ class TestWalletSending(ElectrumTestCase):
         # no new input will be needed. just a new output, and change decreased.
         outputs = [PartialTxOutput.from_address_and_value('tb1qy6xmdj96v5dzt3j08hgc05yk3kltqsnmw4r6ry', 2_500_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=20000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(20000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -1974,7 +1975,7 @@ class TestWalletSending(ElectrumTestCase):
         # new input will be needed!
         outputs = [PartialTxOutput.from_address_and_value('2NCVwbmEpvaXKHpXUGJfJr9iB5vtRN3vcut', 6_000_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=100_000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(100000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -2028,7 +2029,7 @@ class TestWalletSending(ElectrumTestCase):
                 self.assertEqual(2, len(coins))
 
                 wallet.config.WALLET_BATCH_RBF = batch_rbf
-                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
                 tx.set_rbf(True)
                 tx.locktime = 2423302
                 tx.version = 2
@@ -2051,7 +2052,7 @@ class TestWalletSending(ElectrumTestCase):
         # first payment to dest_addr
         outputs1 = [PartialTxOutput.from_address_and_value(dest_addr, 200_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx1 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs1, fee=2000)
+        tx1 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs1, fee_policy=FixedFeePolicy(2000))
         tx1.set_rbf(True)
         tx1.locktime = 2534850
         tx1.version = 2
@@ -2066,7 +2067,7 @@ class TestWalletSending(ElectrumTestCase):
         # second payment to dest_addr  (merged)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000)
+        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee_policy=FixedFeePolicy(3000))
         tx2.set_rbf(True)
         tx2.locktime = 2534850
         tx2.version = 2
@@ -2085,7 +2086,7 @@ class TestWalletSending(ElectrumTestCase):
         # second payment to dest_addr  (not merged, just duplicate outputs)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx3 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee=3000)
+        tx3 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee_policy=FixedFeePolicy(3000))
         tx3.set_rbf(True)
         tx3.locktime = 2534850
         tx3.version = 2
@@ -2165,7 +2166,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['93NQ7CFbwTPyKDJLXe97jczw33fiLijam2SCZL3Uinz1NSbHrTu',]
         network = NetworkMock()
         dest_addr = 'tb1q3ws2p0qjk5vrravv065xqlnkckvzcpclk79eu2'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=1325785, tx_version=1)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(5000), locktime=1325785, tx_version=1)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('010000000129349e5641d79915e9d0282fdbaee8c3df0b6731bab9d70bf626e8588bde24ac010000004847304402206bf0d0a93abae0d5873a62ebf277a5dd2f33837821e8b93e74d04e19d71b578002201a6d729bc159941ef5c4c9e5fe13ece9fc544351ba531b00f68ba549c8b38a9a01fdffffff01b82e0f00000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071fd93a1400',
@@ -2190,7 +2191,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['cUygTZe4jZLVwE4G44NznCPTeGvgsgassqucUHkAJxGC71Rst2kH',]
         network = NetworkMock()
         dest_addr = 'tb1q5uy5xjcn55gwdkmghht8yp3vwz3088f6e3e0em'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=2420006, tx_version=2)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(5000), locktime=2420006, tx_version=2)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000015eb359ccfcd67c3e6b10bb937a796807007708c1f413840d0e627a3f94a1a48401000000484730440220043fc85a43e918ac41e494e309fdf204ca245d260cb5ea09108b196ca65d8a09022056f852f0f521e79ab2124d7e9f779c7290329ce5628ef8e92601980b065d3eb501fdffffff017f9e010000000000160014a709434b13a510e6db68bdd672062c70a2f39d3a26ed2400',
@@ -2215,7 +2216,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['p2pkh:91gxDahzHiJ63HXmLP7pvZrkF8i5gKBXk4VqWfhbhJjtf6Ni5NU',]
         network = NetworkMock()
         dest_addr = 'tb1q3ws2p0qjk5vrravv065xqlnkckvzcpclk79eu2'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=2420010, tx_version=2)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(5000), locktime=2420010, tx_version=2)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000010615142d6c296f276c7da9fb2b09f655d594f73b76740404f1424c66c78ca715000000008a47304402206d2dae571ca2f51e0d4a8ce6a6335fa25ac09f4bbed26439124d93f035bdbb130220249dc2039f1da338a40679f0e79c25a2dc2983688e6c04753348f2aa8435e375014104b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b2987b4c862d5b687bb5328adccc69e67a17b109b6328228695a1c384573acd6199fdffffff0186500300000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071f2aed2400',
@@ -2240,7 +2241,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['p2pkh:cN3LiXmurmGRF5xngYd8XS2ZsP2KeXFUh4SH7wpC8uJJzw52JPq1',]
         network = NetworkMock()
         dest_addr = 'tb1q782f750ekkxysp2rrscr6yknmn634e2pv8lktu'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=1000, locktime=2420010, tx_version=2)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(1000), locktime=2420010, tx_version=2)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000016717835a2e1e152a69e7528a0f1346c1d37ee6e76c5e23b5d1c5a5b40241768a000000006a473044022038ad38003943bfd3ed39ba4340d545753fcad632a8fe882d01e4f0140ddb3cfb022019498260e29f5fbbcde9176bfb3553b7acec5fe284a9a3a33547a2d082b60355012103b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b29fdffffff0158de010000000000160014f1d49f51f9b58c4805431c303d12d3dcf51ae5412aed2400',
@@ -2265,7 +2266,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['p2wpkh-p2sh:cQMRGsiEsFX5YoxVZaMEzBruAkCWnoFf1SG7SRm2tLHDEN165TrA',]
         network = NetworkMock()
         dest_addr = 'tb1qu7n2tzm90a3f29kvxlhzsc7t40ddk075ut5w44'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=500, locktime=2420010, tx_version=2)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(500), locktime=2420010, tx_version=2)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('020000000001011d1725072a6e60687a59b878ecaf940ea0385880613d9d5502102bd78ef97b9a0000000017160014e7a6a58b657f629516cc37ee2863cbabdadb3fd4fdffffff01fc47020000000000160014e7a6a58b657f629516cc37ee2863cbabdadb3fd402473044022048ea4c558fd374f5d5066440a7f4933393cb377802cb949e3039fedf0378a29402204b4a58c591117cc1e37f07b03cc03cc6198dbf547e2bff813e2e2102bd2057e00121029f46ba81b3c6ad84e52841364dc54ca1097d0c30a68fb529766504c4b1c599352aed2400',
@@ -2290,7 +2291,7 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['p2wpkh:cV2BvgtpLNX328m4QrhqycBGA6EkZUFfHM9kKjVXjfyD53uNfC4q',]
         network = NetworkMock()
         dest_addr = 'tb1qhuy2e45lrdcp9s4ezeptx5kwxcnahzgpar9scc'
-        tx = await sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=500, locktime=2420010, tx_version=2)
+        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(500), locktime=2420010, tx_version=2)
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000000101e328aeb4f9dc1b85a2709ce59b0478a15ed9fb5e7f84fb62422f99b8cd6ad7010000000000fdffffff01087e010000000000160014bf08acd69f1b7012c2b91642b352ce3627db89010247304402204993099c4663d92ef4c9a28b3f45a40a6585754fe22ecfdc0a76c43fda7c9d04022006a75e0fd3ad1862d8e81015a71d2a1489ec7a9264e6e63b8fe6bb90c27e799b0121038ca94e7c715152fd89803c2a40a934c7c4035fb87b3cba981cd1e407369cfe312aed2400',
@@ -2325,7 +2326,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet1 creates tx1, with output back to himself
         outputs = [PartialTxOutput.from_address_and_value("tb1qhye4wfp26kn0l7ynpn5a4hvt539xc3zf0n76t3", 10_000_000)]
-        tx1 = wallet1.create_transaction(outputs=outputs, fee=5000, tx_version=2, rbf=True, sign=False)
+        tx1 = wallet1.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000), tx_version=2, rbf=True, sign=False)
         tx1.locktime = 1607022
         partial_tx1 = tx1.serialize_as_bytes().hex()
         self.assertEqual("70736274ff0100710200000001d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff02b82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44496e8518000001011fc0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15a0100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca01085180022060205e8db1b1906219782fadb18e763c0874a3118a17ce931e01707cbde194e041510775087560000008000000000000000000022020240ef5d2efee3b04b313a254df1b13a0b155451581e73943b21f3346bf6e1ba351077508756000000800100000000000000002202024a410b1212e88573561887b2bc38c90c074e4be425b9f3d971a9207825d9d3c8107750875600000080000000000100000000",
@@ -2337,7 +2338,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 creates tx2, with output back to himself
         outputs = [PartialTxOutput.from_address_and_value("tb1qufnj5k2rrsnpjq7fg6d2pq3q9um6skdyyehw5m", 10_000_000)]
-        tx2 = wallet2.create_transaction(outputs=outputs, fee=5000, tx_version=2, rbf=True, sign=False)
+        tx2 = wallet2.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000), tx_version=2, rbf=True, sign=False)
         tx2.locktime = 1607023
         partial_tx2 = tx2.serialize_as_bytes().hex()
         self.assertEqual("70736274ff0100710200000001e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffff02988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4c8096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f8518000001011fa037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c30100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800220602275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f41067f36697000000800000000001000000002202036e4d0a5fb845b2f1c3c868c2ce7212b155b73e91c05be1b7a77c48830831ba4f1067f366970000008001000000000000000022020200062fdea2b0a056b17fa6b91dd87f5b5d838fe1ee84d636a5022f9a340eebcc1067f3669700000080000000000000000000",
@@ -2411,7 +2412,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qfrlx5pza9vmez6vpx7swt8yp0nmgz3qa7jjkuf', 100_000)]
         coins = wallet_2of2.get_spendable_coins(domain=None)
-        tx = wallet_2of2.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet_2of2.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1665628
 
@@ -2472,7 +2473,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('miFLSDZBXUo4on8PGhTRTAufUn4mP61uoH', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1859362
         tx.version = 2
@@ -2517,7 +2518,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2500000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -2582,7 +2583,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx
         outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1325499
         tx.version = 1
@@ -2704,7 +2705,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx1
         outputs = [PartialTxOutput.from_address_and_value('tb1qsfcddwf7yytl62e3catwv8hpl2hs9e36g2cqxl', 100000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=190)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(190))
         tx.set_rbf(True)
         tx.locktime = 1938861
         tx.version = 2
@@ -2717,7 +2718,7 @@ class TestWalletSending(ElectrumTestCase):
         # create tx2, which spends from unsigned tx1
         outputs = [PartialTxOutput.from_address_and_value('tb1qq0lm9esmq6pfjc3jls7v6twy93lnqcs85wlth3', '!')]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 1938863
         tx.version = 2
@@ -2741,7 +2742,7 @@ class TestWalletSending(ElectrumTestCase):
             outputs = [PartialTxOutput.from_address_and_value('tb1qsfcddwf7yytl62e3catwv8hpl2hs9e36g2cqxl', '!')]
             coins = wallet.get_spendable_coins(domain=None)
             with self.assertRaises(NotEnoughFunds):
-                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=0)
+                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(0))
 
         # bootstrap wallet
         funding_tx = Transaction('0200000000010132515e6aade1b79ec7dd3bac0896d8b32c56195d23d07d48e21659cef24301560100000000fdffffff0112841e000000000016001477fe6d2a27e8860c278d4d2cd90bad716bb9521a02473044022041ed68ef7ef122813ac6a5e996b8284f645c53fbe6823b8e430604a8915a867802203233f5f4d347a687eb19b2aa570829ab12aeeb29a24cc6d6d20b8b3d79e971ae012102bee0ee043817e50ac1bb31132770f7c41e35946ccdcb771750fb9696bdd1b307ad951d00')
@@ -2752,7 +2753,7 @@ class TestWalletSending(ElectrumTestCase):
         with self.subTest(msg="funded wallet, zero output value, zero fee"):
             outputs = [PartialTxOutput.from_address_and_value('tb1qsfcddwf7yytl62e3catwv8hpl2hs9e36g2cqxl', 0)]
             coins = wallet.get_spendable_coins(domain=None)
-            tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=0)
+            tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(0))
             self.assertEqual(1, len(tx.inputs()))
             self.assertEqual(2, len(tx.outputs()))
 
@@ -2775,7 +2776,7 @@ class TestWalletSending(ElectrumTestCase):
 
         outputs = [PartialTxOutput.from_address_and_value('tb1qq4pypzwxf5uanfyckmsu3ejxxf6rrvjqchza3v', 49646)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
         tx.set_rbf(True)
         tx.locktime = 2004420
         tx.version = 2
@@ -2810,7 +2811,7 @@ class TestWalletSending(ElectrumTestCase):
 
         outputs = [PartialTxOutput.from_address_and_value('tb1qq4pypzwxf5uanfyckmsu3ejxxf6rrvjqchza3v', 49646)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
         tx.set_rbf(True)
         tx.locktime = 2004420
         tx.version = 2
@@ -2855,7 +2856,7 @@ class TestWalletSending(ElectrumTestCase):
 
         outputs = [PartialTxOutput.from_address_and_value('tb1qq4pypzwxf5uanfyckmsu3ejxxf6rrvjqchza3v', 49646)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
         tx.set_rbf(True)
         tx.locktime = 2004420
         tx.version = 2
@@ -2936,7 +2937,7 @@ class TestWalletSending(ElectrumTestCase):
         coins = wallet.get_spendable_coins(domain=None)
 
         # create spending tx
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000, rbf=True)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.version = 2
         tx.locktime = 2378363
         self.assertEqual("04cf670cc809560ab6b1a362c119dbd59ea6a7621d00a4a05c0ef1839e65c035", tx.txid())
@@ -2966,7 +2967,7 @@ class TestWalletSending(ElectrumTestCase):
 
         # create spending tx again, but now we have full key origin info
         wallet.get_keystores()[0].add_key_origin(derivation_prefix="m/48'/1'/0'/2'", root_fingerprint="30cf1be5")
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000, rbf=True)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.version = 2
         tx.locktime = 2378363
         self.assertEqual("04cf670cc809560ab6b1a362c119dbd59ea6a7621d00a4a05c0ef1839e65c035", tx.txid())
@@ -3007,7 +3008,7 @@ class TestWalletSending(ElectrumTestCase):
         coins = wallet.get_spendable_coins(domain=None)
 
         # create spending tx
-        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000, rbf=True)
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.version = 2
         tx.locktime = 2378367
         self.assertEqual("5c0d5eea8c2c12a383406bb37e6158167e44bfe6cd1ad590b7d97002cdfc9fff", tx.txid())
@@ -3073,7 +3074,7 @@ class TestWalletSending(ElectrumTestCase):
         # cosignerA creates and signs the tx
         outputs = [PartialTxOutput.from_address_and_value("tb1qgacvp0zvgtk3etggjayuezrc2mkql8veshv4xw", 200_000)]
         coins = wallet1a.get_spendable_coins(domain=None)
-        tx = wallet1a.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet1a.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         tx.set_rbf(True)
         tx.locktime = 2429212
         tx.version = 2
@@ -3146,10 +3147,10 @@ class TestWalletSending(ElectrumTestCase):
         outputs = [PartialTxOutput.from_address_and_value(bitcoin.DummyAddress.CHANNEL, 250000)]
 
         with self.assertRaises(bitcoin.DummyAddressUsedInTxException):
-            tx = wallet1.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+            tx = wallet1.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False)
 
         coins = wallet1.get_spendable_coins(domain=None)
-        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(5000))
         with self.assertRaises(bitcoin.DummyAddressUsedInTxException):
             wallet1.sign_transaction(tx, password=None)
 
@@ -3167,7 +3168,7 @@ class TestWalletSending(ElectrumTestCase):
 
         outputs = [PartialTxOutput.from_address_and_value('tb1qgacvp0zvgtk3etggjayuezrc2mkql8veshv4xw', '!')]
         coins = wallet1.get_spendable_coins(domain=None)
-        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
         self.assertEqual(2, len(tx.inputs()))
 
         tx.inputs()[0].sighash = Sighash.NONE
@@ -3226,7 +3227,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qyw3c0rvn6kk2c688y3dygvckn57525y8qnxt3a', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1446655
         tx.version = 1
 
@@ -3274,7 +3275,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3329,7 +3330,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325341
         tx.version = 1
 
@@ -3374,7 +3375,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325341
         tx.version = 1
 
@@ -3432,7 +3433,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325341
         tx.version = 1
 
@@ -3491,7 +3492,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3528,7 +3529,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3568,7 +3569,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3609,7 +3610,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3653,7 +3654,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3694,7 +3695,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325340
         tx.version = 1
 
@@ -3748,7 +3749,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('2MuCQQHJNnrXzQzuqfUCfAwAjPqpyEHbgue', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325503
         tx.version = 1
 
@@ -3815,7 +3816,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('2N8CtJRwxb2GCaiWWdSHLZHHLoZy53CCyxf', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325504
         tx.version = 1
 
@@ -3885,7 +3886,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # create unsigned tx
         outputs = [PartialTxOutput.from_address_and_value('2MyoZVy8T1t94yLmyKu8DP1SmbWvnxbkwRA', 2500000)]
-        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee=5000, rbf=True)
+        tx = wallet_online.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), rbf=True)
         tx.locktime = 1325505
         tx.version = 1
 
@@ -4208,7 +4209,7 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value("2MuUcGmQ2mLN3vjTuqDSgZpk4LPKDsuPmhN", 165000)]
-        tx = wallet1.create_transaction(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False, sign=False)
+        tx = wallet1.create_transaction(outputs=outputs, password=None, fee_policy=FixedFeePolicy(5000), tx_version=1, rbf=False, sign=False)
         self.assertEqual(
             "wsh(sortedmulti(2,[b2e35a7d/1h]tpubD9aPYLPPYw8MxU3cD57LwpV5v7GomHxdv62MSbPcRkp47zwXx69ACUFsKrj8xzuzRrij9FWVhfvkvNqtqsr8ZtefkDsGZ9GLuHzoS6bXyk1/0/0,[53b77ddb/1h]tpubD8spLJysN7v7V1KHvkZ7AwjnXShKafopi7Vu3Ahs2S46FxBPTode8DgGxDo55k4pJvETGScZFwnM5f2Y31EUjteJdhxR73sjr9ieydgah2U/0/0,[43067d63/1h]tpubD8khd1g1tzFeKeaU59QV811hyvhwn9KDfy5sqFJ5m2wJLw6rUt4AZviqutRPXTUAK4SpU2we3y2WBP916Ma8Em4qFGcbYkFvXVfpGYV3oZR/0/0))",
             tx.inputs()[0].script_descriptor.to_string_no_checksum())
