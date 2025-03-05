@@ -19,6 +19,8 @@ Item {
         { text: qsTr('SOCKS4'), value: 'socks4' }
     ]
 
+    property bool _probing: false
+
     function toProxyDict() {
         var p = {}
         p['enabled'] = pc.proxy_enabled
@@ -104,19 +106,33 @@ Item {
             Layout.topMargin: constants.paddingLarge
             padding: 0
             background: Rectangle {
-                color: Material.dialogColor
+                color: constants.darkerDialogBackground
             }
             FlatButton {
-                enabled: proxy_enabled_cb.checked
-                text: qsTr('Detect TOR proxy')
-                onClicked: Network.probeTor()
+                enabled: proxy_enabled_cb.checked && !_probing
+                text: qsTr('Detect Tor proxy')
+                onClicked: {
+                    _probing = true
+                    Network.probeTor()
+                }
             }
+        }
+
+        BusyIndicator {
+            id: spinner
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: constants.paddingSmall
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
+            running: visible
+            visible: _probing
         }
     }
 
     Connections {
         target: Network
         function onTorProbeFinished(host, port) {
+            _probing = false
             if (host && port) {
                 proxytype.currentIndex = 0
                 proxy_port = ""+port

@@ -25,21 +25,23 @@
 
 from enum import IntEnum
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox, QLineEdit, QDialog, QVBoxLayout, QHeaderView,
-    QCheckBox, QTabWidget, QWidget, QLabel, QPushButton
+    QCheckBox, QTabWidget, QWidget, QLabel, QPushButton, QHBoxLayout
 )
 from PyQt6.QtGui import QIntValidator
 
 from electrum.i18n import _
 from electrum import blockchain
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
-from electrum.network import Network, ProxySettings
+from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port
 from electrum.logging import get_logger
 
-from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
-                   PasswordLineEdit, QtEventListener, qt_event_listener)
+from .util import (
+    Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit, PasswordLineEdit, QtEventListener,
+    qt_event_listener, Spinner
+)
 
 
 _logger = get_logger(__name__)
@@ -260,16 +262,18 @@ class ProxyWidget(QWidget):
         grid.addWidget(self.proxy_user, 2, 1, 1, 2)
         grid.addWidget(self.proxy_password, 2, 3, 1, 2)
 
+        detect_l = QHBoxLayout()
+        self.detect_button = QPushButton(_('Detect Tor proxy'))
+        self.spinner = Spinner()
+        self.spinner.setMargin(5)
+        detect_l.addWidget(self.detect_button)
+        detect_l.addWidget(self.spinner)
+
+        grid.addLayout(detect_l, 3, 0, 1, 5, alignment=Qt.AlignmentFlag.AlignLeft)
+
         spacer = QVBoxLayout()
         spacer.addStretch(1)
-        grid.addLayout(spacer, 3, 0, 1, 5)
-
-        self.detect_button = QPushButton(_('Detect TOR proxy'))
-        grid.addWidget(self.detect_button, 4, 0, 1, 5, alignment=Qt.AlignmentFlag.AlignHCenter)
-
-        spacer = QVBoxLayout()
-        spacer.addStretch(1)
-        grid.addLayout(spacer, 5, 0, 1, 5)
+        grid.addLayout(spacer, 4, 0, 1, 5)
 
         self.update_from_config()
         self.update()
@@ -293,7 +297,10 @@ class ProxyWidget(QWidget):
         ]:
             item.setEnabled(enabled)
 
-        if not self.proxy_port.hasAcceptableInput():
+        if not self.proxy_port.hasAcceptableInput() and not is_valid_port(self.proxy_port.text()):
+            return
+
+        if not is_valid_host(self.proxy_host.text()):
             return
 
         net_params = self.network.get_parameters()
@@ -337,10 +344,15 @@ class ProxyWidget(QWidget):
         return proxy
 
     def detect_tor(self):
+        self.detect_button.setEnabled(False)
+        self.spinner.setVisible(True)
         ProxySettings.probe_tor(self.torProbeFinished.emit)  # via signal
 
+    @pyqtSlot(str, int)
     def on_tor_probe_finished(self, host: str, port: int):
-        if host is not None:
+        self.detect_button.setEnabled(True)
+        self.spinner.setVisible(False)
+        if host:
             self.proxy_mode.setCurrentIndex(1)
             self.proxy_host.setText(host)
             self.proxy_port.setText(str(port))

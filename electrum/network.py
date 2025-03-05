@@ -159,6 +159,21 @@ def pick_random_server(hostmap=None, *, allowed_protocols: Iterable[str],
     return random.choice(eligible) if eligible else None
 
 
+def is_valid_port(ps: str):
+    try:
+        return 0 < int(ps) < 65535
+    except ValueError:
+        return False
+
+
+def is_valid_host(ph: str):
+    try:
+        NetAddress(ph, '1')
+    except ValueError:
+        return False
+    return True
+
+
 class ProxySettings:
     MODES = ['socks4', 'socks5']
 
@@ -178,30 +193,20 @@ class ProxySettings:
     def serialize_proxy_cfgstr(self):
         return ':'.join([self.mode, self.host, self.port])
 
-    def deserialize_proxy_cfgstr(self, s: Optional[str], user: str = None, password: str = None) -> Optional[dict]:
-        if s is None or not isinstance(s, str) or s.lower() == 'none':
+    def deserialize_proxy_cfgstr(self, s: Optional[str], user: str = None, password: str = None) -> None:
+        if s is None or (isinstance(s, str) and s.lower() == 'none'):
             self.set_defaults()
             self.user = user
             self.password = password
             return
 
+        if not isinstance(s, str):
+            raise ValueError('proxy config not a string')
+
         args = s.split(':')
         if args[0] in ProxySettings.MODES:
             self.mode = args[0]
             args = args[1:]
-
-        def is_valid_port(ps: str):
-            try:
-                return 0 < int(ps) < 65535
-            except ValueError:
-                return False
-
-        def is_valid_host(ph: str):
-            try:
-                NetAddress(ph, '1')
-            except ValueError:
-                return False
-            return True
 
         # detect migrate from old settings
         if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
@@ -234,7 +239,7 @@ class ProxySettings:
         proxy.deserialize_proxy_cfgstr(
             config.NETWORK_PROXY, config.NETWORK_PROXY_USER, config.NETWORK_PROXY_PASSWORD
         )
-        proxy.enabled = config.NETWORK_ENABLE_PROXY
+        proxy.enabled = config.NETWORK_PROXY_ENABLED
         return proxy
 
     @classmethod
@@ -253,7 +258,7 @@ class ProxySettings:
         def detect_task(finished: Callable[[str | None, int | None], None]):
             net_addr = detect_tor_socks_proxy()
             if net_addr is None:
-                finished(None, None)
+                finished('', -1)
             else:
                 host = net_addr[0]
                 port = net_addr[1]
@@ -750,14 +755,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             # return
         self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
         self.config.NETWORK_ONESERVER = net_params.oneserver
-        self.config.NETWORK_ENABLE_PROXY = proxy_enabled
+        self.config.NETWORK_PROXY_ENABLED = proxy_enabled
         self.config.NETWORK_PROXY = proxy_str
         self.config.NETWORK_PROXY_USER = proxy_user
         self.config.NETWORK_PROXY_PASSWORD = proxy_pass
         self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
         if self.config.NETWORK_SERVER != str(server) \
-                or self.config.NETWORK_ENABLE_PROXY != proxy_enabled \
+                or self.config.NETWORK_PROXY_ENABLED != proxy_enabled \
                 or self.config.NETWORK_PROXY != proxy_str \
                 or self.config.NETWORK_PROXY_USER != proxy_user \
                 or self.config.NETWORK_PROXY_PASSWORD != proxy_pass \
