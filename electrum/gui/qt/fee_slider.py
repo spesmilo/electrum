@@ -59,7 +59,7 @@ class FeeSlider(QSlider):
             self.setToolTip(tooltip)
             self.callback(fee_rate)
 
-    def update(self, *, is_initialized: bool):
+    def update(self, *, is_initialized: bool = True):
         with self.lock:
             pos = self.fee_policy.get_slider_pos()
             maxp = self.fee_policy.get_slider_max()
