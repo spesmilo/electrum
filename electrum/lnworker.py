@@ -2749,7 +2749,7 @@ class LNWallet(LNWorker):
             return False
         try:
             node_id = extract_nodeid(self.wallet.config.ZEROCONF_TRUSTED_NODE)[0]
-        except Exception:
+        except ConnStringFormatError:
             # invalid connection string
             return False
         # only return True if we are connected to the zeroconf provider

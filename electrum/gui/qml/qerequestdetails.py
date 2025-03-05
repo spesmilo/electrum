@@ -6,6 +6,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, py
 from electrum.logging import get_logger
 from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
                                PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
+from electrum.lnutil import MIN_FUNDING_SAT
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -123,7 +124,7 @@ class QERequestDetails(QObject, QtEventListener):
         can_receive = wallet.lnworker.num_sats_can_receive() if wallet.lnworker else 0
         will_req_zeroconf = wallet.lnworker.receive_requires_jit_channel(amount_msat=amount_sat*1000)
         if self._req and ((can_receive > 0 and amount_sat <= can_receive)
-                            or (will_req_zeroconf and amount_sat >= 200_000)):
+                            or (will_req_zeroconf and amount_sat >= MIN_FUNDING_SAT)):
             bolt11 = wallet.get_bolt11_invoice(self._req)
         else:
             return ''

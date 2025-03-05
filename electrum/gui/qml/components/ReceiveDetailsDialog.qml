@@ -106,7 +106,8 @@ ElDialog {
             }
             FlatButton {
                 Layout.fillWidth: true
-                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
+                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
+                            > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
                 onClicked: {
@@ -114,7 +115,8 @@ ElDialog {
                         // can receive on existing channel
                         dialog.isLightning = true
                         doAccept()
-                    } else if (Daemon.currentWallet.canGetZeroconfChannel && amountBtc.textAsSats.satsInt > 200000) {
+                    } else if (Daemon.currentWallet.canGetZeroconfChannel && amountBtc.textAsSats.satsInt
+                                >= Daemon.currentWallet.minChannelFundingSat) {
                         // ask for confirmation of zeroconf channel to prevent fee surprise
                         var confirmdialog = app.messageDialog.createObject(dialog, {
                             title: qsTr('Confirm just-in-time channel'),
