@@ -88,16 +88,15 @@ class WCWelcome(WizardComponent):
 class WCProxyConfig(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title=_('Proxy'))
-        self.pw = ProxyWidget(self)
+        self.pw = ProxyWidget(wizard._daemon.network, self)
         self.pw.proxy_cb.setChecked(True)
         self.pw.proxy_host.setText('localhost')
         self.pw.proxy_port.setText('9050')
         self.layout().addWidget(self.pw)
-        self.layout().addStretch(1)
         self._valid = True
 
     def apply(self):
-        self.wizard_data['proxy'] = self.pw.get_proxy_settings()
+        self.wizard_data['proxy'] = self.pw.get_proxy_settings().to_dict()
 
 
 class WCServerConfig(WizardComponent):

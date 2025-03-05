@@ -24,25 +24,24 @@
 # SOFTWARE.
 
 from enum import IntEnum
-import threading
 
-from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
-                             QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
-                             QTabWidget, QWidget, QLabel)
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import (
+    QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox, QLineEdit, QDialog, QVBoxLayout, QHeaderView,
+    QCheckBox, QTabWidget, QWidget, QLabel, QPushButton, QHBoxLayout
+)
 from PyQt6.QtGui import QIntValidator
 
 from electrum.i18n import _
 from electrum import blockchain
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
-from electrum.network import Network
+from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port
 from electrum.logging import get_logger
-from electrum.util import detect_tor_socks_proxy
-from electrum.simple_config import SimpleConfig
 
-from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
-                   PasswordLineEdit)
-from .util import QtEventListener, qt_event_listener
+from .util import (
+    Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit, PasswordLineEdit, QtEventListener,
+    qt_event_listener, Spinner
+)
 
 
 _logger = get_logger(__name__)
@@ -52,32 +51,23 @@ protocol_letters = 'ts'
 
 
 class NetworkDialog(QDialog, QtEventListener):
-    def __init__(self, *, network: Network, config: 'SimpleConfig'):
+    def __init__(self, *, network: Network):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 500)
-        self.nlayout = NetworkChoiceLayout(network, config)
+        self.tabs = tabs = QTabWidget()
+        self._blockchain_tab = blockchain_tab = ServerWidget(network)
+        self._proxy_tab = proxy_tab = ProxyWidget(network)
+        tabs.addTab(blockchain_tab, _('Overview'))
+        tabs.addTab(proxy_tab, _('Proxy'))
+
         vbox = QVBoxLayout(self)
-        vbox.addLayout(self.nlayout.layout())
+        vbox.addWidget(self.tabs)
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.register_callbacks()
-        self._cleaned_up = False
 
-    def show(self):
+    def show(self, *, proxy_tab: bool = False):
         super().show()
-        if td := self.nlayout.td:
-            td.trigger_rescan()
-
-    @qt_event_listener
-    def on_event_network_updated(self):
-        self.nlayout.update()
-
-    def clean_up(self):
-        if self._cleaned_up:
-            return
-        self._cleaned_up = True
-        self.nlayout.clean_up()
-        self.unregister_callbacks()
+        self.tabs.setCurrentWidget(self._proxy_tab if proxy_tab else self._blockchain_tab)
 
 
 class NodesListWidget(QTreeWidget):
@@ -227,375 +217,172 @@ class NodesListWidget(QTreeWidget):
         super().update()
 
 
-class NetworkChoiceLayout(object):
-    # TODO consolidate to ProxyWidget+ServerWidget
-    # TODO TorDetector is unnecessary, Network tests socks5 peer and detects Tor
-    # TODO apply on editingFinished is not ideal, separate Apply button and on Close?
-    def __init__(self, network: Network, config: 'SimpleConfig', wizard=False):
+class ProxyWidget(QWidget):
+    PROXY_MODES = {
+        'socks4': 'SOCKS4',
+        'socks5': 'SOCKS5/TOR'
+    }
+
+    torProbeFinished = pyqtSignal([str, int], arguments=['host', 'port'])
+
+    def __init__(self, network: Network, parent=None):
+        super().__init__(parent)
         self.network = network
-        self.config = config
-        self.tor_proxy = None
+        self.config = network.config
 
-        self.tabs = tabs = QTabWidget()
-        self._proxy_tab = proxy_tab = QWidget()
-        blockchain_tab = QWidget()
-        tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Proxy'))
-        tabs.currentChanged.connect(self._on_tab_changed)
-
-        fixed_width_hostname = 24 * char_width_in_lineedit()
         fixed_width_port = 6 * char_width_in_lineedit()
 
-        # Proxy tab
-        grid = QGridLayout(proxy_tab)
-        grid.setSpacing(8)
-
-        # proxy setting
+        # proxy setting.
         self.proxy_cb = QCheckBox(_('Use proxy'))
-        self.proxy_cb.clicked.connect(self.check_disable_proxy)
-        self.proxy_cb.clicked.connect(self.set_proxy)
-
         self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
+        for k, v in self.PROXY_MODES.items():
+            self.proxy_mode.addItem(v, k)
+        self.proxy_mode.setCurrentIndex(1)
         self.proxy_host = QLineEdit()
-        self.proxy_host.setFixedWidth(fixed_width_hostname)
         self.proxy_port = QLineEdit()
         self.proxy_port.setFixedWidth(fixed_width_port)
         self.proxy_port_validator = QIntValidator(1, 65535)
         self.proxy_port.setValidator(self.proxy_port_validator)
 
         self.proxy_user = QLineEdit()
-        self.proxy_user.setPlaceholderText(_("Proxy user"))
+        self.proxy_user.setPlaceholderText(_("Proxy username"))
         self.proxy_password = PasswordLineEdit()
-        self.proxy_password.setPlaceholderText(_("Password"))
-        self.proxy_password.setFixedWidth(fixed_width_port)
-
-        self.proxy_mode.currentIndexChanged.connect(self.set_proxy)
-        self.proxy_host.editingFinished.connect(self.set_proxy)
-        self.proxy_port.editingFinished.connect(self.set_proxy)
-        self.proxy_user.editingFinished.connect(self.set_proxy)
-        self.proxy_password.editingFinished.connect(self.set_proxy)
-
-        self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
-        self.proxy_host.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_port.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_user.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_password.textEdited.connect(self.proxy_settings_changed)
-
-        self.tor_cb = QCheckBox(_("Use Tor Proxy"))
-        self.tor_cb.setIcon(read_QIcon("tor_logo.png"))
-        self.tor_cb.hide()
-        self.tor_cb.clicked.connect(self.use_tor_proxy)
-
-        grid.addWidget(self.tor_cb, 1, 0, 1, 3)
-        grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
-        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 2, 4)
-        grid.addWidget(self.proxy_mode, 4, 1)
-        grid.addWidget(self.proxy_host, 4, 2)
-        grid.addWidget(self.proxy_port, 4, 3)
-        grid.addWidget(self.proxy_user, 5, 2)
-        grid.addWidget(self.proxy_password, 5, 3)
-        grid.setRowStretch(7, 1)
-
-        # Blockchain Tab
-        grid = QGridLayout(blockchain_tab)
-        msg =  ' '.join([
-            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
-            _("This blockchain is used to verify the transactions sent by your transaction server.")
-        ])
-        self.status_label = QLabel('')
-        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
-        grid.addWidget(self.status_label, 0, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
-
-        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
-        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
-        self.autoconnect_cb.clicked.connect(self.set_server)
-        self.autoconnect_cb.clicked.connect(self.update)
-        msg = ' '.join([
-            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
-        ])
-        grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 1, 4)
-
-        self.server_e = QLineEdit()
-        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
-        self.server_e.editingFinished.connect(self.set_server)
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
-        grid.addWidget(self.server_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 2, 4)
-
-        self.height_label = QLabel('')
-        msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_('Blockchain') + ':'), 3, 0)
-        grid.addWidget(self.height_label, 3, 1)
-        grid.addWidget(HelpButton(msg), 3, 4)
-
-        self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 4, 0, 1, 3)
-
-        self.nodes_list_widget = NodesListWidget(network=self.network)
-        self.nodes_list_widget.followServer.connect(self.follow_server)
-        self.nodes_list_widget.followChain.connect(self.follow_branch)
-
-        def do_set_server(server):
-            self.server_e.setText(server)
-            self.set_server()
-        self.nodes_list_widget.setServer.connect(do_set_server)
-        grid.addWidget(self.nodes_list_widget, 6, 0, 1, 5)
-
-        vbox = QVBoxLayout()
-        vbox.addWidget(tabs)
-        self.layout_ = vbox
-        # tor detector
-        self.td = td = TorDetector()
-        td.found_proxy.connect(self.suggest_proxy)
-        td.start()
-
-        self.fill_in_proxy_settings()
-        self.update()
-
-    def clean_up(self):
-        if self.td:
-            self.td.found_proxy.disconnect()
-            self.td.stop()
-            self.td = None
-
-    def check_disable_proxy(self, b):
-        if not self.config.cv.NETWORK_PROXY.is_modifiable():
-            b = False
-        for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
-            w.setEnabled(b)
-
-    def enable_set_server(self):
-        if self.config.cv.NETWORK_SERVER.is_modifiable():
-            enabled = not self.autoconnect_cb.isChecked()
-            self.server_e.setEnabled(enabled)
-        else:
-            for w in [self.autoconnect_cb, self.server_e, self.nodes_list_widget]:
-                w.setEnabled(False)
-
-    def update(self):
-        net_params = self.network.get_parameters()
-        server = net_params.server
-        auto_connect = net_params.auto_connect
-        if not self.server_e.hasFocus():
-            self.server_e.setText(server.to_friendly_name())
-        self.autoconnect_cb.setChecked(auto_connect)
-
-        height_str = "%d "%(self.network.get_local_height()) + _('blocks')
-        self.height_label.setText(height_str)
-        self.status_label.setText(self.network.get_status())
-        chains = self.network.get_blockchains()
-        if len(chains) > 1:
-            chain = self.network.blockchain()
-            forkpoint = chain.get_max_forkpoint()
-            name = chain.get_name()
-            msg = _('Chain split detected at block {0}').format(forkpoint) + '\n'
-            msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
-            msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
-        else:
-            msg = ''
-        self.split_label.setText(msg)
-        self.nodes_list_widget.update()
-        self.enable_set_server()
-
-    def fill_in_proxy_settings(self):
-        proxy_config = self.network.get_parameters().proxy
-        if not proxy_config:
-            proxy_config = {"mode": "none", "host": "localhost", "port": "9050"}
-
-        b = proxy_config.get('mode') != "none"
-        self.check_disable_proxy(b)
-        if b:
-            self.proxy_cb.setChecked(True)
-            self.proxy_mode.setCurrentIndex(
-                self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
-
-        self.proxy_host.setText(proxy_config.get("host"))
-        self.proxy_port.setText(proxy_config.get("port"))
-        self.proxy_user.setText(proxy_config.get("user", ""))
-        self.proxy_password.setText(proxy_config.get("password", ""))
-
-    def layout(self):
-        return self.layout_
-
-    def follow_branch(self, chain_id):
-        self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
-        self.update()
-
-    def follow_server(self, server: ServerAddr):
-        self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
-        self.update()
-
-    def accept(self):
-        pass
-
-    def set_server(self):
-        net_params = self.network.get_parameters()
-        try:
-            server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
-            if not server: raise Exception("failed to parse")
-        except Exception:
-            return
-        net_params = net_params._replace(server=server,
-                                         auto_connect=self.autoconnect_cb.isChecked())
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
-
-    def set_proxy(self):
-        net_params = self.network.get_parameters()
-        if self.proxy_cb.isChecked():
-            if not self.proxy_port.hasAcceptableInput():
-                return
-            proxy = {'mode':str(self.proxy_mode.currentText()).lower(),
-                     'host':str(self.proxy_host.text()),
-                     'port':str(self.proxy_port.text()),
-                     'user':str(self.proxy_user.text()),
-                     'password':str(self.proxy_password.text())}
-        else:
-            proxy = None
-            self.tor_cb.setChecked(False)
-        net_params = net_params._replace(proxy=proxy)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
-
-    def _on_tab_changed(self):
-        if self.tabs.currentWidget() is self._proxy_tab:
-            self.td.trigger_rescan()
-
-    def suggest_proxy(self, found_proxy):
-        if found_proxy is None:
-            self.tor_cb.hide()
-            return
-        self.tor_proxy = found_proxy
-        self.tor_cb.setText(_("Use Tor proxy at port {}").format(str(found_proxy[1])))
-        if (self.proxy_cb.isChecked()
-                and self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
-                and self.proxy_host.text() == "127.0.0.1"
-                and self.proxy_port.text() == str(found_proxy[1])):
-            self.tor_cb.setChecked(True)
-        self.tor_cb.show()
-
-    def use_tor_proxy(self, use_it):
-        if not use_it:
-            self.proxy_cb.setChecked(False)
-        else:
-            socks5_mode_index = self.proxy_mode.findText('SOCKS5')
-            if socks5_mode_index == -1:
-                _logger.info("can't find proxy_mode 'SOCKS5'")
-                return
-            self.proxy_mode.setCurrentIndex(socks5_mode_index)
-            self.proxy_host.setText("127.0.0.1")
-            self.proxy_port.setText(str(self.tor_proxy[1]))
-            self.proxy_user.setText("")
-            self.proxy_password.setText("")
-            self.tor_cb.setChecked(True)
-            self.proxy_cb.setChecked(True)
-        self.check_disable_proxy(use_it)
-        self.set_proxy()
-
-    def proxy_settings_changed(self):
-        self.tor_cb.setChecked(False)
-
-
-class TorDetector(QThread):
-    found_proxy = pyqtSignal(object)
-
-    def __init__(self):
-        QThread.__init__(self)
-        self._work_to_do_evt = threading.Event()
-        self._stopping = False
-
-    def run(self):
-        while True:
-            # do rescan
-            net_addr = detect_tor_socks_proxy()
-            self.found_proxy.emit(net_addr)
-            # wait until triggered
-            self._work_to_do_evt.wait()
-            self._work_to_do_evt.clear()
-            if self._stopping:
-                return
-
-    def trigger_rescan(self) -> None:
-        self._work_to_do_evt.set()
-
-    def stop(self):
-        self._stopping = True
-        self._work_to_do_evt.set()
-        self.exit()
-        self.wait()
-
-
-class ProxyWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        fixed_width_hostname = 24 * char_width_in_lineedit()
-        fixed_width_port = 6 * char_width_in_lineedit()
+        self.proxy_password.setPlaceholderText(_("Proxy password"))
 
         grid = QGridLayout(self)
         grid.setSpacing(8)
 
-        # proxy setting.
-        self.proxy_cb = QCheckBox(_('Use proxy'))
-        self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
-        self.proxy_mode.setCurrentIndex(1)
-        self.proxy_host = QLineEdit()
-        self.proxy_host.setFixedWidth(fixed_width_hostname)
-        self.proxy_port = QLineEdit()
-        self.proxy_port.setFixedWidth(fixed_width_port)
-        self.proxy_user = QLineEdit()
-        self.proxy_user.setPlaceholderText(_("Proxy user"))
-        self.proxy_password = PasswordLineEdit()
-        self.proxy_password.setPlaceholderText(_("Password"))
-        self.proxy_password.setFixedWidth(fixed_width_port)
+        grid.addWidget(self.proxy_cb, 0, 0, 1, 4)
+        proxy_helpbutton = HelpButton(
+            _('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.'))
+        grid.addWidget(proxy_helpbutton, 0, 4, alignment=Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(self.proxy_mode, 1, 0, 1, 1)
+        grid.addWidget(self.proxy_host, 1, 1, 1, 3)
+        grid.addWidget(self.proxy_port, 1, 4, 1, 1)
+        grid.addWidget(self.proxy_user, 2, 1, 1, 2)
+        grid.addWidget(self.proxy_password, 2, 3, 1, 2)
 
-        grid.addWidget(self.proxy_cb, 0, 0, 1, 3)
-        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.')), 0, 4)
-        grid.addWidget(self.proxy_mode, 1, 1)
-        grid.addWidget(self.proxy_host, 1, 2)
-        grid.addWidget(self.proxy_port, 1, 3)
-        grid.addWidget(self.proxy_user, 2, 2)
-        grid.addWidget(self.proxy_password, 2, 3)
+        detect_l = QHBoxLayout()
+        self.detect_button = QPushButton(_('Detect Tor proxy'))
+        self.spinner = Spinner()
+        self.spinner.setMargin(5)
+        detect_l.addWidget(self.detect_button)
+        detect_l.addWidget(self.spinner)
 
-    def get_proxy_settings(self):
-        return {
-            'enabled': self.proxy_cb.isChecked(),
-            'mode': ['socks4', 'socks5'][self.proxy_mode.currentIndex()],
-            'host': self.proxy_host.text(),
-            'port': self.proxy_port.text(),
-            'user': self.proxy_user.text(),
-            'password': self.proxy_password.text()
-        }
+        grid.addLayout(detect_l, 3, 0, 1, 5, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        spacer = QVBoxLayout()
+        spacer.addStretch(1)
+        grid.addLayout(spacer, 4, 0, 1, 5)
+
+        self.update_from_config()
+        self.update()
+
+        # connect signal handlers after init from config
+        self.proxy_cb.stateChanged.connect(self.on_proxy_enable_toggle)
+        self.proxy_mode.currentIndexChanged.connect(self.on_proxy_settings_changed)
+        self.proxy_host.editingFinished.connect(self.on_proxy_settings_changed)
+        self.proxy_port.editingFinished.connect(self.on_proxy_settings_changed)
+        self.proxy_user.editingFinished.connect(self.on_proxy_settings_changed)
+        self.proxy_password.editingFinished.connect(self.on_proxy_settings_changed)
+        self.detect_button.clicked.connect(self.detect_tor)
+
+        self.torProbeFinished.connect(self.on_tor_probe_finished)
+
+    def update(self):
+        enabled = self.proxy_cb.isChecked() and self.config.cv.NETWORK_PROXY.is_modifiable()
+        for item in [
+                self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password,
+                self.detect_button
+        ]:
+            item.setEnabled(enabled)
+
+        if not self.proxy_port.hasAcceptableInput() and not is_valid_port(self.proxy_port.text()):
+            return
+
+        if not is_valid_host(self.proxy_host.text()):
+            return
+
+        net_params = self.network.get_parameters()
+        proxy = self.get_proxy_settings()
+        net_params = net_params._replace(proxy=proxy)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    def update_from_config(self):
+        proxy = ProxySettings.from_config(self.config)
+        self.proxy_cb.setChecked(proxy.enabled)
+        self.proxy_mode.setCurrentText(self.PROXY_MODES.get(proxy.mode))
+        self.proxy_host.setText(proxy.host)
+        self.proxy_port.setText(proxy.port)
+        self.proxy_user.setText(proxy.user)
+        self.proxy_password.setText(proxy.password)
+
+        if not self.config.cv.NETWORK_PROXY.is_modifiable():
+            for w in [
+                    self.proxy_cb, self.proxy_mode, self.proxy_host, self.proxy_port,
+                    self.proxy_user, self.proxy_password, self.detect_button
+            ]:
+                w.setEnabled(False)
+
+    def on_proxy_enable_toggle(self):
+        # probe if enabled and no pre-existing settings
+        # if self.proxy_cb.isChecked() and (not self.proxy_host.text() or not self.proxy_port.text()):
+        #     self.detect_tor()
+        self.update()
+
+    def on_proxy_settings_changed(self):
+        self.update()
+
+    def get_proxy_settings(self) -> ProxySettings:
+        proxy = ProxySettings()
+        proxy.enabled = self.proxy_cb.isChecked()
+        proxy.mode = self.proxy_mode.currentData()
+        proxy.host = self.proxy_host.text()
+        proxy.port = self.proxy_port.text()
+        proxy.user = self.proxy_user.text()
+        proxy.password = self.proxy_password.text()
+        return proxy
+
+    def detect_tor(self):
+        self.detect_button.setEnabled(False)
+        self.spinner.setVisible(True)
+        ProxySettings.probe_tor(self.torProbeFinished.emit)  # via signal
+
+    @pyqtSlot(str, int)
+    def on_tor_probe_finished(self, host: str, port: int):
+        self.detect_button.setEnabled(True)
+        self.spinner.setVisible(False)
+        if host:
+            self.proxy_mode.setCurrentIndex(1)
+            self.proxy_host.setText(host)
+            self.proxy_port.setText(str(port))
+            self.update()
 
 
 class ServerWidget(QWidget, QtEventListener):
-    def __init__(self, network, parent=None):
+    def __init__(self, network: Network, parent=None):
         super().__init__(parent)
         self.network = network
         self.config = network.config
 
-        fixed_width_hostname = 24 * char_width_in_lineedit()
-        fixed_width_port = 6 * char_width_in_lineedit()
-
         self.setLayout(QVBoxLayout())
 
-        grid = QGridLayout(self)
+        grid = QGridLayout()
 
         msg = ' '.join([
             _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
+        self.status_label_header = QLabel(_('Status') + ':')
         self.status_label = QLabel('')
-        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
+        self.status_label_helpbutton = HelpButton(msg)
+        grid.addWidget(self.status_label_header, 0, 0)
         grid.addWidget(self.status_label, 0, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(self.status_label_helpbutton, 0, 4)
 
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
-        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        self.autoconnect_cb.stateChanged.connect(self.on_server_settings_changed)
+
         msg = ' '.join([
             _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
             _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
@@ -604,17 +391,19 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(HelpButton(msg), 1, 4)
 
         self.server_e = QLineEdit()
-        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
+        self.server_e.editingFinished.connect(self.on_server_settings_changed)
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
         grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
         grid.addWidget(self.server_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 2, 4)
 
-        self.height_label = QLabel('')
         msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_('Blockchain') + ':'), 3, 0)
+        self.height_label_header = QLabel(_('Blockchain') + ':')
+        self.height_label = QLabel('')
+        self.height_label_helpbutton = HelpButton(msg)
+        grid.addWidget(self.height_label_header, 3, 0)
         grid.addWidget(self.height_label, 3, 1)
-        grid.addWidget(HelpButton(msg), 3, 4)
+        grid.addWidget(self.height_label_helpbutton, 3, 4)
 
         self.split_label = QLabel('')
         grid.addWidget(self.split_label, 4, 0, 1, 3)
@@ -636,9 +425,62 @@ class ServerWidget(QWidget, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
+        self.update_from_config()
+        self.update()
+
     @qt_event_listener
     def on_event_network_updated(self):
-        self.nodes_list_widget.update()
+        self.nodes_list_widget.update()  # NOTE: move event handling to widget itself?
+        self.update()
+
+    def on_server_settings_changed(self):
+        if not self.network._was_started:
+            self.update()
+            return
+        auto_connect = self.autoconnect_cb.isChecked()
+        server = self.server_e.text().strip()
+        net_params = self.network.get_parameters()
+        if server != net_params.server or auto_connect != net_params.auto_connect:
+            self.set_server()
+
+    def update(self):
+        auto_connect = self.autoconnect_cb.isChecked()
+        self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
+
+        for item in [
+                self.status_label_header, self.status_label, self.status_label_helpbutton,
+                self.height_label_header, self.height_label, self.height_label_helpbutton]:
+            item.setVisible(self.network._was_started)
+
+        msg = ''
+        if self.network._was_started:
+            # Network was started, so we don't run in initial setup wizard.
+            # behavior in this case is to apply changes immediately.
+            # Also, we show block height and potential chain tips
+            height_str = _('{} blocks').format(self.network.get_local_height())
+            self.height_label.setText(height_str)
+            self.status_label.setText(self.network.get_status())
+            chains = self.network.get_blockchains()
+            if len(chains) > 1:
+                chain = self.network.blockchain()
+                forkpoint = chain.get_max_forkpoint()
+                name = chain.get_name()
+                msg = _('Chain split detected at block {0}').format(forkpoint) + '\n'
+                if auto_connect:
+                    msg += _('You are following branch {}').format(name)
+                else:
+                    msg += _('Your server is on branch {0} ({1} blocks)').format(name, chain.get_branch_size())
+        self.split_label.setText(msg)
+
+    def update_from_config(self):
+        auto_connect = self.config.NETWORK_AUTO_CONNECT
+        self.autoconnect_cb.setChecked(auto_connect)
+        server = self.config.NETWORK_SERVER
+        self.server_e.setText(server)
+
+        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
+        self.nodes_list_widget.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable())
 
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))

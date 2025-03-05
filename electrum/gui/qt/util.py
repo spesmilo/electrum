@@ -11,7 +11,7 @@ from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Se
 
 from PyQt6 import QtCore
 from PyQt6.QtGui import (QFont, QColor, QCursor, QPixmap, QImage,
-                         QPalette, QIcon, QFontMetrics, QPainter, QContextMenuEvent)
+                         QPalette, QIcon, QFontMetrics, QPainter, QContextMenuEvent, QMovie)
 from PyQt6.QtCore import (Qt, pyqtSignal, QCoreApplication, QThread, QSize, QRect, QPoint, QObject)
 from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
@@ -115,6 +115,22 @@ class AmountLabel(QLabel):
         QLabel.__init__(self, *args, **kwargs)
         self.setFont(QFont(MONOSPACE_FONT))
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+
+class Spinner(QLabel):
+    def __init__(self, *args, **kwargs):
+        QLabel.__init__(self, *args, **kwargs)
+        self.spinner = QMovie(icon_path('spinner.gif'))
+        self.spinner.setScaledSize(QSize(20, 20))
+        self.spinner.frameChanged.connect(lambda: self.setPixmap(self.spinner.currentPixmap()))
+        self.setVisible(False)
+
+    def setVisible(self, visible):
+        if visible:
+            self.spinner.start()
+        else:
+            self.spinner.stop()
+        super().setVisible(visible)
 
 
 class HelpMixin:

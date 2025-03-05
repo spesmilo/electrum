@@ -19,17 +19,17 @@ Item {
         { text: qsTr('SOCKS4'), value: 'socks4' }
     ]
 
+    property bool _probing: false
+
     function toProxyDict() {
         var p = {}
         p['enabled'] = pc.proxy_enabled
-        if (pc.proxy_enabled) {
-            var type = proxy_type_map[pc.proxy_type]['value']
-            p['mode'] = type
-            p['host'] = pc.proxy_address
-            p['port'] = pc.proxy_port
-            p['user'] = pc.username
-            p['password'] = pc.password
-        }
+        var type = proxy_type_map[pc.proxy_type]['value']
+        p['mode'] = type
+        p['host'] = pc.proxy_address
+        p['port'] = pc.proxy_port
+        p['user'] = pc.username
+        p['password'] = pc.password
         return p
     }
 
@@ -51,15 +51,6 @@ Item {
             textRole: 'text'
             valueRole: 'value'
             model: proxy_type_map
-
-            onCurrentIndexChanged: {
-                if (currentIndex == 0) {
-                    if (address.text == '' || port.text == '') {
-                        address.text = "127.0.0.1"
-                        port.text = "9050"
-                    }
-                }
-            }
         }
 
         GridLayout {
@@ -107,6 +98,45 @@ Item {
             PasswordField {
                 id: password_tf
                 enabled: proxy_enabled_cb.checked
+            }
+        }
+
+        Pane {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: constants.paddingLarge
+            padding: 0
+            background: Rectangle {
+                color: constants.darkerDialogBackground
+            }
+            FlatButton {
+                enabled: proxy_enabled_cb.checked && !_probing
+                text: qsTr('Detect Tor proxy')
+                onClicked: {
+                    _probing = true
+                    Network.probeTor()
+                }
+            }
+        }
+
+        BusyIndicator {
+            id: spinner
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: constants.paddingSmall
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
+            running: visible
+            visible: _probing
+        }
+    }
+
+    Connections {
+        target: Network
+        function onTorProbeFinished(host, port) {
+            _probing = false
+            if (host && port) {
+                proxytype.currentIndex = 0
+                proxy_port = ""+port
+                proxy_address = host
             }
         }
     }

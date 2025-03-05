@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject, pyqtSlot
 
 from electrum.logging import get_logger
 from electrum import constants
+from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 
@@ -24,6 +25,7 @@ class QENetwork(QObject, QtEventListener):
     serverHeightChanged = pyqtSignal([int], arguments=['height'])
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
+    torProbeFinished = pyqtSignal([str, int], arguments=['host', 'port'])
     statusChanged = pyqtSignal()
     feeHistogramUpdated = pyqtSignal()
     chaintipsChanged = pyqtSignal()
@@ -237,14 +239,14 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
         net_params = self.network.get_parameters()
-        return net_params.proxy if net_params.proxy else {}
+        proxy = net_params.proxy
+        return proxy.to_dict()
 
     @proxy.setter
-    def proxy(self, proxy_settings):
+    def proxy(self, proxy_dict):
         net_params = self.network.get_parameters()
-        if not proxy_settings['enabled']:
-            proxy_settings = None
-        net_params = net_params._replace(proxy=proxy_settings)
+        proxy = ProxySettings.from_dict(proxy_dict)
+        net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
 
@@ -273,3 +275,7 @@ class QENetwork(QObject, QtEventListener):
         if self._serverListModel is None:
             self._serverListModel = QEServerListModel(self.network)
         return self._serverListModel
+
+    @pyqtSlot()
+    def probeTor(self):
+        ProxySettings.probe_tor(self.torProbeFinished.emit)  # via signal

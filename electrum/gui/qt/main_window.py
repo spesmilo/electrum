@@ -1005,12 +1005,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 if self.fx.is_enabled():
                     balance_text += self.fx.get_fiat_status_text(balance,
                         self.base_unit(), self.get_decimal_point()) or ''
-                if not self.network.proxy:
+                if not self.network.proxy or not self.network.proxy.enabled:
                     icon = read_QIcon("status_connected%s.png"%fork_str)
                 else:
                     icon = read_QIcon("status_connected_proxy%s.png"%fork_str)
         else:
-            if self.network.proxy:
+            if self.network.proxy and self.network.proxy.enabled:
                 network_text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
             else:
                 network_text = _("Not connected")
@@ -1763,7 +1763,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.tor_button = StatusBarButton(
                 read_QIcon("tor_logo.png"),
                 _("Tor"),
-                self.gui_object.show_network_dialog,
+                partial(self.gui_object.show_network_dialog, proxy_tab=True),
                 sb_height,
             )
             sb.addPermanentWidget(self.tor_button)

@@ -25,7 +25,7 @@ from electrum.submarine_swaps import SwapServerError
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
-                   get_iconname_camera, read_QIcon, ColorScheme, icon_path, IconLabel)
+                   get_iconname_camera, read_QIcon, ColorScheme, icon_path, IconLabel, Spinner)
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -142,14 +142,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.paste_button.setToolTip(_('Paste invoice from clipboard'))
         self.paste_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        self.spinner = QMovie(icon_path('spinner.gif'))
-        self.spinner.setScaledSize(QSize(24, 24))
-        self.spinner.setBackgroundColor(QColor('black'))
-        self.spinner_l = QLabel()
-        self.spinner_l.setMargin(5)
-        self.spinner_l.setVisible(False)
-        self.spinner_l.setMovie(self.spinner)
-        grid.addWidget(self.spinner_l, 0, 1, 1, 4, Qt.AlignmentFlag.AlignRight)
+        self.spinner = Spinner()
+        grid.addWidget(self.spinner, 0, 1, 1, 4, Qt.AlignmentFlag.AlignRight)
 
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
         self.save_button.setEnabled(False)
@@ -215,13 +209,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
 
         self.setTabOrder(self.send_button, self.invoice_list)
-
-    def showSpinner(self, b):
-        self.spinner_l.setVisible(b)
-        if b:
-            self.spinner.start()
-        else:
-            self.spinner.stop()
 
     def on_amount_changed(self, text):
         # FIXME: implement full valid amount check to enable/disable Pay button
@@ -395,7 +382,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def prepare_for_send_tab_network_lookup(self):
         for btn in [self.save_button, self.send_button, self.clear_button]:
             btn.setEnabled(False)
-        self.showSpinner(True)
+        self.spinner.setVisible(True)
 
     def payment_request_error(self, error):
         self.show_message(error)
@@ -506,7 +493,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # TODO: resolve can happen while typing, we don't want message dialogs to pop up
         # currently we don't set error for emaillike recipients to avoid just that
         self.logger.debug('payment identifier resolve done')
-        self.showSpinner(False)
+        self.spinner.setVisible(False)
         if pi.error:
             self.show_error(pi.error)
             self.do_clear()
@@ -562,7 +549,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return self.amount_e.get_amount() or 0
 
     def on_finalize_done(self, pi: PaymentIdentifier):
-        self.showSpinner(False)
+        self.spinner.setVisible(False)
         self.update_fields()
         if pi.error:
             self.show_error(pi.error)
