@@ -177,7 +177,7 @@ def is_valid_host(ph: str):
 class ProxySettings:
     MODES = ['socks4', 'socks5']
 
-    probe_thread = None
+    probe_fut = None
 
     def __init__(self):
         self.enabled = False
@@ -255,20 +255,19 @@ class ProxySettings:
 
     @classmethod
     def probe_tor(cls, on_finished: Callable[[str | None, int | None], None]):
-        def detect_task(finished: Callable[[str | None, int | None], None]):
-            net_addr = detect_tor_socks_proxy()
+        async def detect_task(finished: Callable[[str | None, int | None], None]):
+            net_addr = await detect_tor_socks_proxy()
             if net_addr is None:
                 finished('', -1)
             else:
                 host = net_addr[0]
                 port = net_addr[1]
                 finished(host, port)
-            cls.probe_thread = None
+            cls.probe_fut = None
 
-        if cls.probe_thread:  # don't spam threads
+        if cls.probe_fut:  # one probe at a time
             return
-        cls.probe_thread = threading.Thread(target=detect_task, args=[on_finished], daemon=True)
-        cls.probe_thread.start()
+        cls.probe_fut = asyncio.run_coroutine_threadsafe(detect_task(on_finished), util.get_asyncio_loop())
 
     def __eq__(self, other):
         return self.enabled == other.enabled \
@@ -721,9 +720,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('proxy_set', self.proxy)
 
     def _detect_if_proxy_is_tor(self) -> None:
-        def tor_probe_task(p):
+        async def tor_probe_task(p):
             assert p is not None
-            is_tor = util.is_tor_socks_port(p.host, int(p.port))
+            is_tor = await util.is_tor_socks_port(p.host, int(p.port))
             if self.proxy == p:  # is this the proxy we probed?
                 if self.is_proxy_tor != is_tor:
                     self.logger.info(f'Proxy is {"" if is_tor else "not "}TOR')
@@ -732,8 +731,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         proxy = self.proxy
         if proxy and proxy.enabled and proxy.mode == 'socks5':
-            t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
-            t.start()
+            # FIXME GC issues? do we need to store the Future?
+            asyncio.run_coroutine_threadsafe(tor_probe_task(proxy), self.asyncio_loop)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
