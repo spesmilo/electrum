@@ -1824,10 +1824,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee_policy: FeePolicy = None,
             change_addr: str = None,
             is_sweep: bool = False,  # used by Wallet_2fa subclass
-            rbf: Optional[bool] = True,
+            rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
             base_tx: Optional[PartialTransaction] = None,
-            send_change_to_lightning: Optional[bool] = None,
+            send_change_to_lightning: bool = False,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
