@@ -414,6 +414,7 @@ class TxEditor(WindowModalDialog):
         add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
+        add_cv_action(self.config.cv.WALLET_SORT_TX_OUTPUTS, self.toggle_sort_outputs)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -465,6 +466,11 @@ class TxEditor(WindowModalDialog):
     def toggle_confirmed_only(self):
         b = not self.config.WALLET_SPEND_CONFIRMED_ONLY
         self.config.WALLET_SPEND_CONFIRMED_ONLY = b
+        self.trigger_update()
+
+    def toggle_sort_outputs(self):
+        b = not self.config.WALLET_SORT_TX_OUTPUTS
+        self.config.WALLET_SORT_TX_OUTPUTS = b
         self.trigger_update()
 
     def toggle_io_visibility(self):
