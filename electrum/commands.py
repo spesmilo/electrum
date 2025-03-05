@@ -1200,6 +1200,28 @@ class Commands(Logger):
         return True
 
     @command('wnl')
+    async def gossip_info(self, wallet: Abstract_Wallet = None):
+        """Display statistics about lightninig gossip"""
+        lngossip = self.network.lngossip
+        channel_db = lngossip.channel_db
+        forwarded = dict([(key.hex(), p._num_gossip_messages_forwarded) for key, p in wallet.lnworker.peers.items()]),
+        out = {
+            'received': {
+                'channel_announcements': lngossip._num_chan_ann,
+                'channel_updates': lngossip._num_chan_upd,
+                'channel_updates_good': lngossip._num_chan_upd_good,
+                'node_announcements': lngossip._num_node_ann,
+            },
+            'database': {
+                'nodes': channel_db.num_nodes,
+                'channels': channel_db.num_channels,
+                'channel_policies': channel_db.num_policies,
+            },
+            'forwarded': forwarded,
+        }
+        return out
+
+    @command('wnl')
     async def list_peers(self, gossip=False, wallet: Abstract_Wallet = None):
         lnworker = self.network.lngossip if gossip else wallet.lnworker
         return [{

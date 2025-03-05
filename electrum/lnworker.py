@@ -540,6 +540,11 @@ class LNGossip(LNWorker):
         self._last_gossip_batch_ts = 0  # type: int
         self._forwarding_gossip_lock = asyncio.Lock()
         self.gossip_request_semaphore = asyncio.Semaphore(5)
+        # statistics
+        self._num_chan_ann = 0
+        self._num_node_ann = 0
+        self._num_chan_upd = 0
+        self._num_chan_upd_good = 0
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
@@ -623,8 +628,7 @@ class LNGossip(LNWorker):
         # note: we run in the originating peer's TaskGroup, so we can safely raise here
         #       and disconnect only from that peer
         await self.channel_db.data_loaded.wait()
-        self.logger.debug(f'process_gossip ca: {len(chan_anns)} na: {len(node_anns)} '
-                          f'cu: {len(chan_upds)}')
+
         # channel announcements
         def process_chan_anns():
             for payload in chan_anns:
@@ -648,8 +652,11 @@ class LNGossip(LNWorker):
             self.logger.info(f'adding {len(orphaned)} unknown channel ids')
             orphaned_ids = [c['short_channel_id'] for c in orphaned]
             await self.add_new_ids(orphaned_ids)
-        if categorized_chan_upds.good:
-            self.logger.debug(f'process_gossip: {len(categorized_chan_upds.good)}/{len(chan_upds)}')
+
+        self._num_chan_ann += len(chan_anns)
+        self._num_node_ann += len(node_anns)
+        self._num_chan_upd += len(chan_upds)
+        self._num_chan_upd_good += len(categorized_chan_upds.good)
 
     def is_synced(self) -> bool:
         _, _, percentage_synced = self.get_sync_progress_estimate()
