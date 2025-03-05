@@ -43,6 +43,7 @@ from contextlib import nullcontext
 import aiorpcx
 from aiorpcx import ignore_after, NetAddress
 from aiohttp import ClientResponse
+from aiohttp_socks import ProxyConnector, ProxyType
 
 from . import util
 from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
