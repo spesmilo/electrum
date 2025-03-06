@@ -120,9 +120,9 @@ ElDialog {
                         // ask for confirmation of zeroconf channel to prevent fee surprise
                         var confirmdialog = app.messageDialog.createObject(dialog, {
                             title: qsTr('Confirm just-in-time channel'),
-                            text: qsTr('Receiving this payment will purchase a Lightning channel from ')
-                                + qsTr('your service provider. Fees will be deducted from the payment. ')
-                                + qsTr('Do you want to continue?'),
+                            text: [qsTr('Receiving this payment will purchase a Lightning channel from your service provider.'),
+                                   qsTr('Fees will be deducted from the payment.'),
+                                   qsTr('Do you want to continue?')].join(' '),
                             yesno: true
                         })
                         confirmdialog.accepted.connect(function () {
@@ -133,11 +133,10 @@ ElDialog {
                     } else {
                         // show error that amnt > 200k is neccessary to get zeroconf channel
                         var confirmdialog = app.messageDialog.createObject(dialog, {
-                            title: qsTr('Amount too low'),
-                            text: qsTr("You don't have channels with enough inbound liquidity to receive ")
-                                + qsTr("this payment. Request at least ")
-                                + qsTr('%1 sat').arg(Config.formatSats(Daemon.currentWallet.minChannelFunding.satsInt))
-                                + qsTr(" to open a channel just-in-time."),
+                            title: qsTr("Amount too low"),
+                            text: [qsTr("You don't have channels with enough inbound liquidity to receive this payment."),
+                                   qsTr("Request at least %1 sat to open a channel just-in-time.").arg(
+                                       Config.formatSats(Daemon.currentWallet.minChannelFunding.satsInt))].join(' ')
                         })
                         confirmdialog.open()
                     }
