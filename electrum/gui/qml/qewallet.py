@@ -102,6 +102,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._frozenbalance = QEAmount()
         self._totalbalance = QEAmount()
         self._lightningcanreceive = QEAmount()
+        self._minchannelfunding = QEAmount()
         self._lightningcansend = QEAmount()
         self._lightningbalancefrozen = QEAmount()
 
@@ -512,9 +513,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
-    @pyqtProperty(int, notify=dataChanged)
-    def minChannelFundingSat(self):
-        return MIN_FUNDING_SAT
+    @pyqtProperty(QEAmount, notify=dataChanged)
+    def minChannelFunding(self):
+        self._minchannelfunding.satsInt = int(MIN_FUNDING_SAT)
+        return self._minchannelfunding
 
     @pyqtProperty(int, notify=peersUpdated)
     def lightningNumPeers(self):
