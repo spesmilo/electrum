@@ -755,7 +755,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         proxy = self.proxy
         if proxy and proxy.enabled and proxy.mode == 'socks5':
-            # FIXME GC issues? do we need to store the Future?
             asyncio.run_coroutine_threadsafe(tor_probe_task(proxy), self.asyncio_loop)
 
     @log_exceptions
