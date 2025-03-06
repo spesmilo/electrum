@@ -569,6 +569,8 @@ class TxEditor(WindowModalDialog):
                 self.error = long_warning
             else:
                 messages.append(long_warning)
+        if self.no_dynfee_estimates:
+            self.error = _('Fee estimates not available. Please set a fixed fee or feerate.')
         if self.tx.get_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
         # warn if spending unconf

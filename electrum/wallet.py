@@ -1854,9 +1854,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 i_max_sum += weight
                 i_max.append((weight, i))
 
-        if fee_policy.method is not FeeMethod.FIXED and fee_policy.fee_per_kb(self.network) is None:
-            raise NoDynamicFeeEstimates()
-
         for txin in coins:
             self.add_input_info(txin)
             nSequence = 0xffffffff - (2 if rbf else 1)
