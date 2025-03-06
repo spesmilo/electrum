@@ -65,29 +65,42 @@ class Plugins(DaemonThread):
     pkgpath = os.path.dirname(plugins.__file__)
 
     @profiler
-    def __init__(self, config: SimpleConfig, gui_name):
+    def __init__(self, config: SimpleConfig = None, gui_name = None, cmd_only: bool = False):
+        self.cmd_only = cmd_only  # type: bool
+        self.internal_plugin_metadata = {}
+        self.external_plugin_metadata = {}
+        self.loaded_command_modules = set()  # type: set[str]
+        if cmd_only:
+            # only import the command modules of plugins
+            self.find_plugins()
+            return
         DaemonThread.__init__(self)
+        self.device_manager = DeviceMgr(config)
         self.name = 'Plugins'  # set name of thread
         self.config = config
         self.hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
-        self.internal_plugin_metadata = {}
-        self.external_plugin_metadata = {}
         self.gui_name = gui_name
-        self.device_manager = DeviceMgr(config)
-        self.find_internal_plugins()
-        self.find_external_plugins()
+        self.find_plugins()
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
+
+    def __getattr__(self, item):
+        # to prevent accessing of a cmd_only instance of this class
+        if self.cmd_only:
+            if item == 'logger':
+                # if something tries to access logger and it is not initialized it gets initialized here
+                Logger.__init__(self)
+                return self.logger
+            raise Exception(f"This instance of Plugins is only for command importing, cannot access {item}")
 
     @property
     def descriptions(self):
         return dict(list(self.internal_plugin_metadata.items()) + list(self.external_plugin_metadata.items()))
 
     def find_internal_plugins(self):
-        """Populates self.internal_plugin_metadata
-        """
+        """Populates self.internal_plugin_metadata"""
         iter_modules = list(pkgutil.iter_modules([self.pkgpath]))
         for loader, name, ispkg in iter_modules:
             # FIXME pyinstaller binaries are packaging each built-in plugin twice:
@@ -95,11 +108,17 @@ class Plugins(DaemonThread):
             #       we exclude the ones packaged as *code*, here:
             if loader.__class__.__qualname__ == "PyiFrozenImporter":
                 continue
-            full_name = f'electrum.plugins.{name}'
+            full_name = f'electrum.plugins.{name}' + ('.commands' if self.cmd_only else '')
             spec = importlib.util.find_spec(full_name)
-            if spec is None:  # pkgutil found it but importlib can't ?!
+            if spec is None:
+                if self.cmd_only:
+                    continue # no commands module in this plugin
                 raise Exception(f"Error pre-loading {full_name}: no spec")
             module = self.exec_module_from_spec(spec, full_name)
+            if self.cmd_only:
+                assert name not in self.loaded_command_modules, f"duplicate command modules for: {name}"
+                self.loaded_command_modules.add(name)
+                continue
             d = module.__dict__
             if 'fullname' not in d:
                 continue
@@ -121,7 +140,8 @@ class Plugins(DaemonThread):
                 raise Exception(f"duplicate plugins? for {name=}")
             self.internal_plugin_metadata[name] = d
 
-    def exec_module_from_spec(self, spec, path):
+    @staticmethod
+    def exec_module_from_spec(spec, path):
         try:
             module = importlib.util.module_from_spec(spec)
             # sys.modules needs to be modified for relative imports to work
@@ -131,6 +151,10 @@ class Plugins(DaemonThread):
         except Exception as e:
             raise Exception(f"Error pre-loading {path}: {repr(e)}") from e
         return module
+
+    def find_plugins(self):
+        self.find_internal_plugins()
+        self.find_external_plugins()
 
     def load_plugins(self):
         self.load_internal_plugins()
@@ -172,7 +196,7 @@ class Plugins(DaemonThread):
             return
         pkg_path = '/opt/electrum_plugins'
         if not os.path.exists(pkg_path):
-            self.logger.info(f'direcctory {pkg_path} does not exist')
+            self.logger.info(f'directory {pkg_path} does not exist')
             return
         if not self._has_root_permissions(pkg_path):
             self.logger.info(f'not loading {pkg_path}: directory has user write permissions')
@@ -208,6 +232,14 @@ class Plugins(DaemonThread):
                 module_path = f'electrum_external_plugins.{name}'
                 spec = zipfile.find_spec(name)
                 module = self.exec_module_from_spec(spec, module_path)
+                if self.cmd_only:
+                    spec2 = importlib.util.find_spec(module_path + '.commands')
+                    if spec2 is None:  # no commands module in this plugin
+                        continue
+                    self.exec_module_from_spec(spec2, module_path + '.commands')
+                    assert name not in self.loaded_command_modules, f"duplicate command modules for: {name}"
+                    self.loaded_command_modules.add(name)
+                    continue
                 d = module.__dict__
                 gui_good = self.gui_name in d.get('available_for', [])
                 if not gui_good:
@@ -353,6 +385,7 @@ class Plugins(DaemonThread):
             self.wake_up_event.wait(0.1)  # time.sleep(0.1) OR event
             self.run_jobs()
         self.on_stop()
+
 
 def get_file_hash256(path: str) -> str:
     '''Get the sha256 hash of a file in hex, similar to `sha256sum`.'''
