@@ -2062,11 +2062,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
 
-        wallet.config.WALLET_MERGE_DUPLICATE_OUTPUTS = True
         # second payment to dest_addr  (merged)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)
-        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee_policy=FixedFeePolicy(3000), base_tx=tx1)
+        tx2 = wallet.make_unsigned_transaction(coins=coins, outputs=outputs2, fee_policy=FixedFeePolicy(3000), base_tx=tx1, merge_duplicate_outputs=True)
         tx2.set_rbf(True)
         tx2.locktime = 2534850
         tx2.version = 2
@@ -2081,7 +2080,6 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
 
-        wallet.config.WALLET_MERGE_DUPLICATE_OUTPUTS = False
         # second payment to dest_addr  (not merged, just duplicate outputs)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
         coins = wallet.get_spendable_coins(domain=None)

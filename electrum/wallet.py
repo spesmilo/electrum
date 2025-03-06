@@ -1828,6 +1828,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             BIP69_sort: Optional[bool] = True,
             base_tx: Optional[PartialTransaction] = None,
             send_change_to_lightning: bool = False,
+            merge_duplicate_outputs: bool = False,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
@@ -1900,7 +1901,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
-            if self.config.WALLET_MERGE_DUPLICATE_OUTPUTS:
+            if merge_duplicate_outputs:
                 txo = transaction.merge_duplicate_tx_outputs(txo)
             tx = coin_chooser.make_tx(
                 coins=coins,
@@ -3083,6 +3084,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             base_tx: Optional[PartialTransaction] = None,
             inputs: Optional[List[PartialTxInput]] = None,
             send_change_to_lightning: Optional[bool] = None,
+            merge_duplicate_outputs: Optional[bool] = None,
             nonlocal_only: bool = False,
             BIP69_sort: bool = True,
     ) -> PartialTransaction:
@@ -3098,6 +3100,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr=change_addr,
             base_tx=base_tx,
             send_change_to_lightning=send_change_to_lightning,
+            merge_duplicate_outputs=merge_duplicate_outputs,
             rbf=rbf,
             BIP69_sort=BIP69_sort,
         )

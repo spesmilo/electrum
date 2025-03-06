@@ -421,6 +421,8 @@ class TxEditor(WindowModalDialog):
                 _('This may result in higher transactions fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
+        # fixme: some of these options (WALLET_SEND_CHANGE_TO_LIGHTNING, WALLET_MERGE_DUPLICATE_OUTPUTS)
+        # only make sense when we create a new tx, and should not be visible/enabled in rbf dialog
         add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)

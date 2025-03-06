@@ -322,6 +322,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 base_tx=base_tx,
                 is_sweep=is_sweep,
                 send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
+                merge_duplicate_outputs=self.config.WALLET_MERGE_DUPLICATE_OUTPUTS,
             )
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
