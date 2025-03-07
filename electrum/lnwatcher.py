@@ -268,12 +268,12 @@ class LNWalletWatcher(LNWatcher):
                     else:
                         keep_watching = True
                     await self.maybe_redeem(prevout2, htlc_sweep_info, name)
-                else:
-                    keep_watching |= not self.is_deeply_mined(spender_txid)
-                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
-                    assert txin_idx is not None
-                    spender_txin = spender_tx.inputs()[txin_idx]
-                    chan.extract_preimage_from_htlc_txin(spender_txin)
+                # extract preimage
+                keep_watching |= not self.is_deeply_mined(spender_txid)
+                txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+                assert txin_idx is not None
+                spender_txin = spender_tx.inputs()[txin_idx]
+                chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
                 keep_watching = True
             # broadcast or maybe update our own tx
