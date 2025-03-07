@@ -7,7 +7,7 @@ mkdir $HOME/electrumx_db
 
 export COST_SOFT_LIMIT=0
 export COST_HARD_LIMIT=0
-export COIN=BitcoinSegwit
+export COIN=Bitcoin
 export SERVICES=tcp://:51001,rpc://
 export NET=regtest
 export DAEMON_URL=http://doggman:donkey@127.0.0.1:18554
