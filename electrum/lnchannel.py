@@ -1376,7 +1376,8 @@ class Channel(AbstractChannel):
             return
         if self.lnworker.get_preimage(payment_hash) is not None:
             return
-        self.logger.info(f'found preimage for {payment_hash.hex()} in witness of length {len(witness)}')
+        self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
+        # ^ note: log message text grepped for in regtests
         self.lnworker.save_preimage(payment_hash, preimage)
         for htlc, is_sent in found.values():
             if is_sent:
