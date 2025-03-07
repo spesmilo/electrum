@@ -882,6 +882,7 @@ class LNWallet(LNWorker):
         self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
         self.forwarding_failures = self.db.get_dict('forwarding_failures')  # type: Dict[str, Tuple[str, str]]  # Dict: payment_key -> (error_bytes, error_message)
         self.downstream_to_upstream_htlc = {}                               # type: Dict[str, str]              # Dict: htlc_key -> htlc_key (not persisted)
+        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')      # type: Dict[str, None]             # payment_hashes of htlcs that we should not settle back yet even if we have the preimage
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
@@ -1246,6 +1247,9 @@ class LNWallet(LNWorker):
     ) -> str:
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
+
+        # prevent settling the htlc until the channel opening was successfull so we can fail it if needed
+        self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
             funding_sat = 2 * (next_amount_msat_htlc // 1000) # try to fully spend htlcs
             password = self.wallet.get_unlocked_password() if self.wallet.has_password() else None
@@ -1280,13 +1284,17 @@ class LNWallet(LNWorker):
                 while self.get_preimage(payment_hash) is None:
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_preimage(), LN_P2P_NETWORK_TIMEOUT)
+
+            # We have been paid and can broadcast
+            # todo: if broadcasting raise an exception, we should try to rebroadcast
+            await self.network.broadcast_transaction(funding_tx)
         except OnionRoutingFailure:
             raise
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-        # We have been paid and can broadcast
-        # todo: if broadcasting raise an exception, we should try to rebroadcast
-        await self.network.broadcast_transaction(funding_tx)
+        finally:
+            del self.dont_settle_htlcs[payment_hash.hex()]
+
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         return htlc_key
 
