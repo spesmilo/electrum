@@ -2,8 +2,13 @@ import os
 import sys
 import unittest
 import subprocess
+from typing import Mapping, Any
+
+from electrum.simple_config import SimpleConfig
+
 
 class TestLightning(unittest.TestCase):
+    agents: Mapping[str, Mapping[str, Any]]
 
     @staticmethod
     def run_shell(args, timeout=30):
@@ -46,7 +51,7 @@ class TestLightningAB(TestLightning):
         'alice': {
         },
         'bob': {
-            'lightning_listen': 'localhost:9735',
+            SimpleConfig.LIGHTNING_LISTEN.key(): 'localhost:9735',
         }
     }
 
@@ -78,15 +83,15 @@ class TestLightningAB(TestLightning):
 class TestLightningSwapserver(TestLightning):
     agents = {
         'alice': {
-            'use_gossip': 'false',
-            'swapserver_url': 'http://localhost:5455',
-            'nostr_relays': "''",
+            SimpleConfig.LIGHTNING_USE_GOSSIP.key(): 'false',
+            SimpleConfig.SWAPSERVER_URL.key(): 'http://localhost:5455',
+            SimpleConfig.NOSTR_RELAYS.key(): "''",
         },
         'bob': {
-            'lightning_listen': 'localhost:9735',
+            SimpleConfig.LIGHTNING_LISTEN.key(): 'localhost:9735',
             'enable_plugin_swapserver': 'true',
-            'swapserver_port': '5455',
-            'nostr_relays': "''",
+            SimpleConfig.SWAPSERVER_PORT.key(): '5455',
+            SimpleConfig.NOSTR_RELAYS.key(): "''",
         }
     }
 
@@ -103,17 +108,17 @@ class TestLightningSwapserver(TestLightning):
 
 class TestLightningWatchtower(TestLightning):
     agents = {
-        'alice':{
+        'alice': {
         },
-        'bob':{
-            'lightning_listen': 'localhost:9735',
-            'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
+        'bob': {
+            SimpleConfig.LIGHTNING_LISTEN.key(): 'localhost:9735',
+            SimpleConfig.WATCHTOWER_CLIENT_URL.key(): 'http://wtuser:wtpassword@127.0.0.1:12345',
         },
-        'carol':{
+        'carol': {
             'enable_plugin_watchtower': 'true',
-            'watchtower_user': 'wtuser',
-            'watchtower_password': 'wtpassword',
-            'watchtower_port': '12345',
+            SimpleConfig.WATCHTOWER_SERVER_USER.key(): 'wtuser',
+            SimpleConfig.WATCHTOWER_SERVER_PASSWORD.key(): 'wtpassword',
+            SimpleConfig.WATCHTOWER_SERVER_PORT.key(): '12345',
         }
     }
 
@@ -123,15 +128,15 @@ class TestLightningWatchtower(TestLightning):
 
 class TestLightningJIT(TestLightning):
     agents = {
-        'alice':{
-            'accept_zeroconf_channels': 'true',
+        'alice': {
+            SimpleConfig.ACCEPT_ZEROCONF_CHANNELS.key(): 'true',
         },
-        'bob':{
-            'lightning_listen': 'localhost:9735',
-            'lightning_forward_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+        'bob': {
+            SimpleConfig.LIGHTNING_LISTEN.key(): 'localhost:9735',
+            SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS.key(): 'true',
+            SimpleConfig.ACCEPT_ZEROCONF_CHANNELS.key(): 'true',
         },
-        'carol':{
+        'carol': {
         }
     }
 
@@ -141,17 +146,17 @@ class TestLightningJIT(TestLightning):
 
 class TestLightningJITTrampoline(TestLightningJIT):
     agents = {
-        'alice':{
-            'use_gossip': 'false',
-            'accept_zeroconf_channels': 'true',
+        'alice': {
+            SimpleConfig.LIGHTNING_USE_GOSSIP.key(): 'false',
+            SimpleConfig.ACCEPT_ZEROCONF_CHANNELS.key(): 'true',
         },
-        'bob':{
-            'lightning_listen': 'localhost:9735',
-            'lightning_forward_payments': 'true',
-            'lightning_forward_trampoline_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+        'bob': {
+            SimpleConfig.LIGHTNING_LISTEN.key(): 'localhost:9735',
+            SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS.key(): 'true',
+            SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS.key(): 'true',
+            SimpleConfig.ACCEPT_ZEROCONF_CHANNELS.key(): 'true',
         },
-        'carol':{
-            'use_gossip': 'false',
+        'carol': {
+            SimpleConfig.LIGHTNING_USE_GOSSIP.key(): 'false',
         }
     }
