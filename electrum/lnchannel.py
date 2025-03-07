@@ -55,7 +55,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ShortChannelID, map_htlcs_to_ctx_output_idxs,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
-                     ChannelType, LNProtocolWarning)
+                     ChannelType, LNProtocolWarning, ZEROCONF_TIMEOUT)
 from .lnsweep import sweep_our_ctx, sweep_their_ctx
 from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo
 from .lnsweep import sweep_their_ctx_to_remote_backup
@@ -345,7 +345,11 @@ class AbstractChannel(Logger, ABC):
     def update_unfunded_state(self) -> None:
         self.delete_funding_height()
         self.delete_closing_height()
-        if self.get_state() in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING] and self.lnworker:
+        if not self.lnworker:
+            return
+        chan_age = now() - self.storage.get('init_timestamp', 0)
+        state = self.get_state()
+        if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
             if self.is_initiator():
                 # set channel state to REDEEMED so that it can be removed manually
                 # to protect ourselves against a server lying by omission,
@@ -365,8 +369,28 @@ class AbstractChannel(Logger, ABC):
                             self.set_state(ChannelState.REDEEMED)
                             break
             else:
-                if self.lnworker and (now() - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT):
+                if chan_age > CHANNEL_OPENING_TIMEOUT:
                     self.lnworker.remove_channel(self.channel_id)
+        elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
+            assert self.storage.get('init_timestamp') is not None, "init_timestamp not set for zeroconf channel"
+            # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
+            # or if the LSP did double spent the funding tx/never published it intentionally
+            # only remove a timed out OPEN channel if we are connected to the network to prevent removing it if we went
+            # offline before seeing the funding tx
+            if state != ChannelState.OPEN or chan_age > ZEROCONF_TIMEOUT and self.lnworker.network.is_connected():
+                # we delete the channel if its in closing state (either initiated manually by client or by LSP on failure)
+                # or if the channel is not seeing any funding tx after 10 minutes to prevent further usage (limit damage)
+                self.set_state(ChannelState.REDEEMED, force=True)
+                local_balance_sat = int(self.balance(LOCAL) // 1000)
+                if local_balance_sat > 0:
+                    self.logger.warning(
+                        f"we may have been scammed out of {local_balance_sat} sat by our "
+                        f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
+                    self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
+                self.lnworker.lnwatcher.unwatch_channel(self.get_funding_address(), self.funding_outpoint.to_str())
+                # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
+                self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
+                self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
         self.save_funding_height(txid=funding_txid, height=funding_height.height, timestamp=funding_height.timestamp)
@@ -374,6 +398,10 @@ class AbstractChannel(Logger, ABC):
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+            if self.is_zeroconf():
+                # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
+                # us to remove a channel later in update_unfunded_state by omitting its funding tx
+                self.remove_zeroconf_flag()
         if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(ChannelState.FUNDED)
@@ -409,6 +437,14 @@ class AbstractChannel(Logger, ABC):
 
     @abstractmethod
     def is_public(self) -> bool:
+        pass
+
+    @abstractmethod
+    def is_zeroconf(self) -> bool:
+        pass
+
+    @abstractmethod
+    def remove_zeroconf_flag(self) -> None:
         pass
 
     @abstractmethod
@@ -664,6 +700,12 @@ class ChannelBackup(AbstractChannel):
     def has_anchors(self) -> Optional[bool]:
         return None
 
+    def is_zeroconf(self) -> bool:
+        return False
+
+    def remove_zeroconf_flag(self) -> None:
+        pass
+
     def get_local_pubkey(self) -> bytes:
         cb = self.cb
         assert isinstance(cb, ChannelBackupStorage)
@@ -905,6 +947,12 @@ class Channel(AbstractChannel):
     def is_zeroconf(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_ZEROCONF)
+
+    def remove_zeroconf_flag(self) -> None:
+        if not self.is_zeroconf():
+            return
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        self.storage['channel_type'] = channel_type & ~ChannelType.OPTION_ZEROCONF
 
     def get_sweep_address(self) -> str:
         # TODO: in case of unilateral close with pending HTLCs, this address will be reused
