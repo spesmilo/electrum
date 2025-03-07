@@ -4,4 +4,15 @@ set -eux pipefail
 cd
 rm -rf $HOME/electrumx_db
 mkdir $HOME/electrumx_db
-COST_SOFT_LIMIT=0 COST_HARD_LIMIT=0 COIN=BitcoinSegwit SERVICES=tcp://:51001,rpc:// NET=regtest DAEMON_URL=http://doggman:donkey@127.0.0.1:18554 DB_DIRECTORY=$HOME/electrumx_db DAEMON_POLL_INTERVAL_BLOCKS=100 DAEMON_POLL_INTERVAL_MEMPOOL=100 electrumx_server
+
+export COST_SOFT_LIMIT=0
+export COST_HARD_LIMIT=0
+export COIN=BitcoinSegwit
+export SERVICES=tcp://:51001,rpc://
+export NET=regtest
+export DAEMON_URL=http://doggman:donkey@127.0.0.1:18554
+export DB_DIRECTORY=$HOME/electrumx_db
+export DAEMON_POLL_INTERVAL_BLOCKS=100
+export DAEMON_POLL_INTERVAL_MEMPOOL=100
+
+electrumx_server
