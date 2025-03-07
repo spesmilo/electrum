@@ -481,7 +481,7 @@ if [[ $1 == "watchtower" ]]; then
     wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
 fi
 
-if [[ $1 == "just_in_time" ]]; then
+if [[ $1 == "just_in_time_no_channel" ]]; then
     bob_node=$($bob nodeid)
     $alice setconfig zeroconf_trusted_node $bob_node
     $alice setconfig use_recoverable_channels false
@@ -493,7 +493,88 @@ if [[ $1 == "just_in_time" ]]; then
     echo "carol pays alice"
     # note: set amount to 0.001 to test failure: 'payment too low'
     invoice=$($alice add_request 0.01 --lightning -m "invoice" | jq -r ".lightning_invoice")
-    $carol lnpay $invoice
+    success=$($carol lnpay $invoice | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        echo "jit payment failed"
+        exit 1
+    fi
+    # try again, multiple jit openings should work without issues
+    new_blocks 3
+    echo "carol pays alice again"
+    invoice=$($alice add_request 0.04 --lightning -m "invoice" | jq -r ".lightning_invoice")
+    success=$($carol lnpay $invoice | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        echo "jit payment failed"
+        exit 1
+    fi
+    alice_chan_count=$($alice list_channels | jq '. | length')
+    if [[ "$alice_chan_count" != "2" ]]; then
+        echo "alice should have two jit channels"
+        exit 1
+    fi
+fi
+
+if [[ $1 == "just_in_time_existing_channels" ]]; then
+    bob_node=$($bob nodeid)
+    alice_node=$($alice nodeid)
+    $alice setconfig zeroconf_trusted_node $bob_node
+    $alice setconfig use_recoverable_channels false
+    wait_for_balance bob 1
+    wait_for_balance carol 1
+    echo "carol opens channel with bob"
+    $carol open_channel $bob_node 0.15 --password=''
+    echo "bob opens channel with alice"
+    $bob open_channel $alice_node 0.15 --password=''
+    new_blocks 3
+    wait_until_channel_open carol
+    wait_until_channel_open bob
+    echo "carol pays alice"
+    # this should not open an additional channel
+    invoice=$($alice add_request 0.12 --lightning -m "invoice" | jq -r ".lightning_invoice")
+    success=$($carol lnpay $invoice | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        echo "jit payment failed"
+        exit 1
+    fi
+    alice_chan_count=$($alice list_channels | jq '. | length')
+    if [[ "$alice_chan_count" != "1" ]]; then
+        echo "alice should not have an additional channel"
+        exit 1
+    fi
+fi
+
+
+if [[ $1 == "just_in_time_failed_htlc" ]]; then
+    bob_node=$($bob nodeid)
+    $alice setconfig zeroconf_trusted_node $bob_node
+    $alice setconfig use_recoverable_channels false
+    $alice setconfig test_fail_htlcs_with_temp_node_failure true
+    wait_for_balance carol 1
+    echo "carol opens channel with bob"
+    $carol open_channel $bob_node 0.15 --password=''
+    new_blocks 3
+    wait_until_channel_open carol
+    echo "carol tries to pay alice (but alice will fail htlc)"
+    invoice=$($alice add_request 0.02 --lightning -m "invoice" | jq -r ".lightning_invoice")
+    success=$($carol lnpay $invoice | jq -r ".success") # this will fail
+
+    bob_chan_count=$($bob list_channels | jq '. | length')
+    if [[ "$bob_chan_count" != "1" ]]; then  # failed jit channels should be removed directly
+        echo "bob should have only one channel\n$($bob list_channels)"
+        exit 1
+    fi
+    alice_chan_state=$($alice list_channels | jq -r '.[0].state')
+    if [[ "$alice_chan_state" != "CLOSING" ]]; then
+        echo "alice failed JIT channel should be in closing state\n$($alice list_channels)"
+        exit 1
+    fi
+    # after a new block triggers one iteration of update_unfunded_state the channel should be removed
+    new_blocks 1
+    alice_chan_count=$($alice list_channels | jq '. | length')
+    if [[ "$alice_chan_count" != "0" ]]; then
+        echo "alice should have no channel\n$($alice list_channels)"
+        exit 1
+    fi
 fi
 
 if [[ $1 == "unixsockets" ]]; then
