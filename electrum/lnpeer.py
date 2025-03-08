@@ -393,7 +393,9 @@ class Peer(Logger, EventListener):
         if their_networks:
             their_chains = list(chunks(their_networks["chains"], 32))
             if constants.net.rev_genesis_bytes() not in their_chains:
-                raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
+                raise GracefulDisconnect(f"no common chain found with remote. "
+                                         f"(they sent: {[chain.hex() for chain in their_chains]}),"
+                                         f" our chain: {constants.net.rev_genesis_bytes().hex()}")
         # all checks passed
         self.lnworker.on_peer_successfully_established(self)
         self._received_init = True
@@ -967,7 +969,7 @@ class Peer(Logger, EventListener):
             public: bool,
             zeroconf: bool = False,
             temp_channel_id: bytes,
-            opening_fee: int = None,
+            opening_fee_msat: int = None,
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
 
@@ -1026,10 +1028,10 @@ class Peer(Logger, EventListener):
         open_channel_tlvs['upfront_shutdown_script'] = {
             'shutdown_scriptpubkey': local_config.upfront_shutdown_script
         }
-        if opening_fee:
+        if opening_fee_msat:
             # todo: maybe add payment hash
             open_channel_tlvs['channel_opening_fee'] = {
-                'channel_opening_fee': opening_fee
+                'channel_opening_fee': opening_fee_msat
             }
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(
@@ -1258,10 +1260,10 @@ class Peer(Logger, EventListener):
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         # TODO: this is never cleaned up; the dict grows unbounded until disconnect
         self.temp_id_to_id[temp_chan_id] = None
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
-            pass
+        channel_opening_fee_msat = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        if channel_opening_fee_msat:
+            if channel_opening_fee_msat // 1000 > funding_sat * 0.1:
+                raise Exception(f"Channel opening fee is too expensive, rejecting channel")
 
         if self.use_anchors():
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
@@ -1375,7 +1377,7 @@ class Peer(Logger, EventListener):
             chan_dict,
             lnworker=self.lnworker,
             initial_feerate=feerate,
-            opening_fee = channel_opening_fee,
+            opening_fee = channel_opening_fee_msat,
         )
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
@@ -2221,7 +2223,7 @@ class Peer(Logger, EventListener):
 
         # do we have a connection to the node?
         next_peer = self.lnworker.peers.get(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
+        if next_peer and next_peer.accepts_zeroconf() and self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
@@ -2484,6 +2486,7 @@ class Peer(Logger, EventListener):
             raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if channel_opening_fee:
+            # TODO: we should remove the fee once paid?
             invoice_msat -= channel_opening_fee
 
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):

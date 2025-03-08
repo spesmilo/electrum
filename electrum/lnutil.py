@@ -1706,6 +1706,7 @@ def list_enabled_ln_feature_bits(features: int) -> tuple[int, ...]:
     return tuple(sorted(single_feature_bits))
 
 
+class FeeTooLow(Exception): pass
 class IncompatibleOrInsaneFeatures(Exception): pass
 class UnknownEvenFeatureBits(IncompatibleOrInsaneFeatures): pass
 class IncompatibleLightningFeatures(IncompatibleOrInsaneFeatures): pass
