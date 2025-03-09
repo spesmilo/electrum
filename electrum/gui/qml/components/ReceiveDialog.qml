@@ -153,12 +153,12 @@ ElDialog {
                 icon.color: 'transparent'
                 text: 'Copy'
                 onClicked: {
-                    if (request.isLightning && rootLayout.state == 'bolt11')
-                        AppController.textToClipboard(_bolt11.toLowerCase())
-                    else if (rootLayout.state == 'bip21uri')
-                        AppController.textToClipboard(_bip21uri)
-                    else
-                        AppController.textToClipboard(_address)
+                    AppController.textToClipboard(_bolt11
+                        ? _bolt11.toLowerCase()
+                        : _bip21uri
+                            ? _bip21uri
+                            : _address
+                    )
                     toaster.show(this, qsTr('Copied!'))
                 }
             }
@@ -170,13 +170,16 @@ ElDialog {
                 text: 'Share'
                 onClicked: {
                     enabled = false
-                    if (request.isLightning && rootLayout.state == 'bolt11')
-                        AppController.doShare(_bolt11.toLowerCase(), qsTr('Payment Request'))
-                    else if (rootLayout.state == 'bip21uri')
-                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
-                    else
-                        AppController.doShare(_address, qsTr('Onchain address'))
-
+                    AppController.doShare(
+                        _bolt11
+                            ? _bolt11.toLowerCase()
+                            : _bip21uri
+                                ? _bip21uri
+                                : _address,
+                        _bolt11 || _bip21uri
+                            ? qsTr('Payment Request')
+                            : qsTr('Onchain address')
+                    )
                     enabled = true
                 }
             }
