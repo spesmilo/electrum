@@ -41,7 +41,7 @@ from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
-                              get_shared_secrets_along_route, new_onion_packet)
+                              get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data)
 from electrum.lnutil import LnFeatures
 from electrum.util import OldTaskGroup, log_exceptions
 
@@ -138,21 +138,6 @@ def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bo
     if not node_info:
         return False
     return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
-
-
-def encrypt_onionmsg_tlv_hops_data(
-        hops_data: List[OnionHopsDataSingle],
-        hop_shared_secrets: Sequence[bytes]
-) -> None:
-    """encrypt unencrypted onionmsg_tlv.encrypted_recipient_data for hops with blind_fields"""
-    num_hops = len(hops_data)
-    for i in range(num_hops):
-        if hops_data[i].tlv_stream_name == 'onionmsg_tlv' and 'encrypted_recipient_data' not in hops_data[i].payload:
-            # construct encrypted_recipient_data from blind_fields
-            encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
-            new_payload = dict(hops_data[i].payload)
-            new_payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
-            hops_data[i] = dataclasses.replace(hops_data[i], payload=new_payload)
 
 
 def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Sequence[PathEdge]:
@@ -325,7 +310,7 @@ def send_onion_message_to(
 
             payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
             hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
-            encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+            encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
             packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, onion_message=True)
             packet_b = packet.to_bytes()
 
@@ -365,7 +350,7 @@ def send_onion_message_to(
         payment_path_pubkeys = [edge.end_node for edge in path]
 
         hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, session_key, hops_data)
         packet_b = packet.to_bytes()
 
