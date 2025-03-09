@@ -1,24 +1,17 @@
 import os
-import unittest
 import json
 from typing import Dict, List
 
-import electrum_ecc as ecc
-
 from electrum import bitcoin
 from electrum.json_db import StoredDict
-from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed,
-                             make_offered_htlc,
-                             make_received_htlc, make_commitment, make_htlc_tx_witness,
-                             make_htlc_tx_output,
-                             make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
-                             derive_privkey,
-                             derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
-                             get_compressed_pubkey_from_bech32,
-                             ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
-                             ln_compare_features, IncompatibleLightningFeatures, ChannelType,
-                             offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-                             ImportedChannelBackupStorage, list_enabled_ln_feature_bits)
+from electrum.lnutil import (
+    RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment,
+    make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
+    derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
+    ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
+    IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits
+)
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
@@ -91,6 +84,7 @@ TEST_HTLCS = [
         'preimage': "0404040404040404040404040404040404040404040404040404040404040404",
     }
 ]
+
 
 class TestLNUtil(ElectrumTestCase):
     def test_shachain_store(self):
@@ -806,6 +800,7 @@ class TestLNUtil(ElectrumTestCase):
         # therefore we patch the effective htlc tx weight to result in a finite weight
         from electrum import lnutil
         effective_htlc_tx_weight_original = lnutil.effective_htlc_tx_weight
+
         def effective_htlc_tx_weight_patched(success: bool, has_anchors: bool):
             return lnutil.HTLC_SUCCESS_WEIGHT_ANCHORS if success else lnutil.HTLC_TIMEOUT_WEIGHT_ANCHORS
         lnutil.effective_htlc_tx_weight = effective_htlc_tx_weight_patched
