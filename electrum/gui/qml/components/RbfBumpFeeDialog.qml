@@ -231,11 +231,4 @@ ElDialog {
             onClicked: doAccept()
         }
     }
-
-    Connections {
-        target: rbffeebumper
-        function onTxMined() {
-            dialog.doReject()
-        }
-    }
 }
