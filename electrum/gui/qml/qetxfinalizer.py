@@ -697,7 +697,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
             # not initialized yet
             return
 
-        fee_per_kb = self._fee_policy.fee_per_kb()
+        fee_per_kb = self._fee_policy.fee_per_kb(self._wallet.wallet.network)
         if fee_per_kb is None:
             # dynamic method and no network
             self._logger.debug('no fee_per_kb')
@@ -839,7 +839,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
         self.validChanged.emit()
         self.warning = ''
 
-        fee_per_kb = self._fee_policy.fee_per_kb()
+        fee_per_kb = self._fee_policy.fee_per_kb(self._wallet.wallet.network)
         if fee_per_kb is None:
             # dynamic method and no network
             self._logger.debug('no fee_per_kb')
