@@ -1897,10 +1897,8 @@ class LNWallet(LNWorker):
         self,
         *,
         amount_msat: int,
-        final_total_msat: int,
         my_active_channels: Sequence[Channel],
-        invoice_features: LnFeatures,
-        r_tags,
+        paysession: PaySession,
     ) -> List['SplitConfigRating']:
         channels_with_funds = {
             (chan.channel_id, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
@@ -1911,7 +1909,7 @@ class LNWallet(LNWorker):
         if self.uses_trampoline():
             # in the case of a legacy payment, we don't allow splitting via different
             # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
-            is_legacy, _ = is_legacy_relay(invoice_features, r_tags)
+            is_legacy, _ = is_legacy_relay(paysession.invoice_features, paysession.r_tags)
             exclude_multinode_payments = is_legacy
             # we don't split within a channel when sending to a trampoline node,
             # the trampoline node will split for us
@@ -1919,9 +1917,9 @@ class LNWallet(LNWorker):
         else:
             exclude_multinode_payments = False
             exclude_single_channel_splits = False
-            if invoice_features.supports(LnFeatures.BASIC_MPP_OPT) and not self.config.TEST_FORCE_DISABLE_MPP:
+            if paysession.invoice_features.supports(LnFeatures.BASIC_MPP_OPT) and not self.config.TEST_FORCE_DISABLE_MPP:
                 # if amt is still large compared to total_msat, split it:
-                if (amount_msat / final_total_msat > self.MPP_SPLIT_PART_FRACTION
+                if (amount_msat / paysession.amount_to_pay > self.MPP_SPLIT_PART_FRACTION
                         and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT):
                     exclude_single_part_payments = True
 
@@ -1969,10 +1967,8 @@ class LNWallet(LNWorker):
         random.shuffle(my_active_channels)
         split_configurations = self.suggest_splits(
             amount_msat=amount_msat,
-            final_total_msat=paysession.amount_to_pay,
             my_active_channels=my_active_channels,
-            invoice_features=paysession.invoice_features,
-            r_tags=paysession.r_tags,
+            paysession=paysession
         )
         for sc in split_configurations:
             is_multichan_mpp = len(sc.config.items()) > 1
@@ -1998,19 +1994,10 @@ class LNWallet(LNWorker):
                         per_trampoline_amount = sum([x[1] for x in trampoline_parts])
                         trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
                             amount_msat=per_trampoline_amount,
-                            total_msat=paysession.amount_to_pay,
-                            min_final_cltv_delta=paysession.min_final_cltv_delta,
+                            paysession=paysession,
                             my_pubkey=self.node_keypair.pubkey,
-                            invoice_pubkey=paysession.invoice_pubkey,
-                            invoice_features=paysession.invoice_features,
                             node_id=trampoline_node_id,
-                            r_tags=paysession.r_tags,
-                            payment_hash=paysession.payment_hash,
-                            payment_secret=paysession.payment_secret,
                             local_height=local_height,
-                            trampoline_fee_level=paysession.trampoline_fee_level,
-                            use_two_trampolines=paysession.use_two_trampolines,
-                            failed_routes=paysession.failed_trampoline_routes,
                             budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
                         )
                         # node_features is only used to determine is_tlv
@@ -2062,10 +2049,7 @@ class LNWallet(LNWorker):
                                 partial(
                                     self.create_route_for_single_htlc,
                                     amount_msat=part_amount_msat,
-                                    invoice_pubkey=paysession.invoice_pubkey,
-                                    min_final_cltv_delta=paysession.min_final_cltv_delta,
-                                    r_tags=paysession.r_tags,
-                                    invoice_features=paysession.invoice_features,
+                                    paysession=paysession,
                                     my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
                                     budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
@@ -2098,10 +2082,7 @@ class LNWallet(LNWorker):
     def create_route_for_single_htlc(
             self, *,
             amount_msat: int,  # that final receiver gets
-            invoice_pubkey: bytes,
-            min_final_cltv_delta: int,
-            r_tags,
-            invoice_features: int,
+            paysession: PaySession,
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
             budget: PaymentFeeBudget,
@@ -2114,9 +2095,9 @@ class LNWallet(LNWorker):
         # Note: if some route hints are multiple edges long, and these paths cross each other,
         #       we allow our path finding to cross the paths; i.e. the route hints are not isolated.
         private_route_edges = {}  # type: Dict[ShortChannelID, RouteEdge]
-        for private_path in r_tags:
+        for private_path in paysession.r_tags:
             # we need to shift the node pubkey by one towards the destination:
-            private_path_nodes = [edge[0] for edge in private_path][1:] + [invoice_pubkey]
+            private_path_nodes = [edge[0] for edge in private_path][1:] + [paysession.invoice_pubkey]
             private_path_rest = [edge[1:] for edge in private_path]
             start_node = private_path[0][0]
             # remove aliases from direct routes
@@ -2151,7 +2132,7 @@ class LNWallet(LNWorker):
         try:
             route = self.network.path_finder.find_route(
                 nodeA=self.node_keypair.pubkey,
-                nodeB=invoice_pubkey,
+                nodeB=paysession.invoice_pubkey,
                 invoice_amount_msat=amount_msat,
                 path=full_path,
                 my_sending_channels=my_sending_channels,
@@ -2161,15 +2142,15 @@ class LNWallet(LNWorker):
         if not route:
             raise NoPathFound()
         if not is_route_within_budget(
-            route, budget=budget, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=min_final_cltv_delta,
+            route, budget=budget, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=paysession.min_final_cltv_delta,
         ):
             self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
             raise FeeBudgetExceeded()
         assert len(route) > 0
-        if route[-1].end_node != invoice_pubkey:
+        if route[-1].end_node != paysession.invoice_pubkey:
             raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
-        route[-1].node_features |= invoice_features
+        route[-1].node_features |= paysession.invoice_features
         return route
 
     def clear_invoices_cache(self):

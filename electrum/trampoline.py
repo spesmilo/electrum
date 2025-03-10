@@ -1,7 +1,7 @@
 import io
 import os
 import random
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any
+from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any, TYPE_CHECKING
 
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
 from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
@@ -10,6 +10,9 @@ from .lnutil import NoPathFound
 from .lntransport import LNPeerAddr
 from . import constants
 from .logging import get_logger
+
+if TYPE_CHECKING:
+    from .lnworker import PaySession
 
 
 _logger = get_logger(__name__)
@@ -197,19 +200,13 @@ def _choose_second_trampoline(
 def create_trampoline_route(
         *,
         amount_msat: int,
-        min_final_cltv_delta: int,
-        invoice_pubkey: bytes,
-        invoice_features: int,
+        paysession: 'PaySession',
         my_pubkey: bytes,
         my_trampoline: bytes,  # the first trampoline in the path; which we are directly connected to
-        r_tags,
-        trampoline_fee_level: int,
-        use_two_trampolines: bool,
-        failed_routes: Iterable[Sequence[str]],
         budget: PaymentFeeBudget,
 ) -> LNPaymentTRoute:
     # we decide whether to convert to a legacy payment
-    is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
+    is_legacy, invoice_trampolines = is_legacy_relay(paysession.invoice_features, paysession.r_tags)
 
     # we build a route of trampoline hops and extend the route list in place
     route = []
@@ -222,47 +219,47 @@ def create_trampoline_route(
 
     if is_legacy:
         # we add another different trampoline hop for privacy
-        if use_two_trampolines:
+        if paysession.use_two_trampolines:
             trampolines = trampolines_by_id()
-            second_trampoline = _choose_second_trampoline(my_trampoline, list(trampolines.keys()), failed_routes)
+            second_trampoline = _choose_second_trampoline(my_trampoline, list(trampolines.keys()), paysession.failed_trampoline_routes)
             _extend_trampoline_route(route, end_node=second_trampoline)
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
-        invoice_routing_info = encode_routing_info(r_tags)
+        invoice_routing_info = encode_routing_info(paysession.r_tags)
         assert invoice_routing_info == encode_routing_info(decode_routing_info(invoice_routing_info))
         # lnwire invoice_features for trampoline is u64
-        invoice_features = invoice_features & 0xffffffffffffffff
+        invoice_features = paysession.invoice_features & 0xffffffffffffffff
         route[-1].invoice_routing_info = invoice_routing_info
         route[-1].invoice_features = invoice_features
-        route[-1].outgoing_node_id = invoice_pubkey
+        route[-1].outgoing_node_id = paysession.invoice_pubkey
     else:
         if invoice_trampolines:
             if my_trampoline in invoice_trampolines:
-                short_route = [my_trampoline.hex(), invoice_pubkey.hex()]
-                if short_route in failed_routes:
+                short_route = [my_trampoline.hex(), paysession.invoice_pubkey.hex()]
+                if short_route in paysession.failed_trampoline_routes:
                     add_trampoline = True
                 else:
                     add_trampoline = False
             else:
                 add_trampoline = True
             if add_trampoline:
-                second_trampoline = _choose_second_trampoline(my_trampoline, invoice_trampolines, failed_routes)
+                second_trampoline = _choose_second_trampoline(my_trampoline, invoice_trampolines, paysession.failed_trampoline_routes)
                 _extend_trampoline_route(route, end_node=second_trampoline)
 
     # Add final edge. note: eclair requires an encrypted t-onion blob even in legacy case.
     # Also needed for fees for last TF!
-    if route[-1].end_node != invoice_pubkey:
-        _extend_trampoline_route(route, end_node=invoice_pubkey)
+    if route[-1].end_node != paysession.invoice_pubkey:
+        _extend_trampoline_route(route, end_node=paysession.invoice_pubkey)
 
     # replace placeholder fees in route
-    _allocate_fee_along_route(route, budget=budget, trampoline_fee_level=trampoline_fee_level)
+    _allocate_fee_along_route(route, budget=budget, trampoline_fee_level=paysession.trampoline_fee_level)
 
     # check that we can pay amount and fees
     if not is_route_within_budget(
         route=route,
         budget=budget,
         amount_msat_for_dest=amount_msat,
-        cltv_delta_for_dest=min_final_cltv_delta,
+        cltv_delta_for_dest=paysession.min_final_cltv_delta,
     ):
         raise FeeBudgetExceeded(f"route exceeds budget: budget: {budget}")
     return route
@@ -320,43 +317,28 @@ def create_trampoline_onion(
 def create_trampoline_route_and_onion(
         *,
         amount_msat: int,  # that final receiver gets
-        total_msat: int,
-        min_final_cltv_delta: int,
-        invoice_pubkey: bytes,
-        invoice_features,
+        paysession: 'PaySession',
         my_pubkey: bytes,
         node_id: bytes,
-        r_tags,
-        payment_hash: bytes,
-        payment_secret: bytes,
         local_height: int,
-        trampoline_fee_level: int,
-        use_two_trampolines: bool,
-        failed_routes: Iterable[Sequence[str]],
         budget: PaymentFeeBudget,
 ) -> Tuple[LNPaymentTRoute, OnionPacket, int, int]:
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
-        min_final_cltv_delta=min_final_cltv_delta,
+        paysession=paysession,
         my_pubkey=my_pubkey,
-        invoice_pubkey=invoice_pubkey,
-        invoice_features=invoice_features,
         my_trampoline=node_id,
-        r_tags=r_tags,
-        trampoline_fee_level=trampoline_fee_level,
-        use_two_trampolines=use_two_trampolines,
-        failed_routes=failed_routes,
         budget=budget,
     )
     # compute onion and fees
-    final_cltv_abs = local_height + min_final_cltv_delta
+    final_cltv_abs = local_height + paysession.min_final_cltv_delta
     trampoline_onion, amount_with_fees, bucket_cltv_abs = create_trampoline_onion(
         route=trampoline_route,
         amount_msat=amount_msat,
         final_cltv_abs=final_cltv_abs,
-        total_msat=total_msat,
-        payment_hash=payment_hash,
-        payment_secret=payment_secret)
+        total_msat=paysession.amount_to_pay,
+        payment_hash=paysession.payment_hash,
+        payment_secret=paysession.payment_secret)
     bucket_cltv_delta = bucket_cltv_abs - local_height
     return trampoline_route, trampoline_onion, amount_with_fees, bucket_cltv_delta

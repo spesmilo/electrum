@@ -22,7 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import queue
 from collections import defaultdict
 from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable
