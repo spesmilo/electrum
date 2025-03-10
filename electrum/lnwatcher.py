@@ -65,7 +65,7 @@ class LNWatcher(Logger, EventListener):
         cb = lambda: self.check_onchain_situation(address, outpoint)
         self.add_callback(address, cb)
 
-    async def unwatch_channel(self, address, funding_outpoint):
+    def unwatch_channel(self, address, funding_outpoint):
         self.logger.info(f'unwatching {funding_outpoint}')
         self.remove_callback(address)
 
@@ -128,7 +128,7 @@ class LNWatcher(Logger, EventListener):
             closing_height=closing_height,
             keep_watching=keep_watching)
         if not keep_watching:
-            await self.unwatch_channel(address, funding_outpoint)
+            self.unwatch_channel(address, funding_outpoint)
 
     async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
         raise NotImplementedError()  # implemented by subclasses
