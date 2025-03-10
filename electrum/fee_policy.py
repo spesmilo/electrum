@@ -350,7 +350,7 @@ class FeeHistogram:
                 slot,  # width of bucket
                 bytes_current,  # cumulative depth at far end of bucket
             ])
-        return data, bytes_current
+        return capped_histogram, bytes_current
 
 
 class FeeTimeEstimates:
