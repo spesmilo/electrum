@@ -5,10 +5,9 @@
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Union, Mapping
 
-from PyQt6.QtCore import pyqtSignal, QPoint, QSize, Qt
+from PyQt6.QtCore import pyqtSignal, QPoint, Qt
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
-from PyQt6.QtGui import QMovie, QColor
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -21,11 +20,12 @@ from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier, invoice_from_payment_identifier,
                                          payment_identifier_from_invoice)
 from electrum.submarine_swaps import SwapServerError
+from electrum.fee_policy import FeePolicy
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
-                   get_iconname_camera, read_QIcon, ColorScheme, icon_path, IconLabel, Spinner)
+                   get_iconname_camera, read_QIcon, ColorScheme, IconLabel, Spinner)
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -260,11 +260,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             is_sweep=False)
         try:
             try:
-                tx = make_tx(None)
+                tx = make_tx(FeePolicy(self.config.FEE_POLICY))
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
                 # Check if we had enough funds excluding fees,
                 # if so, still provide opportunity to set lower fees.
-                tx = make_tx(0)
+                tx = make_tx(FeePolicy('fixed:0'))
         except NotEnoughFunds as e:
             self.max_button.setChecked(False)
             text = self.wallet.get_text_not_enough_funds_mentioning_frozen()

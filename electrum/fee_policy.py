@@ -5,8 +5,7 @@ from enum import IntEnum
 
 from .i18n import _
 from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis
-from . import util
-from . import constants
+from . import util, constants
 from .logging import Logger
 
 if TYPE_CHECKING:
@@ -132,7 +131,7 @@ class FeePolicy(Logger):
         return self.method in [FeeMethod.ETA, FeeMethod.MEMPOOL]
 
     @classmethod
-    def depth_target(self, slider_pos: int) -> int:
+    def depth_target(cls, slider_pos: int) -> int:
         """Returns mempool depth target in bytes for a fee slider position."""
         slider_pos = max(slider_pos, 0)
         slider_pos = min(slider_pos, len(FEE_DEPTH_TARGETS)-1)
@@ -143,7 +142,7 @@ class FeePolicy(Logger):
         return FEE_ETA_TARGETS[slider_pos]
 
     @classmethod
-    def eta_tooltip(self, x):
+    def eta_tooltip(cls, x):
         if x < 0:
             return _('Low fee')
         elif x == 1:
@@ -191,15 +190,15 @@ class FeePolicy(Logger):
             return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
 
     @classmethod
-    def depth_tooltip(self, depth: Optional[int]) -> str:
+    def depth_tooltip(cls, depth: Optional[int]) -> str:
         """Returns text tooltip for given mempool depth (in vbytes)."""
         if depth is None:
             return "unknown from tip"
-        depth_mb = self.get_depth_mb_str(depth)
+        depth_mb = cls.get_depth_mb_str(depth)
         return _("{} from tip").format(depth_mb)
 
     @classmethod
-    def get_depth_mb_str(self, depth: int) -> str:
+    def get_depth_mb_str(cls, depth: int) -> str:
         # e.g. 500_000 -> "0.50 MB"
         depth_mb = "{:.2f}".format(depth / 1_000_000)  # maybe .rstrip("0") ?
         return f"{depth_mb} {util.UI_UNIT_NAME_MEMPOOL_MB}"
@@ -264,9 +263,10 @@ class FeePolicy(Logger):
         fee_per_byte = quantize_feerate(fee_per_byte)
         return round(fee_per_byte * size)
 
+
 class FixedFeePolicy(FeePolicy):
     def __init__(self, fee):
-        FeePolicy.__init__(self, 'fixed:%d'%fee)
+        FeePolicy.__init__(self, 'fixed:%d' % fee)
 
 
 def impose_hard_limits_on_fee(func):

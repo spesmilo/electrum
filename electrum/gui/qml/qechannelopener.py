@@ -8,11 +8,12 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.gui import messages
-from electrum.util import bfh, NotEnoughFunds, NoDynamicFeeEstimates
+from electrum.util import bfh
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
+from electrum.fee_policy import FeePolicy
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
@@ -169,12 +170,13 @@ class QEChannelOpener(QObject, AuthMixin):
         self._logger.debug('amount = %s' % str(amount))
 
         coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
+        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
 
         mktx = lambda amt: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amt,
             node_id=self._node_pubkey,
-            fee_est=None)
+            fee_policy=fee_policy)
 
         acpt = lambda tx: self.do_open_channel(tx, self._connect_str_resolved, self._wallet.password)
 
@@ -244,11 +246,11 @@ class QEChannelOpener(QObject, AuthMixin):
             try:
                 coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
                 dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-                make_tx = lambda amt: self._wallet.wallet.lnworker.mktx_for_open_channel(
+                make_tx = lambda fee_policy: self._wallet.wallet.lnworker.mktx_for_open_channel(
                     coins=coins,
                     funding_sat='!',
                     node_id=dummy_nodeid,
-                    fee_est=None)
+                    fee_policy=fee_policy)
 
                 amount, message = self._wallet.determine_max(mktx=make_tx)
                 if amount is None:

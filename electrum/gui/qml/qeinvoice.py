@@ -19,6 +19,7 @@ from electrum.payment_identifier import (PaymentIdentifier, PaymentIdentifierSta
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
+from ...fee_policy import FeePolicy
 
 
 class QEInvoice(QObject, QtEventListener):
@@ -413,10 +414,10 @@ class QEInvoice(QObject, QtEventListener):
         def calc_max(address):
             try:
                 outputs = [PartialTxOutput(scriptpubkey=address_to_script(address), value='!')]
-                make_tx = lambda fee_est, *, confirmed_only=False: self._wallet.wallet.make_unsigned_transaction(
+                make_tx = lambda fee_policy, *, confirmed_only=False: self._wallet.wallet.make_unsigned_transaction(
                     coins=self._wallet.wallet.get_spendable_coins(None),
                     outputs=outputs,
-                    fee=fee_est,
+                    fee_policy=fee_policy,
                     is_sweep=False)
                 amount, message = self._wallet.determine_max(mktx=make_tx)
                 if amount is None:

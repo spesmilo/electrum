@@ -26,6 +26,7 @@ from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+from ...fee_policy import FeePolicy
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -820,16 +821,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         sig = self.wallet.sign_message(address, message, self.password)
         return base64.b64encode(sig).decode('ascii')
 
-    def determine_max(self, *, mktx: Callable[[Optional[int]], PartialTransaction]) -> Tuple[Optional[int], Optional[str]]:
+    def determine_max(self, *, mktx: Callable[[FeePolicy], PartialTransaction]) -> Tuple[Optional[int], Optional[str]]:
         # TODO: merge with SendTab.spend_max() and move to backend wallet
         amount = message = None
         try:
             try:
-                tx = mktx(None)
+                fee_policy = FeePolicy(self.wallet.config.FEE_POLICY)
+                tx = mktx(fee_policy)
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
                 # Check if we had enough funds excluding fees,
                 # if so, still provide opportunity to set lower fees.
-                tx = mktx(0)
+                fee_policy = FeePolicy('fixed:0')
+                tx = mktx(fee_policy)
             amount = tx.output_value()
         except NotEnoughFunds as e:
             self._logger.debug(str(e))

@@ -1388,7 +1388,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def make_tx(fee_policy, *, confirmed_only=False, base_tx=None):
             assert base_tx is None
             return self.wallet.lnworker.mktx_for_open_channel(
-                coins = self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
+                coins=self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
                 funding_sat=funding_sat,
                 node_id=node_id,
                 fee_policy=fee_policy)
