@@ -191,6 +191,7 @@ class AbstractChannel(Logger, ABC):
     short_channel_id: Optional[ShortChannelID] = None
     funding_outpoint: Outpoint
     node_id: bytes  # note that it might not be the full 33 bytes; for OCB it is only the prefix
+    should_request_force_close: bool = False
     _state: ChannelState
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
@@ -398,13 +399,20 @@ class AbstractChannel(Logger, ABC):
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
-            if self.is_zeroconf():
-                # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
-                # us to remove a channel later in update_unfunded_state by omitting its funding tx
-                self.remove_zeroconf_flag()
         if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(ChannelState.FUNDED)
+        elif self.is_zeroconf() and funding_height.conf >= 3 and not self.should_request_force_close:
+            if not self.is_funding_tx_mined(funding_height):
+                # funding tx is invalid (invalid amount or address) we need to get rid of the channel again
+                self.should_request_force_close = True
+                if self.lnworker and self.node_id in self.lnworker.peers:
+                    # reconnect to trigger force close request
+                    self.lnworker.peers[self.node_id].close_and_cleanup()
+            else:
+                # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
+                # us to remove a channel later in update_unfunded_state by omitting its funding tx
+                self.remove_zeroconf_flag()
 
     def update_closed_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                             closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
@@ -775,7 +783,6 @@ class Channel(AbstractChannel):
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
-        self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
         self.sent_announcement_signatures = False
