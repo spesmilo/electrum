@@ -298,7 +298,7 @@ class SwapManager(Logger):
         self.invoices_to_pay[key] = 1000000000000 # lock
         try:
             invoice = self.wallet.get_invoice(key)
-            success, log = await self.lnworker.pay_invoice(invoice.lightning_invoice, attempts=10)
+            success, log = await self.lnworker.pay_invoice(invoice, attempts=10)
         except Exception as e:
             self.logger.info(f'exception paying {key}, will not retry')
             self.invoices_to_pay.pop(key, None)
@@ -908,13 +908,13 @@ class SwapManager(Logger):
         if locktime - self.network.get_local_height() <= MIN_LOCKTIME_DELTA:
             raise Exception("rswap check failed: locktime too close")
         # verify invoice payment_hash
-        lnaddr = self.lnworker._check_invoice(invoice)
+        lnaddr = self.lnworker._check_bolt11_invoice(invoice)
         invoice_amount = int(lnaddr.get_amount_sat())
         if lnaddr.paymenthash != payment_hash:
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
         # check that the lightning amount is what we requested
         if fee_invoice:
-            fee_lnaddr = self.lnworker._check_invoice(fee_invoice)
+            fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice)
             invoice_amount += fee_lnaddr.get_amount_sat()
             prepay_hash = fee_lnaddr.paymenthash
         else:
@@ -935,13 +935,15 @@ class SwapManager(Logger):
         swap._zeroconf = zeroconf
         # initiate fee payment.
         if fee_invoice:
-            asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice))
+            fee_invoice_obj = Invoice.from_bech32(fee_invoice)
+            asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice_obj))
         # we return if we detect funding
         async def wait_for_funding(swap):
             while swap.funding_txid is None:
                 await asyncio.sleep(1)
         # initiate main payment
-        tasks = [asyncio.create_task(self.lnworker.pay_invoice(invoice, channels=channels)), asyncio.create_task(wait_for_funding(swap))]
+        invoice_obj = Invoice.from_bech32(invoice)
+        tasks = [asyncio.create_task(self.lnworker.pay_invoice(invoice_obj, channels=channels)), asyncio.create_task(wait_for_funding(swap))]
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         return swap.funding_txid
 
