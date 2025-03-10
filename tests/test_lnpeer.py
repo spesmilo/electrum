@@ -31,9 +31,9 @@ from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget
 from electrum.lnchannel import ChannelState, PeerState, Channel
-from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
+from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent, SentHtlcInfo, PaySession
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession
+from electrum.lnworker import LNWallet, NoPathFound
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
