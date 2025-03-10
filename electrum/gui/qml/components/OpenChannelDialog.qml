@@ -172,7 +172,7 @@ ElDialog {
                     Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                     onTextAsSatsChanged: {
                         if (!is_max.checked)
-                            channelopener.amount.satsInt = amountBtc.textAsSats.satsInt
+                            channelopener.amount = amountBtc.textAsSats
                     }
                     readOnly: is_max.checked
                     color: readOnly
