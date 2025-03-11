@@ -70,9 +70,6 @@ class WatchTower(LNWatcher):
         LNWatcher.__init__(self, adb, network)
         self.network = network
         self.sweepstore = SweepStore(os.path.join(self.network.config.path, "watchtower_db"), network)
-        # this maps funding_outpoints to ListenerItems, which have an event for when the watcher is done,
-        # and a queue for seeing which txs are being published
-        self.tx_progress = {} # type: Dict[str, ListenerItem]
 
     async def stop(self):
         await super().stop()
@@ -163,8 +160,6 @@ class WatchTower(LNWatcher):
             self.logger.info(f'broadcast failure: txid={tx.txid()}, funding_outpoint={funding_outpoint}: {repr(e)}')
         else:
             self.logger.info(f'broadcast success: txid={tx.txid()}, funding_outpoint={funding_outpoint}')
-            if funding_outpoint in self.tx_progress:
-                await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid
 
     async def get_ctn(self, outpoint, addr):
@@ -192,8 +187,6 @@ class WatchTower(LNWatcher):
         await super().unwatch_channel(address, funding_outpoint)
         await self.sweepstore.remove_sweep_tx(funding_outpoint)
         await self.sweepstore.remove_channel(funding_outpoint)
-        if funding_outpoint in self.tx_progress:
-            self.tx_progress[funding_outpoint].all_done.set()
 
     async def update_channel_state(self, *args, **kwargs):
         pass
