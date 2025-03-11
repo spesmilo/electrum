@@ -1401,7 +1401,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(str(e))
             return
         if self.wallet.lnworker.has_conflicting_backup_with(node_id):
-            msg = messages.MGS_CONFLICTING_BACKUP_INSTANCE
+            msg = messages.MSG_CONFLICTING_BACKUP_INSTANCE
             if not self.question(msg):
                 return
         # we need to know the fee before we broadcast, because the txid is required

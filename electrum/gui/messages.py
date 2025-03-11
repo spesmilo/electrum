@@ -30,12 +30,19 @@ MSG_LIGHTNING_SCB_WARNING = _(
 
 MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + "\n\n" + MSG_LIGHTNING_SCB_WARNING
 
-MGS_CONFLICTING_BACKUP_INSTANCE = _(
+MSG_CONFLICTING_BACKUP_INSTANCE = _(
 """Another instance of this wallet (same seed) has an open channel with the same remote node. If you create this channel, you will not be able to use both wallets at the same time.
 
 Are you sure?"""
 )
 
+MSG_LN_EXPLAIN_SCB_BACKUPS = "".join([
+    _("Channel backups can be imported in another instance of the same wallet."), " ",
+    _("In the Electrum mobile app, use the 'Send' button to scan this QR code."), " ",
+    "\n\n",
+    _("Please note that channel backups cannot be used to restore your channels."), " ",
+    _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
+])
 
 MSG_CAPITAL_GAINS = _(
 """This summary covers only on-chain transactions (no lightning!). Capital gains are computed by attaching an acquisition price to each UTXO in the wallet, and uses the order of blockchain events (not FIFO)."""

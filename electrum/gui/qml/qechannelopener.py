@@ -163,7 +163,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
         lnworker = self._wallet.wallet.lnworker
         if lnworker.has_conflicting_backup_with(self._node_pubkey) and not confirm_backup_conflict:
-            self.conflictingBackup.emit(messages.MGS_CONFLICTING_BACKUP_INSTANCE)
+            self.conflictingBackup.emit(messages.MSG_CONFLICTING_BACKUP_INSTANCE)
             return
 
         amount = '!' if self._amount.isMax else self._amount.satsInt
