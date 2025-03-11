@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .lnsweep import SweepInfo
     from .lnworker import LNWallet
-
+    from .lnchannel import AbstractChannel
 
 class TxMinedDepth(IntEnum):
     """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
@@ -156,7 +156,7 @@ class LNWatcher(Logger, EventListener):
             return TxMinedDepth.FREE
         tx_mined_depth = self.adb.get_tx_height(txid)
         height, conf = tx_mined_depth.height, tx_mined_depth.conf
-        if conf > 100:
+        if conf > 20:
             return TxMinedDepth.DEEP
         elif conf > 0:
             return TxMinedDepth.SHALLOW
@@ -172,7 +172,6 @@ class LNWatcher(Logger, EventListener):
 
     def is_deeply_mined(self, txid):
         return self.get_tx_mined_depth(txid) == TxMinedDepth.DEEP
-
 
 
 
@@ -263,12 +262,8 @@ class LNWalletWatcher(LNWatcher):
                     else:
                         keep_watching = True
                     await self.maybe_redeem(prevout2, htlc_sweep_info, name)
-                # extract preimage
                 keep_watching |= not self.is_deeply_mined(spender_txid)
-                txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
-                assert txin_idx is not None
-                spender_txin = spender_tx.inputs()[txin_idx]
-                chan.extract_preimage_from_htlc_txin(spender_txin)
+                self.maybe_extract_preimage(chan, spender_tx, prevout)
             else:
                 keep_watching = True
             # broadcast or maybe update our own tx
@@ -374,3 +369,12 @@ class LNWalletWatcher(LNWatcher):
             if old_tx and old_tx.txid() != new_tx.txid():
                 self.lnworker.wallet.set_label(old_tx.txid(), None)
             util.trigger_callback('wallet_updated', self.lnworker.wallet)
+
+    def maybe_extract_preimage(self, chan: 'AbstractChannel', spender_tx: Transaction, prevout: str):
+        txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+        assert txin_idx is not None
+        spender_txin = spender_tx.inputs()[txin_idx]
+        chan.extract_preimage_from_htlc_txin(
+            spender_txin,
+            is_deeply_mined=self.is_deeply_mined(spender_tx.txid()),
+        )

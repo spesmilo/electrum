@@ -2484,7 +2484,8 @@ class LNWallet(LNWorker):
             fw_htlcs = self.active_forwardings[fw_key]
             fw_htlcs.remove(htlc_key)
 
-        if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+        shi = self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id))
+        if shi and htlc_id in chan.onion_keys:
             chan.pop_onion_key(htlc_id)
             payment_key = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_key]
@@ -2520,6 +2521,7 @@ class LNWallet(LNWorker):
             htlc_id: int,
             error_bytes: Optional[bytes],
             failure_message: Optional['OnionRoutingFailure']):
+        # note: this may be called several times for the same htlc
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
         htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
@@ -2528,7 +2530,8 @@ class LNWallet(LNWorker):
             fw_htlcs = self.active_forwardings[fw_key]
             fw_htlcs.remove(htlc_key)
 
-        if shi := self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id)):
+        shi = self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id))
+        if shi and htlc_id in chan.onion_keys:
             onion_key = chan.pop_onion_key(htlc_id)
             payment_okey = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_okey]
@@ -2583,10 +2586,11 @@ class LNWallet(LNWorker):
             fw_htlcs = self.active_forwardings[fw_key]
             can_forward_failure = (len(fw_htlcs) == 0) and not paysession_active
             if can_forward_failure:
+                self.logger.info(f'htlc_failed: save_forwarding_failure (phash={payment_hash.hex()})')
                 self.save_forwarding_failure(fw_key, error_bytes=error_bytes, failure_message=failure_message)
                 self.notify_upstream_peer(htlc_key)
             else:
-                self.logger.info(f"waiting for other htlcs to fail (phash={payment_hash.hex()})")
+                self.logger.info(f'htlc_failed: waiting for other htlcs to fail (phash={payment_hash.hex()})')
 
     def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], channels=None, needs_jit=False):
         """calculate routing hints (BOLT-11 'r' field)"""

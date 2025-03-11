@@ -124,6 +124,22 @@ class TestLightningWatchtower(TestLightning):
         self.run_shell(['watchtower'])
 
 
+class TestLightningABC(TestLightning):
+    agents = {
+        'alice': {
+        },
+        'bob': {
+            'lightning_listen': 'localhost:9735',
+            'lightning_forward_payments': 'true',
+        },
+        'carol': {
+        }
+    }
+
+    def test_fw_fail_htlc(self):
+        self.run_shell(['fw_fail_htlc'])
+
+
 class TestLightningJIT(TestLightning):
     agents = {
         'alice': {

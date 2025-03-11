@@ -14,6 +14,7 @@ bitcoin_cli="bitcoin-cli -rpcuser=doggman -rpcpassword=donkey -rpcport=18554 -re
 
 function new_blocks()
 {
+    printf "mining $1 blocks\n"
     $bitcoin_cli generatetoaddress $1 $($bitcoin_cli getnewaddress) > /dev/null
 }
 
@@ -508,6 +509,42 @@ if [[ $1 == "watchtower" ]]; then
         output_index=1
     fi
     wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
+fi
+
+if [[ $1 == "fw_fail_htlc" ]]; then
+    $carol enable_htlc_settle false
+    bob_node=$($bob nodeid)
+    wait_for_balance carol 1
+    echo "alice and carol open channels with bob"
+    chan_id1=$($alice open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    chan_id2=$($carol open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    new_blocks 3
+    wait_until_channel_open alice
+    wait_until_channel_open carol
+    echo "alice pays carol"
+    invoice=$($carol add_request 0.01 --lightning -m "invoice" | jq -r ".lightning_invoice")
+    screen -S alice_payment -dm -L -Logfile /tmp/alice/screen1.log $alice lnpay $invoice --timeout=600
+    sleep 1
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work (carol settled)'
+        exit 1
+    fi
+    $carol stop
+    $bob close_channel $chan_id2 --force
+    new_blocks 1
+    sleep 1
+    new_blocks 150 # cltv before bob can broadcast
+    sleep 5        # give bob time to process blocks and broadcast
+    new_blocks 1   # confirm 2nd stage.
+    sleep 1
+    new_blocks 100 # deep
+    sleep 5        # give bob time to fail incoming htlc
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo 'alice htlc was not failed'
+        exit 1
+    fi
 fi
 
 if [[ $1 == "just_in_time" ]]; then

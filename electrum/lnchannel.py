@@ -321,7 +321,7 @@ class AbstractChannel(Logger, ABC):
     def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         return {}
 
-    def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
+    def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
         return
 
     def update_onchain_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
@@ -658,7 +658,7 @@ class ChannelBackup(AbstractChannel):
     def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         return {}
 
-    def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
+    def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
         return None
 
     def get_funding_address(self):
@@ -1350,42 +1350,72 @@ class Channel(AbstractChannel):
                     error_bytes, failure_message = None, None
                 self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
-    def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
+
+    def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
+        from . import lnutil
+        from .crypto import ripemd
+        from .transaction import match_script_against_template, script_GetOp
+        from .lnonion import OnionRoutingFailure, OnionFailureCode
         witness = txin.witness_elements()
-        if len(witness) == 5:  # HTLC success tx
-            preimage = witness[3]
-        elif len(witness) == 3:  # spending offered HTLC directly from ctx
-            preimage = witness[1]
+        witness_script = witness[-1]
+        script_ops = [x for x in script_GetOp(witness_script)]
+        if match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_OFFERED_HTLC, debug=False) \
+           or match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_OFFERED_HTLC_ANCHORS, debug=False):
+            ripemd_payment_hash = script_ops[21][1]
+        elif match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_RECEIVED_HTLC, debug=False) \
+           or match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_RECEIVED_HTLC_ANCHORS, debug=False):
+            ripemd_payment_hash = script_ops[14][1]
         else:
             return
-        payment_hash = sha256(preimage)
         found = {}
         for direction, htlc in itertools.chain(
                 self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
                 self.hm.get_htlcs_in_latest_ctx(REMOTE)):
-            if htlc.payment_hash == payment_hash:
+            if ripemd(htlc.payment_hash) == ripemd_payment_hash:
                 is_sent = direction == RECEIVED
                 found[htlc.htlc_id] = (htlc, is_sent)
         for direction, htlc in itertools.chain(
                 self.hm.get_htlcs_in_oldest_unrevoked_ctx(LOCAL),
                 self.hm.get_htlcs_in_latest_ctx(LOCAL)):
-            if htlc.payment_hash == payment_hash:
+            if ripemd(htlc.payment_hash) == ripemd_payment_hash:
                 is_sent = direction == SENT
                 found[htlc.htlc_id] = (htlc, is_sent)
         if not found:
             return
-        if self.lnworker.get_preimage(payment_hash) is not None:
-            return
-        self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
-        # ^ note: log message text grepped for in regtests
-        self.lnworker.save_preimage(payment_hash, preimage)
-        for htlc, is_sent in found.values():
-            if is_sent:
-                self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
-            else:
-                # FIXME
-                #self.lnworker.htlc_received(self, payment_hash)
-                pass
+        if len(witness) == 5:    # HTLC success tx
+            preimage = witness[3]
+        elif len(witness) == 3:  # spending offered HTLC directly from ctx
+            preimage = witness[1]
+        else:
+            preimage = None      # HTLC timeout tx
+        if preimage:
+            assert ripemd(sha256(preimage)) == ripemd_payment_hash
+            payment_hash = sha256(preimage)
+            if self.lnworker.get_preimage(payment_hash) is not None:
+                return
+            # ^ note: log message text grepped for in regtests
+            self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
+
+        if preimage:
+            self.lnworker.save_preimage(payment_hash, preimage)
+            for htlc, is_sent in found.values():
+                if is_sent:
+                    self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
+        else:
+            # htlc timeout tx
+            if not is_deeply_mined:
+                return
+            failure = OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+            for htlc, is_sent in found.values():
+                if is_sent:
+                    self.logger.info(f'htlc timeout tx: failing htlc {is_sent}')
+                    self.lnworker.htlc_failed(
+                        self,
+                        payment_hash=htlc.payment_hash,
+                        htlc_id=htlc.htlc_id,
+                        error_bytes=None,
+                        failure_message=failure)
+
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner
