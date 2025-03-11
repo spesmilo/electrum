@@ -1821,12 +1821,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coins: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
-            fee_policy: FeePolicy = None,
+            fee_policy: FeePolicy,
             change_addr: str = None,
             is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
-            base_tx: Optional[PartialTransaction] = None,
+            base_tx: Optional[Transaction] = None,
             send_change_to_lightning: bool = False,
             merge_duplicate_outputs: bool = False,
     ) -> PartialTransaction:
@@ -3069,7 +3069,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self,
             outputs,
             *,
-            fee_policy: FeePolicy=None,
+            fee_policy: FeePolicy,
             change_addr=None,
             domain_addr=None,
             domain_coins=None,
