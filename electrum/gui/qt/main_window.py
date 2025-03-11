@@ -1417,7 +1417,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # note: use confirmed_only=False here, regardless of config setting,
             #       as the user needs to get to ConfirmTxDialog to change the config setting
             if not d.can_pay_assuming_zero_fees(confirmed_only=False):
-                text = self.send_tab.get_text_not_enough_funds_mentioning_frozen()
+                text = self.wallet.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
         return d.run(), d.is_preview
