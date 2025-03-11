@@ -23,11 +23,6 @@ if TYPE_CHECKING:
     from .lnsweep import SweepInfo
     from .lnworker import LNWallet
 
-class ListenerItem(NamedTuple):
-    # this is triggered when the lnwatcher is all done with the outpoint used as index in LNWatcher.tx_progress
-    all_done : asyncio.Event
-    # txs we broadcast are put on this queue so that the test can wait for them to get mined
-    tx_queue : asyncio.Queue
 
 class TxMinedDepth(IntEnum):
     """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
