@@ -78,7 +78,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.recv_amount_e.setEnabled(recv_amount_sat is None)
         self.max_button.setEnabled(recv_amount_sat is None)
         self.fee_policy = FeePolicy(self.config.FEE_POLICY)
-        fee_slider = FeeSlider(self.window, self.fee_policy, self.fee_slider_callback)
+        fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
         self.fee_label = QLabel()

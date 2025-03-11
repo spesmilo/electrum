@@ -2704,7 +2704,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def on_rate(fee_rate):
             fee = get_child_fee_from_total_feerate(fee_rate)
             fee_e.setAmount(fee)
-        fee_slider = FeeSlider(self, fee_policy, on_rate)
+        fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=fee_policy, callback=on_rate)
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
         grid.addWidget(fee_slider, 4, 1)

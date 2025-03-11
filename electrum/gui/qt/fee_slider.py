@@ -1,16 +1,18 @@
 import threading
+from typing import Callable, Optional
 
 from PyQt6.QtGui import QCursor
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox
+from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox, QWidget
 
 from electrum.i18n import _
-from electrum.fee_policy import FeeMethod
+from electrum.fee_policy import FeeMethod, FeePolicy
+from electrum.network import Network
 
 
 class FeeComboBox(QComboBox):
 
-    def __init__(self, fee_slider):
+    def __init__(self, fee_slider: 'FeeSlider'):
         QComboBox.__init__(self)
         self.fee_slider = fee_slider
         self.addItems([x.name_for_GUI() for x in FeeMethod.slider_values()])
@@ -32,10 +34,16 @@ class FeeComboBox(QComboBox):
 
 class FeeSlider(QSlider):
 
-    def __init__(self, window, fee_policy, callback):
-        QSlider.__init__(self, Qt.Orientation.Horizontal)
-        self.window = window
-        self.network = window.network
+    def __init__(
+        self,
+        *,
+        parent: Optional[QWidget],
+        network: Network,
+        fee_policy: FeePolicy,
+        callback: Callable[[Optional[int]], None],
+    ):
+        QSlider.__init__(self, Qt.Orientation.Horizontal, parent=parent)
+        self.network = network
         self.callback = callback
         self.fee_policy = fee_policy
         self.lock = threading.RLock()
@@ -44,10 +52,10 @@ class FeeSlider(QSlider):
         self._active = True
 
     @property
-    def dyn(self):
+    def dyn(self) -> bool:
         return self.fee_policy.use_dynamic_estimates
 
-    def get_policy(self):
+    def get_policy(self) -> FeePolicy:
         return self.fee_policy
 
     def moved(self, pos):

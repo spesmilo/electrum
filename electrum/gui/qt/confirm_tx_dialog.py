@@ -182,7 +182,7 @@ class TxEditor(WindowModalDialog):
         self.feerate_e.textChanged.connect(self.entry_changed)
 
         self.fee_target = QLabel('')
-        self.fee_slider = FeeSlider(self, self.fee_policy, self.fee_slider_callback)
+        self.fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
         self.fee_combo = FeeComboBox(self.fee_slider)
         self.fee_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
