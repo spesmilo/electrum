@@ -774,37 +774,17 @@ def make_offered_htlc(
     assert type(remote_htlcpubkey) is bytes
     assert type(local_htlcpubkey) is bytes
     assert type(payment_hash) is bytes
-    script_opcodes = [
-        opcodes.OP_DUP,
-        opcodes.OP_HASH160,
-        bitcoin.hash_160(revocation_pubkey),
-        opcodes.OP_EQUAL,
-        opcodes.OP_IF,
-        opcodes.OP_CHECKSIG,
-        opcodes.OP_ELSE,
-        remote_htlcpubkey,
-        opcodes.OP_SWAP,
-        opcodes.OP_SIZE,
-        32,
-        opcodes.OP_EQUAL,
-        opcodes.OP_NOTIF,
-        opcodes.OP_DROP,
-        2,
-        opcodes.OP_SWAP,
-        local_htlcpubkey,
-        2,
-        opcodes.OP_CHECKMULTISIG,
-        opcodes.OP_ELSE,
-        opcodes.OP_HASH160,
-        crypto.ripemd(payment_hash),
-        opcodes.OP_EQUALVERIFY,
-        opcodes.OP_CHECKSIG,
-        opcodes.OP_ENDIF,
-    ]
-    if has_anchors:
-        script_opcodes.extend([1, opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP])
-    script_opcodes.append(opcodes.OP_ENDIF)
-    script = construct_script(script_opcodes)
+    script_template = witness_template_offered_htlc(anchors=has_anchors)
+    script = construct_script(
+        script_template,
+        values={
+            2: bitcoin.hash_160(revocation_pubkey),
+            7: remote_htlcpubkey,
+            10: 32,
+            16: local_htlcpubkey,
+            21: crypto.ripemd(payment_hash),
+        },
+    )
     return script
 
 
@@ -820,105 +800,104 @@ def make_received_htlc(
     for i in [revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash]:
         assert type(i) is bytes
     assert type(cltv_abs) is int
+    script_template = witness_template_received_htlc(anchors=has_anchors)
+    script = construct_script(
+        script_template,
+        values={
+            2: bitcoin.hash_160(revocation_pubkey),
+            7: remote_htlcpubkey,
+            10: 32,
+            14: crypto.ripemd(payment_hash),
+            18: local_htlcpubkey,
+            23: cltv_abs,
+        },
+    )
+    return script
 
-    script_opcodes = [
+
+def witness_template_offered_htlc(anchors: bool):
+    return [
         opcodes.OP_DUP,
         opcodes.OP_HASH160,
-        bitcoin.hash_160(revocation_pubkey),
+        OPPushDataGeneric(None),
         opcodes.OP_EQUAL,
         opcodes.OP_IF,
         opcodes.OP_CHECKSIG,
         opcodes.OP_ELSE,
-        remote_htlcpubkey,
+        OPPushDataGeneric(None),
         opcodes.OP_SWAP,
         opcodes.OP_SIZE,
-        32,
+        OPPushDataGeneric(lambda x: x==1),
+        opcodes.OP_EQUAL,
+        opcodes.OP_NOTIF,
+        opcodes.OP_DROP,
+        opcodes.OP_2,
+        opcodes.OP_SWAP,
+        OPPushDataGeneric(None),
+        opcodes.OP_2,
+        opcodes.OP_CHECKMULTISIG,
+        opcodes.OP_ELSE,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ENDIF,
+    ] + ([
+        opcodes.OP_1,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+    ] if anchors else [
+    ]) + [
+        opcodes.OP_ENDIF,
+    ]
+
+
+WITNESS_TEMPLATE_OFFERED_HTLC = witness_template_offered_htlc(anchors=False)
+WITNESS_TEMPLATE_OFFERED_HTLC_ANCHORS = witness_template_offered_htlc(anchors=True)
+
+
+def witness_template_received_htlc(anchors: bool):
+    return [
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ELSE,
+        OPPushDataGeneric(None),
+        opcodes.OP_SWAP,
+        opcodes.OP_SIZE,
+        OPPushDataGeneric(lambda x: x==1),
         opcodes.OP_EQUAL,
         opcodes.OP_IF,
         opcodes.OP_HASH160,
-        crypto.ripemd(payment_hash),
+        OPPushDataGeneric(None),
         opcodes.OP_EQUALVERIFY,
-        2,
+        opcodes.OP_2,
         opcodes.OP_SWAP,
-        local_htlcpubkey,
-        2,
+        OPPushDataGeneric(None),
+        opcodes.OP_2,
         opcodes.OP_CHECKMULTISIG,
         opcodes.OP_ELSE,
         opcodes.OP_DROP,
-        cltv_abs,
+        OPPushDataGeneric(None),
         opcodes.OP_CHECKLOCKTIMEVERIFY,
         opcodes.OP_DROP,
         opcodes.OP_CHECKSIG,
         opcodes.OP_ENDIF,
+    ] + ([
+        opcodes.OP_1,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+    ] if anchors else [
+    ]) + [
+        opcodes.OP_ENDIF,
     ]
-    if has_anchors:
-        script_opcodes.extend([1, opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP])
-    script_opcodes.append(opcodes.OP_ENDIF)
-    script = construct_script(script_opcodes)
-    return script
 
 
-WITNESS_TEMPLATE_OFFERED_HTLC = [
-    opcodes.OP_DUP,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ELSE,
-    OPPushDataGeneric(None),
-    opcodes.OP_SWAP,
-    opcodes.OP_SIZE,
-    OPPushDataGeneric(lambda x: x==1),
-    opcodes.OP_EQUAL,
-    opcodes.OP_NOTIF,
-    opcodes.OP_DROP,
-    opcodes.OP_2,
-    opcodes.OP_SWAP,
-    OPPushDataGeneric(None),
-    opcodes.OP_2,
-    opcodes.OP_CHECKMULTISIG,
-    opcodes.OP_ELSE,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUALVERIFY,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ENDIF,
-    opcodes.OP_ENDIF,
-]
-
-
-WITNESS_TEMPLATE_RECEIVED_HTLC = [
-    opcodes.OP_DUP,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ELSE,
-    OPPushDataGeneric(None),
-    opcodes.OP_SWAP,
-    opcodes.OP_SIZE,
-    OPPushDataGeneric(lambda x: x==1),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUALVERIFY,
-    opcodes.OP_2,
-    opcodes.OP_SWAP,
-    OPPushDataGeneric(None),
-    opcodes.OP_2,
-    opcodes.OP_CHECKMULTISIG,
-    opcodes.OP_ELSE,
-    opcodes.OP_DROP,
-    OPPushDataGeneric(None),
-    opcodes.OP_CHECKLOCKTIMEVERIFY,
-    opcodes.OP_DROP,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ENDIF,
-    opcodes.OP_ENDIF,
-]
+WITNESS_TEMPLATE_RECEIVED_HTLC = witness_template_received_htlc(anchors=False)
+WITNESS_TEMPLATE_RECEIVED_HTLC_ANCHORS = witness_template_received_htlc(anchors=True)
 
 
 def make_htlc_output_witness_script(

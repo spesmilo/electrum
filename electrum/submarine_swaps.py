@@ -516,7 +516,7 @@ class SwapManager(Logger):
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
         redeem_script = construct_script(
             WITNESS_TEMPLATE_REVERSE_SWAP,
-            {1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
+            values={1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
         )
         swap, invoice, prepay_invoice = self.add_normal_swap(
             redeem_script=redeem_script,
@@ -611,7 +611,7 @@ class SwapManager(Logger):
         payment_hash = sha256(preimage)
         redeem_script = construct_script(
             WITNESS_TEMPLATE_REVERSE_SWAP,
-            {1:32, 5:ripemd(payment_hash), 7:our_pubkey, 10:locktime, 13:their_pubkey}
+            values={1:32, 5:ripemd(payment_hash), 7:our_pubkey, 10:locktime, 13:their_pubkey}
         )
         swap = self.add_reverse_swap(
             redeem_script=redeem_script,
