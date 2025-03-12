@@ -858,67 +858,89 @@ def make_received_htlc(
     return script
 
 
-WITNESS_TEMPLATE_OFFERED_HTLC = [
-    opcodes.OP_DUP,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ELSE,
-    OPPushDataGeneric(None),
-    opcodes.OP_SWAP,
-    opcodes.OP_SIZE,
-    OPPushDataGeneric(lambda x: x==1),
-    opcodes.OP_EQUAL,
-    opcodes.OP_NOTIF,
-    opcodes.OP_DROP,
-    opcodes.OP_2,
-    opcodes.OP_SWAP,
-    OPPushDataGeneric(None),
-    opcodes.OP_2,
-    opcodes.OP_CHECKMULTISIG,
-    opcodes.OP_ELSE,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUALVERIFY,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ENDIF,
-    opcodes.OP_ENDIF,
-]
+def witness_template_offered_htlc(anchors):
+    return [
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ELSE,
+        OPPushDataGeneric(None),
+        opcodes.OP_SWAP,
+        opcodes.OP_SIZE,
+        OPPushDataGeneric(lambda x: x==1),
+        opcodes.OP_EQUAL,
+        opcodes.OP_NOTIF,
+        opcodes.OP_DROP,
+        opcodes.OP_2,
+        opcodes.OP_SWAP,
+        OPPushDataGeneric(None),
+        opcodes.OP_2,
+        opcodes.OP_CHECKMULTISIG,
+        opcodes.OP_ELSE,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ENDIF,
+    ] + ([
+        opcodes.OP_1,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+    ] if anchors else [
+    ]) + [
+        opcodes.OP_ENDIF,
+    ]
 
 
-WITNESS_TEMPLATE_RECEIVED_HTLC = [
-    opcodes.OP_DUP,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ELSE,
-    OPPushDataGeneric(None),
-    opcodes.OP_SWAP,
-    opcodes.OP_SIZE,
-    OPPushDataGeneric(lambda x: x==1),
-    opcodes.OP_EQUAL,
-    opcodes.OP_IF,
-    opcodes.OP_HASH160,
-    OPPushDataGeneric(None),
-    opcodes.OP_EQUALVERIFY,
-    opcodes.OP_2,
-    opcodes.OP_SWAP,
-    OPPushDataGeneric(None),
-    opcodes.OP_2,
-    opcodes.OP_CHECKMULTISIG,
-    opcodes.OP_ELSE,
-    opcodes.OP_DROP,
-    OPPushDataGeneric(None),
-    opcodes.OP_CHECKLOCKTIMEVERIFY,
-    opcodes.OP_DROP,
-    opcodes.OP_CHECKSIG,
-    opcodes.OP_ENDIF,
-    opcodes.OP_ENDIF,
-]
+WITNESS_TEMPLATE_OFFERED_HTLC = witness_template_offered_htlc(anchors=False)
+WITNESS_TEMPLATE_OFFERED_HTLC_ANCHORS = witness_template_offered_htlc(anchors=True)
+
+
+def witness_template_received_htlc(anchors):
+    return [
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ELSE,
+        OPPushDataGeneric(None),
+        opcodes.OP_SWAP,
+        opcodes.OP_SIZE,
+        OPPushDataGeneric(lambda x: x==1),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_HASH160,
+        OPPushDataGeneric(None),
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_2,
+        opcodes.OP_SWAP,
+        OPPushDataGeneric(None),
+        opcodes.OP_2,
+        opcodes.OP_CHECKMULTISIG,
+        opcodes.OP_ELSE,
+        opcodes.OP_DROP,
+        OPPushDataGeneric(None),
+        opcodes.OP_CHECKLOCKTIMEVERIFY,
+        opcodes.OP_DROP,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ENDIF,
+    ] + ([
+        opcodes.OP_1,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+    ] if anchors else [
+    ]) + [
+        opcodes.OP_ENDIF,
+    ]
+
+
+WITNESS_TEMPLATE_RECEIVED_HTLC = witness_template_received_htlc(anchors=False)
+WITNESS_TEMPLATE_RECEIVED_HTLC_ANCHORS = witness_template_received_htlc(anchors=True)
 
 
 def make_htlc_output_witness_script(
