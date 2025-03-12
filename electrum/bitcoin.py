@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Tuple, TYPE_CHECKING, Optional, Union, Sequence
+from typing import Tuple, TYPE_CHECKING, Optional, Union, Sequence, Mapping, Any
 import enum
 from enum import IntEnum, Enum
 
@@ -37,6 +37,7 @@ from .crypto import sha256d, sha256, hash_160
 
 if TYPE_CHECKING:
     from .network import Network
+    from .transaction import OPPushDataGeneric
 
 
 ################################## transactions
@@ -295,12 +296,18 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> bytes:
     return bytes(witness)
 
 
-def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=None) -> bytes:
+def construct_script(
+    items: Sequence[Union[str, int, bytes, opcodes, 'OPPushDataGeneric']],
+    *,
+    values: Optional[Mapping[int, Any]] = None,  # can be used to substitute into OPPushDataGeneric
+) -> bytes:
     """Constructs bitcoin script from given items."""
+    from .transaction import OPPushDataGeneric
     script = bytearray()
     values = values or {}
     for i, item in enumerate(items):
         if i in values:
+            assert OPPushDataGeneric.is_instance(item), f"tried to substitute into {item=!r}"
             item = values[i]
         if isinstance(item, opcodes):
             script += bytes([item])
@@ -312,7 +319,7 @@ def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=No
             assert is_hex_str(item)
             script += push_script(bfh(item))
         else:
-            raise Exception(f'unexpected item for script: {item!r}')
+            raise Exception(f'unexpected item for script: {item!r} at idx={i}')
     return bytes(script)
 
 
