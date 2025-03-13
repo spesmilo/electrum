@@ -80,7 +80,6 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.fee_policy = FeePolicy(self.config.FEE_POLICY)
         fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
-        fee_slider.update()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
         vbox.addWidget(self.description_label)
@@ -110,6 +109,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.update()
         self.needs_tx_update = True
         self.window.gui_object.timer.timeout.connect(self.timer_actions)
+        fee_slider.update()
         self.register_callbacks()
 
     def toggle_zeroconf(self):
