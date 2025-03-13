@@ -13,6 +13,7 @@ from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age
 from electrum.submarine_swaps import NostrTransport, SwapServerTransport
+from electrum.fee_policy import FeePolicy
 
 from electrum.gui import messages
 
@@ -465,10 +466,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             return
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         coins = self._wallet.wallet.get_spendable_coins(None)
+        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
         try:
             self._tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
-                outputs=outputs)
+                outputs=outputs,
+                fee_policy=fee_policy)
         except (NotEnoughFunds, NoDynamicFeeEstimates):
             self._tx = None
             self.valid = False
@@ -599,11 +602,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
+        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
         try:
             tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
                 outputs=outputs,
                 send_change_to_lightning=False,
+                fee_policy=fee_policy
             )
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             raise InvalidSwapParameters(str(e)) from e
