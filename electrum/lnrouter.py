@@ -22,10 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import asyncio
 import queue
 from collections import defaultdict
-from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable
+from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable, NamedTuple
 import time
 import threading
 from threading import RLock
@@ -33,10 +33,12 @@ from math import inf
 
 import attr
 
+from .crypto import sha256
+from .lnonion import OnionRoutingFailure, OnionFailureCode
 from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
-                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, PaymentFeeBudget)
+                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, PaymentFeeBudget, HtlcLog, PaymentFailure)
 from .channel_db import ChannelDB, Policy, NodeInfo
 
 if TYPE_CHECKING:
@@ -719,3 +721,152 @@ class LNPathFinder(Logger):
             route = self.create_route_from_path(
                 path, my_channels=my_sending_channels, private_route_edges=private_route_edges)
         return route
+
+
+class SentHtlcInfo(NamedTuple):
+    route: LNPaymentRoute
+    payment_secret_orig: bytes
+    payment_secret_bucket: bytes
+    amount_msat: int
+    bucket_msat: int
+    amount_receiver_msat: int
+    trampoline_fee_level: Optional[int]
+    trampoline_route: Optional[LNPaymentRoute]
+
+
+class PaySession(Logger):
+    def __init__(
+            self,
+            *,
+            payment_hash: bytes,
+            payment_secret: bytes,
+            initial_trampoline_fee_level: int,
+            invoice_features: int,
+            r_tags,
+            min_final_cltv_delta: int,  # delta for last node (typically from invoice)
+            amount_to_pay: int,  # total payment amount final receiver will get
+            invoice_pubkey: bytes,
+            uses_trampoline: bool,  # whether sender uses trampoline or gossip
+            use_two_trampolines: bool,  # whether legacy payments will try to use two trampolines
+    ):
+        assert payment_hash
+        assert payment_secret
+        self.payment_hash = payment_hash
+        self.payment_secret = payment_secret
+        self.payment_key = payment_hash + payment_secret
+        Logger.__init__(self)
+
+        self.invoice_features = LnFeatures(invoice_features)
+        self.r_tags = r_tags
+        self.min_final_cltv_delta = min_final_cltv_delta
+        self.amount_to_pay = amount_to_pay
+        self.invoice_pubkey = invoice_pubkey
+
+        self.sent_htlcs_q = asyncio.Queue()  # type: asyncio.Queue[HtlcLog]
+        self.start_time = time.time()
+
+        self.uses_trampoline = uses_trampoline
+        self.trampoline_fee_level = initial_trampoline_fee_level
+        self.failed_trampoline_routes = []
+        self.use_two_trampolines = use_two_trampolines
+        self._sent_buckets = dict()  # psecret_bucket -> (amount_sent, amount_failed)
+
+        self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
+        self._nhtlcs_inflight = 0
+        self.is_active = True  # is still trying to send new htlcs?
+
+    def diagnostic_name(self):
+        pkey = sha256(self.payment_key)
+        return f"{self.payment_hash[:4].hex()}-{pkey[:2].hex()}"
+
+    def maybe_raise_trampoline_fee(self, htlc_log: HtlcLog):
+        if htlc_log.trampoline_fee_level == self.trampoline_fee_level:
+            self.trampoline_fee_level += 1
+            self.failed_trampoline_routes = []
+            self.logger.info(f'raising trampoline fee level {self.trampoline_fee_level}')
+        else:
+            self.logger.info(f'NOT raising trampoline fee level, already at {self.trampoline_fee_level}')
+
+    def handle_failed_trampoline_htlc(self, *, htlc_log: HtlcLog, failure_msg: OnionRoutingFailure):
+        # FIXME The trampoline nodes in the path are chosen randomly.
+        #       Some of the errors might depend on how we have chosen them.
+        #       Having more attempts is currently useful in part because of the randomness,
+        #       instead we should give feedback to create_routes_for_payment.
+        # Sometimes the trampoline node fails to send a payment and returns
+        # TEMPORARY_CHANNEL_FAILURE, while it succeeds with a higher trampoline fee.
+        if failure_msg.code in (
+                OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
+                OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON,
+                OnionFailureCode.TEMPORARY_CHANNEL_FAILURE):
+            # TODO: parse the node policy here (not returned by eclair yet)
+            # TODO: erring node is always the first trampoline even if second
+            #  trampoline demands more fees, we can't influence this
+            self.maybe_raise_trampoline_fee(htlc_log)
+        elif self.use_two_trampolines:
+            self.use_two_trampolines = False
+        elif failure_msg.code in (
+                OnionFailureCode.UNKNOWN_NEXT_PEER,
+                OnionFailureCode.TEMPORARY_NODE_FAILURE):
+            trampoline_route = htlc_log.route
+            r = [hop.end_node.hex() for hop in trampoline_route]
+            self.logger.info(f'failed trampoline route: {r}')
+            if r not in self.failed_trampoline_routes:
+                self.failed_trampoline_routes.append(r)
+            else:
+                pass  # maybe the route was reused between different MPP parts
+        else:
+            raise PaymentFailure(failure_msg.code_name())
+
+    async def wait_for_one_htlc_to_resolve(self) -> HtlcLog:
+        self.logger.info(f"waiting... amount_inflight={self._amount_inflight}. nhtlcs_inflight={self._nhtlcs_inflight}")
+        htlc_log = await self.sent_htlcs_q.get()
+        self._amount_inflight -= htlc_log.amount_msat
+        self._nhtlcs_inflight -= 1
+        if self._amount_inflight < 0 or self._nhtlcs_inflight < 0:
+            raise Exception(f"amount_inflight={self._amount_inflight}, nhtlcs_inflight={self._nhtlcs_inflight}. both should be >= 0 !")
+        return htlc_log
+
+    def add_new_htlc(self, sent_htlc_info: SentHtlcInfo):
+        self._nhtlcs_inflight += 1
+        self._amount_inflight += sent_htlc_info.amount_receiver_msat
+        if self._amount_inflight > self.amount_to_pay:  # safety belts
+            raise Exception(f"amount_inflight={self._amount_inflight} > amount_to_pay={self.amount_to_pay}")
+        shi = sent_htlc_info
+        bkey = shi.payment_secret_bucket
+        # if we sent MPP to a trampoline, add item to sent_buckets
+        if self.uses_trampoline and shi.amount_msat != shi.bucket_msat:
+            if bkey not in self._sent_buckets:
+                self._sent_buckets[bkey] = (0, 0)
+            amount_sent, amount_failed = self._sent_buckets[bkey]
+            amount_sent += shi.amount_receiver_msat
+            self._sent_buckets[bkey] = amount_sent, amount_failed
+
+    def on_htlc_fail_get_fail_amt_to_propagate(self, sent_htlc_info: SentHtlcInfo) -> Optional[int]:
+        shi = sent_htlc_info
+        # check sent_buckets if we use trampoline
+        bkey = shi.payment_secret_bucket
+        if self.uses_trampoline and bkey in self._sent_buckets:
+            amount_sent, amount_failed = self._sent_buckets[bkey]
+            amount_failed += shi.amount_receiver_msat
+            self._sent_buckets[bkey] = amount_sent, amount_failed
+            if amount_sent != amount_failed:
+                self.logger.info('bucket still active...')
+                return None
+            self.logger.info('bucket failed')
+            return amount_sent
+        # not using trampoline buckets
+        return shi.amount_receiver_msat
+
+    def get_outstanding_amount_to_send(self) -> int:
+        return self.amount_to_pay - self._amount_inflight
+
+    def can_be_deleted(self) -> bool:
+        """Returns True iff finished sending htlcs AND all pending htlcs have resolved."""
+        if self.is_active:
+            return False
+        # note: no one is consuming from sent_htlcs_q anymore
+        nhtlcs_resolved = self.sent_htlcs_q.qsize()
+        assert nhtlcs_resolved <= self._nhtlcs_inflight
+        return nhtlcs_resolved == self._nhtlcs_inflight
+
+
