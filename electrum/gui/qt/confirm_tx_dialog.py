@@ -535,8 +535,9 @@ class TxEditor(WindowModalDialog):
                 self.error += ' ' + _('Change your settings to allow spending unconfirmed coins.')
             elif self.can_pay_assuming_zero_fees(confirmed_only=confirmed_only):
                 self.error += ' ' + _('You need to set a lower fee.')
-            else:
-                self.error += ''
+            elif frozen_bal := self.wallet.get_frozen_balance_str():
+                # FIXME only show if unfreezing would fix "not enough funds"
+                self.error += ' ' + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
         if not self.tx:
             if self.not_enough_funds:
                 self.io_widget.update(None)
@@ -616,6 +617,9 @@ class TxEditor(WindowModalDialog):
         self.preview_button.setEnabled(enabled)
         self.ok_button.setEnabled(enabled)
 
+    def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
+        raise NotImplementedError
+
 
 class ConfirmTxDialog(TxEditor):
     help_text = ''  #_('Set the mining fee of your transaction')
@@ -681,7 +685,7 @@ class ConfirmTxDialog(TxEditor):
             raise
         self.tx.set_rbf(True)
 
-    def can_pay_assuming_zero_fees(self, confirmed_only) -> bool:
+    def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
         # called in send_tab.py
         try:
             tx = self.make_tx(FixedFeePolicy(0), confirmed_only=confirmed_only, base_tx=None)

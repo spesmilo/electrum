@@ -1418,7 +1418,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True, batching_candidates=None):
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview, batching_candidates=batching_candidates)
-        if d.not_enough_funds:
+        if d.not_enough_funds:  # FIXME this check looks broken?
             # note: use confirmed_only=False here, regardless of config setting,
             #       as the user needs to get to ConfirmTxDialog to change the config setting
             if not d.can_pay_assuming_zero_fees(confirmed_only=False):
