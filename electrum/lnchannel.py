@@ -1863,7 +1863,7 @@ class Channel(AbstractChannel):
         latest_htlcs = self.hm.get_htlcs_in_latest_ctx(subject)
         return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))
 
-    def should_be_closed_due_to_expiring_htlcs(self, local_height) -> bool:
+    def should_be_closed_due_to_expiring_htlcs(self, local_height: int) -> bool:
         htlcs_we_could_reclaim = {}  # type: Dict[Tuple[Direction, int], UpdateAddHtlc]
         # If there is a received HTLC for which we already released the preimage
         # but the remote did not revoke yet, and the CLTV of this HTLC is dangerously close
@@ -1891,12 +1891,12 @@ class Channel(AbstractChannel):
                 if htlc.cltv_abs + offered_htlc_deadline_delta > local_height:
                     continue
                 htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
-
-        total_value_sat = sum([htlc.amount_msat // 1000 for htlc in htlcs_we_could_reclaim.values()])
-        num_htlcs = len(htlcs_we_could_reclaim)
-        min_value_worth_closing_channel_over_sat = max(num_htlcs * 10 * self.config[REMOTE].dust_limit_sat,
-                                                       500_000)
-        return total_value_sat > min_value_worth_closing_channel_over_sat
+        # Note: previously we used a threshold concept, "min_value_worth_closing_channel_over_sat", and
+        #       only force-closed the channel if the total value of these expiring htlcs was large enough.
+        #       However, if we are forwarding, and an outgoing htlc expires, we should always close
+        #       the outgoing channel (regardless of htlc value), so that we can propagate back the
+        #       removal of the htlc in the incoming channel.
+        return len(htlcs_we_could_reclaim) > 0
 
     def is_funding_tx_mined(self, funding_height):
         funding_txid = self.funding_outpoint.txid
