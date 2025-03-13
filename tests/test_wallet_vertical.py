@@ -2895,16 +2895,39 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual(
             {'52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0:1'},
             {txi.prevout.to_str() for txi in wallet.get_spendable_coins(["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"])})
+
+        utxo1 = "c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a:1"
+        utxo2 = "52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0:1"
+
         # test freezing an address
-        wallet.set_frozen_state_of_addresses(["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], freeze=True)
-        self.assertEqual(
-            {'c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a:1'},
-            {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
-        wallet.set_frozen_state_of_addresses(["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], freeze=False)
-        self.assertEqual(
-            {'c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a:1',
-             '52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0:1'},
-            {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+        with self.subTest(msg="freeze_address"):
+            wallet.set_frozen_state_of_addresses(["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], freeze=True)
+            self.assertEqual(
+                {utxo1},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+            wallet.set_frozen_state_of_addresses(["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], freeze=False)
+            self.assertEqual(
+                {utxo1, utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+
+        # test freezing a utxo
+        with self.subTest(msg="freeze_coin"):
+            self.assertTrue(utxo1 not in wallet._frozen_coins)
+
+            wallet.set_frozen_state_of_coins([utxo1], freeze=True)
+            self.assertEqual(wallet._frozen_coins.get(utxo1), True)
+            self.assertEqual(
+                {utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+
+            wallet.set_frozen_state_of_coins([utxo1], freeze=False)
+            self.assertEqual(wallet._frozen_coins.get(utxo1), False)
+            self.assertEqual(
+                {utxo1, utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+
+            wallet.set_frozen_state_of_coins([utxo1], freeze=None)
+            self.assertTrue(utxo1 not in wallet._frozen_coins)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_export_psbt_with_xpubs__multisig(self, mock_save_db):

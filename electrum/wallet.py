@@ -2024,16 +2024,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def set_frozen_state_of_coins(
         self,
         utxos: Iterable[str],
-        freeze: bool,
+        freeze: Optional[bool],  # tri-state
         *,
         write_to_disk: bool = True,
     ) -> None:
-        """Set frozen state of the utxos to FREEZE, True or False"""
+        """Set frozen state of the utxos to `freeze`, True or False (or None).
+        A value of True/False means the user explicitly set if the coin should be frozen.
+        In contrast, None is the default "unset" state. If unset, is_frozen_coin()
+        can decide whether a coin should be frozen.
+        """
         # basic sanity check that input is not garbage: (see if raises)
         [TxOutpoint.from_str(utxo) for utxo in utxos]
+        assert freeze in (None, False, True), f"{freeze=!r}"
         with self._freeze_lock:
             for utxo in utxos:
-                self._frozen_coins[utxo] = bool(freeze)
+                if freeze is None:
+                    self._frozen_coins.pop(utxo, None)
+                else:
+                    self._frozen_coins[utxo] = bool(freeze)
         util.trigger_callback('status')
         if write_to_disk:
             self.save_db()
