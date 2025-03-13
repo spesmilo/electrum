@@ -43,6 +43,8 @@ class SweepInfo(NamedTuple):
     cltv_abs: Optional[int] # set to None only if the script has no cltv
     txin: PartialTxInput
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
+    can_be_batched: bool # todo: this could be more fine-grained
+
 
 def sweep_their_ctx_watchtower(
         chan: 'Channel',
@@ -251,7 +253,8 @@ def sweep_their_htlctx_justice(
                 csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
-                txout=None
+                txout=None,
+                can_be_batched=False,
             )
     return index_to_sweepinfo
 
@@ -329,6 +332,7 @@ def sweep_our_ctx(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=True,
             )
 
     # to_local
@@ -350,6 +354,7 @@ def sweep_our_ctx(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=True,
             )
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
@@ -384,7 +389,11 @@ def sweep_our_ctx(
                 csv_delay=0,
                 cltv_abs=htlc_tx.locktime,
                 txin=htlc_tx.inputs()[0],
-                txout=htlc_tx.outputs()[0])
+                txout=htlc_tx.outputs()[0],
+                can_be_batched=False, # both parties can spend
+                # actually, we might want to batch depending on the context
+                # f(amount in htlc, remaining_time, number of available utxos for anchors)
+            )
         else:
             # second-stage
             address = bitcoin.script_to_p2wsh(htlctx_witness_script)
@@ -404,6 +413,9 @@ def sweep_our_ctx(
                         cltv_abs=0,
                         txin=sweep_txin,
                         txout=None,
+                        # this is safe to batch, we are the only ones who can spend
+                        # (assuming we did not broadcast a revoked state)
+                        can_be_batched=True,
                     )
 
     # offered HTLCs, in our ctx --> "timeout"
@@ -541,6 +553,7 @@ def sweep_their_ctx_to_remote_backup(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=True,
             )
 
     # to_remote
@@ -562,6 +575,7 @@ def sweep_their_ctx_to_remote_backup(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=True,
             )
     return txs
 
@@ -619,6 +633,7 @@ def sweep_their_ctx(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=True,
             )
 
     # to_local is handled by lnwatcher
@@ -631,6 +646,7 @@ def sweep_their_ctx(
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
+                can_be_batched=False,
             )
 
     # to_remote
@@ -656,12 +672,14 @@ def sweep_their_ctx(
                     our_payment_privkey=our_payment_privkey,
                     has_anchors=chan.has_anchors()
             ):
+                # todo: we might not want to sweep this at all, if we add it to the wallet addresses
                 txs[prevout] = SweepInfo(
                     name='their_ctx_to_remote',
                     csv_delay=csv_delay,
                     cltv_abs=None,
                     txin=txin,
                     txout=None,
+                    can_be_batched=True,
                 )
 
     # HTLCs
@@ -701,6 +719,7 @@ def sweep_their_ctx(
                 cltv_abs=cltv_abs,
                 txin=txin,
                 txout=None,
+                can_be_batched=False,
             )
     # received HTLCs, in their ctx --> "timeout"
     # offered HTLCs, in their ctx --> "success"

@@ -1247,6 +1247,9 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
     def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
         idxs = self.get_output_idxs_from_address(dummy_addr)
         if not idxs:

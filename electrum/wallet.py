@@ -33,7 +33,6 @@ import time
 import json
 import copy
 import errno
-import traceback
 import operator
 import math
 from functools import partial
@@ -60,7 +59,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
 from .simple_config import SimpleConfig
-from .fee_policy import FeePolicy, FeeMethod, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
+from .fee_policy import FeePolicy, FixedFeePolicy, FeeMethod, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .bitcoin import DummyAddress, DummyAddressUsedInTxException
@@ -90,12 +89,14 @@ from .util import EventListener, event_listener
 from . import descriptor
 from .descriptor import Descriptor
 from .util import OnchainHistoryItem, LightningHistoryItem
+from .txbatcher import TxBatcher
 
 if TYPE_CHECKING:
     from .network import Network
     from .exchange_rate import FxThread
     from .submarine_swaps import SwapData
     from .lnchannel import AbstractChannel
+    from .lnsweep import SweepInfo
 
 
 _logger = get_logger(__name__)
@@ -431,6 +432,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
         self.load_keystore()
+        self.txbatcher = TxBatcher(self)
         self._init_lnworker()
         self._init_requests_rhash_index()
         self._prepare_onchain_invoice_paid_detection()
@@ -461,6 +463,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             async with self.taskgroup as group:
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
                 await group.spawn(self.do_synchronize_loop())
+                await group.spawn(self.txbatcher.run())
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
@@ -855,8 +858,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return True
         return False
 
-    def get_swap_by_claim_tx(self, tx: Transaction) -> Optional['SwapData']:
-        return self.lnworker.swap_manager.get_swap_by_claim_tx(tx) if self.lnworker else None
+    def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable['SwapData']:
+        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.lnworker else []
 
     def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
         return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
@@ -905,7 +908,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
-        is_swap = bool(self.get_swap_by_claim_tx(tx))
+        is_swap = bool(self.get_swaps_by_claim_tx(tx))
         fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
@@ -1736,9 +1739,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = self.db.get_transaction(hist_item.txid)
             if not tx:
                 continue
+            txid = tx.txid()
+            # tx should not belong to tx batcher
+            if self.txbatcher.is_mine(txid):
+                continue
             # is_mine outputs should not be spent yet
             # to avoid cancelling our own dependent transactions
-            txid = tx.txid()
             if any([self.is_mine(o.address) and self.db.get_spent_outpoint(txid, output_idx)
                     for output_idx, o in enumerate(tx.outputs())]):
                 continue
@@ -2096,6 +2102,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.remove_signatures()
         if not self.can_rbf_tx(tx):
             raise CannotBumpFee(_('Transaction is final'))
+        if self.txbatcher.is_mine(tx.txid()):
+            raise CannotBumpFee('Transaction managed by txbatcher')
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
@@ -2320,6 +2328,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # do not mutate LN funding txs, as that would change their txid
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
             return False
+        if self.txbatcher.is_mine(tx.txid()):
+            return False
         return tx.is_rbf_enabled()
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
@@ -2527,7 +2537,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for k in self.get_keystores():
                 if k.can_sign_txin(txin):
                     return True
-        if self.get_swap_by_claim_tx(tx):
+        if self.get_swaps_by_claim_tx(tx):
             return True
         return False
 
@@ -3326,6 +3336,34 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not frozen_bal:
             return None
         return self.config.format_amount_and_units(frozen_bal)
+
+    def add_future_tx(self, sweep_info: 'SweepInfo', wanted_height: int):
+        """ add local tx to provide user feedback """
+        txin = copy.deepcopy(sweep_info.txin)
+        prevout = txin.prevout.to_str()
+        prev_txid, index = prevout.split(':')
+        if txid := self.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            # set future tx of existing spender because it is not persisted
+            # (and wanted_height can change if input of CSV was not mined before)
+            self.adb.set_future_tx(txid, wanted_height=wanted_height)
+            return
+        name = sweep_info.name
+        # outputs = [] will send coins to a change address
+        tx = self.create_transaction(
+            inputs=[txin],
+            outputs=[],
+            password=None,
+            fee_policy=FixedFeePolicy(0),
+            sign=False,
+        )
+        try:
+            self.adb.add_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+            return
+        self.logger.info(f'added future tx: {name}. prevout: {prevout}')
+        util.trigger_callback('wallet_updated', self)
+        self.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
 
 
 class Simple_Wallet(Abstract_Wallet):
