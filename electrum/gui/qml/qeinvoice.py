@@ -415,7 +415,7 @@ class QEInvoice(QObject, QtEventListener):
             try:
                 outputs = [PartialTxOutput(scriptpubkey=address_to_script(address), value='!')]
                 make_tx = lambda fee_policy, *, confirmed_only=False: self._wallet.wallet.make_unsigned_transaction(
-                    coins=self._wallet.wallet.get_spendable_coins(None),
+                    coins=self._wallet.wallet.get_spendable_coins(nonlocal_only=True),
                     outputs=outputs,
                     fee_policy=fee_policy,
                     is_sweep=False)
