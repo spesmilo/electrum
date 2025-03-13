@@ -1064,7 +1064,7 @@ class SwapManager(Logger):
             swap: SwapData,
     ) -> PartialTransaction:
         if swap.is_reverse:  # successful reverse swap
-            locktime = 0
+            locktime = None
             # preimage will be set in sign_tx
         else:  # timing out forward swap
             locktime = swap.locktime
