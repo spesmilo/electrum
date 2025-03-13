@@ -671,7 +671,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if not self.question(msg):
             return
         self.save_pending_invoice(invoice)
-        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
+        coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat)
 
         #self.window.run_coroutine_from_thread(coro, _('Sending payment'))
         self.show_message(_("Please wait..."), getchar=False)
