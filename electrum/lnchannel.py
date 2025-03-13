@@ -1357,7 +1357,6 @@ class Channel(AbstractChannel):
                     error_bytes, failure_message = None, None
                 self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
-
     def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
         from . import lnutil
         from .crypto import ripemd
@@ -1403,6 +1402,13 @@ class Channel(AbstractChannel):
             # ^ note: log message text grepped for in regtests
             self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
 
+        # Mark the htlc as fulfilled or failed.
+        # If we forwarded this, this ensures that the success/failure is propagated back on the incoming channel.
+        # FIXME we only look at outgoing htlcs that have a corresponding output in the commitment tx,
+        #       however we should also look at those that do not. E.g. a small value htlc might not create an output
+        #       but we should still propagate back success or failure on the incoming link. And it is not just about
+        #       small value htlcs: even a large htlc might not appear in the outgoing channel's ctx, e.g. maybe it was
+        #       not committed yet - we should still make sure it gets removed on the incoming channel. (see #9631)
         if preimage:
             self.lnworker.save_preimage(payment_hash, preimage)
             for htlc, is_sent in found.values():
@@ -1422,7 +1428,6 @@ class Channel(AbstractChannel):
                         htlc_id=htlc.htlc_id,
                         error_bytes=None,
                         failure_message=failure)
-
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner
