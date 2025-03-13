@@ -255,7 +255,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
         make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             fee_policy=fee_policy,
-            coins=self.window.get_coins(),
+            coins=self.window.get_coins(nonlocal_only=True),
             outputs=outputs,
             is_sweep=False)
         try:
