@@ -1966,6 +1966,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if frozen is not None:  # user has explicitly set the state
             return bool(frozen)
         # State not set. We implicitly mark certain coins as frozen:
+        tx_mined_status = self.adb.get_tx_height(utxo.prevout.txid.hex())
+        if tx_mined_status.height == TX_HEIGHT_FUTURE:
+            return True
         if self._is_coin_small_and_unconfirmed(utxo):
             return True
         return False
