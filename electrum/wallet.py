@@ -1841,6 +1841,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             base_tx: Optional[Transaction] = None,
             send_change_to_lightning: bool = False,
             merge_duplicate_outputs: bool = False,
+            locktime: Optional[int] = None,
+            tx_version: Optional[int] = None,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
@@ -1953,8 +1955,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             outputs[i].value += (amount - distr_amount)
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
-        # Timelock tx to current height.
-        tx.locktime = get_locktime_for_new_transaction(self.network)
+        if locktime is None:
+            # Timelock tx to current height.
+            locktime = get_locktime_for_new_transaction(self.network)
+        tx.locktime = locktime
+        if tx_version is not None:
+            tx.version = tx_version
         tx.rbf_merge_txid = rbf_merge_txid
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
@@ -3132,11 +3138,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             merge_duplicate_outputs=merge_duplicate_outputs,
             rbf=rbf,
             BIP69_sort=BIP69_sort,
+            locktime=locktime,
+            tx_version=tx_version,
         )
-        if locktime is not None:
-            tx.locktime = locktime
-        if tx_version is not None:
-            tx.version = tx_version
         return tx
 
     def _check_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> TxSighashDanger:

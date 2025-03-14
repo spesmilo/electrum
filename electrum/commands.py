@@ -793,7 +793,8 @@ class Commands(Logger):
             domain_addr=domain_addr,
             domain_coins=domain_coins,
             rbf=rbf,
-            locktime=locktime)
+            locktime=locktime,
+        )
         if not unsigned:
             wallet.sign_transaction(tx, password)
         result = tx.serialize()
@@ -823,7 +824,8 @@ class Commands(Logger):
             domain_addr=domain_addr,
             domain_coins=domain_coins,
             rbf=rbf,
-            locktime=locktime)
+            locktime=locktime,
+        )
         if not unsigned:
             wallet.sign_transaction(tx, password)
         result = tx.serialize()
