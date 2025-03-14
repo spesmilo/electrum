@@ -691,11 +691,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = None
         fee_policy = FeePolicy(self.config.FEE_POLICY)
         try:
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=invoice.outputs,
-                password=password,
                 fee_policy=fee_policy,
             )
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             self.show_message(repr(e))
             return
