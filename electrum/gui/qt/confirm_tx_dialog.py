@@ -418,11 +418,6 @@ class TxEditor(WindowModalDialog):
         self.pref_menu.addConfig(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, callback=self.trigger_update)
         self.pref_menu.addConfig(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, callback=self.trigger_update)
         self.pref_menu.addConfig(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, callback=self.trigger_update)
-        def cb():
-            self.trigger_update()
-            self.main_window.utxo_list.refresh_all()  # for coin frozen status
-            self.main_window.update_status()  # frozen balance
-        self.pref_menu.addConfig(self.config.cv.WALLET_FREEZE_REUSED_ADDRESS_UTXOS, callback=cb)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
