@@ -1830,7 +1830,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,
-            coins: Sequence[PartialTxInput],
+            coins: Optional[Sequence[PartialTxInput]] = None,
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
@@ -1841,9 +1841,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             base_tx: Optional[Transaction] = None,
             send_change_to_lightning: bool = False,
             merge_duplicate_outputs: bool = False,
+            locktime: Optional[int] = None,
+            tx_version: Optional[int] = None,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
+        if coins is None:
+            coins = self.get_spendable_coins()
         if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
@@ -1957,8 +1961,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
         assert len(tx.outputs()) > 0, "any bitcoin tx must have at least 1 output by consensus"
-        # Timelock tx to current height.
-        tx.locktime = get_locktime_for_new_transaction(self.network)
+        if locktime is None:
+            # Timelock tx to current height.
+            locktime = get_locktime_for_new_transaction(self.network)
+        tx.locktime = locktime
+        if tx_version is not None:
+            tx.version = tx_version
         tx.rbf_merge_txid = rbf_merge_txid
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
@@ -1976,7 +1984,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if frozen is not None:  # user has explicitly set the state
             return bool(frozen)
         # State not set. We implicitly mark certain coins as frozen:
+        tx_mined_status = self.adb.get_tx_height(utxo.prevout.txid.hex())
+        if tx_mined_status.height == TX_HEIGHT_FUTURE:
+            return True
         if self._is_coin_small_and_unconfirmed(utxo):
+            return True
+        addr = utxo.address
+        assert addr is not None
+        if self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS and self.adb.is_used_as_from_address(addr):
             return True
         return False
 
@@ -3096,50 +3111,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
 
-    def create_transaction(
-            self,
-            outputs,
-            *,
-            fee_policy: FeePolicy,
-            change_addr=None,
-            domain_addr=None,
-            domain_coins=None,
-            sign=True,
-            rbf=True,
-            password=None,
-            locktime=None,
-            tx_version: Optional[int] = None,
-            base_tx: Optional[PartialTransaction] = None,
-            inputs: Optional[List[PartialTxInput]] = None,
-            send_change_to_lightning: Optional[bool] = None,
-            merge_duplicate_outputs: Optional[bool] = None,
-            nonlocal_only: bool = False,
-            BIP69_sort: bool = True,
-    ) -> PartialTransaction:
-        """Helper function for make_unsigned_transaction."""
-        coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
-        if domain_coins is not None:
-            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        tx = self.make_unsigned_transaction(
-            coins=coins,
-            inputs=inputs,
-            outputs=outputs,
-            fee_policy=fee_policy,
-            change_addr=change_addr,
-            base_tx=base_tx,
-            send_change_to_lightning=send_change_to_lightning,
-            merge_duplicate_outputs=merge_duplicate_outputs,
-            rbf=rbf,
-            BIP69_sort=BIP69_sort,
-        )
-        if locktime is not None:
-            tx.locktime = locktime
-        if tx_version is not None:
-            tx.version = tx_version
-        if sign:
-            self.sign_transaction(tx, password)
-        return tx
-
     def _check_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> TxSighashDanger:
         """Helper method to check if there is risk of burning coins as fees if we sign.
         Note that if not all inputs are ismine, e.g. coinjoin, the risk is not just about fees.
@@ -3390,12 +3361,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         name = sweep_info.name
         # outputs = [] will send coins to a change address
-        tx = self.create_transaction(
+        tx = self.make_unsigned_transaction(
             inputs=[txin],
             outputs=[],
-            password=None,
             fee_policy=FixedFeePolicy(0),
-            sign=False,
         )
         try:
             self.adb.add_transaction(tx)

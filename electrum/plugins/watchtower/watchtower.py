@@ -24,19 +24,21 @@
 # SOFTWARE.
 
 
-import asyncio, os
+import asyncio
+import os
 from typing import TYPE_CHECKING
-from typing import NamedTuple, Dict
+from typing import Dict
 
 from electrum.util import log_exceptions, random_shuffled_copy
-from electrum.plugin import BasePlugin, hook
+from electrum.plugin import BasePlugin
 from electrum.sql_db import SqlDB, sql
-from electrum.lnwatcher import LNWatcher
 from electrum.transaction import Transaction, match_script_against_template
 from electrum.network import Network
 from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL
 from electrum.wallet_db import WalletDB
 from electrum.lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
+from electrum.logging import Logger
+from electrum.util import EventListener, event_listener
 
 from .server import WatchTowerServer
 
@@ -60,23 +62,70 @@ class WatchtowerPlugin(BasePlugin):
             asyncio.run_coroutine_threadsafe(self.network.taskgroup.spawn(self.server.run), self.network.asyncio_loop)
 
 
-class WatchTower(LNWatcher):
+class WatchTower(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
-        adb = AddressSynchronizer(WalletDB('', storage=None, upgrade=True), network.config, name=self.diagnostic_name())
-        adb.start_network(network)
-        LNWatcher.__init__(self, adb, network)
+        Logger.__init__(self)
+        self.adb = AddressSynchronizer(WalletDB('', storage=None, upgrade=True), network.config, name=self.diagnostic_name())
+        self.adb.start_network(network)
+        self.config = network.config
+        self.callbacks = {}  # address -> lambda function
+        self.register_callbacks()
+        # status gets populated when we run
+        self.channel_status = {}
         self.network = network
         self.sweepstore = SweepStore(os.path.join(self.network.config.path, "watchtower_db"), network)
 
+    def remove_callback(self, address):
+        self.callbacks.pop(address, None)
+
+    def add_callback(self, address, callback):
+        self.adb.add_address(address)
+        self.callbacks[address] = callback
+
+    @event_listener
+    async def on_event_blockchain_updated(self, *args):
+        await self.trigger_callbacks()
+
+    @event_listener
+    async def on_event_wallet_updated(self, wallet):
+        # called if we add local tx
+        if wallet.adb != self.adb:
+            return
+        await self.trigger_callbacks()
+
+    @event_listener
+    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
+        if adb != self.adb:
+            return
+        await self.trigger_callbacks()
+
+    @event_listener
+    async def on_event_adb_set_up_to_date(self, adb):
+        if adb != self.adb:
+            return
+        await self.trigger_callbacks()
+
+    @log_exceptions
+    async def trigger_callbacks(self):
+        if not self.adb.synchronizer:
+            self.logger.info("synchronizer not set yet")
+            return
+        for address, callback in list(self.callbacks.items()):
+            await callback()
+
     async def stop(self):
-        await super().stop()
+        self.unregister_callbacks()
         await self.adb.stop()
 
+    def add_channel(self, outpoint: str, address: str) -> None:
+        callback = lambda: self.check_onchain_situation(address, outpoint)
+        self.add_callback(address, callback)
+
     def diagnostic_name(self):
-        return "local_tower"
+        return "watchtower"
 
     @log_exceptions
     async def start_watching(self):
@@ -84,6 +133,24 @@ class WatchTower(LNWatcher):
         lst = await self.sweepstore.list_channels()
         for outpoint, address in random_shuffled_copy(lst):
             self.add_channel(outpoint, address)
+
+    async def check_onchain_situation(self, address, funding_outpoint):
+        # early return if address has not been added yet
+        if not self.adb.is_mine(address):
+            return
+        # inspect_tx_candidate might have added new addresses, in which case we return early
+        closing_txid = self.adb.get_spender(funding_outpoint)
+        if closing_txid:
+            closing_tx = self.adb.get_transaction(closing_txid)
+            if closing_tx:
+                keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
+            else:
+                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
+                keep_watching = True
+        else:
+            keep_watching = True
+        if not keep_watching:
+            await self.unwatch_channel(address, funding_outpoint)
 
     def inspect_tx_candidate(self, outpoint, n: int) -> Dict[str, str]:
         """
@@ -99,7 +166,7 @@ class WatchTower(LNWatcher):
         if n == 0:
             if spender_txid is None:
                 self.channel_status[outpoint] = 'open'
-            elif not self.is_deeply_mined(spender_txid):
+            elif not self.adb.is_deeply_mined(spender_txid):
                 self.channel_status[outpoint] = 'closed (%d)' % self.adb.get_tx_height(spender_txid).conf
             else:
                 self.channel_status[outpoint] = 'closed (deep)'
@@ -133,7 +200,7 @@ class WatchTower(LNWatcher):
             if not self.adb.is_mine(o.address):
                 self.adb.add_address(o.address)
             elif n < 2:
-                r = self.inspect_tx_candidate(spender_txid+':%d'%i, n+1)
+                r = self.inspect_tx_candidate(spender_txid + ':%d' % i, n + 1)
                 result.update(r)
         return result
 
@@ -142,7 +209,7 @@ class WatchTower(LNWatcher):
         keep_watching = False
         for prevout, spender in spenders.items():
             if spender is not None:
-                keep_watching |= not self.is_deeply_mined(spender)
+                keep_watching |= not self.adb.is_deeply_mined(spender)
                 continue
             sweep_txns = await self.sweepstore.get_sweep_tx(funding_outpoint, prevout)
             for tx in sweep_txns:
@@ -184,13 +251,8 @@ class WatchTower(LNWatcher):
         return self.network.run_from_another_thread(f())
 
     async def unwatch_channel(self, address, funding_outpoint):
-        await super().unwatch_channel(address, funding_outpoint)
         await self.sweepstore.remove_sweep_tx(funding_outpoint)
         await self.sweepstore.remove_channel(funding_outpoint)
-
-    async def update_channel_state(self, *args, **kwargs):
-        pass
-
 
 
 create_sweep_txs="""
@@ -288,5 +350,3 @@ class SweepStore(SqlDB):
         c = self.conn.cursor()
         c.execute("SELECT outpoint, address FROM channel_info")
         return [(r[0], r[1]) for r in c.fetchall()]
-
-

@@ -179,6 +179,7 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.config = wallet.config
         self.lnworker = lnworker
+        self.lnwatcher = self.lnworker.lnwatcher
         self.config = wallet.config
         self.taskgroup = OldTaskGroup()
         self.dummy_address = DummyAddress.SWAP
@@ -207,7 +208,6 @@ class SwapManager(Logger):
             return
         self.logger.info('start_network: starting main loop')
         self.network = network
-        self.lnwatcher = self.lnworker.lnwatcher
         for k, swap in self.swaps.items():
             if swap.is_redeemed:
                 continue
@@ -321,8 +321,7 @@ class SwapManager(Logger):
             if sha256(preimage) == swap.payment_hash:
                 return preimage
 
-    @log_exceptions
-    async def _claim_swap(self, swap: SwapData) -> None:
+    def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
         assert self.lnwatcher
         if not self.lnwatcher.adb.is_up_to_date():
@@ -772,16 +771,15 @@ class SwapManager(Logger):
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
         if tx is None:
             funding_output = self.create_funding_output(swap)
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=[funding_output],
                 rbf=True,
-                password=password,
                 fee_policy=fee_policy,
             )
         else:
             tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
             tx.set_rbf(True)
-            self.wallet.sign_transaction(tx, password)
+        self.wallet.sign_transaction(tx, password)
         return tx
 
     @log_exceptions

@@ -391,16 +391,16 @@ class TxBatch(Logger):
                         txin.witness_script = sweep_info.txin.witness_script
                         txin.script_sig = sweep_info.txin.script_sig
         # create tx
-        tx = self.wallet.create_transaction(
+        tx = self.wallet.make_unsigned_transaction(
             fee_policy=self.fee_policy,
             base_tx=base_tx,
             inputs=inputs,
             outputs=outputs,
-            password=password,
             locktime=locktime,
             BIP69_sort=False,
             merge_duplicate_outputs=False,
         )
+        self.wallet.sign_transaction(tx, password)
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
         assert tx.is_complete()

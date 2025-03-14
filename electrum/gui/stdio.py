@@ -212,11 +212,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if c == "n": return
 
         try:
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
-                password=password,
                 fee_policy=FixedFeePolicy(fee),
             )
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             print(repr(e))
             return

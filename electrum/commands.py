@@ -778,28 +778,21 @@ class Commands(Logger):
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                     nocheck=False, unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a transaction. """
-        self.nocheck = nocheck
-        fee_policy = self._get_fee_policy(fee, feerate)
-        domain_addr = from_addr.split(',') if from_addr else None
-        domain_coins = from_coins.split(',') if from_coins else None
-        change_addr = self._resolver(change_addr, wallet)
-        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
-        amount_sat = satoshis_or_max(amount)
-        outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
-        tx = wallet.create_transaction(
-            outputs,
-            fee_policy=fee_policy,
+        return await self.paytomany(
+            outputs=[(destination, amount),],
+            fee=fee,
+            feerate=feerate,
+            from_addr=from_addr,
+            from_coins=from_coins,
             change_addr=change_addr,
-            domain_addr=domain_addr,
-            domain_coins=domain_coins,
-            sign=not unsigned,
+            nocheck=nocheck,
+            unsigned=unsigned,
             rbf=rbf,
             password=password,
-            locktime=locktime)
-        result = tx.serialize()
-        if addtransaction:
-            await self.addtransaction(result, wallet=wallet)
-        return result
+            locktime=locktime,
+            addtransaction=addtransaction,
+            wallet=wallet,
+        )
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
@@ -816,16 +809,19 @@ class Commands(Logger):
             address = self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
-        tx = wallet.create_transaction(
-            final_outputs,
+        coins = wallet.get_spendable_coins(domain_addr)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+        tx = wallet.make_unsigned_transaction(
+            outputs=final_outputs,
             fee_policy=fee_policy,
             change_addr=change_addr,
-            domain_addr=domain_addr,
-            domain_coins=domain_coins,
-            sign=not unsigned,
+            coins=coins,
             rbf=rbf,
-            password=password,
-            locktime=locktime)
+            locktime=locktime,
+        )
+        if not unsigned:
+            wallet.sign_transaction(tx, password)
         result = tx.serialize()
         if addtransaction:
             await self.addtransaction(result, wallet=wallet)

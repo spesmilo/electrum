@@ -72,7 +72,8 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         # get paid onchain
         wallet2 = self.create_wallet2()  # type: Standard_Wallet
         outputs = [PartialTxOutput.from_address_and_value(pr.get_address(), pr.get_amount_sat())]
-        tx = wallet2.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        tx = wallet2.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        wallet2.sign_transaction(tx, password=None)
         wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx gets mined
@@ -102,7 +103,8 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         # get paid onchain
         wallet2 = self.create_wallet2()  # type: Standard_Wallet
         outputs = [PartialTxOutput.from_address_and_value(pr.get_address(), pr.get_amount_sat())]
-        tx = wallet2.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        tx = wallet2.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        wallet2.sign_transaction(tx, password=None)
         wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx gets mined
@@ -132,7 +134,8 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         # get paid onchain
         wallet2 = self.create_wallet2()  # type: Standard_Wallet
         outputs = [PartialTxOutput.from_address_and_value(pr.get_address(), pr.get_amount_sat())]
-        tx = wallet2.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        tx = wallet2.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        wallet2.sign_transaction(tx, password=None)
         wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx mined in the past (before invoice creation)
@@ -201,7 +204,8 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         # pr2 gets paid onchain
         wallet2 = self.create_wallet2()  # type: Standard_Wallet
         outputs = [PartialTxOutput.from_address_and_value(pr2.get_address(), pr2.get_amount_sat())]
-        tx = wallet2.create_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        tx = wallet2.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000))
+        wallet2.sign_transaction(tx, password=None)
         wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr2))
         self.assertEqual(pr2, wallet1.get_request_by_addr(addr1))

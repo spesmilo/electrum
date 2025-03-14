@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Optional, Union, Callable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
-
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu, QComboBox
 
 from electrum.i18n import _
@@ -38,21 +37,19 @@ from electrum.util import quantize_feerate
 from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
-from electrum.simple_config import SimpleConfig
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    WWLabel, read_QIcon)
-
-if TYPE_CHECKING:
-    from electrum.simple_config import ConfigVarWithConfig
-    from .main_window import ElectrumWindow
-
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
+from .my_treeview import QMenuWithConfig
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 class TxEditor(WindowModalDialog):
@@ -112,8 +109,8 @@ class TxEditor(WindowModalDialog):
         vbox.addLayout(buttons)
 
         self.set_io_visible()
-        self.set_fee_edit_visible(self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS)
-        self.set_locktime_visible(self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME)
+        self.set_fee_edit_visible()
+        self.set_locktime_visible()
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
@@ -380,42 +377,37 @@ class TxEditor(WindowModalDialog):
             buttons.insertWidget(0, batching_combo)
             def on_batching_combo(x):
                 self._base_tx = self.batching_candidates[x - 1] if x > 0 else None
-                self.update_batching()
+                self.trigger_update()
             batching_combo.currentIndexChanged.connect(on_batching_combo)
         return buttons
 
     def create_top_bar(self, text):
-        self.pref_menu = QMenu()
-        self.pref_menu.setToolTipsVisible(True)
+        self.pref_menu = QMenuWithConfig(self.config)
 
-        def add_pref_action(b, action, text, tooltip):
-            m = self.pref_menu.addAction(text, action)
-            m.setCheckable(True)
-            m.setChecked(b)
-            m.setToolTip(tooltip)
-            return m
-
-        def add_cv_action(configvar: 'ConfigVarWithConfig', action: Callable[[], None]):
-            b = configvar.get()
-            short_desc = configvar.get_short_desc()
-            assert short_desc is not None, f"short_desc missing for {configvar}"
-            tooltip = configvar.get_long_desc() or ""
-            return add_pref_action(b, action, short_desc, tooltip)
-
-        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_IO, self.toggle_io_visibility)
-        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS, self.toggle_fee_details)
-        add_cv_action(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, self.toggle_locktime)
+        def cb():
+            self.set_io_visible()
+            self.resize_to_fit_content()
+        self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_IO, callback=cb)
+        def cb():
+            self.set_fee_edit_visible()
+            self.resize_to_fit_content()
+        self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS, callback=cb)
+        def cb():
+            self.set_locktime_visible()
+            self.resize_to_fit_content()
+        self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
         self.pref_menu.addSeparator()
-        add_cv_action(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, self.toggle_send_change_to_lightning)
-        add_pref_action(
-            self.wallet.use_change,
-            self.toggle_use_change,
+        self.pref_menu.addConfig(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, callback=self.trigger_update)
+        self.pref_menu.addToggle(
             _('Use change addresses'),
-            _('Using change addresses makes it more difficult for other people to track your transactions.'))
-        self.use_multi_change_menu = add_pref_action(
-            self.wallet.multiple_change, self.toggle_multiple_change,
-            _('Use multiple change addresses',),
-            '\n'.join([
+            self.toggle_use_change,
+            default_state=self.wallet.use_change,
+            tooltip=_('Using change addresses makes it more difficult for other people to track your transactions.'))
+        self.use_multi_change_menu = self.pref_menu.addToggle(
+            _('Use multiple change addresses'),
+            self.toggle_multiple_change,
+            default_state=self.wallet.multiple_change,
+            tooltip='\n'.join([
                 _('In some cases, use up to 3 change addresses in order to break '
                   'up large coin amounts and obfuscate the recipient address.'),
                 _('This may result in higher transactions fees.')
@@ -423,9 +415,9 @@ class TxEditor(WindowModalDialog):
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
         # fixme: some of these options (WALLET_SEND_CHANGE_TO_LIGHTNING, WALLET_MERGE_DUPLICATE_OUTPUTS)
         # only make sense when we create a new tx, and should not be visible/enabled in rbf dialog
-        add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
-        add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
-        add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
+        self.pref_menu.addConfig(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, callback=self.trigger_update)
+        self.pref_menu.addConfig(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, callback=self.trigger_update)
+        self.pref_menu.addConfig(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, callback=self.trigger_update)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -443,11 +435,6 @@ class TxEditor(WindowModalDialog):
         self.resize(size)
         self.resize(size)
 
-    def toggle_output_rounding(self):
-        b = not self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING
-        self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = b
-        self.trigger_update()
-
     def toggle_use_change(self):
         self.wallet.use_change = not self.wallet.use_change
         self.wallet.db.put('use_change', self.wallet.use_change)
@@ -459,45 +446,11 @@ class TxEditor(WindowModalDialog):
         self.wallet.db.put('multiple_change', self.wallet.multiple_change)
         self.trigger_update()
 
-    def update_batching(self):
-        self.trigger_update()
-
-    def toggle_merge_duplicate_outputs(self):
-        b = not self.config.WALLET_MERGE_DUPLICATE_OUTPUTS
-        self.config.WALLET_MERGE_DUPLICATE_OUTPUTS = b
-        self.trigger_update()
-
-    def toggle_send_change_to_lightning(self):
-        b = not self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
-        self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = b
-        self.trigger_update()
-
-    def toggle_confirmed_only(self):
-        b = not self.config.WALLET_SPEND_CONFIRMED_ONLY
-        self.config.WALLET_SPEND_CONFIRMED_ONLY = b
-        self.trigger_update()
-
-    def toggle_io_visibility(self):
-        self.config.GUI_QT_TX_EDITOR_SHOW_IO = not self.config.GUI_QT_TX_EDITOR_SHOW_IO
-        self.set_io_visible()
-        self.resize_to_fit_content()
-
-    def toggle_fee_details(self):
-        b = not self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS
-        self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS = b
-        self.set_fee_edit_visible(b)
-        self.resize_to_fit_content()
-
-    def toggle_locktime(self):
-        b = not self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME
-        self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME = b
-        self.set_locktime_visible(b)
-        self.resize_to_fit_content()
-
     def set_io_visible(self):
         self.io_widget.setVisible(self.config.GUI_QT_TX_EDITOR_SHOW_IO)
 
-    def set_fee_edit_visible(self, b):
+    def set_fee_edit_visible(self):
+        b = self.config.GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS
         detailed = [self.feerounding_icon, self.feerate_e, self.fee_e]
         basic = [self.fee_label, self.feerate_label]
         # first hide, then show
@@ -506,7 +459,8 @@ class TxEditor(WindowModalDialog):
         for w in (detailed if b else basic):
             w.show()
 
-    def set_locktime_visible(self, b):
+    def set_locktime_visible(self):
+        b = self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME
         for w in [
                 self.locktime_e,
                 self.locktime_label]:

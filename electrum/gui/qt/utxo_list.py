@@ -90,6 +90,11 @@ class UTXOList(MyTreeView):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_coins_label = toolbar.itemAt(0).widget()
         menu.addAction(_('Coin control'), lambda: self.add_selection_to_coincontrol())
+
+        def cb():
+            self.main_window.utxo_list.refresh_all()  # for coin frozen status
+            self.main_window.update_status()  # frozen balance
+        menu.addConfig(config.cv.WALLET_FREEZE_REUSED_ADDRESS_UTXOS, callback=cb)
         return toolbar
 
     @profiler(min_threshold=0.05)
