@@ -391,7 +391,7 @@ class TxBatch(Logger):
                         txin.witness_script = sweep_info.txin.witness_script
                         txin.script_sig = sweep_info.txin.script_sig
         # create tx
-        tx = self.wallet.create_transaction(
+        tx = self.wallet.make_unsigned_transaction(
             fee_policy=self.fee_policy,
             base_tx=base_tx,
             inputs=inputs,

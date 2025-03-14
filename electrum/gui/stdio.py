@@ -212,7 +212,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if c == "n": return
 
         try:
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
                 fee_policy=FixedFeePolicy(fee),
             )

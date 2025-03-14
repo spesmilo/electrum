@@ -3107,39 +3107,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
 
-    def create_transaction(
-            self,
-            outputs,
-            *,
-            fee_policy: FeePolicy,
-            change_addr=None,
-            coins=None,
-            rbf=True,
-            locktime=None,
-            tx_version: Optional[int] = None,
-            base_tx: Optional[PartialTransaction] = None,
-            inputs: Optional[List[PartialTxInput]] = None,
-            send_change_to_lightning: Optional[bool] = None,
-            merge_duplicate_outputs: Optional[bool] = None,
-            BIP69_sort: bool = True,
-    ) -> PartialTransaction:
-        """Helper function for make_unsigned_transaction."""
-        tx = self.make_unsigned_transaction(
-            coins=coins,
-            inputs=inputs,
-            outputs=outputs,
-            fee_policy=fee_policy,
-            change_addr=change_addr,
-            base_tx=base_tx,
-            send_change_to_lightning=send_change_to_lightning,
-            merge_duplicate_outputs=merge_duplicate_outputs,
-            rbf=rbf,
-            BIP69_sort=BIP69_sort,
-            locktime=locktime,
-            tx_version=tx_version,
-        )
-        return tx
-
     def _check_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> TxSighashDanger:
         """Helper method to check if there is risk of burning coins as fees if we sign.
         Note that if not all inputs are ismine, e.g. coinjoin, the risk is not just about fees.
@@ -3390,7 +3357,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         name = sweep_info.name
         # outputs = [] will send coins to a change address
-        tx = self.create_transaction(
+        tx = self.make_unsigned_transaction(
             inputs=[txin],
             outputs=[],
             fee_policy=FixedFeePolicy(0),

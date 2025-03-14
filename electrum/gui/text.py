@@ -691,7 +691,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = None
         fee_policy = FeePolicy(self.config.FEE_POLICY)
         try:
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=invoice.outputs,
                 fee_policy=fee_policy,
             )

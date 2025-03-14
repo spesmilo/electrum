@@ -789,8 +789,8 @@ class Commands(Logger):
         coins = wallet.get_spendable_coins(domain_addr)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        tx = wallet.create_transaction(
-            outputs,
+        tx = wallet.make_unsigned_transaction(
+            outputs=outputs,
             fee_policy=fee_policy,
             change_addr=change_addr,
             coins=coins,
@@ -822,8 +822,8 @@ class Commands(Logger):
         coins = wallet.get_spendable_coins(domain_addr)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        tx = wallet.create_transaction(
-            final_outputs,
+        tx = wallet.make_unsigned_transaction(
+            outputs=final_outputs,
             fee_policy=fee_policy,
             change_addr=change_addr,
             coins=coins,

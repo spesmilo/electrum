@@ -771,7 +771,7 @@ class SwapManager(Logger):
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
         if tx is None:
             funding_output = self.create_funding_output(swap)
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=[funding_output],
                 rbf=True,
                 fee_policy=fee_policy,
