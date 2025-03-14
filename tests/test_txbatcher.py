@@ -47,7 +47,7 @@ class MockNetwork(Logger):
         return tx.txid()
 
     async def next_tx(self):
-        await self._tx_event.wait()
+        await util.wait_for2(self._tx_event.wait(), timeout=10)
         return self._tx
 
 
