@@ -1830,7 +1830,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,
-            coins: Sequence[PartialTxInput],
+            coins: Optional[Sequence[PartialTxInput]] = None,
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
@@ -1846,6 +1846,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
+        if coins is None:
+            coins = self.get_spendable_coins()
         if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
@@ -3111,8 +3113,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             *,
             fee_policy: FeePolicy,
             change_addr=None,
-            domain_addr=None,
-            domain_coins=None,
+            coins=None,
             rbf=True,
             locktime=None,
             tx_version: Optional[int] = None,
@@ -3120,13 +3121,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             inputs: Optional[List[PartialTxInput]] = None,
             send_change_to_lightning: Optional[bool] = None,
             merge_duplicate_outputs: Optional[bool] = None,
-            nonlocal_only: bool = False,
             BIP69_sort: bool = True,
     ) -> PartialTransaction:
         """Helper function for make_unsigned_transaction."""
-        coins = self.get_spendable_coins(domain_addr, nonlocal_only=nonlocal_only)
-        if domain_coins is not None:
-            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         tx = self.make_unsigned_transaction(
             coins=coins,
             inputs=inputs,

@@ -786,12 +786,14 @@ class Commands(Logger):
         domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
         amount_sat = satoshis_or_max(amount)
         outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
+        coins = wallet.get_spendable_coins(domain_addr)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         tx = wallet.create_transaction(
             outputs,
             fee_policy=fee_policy,
             change_addr=change_addr,
-            domain_addr=domain_addr,
-            domain_coins=domain_coins,
+            coins=coins,
             rbf=rbf,
             locktime=locktime,
         )
@@ -817,12 +819,14 @@ class Commands(Logger):
             address = self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
+        coins = wallet.get_spendable_coins(domain_addr)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         tx = wallet.create_transaction(
             final_outputs,
             fee_policy=fee_policy,
             change_addr=change_addr,
-            domain_addr=domain_addr,
-            domain_coins=domain_coins,
+            coins=coins,
             rbf=rbf,
             locktime=locktime,
         )
