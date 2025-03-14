@@ -10,7 +10,6 @@ import time
 import attr
 import aiohttp
 
-import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
 import electrum_aionostr as aionostr
@@ -316,7 +315,7 @@ class SwapManager(Logger):
         if not swap.is_funded():
             self.swaps.pop(swap.payment_hash.hex())
 
-    def extract_preimage(self, swap, claim_tx):
+    def extract_preimage(self, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
         for txin in claim_tx.inputs():
             preimage = txin.witness_elements()[1]
             if sha256(preimage) == swap.payment_hash:
@@ -538,18 +537,18 @@ class SwapManager(Logger):
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
             redeem_script=redeem_script,
-            locktime = locktime,
-            privkey = our_privkey,
-            preimage = None,
-            prepay_hash = prepay_hash,
-            lockup_address = lockup_address,
-            onchain_amount = onchain_amount_sat,
-            receive_address = receive_address,
-            lightning_amount = lightning_amount_sat,
-            is_reverse = False,
-            is_redeemed = False,
-            funding_txid = None,
-            spending_txid = None,
+            locktime=locktime,
+            privkey=our_privkey,
+            preimage=None,
+            prepay_hash=prepay_hash,
+            lockup_address=lockup_address,
+            onchain_amount=onchain_amount_sat,
+            receive_address=receive_address,
+            lightning_amount=lightning_amount_sat,
+            is_reverse=False,
+            is_redeemed=False,
+            funding_txid=None,
+            spending_txid=None,
         )
         swap._payment_hash = payment_hash
         self._add_or_reindex_swap(swap)
@@ -595,19 +594,19 @@ class SwapManager(Logger):
         lockup_address = script_to_p2wsh(redeem_script)
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
-            redeem_script = redeem_script,
-            locktime = locktime,
-            privkey = privkey,
-            preimage = preimage,
-            prepay_hash = prepay_hash,
-            lockup_address = lockup_address,
-            onchain_amount = onchain_amount_sat,
-            receive_address = receive_address,
-            lightning_amount = lightning_amount_sat,
-            is_reverse = True,
-            is_redeemed = False,
-            funding_txid = None,
-            spending_txid = None,
+            redeem_script=redeem_script,
+            locktime=locktime,
+            privkey=privkey,
+            preimage=preimage,
+            prepay_hash=prepay_hash,
+            lockup_address=lockup_address,
+            onchain_amount=onchain_amount_sat,
+            receive_address=receive_address,
+            lightning_amount=lightning_amount_sat,
+            is_reverse=True,
+            is_redeemed=False,
+            funding_txid=None,
+            spending_txid=None,
         )
         if prepay_hash:
             self.prepayments[prepay_hash] = payment_hash
@@ -670,11 +669,10 @@ class SwapManager(Logger):
         return await self.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
 
     async def request_normal_swap(
-            self, transport,
-        *,
-        lightning_amount_sat: int,
-        expected_onchain_amount_sat: int,
-        channels: Optional[Sequence['Channel']] = None,
+            self, transport, *,
+            lightning_amount_sat: int,
+            expected_onchain_amount_sat: int,
+            channels: Optional[Sequence['Channel']] = None,
     ) -> Tuple[SwapData, str]:
         await self.is_initialized.wait() # add timeout
         refund_privkey = os.urandom(32)
@@ -729,11 +727,10 @@ class SwapManager(Logger):
         return swap, invoice
 
     async def wait_for_htlcs_and_broadcast(
-            self, transport,
-        *,
-        swap: SwapData,
-        invoice: str,
-        tx: Transaction,
+            self, transport, *,
+            swap: SwapData,
+            invoice: str,
+            tx: Transaction,
     ) -> Optional[str]:
         await transport.is_connected.wait()
         payment_hash = swap.payment_hash
@@ -1255,10 +1252,10 @@ class HttpTransport(SwapServerTransport):
         fees = response['pairs']['BTC/BTC']['fees']
         limits = response['pairs']['BTC/BTC']['limits']
         pairs = SwapFees(
-            percentage = fees['percentage'],
-            mining_fee = fees['minerFees']['baseAsset']['mining_fee'],
-            min_amount = limits['minimal'],
-            max_amount = limits['maximal'],
+            percentage=fees['percentage'],
+            mining_fee=fees['minerFees']['baseAsset']['mining_fee'],
+            min_amount=limits['minimal'],
+            max_amount=limits['maximal'],
         )
         self.sm.update_pairs(pairs)
 
@@ -1350,10 +1347,10 @@ class NostrTransport(SwapServerTransport):
 
     def _parse_offer(self, offer):
         return SwapFees(
-            percentage = offer['percentage_fee'],
-            mining_fee = offer['mining_fee'],
-            min_amount = offer['min_amount'],
-            max_amount = offer['max_amount'],
+            percentage=offer['percentage_fee'],
+            mining_fee=offer['mining_fee'],
+            min_amount=offer['min_amount'],
+            max_amount=offer['max_amount'],
         )
 
     @ignore_exceptions
