@@ -450,10 +450,12 @@ class TxBatch(Logger):
                     can_broadcast = False
             else:
                 can_broadcast = False
+                wanted_height = local_height + sweep_info.csv_delay
         if base_tx and prev_height <= 0:
             # we cannot add unconfirmed inputs to existing base_tx (per RBF rules)
             # thus, we will wait until the current batch is confirmed
-            can_broadcast = False
-            wanted_height = prev_height
+            if can_broadcast:
+                can_broadcast = False
+                wanted_height = local_height + 1
         return can_broadcast, wanted_height
 
