@@ -1963,9 +1963,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # note: there are three possible states for 'frozen':
         #       True/False if the user explicitly set it,
         #       None otherwise
-        if frozen is None:
-            return self._is_coin_small_and_unconfirmed(utxo)
-        return bool(frozen)
+        if frozen is not None:  # user has explicitly set the state
+            return bool(frozen)
+        # State not set. We implicitly mark certain coins as frozen:
+        if self._is_coin_small_and_unconfirmed(utxo):
+            return True
+        return False
 
     def _is_coin_small_and_unconfirmed(self, utxo: PartialTxInput) -> bool:
         """If true, the coin should not be spent.
