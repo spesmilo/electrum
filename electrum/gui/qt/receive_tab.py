@@ -98,6 +98,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_help_text.setLayout(QHBoxLayout())
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
+        self.receive_zeroconf_button = QPushButton(_('Accept'))
+        self.receive_zeroconf_button.clicked.connect(self.on_accept_zeroconf)
 
         def on_receive_rebalance():
             if self.receive_rebalance_button.suggestion:
@@ -115,6 +117,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         buttons = QHBoxLayout()
         buttons.addWidget(self.receive_rebalance_button)
         buttons.addWidget(self.receive_swap_button)
+        buttons.addWidget(self.receive_zeroconf_button)
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_help_text)
         vbox.addLayout(buttons)
@@ -236,25 +239,36 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.ln_help = help_texts.ln_help
         can_rebalance = help_texts.can_rebalance()
         can_swap = help_texts.can_swap()
+        can_zeroconf = help_texts.can_zeroconf()
         self.receive_rebalance_button.suggestion = help_texts.ln_rebalance_suggestion
         self.receive_swap_button.suggestion = help_texts.ln_swap_suggestion
         self.receive_rebalance_button.setVisible(can_rebalance)
         self.receive_swap_button.setVisible(can_swap)
         self.receive_rebalance_button.setEnabled(can_rebalance and self.window.num_tasks() == 0)
         self.receive_swap_button.setEnabled(can_swap and self.window.num_tasks() == 0)
+        self.receive_zeroconf_button.setVisible(can_zeroconf)
+        self.receive_zeroconf_button.setEnabled(can_zeroconf)
         text, data, help_text, title = self.get_tab_data()
         self.receive_e.setText(text)
         self.receive_qr.setData(data)
         self.receive_help_text.setText(help_text)
         for w in [self.receive_e, self.receive_qr]:
-            w.setEnabled(bool(text) and not help_text)
+            w.setEnabled(bool(text) and (not help_text or can_zeroconf))
             w.setToolTip(help_text)
         # macOS hack (similar to #4777)
         self.receive_e.repaint()
         # always show
+        if can_zeroconf:
+            # show the help message if zeroconf so user can first accept it and still sees the invoice
+            # after accepting
+            self.receive_widget.show_help()
         self.receive_widget.setVisible(True)
         self.toggle_qr_button.setEnabled(True)
         self.update_receive_qr_window()
+
+    def on_accept_zeroconf(self):
+        self.receive_zeroconf_button.setVisible(False)
+        self.update_receive_widgets()
 
     def get_tab_data(self):
         if self.URI:
@@ -374,9 +388,12 @@ class ReceiveWidget(QWidget):
             self.textedit.setVisible(not is_qr)
             self.qr.setVisible(is_qr)
         else:
-            self.help_widget.setVisible(True)
-            self.textedit.setVisible(False)
-            self.qr.setVisible(False)
+            self.show_help()
+
+    def show_help(self):
+        self.help_widget.setVisible(True)
+        self.textedit.setVisible(False)
+        self.qr.setVisible(False)
 
     def resizeEvent(self, e):
         # keep square aspect ratio when resized
