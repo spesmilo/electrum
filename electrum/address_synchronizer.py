@@ -966,7 +966,13 @@ class AddressSynchronizer(Logger, EventListener):
         return coins
 
     def is_used(self, address: str) -> bool:
+        """Whether any tx ever touched `address`."""
         return self.get_address_history_len(address) != 0
+
+    def is_used_as_from_address(self, address: str) -> bool:
+        """Whether any tx ever spent from `address`."""
+        received, sent = self.get_addr_io(address)
+        return len(sent) > 0
 
     def is_empty(self, address: str) -> bool:
         coins = self.get_addr_utxo(address)

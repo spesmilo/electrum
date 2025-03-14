@@ -1968,6 +1968,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # State not set. We implicitly mark certain coins as frozen:
         if self._is_coin_small_and_unconfirmed(utxo):
             return True
+        addr = utxo.address
+        assert addr is not None
+        if self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS and self.adb.is_used_as_from_address(addr):
+            return True
         return False
 
     def _is_coin_small_and_unconfirmed(self, utxo: PartialTxInput) -> bool:
