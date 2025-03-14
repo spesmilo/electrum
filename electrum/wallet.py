@@ -1912,6 +1912,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
             if merge_duplicate_outputs:
                 txo = transaction.merge_duplicate_tx_outputs(txo)
+            if len(txo) == 0 or (self.lnworker and send_change_to_lightning):
+                # even if the option use multiple change outputs is enabled there should be only
+                # one change address if there are 0 txos as this is a sweep tx, or if we want to swap change to ln
+                change_addrs = change_addrs[0:1]
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,
@@ -1922,7 +1926,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 BIP69_sort=BIP69_sort)
             if self.lnworker and send_change_to_lightning:
                 change = tx.get_change_outputs()
-                # do not use multiple change addresses
                 if len(change) == 1:
                     amount = change[0].value
                     if amount <= self.lnworker.num_sats_can_receive():
@@ -1953,6 +1956,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             outputs[i].value += (amount - distr_amount)
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
+        assert len(tx.outputs()) > 0, "any bitcoin tx must have at least 1 output by consensus"
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
         tx.rbf_merge_txid = rbf_merge_txid

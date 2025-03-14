@@ -298,6 +298,9 @@ class CoinChooserBase(Logger):
         utxos = [c.prevout.serialize_to_network() for c in coins]
         self.p = PRNG(b''.join(sorted(utxos)))
 
+        assert len(outputs) > 0 or len(change_addrs) == 1, \
+            "sweeps with 0 outputs should not use multiple change addresses"
+
         # Copy the outputs so when adding change we don't modify "outputs"
         base_tx = PartialTransaction.from_io(inputs[:], outputs[:], BIP69_sort=BIP69_sort)
         input_value = base_tx.input_value()
@@ -308,7 +311,10 @@ class CoinChooserBase(Logger):
         # marker and flag are excluded, which is compensated in get_tx_weight()
         # FIXME calculation will be off by this (2 wu) in case of RBF batching
         base_weight = base_tx.estimated_weight()
-        spent_amount = base_tx.output_value()
+        # by setting spent_amount = dust_threshold if there are no outputs we ensure that
+        # enough inputs are added so there is always at least a change output created
+        # as txs have to have at least 1 output according to consensus rules
+        spent_amount = base_tx.output_value() if outputs else dust_threshold
 
         def fee_estimator_w(weight):
             return fee_estimator_vb(Transaction.virtual_size_from_weight(weight))
