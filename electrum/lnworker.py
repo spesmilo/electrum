@@ -69,7 +69,7 @@ from .lnmsg import decode_msg
 from .lnrouter import (
     RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget, NoChannelPolicy, LNPathInconsistent
 )
-from .lnwatcher import LNWalletWatcher
+from .lnwatcher import LNWatcher
 from .submarine_swaps import SwapManager
 from .mpp_split import suggest_splits, SplitConfigRating
 from .trampoline import (
@@ -817,7 +817,7 @@ class PaySession(Logger):
 
 class LNWallet(LNWorker):
 
-    lnwatcher: Optional['LNWalletWatcher']
+    lnwatcher: Optional['LNWatcher']
     MPP_EXPIRY = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
     PAYMENT_TIMEOUT = 120
@@ -842,7 +842,7 @@ class LNWallet(LNWorker):
         if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
             features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
-        self.lnwatcher = LNWalletWatcher(self)
+        self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
         self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
@@ -999,7 +999,7 @@ class LNWallet(LNWorker):
             await self.wait_for_received_pending_htlcs_to_get_removed()
         await LNWorker.stop(self)
         if self.lnwatcher:
-            await self.lnwatcher.stop()
+            self.lnwatcher.stop()
             self.lnwatcher = None
         if self.swap_manager and self.swap_manager.network:  # may not be present in tests
             await self.swap_manager.stop()

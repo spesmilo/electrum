@@ -54,6 +54,16 @@ TX_TIMESTAMP_INF = 999_999_999_999
 TX_HEIGHT_INF = 10 ** 9
 
 
+from enum import IntEnum, auto
+
+class TxMinedDepth(IntEnum):
+    """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
+    DEEP = auto()
+    SHALLOW = auto()
+    MEMPOOL = auto()
+    FREE = auto()
+
+
 class HistoryItem(NamedTuple):
     txid: str
     tx_mined_status: TxMinedInfo
@@ -990,3 +1000,46 @@ class AddressSynchronizer(Logger, EventListener):
                     tx_age = self.get_local_height() - tx_height + 1
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
+
+    def get_spender(self, outpoint: str) -> str:
+        """
+        returns txid spending outpoint.
+        subscribes to addresses as a side effect.
+        """
+        prev_txid, index = outpoint.split(':')
+        spender_txid = self.db.get_spent_outpoint(prev_txid, int(index))
+        # discard local spenders
+        tx_mined_status = self.get_tx_height(spender_txid)
+        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spender_txid = None
+        if not spender_txid:
+            return
+        spender_tx = self.get_transaction(spender_txid)
+        for i, o in enumerate(spender_tx.outputs()):
+            if o.address is None:
+                continue
+            if not self.is_mine(o.address):
+                self.add_address(o.address)
+        return spender_txid
+
+    def get_tx_mined_depth(self, txid: str):
+        if not txid:
+            return TxMinedDepth.FREE
+        tx_mined_depth = self.get_tx_height(txid)
+        height, conf = tx_mined_depth.height, tx_mined_depth.conf
+        if conf > 20:
+            return TxMinedDepth.DEEP
+        elif conf > 0:
+            return TxMinedDepth.SHALLOW
+        elif height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            return TxMinedDepth.MEMPOOL
+        elif height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
+            return TxMinedDepth.FREE
+        elif height > 0 and conf == 0:
+            # unverified but claimed to be mined
+            return TxMinedDepth.MEMPOOL
+        else:
+            raise NotImplementedError()
+
+    def is_deeply_mined(self, txid):
+        return self.get_tx_mined_depth(txid) == TxMinedDepth.DEEP

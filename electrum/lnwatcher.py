@@ -3,11 +3,9 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from typing import TYPE_CHECKING
-from enum import IntEnum, auto
 
-from .util import log_exceptions, TxMinedInfo, BelowDustLimit
+from .util import TxMinedInfo, BelowDustLimit
 from .util import EventListener, event_listener
-from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 
@@ -17,27 +15,18 @@ if TYPE_CHECKING:
     from .lnsweep import SweepInfo
     from .lnworker import LNWallet
     from .lnchannel import AbstractChannel
-    from .simple_config import SimpleConfig
-
-
-class TxMinedDepth(IntEnum):
-    """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
-    DEEP = auto()
-    SHALLOW = auto()
-    MEMPOOL = auto()
-    FREE = auto()
 
 
 class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
-    def __init__(self, adb: 'AddressSynchronizer', config: 'SimpleConfig'):
-
+    def __init__(self, lnworker: 'LNWallet'):
+        self.lnworker = lnworker
         Logger.__init__(self)
-        self.adb = adb
-        self.config = config
-        self.callbacks = {}  # address -> lambda: coroutine
+        self.adb = lnworker.wallet.adb
+        self.config = lnworker.config
+        self.callbacks = {}  # address -> lambda function
         self.network = None
         self.register_callbacks()
         # status gets populated when we run
@@ -46,15 +35,11 @@ class LNWatcher(Logger, EventListener):
     def start_network(self, network: 'Network'):
         self.network = network
 
-    async def stop(self):
+    def stop(self):
         self.unregister_callbacks()
 
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
-
-    def unwatch_channel(self, address, funding_outpoint):
-        self.logger.info(f'unwatching {funding_outpoint}')
-        self.remove_callback(address)
 
     def remove_callback(self, address):
         self.callbacks.pop(address, None)
@@ -63,87 +48,40 @@ class LNWatcher(Logger, EventListener):
         self.adb.add_address(address)
         self.callbacks[address] = callback
 
-    @event_listener
-    async def on_event_blockchain_updated(self, *args):
-        await self.trigger_callbacks()
-
-    @event_listener
-    async def on_event_wallet_updated(self, wallet):
-        # called if we add local tx
-        if wallet.adb != self.adb:
-            return
-        await self.trigger_callbacks()
-
-    @event_listener
-    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
-        if adb != self.adb:
-            return
-        await self.trigger_callbacks()
-
-    @event_listener
-    async def on_event_adb_set_up_to_date(self, adb):
-        if adb != self.adb:
-            return
-        await self.trigger_callbacks()
-
-    @log_exceptions
-    async def trigger_callbacks(self):
+    def trigger_callbacks(self):
         if not self.adb.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
         for address, callback in list(self.callbacks.items()):
             callback()
 
-    def get_spender(self, outpoint) -> str:
-        """
-        returns txid spending outpoint.
-        subscribes to addresses as a side effect.
-        """
-        prev_txid, index = outpoint.split(':')
-        spender_txid = self.adb.db.get_spent_outpoint(prev_txid, int(index))
-        # discard local spenders
-        tx_mined_status = self.adb.get_tx_height(spender_txid)
-        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-            spender_txid = None
-        if not spender_txid:
+    @event_listener
+    async def on_event_blockchain_updated(self, *args):
+        # we invalidate the cache on each new block because
+        # some processes affect the list of sweep transactions
+        # (hold invoice preimage revealed, MPP completed, etc)
+        for chan in self.lnworker.channels.values():
+            chan._sweep_info.clear()
+        self.trigger_callbacks()
+
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        # called if we add local tx
+        if wallet.adb != self.adb:
             return
-        spender_tx = self.adb.get_transaction(spender_txid)
-        for i, o in enumerate(spender_tx.outputs()):
-            if o.address is None:
-                continue
-            if not self.adb.is_mine(o.address):
-                self.adb.add_address(o.address)
-        return spender_txid
+        self.trigger_callbacks()
 
-    def get_tx_mined_depth(self, txid: str):
-        if not txid:
-            return TxMinedDepth.FREE
-        tx_mined_depth = self.adb.get_tx_height(txid)
-        height, conf = tx_mined_depth.height, tx_mined_depth.conf
-        if conf > 20:
-            return TxMinedDepth.DEEP
-        elif conf > 0:
-            return TxMinedDepth.SHALLOW
-        elif height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
-            return TxMinedDepth.MEMPOOL
-        elif height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
-            return TxMinedDepth.FREE
-        elif height > 0 and conf == 0:
-            # unverified but claimed to be mined
-            return TxMinedDepth.MEMPOOL
-        else:
-            raise NotImplementedError()
+    @event_listener
+    def on_event_adb_added_verified_tx(self, adb, tx_hash):
+        if adb != self.adb:
+            return
+        self.trigger_callbacks()
 
-    def is_deeply_mined(self, txid):
-        return self.get_tx_mined_depth(txid) == TxMinedDepth.DEEP
-
-
-
-class LNWalletWatcher(LNWatcher):
-
-    def __init__(self, lnworker: 'LNWallet'):
-        self.lnworker = lnworker
-        LNWatcher.__init__(self, lnworker.wallet.adb, lnworker.config)
+    @event_listener
+    def on_event_adb_set_up_to_date(self, adb):
+        if adb != self.adb:
+            return
+        self.trigger_callbacks()
 
     def add_channel(self, chan: 'AbstractChannel') -> None:
         outpoint = chan.funding_outpoint.to_str()
@@ -153,6 +91,10 @@ class LNWalletWatcher(LNWatcher):
         if chan.need_to_subscribe():
             self.add_callback(address, callback)
 
+    def unwatch_channel(self, address, funding_outpoint):
+        self.logger.info(f'unwatching {funding_outpoint}')
+        self.remove_callback(address)
+
     def check_onchain_situation(self, address, funding_outpoint):
         # early return if address has not been added yet
         if not self.adb.is_mine(address):
@@ -160,7 +102,7 @@ class LNWalletWatcher(LNWatcher):
         # inspect_tx_candidate might have added new addresses, in which case we return early
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.adb.get_tx_height(funding_txid)
-        closing_txid = self.get_spender(funding_outpoint)
+        closing_txid = self.adb.get_spender(funding_outpoint)
         closing_height = self.adb.get_tx_height(closing_txid)
         if closing_txid:
             closing_tx = self.adb.get_transaction(closing_txid)
@@ -180,16 +122,6 @@ class LNWalletWatcher(LNWatcher):
             keep_watching=keep_watching)
         if not keep_watching:
             self.unwatch_channel(address, funding_outpoint)
-
-    @event_listener
-    async def on_event_blockchain_updated(self, *args):
-        # overload parent method with cache invalidation
-        # we invalidate the cache on each new block because
-        # some processes affect the list of sweep transactions
-        # (hold invoice preimage revealed, MPP completed, etc)
-        for chan in self.lnworker.channels.values():
-            chan._sweep_info.clear()
-        await self.trigger_callbacks()
 
     def diagnostic_name(self):
         return f"{self.lnworker.wallet.diagnostic_name()}-LNW"
@@ -223,8 +155,7 @@ class LNWalletWatcher(LNWatcher):
             return False
         # detect who closed and get information about how to claim outputs
         sweep_info_dict = chan.sweep_ctx(closing_tx)
-        #self.logger.info(f"do_breach_remedy: {[x.name for x in sweep_info_dict.values()]}")
-        keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
+        keep_watching = False if sweep_info_dict else not self.adb.is_deeply_mined(closing_tx.txid())
         # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
             prev_txid, prev_index = prevout.split(':')
@@ -234,19 +165,19 @@ class LNWalletWatcher(LNWatcher):
                 # do not keep watching if prevout does not exist
                 self.logger.info(f'prevout does not exist for {name}: {prevout}')
                 continue
-            spender_txid = self.get_spender(prevout)
+            spender_txid = self.adb.get_spender(prevout)
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
-                    htlc_tx_spender = self.get_spender(prevout2)
+                    htlc_tx_spender = self.adb.get_spender(prevout2)
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
-                        keep_watching |= not self.is_deeply_mined(htlc_tx_spender)
+                        keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
                     else:
                         keep_watching |= self.maybe_redeem(htlc_sweep_info)
-                keep_watching |= not self.is_deeply_mined(spender_txid)
+                keep_watching |= not self.adb.is_deeply_mined(spender_txid)
                 self.maybe_extract_preimage(chan, spender_tx, prevout)
             else:
                 keep_watching |= self.maybe_redeem(sweep_info)
@@ -266,5 +197,5 @@ class LNWalletWatcher(LNWatcher):
         spender_txin = spender_tx.inputs()[txin_idx]
         chan.extract_preimage_from_htlc_txin(
             spender_txin,
-            is_deeply_mined=self.is_deeply_mined(spender_tx.txid()),
+            is_deeply_mined=self.adb.is_deeply_mined(spender_tx.txid()),
         )
