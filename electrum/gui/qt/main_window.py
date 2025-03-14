@@ -465,6 +465,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_adb_set_future_tx(self, adb, txid):
         if adb == self.wallet.adb:
             self.history_model.refresh('set_future_tx')
+            self.utxo_list.refresh_all()  # for coin frozen status
+            self.update_status()  # frozen balance
 
     @qt_event_listener
     def on_event_verified(self, *args):
