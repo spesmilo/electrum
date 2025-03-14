@@ -3107,9 +3107,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr=None,
             domain_addr=None,
             domain_coins=None,
-            sign=True,
             rbf=True,
-            password=None,
             locktime=None,
             tx_version: Optional[int] = None,
             base_tx: Optional[PartialTransaction] = None,
@@ -3139,8 +3137,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx.locktime = locktime
         if tx_version is not None:
             tx.version = tx_version
-        if sign:
-            self.sign_transaction(tx, password)
         return tx
 
     def _check_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> TxSighashDanger:
@@ -3396,9 +3392,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx = self.create_transaction(
             inputs=[txin],
             outputs=[],
-            password=None,
             fee_policy=FixedFeePolicy(0),
-            sign=False,
         )
         try:
             self.adb.add_transaction(tx)

@@ -792,10 +792,10 @@ class Commands(Logger):
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            sign=not unsigned,
             rbf=rbf,
-            password=password,
             locktime=locktime)
+        if not unsigned:
+            wallet.sign_transaction(tx, password)
         result = tx.serialize()
         if addtransaction:
             await self.addtransaction(result, wallet=wallet)
@@ -822,10 +822,10 @@ class Commands(Logger):
             change_addr=change_addr,
             domain_addr=domain_addr,
             domain_coins=domain_coins,
-            sign=not unsigned,
             rbf=rbf,
-            password=password,
             locktime=locktime)
+        if not unsigned:
+            wallet.sign_transaction(tx, password)
         result = tx.serialize()
         if addtransaction:
             await self.addtransaction(result, wallet=wallet)

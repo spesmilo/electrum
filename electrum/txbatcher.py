@@ -396,11 +396,11 @@ class TxBatch(Logger):
             base_tx=base_tx,
             inputs=inputs,
             outputs=outputs,
-            password=password,
             locktime=locktime,
             BIP69_sort=False,
             merge_duplicate_outputs=False,
         )
+        self.wallet.sign_transaction(tx, password)
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
         assert tx.is_complete()

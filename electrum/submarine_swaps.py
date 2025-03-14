@@ -774,13 +774,12 @@ class SwapManager(Logger):
             tx = self.wallet.create_transaction(
                 outputs=[funding_output],
                 rbf=True,
-                password=password,
                 fee_policy=fee_policy,
             )
         else:
             tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
             tx.set_rbf(True)
-            self.wallet.sign_transaction(tx, password)
+        self.wallet.sign_transaction(tx, password)
         return tx
 
     @log_exceptions

@@ -693,9 +693,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         try:
             tx = self.wallet.create_transaction(
                 outputs=invoice.outputs,
-                password=password,
                 fee_policy=fee_policy,
             )
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             self.show_message(repr(e))
             return
