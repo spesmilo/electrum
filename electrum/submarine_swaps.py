@@ -316,6 +316,12 @@ class SwapManager(Logger):
         if not swap.is_funded():
             self.swaps.pop(swap.payment_hash.hex())
 
+    def extract_preimage(self, swap, claim_tx):
+        for txin in claim_tx.inputs():
+            preimage = txin.witness_elements()[1]
+            if sha256(preimage) == swap.payment_hash:
+                return preimage
+
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
@@ -363,13 +369,11 @@ class SwapManager(Logger):
                 if swap.preimage is None and spent_height is not None:
                     # extract the preimage, add it to lnwatcher
                     claim_tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                    for txin in claim_tx.inputs():
-                        preimage = txin.witness_elements()[1]
-                        if sha256(preimage) == swap.payment_hash:
-                            swap.preimage = preimage
-                            self.logger.info(f'found preimage: {preimage.hex()}')
-                            self.lnworker.preimages[swap.payment_hash.hex()] = preimage.hex()
-                            break
+                    preimage = self.extract_preimage(swap, claim_tx)
+                    if preimage:
+                        swap.preimage = preimage
+                        self.logger.info(f'found preimage: {preimage.hex()}')
+                        self.lnworker.preimages[swap.payment_hash.hex()] = preimage.hex()
                     else:
                         # this is our refund tx
                         if spent_height > 0:
@@ -1178,13 +1182,15 @@ class SwapManager(Logger):
                 'group_label': group_label,
             }
             if not swap.is_reverse:
-                # if the spending_tx is in the wallet, this will add it
-                # to the group (see wallet.get_full_history)
-                d[swap.spending_txid] = {
-                    'group_id': txid,
-                    'group_label': group_label,
-                    'label': _('Refund transaction'),
-                }
+                claim_tx = self.lnwatcher.adb.get_transaction(swap.spending_txid)
+                if claim_tx and not self.extract_preimage(swap, claim_tx):
+                    # if the spending_tx is in the wallet, this will add it
+                    # to the group (see wallet.get_full_history)
+                    d[swap.spending_txid] = {
+                        'group_id': txid,
+                        'group_label': group_label,
+                        'label': _('Refund transaction'),
+                    }
         return d
 
     def get_group_id_for_payment_hash(self, payment_hash):
