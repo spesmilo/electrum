@@ -279,10 +279,6 @@ hidapi==0.14.0 \
 idna==3.6 \
     --hash=sha256:9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca \
     --hash=sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f
-keepkey==6.3.1 \
-    --hash=sha256:88e2b5291c85c8e8567732f675697b88241082884aa1aba32257f35ee722fc09 \
-    --hash=sha256:cef1e862e195ece3e42640a0f57d15a63086fd1dedc8b5ddfcbc9c2657f0bb1e \
-    --hash=sha256:f369d640c65fec7fd8e72546304cdc768c04224a6b9b00a19dc2cd06fa9d2a6b
 ledger-bitcoin==0.3.0 \
     --hash=sha256:ad9cdeaf33a45562bbd5bae6751025b869a2f81d6eb0267dd062a01f5925a4d5 \
     --hash=sha256:e7c33404d02044c3810b294a510f7ad97bc65ab12dbdd180d873f2b4ebc0711a
