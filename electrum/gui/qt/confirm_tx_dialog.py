@@ -426,6 +426,7 @@ class TxEditor(WindowModalDialog):
         add_cv_action(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, self.toggle_merge_duplicate_outputs)
         add_cv_action(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, self.toggle_confirmed_only)
         add_cv_action(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, self.toggle_output_rounding)
+        add_cv_action(self.config.cv.WALLET_FREEZE_REUSED_ADDRESS_UTXOS, self.toggle_freeze_reused_address_utxos)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -447,6 +448,13 @@ class TxEditor(WindowModalDialog):
         b = not self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING
         self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = b
         self.trigger_update()
+
+    def toggle_freeze_reused_address_utxos(self):
+        b = not self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS
+        self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS = b
+        self.trigger_update()
+        self.main_window.utxo_list.refresh_all()  # for coin frozen status
+        self.main_window.update_status()  # frozen balance
 
     def toggle_use_change(self):
         self.wallet.use_change = not self.wallet.use_change

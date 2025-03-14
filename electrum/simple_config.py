@@ -605,6 +605,13 @@ class SimpleConfig(Logger):
         short_desc=lambda: _('Send change to Lightning'),
         long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
     )
+    WALLET_FREEZE_REUSED_ADDRESS_UTXOS = ConfigVar(
+        'wallet_freeze_reused_address_utxos', default=False, type_=bool,
+        short_desc=lambda: _('Avoid spending from used addresses'),
+        long_desc=lambda: _("""Automatically freeze coins received to already used addresses.
+This can eliminate a serious privacy issue where a malicious user can track your spends by sending small payments
+to a previously-paid address of yours that would then be included with unrelated inputs in your future payments."""),
+    )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
     FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)
