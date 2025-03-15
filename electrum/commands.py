@@ -1594,18 +1594,6 @@ def plugin_command(s, plugin_name = None):
         return func_wrapper
     return decorator
 
-def remove_disabled_plugin_commands(config: SimpleConfig, plugins_with_commands: set[str]):
-    """Removes registered commands of plugins that are not enabled in the config."""
-    global known_commands
-    global plugin_commands
-    assert len(known_commands) > 0, "known_commands should not be empty, called too early?"
-    for plugin_name in plugins_with_commands:
-        if not config.get(f'enable_plugin_{plugin_name}'):
-            registered_commands: set[str] = plugin_commands[plugin_name]
-            assert len(registered_commands) > 0, "plugin command registered with the invalid plugin name"
-            for command_name in registered_commands:
-                del known_commands[command_name]
-                delattr(Commands, command_name)
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1890,5 +1878,6 @@ def get_parser():
                 group.add_argument(k, nargs='?', help=v)
 
     # 'gui' is the default command
+    # note: set_default_subparser modifies sys.argv
     parser.set_default_subparser('gui')
     return parser

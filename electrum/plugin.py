@@ -65,19 +65,20 @@ class Plugins(DaemonThread):
     pkgpath = os.path.dirname(plugins.__file__)
 
     @profiler
-    def __init__(self, config: SimpleConfig = None, gui_name = None, cmd_only: bool = False):
+    def __init__(self, config: SimpleConfig, gui_name = None, cmd_only: bool = False):
+        self.config = config
         self.cmd_only = cmd_only  # type: bool
         self.internal_plugin_metadata = {}
         self.external_plugin_metadata = {}
         self.loaded_command_modules = set()  # type: set[str]
         if cmd_only:
             # only import the command modules of plugins
+            Logger.__init__(self)
             self.find_plugins()
             return
         DaemonThread.__init__(self)
         self.device_manager = DeviceMgr(config)
         self.name = 'Plugins'  # set name of thread
-        self.config = config
         self.hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
         self.gui_name = gui_name
@@ -85,15 +86,6 @@ class Plugins(DaemonThread):
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
-
-    def __getattr__(self, item):
-        # to prevent accessing of a cmd_only instance of this class
-        if self.cmd_only:
-            if item == 'logger':
-                # if something tries to access logger and it is not initialized it gets initialized here
-                Logger.__init__(self)
-                return self.logger
-            raise Exception(f"This instance of Plugins is only for command importing, cannot access {item}")
 
     @property
     def descriptions(self):
@@ -107,6 +99,8 @@ class Plugins(DaemonThread):
             #       once as data and once as code. To honor the "no duplicates" rule below,
             #       we exclude the ones packaged as *code*, here:
             if loader.__class__.__qualname__ == "PyiFrozenImporter":
+                continue
+            if self.cmd_only and self.config.get('enable_plugin_' + name) is not True:
                 continue
             full_name = f'electrum.plugins.{name}' + ('.commands' if self.cmd_only else '')
             spec = importlib.util.find_spec(full_name)
@@ -233,6 +227,8 @@ class Plugins(DaemonThread):
                 spec = zipfile.find_spec(name)
                 module = self.exec_module_from_spec(spec, module_path)
                 if self.cmd_only:
+                    if self.config.get('enable_plugin_' + name) is not True:
+                        continue
                     spec2 = importlib.util.find_spec(module_path + '.commands')
                     if spec2 is None:  # no commands module in this plugin
                         continue
