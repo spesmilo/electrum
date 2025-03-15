@@ -83,6 +83,7 @@ if TYPE_CHECKING:
 
 
 known_commands = {}  # type: Dict[str, Command]
+plugin_commands = defaultdict(set) # type: Dict[str, set[str]]  # plugin_name -> set(command_name)
 
 
 class NotSynchronizedException(UserFacingException):
@@ -127,7 +128,7 @@ class Command:
             assert self.requires_wallet
         for varname in ('wallet_path', 'wallet'):
             if varname in varnames:
-                assert varname in self.options
+                assert varname in self.options, f"cmd: {self.name}: {varname} not in options {self.options}"
         assert not ('wallet_path' in varnames and 'wallet' in varnames)
         if self.requires_wallet:
             assert 'wallet' in varnames
@@ -137,7 +138,12 @@ def command(s):
     def decorator(func):
         global known_commands
         name = func.__name__
-        known_commands[name] = Command(func, s)
+
+        if hasattr(func, '__wrapped__'):  # plugin command function
+            known_commands[name] = Command(func.__wrapped__, s)
+        else:  # regular command function
+            known_commands[name] = Command(func, s)
+
         @wraps(func)
         async def func_wrapper(*args, **kwargs):
             cmd_runner = args[0]  # type: Commands
@@ -1557,6 +1563,37 @@ class Commands(Logger):
 
         return encoded_blinded_path.hex()
 
+def plugin_command(s, plugin_name = None):
+    """Decorator to register a cli command inside a plugin. To be used within a commands.py file
+    in the plugins root."""
+    def decorator(func):
+        global known_commands
+        global plugin_commands
+        name = func.__name__
+        if name in known_commands or hasattr(Commands, name):
+            raise Exception(f"Plugins should not override other commands: {name}")
+        assert name.startswith('plugin_'), f"Plugin command names should start with 'plugin_': {name}"
+        assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
+
+        if not plugin_name:
+            # this is way slower than providing the plugin name, so it should only be considered a fallback
+            caller_frame = sys._getframe(1)
+            module_name = caller_frame.f_globals.get('__name__')
+            plugin_name_from_frame = module_name.rsplit('.', 2)[-2]
+            # reassigning to plugin_name doesn't work here
+            plugin_commands[plugin_name_from_frame].add(name)
+        else:
+            plugin_commands[plugin_name].add(name)
+
+        setattr(Commands, name, func)
+
+        @command(s)
+        @wraps(func)
+        async def func_wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return func_wrapper
+    return decorator
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1841,5 +1878,6 @@ def get_parser():
                 group.add_argument(k, nargs='?', help=v)
 
     # 'gui' is the default command
+    # note: set_default_subparser modifies sys.argv
     parser.set_default_subparser('gui')
     return parser

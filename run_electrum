@@ -37,7 +37,7 @@ if sys.version_info[:3] < _min_python_version_tuple:
 
 import warnings
 import asyncio
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Dict
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -102,6 +102,7 @@ from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
 from electrum.util import InvalidPassword
+from electrum.plugin import Plugins
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
@@ -110,8 +111,6 @@ from electrum.i18n import set_language
 
 if TYPE_CHECKING:
     import threading
-
-    from electrum.plugin import Plugins
 
 _logger = get_logger(__name__)
 
@@ -261,11 +260,6 @@ async def run_offline_command(config, config_options, plugins: 'Plugins'):
     return result
 
 
-def init_plugins(config, gui_name):
-    from electrum.plugin import Plugins
-    return Plugins(config, gui_name)
-
-
 loop = None  # type: Optional[asyncio.AbstractEventLoop]
 stop_loop = None  # type: Optional[asyncio.Future]
 loop_thread = None  # type: Optional[threading.Thread]
@@ -277,6 +271,39 @@ def sys_exit(i):
         loop_thread.join(timeout=1)
     sys.exit(i)
 
+def parse_command_line() -> Dict:
+    # parse command line from sys.argv
+    parser = get_parser()
+    args = parser.parse_args()
+    config_options = args.__dict__
+    f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+    config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
+    if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
+        config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
+
+    config_options['cwd'] = cwd = os.getcwd()
+
+    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
+    if is_pyinstaller and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+        config_options['portable'] = True
+
+    if config_options.get('portable'):
+        if is_local:
+            # running from git clone or local source: put datadir next to main script
+            datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        else:
+            # Running a binary or installed source. The most generic but still reasonable thing
+            # is to use the current working directory. (see #7732)
+            # note: The main script is often unpacked to a temporary directory from a bundled executable,
+            #       and we don't want to put the datadir inside a temp dir.
+            # note: Re the portable .exe on Windows, when the user double-clicks it, CWD gets set
+            #       to the parent dir, i.e. we will put the datadir next to the exe.
+            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
+        config_options['electrum_path'] = datadir
+
+    if not config_options.get('verbosity'):
+        warnings.simplefilter('ignore', DeprecationWarning)
+    return config_options
 
 def main():
     global loop, stop_loop, loop_thread
@@ -314,10 +341,6 @@ def main():
         elif arg == ':':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', confirm=False)
 
-    # parse command line
-    parser = get_parser()
-    args = parser.parse_args()
-
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         import importlib.util
@@ -335,34 +358,19 @@ def main():
             # ~hack for easier regtest builds. pkgname subject to change.
             config_options['regtest'] = True
     else:
-        config_options = args.__dict__
-        f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-        config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
-            config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
-
-    config_options['cwd'] = cwd = os.getcwd()
-
-    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
-    if is_pyinstaller and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
-        config_options['portable'] = True
-
-    if config_options.get('portable'):
-        if is_local:
-            # running from git clone or local source: put datadir next to main script
-            datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
-        else:
-            # Running a binary or installed source. The most generic but still reasonable thing
-            # is to use the current working directory. (see #7732)
-            # note: The main script is often unpacked to a temporary directory from a bundled executable,
-            #       and we don't want to put the datadir inside a temp dir.
-            # note: Re the portable .exe on Windows, when the user double-clicks it, CWD gets set
-            #       to the parent dir, i.e. we will put the datadir next to the exe.
-            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
-        config_options['electrum_path'] = datadir
-
-    if not config_options.get('verbosity'):
-        warnings.simplefilter('ignore', DeprecationWarning)
+        # save sys args for next parser
+        saved_sys_argv = sys.argv[:]
+        # disable help, the next parser will display it
+        if '-h' in sys.argv:
+            sys.argv.remove('-h')
+        # parse first without plugins
+        config_options = parse_command_line()
+        tmp_config = SimpleConfig(config_options)
+        # load (only) the commands modules of plugins so their commands are registered
+        plugin_commands = Plugins(tmp_config, cmd_only=True)
+        # re-parse command line
+        sys.argv = saved_sys_argv[:]
+        config_options = parse_command_line()
 
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
@@ -538,7 +546,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 print_stderr("Run this command without --offline to interact with the daemon")
                 sys_exit(1)
             init_cmdline(config_options, wallet_path, rpcserver=False, config=config)
-            plugins = init_plugins(config, 'cmdline')
+            plugins = Plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             try:

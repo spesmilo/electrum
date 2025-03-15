@@ -349,7 +349,9 @@ class CommandsServer(AuthenticatedServer):
 
     async def run_cmdline(self, config_options):
         cmdname = config_options['cmd']
-        cmd = known_commands[cmdname]
+        cmd = known_commands.get(cmdname)
+        if not cmd:
+            return f"unknown command: {cmdname}"
         # arguments passed to function
         args = [config_options.get(x) for x in cmd.params]
         # decode json arguments
