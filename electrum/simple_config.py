@@ -814,12 +814,8 @@ Warning: setting this to too low will result in lots of payment failures."""),
 
     # connect to remote submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
-    # run submarine swap server locally
-    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=None, type_=int)
-    SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
     SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
-    SWAPSERVER_ANN_POW_NONCE = ConfigVar('swapserver_ann_pow_nonce', default=0, type_=int)
     SWAPSERVER_POW_TARGET = ConfigVar('swapserver_pow_target', default=30, type_=int)
 
     # nostr
@@ -845,16 +841,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
 
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
-
-    # run WT locally
-    WATCHTOWER_SERVER_ENABLED = ConfigVar('run_watchtower', default=False, type_=bool)
-    WATCHTOWER_SERVER_PORT = ConfigVar('watchtower_port', default=None, type_=int)
-    WATCHTOWER_SERVER_USER = ConfigVar('watchtower_user', default=None, type_=str)
-    WATCHTOWER_SERVER_PASSWORD = ConfigVar('watchtower_password', default=None, type_=str)
-
-    PAYSERVER_PORT = ConfigVar('payserver_port', default=8080, type_=int)
-    PAYSERVER_ROOT = ConfigVar('payserver_root', default='/r', type_=str)
-    PAYSERVER_ALLOW_CREATE_INVOICE = ConfigVar('payserver_allow_create_invoice', default=False, type_=bool)
 
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 

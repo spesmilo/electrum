@@ -116,9 +116,9 @@ class TestLightningWatchtower(TestLightning):
         },
         'carol': {
             'enable_plugin_watchtower': 'true',
-            'watchtower_user': 'wtuser',
-            'watchtower_password': 'wtpassword',
-            'watchtower_port': '12345',
+            'watchtower_server_user': 'wtuser',
+            'watchtower_server_password': 'wtpassword',
+            'watchtower_server_port': '12345',
         }
     }
 
