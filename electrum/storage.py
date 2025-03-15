@@ -61,9 +61,7 @@ class StorageOnDiskUnexpectedlyChanged(Exception): pass
 
 # TODO: Rename to Storage
 class WalletStorage(Logger):
-
-    # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
-    #      Until then, the onus is on the caller to check file_exists().
+    
     def __init__(self, path):
         Logger.__init__(self)
         self.path = standardize_path(path)
@@ -76,16 +74,26 @@ class WalletStorage(Logger):
         except IOError as e:
             raise StorageReadWriteError(e) from e
         if self.file_exists():
-            with open(self.path, "rb") as f:
-                self.raw = f.read().decode("utf-8")
-                self.pos = f.seek(0, os.SEEK_END)
-                self.init_pos = self.pos
-            self._encryption_version = self._init_encryption_version()
+            try:
+                with open(self.path, "rb") as f:
+                    self.raw = f.read()
+                    try:
+                        self.raw = self.raw.decode('utf-8')
+                    except UnicodeDecodeError:
+                        raise InvalidWalletError(_("Wallet file contains invalid UTF-8 data. The wallet might be corrupted."))
+                    self.pos = f.seek(0, os.SEEK_END)
+                    self.init_pos = self.pos
+                self._encryption_version = self._init_encryption_version()
+            except FileNotFoundError:
+                raise WalletFileNotFound(path)
+            except Exception as e:
+                raise IOError(f"Error opening wallet file: {str(e)}")
         else:
             self.raw = ''
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
             self.pos = 0
             self.init_pos = 0
+
 
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw
