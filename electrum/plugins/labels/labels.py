@@ -108,7 +108,7 @@ class LabelsPlugin(BasePlugin):
                 except Exception as e:
                     raise Exception('Could not decode: ' + await result.text()) from e
 
-    async def push_thread(self, wallet: 'Abstract_Wallet'):
+    async def push_thread(self, wallet: 'Abstract_Wallet') -> int:
         wallet_data = self.wallets.get(wallet, None)
         if not wallet_data:
             raise Exception('Wallet {} not loaded'.format(wallet))
@@ -126,8 +126,9 @@ class LabelsPlugin(BasePlugin):
             bundle["labels"].append({'encryptedLabel': encoded_value,
                                      'externalId': encoded_key})
         await self.do_post("/labels", bundle)
+        return len(bundle['labels'])
 
-    async def pull_thread(self, wallet: 'Abstract_Wallet', force: bool):
+    async def pull_thread(self, wallet: 'Abstract_Wallet', force: bool) -> int:
         wallet_data = self.wallets.get(wallet, None)
         if not wallet_data:
             raise Exception('Wallet {} not loaded'.format(wallet))
@@ -140,7 +141,7 @@ class LabelsPlugin(BasePlugin):
             raise ErrorConnectingServer(e) from e
         if response["labels"] is None or len(response["labels"]) == 0:
             self.logger.info('no new labels')
-            return
+            return 0
 
         self.logger.info(f'received {len(response["labels"])} labels')
         result = {}
@@ -165,6 +166,7 @@ class LabelsPlugin(BasePlugin):
         self.set_nonce(wallet, response["nonce"] + 1)
         util.trigger_callback('labels_received', wallet, result)
         self.on_pulled(wallet)
+        return len(result)
 
     def on_pulled(self, wallet: 'Abstract_Wallet') -> None:
         pass
