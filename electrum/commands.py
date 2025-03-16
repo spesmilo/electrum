@@ -1574,6 +1574,9 @@ def plugin_command(s, plugin_name):
         @command(s)
         @wraps(func)
         async def func_wrapper(*args, **kwargs):
+            cmd_runner = args[0]  # type: Commands
+            daemon = cmd_runner.daemon
+            kwargs['plugin'] = daemon._plugins.get_plugin(plugin_name)
             return await func(*args, **kwargs)
         setattr(Commands, name, func_wrapper)
         return func_wrapper
@@ -1837,6 +1840,8 @@ def get_parser():
         for optname, default in zip(cmd.options, cmd.defaults):
             if optname in ['wallet_path', 'wallet']:
                 add_wallet_option(p)
+                continue
+            if optname in ['plugin']:
                 continue
             a, help = command_options[optname]
             b = '--' + optname

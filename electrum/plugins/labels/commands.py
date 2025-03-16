@@ -7,16 +7,14 @@ if TYPE_CHECKING:
 
 plugin_name = "labels"
 
+
 @plugin_command('w', plugin_name)
-async def push(self: 'Commands', wallet=None) -> int:
+async def push(self: 'Commands', plugin: 'LabelsPlugin' = None, wallet=None) -> int:
     """ push labels to server """
-    plugin: 'LabelsPlugin' = self.daemon._plugins.get_plugin(plugin_name)
     return await plugin.push_thread(wallet)
 
 
 @plugin_command('w', plugin_name)
-async def pull(self: 'Commands', wallet=None) -> int:
+async def pull(self: 'Commands', plugin: 'LabelsPlugin' = None, wallet=None) -> int:
     """ pull labels from server """
-    assert wallet is not None
-    plugin: 'LabelsPlugin' = self.daemon._plugins.get_plugin(plugin_name)
     return await plugin.pull_thread(wallet, force=False)
