@@ -25,12 +25,10 @@
 import io
 import sys
 import datetime
-import copy
 import argparse
 import json
 import ast
 import base64
-import operator
 import asyncio
 import inspect
 from collections import defaultdict
@@ -43,7 +41,6 @@ import os
 import electrum_ecc as ecc
 
 from . import util
-from . import keystore
 from .lnmsg import OnionWireSerializer
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
@@ -71,7 +68,6 @@ from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import Invoice
 from .fee_policy import FeePolicy
-from . import submarine_swaps
 from . import GuiImportError
 from . import crypto
 from . import constants
@@ -103,8 +99,8 @@ def format_satoshis(x):
 
 
 class Command:
-    def __init__(self, func, s):
-        self.name = func.__name__
+    def __init__(self, func, name, s):
+        self.name = name
         self.requires_network = 'n' in s
         self.requires_wallet = 'w' in s
         self.requires_password = 'p' in s
@@ -127,7 +123,7 @@ class Command:
             assert self.requires_wallet
         for varname in ('wallet_path', 'wallet'):
             if varname in varnames:
-                assert varname in self.options
+                assert varname in self.options, f"cmd: {self.name}: {varname} not in options {self.options}"
         assert not ('wallet_path' in varnames and 'wallet' in varnames)
         if self.requires_wallet:
             assert 'wallet' in varnames
@@ -136,12 +132,20 @@ class Command:
 def command(s):
     def decorator(func):
         global known_commands
-        name = func.__name__
-        known_commands[name] = Command(func, s)
+
+        if hasattr(func, '__wrapped__'):
+            # plugin command function
+            name = func.plugin_name + '_' + func.__name__
+            known_commands[name] = Command(func.__wrapped__, name, s)
+        else:
+            # regular command function
+            name = func.__name__
+            known_commands[name] = Command(func, name, s)
+
         @wraps(func)
         async def func_wrapper(*args, **kwargs):
             cmd_runner = args[0]  # type: Commands
-            cmd = known_commands[func.__name__]  # type: Command
+            cmd = known_commands[name]  # type: Command
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
             if daemon:
@@ -1557,6 +1561,24 @@ class Commands(Logger):
 
         return encoded_blinded_path.hex()
 
+def plugin_command(s, plugin_name):
+    """Decorator to register a cli command inside a plugin. To be used within a commands.py file
+    in the plugins root."""
+    def decorator(func):
+        global known_commands
+        func.plugin_name = plugin_name
+        name = plugin_name + '_' + func.__name__
+        if name in known_commands or hasattr(Commands, name):
+            raise Exception(f"Plugins should not override other commands: {name}")
+        assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
+        @command(s)
+        @wraps(func)
+        async def func_wrapper(*args, **kwargs):
+            return await func(*args, **kwargs)
+        setattr(Commands, name, func_wrapper)
+        return func_wrapper
+    return decorator
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1841,5 +1863,6 @@ def get_parser():
                 group.add_argument(k, nargs='?', help=v)
 
     # 'gui' is the default command
+    # note: set_default_subparser modifies sys.argv
     parser.set_default_subparser('gui')
     return parser
