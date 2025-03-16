@@ -1803,6 +1803,28 @@ def add_wallet_option(parser):
     parser.add_argument("--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=False, help="Forget config on exit")
 
 
+def get_simple_parser():
+    """ simple parser that figures out the path of the config file and ignore unknown args """
+    from optparse import OptionParser, BadOptionError, AmbiguousOptionError
+    class PassThroughOptionParser(OptionParser):
+        # see https://stackoverflow.com/questions/1885161/how-can-i-get-optparses-optionparser-to-ignore-invalid-options
+        def _process_args(self, largs, rargs, values):
+            while rargs:
+                try:
+                    OptionParser._process_args(self,largs,rargs,values)
+                except (BadOptionError,AmbiguousOptionError) as e:
+                    largs.append(e.opt_str)
+    parser = PassThroughOptionParser()
+    parser.add_option("-D", "--dir", dest="electrum_path", help="electrum directory")
+    parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
+    parser.add_option("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
+    parser.add_option("--testnet4", action="store_true", dest="testnet4", default=False, help="Use Testnet4")
+    parser.add_option("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
+    parser.add_option("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
+    parser.add_option("--signet", action="store_true", dest="signet", default=False, help="Use Signet")
+    return parser
+
+
 def get_parser():
     # create main parser
     parser = argparse.ArgumentParser(
@@ -1843,7 +1865,11 @@ def get_parser():
                 continue
             if optname in ['plugin']:
                 continue
-            a, help = command_options[optname]
+            if optname in command_options:
+                a, help = command_options[optname]
+            else:
+                a = None
+                help = None
             b = '--' + optname
             action = "store_true" if default is False else 'store'
             args = (a, b) if a else (b,)

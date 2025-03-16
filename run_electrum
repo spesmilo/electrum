@@ -103,7 +103,7 @@ from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
 from electrum.util import InvalidPassword
 from electrum.plugin import Plugins
-from electrum.commands import get_parser, known_commands, Commands, config_variables
+from electrum.commands import get_parser, get_simple_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
 from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
@@ -271,15 +271,21 @@ def sys_exit(i):
         loop_thread.join(timeout=1)
     sys.exit(i)
 
-def parse_command_line() -> Dict:
+def parse_command_line(simple_parser=False) -> Dict:
     # parse command line from sys.argv
-    parser = get_parser()
-    args = parser.parse_args()
-    config_options = args.__dict__
-    f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-    config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-    if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
-        config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
+    if simple_parser:
+        parser = get_simple_parser()
+        options, args = parser.parse_args()
+        config_options = options.__dict__
+        config_options['cmd'] = 'gui'
+    else:
+        parser = get_parser()
+        args = parser.parse_args()
+        config_options = args.__dict__
+        f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+        config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
+        if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
+            config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
 
     config_options['cwd'] = cwd = os.getcwd()
 
@@ -361,10 +367,11 @@ def main():
         # save sys args for next parser
         saved_sys_argv = sys.argv[:]
         # disable help, the next parser will display it
-        if '-h' in sys.argv:
-            sys.argv.remove('-h')
+        for x in sys.argv:
+            if x in ['-h', '--help']:
+                sys.argv.remove(x)
         # parse first without plugins
-        config_options = parse_command_line()
+        config_options = parse_command_line(simple_parser=True)
         tmp_config = SimpleConfig(config_options)
         # load (only) the commands modules of plugins so their commands are registered
         plugin_commands = Plugins(tmp_config, cmd_only=True)
