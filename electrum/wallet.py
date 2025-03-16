@@ -1728,6 +1728,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return dust_threshold(self.network)
 
     def get_candidates_for_batching(self, outputs, coins) -> Sequence[Transaction]:
+        # do not batch if we spend max (not supported by make_unsigned_transaction)
+        if any([parse_max_spend(o.value) is not None for o in outputs]):
+            return []
         candidates = []
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
