@@ -504,7 +504,7 @@ class BasePlugin(Logger):
                 with myzip.open(os.path.join(self.name, filename)) as myfile:
                     return myfile.read()
         else:
-            if filename in self.parent.internal_plugin_metadata:
+            if self.name in self.parent.internal_plugin_metadata:
                 path = os.path.join(os.path.dirname(__file__), 'plugins', self.name, filename)
             else:
                 path = os.path.join(self.parent.get_external_plugin_dir(), self.name, filename)
