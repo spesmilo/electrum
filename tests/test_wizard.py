@@ -43,7 +43,7 @@ class WizardTestCase(ElectrumTestCase):
         })
         self.wallet_path = os.path.join(self.electrum_path, "somewallet")
         self.plugins = Plugins(self.config, gui_name='cmdline')
-        self.plugins.load_internal_plugin('trustedcoin')
+        self.plugins.load_plugin_by_name('trustedcoin')
 
     def tearDown(self):
         self.plugins.stop()

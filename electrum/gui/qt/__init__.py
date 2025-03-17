@@ -159,7 +159,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.reload_app_stylesheet()
 
         # always load 2fa
-        self.plugins.load_internal_plugin('trustedcoin')
+        self.plugins.load_plugin_by_name('trustedcoin')
 
         run_hook('init_qt', self)
 
