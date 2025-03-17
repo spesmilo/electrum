@@ -42,7 +42,6 @@ datas += collect_data_files(f"{PYPKG}.plugins")
 datas += collect_data_files('trezorlib')  # TODO is this needed? and same question for other hww libs
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
 
