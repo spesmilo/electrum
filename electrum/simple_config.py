@@ -846,6 +846,13 @@ Warning: setting this to too low will result in lots of payment failures."""),
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    LN_UTXO_RESERVE = ConfigVar(
+        'ln_utxo_reserve',
+        default=10000,
+        type_=int,
+        short_desc=lambda: _("Amount that must be kept on-chain in order to sweep anchor output channels"),
+        long_desc=lambda: _("Do not set this below dust limit"),
+    )
 
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
