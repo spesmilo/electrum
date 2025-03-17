@@ -978,14 +978,19 @@ class Peer(Logger, EventListener):
 
         Channel configurations are initialized in this method.
         """
+
+        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            raise Exception('Cannot create public channels')
+
+        if not self.lnworker.wallet.can_have_lightning():
+            # old wallet that cannot have lightning anymore
+            raise Exception('This wallet cannot create new channels')
+
         # will raise if init fails
         await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
         if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
-
-        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
-            raise Exception('Cannot create public channels')
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
         feerate = self.lnworker.current_target_feerate_per_kw()
@@ -1250,6 +1255,10 @@ class Peer(Logger, EventListener):
         if self.lnworker.has_recoverable_channels() and not is_zeroconf:
             # FIXME: we might want to keep the connection open
             raise Exception('not accepting channels')
+
+        if not self.lnworker.wallet.can_have_lightning():
+            # old wallet that cannot have lightning anymore
+            raise Exception('This wallet does not accept new channels')
 
         funding_sat = payload['funding_satoshis']
         push_msat = payload['push_msat']

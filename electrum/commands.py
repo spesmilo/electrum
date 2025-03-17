@@ -1245,6 +1245,8 @@ class Commands(Logger):
 
     @command('wpnl')
     async def open_channel(self, connection_string, amount, push_amount=0, public=False, zeroconf=False, password=None, wallet: Abstract_Wallet = None):
+        if not wallet.can_have_lightning():
+            raise UserFacingException("This wallet cannot create new channels")
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
         peer = await wallet.lnworker.add_peer(connection_string)

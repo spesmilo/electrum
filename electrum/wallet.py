@@ -520,17 +520,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.config.ENABLE_ANCHOR_CHANNELS and self.has_channels()
 
     def can_have_lightning(self) -> bool:
-        if self.config.ENABLE_ANCHOR_CHANNELS:
-            # this excludes hardware wallets, watching-only wallets
-            return self.can_have_deterministic_lightning()
-        else:
-            # we want static_remotekey to be a wallet address
-            return self.txin_type == 'p2wpkh'
-
-    def can_have_deterministic_lightning(self) -> bool:
+        """ whether this wallet can create new channels """
+        # we want static_remotekey to be a wallet address
         if not self.txin_type == 'p2wpkh':
             return False
-        if not self.keystore:
+        if self.config.ENABLE_ANCHOR_CHANNELS:
+            # exclude watching-only wallets
+            if not self.keystore:
+                return False
+            # exclude hardware wallets
+            if not self.keystore.may_have_password():
+                return False
+        return True
+
+    def can_have_deterministic_lightning(self) -> bool:
+        if not self.can_have_lightning():
             return False
         return self.keystore.can_have_deterministic_lightning_xprv()
 
