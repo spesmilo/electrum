@@ -75,10 +75,8 @@ class KeepKeyPlugin(HW_PluginBase):
 
         try:
             from . import client
-            import keepkeylib
-            import keepkeylib.ckd_public
-            import keepkeylib.transport_hid
-            import keepkeylib.transport_webusb
+            from .keepkeylib import keepkeylib
+            from .keepkeylib.keepkeylib import ckd_public, transport_hid, transport_webusb
             self.client_class = client.KeepKeyClient
             self.ckd_public = keepkeylib.ckd_public
             self.types = keepkeylib.client.types
@@ -90,11 +88,12 @@ class KeepKeyPlugin(HW_PluginBase):
             self.device_manager().register_enumerate_func(self.enumerate)
             self.libraries_available = True
         except ImportError:
+            self.logger.debug("error importing keepkeylib", exc_info=True)
             self.libraries_available = False
 
     @runs_in_hwd_thread
     def enumerate(self):
-        from keepkeylib.transport_webusb import WebUsbTransport
+        from .keepkeylib.keepkeylib.transport_webusb import WebUsbTransport
         results = []
         for dev in WebUsbTransport.enumerate():
             path = self._dev_to_str(dev)
@@ -112,12 +111,12 @@ class KeepKeyPlugin(HW_PluginBase):
 
     @runs_in_hwd_thread
     def hid_transport(self, pair):
-        from keepkeylib.transport_hid import HidTransport
+        from .keepkeylib.keepkeylib.transport_hid import HidTransport
         return HidTransport(pair)
 
     @runs_in_hwd_thread
     def webusb_transport(self, device):
-        from keepkeylib.transport_webusb import WebUsbTransport
+        from .keepkeylib.keepkeylib.transport_webusb import WebUsbTransport
         for dev in WebUsbTransport.enumerate():
             if device.path == self._dev_to_str(dev):
                 return WebUsbTransport(dev)

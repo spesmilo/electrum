@@ -7,7 +7,11 @@ trezor[hidapi]>=0.13.0,<0.14
 safet>=0.1.5
 
 # device plugin: keepkey
-keepkey>=6.3.1
+ecdsa>=0.9
+protobuf>=3.20
+mnemonic>=0.8
+hidapi>=0.7.99.post15
+libusb1>=1.6
 
 # device plugin: ledger
 # note: btchip-python only needed for "legacy" protocol and HW.1 support
@@ -24,10 +28,6 @@ bitbox02>=6.2.0
 # device plugin: jade
 cbor2>=5.4.6,<6.0.0
 pyserial>=3.5.0,<4.0.0
-
-# prefer older protobuf (see #7922)
-# (pulled in via e.g. keepkey and bitbox02)
-protobuf>=3.20,<4
 
 # prefer older colorama to avoid needing hatchling
 # (pulled in via trezor -> click -> colorama)
