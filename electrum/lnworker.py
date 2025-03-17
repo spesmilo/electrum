@@ -1418,7 +1418,10 @@ class LNWallet(LNWorker):
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             outputs=outputs,
-            fee_policy=fee_policy)
+            fee_policy=fee_policy,
+            # we do not know yet if peer accepts anchors, just assume they do
+            is_anchor_channel_opening=self.config.ENABLE_ANCHOR_CHANNELS,
+        )
         tx.set_rbf(False)
         # rm randomness from locktime, as we use the locktime as entropy for deriving the funding_privkey
         # (and it would be confusing to get a collision as a consequence of the randomness)

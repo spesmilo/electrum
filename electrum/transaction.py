@@ -1875,6 +1875,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self._script_descriptor = None  # type: Optional[Descriptor]
         self.is_mine = False  # type: bool  # whether the wallet considers the output to be ismine
         self.is_change = False  # type: bool  # whether the wallet considers the output to be change
+        self.is_utxo_reserve = False  # type: bool  # whether this is a change output added to satisfy anchor channel requirements
 
     @property
     def pubkeys(self) -> Set[bytes]:

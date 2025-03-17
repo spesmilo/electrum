@@ -531,6 +531,10 @@ class TxEditor(WindowModalDialog):
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
+        # warn if a reserve utxo was added
+        if reserve_sats := sum(txo.value for txo in self.tx.outputs() if txo.is_utxo_reserve):
+            reserve_str = self.main_window.config.format_amount_and_units(reserve_sats)
+            messages.append(_('Could not spend max: a security reserve of {} was kept for your Lightning channels.').format(reserve_str))
         # warn if we merge from mempool
         if self.is_batching():
             messages.append(_('This payment will be merged with another existing transaction.'))

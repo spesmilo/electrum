@@ -1837,6 +1837,37 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
         return selected_addr
 
+    def should_keep_reserve_utxo(
+            self,
+            tx_inputs: List[PartialTxInput],
+            tx_outputs: List[PartialTxOutput],
+            is_anchor_channel_opening: bool,
+    ) -> bool:
+        channels_need_reserve = self.lnworker and any(chan.has_anchors() and not chan.is_redeemed() for chan in self.lnworker.channels.values())
+        # note: is_anchor_channel_opening is used in unit tests, without lnworker
+        is_reserve_needed = is_anchor_channel_opening or channels_need_reserve
+        if not is_reserve_needed:
+            return False
+
+        coins_in_wallet = self.get_spendable_coins(nonlocal_only=False, confirmed_only=False)
+        prevout_coins_in_wallet = set(c.prevout for c in coins_in_wallet)
+        amount_in_wallet = sum(c.value_sats() for c in coins_in_wallet)
+
+        amount_consumed = sum(c.value_sats() for c in tx_inputs if c.prevout in prevout_coins_in_wallet)
+        amount_retained = sum(o.value for o in tx_outputs if self.is_mine(o.address))
+        to_be_spent_sat = amount_consumed - amount_retained
+
+        assert amount_in_wallet - to_be_spent_sat >= 0
+        if amount_in_wallet - to_be_spent_sat >= self.config.LN_UTXO_RESERVE:
+            # there will be enough remaining after we send
+            return False
+        # we will need to subtract the reserve
+        self.logger.info(f'we should keep a reserve: {to_be_spent_sat=}, {amount_in_wallet=}')
+        return True
+
+    def is_low_reserve(self) -> bool:
+        return self.should_keep_reserve_utxo([], [], False)
+
     @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,
@@ -1853,6 +1884,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             merge_duplicate_outputs: bool = False,
             locktime: Optional[int] = None,
             tx_version: Optional[int] = None,
+            is_anchor_channel_opening: bool = False,
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
@@ -1864,6 +1896,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise Exception("Some inputs already contain signatures!")
         if inputs is None:
             inputs = []
+        # make sure inputs and coins do not overlap
         if inputs:
             input_set = set(txin.prevout for txin in inputs)
             coins = [coin for coin in coins if (coin.prevout not in input_set)]
@@ -1944,6 +1977,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     amount = change[0].value
                     if amount <= self.lnworker.num_sats_can_receive():
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
+            if self.should_keep_reserve_utxo(tx.inputs(), tx.outputs(), is_anchor_channel_opening):
+                raise NotEnoughFunds()
+            self.logger.debug(f'coinchooser returned tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
+
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).
@@ -1952,23 +1989,40 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             #       forever. see #5433
             # note: Actually, it might be the case that not all UTXOs from the wallet are
             #       being spent if the user manually selected UTXOs.
-            sendable = sum(map(lambda c: c.value_sats(), coins))
-            for (_,i) in i_max:
-                outputs[i].value = 0
-            tx = PartialTransaction.from_io(list(coins), list(outputs))
-            fee = fee_estimator(tx.estimated_size())
-            amount = sendable - tx.output_value() - fee
-            if amount < 0:
-                raise NotEnoughFunds()
-            distr_amount = 0
-            for (weight, i) in i_max:
-                val = int((amount/i_max_sum) * weight)
-                outputs[i].value = val
-                distr_amount += val
+            def distribute_amount(amount):
+                if amount < 0:
+                    raise NotEnoughFunds()
+                distr_amount = 0
+                for (weight, i) in i_max:
+                    # fixme: this does not check that value >= dust_threshold
+                    val = int((amount/i_max_sum) * weight)
+                    outputs[i].value = val
+                    distr_amount += val
+                (x,i) = i_max[-1]
+                outputs[i].value += (amount - distr_amount)
 
-            (x,i) = i_max[-1]
-            outputs[i].value += (amount - distr_amount)
-            tx = PartialTransaction.from_io(list(coins), list(outputs))
+            tx_inputs = inputs + coins # these do not overlap, see above
+            distribute_amount(0)
+            tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
+            fee = fee_estimator(tx.estimated_size())
+
+            input_amount = sum(c.value_sats() for c in tx_inputs)
+            allocated_amount = sum(o.value for o in outputs if not parse_max_spend(o.value))
+            to_distribute = input_amount - allocated_amount
+            distribute_amount(to_distribute - fee)
+
+            if self.should_keep_reserve_utxo(tx_inputs, outputs, is_anchor_channel_opening):
+                self.logger.info(f'Adding change output to meet utxo reserve requirements')
+                change_addr = self.get_change_addresses_for_new_transaction(change_addr)[0]
+                change = PartialTxOutput.from_address_and_value(change_addr, self.config.LN_UTXO_RESERVE)
+                change.is_utxo_reserve = True # for GUI
+                outputs.append(change)
+                to_distribute -= change.value
+                tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
+                fee = fee_estimator(tx.estimated_size())
+                distribute_amount(to_distribute - fee)
+
+            tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
 
         assert len(tx.outputs()) > 0, "any bitcoin tx must have at least 1 output by consensus"
         if locktime is None:
