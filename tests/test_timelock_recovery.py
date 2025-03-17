@@ -2,6 +2,7 @@ from io import StringIO
 import json
 import os, sys
 from electrum.bitcoin import address_to_script
+from electrum.fee_policy import FixedFeePolicy
 from electrum.plugins.timelock_recovery.timelock_recovery import TimelockRecoveryContext
 from electrum.simple_config import SimpleConfig
 from electrum.storage import WalletStorage
@@ -60,7 +61,7 @@ class TestTimelockRecovery(ElectrumTestCase):
             PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
         ]
 
-        alert_tx = context.make_unsigned_alert_tx(fee_est=5000)
+        alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
         self.assertEqual(alert_tx.version, 2)
         alert_tx_inputs = [tx_input.prevout.to_str() for tx_input in alert_tx.inputs()]
         self.assertEqual(alert_tx_inputs, [
@@ -81,10 +82,10 @@ class TestTimelockRecovery(ElectrumTestCase):
         context.outputs = [
             PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
         ]
-        context.alert_tx = context.make_unsigned_alert_tx(fee_est=5000)
+        context.alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
         context.timelock_days = 90
 
-        recovery_tx = context.make_unsigned_recovery_tx(fee_est=5000)
+        recovery_tx = context.make_unsigned_recovery_tx(fee_policy=FixedFeePolicy(5000))
         self.assertEqual(recovery_tx.version, 2)
         recovery_tx_inputs = [tx_input.prevout.to_str() for tx_input in recovery_tx.inputs()]
         self.assertEqual(recovery_tx_inputs, [
@@ -104,9 +105,9 @@ class TestTimelockRecovery(ElectrumTestCase):
         context.outputs = [
             PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
         ]
-        context.alert_tx = context.make_unsigned_alert_tx(fee_est=5000)
+        context.alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
 
-        cancellation_tx = context.make_unsigned_cancellation_tx(fee_est=6000)
+        cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy=FixedFeePolicy(6000))
         self.assertEqual(cancellation_tx.version, 2)
         cancellation_tx_inputs = [tx_input.prevout.to_str() for tx_input in cancellation_tx.inputs()]
         self.assertEqual(cancellation_tx_inputs, [
