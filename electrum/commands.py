@@ -1568,10 +1568,13 @@ def plugin_command(s, plugin_name):
     in the plugins root."""
     def decorator(func):
         global known_commands
+        assert len(plugin_name) > 0, "Plugin name must not be empty"
         func.plugin_name = plugin_name
         name = plugin_name + '_' + func.__name__
         if name in known_commands or hasattr(Commands, name):
-            raise Exception(f"Plugins should not override other commands: {name}")
+            # electrum plugins are always loaded before the plugin commands,
+            # so plugin commands cannot overwrite them
+            return
         assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
         @command(s)
         @wraps(func)
