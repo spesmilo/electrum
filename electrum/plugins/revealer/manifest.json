@@ -1,0 +1,5 @@
+{
+  "fullname": "Revealer Backup Utility",
+  "description": "<br/><b>Do you have something to hide ?</b><br/><br/>This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets.<br/>",
+  "available_for": ["qt"]
+}

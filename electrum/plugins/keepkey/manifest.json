@@ -1,0 +1,7 @@
+{
+  "fullname": "KeepKey",
+  "description": "Provides support for KeepKey hardware wallet",
+  "requires": [["keepkeylib", "github.com/keepkey/python-keepkey"]],
+  "registers_keystore": ["hardware", "keepkey", "KeepKey wallet"],
+  "available_for": ["qt", "cmdline"]
+}

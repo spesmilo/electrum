@@ -1,0 +1,6 @@
+{
+  "fullname": "Blockstream Jade Wallet",
+  "description": "Provides support for the Blockstream Jade hardware wallet",
+  "registers_keystore": ["hardware", "jade", "Jade wallet"],
+  "available_for": ["qt", "cmdline"]
+}

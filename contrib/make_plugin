@@ -35,12 +35,18 @@ with zipfile.ZipFile(zip_path, 'w') as zip_object:
             print('added', dest_path)
 
 # read version
-zip_file = zipimport.zipimporter(zip_path)
-module = zip_file.load_module(plugin_name)
-if not module.version:
+try:
+    with open(os.path.join(source_dir, 'manifest.json'), 'r') as f:
+        manifest = json.load(f)
+        version = manifest.get('version')
+except FileNotFoundError:
+    raise Exception(f"plugin doesn't contain manifest.json")
+
+if not version:
     raise Exception('version not set')
 
-versioned_plugin_name = plugin_name + '-' + module.version + '.zip'
+
+versioned_plugin_name = plugin_name + '-' + version + '.zip'
 zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
 # rename zip file
 os.rename(zip_path, zip_path_with_version)
