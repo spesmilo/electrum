@@ -28,7 +28,7 @@ import math
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QLabel, QGridLayout, QVBoxLayout
+from PyQt6.QtWidgets import QLabel, QGridLayout, QVBoxLayout, QCheckBox
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
@@ -202,7 +202,13 @@ class PasswordLayoutForHW(object):
 
         vbox.addLayout(grid)
 
+        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
+        grid.addWidget(self.encrypt_cb, 1, 0, 1, 2)
+
         self.vbox = vbox
+
+    def should_encrypt_storage(self):
+        return self.encrypt_cb.isChecked()
 
     def title(self):
         return _("Toggle Encryption")
@@ -274,7 +280,8 @@ class ChangePasswordDialogForHW(ChangePasswordDialogBase):
     def run(self):
         if not self.exec():
             return False, None
-        return True, True
+        return True, self.playout.should_encrypt_storage()
+
 
 
 class PasswordDialog(WindowModalDialog):

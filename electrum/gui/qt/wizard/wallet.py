@@ -1245,7 +1245,7 @@ class WCWalletPasswordHardware(WalletWizardComponent):
         self._valid = True
 
     def apply(self):
-        self.wizard_data['encrypt'] = True
+        self.wizard_data['encrypt'] = self.playout.should_encrypt_storage()
         _name, _info = self.wizard_data['hardware_device']
         device_id = _info.device.id_
         client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
