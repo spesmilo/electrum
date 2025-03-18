@@ -4,7 +4,7 @@
 from abc import ABC, abstractmethod
 import base64
 import hashlib
-from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 import electrum_ecc as ecc
 
@@ -23,6 +23,7 @@ from electrum.wallet import Standard_Wallet
 
 from ..hw_wallet import HardwareClientBase, HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
+from ..hw_wallet.plugin import HardwareClientDummy
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo
@@ -306,10 +307,15 @@ class Ledger_Client(HardwareClientBase, ABC):
     is_legacy: bool
 
     @staticmethod
-    def construct_new(*args, device: Device, **kwargs) -> 'Ledger_Client':
+    def construct_new(
+        *args, device: Device, plugin: 'LedgerPlugin', **kwargs,
+    ) -> Union['Ledger_Client', HardwareClientDummy]:
         """The 'real' constructor, that automatically decides which subclass to use."""
         if LedgerPlugin.is_hw1(device.product_key):
-            raise Exception("ledger hw.1 devices are no longer supported")
+            return HardwareClientDummy(
+                plugin=plugin,
+                error_text="ledger hw.1 devices are no longer supported",
+            )
         # for nano S or newer hw, decide which client impl to use based on software/firmware version:
         hid_device = HID()
         hid_device.path = device.path
@@ -328,10 +334,10 @@ class Ledger_Client(HardwareClientBase, ABC):
             cl = None
         if isinstance(cl, ledger_bitcoin.client.NewClient):
             _logger.debug(f"Ledger_Client.construct_new(). creating NewClient for {device=}.")
-            return Ledger_Client_New(hid_device, *args, **kwargs)
+            return Ledger_Client_New(hid_device, *args, plugin=plugin, **kwargs)
         else:
             _logger.debug(f"Ledger_Client.construct_new(). creating LegacyClient for {device=}.")
-            return Ledger_Client_Legacy(hid_device, *args, **kwargs)
+            return Ledger_Client_Legacy(hid_device, *args, plugin=plugin, **kwargs)
 
     def __init__(self, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
@@ -1311,7 +1317,7 @@ class LedgerPlugin(HW_PluginBase):
         return device
 
     @runs_in_hwd_thread
-    def create_client(self, device, handler) -> Optional[Ledger_Client]:
+    def create_client(self, device, handler) -> Union[Ledger_Client, None, HardwareClientDummy]:
         try:
             return Ledger_Client.construct_new(device=device, product_key=device.product_key, plugin=self)
         except Exception as e:
