@@ -242,7 +242,7 @@ class UTXOList(MyTreeView):
             return False
         value = sum(x.value_sats() for x in coins)
         min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
-        max_amount = self.wallet.lnworker.swap_manager.max_amount_forward_swap()
+        max_amount = self.wallet.lnworker.swap_manager.client_max_amount_forward_swap()
         if min_amount is None or max_amount is None:
             # we need to fetch data from swap server
             return True
