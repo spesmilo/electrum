@@ -1069,6 +1069,10 @@ class LNWallet(LNWorker):
                 continue
             key = payment_hash.hex()
             info = self.get_payment_info(payment_hash)
+            # note: just after successfully paying an invoice using MPP, amount and fee values might be shifted
+            #       temporarily: the amount only considers 'settled' htlcs (see plist above), but we might also
+            #       have some inflight htlcs still. Until all relevant htlcs settle, the amount will be lower than
+            #       expected and the fee higher (the inflight htlcs will be effectively counted as fees).
             direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             label = self.wallet.get_label_for_rhash(key)
             if not label and direction == PaymentDirection.FORWARDING:
