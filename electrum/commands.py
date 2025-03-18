@@ -1767,44 +1767,79 @@ argparse._SubParsersAction.__call__ = subparser_call
 
 
 def add_network_options(parser):
-    parser.add_argument("-f", "--serverfingerprint", dest=SimpleConfig.NETWORK_SERVERFINGERPRINT.key(), default=None,
-                        help="only allow connecting to servers with a matching SSL certificate SHA256 fingerprint. " +
-                             "To calculate this yourself: '$ openssl x509 -noout -fingerprint -sha256 -inform pem -in mycertfile.crt'. Enter as 64 hex chars.")
-    parser.add_argument("-1", "--oneserver", action="store_true", dest=SimpleConfig.NETWORK_ONESERVER.key(), default=None,
-                        help="connect to one server only")
-    parser.add_argument("-s", "--server", dest=SimpleConfig.NETWORK_SERVER.key(), default=None,
-                        help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
-    parser.add_argument("-p", "--proxy", dest=SimpleConfig.NETWORK_PROXY.key(), default=None,
-                        help="set proxy [type:]host:port (or 'none' to disable proxy), where type is socks4 or socks5")
-    parser.add_argument("--proxyuser", dest=SimpleConfig.NETWORK_PROXY_USER.key(), default=None,
-                        help="set proxy username")
-    parser.add_argument("--proxypassword", dest=SimpleConfig.NETWORK_PROXY_PASSWORD.key(), default=None,
-                        help="set proxy password")
-    parser.add_argument("--noonion", action="store_true", dest=SimpleConfig.NETWORK_NOONION.key(), default=None,
-                        help="do not try to connect to onion servers")
-    parser.add_argument("--skipmerklecheck", action="store_true", dest=SimpleConfig.NETWORK_SKIPMERKLECHECK.key(), default=None,
-                        help="Tolerate invalid merkle proofs from server")
+    group = parser.add_argument_group('network options')
+    group.add_argument(
+        "-f", "--serverfingerprint", dest=SimpleConfig.NETWORK_SERVERFINGERPRINT.key(), default=None,
+        help="only allow connecting to servers with a matching SSL certificate SHA256 fingerprint. " +
+        "To calculate this yourself: '$ openssl x509 -noout -fingerprint -sha256 -inform pem -in mycertfile.crt'. Enter as 64 hex chars.")
+    group.add_argument(
+        "-1", "--oneserver", action="store_true", dest=SimpleConfig.NETWORK_ONESERVER.key(), default=None,
+        help="connect to one server only")
+    group.add_argument(
+        "-s", "--server", dest=SimpleConfig.NETWORK_SERVER.key(), default=None,
+        help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    group.add_argument(
+        "-p", "--proxy", dest=SimpleConfig.NETWORK_PROXY.key(), default=None,
+        help="set proxy [type:]host:port (or 'none' to disable proxy), where type is socks4 or socks5")
+    group.add_argument(
+        "--proxyuser", dest=SimpleConfig.NETWORK_PROXY_USER.key(), default=None,
+        help="set proxy username")
+    group.add_argument(
+        "--proxypassword", dest=SimpleConfig.NETWORK_PROXY_PASSWORD.key(), default=None,
+        help="set proxy password")
+    group.add_argument(
+        "--noonion", action="store_true", dest=SimpleConfig.NETWORK_NOONION.key(), default=None,
+        help="do not try to connect to onion servers")
+    group.add_argument(
+        "--skipmerklecheck", action="store_true", dest=SimpleConfig.NETWORK_SKIPMERKLECHECK.key(), default=None,
+        help="Tolerate invalid merkle proofs from Electrum server")
 
 
-def add_global_options(parser):
+def add_global_options(parser, suppress=False):
     group = parser.add_argument_group('global options')
-    group.add_argument("-v", dest="verbosity", help="Set verbosity (log levels)", default='')
-    group.add_argument("-V", dest="verbosity_shortcuts", help="Set verbosity (shortcut-filter list)", default='')
-    group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
-    group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
-    group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    group.add_argument("--testnet4", action="store_true", dest="testnet4", default=False, help="Use Testnet4")
-    group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
-    group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--signet", action="store_true", dest="signet", default=False, help="Use Signet")
-    group.add_argument("-o", "--offline", action="store_true", dest=SimpleConfig.NETWORK_OFFLINE.key(), default=None, help="Run offline")
-    group.add_argument("--rpcuser", dest=SimpleConfig.RPC_USERNAME.key(), default=argparse.SUPPRESS, help="RPC user")
-    group.add_argument("--rpcpassword", dest=SimpleConfig.RPC_PASSWORD.key(), default=argparse.SUPPRESS, help="RPC password")
+    group.add_argument(
+        "-v", dest="verbosity", default='',
+        help=argparse.SUPPRESS if suppress else "Set verbosity (log levels)")
+    group.add_argument(
+        "-V", dest="verbosity_shortcuts", default='',
+        help=argparse.SUPPRESS if suppress else "Set verbosity (shortcut-filter list)")
+    group.add_argument(
+        "-D", "--dir", dest="electrum_path",
+        help=argparse.SUPPRESS if suppress else "electrum directory")
+    group.add_argument(
+        "-w", "--wallet", dest="wallet_path",
+        help=argparse.SUPPRESS if suppress else "wallet path")
+    group.add_argument(
+        "-P", "--portable", action="store_true", dest="portable", default=False,
+        help=argparse.SUPPRESS if suppress else "Use local 'electrum_data' directory")
+    group.add_argument(
+        "--testnet", action="store_true", dest="testnet", default=False,
+        help=argparse.SUPPRESS if suppress else "Use Testnet")
+    group.add_argument(
+        "--testnet4", action="store_true", dest="testnet4", default=False,
+        help=argparse.SUPPRESS if suppress else "Use Testnet4")
+    group.add_argument(
+        "--regtest", action="store_true", dest="regtest", default=False,
+        help=argparse.SUPPRESS if suppress else "Use Regtest")
+    group.add_argument(
+        "--simnet", action="store_true", dest="simnet", default=False,
+        help=argparse.SUPPRESS if suppress else "Use Simnet")
+    group.add_argument(
+        "--signet", action="store_true", dest="signet", default=False,
+        help=argparse.SUPPRESS if suppress else "Use Signet")
+    group.add_argument(
+        "-o", "--offline", action="store_true", dest=SimpleConfig.NETWORK_OFFLINE.key(), default=None,
+        help=argparse.SUPPRESS if suppress else "Run offline")
+    group.add_argument(
+        "--rpcuser", dest=SimpleConfig.RPC_USERNAME.key(), default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS if suppress else "RPC user")
+    group.add_argument(
+        "--rpcpassword", dest=SimpleConfig.RPC_PASSWORD.key(), default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS if suppress else "RPC password")
+    group.add_argument(
+        "--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=False,
+        help=argparse.SUPPRESS if suppress else "Forget config on exit")
 
-
-def add_wallet_option(parser):
-    parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-    parser.add_argument("--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=False, help="Forget config on exit")
 
 
 def get_simple_parser():
@@ -1835,7 +1870,6 @@ def get_parser():
         epilog="Run 'electrum help <command>' to see the help for a command")
     parser.add_argument("--version", dest="cmd", action='store_const', const='version', help="Return the version of Electrum.")
     add_global_options(parser)
-    add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
@@ -1845,7 +1879,6 @@ def get_parser():
     parser_gui.add_argument("-L", "--lang", dest=SimpleConfig.LOCALIZATION_LANGUAGE.key(), default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
     parser_gui.add_argument("--nosegwit", action="store_true", dest=SimpleConfig.WIZARD_DONT_CREATE_SEGWIT.key(), default=False, help="Do not create segwit wallets")
-    add_wallet_option(parser_gui)
     add_network_options(parser_gui)
     add_global_options(parser_gui)
     # daemon
@@ -1862,12 +1895,12 @@ def get_parser():
     # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
-        p = subparsers.add_parser(cmdname, help=cmd.help, description=cmd.description)
+        p = subparsers.add_parser(
+            cmdname, help=cmd.help, description=cmd.description,
+            epilog="Run 'electrum -h to see the list of global options",
+        )
         for optname, default in zip(cmd.options, cmd.defaults):
-            if optname in ['wallet_path', 'wallet']:
-                add_wallet_option(p)
-                continue
-            if optname in ['plugin']:
+            if optname in ['wallet_path', 'wallet', 'plugin']:
                 continue
             if optname in command_options:
                 a, help = command_options[optname]
@@ -1882,7 +1915,7 @@ def get_parser():
                 p.add_argument(*args, dest=optname, action=action, default=default, help=help, type=_type)
             else:
                 p.add_argument(*args, dest=optname, action=action, default=default, help=help)
-        add_global_options(p)
+        add_global_options(p, suppress=True)
 
         for param in cmd.params:
             if param in ['wallet_path', 'wallet']:
