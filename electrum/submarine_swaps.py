@@ -26,8 +26,8 @@ from .bitcoin import (script_to_p2wsh, opcodes,
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
-                   gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop,
-                   get_asyncio_loop)
+                   gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector,
+                   get_running_loop, get_asyncio_loop, wait_for2)
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -134,7 +134,8 @@ class SwapFees:
     percentage = attr.ib(type=int)
     mining_fee = attr.ib(type=int)
     min_amount = attr.ib(type=int)
-    max_amount = attr.ib(type=int)
+    max_forward = attr.ib(type=int)
+    max_reverse = attr.ib(type=int)
 
 @stored_in('submarine_swaps')
 @attr.s
@@ -175,7 +176,8 @@ class SwapManager(Logger):
         self.mining_fee = None
         self.percentage = None
         self._min_amount = None
-        self._max_amount = None
+        self._max_forward = None
+        self._max_reverse = None
 
         self.wallet = wallet
         self.config = wallet.config
@@ -202,6 +204,7 @@ class SwapManager(Logger):
         self.is_server = False # overriden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
+        self._liquidity_changed = asyncio.Event()
 
     def start_network(self, network: 'Network'):
         assert network
@@ -220,13 +223,22 @@ class SwapManager(Logger):
     async def run_nostr_server(self):
         await self.set_nostr_proof_of_work()
         with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
+            # wait a bit so we don't publish 0 liquidity on startup if channels are not yet reestablished
+            await asyncio.sleep(10)
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
+            # will publish a new announcement if liquidity changed or every OFFER_UPDATE_INTERVAL_SEC
             while True:
                 # todo: publish everytime fees have changed
                 self.server_update_pairs()
                 await transport.publish_offer(self)
-                await asyncio.sleep(transport.OFFER_UPDATE_INTERVAL_SEC)
+                try:
+                    await wait_for2(
+                        self._liquidity_changed.wait(),
+                        timeout=transport.OFFER_UPDATE_INTERVAL_SEC
+                    )
+                except asyncio.TimeoutError:
+                    continue
 
     @log_exceptions
     async def main_loop(self):
@@ -427,6 +439,7 @@ class SwapManager(Logger):
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
+            self.server_maybe_trigger_liquidity_update()
 
     def get_swap_tx_fee(self):
         return self._get_tx_fee(self.config.FEE_POLICY)
@@ -470,6 +483,8 @@ class SwapManager(Logger):
         our_privkey = os.urandom(32)
         our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
+        if not onchain_amount_sat:
+            raise Exception("no onchain amount")
         redeem_script = construct_script(
             WITNESS_TEMPLATE_REVERSE_SWAP,
             values={1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
@@ -563,6 +578,8 @@ class SwapManager(Logger):
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
+        if not onchain_amount_sat:
+            raise Exception("no onchain amount")
         preimage = os.urandom(32)
         payment_hash = sha256(preimage)
         redeem_script = construct_script(
@@ -907,17 +924,35 @@ class SwapManager(Logger):
 
     def server_update_pairs(self) -> None:
         """ for server """
-        self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000
+        self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = 20000
-        self._max_amount = 10000000
+        anchor_reserve = self.config.LN_UTXO_RESERVE \
+                                if (any(chan.has_anchors() and not chan.is_redeemed()
+                                for chan in self.lnworker.channels.values())) else 0
+        oc_balance = max(sum([coin.value_sats() for coin in self.wallet.get_spendable_coins()])
+                                - anchor_reserve, 0)
+        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance, 10000000)
+        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)
+        self._max_forward: int = self._keep_leading_digits(max_forward, 2)
+        self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
         self.mining_fee = self.get_fee_for_txbatcher()
+
+    @staticmethod
+    def _keep_leading_digits(num: int, digits: int) -> int:
+        """Reduces precision of num to `digits` leading digits."""
+        if num <= 0:
+            return 0
+        num_str = str(num)
+        zeroed_num_str = f"{num_str[:digits]}{(len(num_str[digits:])) * '0'}"
+        return int(zeroed_num_str)
 
     def update_pairs(self, pairs):
         self.logger.info(f'updating fees {pairs}')
         self.mining_fee = pairs.mining_fee
         self.percentage = pairs.percentage
         self._min_amount = pairs.min_amount
-        self._max_amount = pairs.max_amount
+        self._max_forward = pairs.max_forward
+        self._max_reverse = pairs.max_reverse
         self.trigger_pairs_updated_threadsafe()
 
     def trigger_pairs_updated_threadsafe(self):
@@ -928,16 +963,41 @@ class SwapManager(Logger):
         loop = get_asyncio_loop()
         loop.call_soon_threadsafe(trigger)
 
-    def get_max_amount(self) -> int:
-        """in satoshis"""
-        return self._max_amount
+    def server_maybe_trigger_liquidity_update(self) -> None:
+        """
+        To be called when the available liquidity changes so the new liquidity is announced.
+        (ln in/out, onchain in/out)
+        """
+        if not self.is_server:
+            return
+        assert get_running_loop() == get_asyncio_loop(), "Events must be set in the asyncio thread"
+        previous_max_forward = self._max_forward
+        previous_max_reverse = self._max_reverse
+        self.server_update_pairs()
+        # if liquidity really changed the event is triggered so a new provider announcement is published
+        if self._max_forward != previous_max_forward or self._max_reverse != previous_max_reverse:
+                self.logger.debug(f"liquidity changed, updating announcement")
+                self._liquidity_changed.set()
+                self._liquidity_changed.clear()
+
+    def get_provider_max_forward_amount(self) -> int:
+        """in sat"""
+        return self._max_forward
+
+    def get_provider_max_reverse_amount(self) -> int:
+        """in sat"""
+        return self._max_reverse
 
     def get_min_amount(self) -> int:
         """in satoshis"""
         return self._min_amount
 
-    def check_invoice_amount(self, x) -> bool:
-        return self.get_min_amount() <= x <= self.get_max_amount()
+    def check_invoice_amount(self, x, is_reverse: bool) -> bool:
+        if is_reverse:
+            max_amount = self.get_provider_max_forward_amount()
+        else:
+            max_amount = self.get_provider_max_reverse_amount()
+        return self.get_min_amount() <= x <= max_amount
 
     def _get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
         """For a given swap direction and amount we send, returns how much we will receive.
@@ -946,12 +1006,12 @@ class SwapManager(Logger):
         In the reverse direction, the result matches what the swap server returns as response["onchainAmount"].
         """
         if send_amount is None:
-            return
+            return None
         x = Decimal(send_amount)
         percentage = Decimal(self.percentage)
         if is_reverse:
-            if not self.check_invoice_amount(x):
-                return
+            if not self.check_invoice_amount(x, is_reverse):
+                return None
             # see/ref:
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L948
             percentage_fee = math.ceil(percentage * x / 100)
@@ -959,13 +1019,13 @@ class SwapManager(Logger):
             x -= percentage_fee + base_fee
             x = math.floor(x)
             if x < dust_threshold():
-                return
+                return None
         else:
             x -= self.mining_fee
             percentage_fee = math.ceil(x * percentage / (100 + percentage))
             x -= percentage_fee
-            if not self.check_invoice_amount(x):
-                return
+            if not self.check_invoice_amount(x, is_reverse):
+                return None
         x = int(x)
         return x
 
@@ -976,7 +1036,7 @@ class SwapManager(Logger):
         In the forward direction, the result matches what the swap server returns as response["expectedAmount"].
         """
         if not recv_amount:
-            return
+            return None
         x = Decimal(recv_amount)
         percentage = Decimal(self.percentage)
         if is_reverse:
@@ -986,11 +1046,11 @@ class SwapManager(Logger):
             base_fee = self.mining_fee
             x += base_fee
             x = math.ceil(x / ((100 - percentage) / 100))
-            if not self.check_invoice_amount(x):
-                return
+            if not self.check_invoice_amount(x, is_reverse):
+                return None
         else:
-            if not self.check_invoice_amount(x):
-                return
+            if not self.check_invoice_amount(x, is_reverse):
+                return None
             # see/ref:
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L708
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/rates/FeeProvider.ts#L90
@@ -1036,7 +1096,7 @@ class SwapManager(Logger):
                 swaps.append(swap)
         return swaps
 
-    def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable[SwapData]:
+    def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable[Tuple[int, SwapData]]:
         swaps = []
         for i, txin in enumerate(tx.inputs()):
             if swap := self.get_swap_by_claim_txin(txin):
@@ -1085,9 +1145,9 @@ class SwapManager(Logger):
         txin.make_witness = make_witness
         return txin, locktime
 
-    def max_amount_forward_swap(self) -> Optional[int]:
+    def client_max_amount_forward_swap(self) -> Optional[int]:
         """ returns None if we cannot swap """
-        max_swap_amt_ln = self.get_max_amount()
+        max_swap_amt_ln = self.get_provider_max_reverse_amount()
         if max_swap_amt_ln is None:
             return None
         max_recv_amt_ln = int(self.lnworker.num_sats_can_receive())
@@ -1261,7 +1321,8 @@ class HttpTransport(SwapServerTransport):
             percentage=fees['percentage'],
             mining_fee=fees['minerFees']['baseAsset']['mining_fee'],
             min_amount=limits['minimal'],
-            max_amount=limits['maximal'],
+            max_forward=limits['max_forward_amount'],
+            max_reverse=limits['max_reverse_amount'],
         )
         self.sm.update_pairs(pairs)
 
@@ -1274,7 +1335,7 @@ class NostrTransport(SwapServerTransport):
 
     EPHEMERAL_REQUEST = 25582
     USER_STATUS_NIP38 = 30315
-    NOSTR_EVENT_VERSION = 4
+    NOSTR_EVENT_VERSION = 5
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
 
     def __init__(self, config, sm, keypair):
@@ -1376,18 +1437,23 @@ class NostrTransport(SwapServerTransport):
             percentage=offer['percentage_fee'],
             mining_fee=offer['mining_fee'],
             min_amount=offer['min_amount'],
-            max_amount=offer['max_amount'],
+            max_forward=offer['max_forward_amount'],
+            max_reverse=offer['max_reverse_amount'],
         )
 
     @ignore_exceptions
     @log_exceptions
-    async def publish_offer(self, sm):
+    async def publish_offer(self, sm) -> None:
         assert self.sm.is_server
+        if sm._max_forward < sm._min_amount and sm._max_reverse < sm._min_amount:
+            self.logger.warning(f"not publishing swap offer, no liquidity available: {sm._max_forward=}, {sm._max_reverse=}")
+            return
         offer = {
             'percentage_fee': sm.percentage,
             'mining_fee': sm.mining_fee,
             'min_amount': sm._min_amount,
-            'max_amount': sm._max_amount,
+            'max_forward_amount': sm._max_forward,
+            'max_reverse_amount': sm._max_reverse,
             'relays': sm.config.NOSTR_RELAYS,
             'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
         }
@@ -1544,6 +1610,7 @@ class NostrTransport(SwapServerTransport):
         r['reply_to'] = event_id
         self.logger.debug(f'sending response id={event_id}')
         await self.send_direct_message(event_pubkey, json.dumps(r))
+        self.sm.server_maybe_trigger_liquidity_update()
 
     def _store_last_swapserver_relays(self, relays: Sequence[str]):
         self._last_swapserver_relays = relays
