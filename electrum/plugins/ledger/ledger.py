@@ -652,7 +652,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             # Get trusted inputs from the original transactions
             for input_idx, utxo in enumerate(inputs):
                 self.handler.show_message(_("Preparing transaction inputs...") + f" (phase1, {input_idx}/{len(inputs)})")
-                sequence = int.to_bytes(utxo[5], length=4, byteorder="little", signed=False)
+                sequence = int.to_bytes(utxo[5], length=4, byteorder="little", signed=False).hex()
                 if segwitTransaction and not self.supports_segwit_trustedInputs():
                     tmp = bfh(utxo[3])[::-1]
                     tmp += int.to_bytes(utxo[1], length=4, byteorder="little", signed=False)
