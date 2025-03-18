@@ -15,5 +15,9 @@ async def push(self: 'Commands', plugin: 'LabelsPlugin' = None, wallet=None) -> 
 
 @plugin_command('w', plugin_name)
 async def pull(self: 'Commands', plugin: 'LabelsPlugin' = None, wallet=None, force=False) -> int:
-    """ pull labels from server """
+    """
+    pull missing labels from server
+
+    arg:bool:force:pull all labels
+    """
     return await plugin.pull_thread(wallet, force=force)

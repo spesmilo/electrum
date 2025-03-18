@@ -53,6 +53,8 @@ class TestCommands(ElectrumTestCase):
         self.assertTrue(eval_bool("True"))
         self.assertTrue(eval_bool("true"))
         self.assertTrue(eval_bool("1"))
+        with self.assertRaises(ValueError):
+            eval_bool("Falsee")
 
     async def test_convert_xkey(self):
         cmds = Commands(config=self.config)
