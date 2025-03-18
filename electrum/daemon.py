@@ -339,6 +339,9 @@ class CommandsServer(AuthenticatedServer):
         #       "config_options" should have priority.
         if self.daemon.gui_object:
             if hasattr(self.daemon.gui_object, 'new_window'):
+                if config_options.get(SimpleConfig.NETWORK_OFFLINE.key()) and not self.config.NETWORK_OFFLINE:
+                    raise UserFacingException(
+                        "error: current GUI is running online, so it cannot open a new wallet offline.")
                 path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
                 return True
