@@ -1266,10 +1266,11 @@ class Commands(Logger):
     @command('wnpl')
     async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
-        lnaddr = lnworker._check_invoice(invoice)
+        lnaddr = lnworker._check_bolt11_invoice(invoice)
         payment_hash = lnaddr.paymenthash
-        wallet.save_invoice(Invoice.from_bech32(invoice))
-        success, log = await lnworker.pay_invoice(invoice)
+        invoice_obj = Invoice.from_bech32(invoice)
+        wallet.save_invoice(invoice_obj)
+        success, log = await lnworker.pay_invoice(invoice_obj)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,

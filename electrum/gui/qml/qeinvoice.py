@@ -7,14 +7,15 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, 
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.invoices import (Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
-                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
+from electrum.invoices import (
+    Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED,
+    PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER
+)
 from electrum.transaction import PartialTxOutput, TxOutput
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.lnutil import format_short_channel_id
 from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
-from electrum.payment_identifier import (PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
+from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -57,7 +58,7 @@ class QEInvoice(QObject, QtEventListener):
         self._canPay = False
         self._key = None
         self._invoiceType = QEInvoice.Type.Invalid
-        self._effectiveInvoice = None
+        self._effectiveInvoice = None  # type: Optional[Invoice]
         self._userinfo = ''
         self._lnprops = {}
         self._amount = QEAmount()

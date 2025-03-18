@@ -1490,14 +1490,14 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def pay_invoice(
-            self, invoice: str, *,
+            self, invoice: Invoice, *,
             amount_msat: int = None,
             attempts: int = None,  # used only in unit tests
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
-
-        lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
+        bolt11 = invoice.lightning_invoice
+        lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
         min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -1849,11 +1849,11 @@ class LNWallet(LNWorker):
             except Exception:
                 return None
 
-    def _check_invoice(self, invoice: str, *, amount_msat: int = None) -> LnAddr:
+    def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int = None) -> LnAddr:
         """Parses and validates a bolt11 invoice str into a LnAddr.
         Includes pre-payment checks external to the parser.
         """
-        addr = lndecode(invoice)
+        addr = lndecode(bolt11_invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
         # check amount
@@ -2885,8 +2885,8 @@ class LNWallet(LNWorker):
             fallback_address=None,
             channels=[chan2],
         )
-        return await self.pay_invoice(
-            invoice, channels=[chan1])
+        invoice_obj = Invoice.from_bech32(invoice)
+        return await self.pay_invoice(invoice_obj, channels=[chan1])
 
     def can_receive_invoice(self, invoice: BaseInvoice) -> bool:
         assert invoice.is_lightning()

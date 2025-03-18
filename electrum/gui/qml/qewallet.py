@@ -32,7 +32,7 @@ from ...fee_policy import FeePolicy
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
-    from .qeinvoice import QEInvoice
+    from electrum.invoices import Invoice
 
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
@@ -653,12 +653,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.paymentAuthRejected.emit()
 
     @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice: 'QEInvoice'):
+    def pay_lightning_invoice(self, invoice: 'Invoice'):
         amount_msat = invoice.get_amount_msat()
 
         def pay_thread():
             try:
-                coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
+                coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat)
                 fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 fut.result()
             except Exception as e:
