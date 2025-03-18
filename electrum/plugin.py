@@ -104,13 +104,13 @@ class Plugins(DaemonThread):
             if self.cmd_only and self.config.get('enable_plugin_' + name) is not True:
                 continue
             base_name = 'electrum.plugins' if not external else 'electrum_external_plugins'
-            full_name = f'{base_name}.{name}' + ('.commands' if self.cmd_only else '')
+            full_name = f'{base_name}.{name}'
             if external:
                 module_path = os.path.join(pkg_path, name)
                 if not self._has_recursive_root_permissions(module_path):
                     self.logger.info(f"Not loading plugin {module_path}: directory has user write permissions")
                     continue
-                module_path = os.path.join(module_path, 'commands.py' if self.cmd_only else '__init__.py')
+                module_path = os.path.join(module_path, '__init__.py')
                 if not os.path.exists(module_path):
                     continue
                 spec = importlib.util.spec_from_file_location(full_name, module_path)
@@ -122,7 +122,7 @@ class Plugins(DaemonThread):
                 raise Exception(f"Error pre-loading {full_name}: no spec")
             module = self.exec_module_from_spec(spec, full_name)
             if self.cmd_only:
-                assert name not in self.loaded_command_modules, f"duplicate command modules for: {name}"
+                assert name not in self.loaded_command_modules, f"tried to load commands of {name} twice"
                 self.loaded_command_modules.add(name)
                 continue
             d = module.__dict__
@@ -235,17 +235,13 @@ class Plugins(DaemonThread):
                     raise Exception(f"duplicate plugins for name={name}")
                 if name in self.external_plugin_metadata:
                     raise Exception(f"duplicate plugins for name={name}")
+                if self.cmd_only and not self.config.get('enable_plugin_' + name):
+                    continue
                 module_path = f'electrum_external_plugins.{name}' if external else f'electrum.plugins.{name}'
                 spec = zipfile.find_spec(name)
                 module = self.exec_module_from_spec(spec, module_path)
                 if self.cmd_only:
-                    if self.config.get('enable_plugin_' + name) is not True:
-                        continue
-                    spec2 = importlib.util.find_spec(module_path + '.commands')
-                    if spec2 is None:  # no commands module in this plugin
-                        continue
-                    self.exec_module_from_spec(spec2, module_path + '.commands')
-                    assert name not in self.loaded_command_modules, f"duplicate command modules for: {name}"
+                    assert name not in self.loaded_command_modules, f"tried to load commands of {name} twice"
                     self.loaded_command_modules.add(name)
                     continue
                 d = module.__dict__
