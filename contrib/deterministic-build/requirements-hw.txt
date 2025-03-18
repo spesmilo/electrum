@@ -4,8 +4,6 @@ base58==2.1.1 \
 bitbox02==6.2.0 \
     --hash=sha256:5a8290bd270468ccdf2e6ff7174d25ea2b2f191e19734a79aa573c2b982c266f \
     --hash=sha256:cede06e399c98ed536fed6d8a421208daa00f97b697bd8363a941ac5f33309bf
-btchip-python==0.1.32 \
-    --hash=sha256:34f5e0c161c08f65dc0d070ba2ff4c315ed21c4b7e0faa32a46862d0dc1b8f55
 cbor2==5.4.6 \
     --hash=sha256:b893500db0fe033e570c3adc956af6eefc57e280026bd2d86fd53da9f1e594d7
 certifi==2024.2.2 \
