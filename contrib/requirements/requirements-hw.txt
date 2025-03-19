@@ -14,7 +14,7 @@ hidapi>=0.7.99.post15
 libusb1>=1.6
 
 # device plugin: ledger
-ledger-bitcoin>=0.2.0
+ledger-bitcoin>=0.2.0,<1.0
 hidapi
 
 # device plugin: coldcard
