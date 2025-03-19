@@ -2,13 +2,13 @@ qrcode
 protobuf>=3.20
 qdarkstyle>=3.2
 aiorpcx>=0.22.0,<0.25
-aiohttp>=3.3.0,<4.0.0
-aiohttp_socks>=0.8.4
+aiohttp>=3.11.0,<4.0.0
+aiohttp_socks>=0.9.2
 certifi
 attrs>=20.1.0
 jsonpatch
 electrum_ecc>=0.0.4
-electrum_aionostr>=0.0.7
+electrum_aionostr>=0.0.8
 
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!
