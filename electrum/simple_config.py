@@ -45,6 +45,7 @@ class ConfigVar(property):
         convert_getter: Callable[[Any], Any] = None,
         short_desc: Callable[[], str] = None,
         long_desc: Callable[[], str] = None,
+        plugin: Optional[str] = None,
     ):
         self._key = key
         self._default = default
@@ -56,6 +57,13 @@ class ConfigVar(property):
         assert long_desc is None or callable(long_desc)
         self._short_desc = short_desc
         self._long_desc = long_desc
+        if plugin:  # enforce "key" starts with name of plugin
+            pkg_prefix = "electrum.plugins."  # for internal plugins
+            if plugin.startswith(pkg_prefix):
+                plugin = plugin[len(pkg_prefix):]
+            assert "." not in plugin, plugin
+            key_prefix = plugin + "_"
+            assert key.startswith(key_prefix), f"ConfigVar {key=} must be prefixed with the plugin name ({key_prefix})"
         property.__init__(self, self._get_config_value, self._set_config_value)
         assert key not in _config_var_from_key, f"duplicate config key str: {key!r}"
         _config_var_from_key[key] = self
