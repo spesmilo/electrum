@@ -42,7 +42,6 @@ from electrum.gui.qt.util import ColorScheme, WindowModalDialog, Buttons, HelpLa
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
 
-from . import version as plugin_version
 from .timelock_recovery import TimelockRecoveryPlugin, TimelockRecoveryContext
 
 
@@ -97,6 +96,8 @@ class Plugin(TimelockRecoveryPlugin):
         self.small_logo_bytes = self.read_file("timelock_recovery_60.png")
         self.large_logo_bytes = self.read_file("timelock_recovery_820.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
+        plugin_metadata: Optional[dict] = parent.get_metadata('timelock_recovery')
+        self.plugin_version: str = plugin_metadata['version'] if plugin_metadata else 'unknown'
 
     @hook
     def init_qt(self, gui: 'ElectrumGui'):
@@ -681,7 +682,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "kind": "timelock-recovery-plan",
                     "id": context.recovery_plan_id,
                     "created_at": context.recovery_plan_created_at.isoformat(),
-                    "plugin_version": plugin_version,
+                    "plugin_version": self.plugin_version,
                     "wallet_kind": "Electrum",
                     "wallet_version": version.ELECTRUM_VERSION,
                     "wallet_name": context.wallet_name,
@@ -724,7 +725,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "kind": "timelock-cancellation-plan",
                     "id": context.recovery_plan_id,
                     "created_at": context.recovery_plan_created_at.isoformat(),
-                    "plugin_version": plugin_version,
+                    "plugin_version": self.plugin_version,
                     "wallet_kind": "Electrum",
                     "wallet_version": version.ELECTRUM_VERSION,
                     "wallet_name": context.wallet_name,
@@ -832,7 +833,7 @@ class Plugin(TimelockRecoveryPlugin):
         painter.setFont(font_manager.subtitle_font)
         painter.drawText(
             QRectF(0, current_height, page_width, font_manager.subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
-            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {plugin_version}"
+            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.plugin_version}"
         )
         current_height += font_manager.subtitle_line_spacing + 60
 
@@ -1202,7 +1203,7 @@ class Plugin(TimelockRecoveryPlugin):
         painter.setFont(font_manager.subtitle_font)
         painter.drawText(
             QRectF(0, current_height, page_width, font_manager.subtitle_line_spacing + 20), Qt.AlignmentFlag.AlignCenter,
-            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {plugin_version}"
+            f"Electrum Version: {version.ELECTRUM_VERSION} - Plugin Version: {self.plugin_version}"
         )
         current_height += font_manager.subtitle_line_spacing + 60
 
