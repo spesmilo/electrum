@@ -1573,9 +1573,7 @@ def plugin_command(s, plugin_name):
         func.plugin_name = plugin_name
         name = plugin_name + '_' + func.__name__
         if name in known_commands or hasattr(Commands, name):
-            # electrum plugins are always loaded before the plugin commands,
-            # so plugin commands cannot overwrite them
-            return
+            raise Exception(f"Command name {name} already exists. Plugin commands should not overwrite other commands.")
         assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
         @command(s)
         @wraps(func)
