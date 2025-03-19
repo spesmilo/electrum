@@ -26,7 +26,8 @@ from .bitcoin import (script_to_p2wsh, opcodes,
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
-                   gen_nostr_ann_pow, get_nostr_ann_pow_amount)
+                   gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop,
+                   get_asyncio_loop)
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from .lnworker import LNWallet
     from .lnchannel import Channel
     from .simple_config import SimpleConfig
+    from aiohttp_socks import ProxyConnector
 
 
 
@@ -1279,8 +1281,8 @@ class NostrTransport(SwapServerTransport):
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
         self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future]
-        ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-        self.relay_manager = aionostr.Manager(self.relays, private_key=self.nostr_private_key, log=self.logger, ssl_context=ssl_context)
+        self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+        self.relay_manager = None
         self.taskgroup = OldTaskGroup()
         self.server_relays = None
 
@@ -1296,6 +1298,7 @@ class NostrTransport(SwapServerTransport):
     async def main_loop(self):
         self.logger.info(f'starting nostr transport with pubkey: {self.nostr_pubkey}')
         self.logger.info(f'nostr relays: {self.relays}')
+        self.relay_manager = self.get_relay_manager()
         await self.relay_manager.connect()
         connected_relays = self.relay_manager.relays
         self.logger.info(f'connected relays: {[relay.url for relay in connected_relays]}')
@@ -1331,6 +1334,21 @@ class NostrTransport(SwapServerTransport):
     @property
     def relays(self):
         return self.network.config.NOSTR_RELAYS.split(',')
+
+    def get_relay_manager(self):
+        assert get_running_loop() == get_asyncio_loop(), f"this must be run on the asyncio thread!"
+        if not self.relay_manager:
+            if self.network.proxy:
+                proxy = make_aiohttp_proxy_connector(self.network.proxy, self.ssl_context)
+            else:
+                proxy: Optional['ProxyConnector'] = None
+            return aionostr.Manager(
+                self.relays,
+                private_key=self.nostr_private_key,
+                log=self.logger,
+                ssl_context=self.ssl_context,
+                proxy=proxy)
+        return self.relay_manager
 
     def get_offer(self, pubkey):
         offer = self._offers.get(pubkey)

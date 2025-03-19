@@ -1313,6 +1313,18 @@ def format_short_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
+def make_aiohttp_proxy_connector(proxy: 'ProxySettings', ssl_context: Optional[ssl.SSLContext] = None) -> ProxyConnector:
+    return ProxyConnector(
+        proxy_type=ProxyType.SOCKS5 if proxy.mode == 'socks5' else ProxyType.SOCKS4,
+        host=proxy.host,
+        port=int(proxy.port),
+        username=proxy.user,
+        password=proxy.password,
+        rdns=True,  # needed to prevent DNS leaks over proxy
+        ssl=ssl_context,
+    )
+
+
 def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
@@ -1325,15 +1337,7 @@ def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
     if proxy and proxy.enabled:
-        connector = ProxyConnector(
-            proxy_type=ProxyType.SOCKS5 if proxy.mode == 'socks5' else ProxyType.SOCKS4,
-            host=proxy.host,
-            port=int(proxy.port),
-            username=proxy.user,
-            password=proxy.password,
-            rdns=True,  # needed to prevent DNS leaks over proxy
-            ssl=ssl_context,
-        )
+        connector = make_aiohttp_proxy_connector(proxy, ssl_context)
     else:
         connector = aiohttp.TCPConnector(ssl=ssl_context)
 
