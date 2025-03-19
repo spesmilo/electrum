@@ -52,46 +52,9 @@ class Plugin(LedgerPlugin, QtPluginBase):
 
 
 class Ledger_Handler(QtHandlerBase):
-    setup_signal = pyqtSignal()
-    auth_signal = pyqtSignal(object, object)
 
     MESSAGE_DIALOG_TITLE = _("Ledger Status")
 
     def __init__(self, win):
         super(Ledger_Handler, self).__init__(win, 'Ledger')
-        self.setup_signal.connect(self.setup_dialog)
-        self.auth_signal.connect(self.auth_dialog)
 
-    def word_dialog(self, msg):
-        response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.EchoMode.Password)
-        if not response[1]:
-            self.word = None
-        else:
-            self.word = str(response[0])
-        self.done.set()
-
-    def auth_dialog(self, data, client: 'Ledger_Client'):
-        try:
-            from .auth2fa import LedgerAuthDialog
-        except ImportError as e:
-            self.message_dialog(repr(e))
-            return
-        dialog = LedgerAuthDialog(self, data, client=client)
-        dialog.exec()
-        self.word = dialog.pin
-        self.done.set()
-
-    def get_auth(self, data, *, client: 'Ledger_Client'):
-        self.done.clear()
-        self.auth_signal.emit(data, client)
-        self.done.wait()
-        return self.word
-
-    def get_setup(self):
-        self.done.clear()
-        self.setup_signal.emit()
-        self.done.wait()
-        return
-
-    def setup_dialog(self):
-        self.show_error(_('Initialization of Ledger HW devices is currently disabled.'))

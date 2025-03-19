@@ -269,6 +269,35 @@ class HardwareClientBase(ABC):
         return self.plugin.name
 
 
+class HardwareClientDummy(HardwareClientBase):
+    """Hw device we recognize but do not support.
+    E.g. for Ledger HW.1 devices that we used to support in the past, but no longer do.
+    This allows showing an error message to the user.
+    """
+    def __init__(self, *, plugin: 'HW_PluginBase', error_text: str):
+        HardwareClientBase.__init__(self, plugin=plugin)
+        self.error_text = error_text
+
+    def get_xpub(self, bip32_path: str, xtype) -> str:
+        raise Exception(self.error_text)
+
+    def is_pairable(self) -> bool:
+        return False
+
+    def close(self):
+        pass
+
+    def is_initialized(self) -> bool:
+        """True if initialized, False if wiped."""
+        return True
+
+    def label(self) -> Optional[str]:
+        return "dummy_client"
+
+    def has_usable_connection_with_device(self) -> bool:
+        return True
+
+
 class HardwareHandlerBase:
     """An interface between the GUI and the device handling logic for handling I/O."""
     win = None
