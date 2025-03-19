@@ -290,11 +290,7 @@ class Plugins(DaemonThread):
             else:
                 zipfile = zipimport.zipimporter(metadata['path'])
                 init_spec = zipfile.find_spec(name)
-            module = self.exec_module_from_spec(init_spec, base_name)
-            # import config vars
-            if hasattr(module, 'config_vars'):
-                for cv in module.config_vars:
-                    setattr(SimpleConfig, cv.key().upper(), cv)
+            self.exec_module_from_spec(init_spec, base_name)
             if name == "trustedcoin":
                 # removes trustedcoin after loading to not show it in the list of plugins
                 del self.internal_plugin_metadata[name]
