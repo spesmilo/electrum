@@ -61,6 +61,7 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 _root_permission_cache = {}
+_exec_module_failure = {}  # type: Dict[str, Exception]
 
 
 class Plugins(DaemonThread):
@@ -139,7 +140,9 @@ class Plugins(DaemonThread):
                 self.external_plugin_metadata[name] = d
 
     @staticmethod
-    def exec_module_from_spec(spec, path):
+    def exec_module_from_spec(spec, path: str):
+        if prev_fail := _exec_module_failure.get(path):
+            raise Exception(f"exec_module already failed once before, with: {prev_fail!r}")
         try:
             module = importlib.util.module_from_spec(spec)
             # sys.modules needs to be modified for relative imports to work
@@ -147,6 +150,13 @@ class Plugins(DaemonThread):
             sys.modules[path] = module
             spec.loader.exec_module(module)
         except Exception as e:
+            # We can't undo all side-effects, but we at least rm the module from sys.modules,
+            # so the import system knows it failed. If called again for the same plugin, we do not
+            # retry due to potential interactions with not-undone side-effects (e.g. plugin
+            # might have defined commands).
+            _exec_module_failure[path] = e
+            if path in sys.modules:
+                sys.modules.pop(path, None)
             raise Exception(f"Error pre-loading {path}: {repr(e)}") from e
         return module
 
