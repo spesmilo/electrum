@@ -533,12 +533,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             send_exception_to_crash_reporter(e)
 
     def init_geometry(self):
+        # note: does not support multiple monitors well
         winpos = self.wallet.db.get("winpos-qt")
         try:
-            screen = self.app.desktop().screenGeometry()
-            assert screen.contains(QRect(*winpos))
-            self.setGeometry(*winpos)
-        except Exception:
+            winrect = QRect(*winpos)
+        except TypeError:
+            winrect = None
+        screen = self.app.primaryScreen().geometry()
+        if winrect and screen.contains(winrect):
+            self.setGeometry(winrect)
+        else:
             self.logger.info("using default geometry")
             self.setGeometry(100, 100, 840, 400)
 
