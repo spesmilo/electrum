@@ -3,6 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import asyncio
+import copy
 import os
 from decimal import Decimal
 import random
@@ -680,6 +681,8 @@ class LNGossip(LNWorker):
 
 
 class PaySession(Logger):
+    __immutable = False
+
     def __init__(
             self,
             *,
@@ -719,6 +722,17 @@ class PaySession(Logger):
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         self._nhtlcs_inflight = 0
         self.is_active = True  # is still trying to send new htlcs?
+
+    def immutable(self):
+        dc = copy.copy(self)
+        dc.sent_htlcs_q = None
+        dc.__immutable = True
+        return dc
+
+    def __setattr__(self, name, value):
+        if self.__immutable:
+            raise AttributeError(f"{name} is immutable")
+        return super().__setattr__(name, value)
 
     def diagnostic_name(self):
         pkey = sha256(self.payment_key)
@@ -1618,7 +1632,7 @@ class LNWallet(LNWorker):
                     # graph updates might occur during the computation
                     remaining_fee_budget_msat = (budget.fee_msat * amount_to_send) // amount_to_pay
                     routes = self.create_routes_for_payment(
-                        paysession=paysession,
+                        paysession=paysession.immutable(),
                         amount_msat=amount_to_send,
                         full_path=full_path,
                         fwd_trampoline_onion=fwd_trampoline_onion,
