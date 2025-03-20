@@ -1134,7 +1134,7 @@ class LNWallet(LNWorker):
                 for chan in self.channels.values())
         if balance_msat != lb:
             # this typically happens when a channel is recently force closed
-            self.logger.info(f'get_lightning_history: balance mismatch {balnce_sat - lb}')
+            self.logger.info(f'get_lightning_history: balance mismatch {balance_msat - lb}')
         return out
 
     def get_groups_for_onchain_history(self) -> Dict[str, str]:
