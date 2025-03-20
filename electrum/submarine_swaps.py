@@ -1269,9 +1269,9 @@ class NostrTransport(SwapServerTransport):
     #  - for client-server RPCs (using DMs)
     #     (todo: we should use onion messages for that)
 
-    NOSTR_DM = 4
+    EPHEMERAL_REQUEST = 25582
     USER_STATUS_NIP38 = 30315
-    NOSTR_EVENT_VERSION = 3
+    NOSTR_EVENT_VERSION = 4
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
 
     def __init__(self, config, sm, keypair):
@@ -1338,7 +1338,7 @@ class NostrTransport(SwapServerTransport):
     def get_relay_manager(self):
         assert get_running_loop() == get_asyncio_loop(), f"this must be run on the asyncio thread!"
         if not self.relay_manager:
-            if self.network.proxy:
+            if self.network.proxy and self.network.proxy.enabled:
                 proxy = make_aiohttp_proxy_connector(self.network.proxy, self.ssl_context)
             else:
                 proxy: Optional['ProxyConnector'] = None
@@ -1397,12 +1397,16 @@ class NostrTransport(SwapServerTransport):
         self.logger.info(f"published offer {event_id}")
 
     async def send_direct_message(self, pubkey: str, relays, content: str) -> str:
+        our_private_key = aionostr.key.PrivateKey(self.private_key)
+        recv_pubkey_hex = aionostr.util.from_nip19(pubkey)['object'].hex() if pubkey.startswith('npub') else pubkey
+        encrypted_msg = our_private_key.encrypt_message(content, recv_pubkey_hex)
         event_id = await aionostr._add_event(
             self.relay_manager,
-            kind=self.NOSTR_DM,
-            content=content,
+            kind=self.EPHEMERAL_REQUEST,
+            content=encrypted_msg,
             private_key=self.nostr_private_key,
-            direct_message=pubkey)
+            tags=[['p', recv_pubkey_hex]],
+        )
         return event_id
 
     @log_exceptions
@@ -1505,7 +1509,7 @@ class NostrTransport(SwapServerTransport):
     @log_exceptions
     async def check_direct_messages(self):
         privkey = aionostr.key.PrivateKey(self.private_key)
-        query = {"kinds": [self.NOSTR_DM], "limit":0, "#p": [self.nostr_pubkey]}
+        query = {"kinds": [self.EPHEMERAL_REQUEST], "limit":0, "#p": [self.nostr_pubkey]}
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
                 content = privkey.decrypt_message(event.content, event.pubkey)
