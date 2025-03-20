@@ -1198,6 +1198,10 @@ class LNWallet(LNWorker):
                 return chan
 
     def handle_onchain_state(self, chan: Channel):
+        if self.network is None:
+            # network not started yet
+            return
+
         if type(chan) is ChannelBackup:
             util.trigger_callback('channel', self.wallet, chan)
             return
