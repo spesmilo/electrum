@@ -335,6 +335,69 @@ def calc_hops_data_for_payment(
     return hops_data, amt, cltv_abs
 
 
+def calc_hops_data_for_blinded_payment(
+        route: 'LNPaymentRoute',
+        amount_msat: int,  # that final recipient receives
+        *,
+        final_cltv_abs: int,
+        total_msat: int,
+        # payment_secret: bytes,
+        bolt12_invoice: dict,
+) -> Tuple[List[OnionHopsDataSingle], int, int]:
+    """Returns the hops_data to be used for constructing an onion packet,
+    and the amount_msat and cltv_abs to be used on our immediate channel.
+    """
+    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
+        raise PaymentFailure(f"too long route ({len(route)} edges)")
+    # payload that will be seen by the last hop:
+
+    amt = amount_msat
+    cltv_abs = final_cltv_abs
+    # hop_payload = {
+    #     "amt_to_forward": {"amt_to_forward": amt},
+    #     "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
+    # }
+    # # for multipart payments we need to tell the receiver about the total and
+    # # partial amounts
+    # hop_payload["payment_data"] = {
+    #     "payment_secret": payment_secret,
+    #     "total_msat": total_msat,
+    #     "amount_msat": amt
+    # }
+
+    inv_path = bolt12_invoice.get('invoice_paths').get('paths')[0]
+    inv_hops = inv_path.get('path')
+    num_hops = int.from_bytes(inv_path.get('num_hops'))
+    if num_hops == 1:
+        inv_hops = [inv_hops]
+    hops_data = []
+    # build reversed
+    for inv_hop in reversed(inv_hops):
+        hops_data.append(OnionHopsDataSingle(payload={
+            'amt_to_forward': {'amt_to_forward': amt},
+            'outgoing_cltv_value': {'outgoing_cltv_value': cltv_abs},
+            'total_amount_msat': {'total_msat': total_msat},
+            'encrypted_recipient_data': {'encrypted_data': inv_hop.get('encrypted_recipient_data')},
+            'current_blinding_point': {'blinding': inv_path.get('blinding')}
+        }))
+
+    # hops_data = [OnionHopsDataSingle(payload=hop_payload)]
+    # payloads, backwards from last hop (but excluding the first edge):
+    for edge_index in range(len(route) - 1, 0, -1):
+        route_edge = route[edge_index]
+        hop_payload = {
+            "amt_to_forward": {"amt_to_forward": amt},
+            "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
+            "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
+        }
+        hops_data.append(
+            OnionHopsDataSingle(payload=hop_payload))
+        amt += route_edge.fee_for_edge(amt)
+        cltv_abs += route_edge.cltv_delta
+    hops_data.reverse()
+    return hops_data, amt, cltv_abs
+
+
 def _generate_filler(key_type: bytes, hops_data: Sequence[OnionHopsDataSingle],
                      shared_secrets: Sequence[bytes], data_size:int) -> bytes:
     num_hops = len(hops_data)
