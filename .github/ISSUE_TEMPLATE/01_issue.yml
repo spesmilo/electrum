@@ -14,17 +14,18 @@ body:
         * Do not post issues about non-**Bitcoin** versions of Electrum.
 
         ----
-  - type: checkboxes
-    attributes:
-      label: Is there an existing issue for this already?
-      #description: Please search to see if this issue is already being tracked.
-      options:
-      - label: I have searched the existing issues
-        required: true
+  #- type: checkboxes
+  #  attributes:
+  #    label: Is there an existing issue for this already?
+  #    #description: Please search to see if this issue is already being tracked.
+  #    options:
+  #    - label: I have searched the existing issues
+  #      required: true
   - type: textarea
     id: main-text-body
     attributes:
       label: Description
       #description: Tell us what went wrong
+      placeholder: Please search existing issues for duplicates.
     validations:
       required: true
