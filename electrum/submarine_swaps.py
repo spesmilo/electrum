@@ -155,7 +155,6 @@ class SwapData(StoredObject):
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
-    _zeroconf = False
     _payment_pending = False # for forward swaps
 
     @property
@@ -411,7 +410,7 @@ class SwapManager(Logger):
                 return
             txin, locktime = self.create_claim_txin(txin=txin, swap=swap)
             # note: there is no csv in the script, we just set this so that txbatcher waits for one confirmation
-            csv = 1 if (swap.is_reverse and not swap._zeroconf) else 0
+            csv = 1 if swap.is_reverse else 0
             name = 'swap claim' if swap.is_reverse else 'swap refund'
             can_be_batched = bool(csv) if swap.is_reverse else True
             sweep_info = SweepInfo(
@@ -685,8 +684,6 @@ class SwapManager(Logger):
         }
         data = await transport.send_request_to_server('createnormalswap', request_data)
         payment_hash = bytes.fromhex(data["preimageHash"])
-
-        zeroconf = data["acceptZeroConf"]
         onchain_amount = data["expectedAmount"]
         locktime = data["timeoutBlockHeight"]
         lockup_address = data["address"]
@@ -804,7 +801,6 @@ class SwapManager(Logger):
             *,
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
-            zeroconf: bool=False,
             channels: Optional[Sequence['Channel']] = None,
     ) -> Optional[str]:
         """send on Lightning, receive on-chain
@@ -887,7 +883,6 @@ class SwapManager(Logger):
             prepay_hash=prepay_hash,
             onchain_amount_sat=onchain_amount,
             lightning_amount_sat=lightning_amount_sat)
-        swap._zeroconf = zeroconf
         # initiate fee payment.
         if fee_invoice:
             fee_invoice_obj = Invoice.from_bech32(fee_invoice)
@@ -1105,7 +1100,6 @@ class SwapManager(Logger):
         response = {
             "id": swap.payment_hash.hex(),
             'preimageHash': swap.payment_hash.hex(),
-            "acceptZeroConf": False,
             "expectedAmount": swap.onchain_amount,
             "timeoutBlockHeight": swap.locktime,
             "address": swap.lockup_address,

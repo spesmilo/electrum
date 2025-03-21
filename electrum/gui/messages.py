@@ -70,7 +70,6 @@ MSG_FORWARD_SWAP_FUNDING_MEMPOOL = (
 MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
     _('The funding transaction has been detected.') + " " +
     _('Your claiming transaction will be broadcast when the funding transaction is confirmed.') + " " +
-    _('You may choose to broadcast it earlier, although that would not be trustless.') + " " +
     _("If you go offline before broadcasting the claiming transaction and let the swap time out, "
       "you will not get back the already pre-paid mining fees.")
 )

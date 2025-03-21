@@ -68,10 +68,6 @@ class HttpSwapServer(Logger, EventListener):
                     "limits": {
                         "maximal": sm._max_amount,
                         "minimal": sm._min_amount,
-                        "maximalZeroConf": {
-                            "baseAsset": 0,
-                            "quoteAsset": 0
-                        }
                     },
                     "fees": {
                         "percentage": sm.percentage,
