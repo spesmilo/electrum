@@ -504,6 +504,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         server_miningfee = swap_manager.mining_fee
         self.serverMiningfee = QEAmount(amount_sat=server_miningfee)
         if self.isReverse:
+            self.miningfee = QEAmount(amount_sat=swap_manager.get_swap_tx_fee())
             self.check_valid(self._send_amount, self._receive_amount)
         else:
             # update tx only if slider isn't moved for a while
@@ -522,6 +523,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self.valid = False
 
     def fwd_swap_updatetx(self):
+        # if slider is on reverse swap side when timer hits, ignore
+        if self.isReverse:
+            return
         self.update_tx(self._send_amount)
         # add lockup fees, but the swap amount is position
         pay_amount = self._send_amount + self._tx.get_fee() if self._tx else 0
