@@ -315,6 +315,20 @@ ElDialog {
         function onSliderPosChanged() {
             swapslider.value = swaphelper.sliderPos
         }
+        function onStateChanged() {
+            if (swaphelper.state == SwapHelper.Success) {
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Success!'),
+                    text: Config.getTranslatedMessage(swaphelper.isReverse
+                            ? 'MSG_REVERSE_SWAP_FUNDING_MEMPOOL'
+                            : 'MSG_FORWARD_SWAP_FUNDING_MEMPOOL')
+                })
+                dialog.accepted.connect(function() {
+                    Qt.callLater(root.close)
+                })
+                dialog.open()
+            }
+        }
     }
 
     Component.onCompleted: {
