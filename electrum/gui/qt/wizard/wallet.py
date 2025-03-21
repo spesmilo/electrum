@@ -310,72 +310,79 @@ class WCWalletName(WalletWizardComponent, Logger):
             if _path:
                 self.name_e.setText(relative_path(_path))
 
-        def on_filename(filename):
-            # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
-            nonlocal temp_storage
-            temp_storage = None
-            msg = None
-            self.wallet_exists = False
-            self.wallet_is_open = False
-            self.wallet_needs_hw_unlock = False
-            if filename:
-                _path = os.path.join(datadir_wallet_folder, filename)
-                wallet_from_memory = self.wizard._daemon.get_wallet(_path)
-                try:
-                    if wallet_from_memory:
-                        temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
-                        self.wallet_is_open = True
-                    else:
-                        temp_storage = WalletStorage(_path)
-                    self.wallet_exists = temp_storage.file_exists()
-                except (StorageReadWriteError, WalletFileException) as e:
-                    msg = _('Cannot read file') + f'\n{repr(e)}'
-                except Exception as e:
-                    self.logger.exception('')
-                    msg = _('Cannot read file') + f'\n{repr(e)}'
-            else:
-                msg = ""
-            self.valid = temp_storage is not None
-            user_needs_to_enter_password = False
-            if temp_storage:
-                if not temp_storage.file_exists():
-                    msg = _("This file does not exist.") + '\n' \
-                          + _("Press 'Next' to create this wallet, or choose another file.")
-                elif not wallet_from_memory:
-                    if temp_storage.is_encrypted_with_user_pw():
-                        msg = _("This file is encrypted with a password.") + '\n' \
-                              + _('Enter your password or choose another file.')
-                        user_needs_to_enter_password = True
-                    elif temp_storage.is_encrypted_with_hw_device():
-                        msg = _("This file is encrypted using a hardware device.") + '\n' \
-                              + _("Press 'Next' to choose device to decrypt.")
-                        self.wallet_needs_hw_unlock = True
-                    else:
-                        msg = _("Press 'Finish' to open this wallet.")
+        def on_filename(self, filename):
+            try:
+                # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
+                nonlocal temp_storage
+                temp_storage = None
+                msg = None
+                self.wallet_exists = False
+                self.wallet_is_open = False
+                self.wallet_needs_hw_unlock = False
+                if filename:
+                    _path = os.path.join(datadir_wallet_folder, filename)
+                    wallet_from_memory = self.wizard._daemon.get_wallet(_path)
+                    try:
+                        if wallet_from_memory:
+                            temp_storage = wallet_from_memory.storage
+                            self.wallet_is_open = True
+                        else:
+                            temp_storage = WalletStorage(_path)
+                        self.wallet_exists = temp_storage.file_exists()
+                    except (StorageReadWriteError, WalletFileException) as e:
+                        msg = _('Cannot read file') + f'\n{str(e)}'
+                    except UnicodeDecodeError:
+                        msg = _('Cannot read file (invalid UTF-8 encoding)')
+                    except Exception as e:
+                        # Prevent OverflowError when error message is too large
+                        if len(str(e)) > 10000:  # Reasonable limit for error message
+                            msg = _("Error message too large to display")
+                        else:
+                            msg = _('Cannot read file') + f'\n{str(e)}'
+                        self.logger.exception('')
                 else:
-                    msg = _("This file is already open in memory.") + "\n" \
-                          + _("Press 'Finish' to create/focus window.")
-            if msg is None:
-                msg = _('Cannot read file')
-            if filename and os.path.isabs(relative_path(_path)):
-                msg += '\n\n' + _('Note: this wallet file is outside the default wallets folder.')
-            msg_label.setText(msg)
-            widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
-            if user_needs_to_enter_password:
-                pw_label.show()
-                self.pw_e.show()
-                if not self.name_e.hasFocus():
-                    self.pw_e.setFocus()
-            else:
-                pw_label.hide()
-                self.pw_e.hide()
-            self.on_updated()
-
-        button.clicked.connect(on_choose)
-        button_create_new.clicked.connect(
-            lambda: self.name_e.setText(get_new_wallet_name(datadir_wallet_folder)))  # FIXME get_new_wallet_name might raise
-        self.name_e.textChanged.connect(on_filename)
-        self.name_e.setText(relative_path(path))
+                    msg = ""
+                    
+                self.valid = temp_storage is not None
+                user_needs_to_enter_password = False
+                if temp_storage:
+                    if not temp_storage.file_exists():
+                        msg = _("This file does not exist.") + '\n' \
+                            + _("Press 'Next' to create this wallet, or choose another file.")
+                    elif not wallet_from_memory:
+                        if temp_storage.is_encrypted_with_user_pw():
+                            msg = _("This file is encrypted with a password.") + '\n' \
+                                + _('Enter your password or choose another file.')
+                            user_needs_to_enter_password = True
+                        elif temp_storage.is_encrypted_with_hw_device():
+                            msg = _("This file is encrypted using a hardware device.") + '\n' \
+                                + _("Press 'Next' to choose device to decrypt.")
+                            self.wallet_needs_hw_unlock = True
+                        else:
+                            msg = _("Press 'Finish' to open this wallet.")
+                    else:
+                        msg = _("This file is already open in memory.") + "\n" \
+                            + _("Press 'Finish' to create/focus window.")
+                if msg is None:
+                    msg = _('Cannot read file')
+                if filename and os.path.isabs(relative_path(_path)):
+                    msg += '\n\n' + _('Note: this wallet file is outside the default wallets folder.')
+                msg_label.setText(msg)
+                widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
+                if user_needs_to_enter_password:
+                    pw_label.show()
+                    self.pw_e.show()
+                    if not self.name_e.hasFocus():
+                        self.pw_e.setFocus()
+                else:
+                    pw_label.hide()
+                    self.pw_e.hide()
+                self.on_updated()
+            except Exception as e:
+                if len(str(e)) > 10000:
+                    e = _("Error message too large to display")
+                self.show_error(str(e))
+                return
 
     def initialFocus(self) -> Optional[QWidget]:
         return self.pw_e
