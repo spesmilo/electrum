@@ -25,7 +25,7 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget, QGridLayout, QToolButton
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget, QGridLayout, QToolButton, QPushButton
 from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QPen, QPainter
 
@@ -154,6 +154,7 @@ class BalanceDialog(WindowModalDialog):
 
         WindowModalDialog.__init__(self, parent, _("Wallet Balance"))
         self.wallet = wallet
+        self.window = parent
         self.config = parent.config
         self.fx = parent.fx
 
@@ -225,9 +226,13 @@ class BalanceDialog(WindowModalDialog):
 
         vbox.addLayout(grid)
         vbox.addStretch(1)
-        btn_close = CloseButton(self)
-        btns = Buttons(btn_close)
-        vbox.addLayout(btns)
+        buttons = [CloseButton(self)]
+        if self.window.wallet.has_lightning():
+            swap_button = QPushButton(_('Swap'))
+            swap_button.clicked.connect(lambda: self.window.run_swap_dialog())
+            buttons.insert(0, swap_button)
+
+        vbox.addLayout(Buttons(*buttons))
         self.setLayout(vbox)
 
     def run(self):
