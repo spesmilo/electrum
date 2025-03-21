@@ -1232,8 +1232,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 self.show_error(str(e))
                 return False
 
-        if not self.config.SWAPSERVER_URL and not sm.is_initialized.is_set():
-            if not self.choose_swapserver_dialog(transport):
+        if not sm.is_initialized.is_set():
+            if not self.config.SWAPSERVER_URL:
+                if not self.choose_swapserver_dialog(transport):
+                    return False
+            else:
+                self.show_error(f'Could not contact swap server at {self.config.SWAPSERVER_URL:}')
                 return False
 
         assert sm.is_initialized.is_set()
