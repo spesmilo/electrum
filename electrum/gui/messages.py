@@ -73,3 +73,8 @@ MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
     _("If you go offline before broadcasting the claiming transaction and let the swap time out, "
       "you will not get back the already pre-paid mining fees.")
 )
+
+MSG_LN_UTXO_RESERVE = (
+    _("You do not have enough on-chain funds to protect your Lightning channels.") + ' ' +
+    _("You should have at least {} on-chain in order to be able to sweep channel outputs.")
+)

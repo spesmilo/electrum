@@ -1002,14 +1002,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             else:
                 network_text = _("Connected")
                 confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
-                self.balance_label.update_list([
-                    (_('Frozen'), COLOR_FROZEN, frozen),
-                    (_('Unmatured'), COLOR_UNMATURED, unmatured),
-                    (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
-                    (_('On-chain'), COLOR_CONFIRMED, confirmed),
-                    (_('Lightning'), COLOR_LIGHTNING, lightning),
-                    (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
-                ])
+                self.balance_label.update_list(
+                    [
+                        (_('Frozen'), COLOR_FROZEN, frozen),
+                        (_('Unmatured'), COLOR_UNMATURED, unmatured),
+                        (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
+                        (_('On-chain'), COLOR_CONFIRMED, confirmed),
+                        (_('Lightning'), COLOR_LIGHTNING, lightning),
+                        (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
+                    ],
+                    warning = self.wallet.is_low_reserve(),
+                )
                 balance = confirmed + unconfirmed + unmatured + frozen + lightning + f_lightning
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
                 # append fiat balance and price

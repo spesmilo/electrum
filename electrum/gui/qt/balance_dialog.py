@@ -25,13 +25,14 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget, QGridLayout, QToolButton, QPushButton
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QGridLayout, QToolButton, QPushButton
 from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QPen, QPainter
+from PyQt6.QtGui import QPen, QPainter, QPixmap
 
 from electrum.i18n import _
+from electrum.gui.messages import MSG_LN_UTXO_RESERVE
 
-from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height, AmountLabel
+from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height, AmountLabel, icon_path
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -102,8 +103,10 @@ class BalanceToolButton(QToolButton, PieChartObject):
         QToolButton.__init__(self)
         self._list = []
         self._update_size()
+        self._warning = False
 
-    def update_list(self, l):
+    def update_list(self, l, warning: bool):
+        self._warning = warning
         self._list = l
         self.update()
 
@@ -113,7 +116,14 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def paintEvent(self, event):
         QToolButton.paintEvent(self, event)
-        PieChartObject.paintEvent(self, event)
+        if not self._warning:
+            PieChartObject.paintEvent(self, event)
+        else:
+            pixmap = QPixmap(icon_path("warning.png"))
+            qp = QPainter()
+            qp.begin(self)
+            qp.drawPixmap(self.R, pixmap)
+            qp.end()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -187,6 +197,22 @@ class BalanceDialog(WindowModalDialog):
         )
 
         vbox = QVBoxLayout()
+        if self.wallet.is_low_reserve():
+            reserve_str = self.config.format_amount_and_units(self.config.LN_UTXO_RESERVE)
+            hbox = QHBoxLayout()
+            msg = _('Warning') + ': ' + MSG_LN_UTXO_RESERVE.format(reserve_str)
+            label = QLabel(msg)
+            label.setWordWrap(True)
+            logo = QLabel('')
+            logo.setPixmap(
+                QPixmap(icon_path("warning.png")).scaledToWidth(
+                    25, mode=Qt.TransformationMode.SmoothTransformation)
+            )
+            logo.setMaximumWidth(28)
+            hbox.addWidget(logo)
+            hbox.addWidget(label)
+            vbox.addLayout(hbox)
+
         vbox.addWidget(piechart)
         grid = QGridLayout()
         #grid.addWidget(QLabel(_("Onchain") + ':'), 0, 1)
