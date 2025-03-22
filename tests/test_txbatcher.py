@@ -14,7 +14,9 @@ from electrum.lnsweep import SweepInfo
 from electrum.fee_policy import FeeTimeEstimates
 
 from . import ElectrumTestCase
-from .test_wallet_vertical import WalletIntegrityHelper
+from .test_wallet_vertical import WalletIntegrityHelper, read_test_vector
+
+WALLET_DATA = read_test_vector('cause_carbon_wallet.json')
 
 class MockNetwork(Logger):
 
@@ -49,8 +51,6 @@ class MockNetwork(Logger):
         return tx
 
 
-WALLET_SEED = 'cause carbon luggage air humble mistake melt paper supreme sense gravity void'
-FUNDING_TX = '020000000001021798e10f8b7220c57ea0d605316a52453ca9b3eed99996b5b7bdf4699548bb520000000000fdffffff277d82678d238ca45dd3490ac9fbb49272f0980b093b9197ff70ec8eb082cfb00100000000fdffffff028c360100000000001600147a9bfd90821be827275023849dd91ee80d494957a08601000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec024730440220354b2a74f5ac039cca3618f7ff98229d243b89ac40550c8b027894f2c5cb88ff022064cb5ab1539b4c5367c2e01a8362e0aa12c2732bc8d08c3fce6eab9e56b7fe19012103e0a1499cb3d8047492c60466722c435dfbcffae8da9b83e758fbd203d12728f502473044022073cef8b0cfb093aed5b8eaacbb58c2fa6a69405a8e266cd65e76b726c9151d7602204d5820b23ab96acc57c272aac96d94740a20a6b89c016aa5aed7c06d1e6b9100012102f09e50a265c6a0dcf7c87153ea73d7b12a0fbe9d7d0bbec5db626b2402c1e85c02fa2400'
 SWAP_FUNDING_TX = "01000000000101500e9d67647481864edfb020b5c45e1c40d90f06b0130f9faed1a5149c6d26450000000000ffffffff0226080300000000002200205059c44bf57534303ab8f090f06b7bde58f5d2522440247a1ff6b41bdca9348df312c20100000000160014021d4f3b17921d790e1c022367a5bb078ce4deb402483045022100d41331089a2031396a1db8e4dec6dda9cacefe1288644b92f8e08a23325aa19b02204159230691601f7d726e4e6e0b7124d3377620f400d699a01095f0b0a09ee26a012102d60315c72c0cefd41c6d07883c20b88be3fc37aac7912f0052722a95de0de71600000000"
 SWAP_CLAIM_TX = "02000000000101f9db8580febd5c0f85b6f1576c83f7739109e3a2d772743e3217e9537fea7e890000000000fdffffff017005030000000000160014b113a47f3718da3fd161339a6681c150fef2cfe30347304402206736066ce15d34eed20951a9d974a100a72dc034f9c878769ddf27f9a584dcb1022042b14d627b8e8465a3a129bb43c0bd8369f49bbcf473879b9a477263655f1f930120f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a366a8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac00000000"
 
@@ -80,7 +80,7 @@ class TestTxBatcher(ElectrumTestCase):
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=gap_limit, config=config)
 
     def _create_wallet(self):
-        wallet = self.create_standard_wallet_from_seed(WALLET_SEED)
+        wallet = self.create_standard_wallet_from_seed(WALLET_DATA["seed"])
         wallet.start_network(self.network)
         wallet.txbatcher.SLEEP_INTERVAL = 0.01
         self.network.wallets.append(wallet)
@@ -99,7 +99,7 @@ class TestTxBatcher(ElectrumTestCase):
         OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
         wallet = self._create_wallet()
         # fund wallet
-        funding_tx = Transaction(FUNDING_TX)
+        funding_tx = Transaction(WALLET_DATA["funding_tx"])
         await self.network.try_broadcasting(funding_tx, 'funding')
         await self.network.next_tx()
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None
@@ -140,9 +140,8 @@ class TestTxBatcher(ElectrumTestCase):
         The tx batcher fails  to batch, and should create a child transaction
         """
         wallet = self._create_wallet()
-
         # fund wallet
-        funding_tx = Transaction(FUNDING_TX)
+        funding_tx = Transaction(WALLET_DATA['funding_tx'])
         await self.network.try_broadcasting(funding_tx, 'funding')
         await self.network.next_tx()
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None

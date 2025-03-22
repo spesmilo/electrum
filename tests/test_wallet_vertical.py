@@ -82,6 +82,14 @@ class WalletIntegrityHelper:
         return w
 
 
+def read_test_vector(filename: str):
+    import os
+    from electrum.util import read_json_file
+    path = os.path.join(os.path.dirname(__file__), filename)
+    data = read_json_file(path)
+    return data
+
+
 class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
     def setUp(self):
@@ -2005,27 +2013,69 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 3_900_000, 0), wallet.get_balance())
 
+    def _create_cause_carbon_wallet(self):
+        data = read_test_vector('cause_carbon_wallet.json')
+        ks = keystore.from_seed(data['seed'], passphrase='', for_multisig=False)
+        wallet = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2, config=self.config)
+        # bootstrap wallet (incoming funding_tx0)
+        funding_tx = Transaction(data['funding_tx'])
+        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        return wallet, data['outgoing_address'], data['to_self_address']
+
+    async def test_ln_reserve_send_everything(self):
+        """ send all the coins, not using 'max' """
+        wallet, outgoing_address, to_self_address = self._create_cause_carbon_wallet()
+        balance = sum(wallet.get_balance())
+        assert balance == 100_000
+        fee_sats = 1000
+        outputs = [PartialTxOutput.from_address_and_value(outgoing_address, balance - fee_sats)]
+        def make_tx(b):
+            return wallet.make_unsigned_transaction(
+                outputs = outputs,
+                is_anchor_channel_opening = b,
+                fee_policy = FixedFeePolicy(fee_sats),
+            )
+        tx = make_tx(False)
+        self.assertEqual(1, len(tx.outputs()))
+        with self.assertRaises(NotEnoughFunds):
+            make_tx(True)
+
+    async def test_ln_reserve_spend_max(self):
+        """ send all the coins using 'max'. test with outgoing and to self address """
+        wallet, outgoing_address, to_self_address = self._create_cause_carbon_wallet()
+        def make_tx(address):
+            outputs = [PartialTxOutput.from_address_and_value(address, '!')]
+            return wallet.make_unsigned_transaction(
+                outputs = outputs,
+                is_anchor_channel_opening = True,
+                fee_policy = FixedFeePolicy(100),
+            )
+        tx = make_tx(outgoing_address)
+        self.assertEqual(2, len(tx.outputs()))
+        tx = make_tx(to_self_address)
+        self.assertEqual(1, len(tx.outputs()))
+
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self):
         """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
         one 'recv' address (20k sats) and one 'change' (80k sats).
         The user tries to create tx2, that pays an invoice for 90k sats.
         Even if batch_rbf==True, no batching should be done. Instead, the outputs of tx1 should be used.
         """
-        wallet = self.create_standard_wallet_from_seed('cause carbon luggage air humble mistake melt paper supreme sense gravity void',
-                                                       config=self.config)
-
-        # bootstrap wallet (incoming funding_tx0)
-        funding_tx = Transaction('020000000001021798e10f8b7220c57ea0d605316a52453ca9b3eed99996b5b7bdf4699548bb520000000000fdffffff277d82678d238ca45dd3490ac9fbb49272f0980b093b9197ff70ec8eb082cfb00100000000fdffffff028c360100000000001600147a9bfd90821be827275023849dd91ee80d494957a08601000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec024730440220354b2a74f5ac039cca3618f7ff98229d243b89ac40550c8b027894f2c5cb88ff022064cb5ab1539b4c5367c2e01a8362e0aa12c2732bc8d08c3fce6eab9e56b7fe19012103e0a1499cb3d8047492c60466722c435dfbcffae8da9b83e758fbd203d12728f502473044022073cef8b0cfb093aed5b8eaacbb58c2fa6a69405a8e266cd65e76b726c9151d7602204d5820b23ab96acc57c272aac96d94740a20a6b89c016aa5aed7c06d1e6b9100012102f09e50a265c6a0dcf7c87153ea73d7b12a0fbe9d7d0bbec5db626b2402c1e85c02fa2400')
-        funding_txid = funding_tx.txid()
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
-
+        wallet, outgoing_address, to_self_address = self._create_cause_carbon_wallet()
         # to_self_payment tx1
-        toself_tx = Transaction('02000000000101ce05b8ae96fe8d2875fd1efcb591b6fb5c5d924bf05d75d880a0e44498fe14b80100000000fdffffff02204e0000000000001600142266c890fad71396f106319368107d5b2a1146feb837010000000000160014b113a47f3718da3fd161339a6681c150fef2cfe3024730440220197bfea1bc5c86c35d68029422342de97c1e5d9adc12e48d99ae359940211a660220770ddb228ae75698f827e2fddc574f0c8eb2a3e109678a2a2b6bc9cbb9593b1c012102b07ca318381fcef5998f34ee4197e96c17aa19867cbe99c544d321807db95ed2f1f92400')
+        outputs = [PartialTxOutput.from_address_and_value(to_self_address, 20_000)]
+        toself_tx = wallet.make_unsigned_transaction(
+            outputs = outputs,
+            fee_policy = FixedFeePolicy(200),
+            locktime = 2423281,
+            rbf = True,
+        )
+        wallet.sign_transaction(toself_tx, password=None)
         toself_txid = toself_tx.txid()
         wallet.adb.receive_tx_callback(toself_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create outgoing tx2
-        outputs = [PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)]
+        outputs = [PartialTxOutput.from_address_and_value(outgoing_address, 90_000)]
         coins = wallet.get_spendable_coins(domain=None)
         self.assertEqual(2, len(coins))
 
