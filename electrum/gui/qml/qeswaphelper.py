@@ -560,10 +560,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     txid = fut.result()
                     try:  # swaphelper might be destroyed at this point
                         if txid:
-                            self.userinfo = ' '.join([
-                                _('Success!'),
-                                messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL,
-                            ])
+                            self.userinfo = _('Success!')
                             self.state = QESwapHelper.State.Success
                         else:
                             self.userinfo = _('Swap failed!')
@@ -640,10 +637,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     txid = fut.result()
                     try:  # swaphelper might be destroyed at this point
                         if txid:
-                            self.userinfo = ' '.join([
-                                _('Success!'),
-                                messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL,
-                            ])
+                            self.userinfo = _('Success!')
                             self.state = QESwapHelper.State.Success
                         else:
                             self.userinfo = _('Swap failed!')
