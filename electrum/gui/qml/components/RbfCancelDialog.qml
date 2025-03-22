@@ -163,11 +163,4 @@ ElDialog {
             onClicked: doAccept()
         }
     }
-
-    Connections {
-        target: txcanceller
-        function onTxMined() {
-            dialog.doReject()
-        }
-    }
 }

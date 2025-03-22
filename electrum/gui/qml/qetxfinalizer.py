@@ -474,13 +474,15 @@ class QETxFinalizer(TxFeeSlider):
 
 
 class TxMonMixin(QtEventListener):
-    """ mixin for watching an existing TX based on its txid for verified event.
+    """ mixin for watching an existing TX based on its txid for verified or removed event.
         requires self._wallet to contain a QEWallet instance.
         exposes txid qt property.
         calls get_tx() once txid is set.
-        calls tx_verified and emits txMined signal once tx is verified.
+        calls tx_verified() and emits txMined signal once tx is verified.
+        emits txRemoved signal if tx is removed (e.g. replace-by-fee)
     """
     txMined = pyqtSignal()
+    txRemoved = pyqtSignal()
 
     def __init__(self, parent=None):
         self._logger.debug('TxMonMixin.__init__')
@@ -500,6 +502,13 @@ class TxMonMixin(QtEventListener):
             self.tx_verified()
             self.txMined.emit()
 
+    @event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self._wallet.wallet and tx.txid() == self._txid:
+            self._logger.debug('remove tx for our txid %s' % self._txid)
+            self.tx_removed()
+            self.txRemoved.emit()
+
     txidChanged = pyqtSignal()
     @pyqtProperty(str, notify=txidChanged)
     def txid(self):
@@ -518,6 +527,10 @@ class TxMonMixin(QtEventListener):
 
     # override
     def tx_verified(self) -> None:
+        pass
+
+    # override
+    def tx_removed(self) -> None:
         pass
 
 
@@ -594,6 +607,16 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self.oldfee = self.fee
         self.oldfeeRate = self.feeRate
         self.update()
+
+    def tx_verified(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction has been mined')
+
+    def tx_removed(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction disappeared')
 
     def update(self):
         if not self._txid or not self._orig_tx:
@@ -691,6 +714,16 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         self.oldfee = self.fee
         self.oldfeeRate = self.feeRate
         self.update()
+
+    def tx_verified(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction has been mined')
+
+    def tx_removed(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction disappeared')
 
     def update(self):
         if not self._txid or not self._orig_tx:
@@ -828,6 +861,16 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
         fee = min(self._max_fee, fee)
         fee = max(self._total_size, fee)  # pay at least 1 sat/byte for combined size
         return fee
+
+    def tx_verified(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction has been mined')
+
+    def tx_removed(self):
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = _('Base transaction disappeared')
 
     def update(self):
         if not self._txid:  # not initialized yet
