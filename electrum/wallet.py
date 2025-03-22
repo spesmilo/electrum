@@ -27,17 +27,12 @@
 #   - Multisig_Wallet: several HD keystores, M-of-N OP_CHECKMULTISIG scripts
 
 import os
-import sys
 import random
 import time
-import json
 import copy
-import errno
-import operator
 import math
 from functools import partial
 from collections import defaultdict
-from numbers import Number
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
 from abc import ABC, abstractmethod
@@ -47,50 +42,47 @@ import enum
 import asyncio
 
 import electrum_ecc as ecc
-from aiorpcx import timeout_after, TaskTimeout, ignore_after, run_in_thread
+from aiorpcx import ignore_after, run_in_thread
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
-from .crypto import sha256
 from . import util
 from .lntransport import extract_nodeid
-from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore_exceptions,
-                   format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   WalletFileException, BitcoinException,
-                   InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
+from .util import (
+    NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, format_fee_satoshis,
+    WalletFileException, BitcoinException, InvalidPassword, format_time, timestamp_to_datetime,
+    Satoshis, Fiat, TxMinedInfo, quantize_feerate, OrderedDictWithIndex
+)
 from .simple_config import SimpleConfig
-from .fee_policy import FeePolicy, FixedFeePolicy, FeeMethod, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
+from .fee_policy import FeePolicy, FixedFeePolicy, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .lnutil import MIN_FUNDING_SAT
-from .bitcoin import COIN, TYPE_ADDRESS
-from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
+from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold
 from .bitcoin import DummyAddress, DummyAddressUsedInTxException
-from .crypto import sha256d
 from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
                        AddressIndexGeneric, CannotDerivePubkey)
 from .util import multisig_type, parse_max_spend
 from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
-from . import transaction, bitcoin, coinchooser, paymentrequest, bip32
-from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
-                          PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash)
+from . import transaction, bitcoin, coinchooser, bip32
+from .transaction import (
+    Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput,
+    PartialTxOutput, TxOutpoint, Sighash
+)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
 from .invoices import BaseInvoice, Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
-from .interface import NetworkException
 from .mnemonic import Mnemonic
 from .logging import get_logger, Logger
 from .lnworker import LNWallet
-from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
 from . import descriptor
 from .descriptor import Descriptor
-from .util import OnchainHistoryItem, LightningHistoryItem
+from .util import OnchainHistoryItem
 from .txbatcher import TxBatcher
 
 if TYPE_CHECKING:
