@@ -275,7 +275,8 @@ class TxFeeSlider(FeeSlider):
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
                 'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str()),
-                'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(o.get_ui_address_str()) or o.get_ui_address_str() == DummyAddress.SWAP
+                'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(o.get_ui_address_str()) or o.get_ui_address_str() == DummyAddress.SWAP,
+                'is_reserve': o.is_utxo_reserve
             })
         self.outputs = outputs
 
@@ -416,6 +417,15 @@ class QETxFinalizer(TxFeeSlider):
             self.extraFee = QEAmount(amount_sat=x_fee_amount)
 
         self.update_fee_warning_from_tx(tx=tx, invoice_amt=amount)
+
+        if self._amount.isMax and not self.warning:
+            if reserve_sats := sum(txo.value for txo in tx.outputs() if txo.is_utxo_reserve):
+                reserve_str = self._config.format_amount_and_units(reserve_sats)
+                self.warning = ' '.join([
+                    _('Warning') + ':',
+                    _('Could not spend max: a security reserve of {} was kept for your Lightning channels.')
+                    .format(reserve_str)
+                ])
 
         self._valid = True
         self.validChanged.emit()
