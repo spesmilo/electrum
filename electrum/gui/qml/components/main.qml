@@ -33,6 +33,7 @@ ApplicationWindow
 
     property alias stack: mainStackView
     property alias keyboardFreeZone: _keyboardFreeZone
+    property alias infobanner: _infobanner
 
     property variant activeDialogs: []
 
@@ -244,22 +245,34 @@ ApplicationWindow
         }
     }
 
-    StackView {
-        id: mainStackView
+    ColumnLayout {
         width: parent.width
         height: _keyboardFreeZone.height - header.height
-        initialItem: Component {
-            WalletMainView {}
+        spacing: 0
+
+        InfoBanner {
+            id: _infobanner
+            Layout.fillWidth: true
         }
 
-        function getRoot() {
-            return mainStackView.get(0)
-        }
-        function pushOnRoot(item) {
-            if (mainStackView.depth > 1) {
-                mainStackView.replace(mainStackView.get(1), item)
-            } else {
-                mainStackView.push(item)
+        StackView {
+            id: mainStackView
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+
+            initialItem: Component {
+                WalletMainView {}
+            }
+
+            function getRoot() {
+                return mainStackView.get(0)
+            }
+            function pushOnRoot(item) {
+                if (mainStackView.depth > 1) {
+                    mainStackView.replace(mainStackView.get(1), item)
+                } else {
+                    mainStackView.push(item)
+                }
             }
         }
     }

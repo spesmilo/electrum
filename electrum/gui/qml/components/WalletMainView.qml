@@ -447,6 +447,7 @@ Item {
     Connections {
         target: Daemon
         function onWalletLoaded() {
+            infobanner.hide() // start hidden when switching wallets
             if (_intentUri) {
                 invoiceParser.recipient = _intentUri
                 _intentUri = ''
@@ -496,6 +497,27 @@ Item {
                 text: message
             })
             dialog.open()
+        }
+        function onBalanceChanged() {
+            // ln low reserve warning
+            if (Daemon.currentWallet.isLowReserve) {
+                var message = [
+                    qsTr('You do not have enough on-chain funds to protect your Lightning channels.'),
+                    qsTr('You should have at least %1 on-chain in order to be able to sweep channel outputs.').arg(Config.formatSats(Config.lnUtxoReserve) + ' ' + Config.baseUnit)
+                ].join(' ')
+                infobanner.show(message, function() {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: message + '\n\n' + qsTr('Do you want to perform a swap?'),
+                        yesno: true
+                    })
+                    dialog.accepted.connect(function() {
+                        app.startSwap()
+                    })
+                    dialog.open()
+                })
+            } else {
+                infobanner.hide()
+            }
         }
     }
 
