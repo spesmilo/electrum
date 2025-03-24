@@ -14,7 +14,9 @@ TextHighlightPane {
     property int idx: -1
 
     property string _suffix: model.is_mine || model.is_change
-            ? qsTr('mine')
+            ? model.is_reserve
+                ? qsTr('reserve')
+                : qsTr('mine')
             : model.is_swap
                 ? qsTr('swap')
                 : model.is_billing
