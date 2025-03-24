@@ -152,6 +152,7 @@ class TxFeeSlider(FeeSlider):
         self._tx = None
         self._inputs = []
         self._outputs = []
+        self._finalized_txid = ''
         self._valid = False
         self._warning = ''
 
@@ -211,6 +212,17 @@ class TxFeeSlider(FeeSlider):
             self._outputs = outputs
             self.outputsChanged.emit()
 
+    finalizedTxidChanged = pyqtSignal()
+    @pyqtProperty(str, notify=finalizedTxidChanged)
+    def finalizedTxid(self):
+        return self._finalized_txid
+
+    @finalizedTxid.setter
+    def finalizedTxid(self, finalized_txid):
+        if self._finalized_txid != finalized_txid:
+            self._finalized_txid = finalized_txid
+            self.finalizedTxidChanged.emit()
+
     warningChanged = pyqtSignal()
     @pyqtProperty(str, notify=warningChanged)
     def warning(self):
@@ -238,6 +250,7 @@ class TxFeeSlider(FeeSlider):
 
         self.fee = QEAmount(amount_sat=int(fee))
         self.feeRate = f'{feerate:.1f}'
+        self.finalizedTxid = tx.txid()
 
         self.update_inputs_from_tx(tx)
         self.update_outputs_from_tx(tx)
