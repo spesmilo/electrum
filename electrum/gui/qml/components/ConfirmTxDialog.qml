@@ -30,10 +30,17 @@ ElDialog {
     padding: 0
 
     function updateAmountText() {
-        btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
-        fiatValue.text = Daemon.fx.enabled
-            ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
-            : ''
+        if (finalizer.valid) {
+            btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
+            fiatValue.text = Daemon.fx.enabled
+                ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
+                : ''
+        } else {
+            btcValue.text = Config.formatSats(finalizer.amount, false)
+            fiatValue.text = Daemon.fx.enabled
+                ? Daemon.fx.fiatValue(finalizer.amount, false)
+                : ''
+        }
     }
 
     ColumnLayout {
@@ -213,6 +220,7 @@ ElDialog {
                     id: inputs_label
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingMedium
+                    visible: finalizer.valid
 
                     labelText: qsTr('Inputs (%1)').arg(finalizer.inputs.length)
                     color: Material.accentColor
@@ -225,6 +233,7 @@ ElDialog {
                     delegate: TxInput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: finalizer.valid
 
                         idx: index
                         model: modelData
@@ -235,6 +244,7 @@ ElDialog {
                     id: outputs_label
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingMedium
+                    visible: finalizer.valid
 
                     labelText: qsTr('Outputs (%1)').arg(finalizer.outputs.length)
                     color: Material.accentColor
@@ -247,6 +257,7 @@ ElDialog {
                     delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: finalizer.valid
 
                         allowShare: false
                         allowClickAddress: false
