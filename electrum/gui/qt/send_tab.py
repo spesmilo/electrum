@@ -345,6 +345,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 except SwapServerError as e:
                     self.show_error(str(e))
                     return
+                except UserCancelled:
+                    return
                 tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
                 assert tx.get_dummy_output(DummyAddress.SWAP) is None
                 tx.swap_invoice = invoice
