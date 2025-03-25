@@ -19,6 +19,7 @@ from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
+from electrum.fee_policy import FeePolicy, FixedFeePolicy
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressCoinListModel
@@ -27,8 +28,6 @@ from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
-from ...lntransport import extract_nodeid
-from ...fee_policy import FeePolicy
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -843,7 +842,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
                 # Check if we had enough funds excluding fees,
                 # if so, still provide opportunity to set lower fees.
-                fee_policy = FeePolicy('fixed:0')
+                fee_policy = FixedFeePolicy(0)
                 tx = mktx(fee_policy)
             amount = tx.output_value()
         except NotEnoughFunds as e:

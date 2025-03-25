@@ -245,7 +245,7 @@ ElDialog {
 
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Open Channel')
+            text: qsTr('Open Channel...')
             icon.source: '../../icons/confirmed.png'
             enabled: channelopener.valid
             onClicked: channelopener.openChannel()

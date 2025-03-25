@@ -42,11 +42,10 @@ except ImportError:
 from . import bitcoin, constants, util, transaction, x509, rsakey
 from .util import bfh, make_aiohttp_session, error_text_bytes_to_safe_str, get_running_loop
 from .invoices import Invoice, get_id_from_onchain_outputs
-from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
 from .network import Network
-from .logging import get_logger, Logger
+from .logging import get_logger
 from .contacts import Contacts
 
 if TYPE_CHECKING:
@@ -57,18 +56,17 @@ _logger = get_logger(__name__)
 
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
+ACK_HEADERS = {'Content-Type': 'application/bitcoin-payment', 'Accept': 'application/bitcoin-paymentack', 'User-Agent': 'Electrum'}
 
 ca_path = certifi.where()
 ca_list = None
 ca_keyID = None
 
+
 def load_ca_list():
     global ca_list, ca_keyID
     if ca_list is None:
         ca_list, ca_keyID = x509.load_certificates(ca_path)
-
-
 
 
 async def get_payment_request(url: str) -> 'PaymentRequest':
@@ -434,6 +432,7 @@ def check_ssl_config(config: 'SimpleConfig'):
     if requestor.startswith('*.'):
         requestor = requestor[2:]
     return requestor
+
 
 def sign_request_with_x509(pr, key_path, cert_path):
     from . import pem
