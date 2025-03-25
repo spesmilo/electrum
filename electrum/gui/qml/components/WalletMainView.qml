@@ -719,6 +719,7 @@ Item {
             id: _confirmPaymentDialog
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
+                property var _swapwaitdialog
                 wallet: Daemon.currentWallet
                 canRbf: true
                 onFinished: (signed, saved, complete) => {
@@ -749,6 +750,32 @@ Item {
                         iconSource: '../../../icons/warning.png'
                     })
                     dialog.open()
+                }
+                onSwapError: (message) => {
+                    if (_swapwaitdialog)
+                        _swapwaitdialog.close()
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Error'),
+                        text: [qsTr('Could not swap change'), message].join('\n\n'),
+                        iconSource: '../../../icons/warning.png'
+                    })
+                    dialog.open()
+                }
+                onSwapStart: {
+                    _swapwaitdialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Please wait...'),
+                        text: [qsTr('waiting for lightning invoice'), ''].join('\n\n'),
+                        iconSource: Qt.resolvedUrl('../../icons/info.png'),
+                        buttonText: qsTr('Cancel'),
+                        buttonIcon: Qt.resolvedUrl('../../icons/closebutton.png')
+                    })
+                    _swapwaitdialog.accepted.connect(function() {
+                        cancelSwap()
+                    })
+                    _swapwaitdialog.open()
+                }
+                onSwapFunded: {
+                    _swapwaitdialog.close()
                 }
             }
 

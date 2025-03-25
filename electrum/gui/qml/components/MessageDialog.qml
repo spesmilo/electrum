@@ -15,6 +15,8 @@ ElDialog {
     property bool yesno: false
     property alias text: message.text
     property bool richText: false
+    property alias buttonText: primaryButton.text
+    property alias buttonIcon: primaryButton.icon.source
 
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
@@ -50,6 +52,7 @@ ElDialog {
             Layout.fillWidth: true
 
             FlatButton {
+                id: primaryButton
                 Layout.fillWidth: true
                 textUnderIcon: false
                 text: qsTr('Ok')
