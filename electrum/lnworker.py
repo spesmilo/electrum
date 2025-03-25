@@ -2716,7 +2716,8 @@ class LNWallet(LNWorker):
             channels = list(self.channels.values())
             # we exclude channels that cannot *right now* receive (e.g. peer offline)
             channels = [chan for chan in channels
-                        if (chan.is_open() and not chan.is_frozen_for_receiving())]
+                        if chan.is_open() and not chan.is_frozen_for_receiving()
+                        and chan.peer_state == PeerState.GOOD]
             # Filter out nodes that have low receive capacity compared to invoice amt.
             # Even with MPP, below a certain threshold, including these channels probably
             # hurts more than help, as they lead to many failed attempts for the sender.
