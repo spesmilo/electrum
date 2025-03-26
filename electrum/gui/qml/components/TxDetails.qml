@@ -60,13 +60,14 @@ Pane {
                     }
 
                     InfoTextArea {
-                        id: bumpfeeinfo
+                        id: txinfo
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: txdetails.isUnrelated || !txdetails.isMined
+                        visible: (txdetails.isUnrelated || !txdetails.isMined) && !broadcastinfo.visible
                         text: txdetails.isUnrelated
                             ? qsTr('Transaction is unrelated to this wallet.')
+                            : txdetails.isRemoved ? qsTr('This transaction has been replaced or removed and is no longer valid')
                             : txdetails.inMempool
                                 ? qsTr('This transaction is still unconfirmed.') +
                                     (txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
@@ -84,9 +85,17 @@ Pane {
                                               (txdetails.wallet.isWatchOnly
                                                   ? qsTr('Present this transaction to the signing wallet.')
                                                   : qsTr('Present this transaction to the next cosigner.'))
-                        iconStyle: txdetails.isUnrelated
+                        iconStyle: txdetails.isUnrelated || txdetails.isRemoved
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
+                    }
+
+                    InfoTextArea {
+                        id: broadcastinfo
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: text
                     }
 
                     Label {
@@ -417,7 +426,7 @@ Pane {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
                 text: qsTr('Share')
-                enabled: !txdetails.isUnrelated
+                enabled: !txdetails.isUnrelated && !txdetails.isRemoved
                 onClicked: {
                     var msg = ''
                     if (txdetails.isComplete) {
@@ -477,9 +486,6 @@ Pane {
             })
             dialog.open()
         }
-        onTxRemoved: {
-            root.close()
-        }
         Component.onCompleted: {
             if (root.txid) {
                 txdetails.txid = root.txid
@@ -512,7 +518,12 @@ Pane {
             dialog.open()
         }
         function onBroadcastSucceeded() {
-            bumpfeeinfo.text = qsTr('Transaction was broadcast successfully')
+            broadcastinfo.text = qsTr('Transaction was broadcast successfully')
+            broadcastinfo.iconStyle = InfoTextArea.IconStyle.Info
+        }
+        function onBroadcastFailed(txid, code, message) {
+            broadcastinfo.text = qsTr('Broadcast of transaction failed')
+            broadcastinfo.iconStyle = InfoTextArea.IconStyle.Warn
         }
     }
 

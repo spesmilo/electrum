@@ -222,11 +222,4 @@ ElDialog {
             onClicked: doAccept()
         }
     }
-
-    Connections {
-        target: cpfpfeebumper
-        function onTxMined() {
-            dialog.doReject()
-        }
-    }
 }
