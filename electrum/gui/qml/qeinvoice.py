@@ -327,9 +327,8 @@ class QEInvoice(QObject, QtEventListener):
                     lnaddr = self._effectiveInvoice._lnaddr
                     if lnaddr.amount and amount.satsInt < lnaddr.amount * COIN:
                         self.userinfo = _('Cannot pay less than the amount specified in the invoice')
-                elif self.address and self.get_max_spendable_onchain() < amount.satsInt:
-                    # TODO: validate address?
-                    # TODO: subtract fee?
+                elif not self.address or self.get_max_spendable_onchain() < amount.satsInt:
+                    # TODO: for onchain: validate address? subtract fee?
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = userinfo_for_invoice_status(self.status)
