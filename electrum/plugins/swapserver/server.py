@@ -66,7 +66,9 @@ class HttpSwapServer(Logger, EventListener):
                 "BTC/BTC": {
                     "rate": 1,
                     "limits": {
-                        "maximal": sm._max_amount,
+                        "maximal": min(sm._max_forward, sm._max_reverse),  # legacy
+                        "max_forward_amount": sm._max_forward,  # new version, uses 2 separate limits
+                        "max_reverse_amount": sm._max_reverse,
                         "minimal": sm._min_amount,
                     },
                     "fees": {
