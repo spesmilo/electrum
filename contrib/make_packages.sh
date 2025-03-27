@@ -26,11 +26,11 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-l
     -r "$CONTRIB"/deterministic-build/requirements-build-base.txt
 
 # opt out of compiling C extensions
-# FIXME aiohttp opt-out is not released yet: https://github.com/aio-libs/aiohttp/pull/3828
 export AIOHTTP_NO_EXTENSIONS=1
 export YARL_NO_EXTENSIONS=1
 export MULTIDICT_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
+export PROPCACHE_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 

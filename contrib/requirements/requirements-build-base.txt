@@ -21,3 +21,7 @@ poetry-core
 # typing-extensions also needs:
 # https://github.com/python/typing/blob/a2371460d184c96aab7a69acc47fd059f875e3b4/typing_extensions/pyproject.toml#L3
 flit_core>=3.4,<4
+
+# aio-libs/frozenlist and aio-libs/propcache needs:
+# https://github.com/aio-libs/frozenlist/blob/c28f32d6816ca0fa56a5876e84831c46084bb85d/pyproject.toml#L6
+expandvars
