@@ -1228,6 +1228,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                     return
             try:
                 self.run_coroutine_dialog(wait_until_initialized(), _('Please wait...'))
+            except UserCancelled:
+                return False
             except Exception as e:
                 self.show_error(str(e))
                 return False
