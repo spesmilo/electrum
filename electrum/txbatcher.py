@@ -10,7 +10,10 @@ from .util import log_exceptions, NotEnoughFunds, BelowDustLimit
 from .transaction import PartialTransaction, PartialTxOutput, Transaction
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .lnsweep import SweepInfo
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .wallet import Abstract_Wallet
 
 # This class batches outgoing payments and incoming utxo sweeps.
 # It ensures that we do not send a payment twice.
@@ -81,7 +84,7 @@ class TxBatcher(Logger):
     SLEEP_INTERVAL = 1
     RETRY_DELAY = 60
 
-    def __init__(self, wallet):
+    def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = wallet.db.get_stored_item("tx_batches", {})
@@ -139,7 +142,8 @@ class TxBatcher(Logger):
         while True:
             await asyncio.sleep(self.SLEEP_INTERVAL)
             password = self.wallet.get_unlocked_password()
-            if self.wallet.has_keystore_encryption() and not password:
+            if self.wallet.has_keystore_encryption() and not password \
+                    or not self.wallet.network or not self.wallet.network.is_connected():
                 continue
             for key, txbatch in list(self.tx_batches.items()):
                 try:
