@@ -17,6 +17,7 @@ ElDialog
 
     width: parent.width
     height: parent.height
+    z: 1000  // assure topmost of all other dialogs
 
     header: null
 
@@ -61,12 +62,12 @@ ElDialog
             text: qsTr('Please briefly describe what led to the error (optional):')
         }
         TextArea {
+            id: user_text
             Layout.fillWidth: true
             Layout.fillHeight: true
             background: Rectangle {
                 color: Qt.darker(Material.background, 1.25)
             }
-            onTextChanged: AppController.setCrashUserText(text)
         }
         Label {
             text: qsTr('Do you want to send this report?')
@@ -76,7 +77,7 @@ ElDialog
                 Layout.fillWidth: true
                 Layout.preferredWidth: 3
                 text: qsTr('Send Bug Report')
-                onClicked: AppController.sendReport()
+                onClicked: AppController.sendReport(user_text.text)
             }
             Button {
                 Layout.fillWidth: true
@@ -106,10 +107,9 @@ ElDialog
         ElDialog {
             property string reportText
 
-            z: 3000
-
             width: parent.width
             height: parent.height
+            z: 1001  // above root
 
             header: null
 
@@ -125,6 +125,7 @@ ElDialog
                     width: parent.width
                 }
             }
+            onClosed: destroy()
         }
     }
 

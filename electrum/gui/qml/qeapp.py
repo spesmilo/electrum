@@ -303,12 +303,14 @@ class QEAppController(BaseCrashReporter, QObject):
         self.exc_args = (e, text, tb)  # for BaseCrashReporter
         self.showException.emit(self.crashData())
 
-    @pyqtSlot()
-    def sendReport(self):
+    @pyqtSlot(str)
+    def sendReport(self, user_text: str):
+        self._crash_user_text = user_text
         network = Network.get_instance()
         proxy = network.proxy
 
         def report_task():
+            self.logger.debug('starting report_task')
             try:
                 response = BaseCrashReporter.send_report(self, network.asyncio_loop, proxy)
             except Exception as e:
@@ -329,10 +331,6 @@ class QEAppController(BaseCrashReporter, QObject):
     @pyqtSlot()
     def showNever(self):
         self.config.SHOW_CRASH_REPORTER = False
-
-    @pyqtSlot(str)
-    def setCrashUserText(self, text):
-        self._crash_user_text = text
 
     def _get_traceback_str_to_display(self) -> str:
         # The msg_box that shows the report uses rich_text=True, so

@@ -423,6 +423,13 @@ ApplicationWindow
         }
     }
 
+    Component {
+        id: crashDialog
+        ExceptionDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
@@ -484,13 +491,6 @@ ApplicationWindow
     NotificationPopup {
         id: notificationPopup
         width: parent.width
-    }
-
-    Component {
-        id: crashDialog
-        ExceptionDialog {
-            z: 1000
-        }
     }
 
     Component.onCompleted: {
