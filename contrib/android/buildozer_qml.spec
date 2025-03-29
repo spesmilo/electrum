@@ -98,7 +98,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS
 
 # (int) Android API to use  (compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
