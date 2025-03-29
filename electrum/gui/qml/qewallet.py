@@ -513,6 +513,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
+    @pyqtProperty(bool, notify=balanceChanged)
+    def isLowReserve(self):
+        return self.wallet.is_low_reserve()
+
     @pyqtProperty(QEAmount, notify=dataChanged)
     def minChannelFunding(self):
         return self._minchannelfunding

@@ -291,6 +291,12 @@ class QEConfig(AuthMixin, QObject):
             self.config.SWAPSERVER_NPUB = swapserver_npub
             self.swapServerNPubChanged.emit()
 
+    lnUtxoReserveChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=lnUtxoReserveChanged)
+    def lnUtxoReserve(self):
+        self._lnutxoreserve = QEAmount(amount_sat=self.config.LN_UTXO_RESERVE)
+        return self._lnutxoreserve
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):
