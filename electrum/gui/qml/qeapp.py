@@ -5,7 +5,7 @@ import os
 import sys
 import html
 import threading
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Set, List
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 if 'ANDROID_DATA' in os.environ:
     from jnius import autoclass, cast
-    from android import activity
+    from android import activity, permissions
 
     jpythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
     jHfc = autoclass('android.view.HapticFeedbackConstants')
@@ -73,6 +73,7 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportFailure = pyqtSignal(str)
     secureWindowChanged = pyqtSignal()
     wantCloseChanged = pyqtSignal()
+    permissionsUpdated = pyqtSignal()
 
     def __init__(self, qeapp: 'ElectrumQmlApplication', qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -172,6 +173,24 @@ class QEAppController(BaseCrashReporter, QObject):
             activity.bind(on_new_intent=self.on_new_intent)
         except Exception as e:
             self.logger.error(f'unable to bind intent: {repr(e)}')
+
+    @pyqtSlot(str, result=bool)
+    def hasPermission(self, permissionFqcn: str) -> bool:
+        if not self.isAndroid():
+            return True
+        result = permissions.check_permission(permissionFqcn)
+        return result
+
+    @pyqtSlot(str)
+    def requestPermission(self, permissionFqcn: str):
+        if not self.isAndroid():
+            return True
+        permissions.request_permission(permissionFqcn, callback=self.on_request_permissions_result)
+
+    def on_request_permissions_result(self, permissions: List[str], grant_results: List[bool]):
+        self.logger.debug('on_request_permissions_result')
+        if len(permissions) > 0:
+            self.permissionsUpdated.emit()
 
     def on_new_intent(self, intent):
         if not self._app_started:
