@@ -2284,6 +2284,7 @@ class LightningHistoryItem(NamedTuple):
     group_id: Optional[str]
     timestamp: int
     label: str
+    direction: Optional[int]
     def to_dict(self):
         return {
             'type': self.type,
@@ -2296,4 +2297,5 @@ class LightningHistoryItem(NamedTuple):
             'preimage': self.preimage,
             'group_id': self.group_id,
             'ln_value': Satoshis(Decimal(self.amount_msat) / 1000),
+            'direction': self.direction,
         }

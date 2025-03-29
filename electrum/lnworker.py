@@ -1088,6 +1088,7 @@ class LNWallet(LNWorker):
                 group_id = group_id,
                 timestamp = timestamp or 0,
                 label=label,
+                direction=direction,
             )
             out[payment_hash.hex()] = item
         for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
@@ -1107,6 +1108,7 @@ class LNWallet(LNWorker):
                 fee_msat = None,
                 payment_hash = None,
                 preimage = None,
+                direction=None,
             )
             out[funding_txid] = item
             item = chan.get_closing_height()
@@ -1125,6 +1127,7 @@ class LNWallet(LNWorker):
                 fee_msat = None,
                 payment_hash = None,
                 preimage = None,
+                direction=None,
             )
             out[closing_txid] = item
 
