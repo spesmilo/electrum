@@ -20,6 +20,7 @@ import concurrent
 from concurrent import futures
 import urllib.parse
 import itertools
+import json
 
 import aiohttp
 import dns.resolver
@@ -885,6 +886,9 @@ class LNWallet(LNWorker):
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
+        self.cli_hold_invoice_callbacks = self.db.get_dict('cli_hold_invoice_callbacks')   # type: Dict[str, Optional[str]]  # payment_hash -> url callback
+        for payment_hash, callback_url in self.cli_hold_invoice_callbacks.items():
+            self.register_cli_hold_invoice(payment_hash, callback_url)
         self.payment_bundles = []                       # lists of hashes. todo:persist
 
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
@@ -2297,6 +2301,23 @@ class LNWallet(LNWorker):
 
     def unregister_hold_invoice(self, payment_hash: bytes):
         self.hold_invoice_callbacks.pop(payment_hash)
+
+    def register_cli_hold_invoice(self, payment_hash: str, callback_url: Optional[str] = None):
+        async def cli_hold_invoice_callback(payment_hash_bytes: bytes):
+            """Hold invoice callback for hold invoices registered via CLI."""
+            self.logger.info(f"Hold invoice {payment_hash_bytes.hex()} ready for settlement")
+            self.set_payment_status(payment_hash_bytes, PR_PAID)
+            if not callback_url:
+                return
+            data = json.dumps({"payment_hash": payment_hash_bytes.hex()})
+            try:
+                async with make_aiohttp_session(proxy=self.network.proxy) as s:
+                    await s.post(callback_url, data=data, raise_for_status=False)
+            except Exception:
+                self.logger.exception(f"failed to call hold invoice callback url")
+        self.register_hold_invoice(bfh(payment_hash), cli_hold_invoice_callback)
+        if payment_hash not in self.cli_hold_invoice_callbacks:
+            self.cli_hold_invoice_callbacks[payment_hash] = callback_url
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
