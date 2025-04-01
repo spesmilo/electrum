@@ -79,7 +79,6 @@ from .fee_policy import FeePolicy
 class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
-    RETRY_DELAY = 60
 
     def __init__(self, wallet):
         Logger.__init__(self)

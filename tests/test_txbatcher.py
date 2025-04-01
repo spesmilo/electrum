@@ -81,6 +81,13 @@ class TestTxBatcher(ElectrumTestCase):
         ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=gap_limit, config=config)
 
+    def _create_wallet(self):
+        wallet = self.create_standard_wallet_from_seed(WALLET_SEED)
+        wallet.start_network(self.network)
+        wallet.txbatcher.SLEEP_INTERVAL = 0.01
+        self.network.wallets.append(wallet)
+        return wallet
+
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_payments(self, mock_save_db):
         # output 1:     tx1(o1) ---------------
@@ -92,11 +99,7 @@ class TestTxBatcher(ElectrumTestCase):
         # txbatcher creates a new transaction tx2, child of tx1
         #
         OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
-        # create wallet
-        wallet = self.create_standard_wallet_from_seed(WALLET_SEED)
-        wallet.start_network(self.network)
-        wallet.txbatcher.SLEEP_INTERVAL = 0.01
-        self.network.wallets.append(wallet)
+        wallet = self._create_wallet()
         # fund wallet
         funding_tx = Transaction(FUNDING_TX)
         await self.network.try_broadcasting(funding_tx, 'funding')
@@ -137,11 +140,7 @@ class TestTxBatcher(ElectrumTestCase):
         The user tries to create tx2, that pays an invoice for 90k sats.
         The tx batcher fails  to batch, and should create a child transaction
         """
-        wallet = self.create_standard_wallet_from_seed(WALLET_SEED)
-        wallet.start_network(self.network)
-        wallet.txbatcher.SLEEP_INTERVAL = 0.01
-        wallet.txbatcher.RETRY_DELAY = 0.60
-        self.network.wallets.append(wallet)
+        wallet = self._create_wallet()
 
         # fund wallet
         funding_tx = Transaction(FUNDING_TX)
@@ -168,10 +167,7 @@ class TestTxBatcher(ElectrumTestCase):
     async def test_sweep_from_submarine_swap(self, mock_save_db):
         self.maxDiff = None
         # create wallet
-        wallet = self.create_standard_wallet_from_seed(WALLET_SEED)
-        wallet.start_network(self.network)
-        wallet.txbatcher.SLEEP_INTERVAL = 0.01
-        self.network.wallets.append(wallet)
+        wallet = self._create_wallet()
         # add swap data
         swap_data = SwapData(
             is_reverse=True,
