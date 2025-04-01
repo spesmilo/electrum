@@ -3000,21 +3000,28 @@ class LNWallet(LNWorker):
                 else:
                     await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
 
-    def current_target_feerate_per_kw(self) -> int:
+    def current_target_feerate_per_kw(self) -> Optional[int]:
         if self.network.fee_estimates.has_data():
             feerate_per_kvbyte = self.network.fee_estimates.eta_target_to_fee(FEE_LN_ETA_TARGET)
         else:
+            if constants.net is not constants.BitcoinRegtest:
+                return None
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
-    def current_low_feerate_per_kw(self) -> int:
+    def current_low_feerate_per_kw(self) -> Optional[int]:
         if constants.net is constants.BitcoinRegtest:
             feerate_per_kvbyte = 0
         else:
+            if not self.network.fee_estimates.has_data():
+                return None
             feerate_per_kvbyte = self.network.fee_estimates.eta_target_to_fee(FEE_LN_LOW_ETA_TARGET) or 0
         low_feerate_per_kw = max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
         # make sure this is never higher than the target feerate:
-        low_feerate_per_kw = min(low_feerate_per_kw, self.current_target_feerate_per_kw())
+        current_target_feerate = self.current_target_feerate_per_kw()
+        if not current_target_feerate:
+            return None
+        low_feerate_per_kw = min(low_feerate_per_kw, current_target_feerate)
         return low_feerate_per_kw
 
     def create_channel_backup(self, channel_id: bytes):
