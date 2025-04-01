@@ -44,8 +44,7 @@ from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
-from electrum.fee_policy import FeeTimeEstimates
-
+from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -69,6 +68,7 @@ class MockNetwork:
         self.lnwatcher = None
         self.interface = None
         self.fee_estimates = FeeTimeEstimates()
+        self.populate_fee_estimates()
         self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
@@ -94,6 +94,10 @@ class MockNetwork:
 
     async def try_broadcasting(self, tx, name):
         await self.broadcast_transaction(tx)
+
+    def populate_fee_estimates(self):
+        for target in FEE_ETA_TARGETS[:-1]:
+            self.fee_estimates.set_data(target, 50000 // target)
 
 
 class MockBlockchain:
@@ -143,6 +147,9 @@ class MockWallet:
     def get_new_sweep_address_for_channel(self):
         # note: sweep is not tested here, only in regtest
         return "tb1qqu5newtapamjchgxf0nty6geuykhvwas45q4q4"
+
+    def is_up_to_date(self):
+        return True
 
 
 class MockLNGossip:

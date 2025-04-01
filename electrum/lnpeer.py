@@ -23,8 +23,8 @@ from .crypto import sha256, sha256d, privkey_to_pubkey
 from . import bitcoin, util
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
-                   UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector)
-from .util import event_listener, EventListener
+                   UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
+                   NoDynamicFeeEstimates, event_listener, EventListener)
 from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
@@ -993,7 +993,9 @@ class Peer(Logger, EventListener):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
-        feerate = self.lnworker.current_target_feerate_per_kw()
+        feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw()
+        if feerate is None:
+            raise NoDynamicFeeEstimates()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
@@ -1597,6 +1599,11 @@ class Peer(Logger, EventListener):
             # Depending on timing, the remote might not know they are behind.
             # We should let them know:
             self._send_channel_reestablish(chan)
+            return
+        if self.network.blockchain().is_tip_stale() \
+                or not self.lnworker.wallet.is_up_to_date() \
+                or self.lnworker.current_target_feerate_per_kw() is None:
+            # don't try to reestablish until we can do fee estimation and are up-to-date
             return
         # if we get here, we will try to do a proper reestablish
         if not (ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING):
@@ -2590,12 +2597,16 @@ class Peer(Logger, EventListener):
             return
         if chan.get_state() != ChannelState.OPEN:
             return
-        feerate_per_kw = self.lnworker.current_target_feerate_per_kw()
-        def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> bool:
+        feerate_per_kw: Optional[int] = self.lnworker.current_target_feerate_per_kw()
+        if feerate_per_kw is None:
+            return
+        def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> Optional[bool]:
             # We raise fees more aggressively than we lower them. Overpaying is not too bad,
             # but lowballing can be fatal if we can't even get into the mempool...
             high_fee = 2 * feerate_per_kw  # type: Union[float, int]
-            low_fee = self.lnworker.current_low_feerate_per_kw()  # type: Union[float, int]
+            low_fee = self.lnworker.current_low_feerate_per_kw()  # type: Optional[Union[float, int]]
+            if low_fee is None:
+                return None
             low_fee = max(low_fee, 0.75 * feerate_per_kw)
             # make sure low_feerate and target_feerate are not too close to each other:
             low_fee = min(low_fee, feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
