@@ -20,13 +20,14 @@ from .test_wallet_vertical import WalletIntegrityHelper
 class MockNetwork(Logger):
 
     def __init__(self, config):
+        Logger.__init__(self)
         self.config = config
         self.fee_estimates = FeeTimeEstimates()
         self.asyncio_loop = util.get_asyncio_loop()
         self.interface = None
         self.relay_fee = 1000
         self.wallets = []
-        self._tx_event = asyncio.Event()
+        self._tx_queue = asyncio.Queue()
 
     def get_local_height(self):
         return 42
@@ -41,14 +42,12 @@ class MockNetwork(Logger):
         for w in self.wallets:
             w.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
 
-        self._tx_event.set()
-        self._tx = tx
-        self._tx_event.clear()
+        self._tx_queue.put_nowait(tx)
         return tx.txid()
 
     async def next_tx(self):
-        await util.wait_for2(self._tx_event.wait(), timeout=10)
-        return self._tx
+        tx = await util.wait_for2(self._tx_queue.get(), timeout=10)
+        return tx
 
 
 WALLET_SEED = 'cause carbon luggage air humble mistake melt paper supreme sense gravity void'
@@ -103,6 +102,7 @@ class TestTxBatcher(ElectrumTestCase):
         # fund wallet
         funding_tx = Transaction(FUNDING_TX)
         await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None
         self.logger.info(f'wallet balance {wallet.get_balance()}')
         # payment 1 -> tx1(output1)
@@ -145,6 +145,7 @@ class TestTxBatcher(ElectrumTestCase):
         # fund wallet
         funding_tx = Transaction(FUNDING_TX)
         await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None
         self.logger.info(f'wallet balance1 {wallet.get_balance()}')
 
