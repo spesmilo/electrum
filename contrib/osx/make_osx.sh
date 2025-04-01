@@ -168,8 +168,12 @@ fi
 cp -f "$DLL_TARGET_DIR/libusb-1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libusb dylib"
 
 
-info "Installing requirements..."
+# opt out of compiling C extensions
+export YARL_NO_EXTENSIONS=1
+
 export ELECTRUM_ECC_DONT_COMPILE=1
+
+info "Installing requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
     --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
