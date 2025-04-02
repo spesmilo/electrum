@@ -2132,6 +2132,10 @@ class LNWallet(LNWorker):
             for end_node, edge_rest in zip(private_path_nodes, private_path_rest):
                 short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_delta = edge_rest
                 short_channel_id = ShortChannelID(short_channel_id)
+                if (our_chan := self.get_channel_by_short_id(short_channel_id)) is not None:
+                    # check if the channel is one of our channels and frozen for sending
+                    if our_chan.is_frozen_for_sending():
+                        continue
                 # if we have a routing policy for this edge in the db, that takes precedence,
                 # as it is likely from a previous failure
                 channel_policy = self.channel_db.get_policy_for_node(
