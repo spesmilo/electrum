@@ -131,21 +131,22 @@ class CosignerWallet(Logger):
         self.obj.cosigner_receive_signal.connect(self.on_receive)
 
         self.cosigner_list = []  # type: List[Tuple[str, bytes, str]]
+        self.nostr_pubkey = None
 
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()  # type: str
             privkey = sha256('nostr_psbt:' + xpub)
             pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes()[1:]
-            if not keystore.is_watching_only():
+            if self.nostr_pubkey is None and not keystore.is_watching_only():
                 self.nostr_privkey = privkey.hex()
                 self.nostr_pubkey = pubkey.hex()
+                self.logger.info(f'nostr pubkey: {self.nostr_pubkey}')
             else:
                 self.cosigner_list.append((xpub, pubkey.hex()))
 
-        self.logger.info(f'nostr pubkey: {self.nostr_pubkey}')
         self.messages = asyncio.Queue()
         self.taskgroup = OldTaskGroup()
-        if self.network:
+        if self.network and self.nostr_pubkey:
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     @log_exceptions
