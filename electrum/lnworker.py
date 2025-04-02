@@ -2617,7 +2617,7 @@ class LNWallet(LNWorker):
             channels = []
         else:
             if channels is None:
-                channels = list(self.get_channels_for_receiving(amount_msat))
+                channels = list(self.get_channels_for_receiving(amount_msat=amount_msat, include_disconnected=True))
                 random.shuffle(channels)  # let's not leak channel order
             scid_to_my_channels = {
                 chan.short_channel_id: chan for chan in channels
@@ -2713,14 +2713,19 @@ class LNWallet(LNWorker):
         can_send_sat -= self.fee_estimate(can_send_sat)
         return max(can_send_sat, 0)
 
-    def get_channels_for_receiving(self, amount_msat=None) -> Sequence[Channel]:
+    def get_channels_for_receiving(
+        self, *, amount_msat: Optional[int] = None, include_disconnected: bool = False,
+    ) -> Sequence[Channel]:
         if not amount_msat:  # assume we want to recv a large amt, e.g. finding max.
             amount_msat = float('inf')
         with self.lock:
             channels = list(self.channels.values())
-            # we exclude channels that cannot *right now* receive (e.g. peer offline)
             channels = [chan for chan in channels
-                        if (chan.is_open() and not chan.is_frozen_for_receiving())]
+                        if chan.is_open() and not chan.is_frozen_for_receiving()]
+
+            if not include_disconnected:
+                channels = [chan for chan in channels if chan.is_active()]
+
             # Filter out nodes that have low receive capacity compared to invoice amt.
             # Even with MPP, below a certain threshold, including these channels probably
             # hurts more than help, as they lead to many failed attempts for the sender.
