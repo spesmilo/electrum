@@ -34,7 +34,6 @@ from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLa
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
-    from electrum.daemon import Daemon
     from electrum.gui.qt import QElectrumApplication
 
 WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +

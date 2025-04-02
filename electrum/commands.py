@@ -45,7 +45,7 @@ from . import util
 from .lnmsg import OnionWireSerializer
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
-from .util import (bfh, format_satoshis, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
+from .util import (bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
                    parse_max_spend, to_decimal, UserFacingException, InvalidPassword)
 
 from . import bitcoin
@@ -434,7 +434,6 @@ class Commands(Logger):
         arg:str:seed_type:The type of seed to create, e.g. 'standard' or 'segwit'
         arg:str:language:Default language for wordlist
         """
-        from .mnemonic import Mnemonic
         s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
         return s
 
@@ -1156,7 +1155,7 @@ class Commands(Logger):
             if labels or balance:
                 item = (item,)
             if balance:
-                item += (format_satoshis(sum(wallet.get_addr_balance(addr))),)
+                item += (util.format_satoshis(sum(wallet.get_addr_balance(addr))),)
             if labels:
                 item += (repr(wallet.get_label_for_address(addr)),)
             out.append(item)

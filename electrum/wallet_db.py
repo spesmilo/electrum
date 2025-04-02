@@ -43,7 +43,7 @@ from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
 from .logging import Logger
 
-from .lnutil import LOCAL, REMOTE, HTLCOwner, ChannelType
+from .lnutil import HTLCOwner, ChannelType
 from . import json_db
 from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders

@@ -963,7 +963,7 @@ class DeviceMgr(ThreadJob):
     @runs_in_hwd_thread
     def _scan_devices_with_hid(self) -> List['Device']:
         try:
-            import hid
+            import hid  # noqa: F811
         except ImportError:
             return []
 
@@ -1037,7 +1037,7 @@ class DeviceMgr(ThreadJob):
                 ret["libusb.path"] = None
         # add hidapi
         try:
-            import hid
+            import hid  # noqa: F811
             ret["hidapi.version"] = hid.__version__  # available starting with 0.12.0.post2
         except Exception as e:
             from importlib.metadata import version

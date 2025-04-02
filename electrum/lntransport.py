@@ -9,7 +9,6 @@ import re
 import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from typing import Optional, TYPE_CHECKING
 from functools import cached_property
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 

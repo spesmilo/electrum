@@ -4,7 +4,6 @@ from unittest import mock
 import asyncio
 
 from electrum import storage, bitcoin, keystore, wallet
-from electrum import Transaction
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL

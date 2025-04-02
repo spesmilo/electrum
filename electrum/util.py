@@ -23,7 +23,7 @@
 import binascii
 import concurrent.futures
 import logging
-import os, sys, re, json
+import os, sys, re
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
@@ -31,7 +31,6 @@ from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable,
 from datetime import datetime, timezone
 import decimal
 from decimal import Decimal
-import traceback
 import urllib
 import threading
 import hmac
@@ -43,7 +42,6 @@ import urllib.request, urllib.parse, urllib.error
 import builtins
 import json
 import time
-from typing import NamedTuple, Optional
 import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
@@ -1453,9 +1451,9 @@ if hasattr(asyncio, 'timeout'):  # python 3.11+
     async_timeout = asyncio.timeout
 else:
     class TimeoutAfterAsynciolike(aiorpcx.curio.TimeoutAfter):
-        async def __aexit__(self, exc_type, exc_value, traceback):
+        async def __aexit__(self, exc_type, exc_value, tb):
             try:
-                await super().__aexit__(exc_type, exc_value, traceback)
+                await super().__aexit__(exc_type, exc_value, tb)
             except (aiorpcx.TaskTimeout, aiorpcx.UncaughtTimeoutError):
                 raise asyncio.TimeoutError from None
             except aiorpcx.TimeoutCancellationError:
