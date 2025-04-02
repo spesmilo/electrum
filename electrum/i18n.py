@@ -49,7 +49,6 @@ language = gettext.translation('electrum', fallback=True, class_=gettext.NullTra
 def _(msg: str, *, context=None) -> str:
     if msg == "":
         return ""  # empty string must not be translated. see #7158
-    global language
     if context:
         contexts = [context]
         if context[-1] != "|":  # try with both "|" suffix and without

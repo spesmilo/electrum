@@ -151,7 +151,7 @@ task:
     folder: ~/.cache/pip
     fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
   install_script:
-    - pip install "flake8==7.0.0" "flake8-bugbear==24.1.16"
+    - pip install "flake8==7.2.0" "flake8-bugbear==24.12.12"  # flake8-commas
   flake8_script:
     - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "*_pb2.py,electrum/_vendor/"
   env:

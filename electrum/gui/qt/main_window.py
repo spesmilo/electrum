@@ -2402,7 +2402,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             done = True
 
         def on_dialog_closed(*args):
-            nonlocal done
             nonlocal cancelled
             if not done:
                 cancelled = True

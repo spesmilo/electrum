@@ -186,7 +186,6 @@ class Plugins(DaemonThread):
     @profiler(min_threshold=0.5)
     def _has_recursive_root_permissions(self, path):
         """Check if a directory and all its subdirectories have root permissions"""
-        global _root_permission_cache
         if _root_permission_cache.get(path) is not None:
             return _root_permission_cache[path]
         _root_permission_cache[path] = False

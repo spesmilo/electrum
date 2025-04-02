@@ -141,8 +141,6 @@ class Command:
 
 def command(s):
     def decorator(func):
-        global known_commands
-
         if hasattr(func, '__wrapped__'):
             # plugin command function
             name = func.plugin_name + '_' + func.__name__
@@ -1913,7 +1911,6 @@ def plugin_command(s, plugin_name):
     """Decorator to register a cli command inside a plugin. To be used within a commands.py file
     in the plugins root."""
     def decorator(func):
-        global known_commands
         assert len(plugin_name) > 0, "Plugin name must not be empty"
         func.plugin_name = plugin_name
         name = plugin_name + '_' + func.__name__
