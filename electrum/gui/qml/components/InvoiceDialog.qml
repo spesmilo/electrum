@@ -12,6 +12,7 @@ ElDialog {
 
     property Invoice invoice
     property bool payImmediately: false
+    property string broadcastTxid
 
     signal doPay
     signal invoiceAmountChanged
@@ -507,6 +508,20 @@ ElDialog {
                     invoice.saveInvoice()
                 }
                 doPay()
+            }
+        }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onBroadcastSucceeded(txid) {
+            if (dialog.broadcastTxid == txid) {
+                // our txid was broadcast successfully, close invoicedialog and show success popup
+                dialog.close()
+                var successdialog = app.messageDialog.createObject(mainView, {
+                    text: qsTr('Payment sent.')
+                })
+                successdialog.open()
             }
         }
     }

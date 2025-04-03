@@ -103,7 +103,7 @@ Item {
         dialog.open()
     }
 
-    function payOnchain(invoice) {
+    function payOnchain(invoicedialog, invoice) {
         var dialog = confirmPaymentDialog.createObject(mainView, {
                 address: invoice.address,
                 satoshis: invoice.amountOverride.isEmpty
@@ -120,6 +120,8 @@ Item {
                     dialog.finalizer.sign()
                 }
             } else {
+                // store txid in invoicedialog so the dialog can detect broadcast success
+                invoicedialog.broadcastTxid = dialog.finalizer.finalizedTxid
                 dialog.finalizer.signAndSend()
             }
         })
@@ -541,7 +543,7 @@ Item {
                     }
                 }
                 if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                    payOnchain(invoice)
+                    payOnchain(_invoiceDialog, invoice)
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     if (lninvoiceButPayOnchain) {
                         var dialog = app.messageDialog.createObject(mainView, {
@@ -549,7 +551,7 @@ Item {
                             yesno: true
                         })
                         dialog.accepted.connect(function() {
-                            payOnchain(invoice)
+                            payOnchain(_invoiceDialog, invoice)
                         })
                         dialog.open()
                     } else {
@@ -675,6 +677,7 @@ Item {
                     dialog.open()
                 }
             }
+
             // TODO: lingering confirmPaymentDialogs can raise exceptions in
             // the child finalizer when currentWallet disappears, but we need
             // it long enough for the finalizer to finish..
