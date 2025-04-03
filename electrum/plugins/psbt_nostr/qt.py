@@ -24,7 +24,8 @@
 # SOFTWARE.
 import asyncio
 import time
-from typing import TYPE_CHECKING, Union, List, Tuple, Dict
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Union, List, Tuple, Dict, Optional
 import ssl
 import json
 
@@ -44,8 +45,7 @@ from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.logging import Logger
 from electrum.network import Network
-from electrum.util import log_exceptions, OldTaskGroup, UserCancelled
-
+from electrum.util import log_exceptions, OldTaskGroup, UserCancelled, ca_path
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
 from electrum.gui.qt.util import WaitingDialog
 
@@ -53,8 +53,8 @@ if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumGui
     from electrum.gui.qt.main_window import ElectrumWindow
 
-
-NOSTR_DM = 4
+# event kind used for nostr messages (with expiration tag)
+NOSTR_EVENT_KIND = 4
 
 now = lambda: int(time.time())
 
@@ -126,6 +126,7 @@ class CosignerWallet(Logger):
                 self.logger.info(f'deleting old event {k}')
                 self.known_events.pop(k)
         self.relays = self.config.NOSTR_RELAYS.split(',')
+        self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.logger.info(f'relays {self.relays}')
         self.obj = QReceiveSignalObject()
         self.obj.cosigner_receive_signal.connect(self.on_receive)
@@ -163,23 +164,45 @@ class CosignerWallet(Logger):
     async def stop(self):
         await self.taskgroup.cancel_remaining()
 
+    @asynccontextmanager
+    async def nostr_manager(self):
+        manager_logger = self.logger.getChild('aionostr')
+        manager_logger.setLevel("INFO")  # set to INFO because DEBUG is very spammy
+        async with aionostr.Manager(
+                relays=self.relays,
+                private_key=self.nostr_privkey,
+                ssl_context=self.ssl_context,
+                # todo: add proxy support, first needs:
+                # https://github.com/spesmilo/electrum-aionostr/pull/8
+                proxy=None,
+                log=manager_logger
+        ) as manager:
+            yield manager
+
     @log_exceptions
-    async def send_direct_messages(self, messages):
-        for pubkey, msg in messages:
-            eid = await aionostr.add_event(
-                self.relays,
-                kind=NOSTR_DM,
-                content=msg,
-                direct_message=pubkey,
-                private_key=self.nostr_privkey)
-            self.logger.info(f'message sent to {pubkey}: {eid}')
+    async def send_direct_messages(self, messages: List[Tuple[str, str]]):
+        our_private_key: PrivateKey = aionostr.key.PrivateKey(bytes.fromhex(self.nostr_privkey))
+        async with self.nostr_manager() as manager:
+            for pubkey, msg in messages:
+                encrypted_msg: str = our_private_key.encrypt_message(msg, pubkey)
+                eid = await aionostr._add_event(
+                    manager,
+                    kind=NOSTR_EVENT_KIND,
+                    content=encrypted_msg,
+                    private_key=self.nostr_privkey,
+                    tags=[['p', pubkey], ['expiration', str(int(now() + self.KEEP_DELAY))]])
+                self.logger.info(f'message sent to {pubkey}: {eid}')
 
     @log_exceptions
     async def check_direct_messages(self):
         privkey = PrivateKey(bytes.fromhex(self.nostr_privkey))
-        async with aionostr.Manager(self.relays, private_key=self.nostr_privkey) as manager:
-            await manager.connect()
-            query = {"kinds": [NOSTR_DM], "limit":100, "#p": [self.nostr_pubkey]}
+        async with self.nostr_manager() as manager:
+            query = {
+                "kinds": [NOSTR_EVENT_KIND],
+                "limit":100,
+                "#p": [self.nostr_pubkey],
+                "since": int(now() - self.KEEP_DELAY)
+            }
             async for event in manager.get_events(query, single_event=False, only_stored=False):
                 if event.id in self.known_events:
                     self.logger.info(f'known event {event.id} {util.age(event.created_at)}')
@@ -258,7 +281,7 @@ class CosignerWallet(Logger):
             self.window.show_error(str(e))
             return
         self.window.show_message(
-            _("Your transaction was sent to your cosigners via Nostr DM.") + '\n\n' + tx.txid())
+            _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + tx.txid())
 
 
     def on_receive(self, pubkey, event_id, tx):
