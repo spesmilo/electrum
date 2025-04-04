@@ -74,6 +74,8 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportFailure = pyqtSignal(str)
     secureWindowChanged = pyqtSignal()
     wantCloseChanged = pyqtSignal()
+    pluginLoaded = pyqtSignal(str)
+    startupFinished = pyqtSignal()
 
     def __init__(self, qeapp: 'ElectrumQmlApplication', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -229,8 +231,11 @@ class QEAppController(BaseCrashReporter, QObject):
         if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
             self.uriReceived.emit(data)
 
-    def startupFinished(self):
+    def startup_finished(self):
         self._app_started = True
+        self.startupFinished.emit()
+        for plugin_name in self._plugins.plugins.keys():
+            self.pluginLoaded.emit(plugin_name)
         if self._intent:
             self.on_new_intent(self._intent)
 
@@ -304,18 +309,16 @@ class QEAppController(BaseCrashReporter, QObject):
             self.logger.debug('None!')
             return None
 
-    @pyqtProperty('QVariant', notify=_dummy)
+    @pyqtProperty('QVariantList', notify=_dummy)
     def plugins(self):
         s = []
         for item in self._plugins.descriptions:
-            self.logger.info(item)
             s.append({
                 'name': item,
                 'fullname': self._plugins.descriptions[item]['fullname'],
                 'enabled': bool(self._plugins.get(item))
                 })
 
-        self.logger.debug(f'{str(s)}')
         return s
 
     @pyqtSlot(str, bool)
@@ -511,10 +514,11 @@ class ElectrumQmlApplication(QGuiApplication):
     # slot is called after loading root QML. If object is None, it has failed.
     @pyqtSlot('QObject*', 'QUrl')
     def objectCreated(self, object, url):
+        self.engine.objectCreated.disconnect(self.objectCreated)
         if object is None:
             self._valid = False
-        self.engine.objectCreated.disconnect(self.objectCreated)
-        self.appController.startupFinished()
+        else:
+            self.appController.startup_finished()
 
     def message_handler(self, line, funct, file):
         # filter out common harmless messages

@@ -203,6 +203,9 @@ class CosignerWallet(Logger):
         #      note that tx could also be unrelated from wallet?... (not ismine inputs)
         return True
 
+    def mark_event_rcvd(self, event_id):
+        self.known_events[event_id] = now()
+
     def prepare_messages(self, tx: Union[Transaction, PartialTransaction]) -> List[Tuple[str, str]]:
         messages = []
         for xpub, pubkey in self.cosigner_list:
