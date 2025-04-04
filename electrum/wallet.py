@@ -1069,6 +1069,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         domain = self.get_addresses()
         return self.adb.get_balance(domain, **kwargs)
 
+    def anchor_reserve(self) -> int:
+        if self.lnworker is None or not isinstance(self.lnworker, LNWallet):
+            return 0
+        if not self.lnworker.has_anchor_channels():
+            return 0
+        return self.config.LN_UTXO_RESERVE
+
+    def get_spendable_balance_sat(
+        self,
+        deduct_anchor_reserve: bool = True,
+        **kwargs
+    ) -> int:
+        anchor_reserve = self.anchor_reserve() if deduct_anchor_reserve else 0
+        spendable_coins = self.get_spendable_coins(**kwargs)
+        oc_balance = sum([coin.value_sats() for coin in spendable_coins]) - anchor_reserve
+        return max(0, oc_balance)
+
     def get_addr_balance(self, address):
         return self.adb.get_balance([address])
 
@@ -1843,7 +1860,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx_outputs: List[PartialTxOutput],
             is_anchor_channel_opening: bool,
     ) -> bool:
-        channels_need_reserve = self.lnworker and any(chan.has_anchors() and not chan.is_redeemed() for chan in self.lnworker.channels.values())
+        channels_need_reserve = self.lnworker and self.lnworker.has_anchor_channels()
         # note: is_anchor_channel_opening is used in unit tests, without lnworker
         is_reserve_needed = is_anchor_channel_opening or channels_need_reserve
         if not is_reserve_needed:

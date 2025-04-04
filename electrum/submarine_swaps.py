@@ -926,12 +926,8 @@ class SwapManager(Logger):
         """ for server """
         self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = 20000
-        anchor_reserve = self.config.LN_UTXO_RESERVE \
-                                if (any(chan.has_anchors() and not chan.is_redeemed()
-                                for chan in self.lnworker.channels.values())) else 0
-        oc_balance = max(sum([coin.value_sats() for coin in self.wallet.get_spendable_coins()])
-                                - anchor_reserve, 0)
-        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance, 10000000)
+        oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
+        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
         max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)
         self._max_forward: int = self._keep_leading_digits(max_forward, 2)
         self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
