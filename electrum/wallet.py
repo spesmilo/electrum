@@ -2984,10 +2984,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if write_to_disk:
             self.save_db()
 
-    def get_sorted_requests(self) -> List[Request]:
-        """ sorted by timestamp """
+    def get_requests(self) -> List[Request]:
         out = [self.get_request(x) for x in self._receive_requests.keys()]
         out = [x for x in out if x is not None]
+        return out
+
+    def get_sorted_requests(self) -> List[Request]:
+        """ sorted by timestamp """
+        out = self.get_requests()
         out.sort(key=lambda x: x.time)
         return out
 

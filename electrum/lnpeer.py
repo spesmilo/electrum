@@ -550,7 +550,8 @@ class Peer(Logger, EventListener):
             public_channels = [chan for chan in self.lnworker.channels.values() if chan.is_public()]
             if public_channels:
                 alias = self.lnworker.config.LIGHTNING_NODE_ALIAS
-                self.send_node_announcement(alias)
+                color = self.lnworker.config.LIGHTNING_NODE_COLOR_RGB
+                self.send_node_announcement(alias, color)
                 for chan in public_channels:
                     if chan.is_open() and chan.peer_state == PeerState.GOOD:
                         self.maybe_send_channel_announcement(chan)
@@ -1725,13 +1726,13 @@ class Peer(Logger, EventListener):
             self.lnworker.save_channel(chan)
         self.maybe_mark_open(chan)
 
-    def send_node_announcement(self, alias:str):
+    def send_node_announcement(self, alias:str, color_hex:str):
         from .channel_db import NodeInfo
         timestamp = int(time.time())
         node_id = privkey_to_pubkey(self.privkey)
         features = self.features.for_node_announcement()
         flen = features.min_len()
-        rgb_color = bytes.fromhex('000000')
+        rgb_color = bytes.fromhex(color_hex)
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
         if self.lnworker.config.LIGHTNING_LISTEN is not None:
