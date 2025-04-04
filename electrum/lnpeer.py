@@ -741,7 +741,7 @@ class Peer(Logger, EventListener):
         if timestamp == 0:
             self.logger.info('requesting whole channel graph')
         else:
-            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).ctime()}')
+            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).isoformat()}')
         self.send_message(
             'gossip_timestamp_filter',
             chain_hash=constants.net.rev_genesis_bytes(),
