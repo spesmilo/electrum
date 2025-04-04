@@ -34,7 +34,7 @@ from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, event_listener, EventListener
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
 
-from .psbt_nostr import PsbtNostrPlugin, CosignerWallet, now
+from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
 
 if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumGui
@@ -141,5 +141,5 @@ class QtCosignerWallet(EventListener, CosignerWallet):
                 _("An transaction was received from your cosigner.") + '\n' +
                 _("Do you want to open it now?")):
             return
-        self.known_events[event_id] = now()
+        self.mark_event_rcvd(event_id)
         show_transaction(tx, parent=window, prompt_if_unsaved=True)
