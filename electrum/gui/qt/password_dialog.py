@@ -236,6 +236,32 @@ class ChangePasswordDialogBase(WindowModalDialog):
         raise NotImplementedError()
 
 
+class NewPasswordDialog(WindowModalDialog):
+
+    def __init__(self, parent, msg):
+        self.msg = msg
+        WindowModalDialog.__init__(self, parent)
+        OK_button = OkButton(self)
+        self.playout = PasswordLayout(
+            msg=self.msg,
+            kind=PW_CHANGE,
+            OK_button=OK_button,
+            wallet=None)
+        self.setWindowTitle(self.playout.title())
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(self.playout.layout())
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OK_button))
+
+    def run(self):
+        try:
+            if not self.exec():
+                return None
+            return self.playout.new_password()
+        finally:
+            self.playout.clear_password_fields()
+
+
 class ChangePasswordDialogForSW(ChangePasswordDialogBase):
 
     def create_password_layout(self, wallet, is_encrypted, OK_button):
