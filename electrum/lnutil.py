@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import sys
 import time
+from functools import lru_cache
 
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig
@@ -1801,6 +1802,7 @@ if hasattr(sys, "get_int_max_str_digits"):
     assert sys.get_int_max_str_digits() >= 4300, f"sys.get_int_max_str_digits() too low: {sys.get_int_max_str_digits()}"
 
 
+@lru_cache(maxsize=1000)  # massive speedup for the hot path of channel_db.load_data()
 def validate_features(features: int) -> LnFeatures:
     """Raises IncompatibleOrInsaneFeatures if
     - a mandatory feature is listed that we don't recognize, or
