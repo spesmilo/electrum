@@ -359,6 +359,7 @@ Pane {
         }
 
         ButtonContainer {
+            id: buttoncontainer
             Layout.fillWidth: true
 
             FlatButton {
@@ -470,6 +471,28 @@ Pane {
                 onClicked: txdetails.removeLocalTx()
             }
 
+            Component.onCompleted: {
+                var plugins = AppController.plugins
+                // TODO: move the boilerplate to a function
+                for (var i=0; i < plugins.length; i++) {
+                    if (!plugins[i].enabled)
+                        continue
+                    var pluginobject = app.pluginobjects[plugins[i].name]
+                    console.log('pluginobj = ' + pluginobject)
+                    if (!pluginobject)
+                        continue
+                    console.log('txd_bobj = ' + pluginobject.txdetails_button)
+                    if (!pluginobject.txdetails_button)
+                        continue
+
+                    var b = pluginobject.txdetails_button.createObject(buttoncontainer, {
+                        txdetails: txdetails
+                    })
+                    b.Layout.fillWidth = true
+                    b.Layout.preferredWidth = 1
+
+                }
+            }
         }
 
     }
