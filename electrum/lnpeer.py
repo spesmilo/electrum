@@ -1734,11 +1734,18 @@ class Peer(Logger, EventListener):
         rgb_color = bytes.fromhex('000000')
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
-        addr = self.lnworker.config.LIGHTNING_LISTEN
-        hostname, port = addr.split(':')
-        if port is None:  # use default port if not specified
-            port = 9735
-        addresses = NodeInfo.to_addresses_field(hostname, int(port))
+        if self.lnworker.config.LIGHTNING_LISTEN is not None:
+            addr = self.lnworker.config.LIGHTNING_LISTEN
+            try:
+                hostname, port = addr.split(':')
+                if port is None:  # use default port if not specified
+                    port = 9735
+                addresses = NodeInfo.to_addresses_field(hostname, int(port))
+            except Exception:
+                self.logger.exception(f"Invalid lightning_listen address: {addr}")
+                return
+        else:
+            addresses = b''
         raw_msg = encode_msg(
             "node_announcement",
             flen=flen,
