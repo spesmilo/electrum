@@ -912,6 +912,11 @@ class LNWallet(LNWorker):
         return (self.can_have_recoverable_channels()
                 and self.config.LIGHTNING_USE_RECOVERABLE_CHANNELS)
 
+    def has_anchor_channels(self) -> bool:
+        """Returns True if any active channel is an anchor channel."""
+        return any(chan.has_anchors() and not chan.is_redeemed()
+                    for chan in self.channels.values())
+
     @property
     def channels(self) -> Mapping[bytes, Channel]:
         """Returns a read-only copy of channels."""

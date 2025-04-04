@@ -177,7 +177,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             self.max_button.setChecked(False)
 
     def _spend_max_reverse_swap(self) -> None:
-        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_max_amount())
+        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_provider_max_forward_amount())
         amount = int(amount)  # round down msats
         self.send_amount_e.setAmount(amount)
 
@@ -295,9 +295,9 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         coins = self.window.get_coins()
         if onchain_amount == '!':
             max_amount = sum(c.value_sats() for c in coins)
-            max_swap_amount = self.swap_manager.max_amount_forward_swap()
+            max_swap_amount = self.swap_manager.client_max_amount_forward_swap()
             if max_swap_amount is None:
-                raise InvalidSwapParameters("swap_manager.max_amount_forward_swap() is None")
+                raise InvalidSwapParameters("swap_manager.client_max_amount_forward_swap() is None")
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]

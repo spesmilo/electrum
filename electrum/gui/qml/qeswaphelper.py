@@ -30,7 +30,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'mining_fee', 'min_amount', 'max_amount')
+    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'mining_fee', 'min_amount', 'max_forward_amount', 'max_reverse_amount')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -71,7 +71,8 @@ class QESwapServerNPubListModel(QAbstractListModel):
             'percentage_fee': x['percentage_fee'],
             'mining_fee': x['mining_fee'],
             'min_amount': x['min_amount'],
-            'max_amount': x['max_amount'],
+            'max_forward_amount': x['max_forward_amount'],
+            'max_reverse_amount': x['max_reverse_amount'],
             'timestamp': age(x['timestamp']),
         } for x in items]
         self.endInsertRows()
@@ -430,12 +431,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         except AttributeError:  # happens if there are no utxos
             max_onchain_spend = 0
         reverse = int(min(lnworker.num_sats_can_send(),
-                          swap_manager.get_max_amount()))
-        max_recv_amt_ln = min(swap_manager.get_max_amount(), int(lnworker.num_sats_can_receive()))
+                          swap_manager.get_provider_max_forward_amount()))
+        max_recv_amt_ln = min(swap_manager.get_provider_max_reverse_amount(), int(lnworker.num_sats_can_receive()))
         max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or 0
         forward = int(min(max_recv_amt_oc,
                           # maximally supported swap amount by provider
-                          swap_manager.get_max_amount(),
+                          swap_manager.get_provider_max_reverse_amount(),
                           max_onchain_spend))
         # we expect range to adjust the value of the swap slider to be in the
         # correct range, i.e., to correct an overflow when reducing the limits
@@ -597,9 +598,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         coins = self._wallet.wallet.get_spendable_coins()
         if onchain_amount == '!':
             max_amount = sum(c.value_sats() for c in coins)
-            max_swap_amount = self._wallet.wallet.lnworker.swap_manager.max_amount_forward_swap()
+            max_swap_amount = self._wallet.wallet.lnworker.swap_manager.client_max_amount_forward_swap()
             if max_swap_amount is None:
-                raise InvalidSwapParameters("swap_manager.max_amount_forward_swap() is None")
+                raise InvalidSwapParameters("swap_manager.client_max_amount_forward_swap() is None")
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
