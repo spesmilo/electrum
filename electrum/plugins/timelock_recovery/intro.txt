@@ -1,0 +1,72 @@
+Timelock Recovery is a mechanism which, in case of a catastrophic event
+(death or lose of your master key), can send your Bitcoin to a secondary wallet of your choice
+within a time-window (i.e. 90 days).
+<br />
+During that time-window, you can see that the Timelock Recovery mechanism has been triggered (a
+transaction from your wallet to itself is created on the Bitcoin blockchain), and if this
+has happened against your will, you can use your master key to cancel the process (by moving
+the funds elsewhere before the time-window expires).
+<br />
+The implementation of Timelock Recovery is done with two transactions that are signed in advance,
+but broadcasted only when needed:
+<ol>
+    <li>
+        An <i>Alert Transaction</i> which sends the funds from the wallet to itself (consolidating the UTXOs).
+    </li>
+    <li>
+        A <i>Recovery Transaction</i> which sends the funds to a secondary wallet of your choice and can
+        be added to the blockchain only X days after the <i>Alert Transaction</i> has been broadcasted (and mined).
+    </li>
+</ol>
+Optionally, this extension will also let you sign-in-advance a <i>Cancellation Transaction</i> which can be
+used to cancel the Timelock Recovery process, by broadcasting it before the time-window expires.
+If the <i>Alert Transaction</i> has been broadcasted, the Cancellation Transaction will send the funds again to
+the same wallet, which would invalidate the <i>Recovery Transaction</i> (technically: the <i>Recovery Transaction</i>
+will be seen as a transaction that is trying to spend a UTXO that has already been spent).
+<br />
+Timelock Recovery plans do not require any involvement of a third party.
+However, two precautions should be taken:
+<ol>
+    <li>
+        Due to the way Bitcoin transactions and UTXOs work, spending funds from the wallet might break
+        the entire Timelock Recovery plan.
+    </li>
+    <li>
+        Adding more funds to the wallet will not be covered by the Timelock Recovery plan.
+    </li>
+</ol>
+<br />
+Therefore it is highly recommended not to use the wallet for any purpose after creating a
+Timelock Recovery plan (other than long-term storage).
+Instead, for daily purposes use a separate wallet (with a seed in a place that
+your loved ones could easily find) and only after accumulating enough funds relevant for long-term
+storage, move them to a new highly secured wallet (i.e. with a long passphrase that only you memorize) for
+which you create a new Timelock Recovery plan (back to the daily-purpose wallet or to your inheritors' wallet).
+<br />
+Each accumulation should be done in a new highly secured wallet, but these are easy to create, i.e. you can
+memorize a long passphrase and add a counter at the end (1 for the first accumlation, 2 for the second, etc.).
+<br />
+For more details, visit: <a target="_blank" href="https://timelockrecovery.com" rel="noopener noreferrer">https://timelockrecovery.com</a>.
+<br />
+Before we begin, please note:
+<ol>
+    <li>
+        Please prepare in advance the addresses of your inheritors/backup-wallets.
+    </li>
+    <li>
+        Since we are preparing this recovery plan for the long future, it is hard
+        to estimate what the required fees will be.
+        If the fee is too low, your inheritors, who don't have access to the master
+        keys, will not be able to simply "replace-by-fee" and use a higher fee.
+        At the moment of writing this code (year 2025) this is not a big deal, because
+        there are acceleration-services, such as
+        <a target="_blank" href="https://mempool.space/accelerator" rel="noopener noreferrer">
+            mempool.space's accelerator
+        </a>, that allows to boost selected transactions for direct payment.
+        Just in case this service will not be available in the future, the
+        <i>Alert Transaction</i> will send a small amount of 600 sats to each
+        destination address. This will allow advance users to boost the
+        first transaction by spending their unmined UTXO in a mechanism called
+        Child-Pay-For-Parent.
+    </li>
+</ol>
