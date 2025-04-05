@@ -1165,6 +1165,7 @@ class SwapManager(Logger):
         response = {
             "id": swap.payment_hash.hex(),
             'preimageHash': swap.payment_hash.hex(),
+            "acceptZeroConf": False,
             "expectedAmount": swap.onchain_amount,
             "timeoutBlockHeight": swap.locktime,
             "address": swap.lockup_address,
