@@ -63,7 +63,9 @@ ElDialog {
                                 : invoice.status == Invoice.Paid
                                     ? InfoTextArea.IconStyle.Done
                                     : invoice.status == Invoice.Unpaid && invoice.expiration > 0
-                                        ? InfoTextArea.IconStyle.Pending
+                                        ? invoice.canPay
+                                            ? InfoTextArea.IconStyle.Pending
+                                            : InfoTextArea.IconStyle.Error
                                         : InfoTextArea.IconStyle.Info
                 }
 
