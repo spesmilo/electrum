@@ -41,6 +41,16 @@ class LNWatcher(Logger, EventListener):
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 
+    def add_channel(self, outpoint: str, address: str) -> None:
+        assert isinstance(outpoint, str)
+        assert isinstance(address, str)
+        cb = lambda: self.check_onchain_situation(address, outpoint)
+        self.add_callback(address, cb)
+
+    def unwatch_channel(self, address, funding_outpoint):
+        self.logger.info(f'unwatching {funding_outpoint}')
+        self.remove_callback(address)
+
     def remove_callback(self, address):
         self.callbacks.pop(address, None)
 
