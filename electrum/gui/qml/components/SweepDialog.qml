@@ -143,7 +143,7 @@ ElDialog {
             Layout.preferredWidth: 1
             enabled: valid
             icon.source: '../../icons/tab_send.png'
-            text: qsTr('Sweep')
+            text: qsTr('Sweep...')
             onClicked: {
                 console.log('sweeping')
                 root.privateKeys = sweepkeys.text
