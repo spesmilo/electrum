@@ -5,7 +5,8 @@ import os
 import sys
 import html
 import threading
-from typing import TYPE_CHECKING, Set
+from functools import partial
+from typing import TYPE_CHECKING, Set, List, Optional, Callable
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
 
 if 'ANDROID_DATA' in os.environ:
     from jnius import autoclass, cast
-    from android import activity
+    from android import activity, permissions
 
     jpythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
     jHfc = autoclass('android.view.HapticFeedbackConstants')
@@ -87,6 +88,9 @@ class QEAppController(BaseCrashReporter, QObject):
         self._app_started = False
         self._intent = ''
         self._secureWindow = False
+
+        # map of permissions and grant status _after_ asking user
+        self._permissions = {}  # type: dict[str, bool]
 
         # set up notification queue and notification_timer
         self.user_notification_queue = queue.Queue()
@@ -124,10 +128,11 @@ class QEAppController(BaseCrashReporter, QObject):
 
     def on_wallet_usernotify(self, wallet, message):
         self.logger.debug(message)
-        self.user_notification_queue.put((wallet,message))
+        self.user_notification_queue.put((wallet, message))
         if not self.notification_timer.isActive():
             self.logger.debug('starting app notification timer')
             self.notification_timer.start()
+            self.on_notification_timer()
 
     def on_notification_timer(self):
         if self.user_notification_queue.qsize() == 0:
@@ -140,6 +145,13 @@ class QEAppController(BaseCrashReporter, QObject):
             return
         self.user_notification_last_time = now
         self.logger.info("Notifying GUI about new user notifications")
+        # request permission and defer notify until after permission request callback
+        # note: permission request is only shown to user once, so it is safe to request
+        # multiple times
+        if self.isAndroid() and not self.hasPermission(permissions.Permission.POST_NOTIFICATIONS) \
+                and self._permissions.get(permissions.Permission.POST_NOTIFICATIONS) is None:
+            self.request_permission(permissions.Permission.POST_NOTIFICATIONS)
+            return
         try:
             wallet, message = self.user_notification_queue.get_nowait()
             self.userNotify.emit(str(wallet), message)
@@ -148,8 +160,6 @@ class QEAppController(BaseCrashReporter, QObject):
 
     def doNotify(self, wallet_name, message):
         self.logger.debug(f'sending push notification to OS: {message=!r}')
-        # FIXME: this does not work on Android 13+. We would need to declare (in manifest)
-        #        and also request-at-runtime android.permission.POST_NOTIFICATIONS.
         try:
             # TODO: lazy load not in UI thread please
             global notification
@@ -172,6 +182,42 @@ class QEAppController(BaseCrashReporter, QObject):
             activity.bind(on_new_intent=self.on_new_intent)
         except Exception as e:
             self.logger.error(f'unable to bind intent: {repr(e)}')
+
+    @pyqtSlot(str, result=bool)
+    def hasPermission(self, permissionFqcn: str) -> bool:
+        if not self.isAndroid():
+            return True
+        result = permissions.check_permission(permissionFqcn)
+        return result
+
+    def request_permission(self, permissionFqcn: str, permission_result_cb: Optional[Callable] = None):
+        if not self.isAndroid():
+            return True
+        self.logger.debug(f'requesting {permissionFqcn=}')
+        permissions.request_permission(
+            permissionFqcn,
+            callback=partial(self.on_request_permissions_result, permissionFqcn, permission_result_cb)
+        )
+
+    def on_request_permissions_result(
+            self,
+            permission: str,
+            permission_result_cb: Optional[Callable[[bool], None]],
+            permissions: List[str],
+            grant_results: List[bool]
+    ):
+        self.logger.debug(f'on_request_permissions_result, len={len(permissions)}, p={repr(permissions)}, g={repr(grant_results)}')
+        grant_result = None
+        try:
+            grant_result = grant_results[permissions.index(permission)]
+        except ValueError:
+            pass
+
+        if grant_result is not None:
+            self._permissions[permission] = grant_result
+
+        if permission_result_cb:
+            permission_result_cb(grant_result)
 
     def on_new_intent(self, intent):
         if not self._app_started:
