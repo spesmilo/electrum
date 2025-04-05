@@ -141,7 +141,9 @@ Item {
                 message: qsTr('Sweep transaction'),
                 showOptions: false,
                 amountLabelText: qsTr('Total sweep amount'),
-                sendButtonText: qsTr('Sweep')
+                sendButtonText: Daemon.currentWallet.isWatchOnly
+                    ? qsTr('Sweep...')
+                    : qsTr('Sweep')
             })
             finalizerDialog.accepted.connect(function() {
                 if (Daemon.currentWallet.isWatchOnly) {
@@ -225,7 +227,7 @@ Item {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
             icon.source: '../../icons/sweep.png'
             action: Action {
-                text: qsTr('Sweep key')
+                text: qsTr('Sweep key(s)')
                 onTriggered: {
                     startSweep()
                     menu.deselect()
