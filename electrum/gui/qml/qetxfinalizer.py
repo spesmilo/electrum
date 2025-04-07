@@ -380,7 +380,7 @@ class QETxFinalizer(TxFeeSlider):
         self._logger.debug(f'make_tx amount={amount}')
 
         if self.f_make_tx:
-            tx = self.f_make_tx(amount)
+            tx = self.f_make_tx(amount, self._fee_policy)
         else:
             # default impl
             coins = self._wallet.wallet.get_spendable_coins(None)

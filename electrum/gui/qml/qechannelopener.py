@@ -170,9 +170,8 @@ class QEChannelOpener(QObject, AuthMixin):
         self._logger.debug('amount = %s' % str(amount))
 
         coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
-        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
 
-        mktx = lambda amt: lnworker.mktx_for_open_channel(
+        mktx = lambda amt, fee_policy: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amt,
             node_id=self._node_pubkey,
