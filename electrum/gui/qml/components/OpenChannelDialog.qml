@@ -201,7 +201,6 @@ ElDialog {
                             if (activeFocus) {
                                 channelopener.amount.isMax = checked
                                 if (checked) {
-                                    maxAmountMessage.text = ''
                                     channelopener.updateMaxAmount()
                                 }
                             }
@@ -232,11 +231,12 @@ ElDialog {
                 Item { visible: Daemon.fx.enabled ; height: 1; width: 1 }
 
                 InfoTextArea {
+                    id: warning
                     Layout.topMargin: constants.paddingMedium
                     Layout.fillWidth: true
                     Layout.columnSpan: 3
-                    id: maxAmountMessage
-                    visible: is_max.checked && text
+                    text: channelopener.warning
+                    visible: text
                     compact: true
                 }
 
@@ -320,9 +320,6 @@ ElDialog {
             }
             // TODO: handle incomplete TX
             root.close()
-        }
-        onMaxAmountMessage: (message) => {
-            maxAmountMessage.text = message
         }
     }
 
