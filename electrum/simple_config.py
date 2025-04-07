@@ -900,9 +900,7 @@ def read_user_config(path: Optional[str]) -> Dict[str, Any]:
         with open(config_path, "r", encoding='utf-8') as f:
             data = f.read()
         result = json.loads(data)
-    except Exception as exc:
-        _logger.warning(f"Cannot read config file at {config_path}: {exc}")
-        return {}
-    if not type(result) is dict:
-        return {}
+        assert isinstance(result, dict), "config file is not a dict"
+    except Exception as e:
+        raise ValueError(f"Invalid config file at {config_path}: {str(e)}")
     return result
