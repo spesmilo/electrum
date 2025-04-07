@@ -62,7 +62,7 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -1433,13 +1433,13 @@ class LNWallet(LNWorker):
         tx.locktime = get_locktime_for_new_transaction(self.network, include_random_component=False)
         return tx
 
-    def suggest_funding_amount(self, amount_to_pay, coins):
+    def suggest_funding_amount(self, amount_to_pay, coins) -> Tuple[int, int] | None:
         """ whether we can pay amount_sat after opening a new channel"""
         num_sats_can_send = int(self.num_sats_can_send())
         lightning_needed = amount_to_pay - num_sats_can_send
         assert lightning_needed > 0
-        min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000 # safety margin
-        min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
+        min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000  # safety margin
+        min_funding_sat = max(min_funding_sat, MIN_FUNDING_SAT)  # at least MIN_FUNDING_SAT
         if min_funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             return
         fee_policy = FeePolicy(f'feerate:{FEERATE_FALLBACK_STATIC_FEE}')
