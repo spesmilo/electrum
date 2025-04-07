@@ -261,5 +261,6 @@ class QEChannelOpener(QObject, AuthMixin):
                     self.maxAmountMessage.emit(message)
             finally:
                 self._updating_max = False
+                self.validate()
 
         threading.Thread(target=calc_max, daemon=True).start()
