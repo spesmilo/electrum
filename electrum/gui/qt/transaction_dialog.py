@@ -905,7 +905,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 # 'amount' is zero for self-payments, so in that case we use sum-of-outputs
                 invoice_amt = abs(amount) if amount else self.tx.output_value()
                 fee_warning_tuple = self.wallet.get_tx_fee_warning(
-                    invoice_amt=invoice_amt, tx_size=size, fee=fee)
+                    invoice_amt=invoice_amt, tx_size=size, fee=fee, txid=self.tx.txid())
                 if fee_warning_tuple:
                     allow_send, long_warning, short_warning = fee_warning_tuple
                     fee_str += " - <font color={color}>{header}: {body}</font>".format(
