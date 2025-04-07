@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Dependencies:
+# $ sudo apt-get install python3-requests gettext qt6-l10n-tools
+
 import os
 import subprocess
 import sys
@@ -8,10 +11,31 @@ try:
 except ImportError as e:
     sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install --user <module-name>'")
 
-
+# set cwd
 project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-
 os.chdir(project_root)
+
+# check dependencies are available
+try:
+    subprocess.check_output(["xgettext", "--version"])
+    subprocess.check_output(["msgcat", "--version"])
+except (subprocess.CalledProcessError, OSError) as e2:
+    raise Exception("missing gettext. Maybe try 'apt install gettext'")
+
+QT_LUPDATE="lupdate"
+QT_LCONVERT="lconvert"
+try:
+    subprocess.check_output([QT_LUPDATE, "-version"])
+    subprocess.check_output([QT_LCONVERT, "-h"])
+except (subprocess.CalledProcessError, OSError) as e1:
+    QT_LUPDATE="/usr/lib/qt6/bin/lupdate"  # workaround qt5/qt6 confusion on ubuntu 22.04
+    QT_LCONVERT="/usr/lib/qt6/bin/lconvert"
+    try:
+        subprocess.check_output([QT_LUPDATE, "-version"])
+        subprocess.check_output([QT_LCONVERT, "-h"])
+    except (subprocess.CalledProcessError, OSError) as e2:
+        raise Exception("missing Qt lupdate/convert tools. Maybe try 'apt install qt6-l10n-tools'")
+
 
 cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
 files = subprocess.check_output(cmd, shell=True)
@@ -38,13 +62,13 @@ with open("electrum/locale/qml.lst", "wb") as f:
 
 print("Found {} QML files to translate".format(len(files.splitlines())))
 
-cmd = "lupdate @electrum/locale/qml.lst -ts electrum/locale/qml.ts"
+cmd = [QT_LUPDATE, "@electrum/locale/qml.lst","-ts", "electrum/locale/qml.ts"]
 print('Collecting strings')
-subprocess.check_output(cmd, shell=True)
+subprocess.check_output(cmd)
 
-cmd = "lconvert -of po -o electrum/locale/messages_qml.pot electrum/locale/qml.ts"
+cmd = [QT_LCONVERT, "-of", "po", "-o", "electrum/locale/messages_qml.pot", "electrum/locale/qml.ts"]
 print('Convert to gettext')
-subprocess.check_output(cmd, shell=True)
+subprocess.check_output(cmd)
 
 cmd = "msgcat -u -o electrum/locale/messages.pot electrum/locale/messages_gettext.pot electrum/locale/messages_qml.pot"
 print('Generate template')

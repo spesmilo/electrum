@@ -77,7 +77,7 @@ task:
     fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI
   install_script:
     - apt-get update
-    - apt-get -y install gettext qttools5-dev-tools
+    - apt-get -y install gettext qt6-l10n-tools
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
   locale_script:
