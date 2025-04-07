@@ -299,7 +299,7 @@ class TxFeeSlider(FeeSlider):
             if invoice_amt == 0:
                 invoice_amt = tx.output_value()
         fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
-            invoice_amt=invoice_amt, tx_size=tx.estimated_size(), fee=tx.get_fee())
+            invoice_amt=invoice_amt, tx_size=tx.estimated_size(), fee=tx.get_fee(), txid=tx.txid())
         if fee_warning_tuple:
             allow_send, long_warning, short_warning = fee_warning_tuple
             self.warning = _('Warning') + ': ' + long_warning

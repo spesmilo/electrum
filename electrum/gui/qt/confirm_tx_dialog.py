@@ -517,7 +517,7 @@ class TxEditor(WindowModalDialog):
         amount = self.tx.output_value() if self.output_value == '!' else self.output_value
         tx_size = self.tx.estimated_size()
         fee_warning_tuple = self.wallet.get_tx_fee_warning(
-            invoice_amt=amount, tx_size=tx_size, fee=fee)
+            invoice_amt=amount, tx_size=tx_size, fee=fee, txid=self.tx.txid())
         if fee_warning_tuple:
             allow_send, long_warning, short_warning = fee_warning_tuple
             if not allow_send:

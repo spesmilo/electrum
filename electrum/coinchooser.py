@@ -201,7 +201,10 @@ class CoinChooserBase(Logger):
         # Last change output.  Round down to maximum precision but lose
         # no more than 10**max_dp_to_round_for_privacy
         # e.g. a max of 2 decimal places means losing 100 satoshis to fees
-        max_dp_to_round_for_privacy = 2 if self.enable_output_value_rounding else 0
+        # don't round if the fee estimator is set to 0 fixed fee, so a 0 fee tx remains a 0 fee tx
+        is_zero_fee_tx = True if fee_estimator_numchange(1) == 0 else False
+        output_value_rounding = self.enable_output_value_rounding and not is_zero_fee_tx
+        max_dp_to_round_for_privacy = 2 if output_value_rounding else 0
         N = int(pow(10, min(max_dp_to_round_for_privacy, zeroes[0])))
         amount = (remaining // N) * N
         amounts.append(amount)

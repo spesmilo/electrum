@@ -3276,16 +3276,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self, *,
             invoice_amt: int,
             tx_size: int,
-            fee: int) -> Optional[Tuple[bool, str, str]]:
+            fee: int,
+            txid: Optional[str]) -> Optional[Tuple[bool, str, str]]:
 
         assert invoice_amt >= 0, f"{invoice_amt=!r} must be non-negative satoshis"
         assert fee >= 0, f"{fee=!r} must be non-negative satoshis"
+        is_future_tx = txid is not None and txid in self.adb.future_tx
         feerate = Decimal(fee) / tx_size  # sat/byte
         fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 0
         long_warning = None
         short_warning = None
         allow_send = True
-        if feerate < self.relayfee() / 1000:
+        if feerate < self.relayfee() / 1000 and not is_future_tx:
             long_warning = ' '.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server."),
                 _("Try to raise your transaction fee, or use a server with a lower relay fee.")
