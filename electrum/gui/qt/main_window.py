@@ -34,7 +34,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping
+from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping, Callable, List, Set
 import concurrent.futures
 
 from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
@@ -271,6 +271,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         # network callbacks
         self.register_callbacks()
+        # wallet closing warning callbacks
+        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
+        self.register_closing_warning_callback(self._check_ongoing_submarine_swaps_callback)
         # banner may already be there
         if self.network and self.network.banner:
             self.console.showMessage(self.network.banner)
@@ -2684,8 +2687,64 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
+    def _show_closing_warnings(self) -> bool:
+        """Show any closing warnings and return True if the user chose to quit anyway."""
+
+        warnings: Set[str] = set()
+        for cb in self.closing_warning_callbacks:
+            if warning := cb():
+                warnings.add(warning)
+
+        for warning in list(warnings)[:3]:
+                warning = _("An ongoing operation prevents Electrum from closing:") + "\n\n" + warning
+                result = self.question(
+                    msg=warning,
+                    icon=QMessageBox.Icon.Warning,
+                    title=_("Are you sure you want to close?"),
+                )
+                if not result:
+                    break
+        else:
+            # user chose to cancel all warnings or there were no warnings
+            return True
+        return False
+
+    def register_closing_warning_callback(self, callback: Callable[[], Optional[str]]) -> None:
+        """
+        Registers a callback that will be called when the wallet is closed. If the callback
+        returns a string it will be shown to the user as a warning to prevent them closing the wallet.
+        """
+        assert not asyncio.iscoroutinefunction(callback)
+        def warning_callback() -> Optional[str]:
+            try:
+                return callback()
+            except Exception:
+                self.logger.exception("Error in closing warning callback")
+                return None
+        self.logger.debug(f"registering wallet closing warning callback")
+        self.closing_warning_callbacks.append(warning_callback)
+
+    def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
+        """Callback that will return a warning string if there are unconfirmed swap funding txs."""
+        if not (self.wallet.has_lightning() and self.wallet.lnworker.swap_manager):
+            return None
+        if ongoing_swaps := self.wallet.lnworker.swap_manager.get_pending_swaps():
+            return "".join((
+                f"{str(len(ongoing_swaps))} ",
+                _("pending submarine swap") if len(ongoing_swaps) == 1 else _("pending submarine swaps"),
+                ":\n",
+                _("Wait until the funding transaction of your swap confirms, otherwise you risk losing your"),
+                " ",
+                _("funds") if any(not swap.is_reverse for swap in ongoing_swaps) else _("mining fee prepayment"),
+                ".",
+            ))
+        return None
+
     def closeEvent(self, event):
         # note that closeEvent is NOT called if the user quits with Ctrl-C
+        if not self._show_closing_warnings():
+            event.ignore()
+            return
         self.clean_up()
         event.accept()
 

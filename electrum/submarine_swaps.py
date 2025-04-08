@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import ssl
-from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple, Iterable
+from typing import TYPE_CHECKING, Optional, Dict, Sequence, Tuple, Iterable, List
 from decimal import Decimal
 import math
 import time
@@ -1279,6 +1279,16 @@ class SwapManager(Logger):
         if swap:
             return swap.spending_txid if swap.is_reverse else swap.funding_txid
 
+    def get_pending_swaps(self) -> List[SwapData]:
+        """Returns a list of swaps with unconfirmed funding tx (which require us to stay online)."""
+        pending_swaps: List[SwapData] = []
+        for swap in self.swaps.values():
+            if swap.funding_txid and not swap.is_redeemed:
+                # swap is funded but not marked redeemed by _claim_swap
+                if self.lnworker.wallet.adb.get_tx_height(swap.funding_txid).height < 1:
+                    # funding TX is not yet confirmed, wallet should not be closed
+                    pending_swaps.append(swap)
+        return pending_swaps
 
 class SwapServerTransport(Logger):
 
