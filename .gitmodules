@@ -1,5 +1,5 @@
-[submodule "contrib/deterministic-build/electrum-locale"]
-	path = contrib/deterministic-build/electrum-locale
+[submodule "electrum/locale"]
+	path = electrum/locale
 	url = https://github.com/spesmilo/electrum-locale
 [submodule "electrum/www"]
 	path = electrum/plugins/payserver/www

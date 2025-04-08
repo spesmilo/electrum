@@ -140,9 +140,12 @@ info "preparing electrum-locale."
     git submodule update --init
 
     LOCALE="$PROJECT_ROOT/electrum/locale/"
+    cd "$LOCALE"
+    git clean -ffxd
+    git reset --hard
+    "$CONTRIB/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$LOCALE"
-    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+    rm -r locale/*/electrum.po
 )
 
 
