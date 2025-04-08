@@ -31,6 +31,7 @@ import weakref
 import csv
 from decimal import Decimal
 import base64
+from email.policy import default
 from functools import partial
 import queue
 import asyncio
@@ -2619,8 +2620,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
+    def _show_closing_warnings(self) -> bool:
+        """Show any closing warnings and return True if the user chose to quit anyways."""
+        for callback in self.wallet.closing_warning_callbacks:
+            try:
+                warning: Optional[str] = callback()
+            except Exception:
+                self.logger.exception("Closing warning callback failed: ")
+                continue
+            if warning:
+                warning = _("An ongoing operation prevents Electrum from closing:") + "\n\n" + warning
+                buttons = QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Close
+                result = self.show_warning(
+                    msg=warning,
+                    title=_("Don't close Electrum yet!"),
+                    buttons=buttons,
+                    defaultButton=QMessageBox.StandardButton.Cancel,
+                )
+                if result == QMessageBox.StandardButton.Cancel:
+                    break
+        else:
+            # user chose to cancel all warnings or there were no warnings
+            return True
+        return False
+
     def closeEvent(self, event):
         # note that closeEvent is NOT called if the user quits with Ctrl-C
+        if not self._show_closing_warnings():
+            event.ignore()
+            return
         self.clean_up()
         event.accept()
 
@@ -2809,7 +2837,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if is_reverse:
                 msg += messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL
             else:
-                msg += messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL
+                msg += messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL + messages.MSG_FORWARD_SWAP_HTLC_EXPIRY
+
+            def wallet_closing_warning_callback() -> Optional[str]:
+                # gets called when the wallet GUI is closed
+                warning = messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL if is_reverse \
+                    else messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL
+                if self.wallet.adb.get_tx_height(txid).height < 1:
+                    return _("Ongoing submarine swap") + ": " + warning
+            self.wallet.register_closing_warning_callback(wallet_closing_warning_callback)
+
             self.show_message_signal.emit(msg)
         else:
             msg += _("Lightning funds were not received.")  # FIXME should this not depend on is_reverse?

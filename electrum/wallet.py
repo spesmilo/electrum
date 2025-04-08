@@ -34,7 +34,8 @@ import math
 from functools import partial
 from collections import defaultdict
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
+from typing import (TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence,
+                    Dict, Any, Set, Iterable, Mapping, Callable)
 from abc import ABC, abstractmethod
 import itertools
 import threading
@@ -401,6 +402,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
         self._password_in_memory = None  # see self.unlock
+        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
         Logger.__init__(self)
 
         self.network = None
@@ -3455,6 +3457,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.logger.info(f'added future tx: {name}. prevout: {prevout}')
         util.trigger_callback('wallet_updated', self)
         self.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
+
+    def register_closing_warning_callback(self, callback: Callable[[], Optional[str]]) -> None:
+        """
+        Registers a callback that will be called when the wallet is closed. If the callback
+        returns a string it will be shown to the user as a warning to prevent them closing the wallet.
+        """
+        if not self.config.get("cmd") == "gui":
+            return
+        self.logger.debug(f"registering wallet closing warning callback")
+        self.closing_warning_callbacks.append(callback)
 
 
 class Simple_Wallet(Abstract_Wallet):
