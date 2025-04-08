@@ -34,7 +34,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping
+from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping, Callable, List, Set
 import concurrent.futures
 
 from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
@@ -267,6 +267,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         # network callbacks
         self.register_callbacks()
+        # wallet closing warning callbacks
+        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
         # banner may already be there
         if self.network and self.network.banner:
             self.console.showMessage(self.network.banner)
@@ -2612,8 +2614,52 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
+    def _show_closing_warnings(self) -> bool:
+        """Show any closing warnings and return True if the user chose to quit anyway."""
+
+        warnings: Set[str] = set()
+        for cb in self.closing_warning_callbacks:
+            if warning := cb():
+                warnings.add(warning)
+
+        for warning in list(warnings)[:3]:
+                warning = _("An ongoing operation prevents Electrum from closing:") + "\n\n" + warning
+                buttons = QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Close
+                result = self.show_warning(
+                    msg=warning,
+                    title=_("Don't close Electrum yet!"),
+                    buttons=buttons,
+                    defaultButton=QMessageBox.StandardButton.Cancel,
+                )
+                if result == QMessageBox.StandardButton.Cancel:
+                    break
+        else:
+            # user chose to cancel all warnings or there were no warnings
+            return True
+        return False
+
+    def register_closing_warning_callback(self, callback: Callable[[], Optional[str]]) -> None:
+        """
+        Registers a callback that will be called when the wallet is closed. If the callback
+        returns a string it will be shown to the user as a warning to prevent them closing the wallet.
+        """
+        assert not asyncio.iscoroutinefunction(callback)
+        if not self.config.get("cmd") == "gui":
+            return
+        def warning_callback() -> Optional[str]:
+            try:
+                return callback()
+            except Exception:
+                self.logger.exception("Error in closing warning callback")
+                return None
+        self.logger.debug(f"registering wallet closing warning callback")
+        self.closing_warning_callbacks.append(warning_callback)
+
     def closeEvent(self, event):
         # note that closeEvent is NOT called if the user quits with Ctrl-C
+        if not self._show_closing_warnings():
+            event.ignore()
+            return
         self.clean_up()
         event.accept()
 
@@ -2797,7 +2843,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if is_reverse:
                 msg += messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL
             else:
-                msg += messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL
+                msg += messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL + messages.MSG_FORWARD_SWAP_HTLC_EXPIRY
+
+            def wallet_closing_warning_callback() -> Optional[str]:
+                # gets called when the wallet GUI is closed
+                warning = messages.MSG_REVERSE_SWAP_FUNDING_MEMPOOL if is_reverse \
+                    else messages.MSG_FORWARD_SWAP_FUNDING_MEMPOOL
+                if self.wallet.adb.get_tx_height(txid).height < 1:
+                    return _("Ongoing submarine swap") + ":\n" + warning
+            self.register_closing_warning_callback(wallet_closing_warning_callback)
+
             self.show_message_signal.emit(msg)
         else:
             msg += _("Lightning funds were not received.")  # FIXME should this not depend on is_reverse?
