@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Optional, Dict, Union, Sequence, Tuple, Iterab
 from decimal import Decimal
 import math
 import time
-import concurrent.futures
 
 import attr
 import aiohttp
@@ -28,7 +27,7 @@ from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Tr
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
                    gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector,
-                   get_running_loop, get_asyncio_loop, wait_for2)
+                   get_running_loop, get_asyncio_loop, wait_for2, run_sync_function_on_asyncio_thread)
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -953,19 +952,12 @@ class SwapManager(Logger):
         self.trigger_pairs_updated_threadsafe()
 
     def trigger_pairs_updated_threadsafe(self):
-        future = concurrent.futures.Future()
         def trigger():
             self.is_initialized.set()
             self.pairs_updated.set()
             self.pairs_updated.clear()
-            future.set_result(None)
-        asyncio_loop = get_asyncio_loop()
-        if get_running_loop() == asyncio_loop:
-            trigger()  # this is running on the asyncio event loop
-        else:
-            asyncio_loop.call_soon_threadsafe(trigger)
-            # block until the event loop has run the trigger function
-            _ = future.result()
+
+        run_sync_function_on_asyncio_thread(trigger, block=True)
 
     def server_maybe_trigger_liquidity_update(self) -> None:
         """
