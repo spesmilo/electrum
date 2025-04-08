@@ -490,8 +490,10 @@ class TxEditor(WindowModalDialog):
             elif self.can_pay_assuming_zero_fees(confirmed_only=confirmed_only):
                 self.error += ' ' + _('You need to set a lower fee.')
             elif frozen_bal := self.wallet.get_frozen_balance_str():
-                # FIXME only show if unfreezing would fix "not enough funds"
-                self.error += ' ' + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
+                self.error = self.wallet.get_text_not_enough_funds_mentioning_frozen(
+                    for_amount=self.output_value,
+                    hint=_('Can be unfrozen in the Addresses or in the Coins tab')
+                )
         if not self.tx:
             if self.not_enough_funds:
                 self.io_widget.update(None)

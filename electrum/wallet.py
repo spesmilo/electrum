@@ -3417,11 +3417,28 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_unlocked_password(self):
         return self._password_in_memory
 
-    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+    def get_text_not_enough_funds_mentioning_frozen(
+            self,
+            *,
+            for_amount: Optional[Union[int, str]] = None,
+            hint: Optional[str] = None
+    ) -> str:
+        """Generate 'Not enough funds' text.
+        Include mention of frozen coins (and append optional hint), iff unfreezing would satisfy for_amount
+        """
         text = _('Not enough funds')
-        frozen_str = self.get_frozen_balance_str()
-        if frozen_str:
-            text += ' ' + _('({} are frozen)').format(frozen_str)
+        if for_amount is not None:
+            if frozen_bal := sum(self.get_frozen_balance()):
+                frozen_str = None
+                if isinstance(for_amount, int):
+                    if frozen_bal + self.get_spendable_balance_sat() > for_amount:
+                        frozen_str = self.config.format_amount_and_units(frozen_bal)
+                elif for_amount == '!':
+                    frozen_str = self.config.format_amount_and_units(frozen_bal)
+                if frozen_str:
+                    text = _('Not enough funds') + " " + _('({} are frozen)').format(frozen_str)
+                if hint:
+                    text += '. ' + hint
         return text
 
     def get_frozen_balance_str(self) -> Optional[str]:

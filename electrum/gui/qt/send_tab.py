@@ -267,7 +267,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 tx = make_tx(FixedFeePolicy(0))
         except NotEnoughFunds as e:
             self.max_button.setChecked(False)
-            text = self.wallet.get_text_not_enough_funds_mentioning_frozen()
+            text = self.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount='!')
             self.show_error(text)
             return
 

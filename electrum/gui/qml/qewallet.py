@@ -851,6 +851,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             amount = tx.output_value()
         except NotEnoughFunds as e:
             self._logger.debug(str(e))
-            message = self.wallet.get_text_not_enough_funds_mentioning_frozen()
+            message = self.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount='!')
 
         return amount, message
