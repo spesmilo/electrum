@@ -31,7 +31,7 @@ from .logging import get_logger
 
 
 _logger = get_logger(__name__)
-LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
+LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale', 'locale')
 
 # Set initial default language to None. i.e. translations explicitly disabled.
 # The main script or GUIs can call set_language to enable translations.
