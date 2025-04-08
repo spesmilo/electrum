@@ -271,6 +271,23 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        spacing: 0
+                        Switch {
+                            id: freezeReusedAddressUtxos
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.freezeReusedAddressUtxos = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: Config.shortDescFor('WALLET_FREEZE_REUSED_ADDRESS_UTXOS')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Lightning')
@@ -441,6 +458,7 @@ Pane {
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
         fiatEnable.checked = Daemon.fx.enabled
         spendUnconfirmed.checked = Config.spendUnconfirmed
+        freezeReusedAddressUtxos.checked = Config.freezeReusedAddressUtxos
         useTrampolineRouting.checked = !Config.useGossip
         enableDebugLogs.checked = Config.enableDebugLogs
         alwaysAllowScreenshots.checked = Config.alwaysAllowScreenshots

@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
+from .qeconfig import QEConfig
 
 from .qetypes import QEAmount
 from .util import qt_event_listener, QtEventListener
@@ -121,6 +122,8 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
+
+        QEConfig.instance.freezeReusedAddressUtxosChanged.connect(lambda: self.setDirty())
 
         self._dirty = True
         self.initModel()
