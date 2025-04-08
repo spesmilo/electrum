@@ -1684,7 +1684,7 @@ def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
     - "asyncio.create_task"
     - "loop.create_task"
     - "asyncio.ensure_future"
-    - what about "asyncio.run_coroutine_threadsafe"? not sure if that is safe.
+    - "asyncio.run_coroutine_threadsafe"
 
     related:
         - https://bugs.python.org/issue44665
@@ -1858,7 +1858,6 @@ class CallbackManager(Logger):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
-        self._running_cb_futs = set()
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1883,11 +1882,8 @@ class CallbackManager(Logger):
         for callback in callbacks:
             if asyncio.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
-                # keep strong references around to avoid GC issues:
-                self._running_cb_futs.add(fut)
                 def on_done(fut_: concurrent.futures.Future):
                     assert fut_.done()
-                    self._running_cb_futs.remove(fut_)
                     if fut_.cancelled():
                         self.logger.debug(f"cb cancelled. {event=}.")
                     elif exc := fut_.exception():

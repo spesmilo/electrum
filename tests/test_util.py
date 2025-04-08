@@ -482,20 +482,30 @@ class TestUtil(ElectrumTestCase):
         async def foo():
             await evt.wait()
 
+        # spawn tasks
         fut = asyncio.ensure_future(foo())
         self.assertTrue(fut in util._running_asyncio_tasks)
         fut = asyncio.create_task(foo())
         self.assertTrue(fut in util._running_asyncio_tasks)
         fut = loop.create_task(foo())
         self.assertTrue(fut in util._running_asyncio_tasks)
-        #fut = asyncio.run_coroutine_threadsafe(foobar(), loop=loop)
+        fut = asyncio.run_coroutine_threadsafe(foo(), loop=loop)
+        # run_coroutine_threadsafe will create a different (chained) future in _running_asyncio_tasks
+        # (which btw will only happen a few event loop iterations later)
         #self.assertTrue(fut in util._running_asyncio_tasks)
 
+        # wait a few event loop iterations
+        for _ in range(10):
+            await asyncio.sleep(0)
         # we should have stored one ref for each above.
         # (though what if test framework is doing stuff ~concurrently?)
-        self.assertEqual(3, len(util._running_asyncio_tasks))
+        self.assertEqual(4, len(util._running_asyncio_tasks))
+        for task in util._running_asyncio_tasks:
+            self.assertEqual(foo().__qualname__, task.get_coro().__qualname__)
+        # let tasks finish
         evt.set()
-        for _ in range(10):  # wait a few event loop iterations
+        # wait a few event loop iterations
+        for _ in range(10):
             await asyncio.sleep(0)
         # refs should be cleaned up by now:
         self.assertEqual(0, len(util._running_asyncio_tasks))
