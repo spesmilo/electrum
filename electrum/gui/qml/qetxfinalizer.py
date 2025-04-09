@@ -402,9 +402,10 @@ class QETxFinalizer(TxFeeSlider):
 
         try:
             # make unsigned transaction
-            tx = self.make_tx(amount='!' if self._amount.isMax else self._amount.satsInt)
+            amount = '!' if self._amount.isMax else self._amount.satsInt
+            tx = self.make_tx(amount=amount)
         except NotEnoughFunds:
-            self.warning = _("Not enough funds")
+            self.warning = self._wallet.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount=amount)
             self._valid = False
             self.validChanged.emit()
             return
