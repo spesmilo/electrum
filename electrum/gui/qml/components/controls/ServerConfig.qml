@@ -28,6 +28,7 @@ Item {
             visible: showAutoselectServer
             text: qsTr('Select server automatically')
             checked: !showAutoselectServer
+            enabled: !one_server_cb.checked
         }
 
         Label {

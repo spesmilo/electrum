@@ -390,23 +390,29 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 1, 4)
 
+        self.one_server_cb = QCheckBox(_('One server'))
+        self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable())
+        msg = _("Connect only to a single Electrum Server. This can help with privacy, but at the cost of detecting lagging and forks")
+        grid.addWidget(self.one_server_cb, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(msg), 2, 4)
+
         self.server_e = QLineEdit()
         self.server_e.editingFinished.connect(self.on_server_settings_changed)
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
-        grid.addWidget(self.server_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(QLabel(_('Server') + ':'), 3, 0)
+        grid.addWidget(self.server_e, 3, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 3, 4)
 
         msg = _('This is the height of your local copy of the blockchain.')
         self.height_label_header = QLabel(_('Blockchain') + ':')
         self.height_label = QLabel('')
         self.height_label_helpbutton = HelpButton(msg)
-        grid.addWidget(self.height_label_header, 3, 0)
-        grid.addWidget(self.height_label, 3, 1)
-        grid.addWidget(self.height_label_helpbutton, 3, 4)
+        grid.addWidget(self.height_label_header, 4, 0)
+        grid.addWidget(self.height_label, 4, 1)
+        grid.addWidget(self.height_label_helpbutton, 4, 4)
 
         self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 4, 0, 1, 3)
+        grid.addWidget(self.split_label, 5, 0, 1, 3)
 
         self.layout().addLayout(grid)
 
