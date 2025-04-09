@@ -121,6 +121,8 @@ class QEWalletListModel(QAbstractListModel):
 
 
 class QEDaemon(AuthMixin, QObject):
+    instance = None  # type: Optional[QEDaemon]
+
     _logger = get_logger(__name__)
 
     _available_wallets = None
@@ -149,6 +151,9 @@ class QEDaemon(AuthMixin, QObject):
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
+        if QEDaemon.instance:
+            raise RuntimeError('There should only be one QEDaemon instance')
+        QEDaemon.instance = self
         self.daemon = daemon
         self.plugins = plugins
         self.qefx = QEFX(daemon.fx, daemon.config)

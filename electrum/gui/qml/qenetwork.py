@@ -9,10 +9,10 @@ from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
+from .qeconfig import QEConfig
 from .qeserverlistmodel import QEServerListModel
 
 if TYPE_CHECKING:
-    from .qeconfig import QEConfig
     from electrum.network import Network
 
 
@@ -49,18 +49,17 @@ class QENetwork(QObject, QtEventListener):
     _gossipDbChannels = 0
     _gossipDbPolicies = 0
 
-    def __init__(self, network: 'Network', qeconfig: 'QEConfig', parent=None):
+    def __init__(self, network: 'Network', parent=None):
         super().__init__(parent)
         assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
-        self._qeconfig = qeconfig
         self._serverListModel = None
         self._height = network.get_local_height()  # init here, update event can take a while
         self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-        self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
+        QEConfig.instance.useGossipChanged.connect(self.on_gossip_setting_changed)
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -172,7 +171,7 @@ class QENetwork(QObject, QtEventListener):
     def on_gossip_setting_changed(self):
         if not self.network:
             return
-        if self._qeconfig.useGossip:
+        if QEConfig.instance.useGossip:
             self.network.start_gossip()
         else:
             self.network.run_from_another_thread(self.network.stop_gossip())
@@ -198,7 +197,7 @@ class QENetwork(QObject, QtEventListener):
                 raise Exception('failed to parse')
         except Exception:
             return
-        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect)
+        net_params = net_params._replace(server=server, auto_connect=QEConfig.instance.autoConnect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)
