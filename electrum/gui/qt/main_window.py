@@ -1225,8 +1225,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         sm = self.wallet.lnworker.swap_manager
         if not sm.is_initialized.is_set():
             async def wait_until_initialized():
+                timeout = transport.connect_timeout + 1
                 try:
-                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=5)
+                    await asyncio.wait_for(sm.is_initialized.wait(), timeout=timeout)
                 except asyncio.TimeoutError:
                     return
             try:

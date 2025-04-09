@@ -1268,6 +1268,7 @@ class SwapServerTransport(Logger):
         self.network = sm.network
         self.config = config
         self.is_connected = asyncio.Event()
+        self.connect_timeout = 10 if self.uses_proxy else 5
 
     def __enter__(self):
         pass
@@ -1280,6 +1281,10 @@ class SwapServerTransport(Logger):
 
     async def get_pairs(self) -> None:
         pass
+
+    @property
+    def uses_proxy(self):
+        return self.network.proxy and self.network.proxy.enabled
 
 
 class HttpTransport(SwapServerTransport):
@@ -1403,7 +1408,7 @@ class NostrTransport(SwapServerTransport):
     def get_relay_manager(self):
         assert get_running_loop() == get_asyncio_loop(), f"this must be run on the asyncio thread!"
         if not self.relay_manager:
-            if self.network.proxy and self.network.proxy.enabled:
+            if self.uses_proxy:
                 proxy = make_aiohttp_proxy_connector(self.network.proxy, self.ssl_context)
             else:
                 proxy: Optional['ProxyConnector'] = None
@@ -1412,7 +1417,9 @@ class NostrTransport(SwapServerTransport):
                 private_key=self.nostr_private_key,
                 log=self.logger,
                 ssl_context=self.ssl_context,
-                proxy=proxy)
+                proxy=proxy,
+                connect_timeout=self.connect_timeout
+            )
         return self.relay_manager
 
     def get_offer(self, pubkey):
