@@ -1412,10 +1412,12 @@ class NostrTransport(SwapServerTransport):
                 proxy = make_aiohttp_proxy_connector(self.network.proxy, self.ssl_context)
             else:
                 proxy: Optional['ProxyConnector'] = None
+            nostr_logger = self.logger.getChild('aionostr')
+            nostr_logger.setLevel('INFO')  # DEBUG is very verbose with aionostr
             return aionostr.Manager(
                 self.relays,
                 private_key=self.nostr_private_key,
-                log=self.logger,
+                log=nostr_logger,
                 ssl_context=self.ssl_context,
                 proxy=proxy,
                 connect_timeout=self.connect_timeout
