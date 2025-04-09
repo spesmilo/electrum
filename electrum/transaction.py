@@ -2258,6 +2258,7 @@ class PartialTransaction(Transaction):
                         txout = outputs[txin_index]
                     except IndexError:
                         raise Exception("Using SIGHASH_SINGLE without a corresponding output") from None
+                    # note: we could cache this to avoid some potential DOS vectors:
                     preimage_outputdata += sha256(txout.serialize_to_network())
                 return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata + preimage_outputdata)
             else:  # segwit (witness v0)
@@ -2273,6 +2274,7 @@ class PartialTransaction(Transaction):
                 if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
                     hashOutputs = scache.hashOutputs
                 elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
+                    # note: we could cache this to avoid some potential DOS vectors:
                     hashOutputs = sha256d(outputs[txin_index].serialize_to_network())
                 else:
                     hashOutputs = bytes(32)
