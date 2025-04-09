@@ -103,13 +103,10 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
         self.plugin = plugin
         self.register_callbacks()
 
-        self.pending = None
-
     @event_listener
-    def on_event_psbt_nostr_received(self, wallet, pubkey, event, tx: 'PartialTransaction'):
+    def on_event_psbt_nostr_received(self, wallet, pubkey, event_id, tx: 'PartialTransaction'):
         if self.wallet == wallet:
-            self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event, tx.serialize())
-            self.on_receive(pubkey, event, tx)
+            self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize())
 
     def close(self):
         super().close()
@@ -133,11 +130,5 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
         except Exception as e:
             self.plugin.so.sendPsbtFailed.emit(str(e))
 
-    def on_receive(self, pubkey, event_id, tx):
-        self.pending = (pubkey, event_id, tx)
-
-    def accept_psbt(self, my_event_id):
-        pubkey, event_id, tx = self.pending
-        if event_id == my_event_id:
-            self.mark_event_rcvd(event_id)
-            self.pending = None
+    def accept_psbt(self, event_id):
+        self.mark_pending_event_rcvd(event_id)

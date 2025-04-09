@@ -79,11 +79,14 @@ class CosignerWallet(Logger):
     def __init__(self, wallet: 'Multisig_Wallet'):
         assert isinstance(wallet, Multisig_Wallet)
         self.wallet = wallet
-        self.network = wallet.network
-        self.config = self.wallet.config
 
         Logger.__init__(self)
+
+        self.network = wallet.network
+        self.config = self.wallet.config
+        self.pending = asyncio.Event()
         self.known_events = wallet.db.get_dict('cosigner_events')
+
         for k, v in list(self.known_events.items()):
             if v < now() - self.KEEP_DELAY:
                 self.logger.info(f'deleting old event {k}')
@@ -189,6 +192,8 @@ class CosignerWallet(Logger):
                     return
                 self.logger.info(f"received PSBT from {event.pubkey}")
                 trigger_callback('psbt_nostr_received', self.wallet, event.pubkey, event.id, tx)
+                await self.pending.wait()
+                self.pending.clear()
 
     def diagnostic_name(self):
         return self.wallet.diagnostic_name()
@@ -203,8 +208,10 @@ class CosignerWallet(Logger):
         #      note that tx could also be unrelated from wallet?... (not ismine inputs)
         return True
 
-    def mark_event_rcvd(self, event_id):
+    def mark_pending_event_rcvd(self, event_id):
+        self.logger.debug('marking event rcvd')
         self.known_events[event_id] = now()
+        self.pending.set()
 
     def prepare_messages(self, tx: Union[Transaction, PartialTransaction]) -> List[Tuple[str, str]]:
         messages = []
@@ -223,3 +230,19 @@ class CosignerWallet(Logger):
 
     def on_receive(self, pubkey, event_id, tx):
         raise NotImplementedError()
+
+    def add_transaction_to_wallet(self, tx, *, on_failure=None, on_success=None):
+        try:
+            # TODO: adding tx should be handled more gracefully here:
+            # 1) don't replace tx with same tx with less signatures
+            # 2) we could combine signatures if tx will become more complete
+            # 3) ... more heuristics?
+            if not self.wallet.adb.add_transaction(tx):
+                # TODO: instead of bool return value, we could use specific fail reason exceptions here
+                raise Exception('transaction was not added')
+        except Exception as e:
+            if on_failure:
+                on_failure(str(e))
+        else:
+            if on_success:
+                on_success()

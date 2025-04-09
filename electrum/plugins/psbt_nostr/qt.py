@@ -34,12 +34,13 @@ from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, event_listener, EventListener
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
 
-from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
+from .psbt_nostr import PsbtNostrPlugin, CosignerWallet, now
 
 if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumGui
     from electrum.gui.qt.main_window import ElectrumWindow
 
+USER_PROMPT_COOLDOWN = 10
 
 class QReceiveSignalObject(QObject):
     cosignerReceivedPsbt = pyqtSignal(str, str, object)
@@ -89,6 +90,7 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         self.obj = QReceiveSignalObject()
         self.obj.cosignerReceivedPsbt.connect(self.on_receive)
         self.register_callbacks()
+        self.user_prompt_cooldown = None
 
     def close(self):
         super().close()
@@ -101,7 +103,7 @@ class QtCosignerWallet(EventListener, CosignerWallet):
 
     def hook_transaction_dialog(self, d: 'TxDialog'):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.send_psbt(d.tx))
+        b.clicked.connect(lambda: self.send_to_cosigners(d.tx))
         d.buttons.insert(0, b)
         b.setVisible(False)
 
@@ -116,6 +118,14 @@ class QtCosignerWallet(EventListener, CosignerWallet):
                 break
         else:
             d.cosigner_send_button.setVisible(False)
+
+    def send_to_cosigners(self, tx):
+        def ok():
+            self.logger.debug('ADDED')
+        def nok(msg: str):
+            self.logger.debug(f'NOT ADDED: {msg}')
+        self.add_transaction_to_wallet(tx, on_success=ok, on_failure=nok)
+        self.send_psbt(tx)
 
     def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
         if not messages:
@@ -136,10 +146,17 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + txid)
 
     def on_receive(self, pubkey, event_id, tx):
-        window = self.window
-        if not window.question(
-                _("An transaction was received from your cosigner.") + '\n' +
-                _("Do you want to open it now?")):
-            return
-        self.mark_event_rcvd(event_id)
-        show_transaction(tx, parent=window, prompt_if_unsaved=True)
+        open_now = False
+        if not (self.user_prompt_cooldown and self.user_prompt_cooldown > now()):
+            open_now = self.window.question(
+                    _("A transaction was received from your cosigner ({}).").format(str(event_id)[0:8]) + '\n' +
+                    _("Do you want to open it now?"))
+            if not open_now:
+                self.user_prompt_cooldown = now() + USER_PROMPT_COOLDOWN
+        self.mark_pending_event_rcvd(event_id)
+        self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
+        if open_now:
+            show_transaction(tx, parent=self.window, prompt_if_unsaved=True)
+
+    def on_add_fail(self, msg: str):
+        self.window.show_error(msg)
