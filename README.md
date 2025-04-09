@@ -151,3 +151,5 @@ Besides [GitHub](https://github.com/spesmilo/electrum),
 most communication about Electrum development happens on IRC, in the
 `#electrum` channel on Libera Chat. The easiest way to participate on IRC is
 with the web client, [web.libera.chat](https://web.libera.chat/#electrum).
+
+Please improve translations on [Crowdin](https://crowdin.com/project/electrum).
