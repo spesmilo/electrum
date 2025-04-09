@@ -123,7 +123,13 @@ def check_reverse_redeem_script(
 
 
 class SwapServerError(Exception):
+    def __init__(self, message=None):
+        self.message = message
+        super().__init__(message)
+
     def __str__(self):
+        if self.message:
+            return self.message
         return _("The swap server errored or is unreachable.")
 
 def now():
@@ -803,6 +809,10 @@ class SwapManager(Logger):
     async def request_swap_for_amount(self, transport, onchain_amount) -> Optional[Tuple[SwapData, str]]:
         await self.is_initialized.wait()
         lightning_amount_sat = self.get_recv_amount(onchain_amount, is_reverse=False)
+        if lightning_amount_sat is None:
+            raise SwapServerError(_("Swap amount outside of providers limits") + ":\n"
+                                  + _("min") + f": {self.get_min_amount()}\n"
+                                  + _("max") + f": {self.get_max_amount()}")
         swap, invoice = await self.request_normal_swap(
             transport,
             lightning_amount_sat=lightning_amount_sat,
@@ -1495,6 +1505,9 @@ class NostrTransport(SwapServerTransport):
         server_pubkey = self.config.SWAPSERVER_NPUB
         event_id = await self.send_direct_message(server_pubkey, json.dumps(request_data))
         response = await self.dm_replies[event_id]
+        if 'error' in response:
+            self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
+            raise SwapServerError()
         return response
 
     async def get_pairs(self):
@@ -1593,7 +1606,15 @@ class NostrTransport(SwapServerTransport):
             if 'reply_to' in content:
                 self.dm_replies[content['reply_to']].set_result(content)
             elif self.sm.is_server and 'method' in content:
-                await self.handle_request(content)
+                try:
+                    await self.handle_request(content)
+                except Exception as e:
+                    self.logger.exception(f"failed to handle request: {content}")
+                    error_response = json.dumps({
+                        "error": str(e)[:100],
+                        "reply_to": event.id,
+                    })
+                    await self.send_direct_message(event.pubkey,[], error_response)
             else:
                 self.logger.info(f'unknown message {content}')
 
