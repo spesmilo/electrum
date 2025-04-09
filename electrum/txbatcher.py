@@ -6,11 +6,14 @@ from typing import Dict, Sequence
 from . import util
 from .bitcoin import dust_threshold
 from .logging import Logger
-from .util import log_exceptions, NotEnoughFunds, BelowDustLimit
+from .util import log_exceptions, NotEnoughFunds, BelowDustLimit, NoDynamicFeeEstimates
 from .transaction import PartialTransaction, PartialTxOutput, Transaction
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .lnsweep import SweepInfo
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .wallet import Abstract_Wallet
 
 # This class batches outgoing payments and incoming utxo sweeps.
 # It ensures that we do not send a payment twice.
@@ -80,7 +83,7 @@ class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
 
-    def __init__(self, wallet):
+    def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = wallet.db.get_stored_item("tx_batches", {})
@@ -139,6 +142,8 @@ class TxBatcher(Logger):
             await asyncio.sleep(self.SLEEP_INTERVAL)
             password = self.wallet.get_unlocked_password()
             if self.wallet.has_keystore_encryption() and not password:
+                continue
+            if not (self.wallet.network and self.wallet.network.is_connected()):
                 continue
             for key, txbatch in list(self.tx_batches.items()):
                 try:
@@ -286,7 +291,7 @@ class TxBatch(Logger):
         if not self.is_mine(base_tx.txid()):
             return False
         base_tx_fee = base_tx.get_fee()
-        recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), network=self.wallet.network, allow_fallback_to_static_rates=True)
+        recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), network=self.wallet.network)
         should_bump_fee = base_tx_fee * 1.1 < recommended_fee
         if should_bump_fee:
             self.logger.info(f'base tx fee too low {base_tx_fee} < {recommended_fee}. we will bump the fee')
@@ -307,6 +312,9 @@ class TxBatch(Logger):
         # if base tx has been RBF-replaced, detect it here
         try:
             tx = self.create_next_transaction(base_tx, password)
+        except NoDynamicFeeEstimates:
+            self.logger.debug('no dynamic fee estimates available')
+            return
         except Exception as e:
             if base_tx:
                 self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
