@@ -9,8 +9,8 @@ from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, UserFacingException
 
-from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
-from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWXPub, WCHWUnlock
 

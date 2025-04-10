@@ -10,8 +10,8 @@ from electrum.plugin import hook
 from electrum.util import UserCancelled, UserFacingException
 
 from .bitbox02 import BitBox02Plugin
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub
 from electrum.gui.qt.util import WindowModalDialog, OkButton, ButtonsTextEdit

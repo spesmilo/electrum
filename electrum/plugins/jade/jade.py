@@ -14,8 +14,8 @@ from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, Device
 from electrum.network import Network
 
-from electrum.plugins.hw_wallet import HW_PluginBase, HardwareClientBase
-from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum.hw_wallet import HW_PluginBase, HardwareClientBase
+from electrum.hw_wallet.plugin import OutdatedHwFirmwareException
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo

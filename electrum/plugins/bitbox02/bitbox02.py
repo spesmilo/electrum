@@ -21,7 +21,7 @@ from electrum.bitcoin import OnchainOutputType
 
 import electrum.bitcoin as bitcoin
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+from electrum.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
 if TYPE_CHECKING:
     from electrum.wizard import NewWalletWizard

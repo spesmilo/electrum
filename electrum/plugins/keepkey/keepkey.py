@@ -9,8 +9,8 @@ from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
 from electrum.keystore import Hardware_KeyStore
 from electrum.plugin import Device, runs_in_hwd_thread
 
-from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
+from electrum.hw_wallet import HW_PluginBase
+from electrum.hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
 
 if TYPE_CHECKING:
     import usb1

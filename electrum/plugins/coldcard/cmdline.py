@@ -2,7 +2,7 @@ from electrum.plugin import hook
 from electrum.util import print_msg, raw_input, print_stderr
 from electrum.logging import get_logger
 
-from ..hw_wallet.cmdline import CmdLineHandler
+from electrum.hw_wallet.cmdline import CmdLineHandler
 
 from .coldcard import ColdcardPlugin
 

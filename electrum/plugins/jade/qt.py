@@ -7,8 +7,8 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet
 
-from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
-from electrum.plugins.hw_wallet import plugin
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet import plugin
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWXPub, WCHWUninitialized
 
 from .jade import JadePlugin

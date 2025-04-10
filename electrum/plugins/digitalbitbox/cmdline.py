@@ -1,6 +1,6 @@
 from electrum.plugin import hook
 from .digitalbitbox import DigitalBitboxPlugin
-from ..hw_wallet import CmdLineHandler
+from electrum.hw_wallet import CmdLineHandler
 
 class Plugin(DigitalBitboxPlugin):
     handler = CmdLineHandler()
