@@ -75,14 +75,13 @@ class QEAppController(BaseCrashReporter, QObject):
     secureWindowChanged = pyqtSignal()
     wantCloseChanged = pyqtSignal()
 
-    def __init__(self, qeapp: 'ElectrumQmlApplication', qedaemon: 'QEDaemon', plugins: 'Plugins'):
+    def __init__(self, qeapp: 'ElectrumQmlApplication', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
         QObject.__init__(self)
 
         self._app = qeapp
-        self._qedaemon = qedaemon
         self._plugins = plugins
-        self.config = qedaemon.daemon.config
+        self.config = QEConfig.instance.config
 
         self._crash_user_text = ''
         self._app_started = False
@@ -101,7 +100,7 @@ class QEAppController(BaseCrashReporter, QObject):
         self.notification_timer.setInterval(500)  # msec
         self.notification_timer.timeout.connect(self.on_notification_timer)
 
-        self._qedaemon.walletLoaded.connect(self.on_wallet_loaded)
+        QEDaemon.instance.walletLoaded.connect(self.on_wallet_loaded)
 
         self.userNotify.connect(self.doNotify)
 
@@ -111,12 +110,12 @@ class QEAppController(BaseCrashReporter, QObject):
         self._want_close = False
 
     def on_wallet_loaded(self):
-        qewallet = self._qedaemon.currentWallet
+        qewallet = QEDaemon.instance.currentWallet
         if not qewallet:
             return
 
         # register wallet in Exception_Hook
-        Exception_Hook.maybe_setup(config=qewallet.wallet.config, wallet=qewallet.wallet)
+        Exception_Hook.maybe_setup(wallet=qewallet.wallet)
 
         # attach to the wallet user notification events
         # connect only once
@@ -344,8 +343,8 @@ class QEAppController(BaseCrashReporter, QObject):
             'reportstring': self.get_report_string()
         }
 
-    @pyqtSlot(object, object, object, object)
-    def crash(self, config, e, text, tb):
+    @pyqtSlot(object, object, object)
+    def crash(self, e, text, tb):
         self.exc_args = (e, text, tb)  # for BaseCrashReporter
         self.showException.emit(self.crashData())
 
@@ -423,8 +422,6 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.logger = get_logger(__name__)
 
-        ElectrumQmlApplication._daemon = daemon
-
         # TODO QT6 order of declaration is important now?
         qmlRegisterType(QEAmount, 'org.electrum', 1, 0, 'Amount')
         qmlRegisterType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard')
@@ -479,17 +476,17 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.context = self.engine.rootContext()
         self.plugins = plugins
-        self._qeconfig = QEConfig(config)
-        self._qenetwork = QENetwork(daemon.network, self._qeconfig)
+        self.config = QEConfig(config)
+        self.network = QENetwork(daemon.network)
         self.daemon = QEDaemon(daemon, self.plugins)
-        self.appController = QEAppController(self, self.daemon, self.plugins)
-        self._maxAmount = QEAmount(is_max=True)
+        self.appController = QEAppController(self, self.plugins)
+        self.maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self.appController)
-        self.context.setContextProperty('Config', self._qeconfig)
-        self.context.setContextProperty('Network', self._qenetwork)
+        self.context.setContextProperty('Config', self.config)
+        self.context.setContextProperty('Network', self.network)
         self.context.setContextProperty('Daemon', self.daemon)
         self.context.setContextProperty('FixedFont', self.fixedFont)
-        self.context.setContextProperty('MAX', self._maxAmount)
+        self.context.setContextProperty('MAX', self.maxAmount)
         self.context.setContextProperty('QRIP', self.qr_ip_h)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
@@ -527,33 +524,33 @@ class ElectrumQmlApplication(QGuiApplication):
 
 
 class Exception_Hook(QObject, Logger):
-    _report_exception = pyqtSignal(object, object, object, object)
+    _report_exception = pyqtSignal(object, object, object)
 
     _INSTANCE = None  # type: Optional[Exception_Hook]  # singleton
 
-    def __init__(self, *, config: 'SimpleConfig', slot):
+    def __init__(self, *, slot):
         QObject.__init__(self)
         Logger.__init__(self)
         assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
-        self.config = config
         self.wallet_types_seen = set()  # type: Set[str]
 
         sys.excepthook = self.handler
         threading.excepthook = self.handler
 
-        self._report_exception.connect(slot)
+        if slot:
+            self._report_exception.connect(slot)
         EarlyExceptionsQueue.set_hook_as_ready()
 
     @classmethod
-    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None, slot = None) -> None:
-        if not config.SHOW_CRASH_REPORTER:
+    def maybe_setup(cls, *, wallet: 'Abstract_Wallet' = None, slot=None) -> None:
+        if not QEConfig.instance.config.SHOW_CRASH_REPORTER:
             EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         if not cls._INSTANCE:
-            cls._INSTANCE = Exception_Hook(config=config, slot=slot)
+            cls._INSTANCE = Exception_Hook(slot=slot)
         if wallet:
             cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
 
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
-        self._report_exception.emit(self.config, *exc_info)
+        self._report_exception.emit(*exc_info)

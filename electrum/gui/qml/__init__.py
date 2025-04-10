@@ -82,7 +82,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.timer.timeout.connect(lambda: None)  # periodically enter python scope
 
         # hook for crash reporter
-        Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
+        Exception_Hook.maybe_setup(slot=self.app.appController.crash)
 
         # Initialize any QML plugins
         run_hook('init_qml', self.app)
