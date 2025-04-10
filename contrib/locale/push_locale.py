@@ -16,7 +16,7 @@ except ImportError as e:
     sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install --user <module-name>'")
 
 # set cwd
-project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 os.chdir(project_root)
 
 locale_dir = os.path.join(project_root, "electrum", "locale")

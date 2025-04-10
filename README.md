@@ -110,7 +110,7 @@ $ python3 -m pip install --user -e .
 Create translations (optional):
 ```
 $ sudo apt-get install gettext
-$ ./contrib/build_locale.sh electrum/locale/locale electrum/locale/locale
+$ ./contrib/locale/build_locale.sh electrum/locale/locale electrum/locale/locale
 ```
 
 Finally, to start Electrum:
