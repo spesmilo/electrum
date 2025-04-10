@@ -429,7 +429,7 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Delete Wallet')
+                text: qsTr('Delete Wallet...')
                 onClicked: Daemon.checkThenDeleteWallet(Daemon.currentWallet)
                 icon.source: '../../icons/delete.png'
             }
