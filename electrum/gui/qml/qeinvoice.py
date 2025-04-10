@@ -167,6 +167,9 @@ class QEInvoice(QObject, QtEventListener):
     def status(self):
         if not self._effectiveInvoice:
             return PR_UNKNOWN
+        if self.invoiceType == QEInvoice.Type.OnchainInvoice and self._effectiveInvoice.get_amount_sat() == 0:
+            # no amount set, not a final invoice, get_invoice_status would be wrong
+            return PR_UNPAID
         return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
 
     @pyqtProperty(str, notify=statusChanged)
