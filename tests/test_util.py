@@ -501,7 +501,7 @@ class TestUtil(ElectrumTestCase):
         # (though what if test framework is doing stuff ~concurrently?)
         self.assertEqual(4, len(util._running_asyncio_tasks))
         for task in util._running_asyncio_tasks:
-            self.assertEqual(foo().__qualname__, task.get_coro().__qualname__)
+            self.assertEqual(foo.__qualname__, task.get_coro().__qualname__)
         # let tasks finish
         evt.set()
         # wait a few event loop iterations
