@@ -26,7 +26,7 @@ fi
 
 info "preparing electrum-locale."
 (
-    "$CONTRIB/build_cleanlocale.sh"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # By default, include both source (.po) and compiled (.mo) locale files in the source dist.
     # Set option OMIT_UNCLEAN_FILES=1 to exclude the compiled locale files
     # see https://askubuntu.com/a/144139 (also see MANIFEST.in)

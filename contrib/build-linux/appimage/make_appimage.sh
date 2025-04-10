@@ -136,7 +136,7 @@ break_legacy_easy_install
 
 info "preparing electrum-locale."
 (
-    "$CONTRIB/build_cleanlocale.sh"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
     rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 )

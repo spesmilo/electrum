@@ -2,7 +2,8 @@
 
 set -e
 
-CONTRIB="$(dirname "$(readlink -e "$0")")"
+CONTRIB_LOCALE="$(dirname "$(readlink -e "$0")")"
+CONTRIB="$CONTRIB_LOCALE"/..
 PROJECT_ROOT="$CONTRIB"/..
 
 cd "$PROJECT_ROOT"
@@ -12,4 +13,4 @@ LOCALE="$PROJECT_ROOT/electrum/locale/"
 cd "$LOCALE"
 git clean -ffxd
 git reset --hard
-"$CONTRIB/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"
+"$CONTRIB_LOCALE/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"
