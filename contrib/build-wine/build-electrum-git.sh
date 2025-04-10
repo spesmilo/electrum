@@ -18,16 +18,9 @@ info "Last commit: $VERSION"
 
 info "preparing electrum-locale."
 (
-    cd "$PROJECT_ROOT"
-    git submodule update --init
-
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
-    cd "$LOCALE"
-    git clean -ffxd
-    git reset --hard
-    "$CONTRIB/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"
+    "$CONTRIB/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -r locale/*/electrum.po
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 )
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +

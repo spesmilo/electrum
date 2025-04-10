@@ -26,18 +26,12 @@ fi
 
 info "preparing electrum-locale."
 (
-    cd "$PROJECT_ROOT"
-    git submodule update --init
-
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
-    cd "$LOCALE"
-    git clean -ffxd
-    git reset --hard
+    "$CONTRIB/build_cleanlocale.sh"
     # By default, include both source (.po) and compiled (.mo) locale files in the source dist.
     # Set option OMIT_UNCLEAN_FILES=1 to exclude the compiled locale files
     # see https://askubuntu.com/a/144139 (also see MANIFEST.in)
-    if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
-        "$CONTRIB/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+        rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/LC_MESSAGES/electrum.mo
     fi
 )
 
