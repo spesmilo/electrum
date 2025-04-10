@@ -680,6 +680,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     )
 
     LIGHTNING_NODE_ALIAS = ConfigVar('lightning_node_alias', default='', type_=str)
+    LIGHTNING_NODE_COLOR_RGB = ConfigVar('lightning_node_color_rgb', default='000000', type_=str)
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)
     EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = ConfigVar('lightning_forward_trampoline_payments', default=False, type_=bool)
     TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = ConfigVar('test_fail_htlcs_with_temp_node_failure', default=False, type_=bool)
@@ -829,9 +830,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # nostr
     NOSTR_RELAYS = ConfigVar(
         'nostr_relays',
-        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom,'
+        default='wss://relay.getalby.com/v1,wss://nos.lol,wss://relay.damus.io,wss://brb.io,'
                 'wss://relay.primal.net,wss://ftp.halifax.rwth-aachen.de/nostr,'
-                'wss://eu.purplerelay.com,wss://nostr.einundzwanzig.space',
+                'wss://eu.purplerelay.com,wss://nostr.einundzwanzig.space,wss://nostr.mom',
         type_=str,
         short_desc=lambda: _("Nostr relays"),
         long_desc=lambda: ' '.join([

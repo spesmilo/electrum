@@ -1,0 +1,8 @@
+{
+  "fullname": "Nostr Wallet Connect",
+  "name": "nwc",
+  "description": "This plugin allows remote control of Electrum lightning wallets via Nostr NIP-47.",
+  "author": "The Electrum Developers",
+  "available_for": ["cmdline", "qt"],
+  "version": "0.0.1"
+}
