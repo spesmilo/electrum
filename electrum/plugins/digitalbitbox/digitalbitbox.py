@@ -34,8 +34,8 @@ from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
-from ..hw_wallet.plugin import OperationCancelled
+from electrum.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+from electrum.hw_wallet.plugin import OperationCancelled
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo

@@ -51,7 +51,7 @@ from .logging import get_logger, Logger
 from .crypto import sha256
 
 if TYPE_CHECKING:
-    from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+    from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .keystore import Hardware_KeyStore, KeyStore
     from .wallet import Abstract_Wallet
 

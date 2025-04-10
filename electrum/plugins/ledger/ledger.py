@@ -21,9 +21,9 @@ from electrum.transaction import PartialTransaction, Transaction, PartialTxInput
 from electrum.util import bfh, UserFacingException, versiontuple
 from electrum.wallet import Standard_Wallet
 
-from ..hw_wallet import HardwareClientBase, HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
-from ..hw_wallet.plugin import HardwareClientDummy
+from electrum.hw_wallet import HardwareClientBase, HW_PluginBase
+from electrum.hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
+from electrum.hw_wallet.plugin import HardwareClientDummy
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo
