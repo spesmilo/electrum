@@ -71,12 +71,19 @@ with open(f"{build_dir}/qml.lst", "wb") as f:
 
 print("Found {} QML files to translate".format(len(files.splitlines())))
 
+# note: lupdate writes relative paths into its output .ts file, relative to the .ts file itself :/
 cmd = [QT_LUPDATE, f"@{build_dir}/qml.lst","-ts", f"{build_dir}/qml.ts"]
 print('Collecting strings')
 subprocess.check_output(cmd)
 
 cmd = [QT_LCONVERT, "-of", "po", "-o", f"{build_dir}/messages_qml.pot", f"{build_dir}/qml.ts"]
 print('Convert to gettext')
+subprocess.check_output(cmd)
+
+print("Fixing some paths in messages_qml.pot")
+#  sed from " ../../gui/qml/"
+#      to   " electrum/gui/qml/"
+cmd = ["sed", "-i", r"s/ ..\/..\/gui\/qml\// electrum\/gui\/qml\//g", f"{build_dir}/messages_qml.pot"]
 subprocess.check_output(cmd)
 
 cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages_gettext.pot", f"{build_dir}/messages_qml.pot"]
