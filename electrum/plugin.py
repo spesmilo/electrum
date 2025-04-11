@@ -112,7 +112,7 @@ class Plugins(DaemonThread):
             if loader.__class__.__qualname__ == "PyiFrozenImporter":
                 continue
             module_path = os.path.join(pkg_path, name)
-            if self.cmd_only and not self.config.get('enable_plugin_' + name) is True:
+            if self.cmd_only and not self.config.get(f'plugins.{name}.enabled') is True:
                 continue
             try:
                 with open(os.path.join(module_path, 'manifest.json'), 'r') as f:
@@ -174,7 +174,7 @@ class Plugins(DaemonThread):
 
     def load_plugins(self):
         for name, d in chain(self.internal_plugin_metadata.items(), self.external_plugin_metadata.items()):
-            if not d.get('requires_wallet_type') and self.config.get('enable_plugin_' + name):
+            if not d.get('requires_wallet_type') and self.config.get(f'plugins.{name}.enabled'):
                 try:
                     if self.cmd_only:  # only load init method to register commands
                         self.maybe_load_plugin_init_method(name)
@@ -300,7 +300,7 @@ class Plugins(DaemonThread):
                 raise Exception(f"duplicate plugins for name={name}")
             if name in self.external_plugin_metadata:
                 raise Exception(f"duplicate plugins for name={name}")
-            if self.cmd_only and not self.config.get('enable_plugin_' + name):
+            if self.cmd_only and not self.config.get(f'plugins.{name}.enabled'):
                 continue
             min_version = d.get('min_electrum_version')
             if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
@@ -416,7 +416,7 @@ class Plugins(DaemonThread):
             return False
         filename = self.zip_plugin_path(name)
         plugin_hash = get_file_hash256(filename)
-        sig = self.config.get('authorize_plugin_' + name)
+        sig = self.config.get(f'plugins.{name}.authorized')
         if not sig:
             return False
         pubkey = ECPubkey(pubkey_bytes)
@@ -428,17 +428,17 @@ class Plugins(DaemonThread):
         plugin_hash = get_file_hash256(filename)
         sig = privkey.ecdsa_sign(plugin_hash)
         value = sig.hex()
-        self.config.set_key('authorize_plugin_' + name, value, save=True)
+        self.config.set_key(f'plugins.{name}.authorized', value, save=True)
 
     def enable(self, name: str) -> 'BasePlugin':
-        self.config.set_key('enable_plugin_' + name, True, save=True)
+        self.config.set_key(f'plugins.{name}.enabled', True, save=True)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
     def disable(self, name: str) -> None:
-        self.config.set_key('enable_plugin_' + name, False, save=True)
+        self.config.set_key(f'plugins.{name}.enabled', False, save=True)
         p = self.get(name)
         if not p:
             return
@@ -448,7 +448,7 @@ class Plugins(DaemonThread):
 
     @classmethod
     def is_plugin_enabler_config_key(cls, key: str) -> bool:
-        return key.startswith('enable_plugin_') or key.startswith('authorize_plugin_')
+        return key.startswith('plugins.')
 
     def toggle(self, name: str) -> Optional['BasePlugin']:
         p = self.get(name)
@@ -604,7 +604,7 @@ class BasePlugin(Logger):
         return []
 
     def is_enabled(self):
-        return self.is_available() and self.config.get('enable_plugin_' + self.name) is True
+        return self.is_available() and self.config.get(f'plugins.{self.name}.enabled') is True
 
     def is_available(self):
         return True

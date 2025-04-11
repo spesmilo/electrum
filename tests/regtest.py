@@ -89,8 +89,8 @@ class TestLightningSwapserver(TestLightning):
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
-            'enable_plugin_swapserver': 'true',
-            'swapserver_port': '5455',
+            'plugins.swapserver.enabled': 'true',
+            'plugins.swapserver.port': '5455',
             'nostr_relays': "''",
         }
     }
@@ -115,10 +115,10 @@ class TestLightningWatchtower(TestLightning):
             'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
         },
         'carol': {
-            'enable_plugin_watchtower': 'true',
-            'watchtower_server_user': 'wtuser',
-            'watchtower_server_password': 'wtpassword',
-            'watchtower_server_port': '12345',
+            'plugins.watchtower.enabled': 'true',
+            'plugins.watchtower.server_user': 'wtuser',
+            'plugins.watchtower.server_password': 'wtpassword',
+            'plugins.watchtower.server_port': '12345',
         }
     }
 
