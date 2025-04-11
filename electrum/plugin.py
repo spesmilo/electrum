@@ -317,6 +317,9 @@ class Plugins(DaemonThread):
                     continue
                 if 'fullname' not in d:
                     continue
+                details = d.get('registers_keystore')
+                if details:
+                    self.register_keystore(name, gui_good, details)
             if external:
                 self.external_plugin_metadata[name] = d
             else:
