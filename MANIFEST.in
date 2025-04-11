@@ -26,6 +26,6 @@ global-exclude *.py.orig
 global-exclude *.py.rej
 global-exclude .git
 
-# Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
-# We include both source (.po) and compiled (.mo) locale files atm (if present).
-# exclude electrum/locale/*/LC_MESSAGES/electrum.mo
+# We include both source (.po) and compiled (.mo) locale files (if present).
+# When building the "sourceonly" tar.gz, the build script explicitly deletes the compiled files.
+# exclude electrum/locale/locale/*/LC_MESSAGES/electrum.mo

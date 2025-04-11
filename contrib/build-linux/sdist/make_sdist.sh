@@ -7,7 +7,6 @@ CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_SDIST="$CONTRIB/build-linux/sdist"
 DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_SDIST/build"
-LOCALE="$PROJECT_ROOT/electrum/locale"
 
 . "$CONTRIB"/build_tools_util.sh
 
@@ -25,16 +24,14 @@ if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
     "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
-git submodule update --init
-
+info "preparing electrum-locale."
 (
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # By default, include both source (.po) and compiled (.mo) locale files in the source dist.
     # Set option OMIT_UNCLEAN_FILES=1 to exclude the compiled locale files
     # see https://askubuntu.com/a/144139 (also see MANIFEST.in)
-    rm -rf "$LOCALE"
-    cp -r "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE/"
-    if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
-        "$CONTRIB/build_locale.sh" "$LOCALE" "$LOCALE"
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+        rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/LC_MESSAGES/electrum.mo
     fi
 )
 

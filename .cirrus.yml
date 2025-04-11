@@ -81,7 +81,7 @@ task:
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
   locale_script:
-    - contrib/push_locale
+    - contrib/locale/push_locale.py
   env:
     ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
