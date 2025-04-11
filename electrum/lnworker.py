@@ -2604,8 +2604,9 @@ class LNWallet(LNWorker):
             else:
                 self.logger.info(f"received unknown htlc_failed, probably from previous session (phash={payment_hash.hex()})")
                 key = payment_hash.hex()
-                self.set_invoice_status(key, PR_UNPAID)
-                util.trigger_callback('payment_failed', self.wallet, key, '')
+                if self.get_payment_status(payment_hash) != PR_UNPAID:
+                    self.set_invoice_status(key, PR_UNPAID)
+                    util.trigger_callback('payment_failed', self.wallet, key, '')
 
         if fw_key:
             fw_htlcs = self.active_forwardings[fw_key]
