@@ -43,12 +43,6 @@ class Plugin(NWCServerPlugin):
                            partial(self.settings_dialog, window))
 
     def settings_dialog(self, window: WindowModalDialog):
-        wallet: 'Abstract_Wallet' = window.parent().wallet
-        if not wallet.has_lightning():
-            window.show_error(_("{} plugin requires a lightning enabled wallet. Setup lightning first.")
-                           .format("NWC"))
-            return
-
         d = WindowModalDialog(window, _("Nostr Wallet Connect"))
         main_layout = QVBoxLayout(d)
 

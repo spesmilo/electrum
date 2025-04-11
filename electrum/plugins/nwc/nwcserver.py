@@ -42,6 +42,11 @@ class NWCServerPlugin(BasePlugin):
         self.logger.debug(f"NWCServerPlugin created, waiting for wallet to load...")
 
     def start_plugin(self, wallet: 'Abstract_Wallet'):
+        if not wallet.has_lightning():
+            return
+        if self.is_initialized:
+            # this might be called for several wallets. only use one.
+            return
         storage = self.get_plugin_storage(wallet)
         self.connections = storage['connections']
         self.delete_expired_connections()
