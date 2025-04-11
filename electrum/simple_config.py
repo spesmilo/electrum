@@ -874,7 +874,8 @@ def read_user_config(path: Optional[str]) -> Dict[str, Any]:
         result = json.loads(data)
     except Exception as exc:
         _logger.warning(f"Cannot read config file at {config_path}: {exc}")
-        return {}
+        raise
     if not type(result) is dict:
+        _logger.warning(f"Config file at {config_path} is not a JSON object, resetting config...")
         return {}
     return result
