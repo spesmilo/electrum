@@ -46,6 +46,14 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual("['file:///var/www/','https://electrum.org']",
             Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.org']"))
 
+    def test_setconfig_none(self):
+        self.assertEqual(None, Commands._setconfig_normalize_value("somekey", "None"))
+        self.assertEqual(None, Commands._setconfig_normalize_value("somekey", "null"))
+        # but lowercase none does not work:  (maybe it should though...)
+        self.assertEqual("none", Commands._setconfig_normalize_value("somekey", "none"))
+        self.assertEqual("", Commands._setconfig_normalize_value("somekey", ""))
+        self.assertEqual("empty", Commands._setconfig_normalize_value("somekey", "empty"))
+
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))
         self.assertFalse(eval_bool("false"))
