@@ -202,7 +202,7 @@ class Plugins(DaemonThread):
         salt = os.urandom(32)
         privkey = self.derive_privkey(password, salt)
         pubkey = privkey.get_public_key_bytes()
-        key = chr(PLUGIN_PASSWORD_VERSION) + salt + pubkey
+        key = bytes([PLUGIN_PASSWORD_VERSION]) + salt + pubkey
         return key.hex()
 
     def get_pubkey_bytes(self) -> Tuple[Optional[bytes], bytes]:
