@@ -35,7 +35,13 @@ Container {
         contentItem = contentRoot
     }
 
-    Component.onCompleted: fillContentItem()
+    // override this function to dynamically add buttons.
+    function beforeLayout() {}
+
+    Component.onCompleted: {
+        beforeLayout()
+        fillContentItem()
+    }
 
     Component {
         id: containerLayout
