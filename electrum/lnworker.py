@@ -20,6 +20,7 @@ import concurrent
 from concurrent import futures
 import urllib.parse
 import itertools
+import json
 
 import aiohttp
 import dns.resolver
@@ -62,7 +63,7 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT, MIN_FINAL_CLTV_DELTA_ACCEPTED
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -885,6 +886,13 @@ class LNWallet(LNWorker):
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
+        self.cli_hold_invoice_callbacks = self.db.get_dict('cli_hold_invoice_cbs')   # type: Dict[str, Tuple[Optional[str], int]]  # payment_hash -> (callback_url, ts_created)
+        for payment_hash, (callback_url, ts_created) in list(self.cli_hold_invoice_callbacks.items()):
+            if ts_created < time.time() - MIN_FINAL_CLTV_DELTA_ACCEPTED * 10 * 60 * 4:
+                # delete callbacks that are not going to get called anymore
+                del self.cli_hold_invoice_callbacks[payment_hash]
+            else:  # re-register the callback
+                self.register_cli_hold_invoice(payment_hash, callback_url)
         self.payment_bundles = []                       # lists of hashes. todo:persist
 
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
@@ -2303,8 +2311,9 @@ class LNWallet(LNWorker):
                 amount_msat, direction, status = self.payment_info[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
-    def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: int):
-        info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
+    def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: Optional[int]):
+        amount = lightning_amount_sat * 1000 if lightning_amount_sat else None
+        info = PaymentInfo(payment_hash, amount, RECEIVED, PR_UNPAID)
         self.save_payment_info(info, write_to_disk=False)
 
     def register_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], Awaitable[None]]):
@@ -2312,6 +2321,28 @@ class LNWallet(LNWorker):
 
     def unregister_hold_invoice(self, payment_hash: bytes):
         self.hold_invoice_callbacks.pop(payment_hash)
+        self.cli_hold_invoice_callbacks.pop(payment_hash.hex(), None)
+
+    def register_cli_hold_invoice(self, payment_hash: str, callback_url: Optional[str] = None) -> None:
+        async def cli_hold_invoice_callback(payment_hash_bytes: bytes):
+            """Hold invoice callback for hold invoices registered via CLI."""
+            self.logger.info(f"Hold invoice {payment_hash_bytes.hex()} ready for settlement")
+            self.set_payment_status(payment_hash_bytes, PR_PAID)
+            if not callback_url:
+                return
+            amount_sat = (self.get_payment_mpp_amount_msat(payment_hash_bytes) or 0) // 1000
+            data = {
+                "payment_hash": payment_hash_bytes.hex(),
+                "amount_sat": amount_sat
+            }
+            try:
+                async with make_aiohttp_session(proxy=None) as s:
+                    await s.post(callback_url, json=data, raise_for_status=False)
+            except Exception as e:
+                self.logger.info(f"hold invoice callback request to {callback_url} raised: {str(e)}")
+        self.register_hold_invoice(bfh(payment_hash), cli_hold_invoice_callback)
+        if payment_hash not in self.cli_hold_invoice_callbacks:
+            self.cli_hold_invoice_callbacks[payment_hash] = (callback_url, int(time.time()))
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
@@ -2397,16 +2428,33 @@ class LNWallet(LNWorker):
         self.received_mpp_htlcs[payment_key.hex()] = mpp_status._replace(resolution=resolution)
 
     def is_mpp_amount_reached(self, payment_key: bytes) -> bool:
-        mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
-        if not mpp_status:
+        amounts = self.get_mpp_amounts(payment_key)
+        if amounts is None:
             return False
-        total = sum([_htlc.amount_msat for scid, _htlc in mpp_status.htlc_set])
-        return total >= mpp_status.expected_msat
+        total, expected = amounts
+        return total >= expected
 
     def is_accepted_mpp(self, payment_hash: bytes) -> bool:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
         return status and status.resolution == RecvMPPResolution.ACCEPTED
+
+    def get_payment_mpp_amount_msat(self, payment_hash: bytes) -> Optional[int]:
+        """Returns the received mpp amount for given payment hash."""
+        payment_key = self._get_payment_key(payment_hash)
+        amounts = self.get_mpp_amounts(payment_key)
+        if not amounts:
+            return None
+        total_msat, _ = amounts
+        return total_msat
+
+    def get_mpp_amounts(self, payment_key: bytes) -> Optional[Tuple[int, int]]:
+        """Returns (total received amount, expected amount) or None."""
+        mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
+        if not mpp_status:
+            return None
+        total = sum([_htlc.amount_msat for scid, _htlc in mpp_status.htlc_set])
+        return total, mpp_status.expected_msat
 
     def get_first_timestamp_of_mpp(self, payment_key: bytes) -> int:
         mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
