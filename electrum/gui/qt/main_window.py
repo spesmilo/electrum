@@ -759,7 +759,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
+        tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
@@ -1131,9 +1131,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         return ReceiveTab(self)
 
     def do_copy(self, text: str, *, title: str = None) -> None:
-        self.app.clipboard().setText(text)
-        message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
-        self.show_tooltip_after_delay(message)
+        self.gui_object.do_copy(text, title=title)
 
     def show_tooltip_after_delay(self, message):
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
@@ -2209,12 +2207,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         layout.addLayout(hbox, 4, 1)
         d.exec()
 
-    def password_dialog(self, msg=None, parent=None):
-        from .password_dialog import PasswordDialog
-        parent = parent or self
-        d = PasswordDialog(parent, msg)
-        return d.run()
-
     def tx_from_text(self, data: Union[str, bytes]) -> Union[None, 'PartialTransaction', 'Transaction']:
         from electrum.transaction import tx_from_any
         try:
@@ -2653,11 +2645,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.tray = None
         self.gui_object.timer.timeout.disconnect(self.timer_actions)
         self.gui_object.close_window(self)
-
-    def plugins_dialog(self):
-        from .plugins_dialog import PluginsDialog
-        d = PluginsDialog(self)
-        d.exec()
 
     def cpfp_dialog(self, parent_tx: Transaction) -> None:
         new_tx = self.wallet.cpfp(parent_tx, 0)

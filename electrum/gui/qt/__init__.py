@@ -38,8 +38,8 @@ except Exception as e:
         "Error: Could not import PyQt6. On Linux systems, "
         "you may try 'sudo apt-get install python3-pyqt6'") from e
 
-from PyQt6.QtGui import QGuiApplication
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog
+from PyQt6.QtGui import QGuiApplication, QCursor
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
 
 import PyQt6.QtCore as QtCore
@@ -208,6 +208,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             m = self.tray.contextMenu()
             m.clear()
         network = self.daemon.network
+        m.addAction(_("Plugins"), self.show_plugins_dialog)
         if network:
             m.addAction(_("Network"), self.show_network_dialog)
         if network and network.lngossip:
@@ -292,6 +293,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not self.lightning_dialog:
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
+
+    def show_plugins_dialog(self):
+        from .plugins_dialog import PluginsDialog
+        d = PluginsDialog(self)
+        d.exec()
 
     def show_network_dialog(self, proxy_tab=False):
         if self.network_dialog:
@@ -546,3 +552,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if hasattr(PyQt6, "__path__"):
             ret["pyqt.path"] = ", ".join(PyQt6.__path__ or [])
         return ret
+
+    def do_copy(self, text: str, *, title: str = None) -> None:
+        self.app.clipboard().setText(text)
+        message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
+        # tooltip cannot be displayed immediately when called from a menu; wait 200ms
+        self.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))

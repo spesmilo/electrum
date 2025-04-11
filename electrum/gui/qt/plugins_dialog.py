@@ -6,17 +6,17 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidg
 from electrum.i18n import _
 from electrum.plugin import run_hook
 
-from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces
+from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin
 
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from . import ElectrumGui
     from electrum_cc import ECPrivkey
 
 
 class PluginDialog(WindowModalDialog):
 
-    def __init__(self, name, metadata, status_button: Optional['PluginStatusButton'], window: 'ElectrumWindow'):
+    def __init__(self, name, metadata, status_button: Optional['PluginStatusButton'], window: 'PluginsDialog'):
         display_name = metadata.get('fullname', '')
         author = metadata.get('author', '')
         description = metadata.get('description', '')
@@ -80,12 +80,12 @@ class PluginDialog(WindowModalDialog):
         self.status_button.update()
         self.close()
         # note: all enabled plugins will receive this hook:
-        run_hook('init_qt', self.window.window.gui_object)
+        run_hook('init_qt', self.window.gui_object)
 
 
 class PluginStatusButton(QPushButton):
 
-    def __init__(self, window, name):
+    def __init__(self, window: 'PluginsDialog', name: str):
         QPushButton.__init__(self, '')
         self.window = window
         self.plugins = window.plugins
@@ -103,7 +103,7 @@ class PluginStatusButton(QPushButton):
         p = self.plugins.get(self.name)
         plugin_is_loaded = p is not None
         enabled = (
-            not plugin_is_loaded and self.plugins.is_available(self.name, self.window.wallet)
+            not plugin_is_loaded
             or plugin_is_loaded and p.can_user_disable()
         )
         self.setEnabled(enabled)
@@ -113,14 +113,13 @@ class PluginStatusButton(QPushButton):
         self.setText(text)
 
 
-class PluginsDialog(WindowModalDialog):
+class PluginsDialog(WindowModalDialog, MessageBoxMixin):
 
-    def __init__(self, window: 'ElectrumWindow'):
-        WindowModalDialog.__init__(self, window, _('Electrum Plugins'))
-        self.window = window
-        self.wallet = self.window.wallet
-        self.config = window.config
-        self.plugins = self.window.gui_object.plugins
+    def __init__(self, gui_object: 'ElectrumGui'):
+        WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
+        self.gui_object = gui_object
+        self.config = gui_object.config
+        self.plugins = gui_object.plugins
         vbox = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setEnabled(True)
@@ -144,7 +143,7 @@ class PluginsDialog(WindowModalDialog):
             self.init_plugins_password()
             return
         # ask for url and password, same window
-        pw = self.window.password_dialog(
+        pw = self.password_dialog(
             msg=' '.join([
                 _('<b>Warning</b>: Third-party plugins are not endorsed by Electrum!'),
                 '<br/><br/>',
@@ -160,7 +159,7 @@ class PluginsDialog(WindowModalDialog):
         privkey = self.plugins.derive_privkey(pw, salt)
         if pubkey != privkey.get_public_key_bytes():
             keyfile_path, keyfile_help = self.plugins.get_keyfile_path()
-            self.window.show_error(
+            self.show_error(
                 ''.join([
                     _('Incorrect password.'), '\n\n',
                     _('Your plugin authorization password is required to install plugins.'), ' ',
@@ -186,8 +185,8 @@ class PluginsDialog(WindowModalDialog):
             _('Your plugins key is:'), '\n\n', key_hex, '\n\n',
             _('Please save this key in'), '\n\n' + keyfile_path, '\n\n', keyfile_help
         ])
-        self.window.do_copy(key_hex, title=_('Plugins key'))
-        self.window.show_message(msg)
+        self.gui_object.do_copy(key_hex, title=_('Plugins key'))
+        self.show_message(msg)
 
     def download_plugin_dialog(self):
         import os
@@ -206,12 +205,12 @@ class PluginsDialog(WindowModalDialog):
         except UserCancelled:
             return
         except Exception as e:
-            self.window.show_error(f"{e}")
+            self.show_error(f"{e}")
             return
         try:
             success = self.confirm_add_plugin(path)
         except Exception as e:
-            self.window.show_error(f"{e}")
+            self.show_error(f"{e}")
             success = False
         if not success:
             os.unlink(path)
@@ -232,7 +231,7 @@ class PluginsDialog(WindowModalDialog):
         try:
             success = self.confirm_add_plugin(path)
         except Exception as e:
-            self.window.show_error(f"{e}")
+            self.show_error(f"{e}")
             success = False
         if not success:
             os.unlink(path)
@@ -249,7 +248,7 @@ class PluginsDialog(WindowModalDialog):
             return False
         self.plugins.external_plugin_metadata[name] = manifest
         self.plugins.authorize_plugin(name, path, privkey)
-        self.window.show_message(_('Plugin installed successfully.'))
+        self.show_message(_('Plugin installed successfully.'))
         self.show_list()
         return True
 

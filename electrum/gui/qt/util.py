@@ -320,6 +320,13 @@ class MessageBoxMixin(object):
             return None
         return choice_widget.selected_key
 
+    def password_dialog(self, msg=None, parent=None):
+        from .password_dialog import PasswordDialog
+        parent = parent or self
+        d = PasswordDialog(parent, msg)
+        return d.run()
+
+
 
 def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.StandardButton.Ok,
                        defaultButton=QMessageBox.StandardButton.NoButton, rich_text=False,
