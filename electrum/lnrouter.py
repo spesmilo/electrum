@@ -526,7 +526,7 @@ class LNPathFinder(Logger):
     def get_shortest_path_hops(
             self,
             *,
-            nodeA: bytes,
+            nodeA: bytes, # nodeA is expected to be our node id if channels are passed in my_sending_channels
             nodeB: bytes,
             invoice_amount_msat: int,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
@@ -589,10 +589,11 @@ class LNPathFinder(Logger):
                     if not node_filter(edge_startnode, node_info):
                         continue
                 is_mine = edge_channel_id in my_sending_channels
-                if is_mine:
-                    if edge_startnode == nodeA:  # payment outgoing, on our channel
-                        if not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
-                            continue
+                if edge_startnode == nodeA and my_sending_channels:  # payment outgoing, on our channel
+                    if edge_channel_id not in my_sending_channels:
+                        continue
+                    if not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
+                        continue
                 edge_cost, fee_for_edge_msat = self._edge_cost(
                     short_channel_id=edge_channel_id,
                     start_node=edge_startnode,
