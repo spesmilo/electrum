@@ -27,7 +27,7 @@ import os
 import signal
 import sys
 import threading
-from typing import Optional, TYPE_CHECKING, List, Sequence
+from typing import Optional, TYPE_CHECKING, List, Sequence, Callable
 
 try:
     import PyQt6
