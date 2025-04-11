@@ -57,13 +57,13 @@ class ConfigVar(property):
         assert long_desc is None or callable(long_desc)
         self._short_desc = short_desc
         self._long_desc = long_desc
-        if plugin:  # enforce "key" starts with name of plugin
+        if plugin:  # enforce "key" starts with 'plugins.<name of plugin>.'
             pkg_prefix = "electrum.plugins."  # for internal plugins
             if plugin.startswith(pkg_prefix):
                 plugin = plugin[len(pkg_prefix):]
             assert "." not in plugin, plugin
-            key_prefix = plugin + "_"
-            assert key.startswith(key_prefix), f"ConfigVar {key=} must be prefixed with the plugin name ({key_prefix})"
+            key_prefix = f'plugins.{plugin}.'
+            assert key.startswith(key_prefix), f"ConfigVar {key=} must be prefixed with ({key_prefix})"
         property.__init__(self, self._get_config_value, self._set_config_value)
         assert key not in _config_var_from_key, f"duplicate config key str: {key!r}"
         _config_var_from_key[key] = self
@@ -299,9 +299,26 @@ class SimpleConfig(Logger):
         assert isinstance(key, str), key
         with self.lock:
             if value is not None:
-                self.user_config[key] = value
+                keypath = key.split('.')
+                d = self.user_config
+                for x in keypath[0:-1]:
+                    d2 = d.get(x)
+                    if d2 is None:
+                        d2 = d[x] = {}
+                    d = d2
+                d[keypath[-1]] = value
             else:
-                self.user_config.pop(key, None)
+                def delete_key(d, key):
+                    if '.' not in key:
+                        d.pop(key, None)
+                    else:
+                        prefix, suffix = key.split('.', 1)
+                        d2 = d.get(prefix)
+                        empty = delete_key(d2, suffix)
+                        if empty:
+                            d.pop(prefix)
+                    return len(d) == 0
+                delete_key(self.user_config, key)
             if save:
                 self.save_user_config()
 
@@ -315,7 +332,11 @@ class SimpleConfig(Logger):
         with self.lock:
             out = self.cmdline_options.get(key)
             if out is None:
-                out = self.user_config.get(key, default)
+                d = self.user_config
+                path = key.split('.')
+                for key in path[0:-1]:
+                    d = d.get(key, {})
+                out = d.get(path[-1], default)
         return out
 
     def is_set(self, key: Union[str, ConfigVar, ConfigVarWithConfig]) -> bool:

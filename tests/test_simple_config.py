@@ -203,6 +203,17 @@ class Test_SimpleConfig(ElectrumTestCase):
         with self.assertRaises(KeyError):
             config.cv.from_key("server333")
 
+    def test_recursive_config(self):
+        config = SimpleConfig(self.options)
+        n = len(config.user_config)
+        config.set_key('x.y.z', 1)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.w', 1)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.z', None)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.w', None)
+        self.assertEqual(len(config.user_config), n)
 
 
 class TestUserConfig(ElectrumTestCase):
