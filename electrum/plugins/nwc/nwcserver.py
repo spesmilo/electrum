@@ -44,7 +44,7 @@ class NWCServerPlugin(BasePlugin):
     def start_plugin(self, wallet: 'Abstract_Wallet'):
         if not wallet.has_lightning():
             return
-        if self.is_initialized:
+        if self.initialized:
             # this might be called for several wallets. only use one.
             return
         storage = self.get_plugin_storage(wallet)

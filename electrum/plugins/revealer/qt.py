@@ -92,8 +92,8 @@ class Plugin(RevealerPlugin):
     def requires_settings(self):
         return True
 
-    def settings_widget(self, window):
-        return EnterButton(_('Printer Calibration'), partial(self.calibration_dialog, window))
+    def settings_dialog(self, window, wallet):
+        return self.calibration_dialog(window)
 
     def password_dialog(self, msg=None, parent=None):
         from electrum.gui.qt.password_dialog import PasswordDialog

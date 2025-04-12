@@ -48,10 +48,7 @@ class Plugin(BasePlugin):
     def requires_settings(self):
         return True
 
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
-
-    def settings_dialog(self, window):
+    def settings_dialog(self, window, wallet):
         d = WindowModalDialog(window, _("Audio Modem Settings"))
 
         layout = QGridLayout(d)

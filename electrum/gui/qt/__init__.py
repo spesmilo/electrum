@@ -294,9 +294,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
 
-    def show_plugins_dialog(self):
+    def show_plugins_dialog(self, wallet=None):
         from .plugins_dialog import PluginsDialog
-        d = PluginsDialog(self)
+        d = PluginsDialog(self, wallet)
         d.exec()
 
     def show_network_dialog(self, proxy_tab=False):

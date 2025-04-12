@@ -759,7 +759,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
+        tools_menu.addAction(_("&Plugins"), partial(self.gui_object.show_plugins_dialog, self.wallet))
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)

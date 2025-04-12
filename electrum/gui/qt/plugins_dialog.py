@@ -1,17 +1,20 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
+import shutil
+import os
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
 
-from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin
+from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
 
 
 if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum_cc import ECPrivkey
+    from electrum.wallet import Abstract_Wallet
 
 
 class PluginDialog(WindowModalDialog):
@@ -56,9 +59,11 @@ class PluginDialog(WindowModalDialog):
         close_button.setText(_('Close'))
         buttons = [toggle_button, close_button]
         # add settings widget
-        if p and p.requires_settings() and p.is_enabled():
-            widget = p.settings_widget(self)
-            buttons.insert(0, widget)
+        if p and p.requires_settings() and p.is_enabled() and self.window.wallet is not None:
+            button = EnterButton(
+                _('Settings'),
+                partial(p.settings_dialog, self, self.window.wallet))
+            buttons.insert(0, button)
         vbox.addLayout(Buttons(*buttons))
 
     def do_toggle(self, toggle_button, name):
@@ -115,11 +120,12 @@ class PluginStatusButton(QPushButton):
 
 class PluginsDialog(WindowModalDialog, MessageBoxMixin):
 
-    def __init__(self, gui_object: 'ElectrumGui'):
+    def __init__(self, gui_object: 'ElectrumGui', wallet: Optional['Abstract_Wallet']):
         WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
         self.gui_object = gui_object
         self.config = gui_object.config
         self.plugins = gui_object.plugins
+        self.wallet = wallet
         vbox = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setEnabled(True)
@@ -216,8 +222,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             os.unlink(path)
 
     def add_plugin_dialog(self):
-        from PyQt6.QtWidgets import QFileDialog
-        import shutil, os
         pubkey, salt = self.plugins.get_pubkey_bytes()
         if not pubkey:
             self.init_plugins_password()
