@@ -346,6 +346,15 @@ class SimpleConfig(Logger):
         assert isinstance(key, str), key
         return self.get(key, default=...) is not ...
 
+    def is_plugin_enabled(self, name: str) -> bool:
+        return bool(self.get(f'plugins.{name}.enabled'))
+
+    def enable_plugin(self, name: str):
+        self.set_key(f'plugins.{name}.enabled', True, save=True)
+
+    def disable_plugin(self, name: str):
+        self.set_key(f'plugins.{name}.enabled', False, save=True)
+
     def _check_dependent_keys(self) -> None:
         if self.NETWORK_SERVERFINGERPRINT:
             if not self.NETWORK_SERVER:

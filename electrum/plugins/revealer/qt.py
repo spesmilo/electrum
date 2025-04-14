@@ -73,7 +73,7 @@ class Plugin(RevealerPlugin):
         self.icon_bytes = self.read_file("revealer.png")
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
+    def load_wallet(self, wallet, window):
         if self._init_qt_received:  # only need/want the first signal
             return
         self._init_qt_received = True

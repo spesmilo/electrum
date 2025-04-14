@@ -272,6 +272,8 @@ class NewWalletWizard(AbstractWizard):
         }
         self._daemon = daemon
         self.plugins = plugins
+        # todo: load only if needed, like hw plugins
+        self.plugins.load_plugin_by_name('trustedcoin')
 
     def start(self, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:

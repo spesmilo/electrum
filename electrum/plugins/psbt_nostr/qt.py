@@ -71,14 +71,6 @@ class Plugin(BasePlugin):
 
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
-        if self._init_qt_received:  # only need/want the first signal
-            return
-        self._init_qt_received = True
-        for window in gui.windows:
-            self.load_wallet(window.wallet, window)
-
-    @hook
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if type(wallet) != Multisig_Wallet:
             return

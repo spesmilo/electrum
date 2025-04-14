@@ -165,6 +165,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
         self.gui_object = gui_object
+        self.should_stop_wallet_on_close = True
         self.config = config = gui_object.config  # type: SimpleConfig
         self.gui_thread = gui_object.gui_thread
         assert wallet, "no wallet"
@@ -759,7 +760,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("&Plugins"), partial(self.gui_object.show_plugins_dialog, self.wallet))
+        tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
@@ -2633,8 +2634,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.save_notes_text()
         if not self.isMaximized():
             g = self.geometry()
-            self.wallet.db.put("winpos-qt", [g.left(),g.top(),
-                                                  g.width(),g.height()])
+            self.wallet.db.put(
+                "winpos-qt", [g.left(),g.top(), g.width(),g.height()])
         if self.qr_window:
             self.qr_window.close()
         self.close_wallet()

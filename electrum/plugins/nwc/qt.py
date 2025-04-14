@@ -25,27 +25,23 @@ class Plugin(NWCServerPlugin):
 
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
-        self.start_plugin(wallet)
-
-    @hook
-    def init_qt(self, gui: 'ElectrumGui'):
-        if self._init_qt_received:
+        if not wallet.has_lightning():
             return
-        self._init_qt_received = True
-        for w in gui.windows:
-            self.start_plugin(w.wallet)
+        self.start_plugin(wallet)
 
     def requires_settings(self):
         return True
 
     def settings_dialog(self, window: WindowModalDialog, wallet: 'Abstract_Wallet'):
-        if not wallet.has_lightning():
-            window.show_error(_("{} plugin requires a lightning enabled wallet. Setup lightning first.")
-                           .format("NWC"))
+        if not self.initialized:
+            window.show_error(
+                _("{} plugin requires a lightning enabled wallet. Open a lightning-enabled wallet first.")
+                .format("NWC"))
             return
 
         d = WindowModalDialog(window, _("Nostr Wallet Connect"))
         main_layout = QVBoxLayout(d)
+        main_layout.addWidget(QLabel(_("Using wallet:") + ' ' + self.nwc_server.wallet.basename()))
 
         # Connections list
         main_layout.addWidget(QLabel(_("Existing Connections:")))

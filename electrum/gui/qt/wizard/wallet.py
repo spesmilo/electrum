@@ -30,6 +30,7 @@ from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PA
 from electrum.gui.qt.seed_dialog import SeedWidget, MSG_PASSPHRASE_WARN_ISSUE4566, KeysWidget
 from electrum.gui.qt.util import (PasswordLineEdit, char_width_in_lineedit, WWLabel, InfoButton, font_height,
                                   ChoiceWidget, MessageBoxMixin, icon_path, IconLabel, read_QIcon)
+from electrum.gui.qt.plugins_dialog import PluginsDialog
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -1081,6 +1082,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.scanFailed.connect(self.on_scan_failed)
         self.scanComplete.connect(self.on_scan_complete)
         self.plugins = wizard.plugins
+        self.config = wizard.config
 
         self.error_l = WWLabel()
         self.error_l.setVisible(False)
@@ -1093,9 +1095,13 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.rescan_button = QPushButton(_('Rescan devices'))
         self.rescan_button.clicked.connect(self.on_rescan)
 
+        self.add_plugin_button = QPushButton(_('Add plugin'))
+        self.add_plugin_button.clicked.connect(self.on_add_plugin)
+
         hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(self.rescan_button)
+        hbox.addWidget(self.add_plugin_button)
         hbox.addStretch(1)
 
         self.layout().addWidget(self.error_l)
@@ -1108,6 +1114,11 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.scan_devices()
 
     def on_rescan(self):
+        self.scan_devices()
+
+    def on_add_plugin(self):
+        d = PluginsDialog(self.config, self.plugins)
+        d.exec()
         self.scan_devices()
 
     def on_scan_failed(self, code, message):

@@ -3,10 +3,10 @@ from functools import partial
 import shutil
 import os
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog, QMenu, QApplication
+from PyQt6.QtCore import Qt
 
 from electrum.i18n import _
-from electrum.plugin import run_hook
 
 from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
 
@@ -14,7 +14,8 @@ from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_space
 if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum_cc import ECPrivkey
-    from electrum.wallet import Abstract_Wallet
+    from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
 
 
 class PluginDialog(WindowModalDialog):
@@ -47,45 +48,55 @@ class PluginDialog(WindowModalDialog):
             msg = '\n'.join(map(lambda x: x[1], requires))
             form.addRow(QLabel(_('Requires') + ':'), WWLabel(msg))
         vbox.addLayout(form)
-        toggle_button = QPushButton('')
-        if not self.plugins.is_installed(name):
-            toggle_button.setText(_('Install...'))
-            toggle_button.clicked.connect(self.accept)
-        else:
-            text = (_('Disable') if p else _('Enable')) if self.plugins.is_authorized(name) else _('Authorize...')
-            toggle_button.setText(text)
-            toggle_button.clicked.connect(partial(self.do_toggle, toggle_button, name))
         close_button = CloseButton(self)
         close_button.setText(_('Close'))
-        buttons = [toggle_button, close_button]
-        # add settings widget
-        if p and p.requires_settings() and p.is_enabled() and self.window.wallet is not None:
-            button = EnterButton(
-                _('Settings'),
-                partial(p.settings_dialog, self, self.window.wallet))
-            buttons.insert(0, button)
+        buttons = [close_button]
+        if not self.plugins.is_installed(name):
+            install_button = QPushButton(_('Install...'))
+            install_button.clicked.connect(self.accept)
+            buttons.insert(0, install_button)
+        else:
+            remove_button = QPushButton(_('Uninstall'))
+            remove_button.clicked.connect(self.do_remove)
+            buttons.insert(0, remove_button)
+            if not self.plugins.is_authorized(name):
+                auth_button = QPushButton(_('Authorize...'))
+                auth_button.clicked.connect(self.do_authorize)
+                buttons.insert(0, auth_button)
+            elif not self.plugins.is_auto_loaded(name):
+                toggle_button = QPushButton('')
+                p = self.plugins.get(name)
+                is_enabled = p and p.is_enabled()
+                toggle_button.setText(_('Disable') if is_enabled else _('Enable'))
+                toggle_button.clicked.connect(self.do_toggle)
+                buttons.insert(0, toggle_button)
+            # add settings button
+            if p and p.requires_settings() and p.is_enabled():
+                settings_button = EnterButton(
+                    _('Settings'),
+                    partial(p.settings_dialog, self))
+                buttons.insert(1, settings_button)
+        # add buttonss
         vbox.addLayout(Buttons(*buttons))
 
-    def do_toggle(self, toggle_button, name):
-        toggle_button.setEnabled(False)
-        if not self.plugins.is_authorized(name):
-            privkey = self.window.get_plugins_privkey()
-            if not privkey:
-                return
-            filename = self.plugins.zip_plugin_path(name)
-            self.window.plugins.authorize_plugin(name, filename, privkey)
-            self.status_button.update()
-            self.close()
-            return
-        p = self.plugins.get(name)
-        if not p:
-            self.plugins.enable(name)
-        else:
-            self.plugins.disable(name)
-        self.status_button.update()
+    def do_toggle(self):
         self.close()
-        # note: all enabled plugins will receive this hook:
-        run_hook('init_qt', self.window.gui_object)
+        self.window.do_toggle(self.name, self.status_button)
+
+    def do_remove(self):
+        self.window.uninstall_plugin(self.name)
+        self.close()
+
+    def do_authorize(self):
+        assert not self.plugins.is_authorized(self.name)
+        privkey = self.window.get_plugins_privkey()
+        if not privkey:
+            return
+        filename = self.plugins.zip_plugin_path(self.name)
+        self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        if self.status_button:
+            self.status_button.update()
+        self.close()
 
 
 class PluginStatusButton(QPushButton):
@@ -112,20 +123,27 @@ class PluginStatusButton(QPushButton):
             or plugin_is_loaded and p.can_user_disable()
         )
         self.setEnabled(enabled)
-        text, color = (_('Unauthorized'), ColorScheme.RED) if not self.window.plugins.is_authorized(self.name)\
-            else ((_('Enabled'), ColorScheme.BLUE) if p is not None and p.is_enabled() else (_('Disabled'), ColorScheme.DEFAULT))
+        if not self.window.plugins.is_authorized(self.name):
+            text, color = _('Unauthorized'), ColorScheme.RED
+        else:
+            if self.window.plugins.is_auto_loaded(self.name):
+                text, color = _('Auto-loaded'), ColorScheme.DEFAULT
+            else:
+                if p is not None and p.is_enabled():
+                    text, color = _('Enabled'), ColorScheme.BLUE
+                else:
+                    text, color = _('Disabled'), ColorScheme.DEFAULT
         self.setStyleSheet(color.as_stylesheet())
         self.setText(text)
 
 
 class PluginsDialog(WindowModalDialog, MessageBoxMixin):
 
-    def __init__(self, gui_object: 'ElectrumGui', wallet: Optional['Abstract_Wallet']):
+    def __init__(self, config: 'SimpleConfig', plugins:'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
         WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
         self.gui_object = gui_object
-        self.config = gui_object.config
-        self.plugins = gui_object.plugins
-        self.wallet = wallet
+        self.config = config
+        self.plugins = plugins
         vbox = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setEnabled(True)
@@ -138,8 +156,19 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         scroll_w.setLayout(self.grid)
         vbox.addWidget(scroll)
         add_button = QPushButton(_('Add'))
-        add_button.clicked.connect(self.add_plugin_dialog)
-        #add_button.clicked.connect(self.download_plugin_dialog)
+        menu = QMenu()
+        for name, item in self.plugins.internal_plugin_metadata.items():
+            fullname = item['fullname']
+            if not fullname:
+                continue
+            if self.plugins.is_auto_loaded(name):
+                continue
+            menu.addAction(fullname, partial(self.add_internal_plugin, name))
+        menu.addSeparator()
+        m3 = menu.addMenu('Third-party plugin')
+        m3.addAction(_('Local ZIP file'), self.add_plugin_dialog)
+        m3.addAction(_('Download ZIP file'), self.download_plugin_dialog)
+        add_button.setMenu(menu)
         vbox.addLayout(Buttons(add_button, CloseButton(self)))
         self.show_list()
 
@@ -187,11 +216,15 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         key_hex = self.plugins.create_new_key(pw)
         keyfile_path, keyfile_help = self.plugins.get_keyfile_path()
-        msg = ''.join([
-            _('Your plugins key is:'), '\n\n', key_hex, '\n\n',
-            _('Please save this key in'), '\n\n' + keyfile_path, '\n\n', keyfile_help
+        msg = '\n\n'.join([
+            _('Your plugins key is:'), key_hex,
+            _('This key has been copied to your clipboard. Please save it in:'),
+            keyfile_path,
+            keyfile_help,
+            '',
         ])
-        self.gui_object.do_copy(key_hex, title=_('Plugins key'))
+        clipboard = QApplication.clipboard()
+        clipboard.setText(key_hex)
         self.show_message(msg)
 
     def download_plugin_dialog(self):
@@ -207,14 +240,14 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         coro = self.plugins.download_external_plugin(url)
         try:
-            path = self.window.run_coroutine_dialog(coro, "Downloading plugin...")
+            path = self.window.run_coroutine_dialog(coro, _("Downloading plugin..."))
         except UserCancelled:
             return
         except Exception as e:
             self.show_error(f"{e}")
             return
         try:
-            success = self.confirm_add_plugin(path)
+            success = self.add_external_plugin(path)
         except Exception as e:
             self.show_error(f"{e}")
             success = False
@@ -226,21 +259,21 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if not pubkey:
             self.init_plugins_password()
             return
-        filename, __ = QFileDialog.getOpenFileName(self, "Select your plugin zipfile", "", "*.zip")
+        filename, __ = QFileDialog.getOpenFileName(self, _("Select your plugin zipfile"), "", "*.zip")
         if not filename:
             return
         plugins_dir = self.plugins.get_external_plugin_dir()
         path = os.path.join(plugins_dir, os.path.basename(filename))
         shutil.copyfile(filename, path)
         try:
-            success = self.confirm_add_plugin(path)
+            success = self.add_external_plugin(path)
         except Exception as e:
             self.show_error(f"{e}")
             success = False
         if not success:
             os.unlink(path)
 
-    def confirm_add_plugin(self, path):
+    def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
         name = manifest['name']
         d = PluginDialog(name, manifest, None, self)
@@ -250,13 +283,21 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         privkey = self.get_plugins_privkey()
         if not privkey:
             return False
-        self.plugins.external_plugin_metadata[name] = manifest
-        self.plugins.authorize_plugin(name, path, privkey)
-        self.show_message(_('Plugin installed successfully.'))
+        self.plugins.install_external_plugin(name, path, privkey, manifest)
         self.show_list()
         return True
 
+    def add_internal_plugin(self, name):
+        """ simply set the config """
+        manifest = self.plugins.internal_plugin_metadata[name]
+        d = PluginDialog(name, manifest, None, self)
+        if not d.exec():
+            return False
+        self.plugins.install_internal_plugin(name)
+        self.show_list()
+
     def show_list(self):
+        from .util import read_QIcon_from_bytes, IconLabel
         descriptions = self.plugins.descriptions
         descriptions = sorted(descriptions.items())
         grid = self.grid
@@ -267,14 +308,47 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         i = 0
         for name, metadata in descriptions:
             i += 1
-            if metadata.get('registers_keystore'):
+            if self.plugins.is_internal(name) and self.plugins.is_auto_loaded(name):
+                continue
+            if not self.plugins.is_installed(name):
                 continue
             display_name = metadata.get('fullname')
             if not display_name:
                 continue
-            label = QLabel(display_name)
+            label = IconLabel(text=display_name, reverse=True)
+            icon_path = metadata.get('icon')
+            if icon_path:
+                icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
+                label.setIcon(icon)
+            label.status_button = PluginStatusButton(self, name)
             grid.addWidget(label, i, 0)
-            status_button = PluginStatusButton(self, name)
-            grid.addWidget(status_button, i, 1)
+            grid.addWidget(label.status_button, i, 1)
         # add stretch
         grid.setRowStretch(i + 1, 1)
+
+    def do_toggle(self, name, status_button):
+        if not self.plugins.is_authorized(name):
+            #self.show_plugin_dialog(name, status_button)
+            return
+        if self.plugins.is_auto_loaded(name):
+            return
+        p = self.plugins.get(name)
+        is_enabled = p and p.is_enabled()
+        if is_enabled:
+            self.plugins.disable(name)
+        else:
+            self.plugins.enable(name)
+        if status_button:
+            status_button.update()
+        if self.gui_object:
+            self.gui_object.reload_windows()
+        self.setFocus()
+        self.activateWindow()
+
+    def uninstall_plugin(self, name):
+        if not self.question(_('Remove plugin \'{}\'?').format(name)):
+            return
+        self.plugins.uninstall(name)
+        if self.gui_object:
+            self.gui_object.reload_windows()
+        self.show_list()

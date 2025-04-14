@@ -135,7 +135,8 @@ class Plugins(DaemonThread):
                     self.register_keystore(name, gui_good, details)
             if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
                 _logger.info(f"Found the following plugin modules: {iter_modules=}")
-                raise Exception(f"duplicate plugins? for {name=}")
+                _logger.info(f"duplicate plugins? for {name=}")
+                continue
             if not external:
                 self.internal_plugin_metadata[name] = d
             else:
@@ -296,10 +297,9 @@ class Plugins(DaemonThread):
             except Exception:
                 self.logger.info(f"could not load manifest.json from zip plugin {filename}", exc_info=True)
                 continue
-            if name in self.internal_plugin_metadata:
-                raise Exception(f"duplicate plugins for name={name}")
-            if name in self.external_plugin_metadata:
-                raise Exception(f"duplicate plugins for name={name}")
+            if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
+                self.logger.info(f"duplicate plugins for {name=}")
+                continue
             if self.cmd_only and not self.config.get(f'plugins.{name}.enabled'):
                 continue
             min_version = d.get('min_electrum_version')
@@ -361,9 +361,6 @@ class Plugins(DaemonThread):
                 init_spec = zipfile.find_spec(dirname)
 
             self.exec_module_from_spec(init_spec, base_name)
-            if name == "trustedcoin":
-                # removes trustedcoin after loading to not show it in the list of plugins
-                del self.internal_plugin_metadata[name]
 
     def load_plugin_by_name(self, name: str) -> 'BasePlugin':
         if name in self.plugins:
@@ -400,9 +397,31 @@ class Plugins(DaemonThread):
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
 
+    def install_internal_plugin(self, name):
+        self.config.set_key(f'plugins.{name}.enabled', [])
+
+    def install_external_plugin(self, name, path, privkey, manifest):
+        self.external_plugin_metadata[name] = manifest
+        self.authorize_plugin(name, path, privkey)
+
+    def uninstall(self, name: str):
+        self.config.set_key(f'plugins.{name}', None)
+        if name in self.external_plugin_metadata:
+            zipfile = self.zip_plugin_path(name)
+            os.unlink(zipfile)
+            self.external_plugin_metadata.pop(name)
+
+    def is_internal(self, name) -> bool:
+        return name in self.internal_plugin_metadata
+
+    def is_auto_loaded(self, name):
+        metadata = self.external_plugin_metadata.get(name) or self.internal_plugin_metadata.get(name)
+        return metadata and (metadata.get('registers_keystore') or metadata.get('registers_wallet_type'))
+
     def is_installed(self, name) -> bool:
         """an external plugin may be installed but not authorized """
-        return name in self.internal_plugin_metadata or name in self.external_plugin_metadata
+        return (name in self.internal_plugin_metadata and self.config.get(f'plugins.{name}'))\
+            or name in self.external_plugin_metadata
 
     def is_authorized(self, name) -> bool:
         if name in self.internal_plugin_metadata:
@@ -431,14 +450,14 @@ class Plugins(DaemonThread):
         self.config.set_key(f'plugins.{name}.authorized', value, save=True)
 
     def enable(self, name: str) -> 'BasePlugin':
-        self.config.set_key(f'plugins.{name}.enabled', True, save=True)
+        self.config.enable_plugin(name)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
     def disable(self, name: str) -> None:
-        self.config.set_key(f'plugins.{name}.enabled', False, save=True)
+        self.config.disable_plugin(name)
         p = self.get(name)
         if not p:
             return
@@ -449,10 +468,6 @@ class Plugins(DaemonThread):
     @classmethod
     def is_plugin_enabler_config_key(cls, key: str) -> bool:
         return key.startswith('plugins.')
-
-    def toggle(self, name: str) -> Optional['BasePlugin']:
-        p = self.get(name)
-        return self.disable(name) if p else self.enable(name)
 
     def is_available(self, name: str, wallet: 'Abstract_Wallet') -> bool:
         d = self.descriptions.get(name)
@@ -531,6 +546,19 @@ class Plugins(DaemonThread):
             self.run_jobs()
         self.on_stop()
 
+    def read_file(self, name: str, filename: str) -> bytes:
+        if self.is_plugin_zip(name):
+            plugin_filename = self.zip_plugin_path(name)
+            metadata = self.external_plugin_metadata[name]
+            dirname = metadata['dirname']
+            with zipfile_lib.ZipFile(plugin_filename) as myzip:
+                with myzip.open(os.path.join(dirname, filename)) as myfile:
+                    return myfile.read()
+        else:
+            assert name in self.internal_plugin_metadata
+            path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
+            with open(path, 'rb') as myfile:
+                return myfile.read()
 
 def get_file_hash256(path: str) -> bytes:
     '''Get the sha256 hash of a file, similar to `sha256sum`.'''
@@ -567,7 +595,6 @@ class BasePlugin(Logger):
         self.parent = parent  # type: Plugins  # The plugins object
         self.name = name
         self.config = config
-        self.wallet = None  # fixme: this field should not exist
         Logger.__init__(self)
         # add self to hooks
         for k in dir(self):
@@ -604,7 +631,9 @@ class BasePlugin(Logger):
         return []
 
     def is_enabled(self):
-        return self.is_available() and self.config.get(f'plugins.{self.name}.enabled') is True
+        if not self.is_available():
+            return False
+        return self.config.is_plugin_enabled(self.name)
 
     def is_available(self):
         return True
@@ -619,20 +648,7 @@ class BasePlugin(Logger):
         raise NotImplementedError()
 
     def read_file(self, filename: str) -> bytes:
-        if self.parent.is_plugin_zip(self.name):
-            plugin_filename = self.parent.zip_plugin_path(self.name)
-            metadata = self.parent.external_plugin_metadata[self.name]
-            dirname = metadata['dirname']
-            with zipfile_lib.ZipFile(plugin_filename) as myzip:
-                with myzip.open(os.path.join(dirname, filename)) as myfile:
-                    return myfile.read()
-        else:
-            if self.name in self.parent.internal_plugin_metadata:
-                path = os.path.join(os.path.dirname(__file__), 'plugins', self.name, filename)
-            else:
-                path = os.path.join(self.parent.get_external_plugin_dir(), self.name, filename)
-            with open(path, 'rb') as myfile:
-                return myfile.read()
+        return self.parent.read_file(self.name, filename)
 
 
 class DeviceUnpairableError(UserFacingException): pass

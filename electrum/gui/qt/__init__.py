@@ -158,11 +158,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self._default_qtstylesheet = self.app.styleSheet()
         self.reload_app_stylesheet()
 
-        # always load 2fa
-        self.plugins.load_plugin_by_name('trustedcoin')
-
-        run_hook('init_qt', self)
-
     def _init_tray(self):
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
         self.tray.setToolTip('Electrum')
@@ -294,9 +289,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
 
-    def show_plugins_dialog(self, wallet=None):
+    def show_plugins_dialog(self):
         from .plugins_dialog import PluginsDialog
-        d = PluginsDialog(self, wallet)
+        d = PluginsDialog(self.config, self.plugins, gui_object=self)
         d.exec()
 
     def show_network_dialog(self, proxy_tab=False):
@@ -327,6 +322,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
                     self._num_wizards_in_progress -= 1
                 self._maybe_quit_if_no_windows_open()
         return wrapper
+
+    def get_window_for_wallet(self, wallet):
+        for window in self.windows:
+            if window.wallet.storage.path == wallet.storage.path:
+                return window
 
     @count_wizards_in_progress
     def start_new_window(
@@ -377,11 +377,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 wallet = self._start_wizard_to_select_or_create_wallet(path)
             if not wallet:
                 return
+            window = self.get_window_for_wallet(wallet)
             # create or raise window
-            for window in self.windows:
-                if window.wallet.storage.path == wallet.storage.path:
-                    break
-            else:
+            if not window:
                 window = self._create_window_for_wallet(wallet)
         except UserCancelled:
             return
@@ -491,7 +489,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not self.windows:
             self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
-        self.daemon.stop_wallet(window.wallet.storage.path)
+        if window.should_stop_wallet_on_close:
+            self.daemon.stop_wallet(window.wallet.storage.path)
+
+    def reload_windows(self):
+        for window in list(self.windows):
+            wallet = window.wallet
+            window.should_stop_wallet_on_close = False
+            window.close()
+            self._create_window_for_wallet(wallet)
 
     def init_network(self):
         """Start the network, including showing a first-start network dialog if config does not exist."""
