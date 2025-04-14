@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+#
+# This script extracts "raw" strings from the codebase,
+# and uploads them to crowdin, for the community to translate them.
+#
 # Dependencies:
 # $ sudo apt-get install python3-requests gettext qt6-l10n-tools
 
@@ -12,8 +16,12 @@ except ImportError as e:
     sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install --user <module-name>'")
 
 # set cwd
-project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 os.chdir(project_root)
+
+locale_dir = os.path.join(project_root, "electrum", "locale")
+if not os.path.exists(os.path.join(locale_dir, "locale")):
+    raise Exception(f"missing git submodule for locale? {locale_dir}")
 
 # check dependencies are available
 try:
@@ -46,33 +54,41 @@ with open("app.fil", "wb") as f:
 print("Found {} files to translate".format(len(files.splitlines())))
 
 # Generate fresh translation template
-if not os.path.exists('electrum/locale'):
-    os.mkdir('electrum/locale')
+build_dir = os.path.join(locale_dir, "build")
+if not os.path.exists(build_dir):
+    os.mkdir(build_dir)
 print('Generating template...')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages_gettext.pot'
-subprocess.check_output(cmd, shell=True)
+cmd = ["xgettext", "-s", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", "app.fil", f"--output={build_dir}/messages_gettext.pot"]
+subprocess.check_output(cmd)
 
 
 # add QML translations
 cmd = "find electrum/gui/qml -type f -name '*.qml'"
 files = subprocess.check_output(cmd, shell=True)
 
-with open("electrum/locale/qml.lst", "wb") as f:
+with open(f"{build_dir}/qml.lst", "wb") as f:
     f.write(files)
 
 print("Found {} QML files to translate".format(len(files.splitlines())))
 
-cmd = [QT_LUPDATE, "@electrum/locale/qml.lst","-ts", "electrum/locale/qml.ts"]
+# note: lupdate writes relative paths into its output .ts file, relative to the .ts file itself :/
+cmd = [QT_LUPDATE, f"@{build_dir}/qml.lst","-ts", f"{build_dir}/qml.ts"]
 print('Collecting strings')
 subprocess.check_output(cmd)
 
-cmd = [QT_LCONVERT, "-of", "po", "-o", "electrum/locale/messages_qml.pot", "electrum/locale/qml.ts"]
+cmd = [QT_LCONVERT, "-of", "po", "-o", f"{build_dir}/messages_qml.pot", f"{build_dir}/qml.ts"]
 print('Convert to gettext')
 subprocess.check_output(cmd)
 
-cmd = "msgcat -u -o electrum/locale/messages.pot electrum/locale/messages_gettext.pot electrum/locale/messages_qml.pot"
+print("Fixing some paths in messages_qml.pot")
+#  sed from " ../../gui/qml/"
+#      to   " electrum/gui/qml/"
+cmd = ["sed", "-i", r"s/ ..\/..\/gui\/qml\// electrum\/gui\/qml\//g", f"{build_dir}/messages_qml.pot"]
+subprocess.check_output(cmd)
+
+cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages_gettext.pot", f"{build_dir}/messages_qml.pot"]
 print('Generate template')
-subprocess.check_output(cmd, shell=True)
+subprocess.check_output(cmd)
 
 
 # prepare uploading to crowdin
@@ -91,7 +107,7 @@ if not crowdin_api_key:
 print('Found crowdin_api_key. Will push updated source-strings to crowdin.')
 
 crowdin_project_id = 20482  # for "Electrum" project on crowdin
-locale_file_name = "locale/messages.pot"
+locale_file_name = os.path.join(build_dir, "messages.pot")
 crowdin_file_name = "messages.pot"
 crowdin_file_id = 68  # for "/electrum-client/messages.pot"
 global_headers = {"Authorization": "Bearer {}".format(crowdin_api_key)}

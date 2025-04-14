@@ -128,18 +128,15 @@ pyinstaller --version
 
 rm -rf ./dist
 
-git submodule update --init
-
-info "generating locale"
+info "preparing electrum-locale."
 (
     if ! which msgfmt > /dev/null 2>&1; then
         brew install gettext
         brew link --force gettext
     fi
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$LOCALE"
-    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 ) || fail "failed generating locale"
 
 

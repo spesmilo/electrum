@@ -6,7 +6,6 @@ CONTRIB_ANDROID="$(dirname "$(readlink -e "$0")")"
 CONTRIB="$CONTRIB_ANDROID"/..
 PROJECT_ROOT="$CONTRIB"/..
 PACKAGES="$PROJECT_ROOT"/packages/
-LOCALE="$PROJECT_ROOT"/electrum/locale/
 
 . "$CONTRIB"/build_tools_util.sh
 
@@ -20,17 +19,12 @@ if [ ! -d "$PACKAGES" ]; then
     "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
-pushd "$PROJECT_ROOT"
-git submodule update --init
-popd
-
 # update locale
 info "preparing electrum-locale."
 (
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$LOCALE"
-    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 )
 
 pushd "$CONTRIB_ANDROID"
