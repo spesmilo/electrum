@@ -80,6 +80,8 @@ task:
     - apt-get -y install gettext qt6-l10n-tools
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
+  submodules_script:
+    - git submodule update --init
   locale_script:
     - contrib/locale/push_locale.py
   env:
