@@ -1,4 +1,5 @@
 {
+  "name": "digitalbitbox",
   "fullname": "Digital Bitbox",
   "description": "Provides support for Digital Bitbox hardware wallet",
   "registers_keystore": ["hardware", "digitalbitbox", "Digital Bitbox wallet"],

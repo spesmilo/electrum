@@ -1,4 +1,5 @@
 {
+  "name": "ledger",
   "fullname": "Ledger Wallet",
   "description": "Provides support for Ledger hardware wallet",
   "requires": [["ledger_bitcoin", "github.com/LedgerHQ/app-bitcoin-new"]],

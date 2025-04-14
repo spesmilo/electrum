@@ -18,7 +18,7 @@ if source_dir.endswith('/'):
     source_dir = source_dir[:-1]
 
 plugin_name = os.path.basename(source_dir)
-dest_dir = os.path.dirname(source_dir)
+dest_dir = os.getcwd()
 zip_path = os.path.join(dest_dir, plugin_name + '.zip')
 
 # remove old zipfile
@@ -42,14 +42,11 @@ try:
 except FileNotFoundError:
     raise Exception(f"plugin doesn't contain manifest.json")
 
-if not version:
-    raise Exception('version not set')
-
-
-versioned_plugin_name = plugin_name + '-' + version + '.zip'
-zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
-# rename zip file
-os.rename(zip_path, zip_path_with_version)
-
-print(f'Created {zip_path_with_version}')
-
+if version:
+    versioned_plugin_name = plugin_name + '-' + version + '.zip'
+    zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
+    # rename zip file
+    os.rename(zip_path, zip_path_with_version)
+    print(f'Created {zip_path_with_version}')
+else:
+    print(f'Created {zip_path}')

@@ -1,4 +1,5 @@
 {
+  "name": "bitbox02",
   "fullname": "BitBox02",
   "description": "Provides support for the BitBox02 hardware wallet",
   "requires": [["bitbox02", "https://github.com/digitalbitbox/bitbox02-firmware/tree/master/py/bitbox02"]],

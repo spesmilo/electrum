@@ -1,4 +1,5 @@
 {
+  "name": "safe_t",
   "fullname": "Safe-T mini Wallet",
   "description": "Provides support for Safe-T mini hardware wallet",
   "requires": [["safetlib", "github.com/archos-safe-t/python-safet"]],

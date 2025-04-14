@@ -1,4 +1,5 @@
 {
+  "name": "trezor",
   "fullname": "Trezor Wallet",
   "description": "Provides support for Trezor hardware wallet",
   "requires": [["trezorlib","pypi.org/project/trezor/"]],

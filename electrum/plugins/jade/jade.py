@@ -33,6 +33,7 @@ _logger = get_logger(__name__)
 
 try:
     # Do imports
+    from .jadepy import jade
     from .jadepy.jade import JadeAPI
     from .jadepy.jade_serial import JadeSerialImpl
     from serial.tools import list_ports
