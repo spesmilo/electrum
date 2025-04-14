@@ -1608,7 +1608,12 @@ class LNWallet(LNWorker):
             amount_to_pay=amount_to_pay,
             invoice_pubkey=node_pubkey,
             uses_trampoline=self.uses_trampoline(),
-            use_two_trampolines=self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE,
+            # the config option to use two trampoline hops for legacy payments has been removed as
+            # the trampoline onion is too small (400 bytes) to accommodate two trampoline hops and
+            # routing hints, making the functionality unusable for payments that require routing hints.
+            # TODO: if you read this, the year is 2027 and there is no use for the second trampoline
+            # hop code anymore remove the code completely.
+            use_two_trampolines=False,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
 

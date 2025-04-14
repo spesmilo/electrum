@@ -678,13 +678,6 @@ If this is enabled, other nodes cannot open a channel to you. Channel recovery d
     )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
-    LIGHTNING_LEGACY_ADD_TRAMPOLINE = ConfigVar(
-        'lightning_legacy_add_trampoline', default=False, type_=bool,
-        short_desc=lambda: _("Add extra trampoline to legacy payments"),
-        long_desc=lambda: _("""When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy.
-
-This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
-    )
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
     LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = ConfigVar(
         'lightning_payment_fee_max_millionths', default=10_000,  # 1%
