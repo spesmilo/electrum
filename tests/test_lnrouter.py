@@ -4,19 +4,22 @@ import tempfile
 import shutil
 import asyncio
 from typing import Optional
+from os import urandom
 
 from electrum import util
 from electrum.channel_db import NodeInfo
 from electrum.onion_message import is_onion_message_node
+from electrum.trampoline import create_trampoline_onion
 from electrum.util import bfh
 from electrum.lnutil import ShortChannelID, LnFeatures
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
-                              OnionFailureCode, OnionPacket)
+                              OnionFailureCode)
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
-from electrum.lnrouter import PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH, DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat
+from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
+                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -449,6 +452,47 @@ class Test_LNRouter(ElectrumTestCase):
             processed_packet = process_onion_packet(packet, privkey, associated_data=associated_data)
             self.assertEqual(hops_data[i].to_bytes(), processed_packet.hop_data.to_bytes())
             packet = processed_packet.next_packet
+
+    def test_create_legacy_trampoline_onion_multiple_rtags(self):
+        """Test to verify we don't overfill the trampoline onion with r_tags if there are more tags than available space"""
+        dummy_route: LNPaymentTRoute = [
+            TrampolineEdge(
+                invoice_routing_info=[
+                    bfh("010305061295fa30847df41ae6ee809b560e78d65c2a7337a41c725ea3920b65e08a03b62b00003a0002000003e8000000010050"),
+                    bfh("01037414fe3dcfedc4a0a0e153205d9a973af5096d1cd1c8c53d07ed12d7dd966f19f424000000000020000003e8000008ca0050"),
+                    bfh("01038550162fa86287884a6a052471934abb5cb261c5a2b15386df8104d3c7bcb85dddd92ee1898ee15c000003e8000000010090"),
+                    bfh("010244bb7ba2392ab2d493ad04ad4afcd482ca44a2bfe5b42bcc830bfe00e5b08082f424000000000029000003e8000008ca0050")
+                ],
+                invoice_features=LnFeatures.VAR_ONION_REQ | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.BASIC_MPP_OPT,
+                short_channel_id=ShortChannelID.from_str("0x0x0"),
+                start_node=node('a'),
+                end_node=node('b'),
+                fee_base_msat=0,
+                fee_proportional_millionths=0,
+                cltv_delta=0,
+                node_features=0
+            ),
+            TrampolineEdge(
+                invoice_routing_info=[],
+                invoice_features=None,
+                short_channel_id=ShortChannelID.from_str("0x0x0"),
+                start_node=node('b'),
+                end_node=node('c'),
+                fee_base_msat=0,
+                fee_proportional_millionths=0,
+                cltv_delta=0,
+                node_features=0
+            ),
+        ]
+        # create a trampoline onion, this shouldn't raise InvalidPayloadSize
+        create_trampoline_onion(
+            route=dummy_route,
+            amount_msat=0,
+            final_cltv_abs=0,
+            total_msat=0,
+            payment_hash=urandom(32),
+            payment_secret=urandom(32),
+        )
 
     @needs_test_with_all_chacha20_implementations
     def test_decode_onion_error(self):

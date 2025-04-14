@@ -1,15 +1,18 @@
 import io
 import os
 import random
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any
+from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any, \
+    MutableSequence
 
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
-from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket
+from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket, \
+    TRAMPOLINE_HOPS_DATA_SIZE, PER_HOP_HMAC_SIZE
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
 from .lnutil import NoPathFound
 from .lntransport import LNPeerAddr
 from . import constants
 from .logging import get_logger
+from .util import random_shuffled_copy
 
 
 _logger = get_logger(__name__)
@@ -55,10 +58,10 @@ def trampolines_by_id():
 def is_hardcoded_trampoline(node_id: bytes) -> bool:
     return node_id in trampolines_by_id()
 
-def encode_routing_info(r_tags: Sequence[Sequence[Sequence[Any]]]) -> bytes:
-    result = bytearray()
+def encode_routing_info(r_tags: Sequence[Sequence[Sequence[Any]]]) -> List[bytes]:
+    routes = []
     for route in r_tags:
-        result += bytes([len(route)])
+        result = bytes([len(route)])
         for step in route:
             pubkey, scid, feebase, feerate, cltv = step
             result += pubkey
@@ -66,7 +69,8 @@ def encode_routing_info(r_tags: Sequence[Sequence[Sequence[Any]]]) -> bytes:
             result += int.to_bytes(feebase, length=4, byteorder="big", signed=False)
             result += int.to_bytes(feerate, length=4, byteorder="big", signed=False)
             result += int.to_bytes(cltv, length=2, byteorder="big", signed=False)
-    return bytes(result)
+        routes.append(result)
+    return routes
 
 
 def decode_routing_info(rinfo: bytes) -> Sequence[Sequence[Sequence[Any]]]:
@@ -228,8 +232,9 @@ def create_trampoline_route(
             _extend_trampoline_route(route, end_node=second_trampoline)
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
-        invoice_routing_info = encode_routing_info(r_tags)
-        assert invoice_routing_info == encode_routing_info(decode_routing_info(invoice_routing_info))
+        # Due to space constraints it is not guaranteed for all route hints to get included in the onion
+        invoice_routing_info: List[bytes] = encode_routing_info(r_tags)
+        assert invoice_routing_info == encode_routing_info(decode_routing_info(b''.join(invoice_routing_info)))
         # lnwire invoice_features for trampoline is u64
         invoice_features = invoice_features & 0xffffffffffffffff
         route[-1].invoice_routing_info = invoice_routing_info
@@ -287,6 +292,7 @@ def create_trampoline_onion(
     # detect trampoline hops.
     payment_path_pubkeys = [x.node_id for x in route]
     num_hops = len(payment_path_pubkeys)
+    routing_info_payload_index: Optional[int] = None
     for i in range(num_hops):
         route_edge = route[i]
         assert route_edge.is_trampoline()
@@ -305,11 +311,32 @@ def create_trampoline_onion(
         # legacy
         if i == num_hops - 2 and route_edge.invoice_features:
             payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
-            payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
+            routing_info_payload_index = i
             payload["payment_data"] = {
                 "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
+
+    if (index := routing_info_payload_index) is not None:
+        # fill the remaining payload space with available routing hints (r_tags)
+        payload: dict = hops_data[index].payload
+        # try different r_tag order on each attempt
+        invoice_routing_info = random_shuffled_copy(route[index].invoice_routing_info)
+        remaining_payload_space = TRAMPOLINE_HOPS_DATA_SIZE \
+                                  - sum(len(hop.to_bytes()) + PER_HOP_HMAC_SIZE for hop in hops_data)
+        routing_info_to_use = []
+        for encoded_r_tag in invoice_routing_info:
+            if remaining_payload_space < 50:
+                break  # no r_tag will fit here anymore
+            r_tag_size = len(encoded_r_tag)
+            if r_tag_size > remaining_payload_space:
+                continue
+            routing_info_to_use.append(encoded_r_tag)
+            remaining_payload_space -= r_tag_size
+        # add the chosen r_tags to the payload
+        payload["invoice_routing_info"] = {"invoice_routing_info": b''.join(routing_info_to_use)}
+        _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
+
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
     trampoline_onion._debug_hops_data = hops_data
