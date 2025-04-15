@@ -34,6 +34,7 @@ from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, event_listener, EventListener
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
+from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
 
@@ -65,13 +66,26 @@ class Plugin(PsbtNostrPlugin):
     def transaction_dialog(self, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
             assert isinstance(cw, QtCosignerWallet)
-            cw.hook_transaction_dialog(d)
+            d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
+            icon = read_QIcon_from_bytes(self.read_file("nostr_multisig.png"))
+            b.setIcon(icon)
+            b.clicked.connect(lambda: cw.send_to_cosigners(d.tx))
+            d.buttons.insert(0, b)
+            b.setVisible(False)
 
     @hook
     def transaction_dialog_update(self, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
             assert isinstance(cw, QtCosignerWallet)
-            cw.hook_transaction_dialog_update(d)
+            if d.tx.is_complete() or d.wallet.can_sign(d.tx):
+                d.cosigner_send_button.setVisible(False)
+                return
+            for xpub, pubkey in cw.cosigner_list:
+                if cw.cosigner_can_sign(d.tx, xpub):
+                    d.cosigner_send_button.setVisible(True)
+                    break
+            else:
+                d.cosigner_send_button.setVisible(False)
 
 
 class QtCosignerWallet(EventListener, CosignerWallet):
@@ -90,24 +104,6 @@ class QtCosignerWallet(EventListener, CosignerWallet):
     def on_event_psbt_nostr_received(self, wallet, *args):
         if self.wallet == wallet:
             self.obj.cosignerReceivedPsbt.emit(*args)  # put on UI thread via signal
-
-    def hook_transaction_dialog(self, d: 'TxDialog'):
-        d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.send_to_cosigners(d.tx))
-        d.buttons.insert(0, b)
-        b.setVisible(False)
-
-    def hook_transaction_dialog_update(self, d: 'TxDialog'):
-        assert self.wallet == d.wallet
-        if d.tx.is_complete() or d.wallet.can_sign(d.tx):
-            d.cosigner_send_button.setVisible(False)
-            return
-        for xpub, pubkey in self.cosigner_list:
-            if self.cosigner_can_sign(d.tx, xpub):
-                d.cosigner_send_button.setVisible(True)
-                break
-        else:
-            d.cosigner_send_button.setVisible(False)
 
     def send_to_cosigners(self, tx):
         self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
