@@ -293,7 +293,7 @@ class SwapManager(Logger):
         self.invoices_to_pay[key] = 1000000000000 # lock
         try:
             invoice = self.wallet.get_invoice(key)
-            success, log = await self.lnworker.pay_invoice(invoice, attempts=10)
+            success, log = await self.lnworker.pay_invoice(invoice)
         except Exception as e:
             self.logger.info(f'exception paying {key}, will not retry')
             self.invoices_to_pay.pop(key, None)
