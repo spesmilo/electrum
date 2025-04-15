@@ -3,6 +3,7 @@ from .nwcserver import NWCServerPlugin
 from electrum.gui.qt.util import WindowModalDialog, Buttons, OkButton, CancelButton, \
     CloseButton
 from electrum.gui.common_qt.util import paintQR
+from electrum.gui.qt.util import read_QIcon_from_bytes
 from electrum.plugin import hook
 from functools import partial
 from datetime import datetime
@@ -31,7 +32,9 @@ class Plugin(NWCServerPlugin):
 
     @hook
     def init_menubar(self, window):
-        window.wallet_menu.addAction('Nostr Wallet Connect', partial(self.settings_dialog, window))
+        ma = window.wallet_menu.addAction('Nostr Wallet Connect', partial(self.settings_dialog, window))
+        icon = read_QIcon_from_bytes(self.read_file('nwc.png'))
+        ma.setIcon(icon)
 
     def settings_dialog(self, window: WindowModalDialog):
         if not self.initialized:

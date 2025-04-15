@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.gui.qt.util import TaskThread
+from electrum.gui.qt.util import TaskThread, read_QIcon_from_bytes
 
 from .labels import LabelsPlugin
 
@@ -31,6 +31,8 @@ class Plugin(LabelsPlugin):
         if not wallet.get_fingerprint():
             return
         m = window.wallet_menu.addMenu('LabelSync')
+        icon = read_QIcon_from_bytes(self.read_file('labelsync.png'))
+        m.setIcon(icon)
         m.addAction("Force upload", lambda: self.do_push(window))
         m.addAction("Force download", lambda: self.do_pull(window))
 
