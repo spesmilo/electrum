@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from electrum.i18n import _
 
 from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
+from .util import read_QIcon_from_bytes, IconLabel
 
 
 if TYPE_CHECKING:
@@ -25,8 +26,9 @@ class PluginDialog(WindowModalDialog):
         author = metadata.get('author', '')
         description = metadata.get('description', '')
         requires = metadata.get('requires')
-        version = metadata.get('version', 'n/a')
+        version = metadata.get('version')
         zip_hash = metadata.get('zip_hash_sha256', None)
+        icon_path = metadata.get('icon')
 
         WindowModalDialog.__init__(self, window, 'Plugin')
         self.setMinimumSize(400, 250)
@@ -37,17 +39,26 @@ class PluginDialog(WindowModalDialog):
         self.status_button = status_button
         p = self.plugins.get(name)  # is enabled
         vbox = QVBoxLayout(self)
+        name_label = IconLabel(text=display_name, reverse=True)
+        if icon_path:
+            name_label.icon_size = 64
+            icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
+            name_label.setIcon(icon)
+        vbox.addWidget(name_label)
         form = QFormLayout(None)
-        form.addRow(QLabel(_('Name') + ':'), QLabel(display_name))
-        form.addRow(QLabel(_('Author') + ':'), QLabel(author))
-        form.addRow(QLabel(_('Description') + ':'), WWLabel(description))
-        form.addRow(QLabel(_('Version') + ':'), QLabel(version))
+        if author:
+            form.addRow(QLabel(_('Author') + ':'), QLabel(author))
+        if description:
+            form.addRow(QLabel(_('Description') + ':'), WWLabel(description))
+        if version:
+            form.addRow(QLabel(_('Version') + ':'), QLabel(version))
         if zip_hash:
             form.addRow(QLabel('Hash [sha256]:'), WWLabel(insert_spaces(zip_hash, 8)))
         if requires:
             msg = '\n'.join(map(lambda x: x[1], requires))
             form.addRow(QLabel(_('Requires') + ':'), WWLabel(msg))
         vbox.addLayout(form)
+        vbox.addStretch()
         close_button = CloseButton(self)
         close_button.setText(_('Close'))
         buttons = [close_button]
@@ -297,7 +308,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         self.show_list()
 
     def show_list(self):
-        from .util import read_QIcon_from_bytes, IconLabel
         descriptions = self.plugins.descriptions
         descriptions = sorted(descriptions.items())
         grid = self.grid

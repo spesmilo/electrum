@@ -1,8 +1,9 @@
 {
-  "name": "psbt_nostr",
-  "fullname": "PSBT over Nostr",
+  "name": "nostr_multisig",
+  "fullname": "Nostr Multisig",
   "description": "This plugin facilitates the use of multi-signatures wallets. It sends and receives partially signed transactions from/to your cosigner wallet. PSBTs are sent and retrieved from Nostr relays.",
   "author": "The Electrum Developers",
   "available_for": ["qt"],
+  "icon":"nostr_multisig.png",
   "version": "0.0.1"
 }
