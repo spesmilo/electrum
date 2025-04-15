@@ -210,7 +210,6 @@ class SwapManager(Logger):
         self.is_server = False # overriden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
-        self._liquidity_changed = asyncio.Event()
 
     def start_network(self, network: 'Network'):
         assert network
@@ -230,7 +229,7 @@ class SwapManager(Logger):
         await self.set_nostr_proof_of_work()
         with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
             # wait a bit so we don't publish 0 liquidity on startup if channels are not yet reestablished
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
             # will publish a new announcement if liquidity changed or every OFFER_UPDATE_INTERVAL_SEC
@@ -240,7 +239,9 @@ class SwapManager(Logger):
                 await transport.publish_offer(self)
                 try:
                     await wait_for2(
-                        self._liquidity_changed.wait(),
+                        self.server_monitor_liquidity(
+                            update_interval_sec=transport.LIQUIDITY_UPDATE_INTERVAL_SEC
+                        ),
                         timeout=transport.OFFER_UPDATE_INTERVAL_SEC
                     )
                 except asyncio.TimeoutError:
@@ -444,7 +445,6 @@ class SwapManager(Logger):
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
-            self.server_maybe_trigger_liquidity_update()
 
     def get_swap_tx_fee(self):
         return self._get_tx_fee(self.config.FEE_POLICY)
@@ -968,22 +968,26 @@ class SwapManager(Logger):
 
         run_sync_function_on_asyncio_thread(trigger, block=True)
 
-    def server_maybe_trigger_liquidity_update(self) -> None:
+    async def server_monitor_liquidity(self, *, update_interval_sec: int) -> None:
         """
-        To be called when the available liquidity changes so the new liquidity is announced.
-        (ln in/out, onchain in/out)
+        Regularly checks if the liquidity has changed and returns if so.
         """
-        if not self.is_server:
-            return
-        assert get_running_loop() == get_asyncio_loop(), "Events must be set in the asyncio thread"
-        previous_max_forward = self._max_forward
-        previous_max_reverse = self._max_reverse
-        self.server_update_pairs()
-        # if liquidity really changed the event is triggered so a new provider announcement is published
-        if self._max_forward != previous_max_forward or self._max_reverse != previous_max_reverse:
-                self.logger.debug(f"liquidity changed, updating announcement")
-                self._liquidity_changed.set()
-                self._liquidity_changed.clear()
+        assert self.is_server, "This is a server function!"
+        while True:
+            await asyncio.sleep(update_interval_sec)
+
+            previous_max_forward = self._max_forward
+            previous_max_reverse = self._max_reverse
+            try:
+                self.server_update_pairs()
+            except Exception:
+                self.logger.exception("server_update_pairs failed")
+                continue
+
+            if self._max_forward != previous_max_forward \
+                    or self._max_reverse != previous_max_reverse:
+                self.logger.debug(f"liquidity has changed, updating announcement")
+                return None
 
     def get_provider_max_forward_amount(self) -> int:
         """in sat"""
@@ -1367,6 +1371,7 @@ class NostrTransport(SwapServerTransport):
     USER_STATUS_NIP38 = 30315
     NOSTR_EVENT_VERSION = 5
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
+    LIQUIDITY_UPDATE_INTERVAL_SEC = 30
 
     def __init__(self, config, sm, keypair):
         SwapServerTransport.__init__(self, config=config, sm=sm)
@@ -1655,7 +1660,6 @@ class NostrTransport(SwapServerTransport):
         r['reply_to'] = event_id
         self.logger.debug(f'sending response id={event_id}')
         await self.send_direct_message(event_pubkey, json.dumps(r))
-        self.sm.server_maybe_trigger_liquidity_update()
 
     def _store_last_swapserver_relays(self, relays: Sequence[str]):
         self._last_swapserver_relays = relays
