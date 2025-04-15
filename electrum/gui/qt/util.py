@@ -669,18 +669,20 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 
-def get_iconname_qrcode() -> str:
-    return "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+def get_icon_qrcode() -> str:
+    name = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+    return read_QIcon(name)
 
 
-def get_iconname_camera() -> str:
-    return "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
+def get_icon_camera() -> str:
+    name = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
+    return read_QIcon(name)
 
 
 def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> None:
     m = self.createStandardContextMenu()
     m.addSeparator()
-    m.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), p.on_qr_from_camera_input_btn)
+    m.addAction(get_icon_camera(),    _("Read QR code with camera"), p.on_qr_from_camera_input_btn)
     m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), p.on_qr_from_screenshot_input_btn)
     m.addAction(read_QIcon("file.png"), _("Read file"), p.on_input_file)
     m.exec(e.globalPos())
@@ -872,10 +874,10 @@ class OverlayControlMixin(GenericInputHandler):
         # The old code positioned the items the other way around, so we just insert at position 0 instead
         self.overlay_layout.insertWidget(0, widget)
 
-    def addButton(self, icon_name: str, on_click, tooltip: str) -> QPushButton:
+    def addButton(self, icon: QIcon, on_click, tooltip: str) -> QPushButton:
         button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
-        button.setIcon(read_QIcon(icon_name))
+        button.setIcon(icon)
         button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         button.clicked.connect(on_click)
         self.addWidget(button)
@@ -886,8 +888,7 @@ class OverlayControlMixin(GenericInputHandler):
             app = QApplication.instance()
             app.clipboard().setText(self.text())
             QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
-
-        self.addButton("copy.png", on_copy, _("Copy to clipboard"))
+        self.addButton(read_QIcon("copy.png"), on_copy, _("Copy to clipboard"))
 
     def addPasteButton(
             self,
@@ -898,7 +899,7 @@ class OverlayControlMixin(GenericInputHandler):
             self.input_paste_from_clipboard,
             setText=setText,
         )
-        self.addButton("copy.png", input_paste_from_clipboard, _("Paste from clipboard"))
+        self.addButton(read_QIcon("copy.png"), input_paste_from_clipboard, _("Paste from clipboard"))
 
     def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
         if title is None:
@@ -919,7 +920,7 @@ class OverlayControlMixin(GenericInputHandler):
                 config=config,
             ).exec()
 
-        self.addButton(get_iconname_qrcode(), qr_show, _("Show as QR code"))
+        self.addButton(get_icon_qrcode(), qr_show, _("Show as QR code"))
         # side-effect: we export this method:
         self.on_qr_show_btn = qr_show
 
@@ -945,10 +946,10 @@ class OverlayControlMixin(GenericInputHandler):
             setText=setText,
         )
         self.add_menu_button(
-            icon=get_iconname_camera(),
+            icon=get_icon_camera(),
             tooltip=_("Read QR code"),
             options=[
-                (get_iconname_camera(),    _("Read QR code from camera"), input_qr_from_camera),
+                (get_icon_camera(),    _("Read QR code from camera"), input_qr_from_camera),
                 ("picture_in_picture.png", _("Read QR code from screen"), input_qr_from_screenshot),
             ],
         )
@@ -971,7 +972,7 @@ class OverlayControlMixin(GenericInputHandler):
             show_error=show_error,
             setText=setText,
         )
-        self.addButton(get_iconname_camera(), input_qr_from_camera, _("Read QR code from camera"))
+        self.addButton(get_icon_camera(), input_qr_from_camera, _("Read QR code from camera"))
         # side-effect: we export these methods:
         self.on_qr_from_camera_input_btn = input_qr_from_camera
 
@@ -988,17 +989,18 @@ class OverlayControlMixin(GenericInputHandler):
             show_error=show_error,
             setText=setText,
         )
-        self.addButton("file.png", input_file, _("Read file"))
+        self.addButton(read_QIcon("file.png"), input_file, _("Read file"))
 
     def add_menu_button(
             self,
             *,
             options: Sequence[Tuple[Optional[str], str, Callable[[], None]]],  # list of (icon, text, cb)
-            icon: Optional[str] = None,
+            icon: Optional[QIcon] = None,
             tooltip: Optional[str] = None,
     ):
         if icon is None:
-            icon = "menu_vertical_white.png" if ColorScheme.dark_scheme else "menu_vertical.png"
+            icon_name = "menu_vertical_white.png" if ColorScheme.dark_scheme else "menu_vertical.png"
+            icon = read_QIcon(icon_name)
         if tooltip is None:
             tooltip = _("Other options")
         btn = self.addButton(icon, lambda: None, tooltip)

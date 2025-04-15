@@ -57,7 +57,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    getSaveFileName, ColorSchemeItem,
-                   get_iconname_qrcode, VLine, WaitingDialog)
+                   get_icon_qrcode, VLine, WaitingDialog)
 from .rate_limiter import rate_limited
 from .my_treeview import create_toolbar_with_menu, QMenuWithConfig
 
@@ -628,7 +628,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         action.triggered.connect(lambda: self.copy_to_clipboard(tx=gettx()))
         menu.addAction(action)
 
-        action = QAction(read_QIcon(get_iconname_qrcode()), _("Show as QR code"), self)
+        action = QAction(get_icon_qrcode(), _("Show as QR code"), self)
         action.triggered.connect(lambda: self.show_qr(tx=gettx()))
         menu.addAction(action)
 

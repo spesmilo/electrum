@@ -416,7 +416,7 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                icon.source: '../../icons/microphone.png'
+                icon.source: '../../icons/tab_send.png'
                 text: qsTr('Broadcast')
                 visible: txdetails.canBroadcast
                 enabled: !txdetails.lockDelay

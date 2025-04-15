@@ -14,7 +14,7 @@ from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub
-from electrum.gui.qt.util import WindowModalDialog, OkButton, ButtonsTextEdit
+from electrum.gui.qt.util import WindowModalDialog, OkButton, ButtonsTextEdit, read_QIcon
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -58,7 +58,7 @@ class Plugin(BitBox02Plugin, QtPluginBase):
             )
 
         device_name = "{} ({})".format(self.device, keystore.label)
-        mpk_text.addButton("eye1.png", on_button_click, _("Show on {}").format(device_name))
+        mpk_text.addButton(read_QIcon("eye1.png"), on_button_click, _("Show on {}").format(device_name))
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):

@@ -25,7 +25,7 @@ from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
-                   get_iconname_camera, read_QIcon, ColorScheme, IconLabel, Spinner)
+                   get_icon_camera, read_QIcon, ColorScheme, IconLabel, Spinner)
 from .invoice_list import InvoiceList
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list = InvoiceList(self)
         self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
 
-        menu.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
+        menu.addAction(get_icon_camera(),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
         menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
         menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
         self.paytomany_menu = menu.addToggle(_("&Pay to many"), self.toggle_paytomany)

@@ -6,7 +6,7 @@ from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, read_QIcon
-from .util import get_iconname_camera, get_iconname_qrcode
+from .util import get_icon_camera, get_icon_qrcode
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
@@ -19,7 +19,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
-        m.addAction(read_QIcon(get_iconname_qrcode()), _("Show as QR code"), self.on_qr_show_btn)
+        m.addAction(get_icon_qrcode(), _("Show as QR code"), self.on_qr_show_btn)
         m.exec(e.globalPos())
 
 
@@ -70,7 +70,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
         m.addSeparator()
-        m.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.on_qr_from_camera_input_btn)
+        m.addAction(get_icon_camera(), _("Read QR code with camera"), self.on_qr_from_camera_input_btn)
         m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.on_qr_from_screenshot_input_btn)
         m.addAction(read_QIcon("file.png"), _("Read file"), self.on_input_file)
         m.exec(e.globalPos())
@@ -89,7 +89,7 @@ class ScanShowQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
         m.addSeparator()
-        m.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code from camera"), self.on_qr_from_camera_input_btn)
+        m.addAction(get_icon_camera(), _("Read QR code from camera"), self.on_qr_from_camera_input_btn)
         m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.on_qr_from_screenshot_input_btn)
-        m.addAction(read_QIcon(get_iconname_qrcode()),    _("Show as QR code"),          self.on_qr_show_btn)
+        m.addAction(get_icon_qrcode(), _("Show as QR code"), self.on_qr_show_btn)
         m.exec(e.globalPos())
