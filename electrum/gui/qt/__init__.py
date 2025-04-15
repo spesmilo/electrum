@@ -442,8 +442,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
         else:
             wallet_file = d['wallet_name']
 
+        password = d.get('password') or None  # convert '' to None
+
         try:
-            wallet = self.daemon.load_wallet(wallet_file, d['password'], upgrade=True)
+            wallet = self.daemon.load_wallet(wallet_file, password, upgrade=True)
             return wallet
         except WalletRequiresSplit as e:
             wizard.run_split(wallet_file, e._split_data)
@@ -454,8 +456,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
             action = db.get_action()
             assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
             k1 = load_keystore(db, 'x1')
-            if 'password' in d and d['password']:
-                xprv = k1.get_master_private_key(d['password'])
+            if password is not None:
+                xprv = k1.get_master_private_key(password)
             else:
                 xprv = db.get('x1')['xprv']
                 if not is_xprv(xprv):

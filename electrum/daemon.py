@@ -463,6 +463,7 @@ class Daemon(Logger):
 
     @with_wallet_lock
     def load_wallet(self, path, password, *, upgrade=False) -> Optional[Abstract_Wallet]:
+        assert password != ''
         path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
