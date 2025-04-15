@@ -7,7 +7,7 @@ import queue
 import os
 import webbrowser
 from functools import partial, lru_cache, wraps
-from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple)
+from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple, Union)
 
 from PyQt6 import QtCore
 from PyQt6.QtGui import (QFont, QColor, QCursor, QPixmap, QImage,
@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QPlainTextEdit, QApplication, QToolTip,
                              QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QLayoutItem, QLayout, QMenu,
-                             QFrame)
+                             QFrame, QAbstractButton)
 
 from electrum.i18n import _
 from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener, event_listener,
@@ -262,13 +262,13 @@ class MessageBoxMixin(object):
         return self.top_level_window_recurse(test_func)
 
     def question(self, msg, parent=None, title=None, icon=None, **kwargs) -> bool:
-        Yes, No = QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No
-        return Yes == self.msg_box(icon=icon or QMessageBox.Icon.Question,
+        yes, no = QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No
+        return yes == self.msg_box(icon=icon or QMessageBox.Icon.Question,
                                    parent=parent,
                                    title=title or '',
                                    text=msg,
-                                   buttons=Yes|No,
-                                   defaultButton=No,
+                                   buttons=yes | no,
+                                   defaultButton=no,
                                    **kwargs)
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
@@ -283,22 +283,27 @@ class MessageBoxMixin(object):
         return self.msg_box(QMessageBox.Icon.Critical, parent,
                             title or _('Critical Error'), msg, **kwargs)
 
-    def show_message(self, msg, parent=None, title=None, **kwargs):
-        return self.msg_box(QMessageBox.Icon.Information, parent,
-                            title or _('Information'), msg, **kwargs)
+    def show_message(self, msg, parent=None, title=None, icon=QMessageBox.Icon.Information, **kwargs):
+        return self.msg_box(icon, parent, title or _('Information'), msg, **kwargs)
 
-    def msg_box(self, icon, parent, title, text, *, buttons=QMessageBox.StandardButton.Ok,
-                defaultButton=QMessageBox.StandardButton.NoButton, rich_text=False,
-                checkbox=None):
+    def msg_box(
+            self,
+            icon: Union[QMessageBox.Icon, QPixmap],
+            parent: QWidget,
+            title: str,
+            text: str,
+            *,
+            buttons: Union[QMessageBox.StandardButton,
+                           List[Union[QMessageBox.StandardButton, Tuple[QAbstractButton, QMessageBox.ButtonRole, int]]]] = QMessageBox.StandardButton.Ok,
+            defaultButton: QMessageBox.StandardButton = QMessageBox.StandardButton.NoButton,
+            rich_text: bool = False,
+            checkbox: Optional[bool] = None
+    ):
         parent = parent or self.top_level_window()
-        return custom_message_box(icon=icon,
-                                  parent=parent,
-                                  title=title,
-                                  text=text,
-                                  buttons=buttons,
-                                  defaultButton=defaultButton,
-                                  rich_text=rich_text,
-                                  checkbox=checkbox)
+        return custom_message_box(
+            icon=icon, parent=parent, title=title, text=text, buttons=buttons, defaultButton=defaultButton,
+            rich_text=rich_text, checkbox=checkbox
+        )
 
     def query_choice(self,
                      msg: Optional[str],
@@ -327,15 +332,35 @@ class MessageBoxMixin(object):
         return d.run()
 
 
-
-def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.StandardButton.Ok,
-                       defaultButton=QMessageBox.StandardButton.NoButton, rich_text=False,
-                       checkbox=None):
+def custom_message_box(
+        *,
+        icon: Union[QMessageBox.Icon, QPixmap],
+        parent: QWidget,
+        title: str,
+        text: str,
+        buttons: Union[QMessageBox.StandardButton,
+                       List[Union[QMessageBox.StandardButton, Tuple[QAbstractButton, QMessageBox.ButtonRole, int]]]] = QMessageBox.StandardButton.Ok,
+        defaultButton: QMessageBox.StandardButton = QMessageBox.StandardButton.NoButton,
+        rich_text: bool = False,
+        checkbox: Optional[bool] = None
+) -> int:
+    custom_buttons = []
+    standard_buttons = QMessageBox.StandardButton.NoButton
+    if buttons:
+        if not isinstance(buttons, list):
+            buttons = [buttons]
+        for button in buttons:
+            if isinstance(button, QMessageBox.StandardButton):
+                standard_buttons |= button
+            else:
+                custom_buttons.append(button)
     if type(icon) is QPixmap:
-        d = QMessageBox(QMessageBox.Icon.Information, title, str(text), buttons, parent)
+        d = QMessageBox(QMessageBox.Icon.Information, title, str(text), standard_buttons, parent)
         d.setIconPixmap(icon)
     else:
-        d = QMessageBox(icon, title, str(text), buttons, parent)
+        d = QMessageBox(icon, title, str(text), standard_buttons, parent)
+    for button, role, _ in custom_buttons:
+        d.addButton(button, role)
     d.setWindowModality(Qt.WindowModality.WindowModal)
     d.setDefaultButton(defaultButton)
     if rich_text:
@@ -350,7 +375,11 @@ def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.Standar
         d.setTextFormat(Qt.TextFormat.PlainText)
     if checkbox is not None:
         d.setCheckBox(checkbox)
-    return d.exec()
+    result = d.exec()
+    for button, _, value in custom_buttons:
+        if button == d.clickedButton():
+            return value
+    return result
 
 
 class WindowModalDialog(QDialog, MessageBoxMixin):

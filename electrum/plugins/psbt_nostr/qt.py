@@ -27,7 +27,7 @@ from functools import partial
 from typing import TYPE_CHECKING, List, Tuple, Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QPushButton
+from PyQt6.QtWidgets import QPushButton, QMessageBox
 
 from electrum.plugin import hook
 from electrum.i18n import _
@@ -35,12 +35,10 @@ from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, event_listener, EventListener
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
 
-from .psbt_nostr import PsbtNostrPlugin, CosignerWallet, now
+from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
 
 if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
-
-USER_PROMPT_COOLDOWN = 10
 
 
 class QReceiveSignalObject(QObject):
@@ -83,7 +81,6 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         self.obj = QReceiveSignalObject()
         self.obj.cosignerReceivedPsbt.connect(self.on_receive)
         self.register_callbacks()
-        self.user_prompt_cooldown = None
 
     def close(self):
         super().close()
@@ -113,11 +110,7 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             d.cosigner_send_button.setVisible(False)
 
     def send_to_cosigners(self, tx):
-        def ok():
-            self.logger.debug('ADDED')
-        def nok(msg: str):
-            self.logger.debug(f'NOT ADDED: {msg}')
-        self.add_transaction_to_wallet(tx, on_success=ok, on_failure=nok)
+        self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
         self.send_psbt(tx)
 
     def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
@@ -139,18 +132,21 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + txid)
 
     def on_receive(self, pubkey, event_id, tx):
-        open_now = False
-        if not (self.user_prompt_cooldown and self.user_prompt_cooldown > now()):
-            open_now = self.window.question(
-                    _("A transaction was received from your cosigner ({}).").format(str(event_id)[0:8]) + '\n' +
-                    _("Do you want to open it now?"))
-            if not open_now:
-                self.user_prompt_cooldown = now() + USER_PROMPT_COOLDOWN
-        if open_now:
+        msg = _("A transaction was received from your cosigner ({}).").format(str(event_id)[0:8]) + '\n' + \
+              _("Do you want to open it now?")
+        result = self.window.show_message(msg, icon=QMessageBox.Icon.Question, buttons=[
+                QMessageBox.StandardButton.Open,
+                (QPushButton('Discard'), QMessageBox.ButtonRole.DestructiveRole, 100),
+                (QPushButton('Save to wallet'), QMessageBox.ButtonRole.AcceptRole, 101)]
+        )
+        if result == QMessageBox.StandardButton.Open:
             show_transaction(tx, parent=self.window, prompt_if_unsaved=True, on_closed=partial(self.on_tx_dialog_closed, event_id))
         else:
             self.mark_pending_event_rcvd(event_id)
+            if result == 100:  # Discard
+                return
             self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
+            self.window.update_tabs()
 
     def on_tx_dialog_closed(self, event_id):
         self.mark_pending_event_rcvd(event_id)

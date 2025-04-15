@@ -244,5 +244,6 @@ class CosignerWallet(Logger):
             if on_failure:
                 on_failure(str(e))
         else:
+            self.wallet.save_db()
             if on_success:
                 on_success()
