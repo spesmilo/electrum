@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
-# Copyright (C) 2014 The Electrum Developers
+# Copyright (C) 2025 The Electrum Developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -23,213 +23,77 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import asyncio
-import time
-from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Union, List, Tuple, Dict, Optional
-import ssl
-import json
+from functools import partial
+from typing import TYPE_CHECKING, List, Tuple, Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QPushButton
+from PyQt6.QtWidgets import QPushButton, QMessageBox
 
-import electrum_ecc as ecc
-import electrum_aionostr as aionostr
-from electrum_aionostr.key import PrivateKey
-
-from electrum.crypto import sha256
-from electrum import util
-from electrum.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
-from electrum.bip32 import BIP32Node
-from electrum.plugin import BasePlugin, hook
+from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet, Abstract_Wallet
-from electrum.logging import Logger
-from electrum.network import Network
-from electrum.util import log_exceptions, OldTaskGroup, UserCancelled, ca_path
+from electrum.util import UserCancelled, event_listener, EventListener
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
-from electrum.gui.qt.util import WaitingDialog
+
+from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
 
 if TYPE_CHECKING:
-    from electrum.gui.qt import ElectrumGui
     from electrum.gui.qt.main_window import ElectrumWindow
 
-# event kind used for nostr messages (with expiration tag)
-NOSTR_EVENT_KIND = 4
-
-now = lambda: int(time.time())
 
 class QReceiveSignalObject(QObject):
-    cosigner_receive_signal = pyqtSignal(object, object, object)
+    cosignerReceivedPsbt = pyqtSignal(str, str, object)
 
 
-class Plugin(BasePlugin):
-
+class Plugin(PsbtNostrPlugin):
     def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
+        super().__init__(parent, config, name)
         self._init_qt_received = False
-        self.cosigner_wallets = {}  # type: Dict[Abstract_Wallet, CosignerWallet]
-
 
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
-        if type(wallet) != Multisig_Wallet:
+        if not isinstance(wallet, Multisig_Wallet):
             return
-        self.cosigner_wallets[wallet] = CosignerWallet(wallet, window)
+        self.add_cosigner_wallet(wallet, QtCosignerWallet(wallet, window))
 
     @hook
     def on_close_window(self, window):
         wallet = window.wallet
-        if cw := self.cosigner_wallets.get(wallet):
-            cw.close()
-            self.cosigner_wallets.pop(wallet)
-
-    def is_available(self):
-        return True
+        self.remove_cosigner_wallet(wallet)
 
     @hook
     def transaction_dialog(self, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
+            assert isinstance(cw, QtCosignerWallet)
             cw.hook_transaction_dialog(d)
 
     @hook
     def transaction_dialog_update(self, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
+            assert isinstance(cw, QtCosignerWallet)
             cw.hook_transaction_dialog_update(d)
 
 
-class CosignerWallet(Logger):
-    # one for each open window
-    # if user signs a tx, we have the password
-    # if user receives a dm? needs to enter password first
-
-    KEEP_DELAY = 24*60*60
-
+class QtCosignerWallet(EventListener, CosignerWallet):
     def __init__(self, wallet: 'Multisig_Wallet', window: 'ElectrumWindow'):
-        assert isinstance(wallet, Multisig_Wallet)
-        self.wallet = wallet
-        self.network = window.network
-        self.config = self.wallet.config
+        CosignerWallet.__init__(self, wallet)
         self.window = window
-
-        Logger.__init__(self)
-        self.known_events = wallet.db.get_dict('cosigner_events')
-        for k, v in list(self.known_events.items()):
-            if v < now() - self.KEEP_DELAY:
-                self.logger.info(f'deleting old event {k}')
-                self.known_events.pop(k)
-        self.relays = self.config.NOSTR_RELAYS.split(',')
-        self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-        self.logger.info(f'relays {self.relays}')
         self.obj = QReceiveSignalObject()
-        self.obj.cosigner_receive_signal.connect(self.on_receive)
-
-        self.cosigner_list = []  # type: List[Tuple[str, bytes, str]]
-        self.nostr_pubkey = None
-
-        for key, keystore in wallet.keystores.items():
-            xpub = keystore.get_master_public_key()  # type: str
-            privkey = sha256('nostr_psbt:' + xpub)
-            pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes()[1:]
-            if self.nostr_pubkey is None and not keystore.is_watching_only():
-                self.nostr_privkey = privkey.hex()
-                self.nostr_pubkey = pubkey.hex()
-                self.logger.info(f'nostr pubkey: {self.nostr_pubkey}')
-            else:
-                self.cosigner_list.append((xpub, pubkey.hex()))
-
-        self.messages = asyncio.Queue()
-        self.taskgroup = OldTaskGroup()
-        if self.network and self.nostr_pubkey:
-            asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
-
-    @log_exceptions
-    async def main_loop(self):
-        self.logger.info("starting taskgroup.")
-        try:
-            async with self.taskgroup as group:
-                await group.spawn(self.check_direct_messages())
-        except Exception as e:
-            self.logger.exception("taskgroup died.")
-        finally:
-            self.logger.info("taskgroup stopped.")
-
-    async def stop(self):
-        await self.taskgroup.cancel_remaining()
-
-    @asynccontextmanager
-    async def nostr_manager(self):
-        manager_logger = self.logger.getChild('aionostr')
-        manager_logger.setLevel("INFO")  # set to INFO because DEBUG is very spammy
-        async with aionostr.Manager(
-                relays=self.relays,
-                private_key=self.nostr_privkey,
-                ssl_context=self.ssl_context,
-                # todo: add proxy support, first needs:
-                # https://github.com/spesmilo/electrum-aionostr/pull/8
-                proxy=None,
-                log=manager_logger
-        ) as manager:
-            yield manager
-
-    @log_exceptions
-    async def send_direct_messages(self, messages: List[Tuple[str, str]]):
-        our_private_key: PrivateKey = aionostr.key.PrivateKey(bytes.fromhex(self.nostr_privkey))
-        async with self.nostr_manager() as manager:
-            for pubkey, msg in messages:
-                encrypted_msg: str = our_private_key.encrypt_message(msg, pubkey)
-                eid = await aionostr._add_event(
-                    manager,
-                    kind=NOSTR_EVENT_KIND,
-                    content=encrypted_msg,
-                    private_key=self.nostr_privkey,
-                    tags=[['p', pubkey], ['expiration', str(int(now() + self.KEEP_DELAY))]])
-                self.logger.info(f'message sent to {pubkey}: {eid}')
-
-    @log_exceptions
-    async def check_direct_messages(self):
-        privkey = PrivateKey(bytes.fromhex(self.nostr_privkey))
-        async with self.nostr_manager() as manager:
-            query = {
-                "kinds": [NOSTR_EVENT_KIND],
-                "limit":100,
-                "#p": [self.nostr_pubkey],
-                "since": int(now() - self.KEEP_DELAY)
-            }
-            async for event in manager.get_events(query, single_event=False, only_stored=False):
-                if event.id in self.known_events:
-                    self.logger.info(f'known event {event.id} {util.age(event.created_at)}')
-                    continue
-                if event.created_at > now() + self.KEEP_DELAY:
-                    # might be malicious
-                    continue
-                if event.created_at < now() - self.KEEP_DELAY:
-                    continue
-                self.logger.info(f'new event {event.id}')
-                try:
-                    message = privkey.decrypt_message(event.content, event.pubkey)
-                except Exception as e:
-                    self.logger.info(f'could not decrypt message {event.pubkey}')
-                    self.known_events[event.id] = now()
-                    continue
-                try:
-                    tx = tx_from_any(message)
-                except Exception as e:
-                    self.logger.info(_("Unable to deserialize the transaction:") + "\n" + str(e))
-                    self.known_events[event.id] = now()
-                    return
-                self.logger.info(f"received PSBT from {event.pubkey}")
-                self.obj.cosigner_receive_signal.emit(event.pubkey, event.id, tx)
-
-    def diagnostic_name(self):
-        return self.wallet.diagnostic_name()
+        self.obj.cosignerReceivedPsbt.connect(self.on_receive)
+        self.register_callbacks()
 
     def close(self):
-        self.logger.info("shutting down listener")
-        asyncio.run_coroutine_threadsafe(self.stop(), self.network.asyncio_loop)
+        super().close()
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_psbt_nostr_received(self, wallet, *args):
+        if self.wallet == wallet:
+            self.obj.cosignerReceivedPsbt.emit(*args)  # put on UI thread via signal
 
     def hook_transaction_dialog(self, d: 'TxDialog'):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.do_send(d.tx))
+        b.clicked.connect(lambda: self.send_to_cosigners(d.tx))
         d.buttons.insert(0, b)
         b.setVisible(False)
 
@@ -245,22 +109,14 @@ class CosignerWallet(Logger):
         else:
             d.cosigner_send_button.setVisible(False)
 
-    def cosigner_can_sign(self, tx: Transaction, cosigner_xpub: str) -> bool:
-        # TODO implement this properly:
-        #      should return True iff cosigner (with given xpub) can sign and has not yet signed.
-        #      note that tx could also be unrelated from wallet?... (not ismine inputs)
-        return True
+    def send_to_cosigners(self, tx):
+        self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
+        self.send_psbt(tx)
 
-    def do_send(self, tx: Union[Transaction, PartialTransaction]):
-        buffer = []
-        for xpub, pubkey in self.cosigner_list:
-            if not self.cosigner_can_sign(tx, xpub):
-                continue
-            raw_tx_bytes = tx.serialize_as_bytes()
-            buffer.append((pubkey, raw_tx_bytes.hex()))
-        if not buffer:
+    def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
+        if not messages:
             return
-        coro = self.send_direct_messages(buffer)
+        coro = self.send_direct_messages(messages)
         text = _('Sending transaction to your Nostr relays...')
         try:
             result = self.window.run_coroutine_dialog(coro, text)
@@ -273,14 +129,27 @@ class CosignerWallet(Logger):
             self.window.show_error(str(e))
             return
         self.window.show_message(
-            _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + tx.txid())
-
+            _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + txid)
 
     def on_receive(self, pubkey, event_id, tx):
-        window = self.window
-        if not window.question(
-                _("An transaction was received from your cosigner.") + '\n' +
-                _("Do you want to open it now?")):
-            return
-        self.known_events[event_id] = now()
-        show_transaction(tx, parent=window, prompt_if_unsaved=True)
+        msg = _("A transaction was received from your cosigner ({}).").format(str(event_id)[0:8]) + '\n' + \
+              _("Do you want to open it now?")
+        result = self.window.show_message(msg, icon=QMessageBox.Icon.Question, buttons=[
+                QMessageBox.StandardButton.Open,
+                (QPushButton('Discard'), QMessageBox.ButtonRole.DestructiveRole, 100),
+                (QPushButton('Save to wallet'), QMessageBox.ButtonRole.AcceptRole, 101)]
+        )
+        if result == QMessageBox.StandardButton.Open:
+            show_transaction(tx, parent=self.window, prompt_if_unsaved=True, on_closed=partial(self.on_tx_dialog_closed, event_id))
+        else:
+            self.mark_pending_event_rcvd(event_id)
+            if result == 100:  # Discard
+                return
+            self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
+            self.window.update_tabs()
+
+    def on_tx_dialog_closed(self, event_id):
+        self.mark_pending_event_rcvd(event_id)
+
+    def on_add_fail(self, msg: str):
+        self.window.show_error(msg)

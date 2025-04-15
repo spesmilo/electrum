@@ -39,6 +39,8 @@ ApplicationWindow
 
     property var _exceptionDialog
 
+    property var pluginobjects: ({})
+
     property QtObject appMenu: Menu {
         id: menu
 
@@ -640,6 +642,43 @@ ApplicationWindow
             })
             app._exceptionDialog.open()
         }
+        function onPluginLoaded(name) {
+            console.log('plugin ' + name + ' loaded')
+            var loader = AppController.plugin(name).loader
+            if (loader == undefined)
+                return
+            var url = Qt.resolvedUrl('../../../plugins/' + name + '/qml/' + loader)
+            var comp = Qt.createComponent(url)
+            if (comp.status == Component.Error) {
+                console.log('Could not find/parse PluginLoader for plugin ' + name)
+                console.log(comp.errorString())
+                return
+            }
+            var obj = comp.createObject(app)
+            if (obj != null)
+                app.pluginobjects[name] = obj
+        }
+    }
+
+    function pluginsComponentsByName(comp_name) {
+        // return named QML components from plugins
+        var plugins = AppController.plugins
+        var result = []
+        for (var i=0; i < plugins.length; i++) {
+            if (!plugins[i].enabled)
+                continue
+            var pluginobject = app.pluginobjects[plugins[i].name]
+            if (!pluginobject)
+                continue
+            if (!(comp_name in pluginobject))
+                continue
+            var comp = pluginobject[comp_name]
+            if (!comp)
+                continue
+
+            result.push(comp)
+        }
+        return result
     }
 
     Connections {

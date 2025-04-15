@@ -76,6 +76,7 @@ ElDialog {
         }
 
         ButtonContainer {
+            id: buttons
             Layout.fillWidth: true
 
             FlatButton {
@@ -95,6 +96,17 @@ ElDialog {
                 icon.source: '../../icons/share.png'
                 onClicked: {
                     AppController.doShare(dialog.text, dialog.title)
+                }
+            }
+            function beforeLayout() {
+                var export_tx_buttons = app.pluginsComponentsByName('export_tx_button')
+                for (var i=0; i < export_tx_buttons.length; i++) {
+                    var b = export_tx_buttons[i].createObject(buttons, {
+                        dialog: dialog
+                    })
+                    b.Layout.fillWidth = true
+                    b.Layout.preferredWidth = 1
+                    buttons.addItem(b)
                 }
             }
         }

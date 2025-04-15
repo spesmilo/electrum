@@ -18,9 +18,14 @@ Pane {
     property alias label: txdetails.label
 
     signal detailsChanged
+    signal closed
 
     function close() {
         app.stack.pop()
+    }
+
+    StackView.onRemoved: {
+        closed()
     }
 
     ColumnLayout {
