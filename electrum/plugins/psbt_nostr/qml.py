@@ -36,11 +36,13 @@ from electrum.util import EventListener, event_listener
 
 from electrum.gui.qml.qewallet import QEWallet
 
-from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
+from .psbt_nostr import PsbtNostrPlugin, CosignerWallet, now
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
     from electrum.gui.qml import ElectrumQmlApplication
+
+USER_PROMPT_COOLDOWN = 10
 
 
 class QReceiveSignalObject(QObject):
@@ -69,6 +71,13 @@ class QReceiveSignalObject(QObject):
         if not cosigner_wallet:
             return
         cosigner_wallet.accept_psbt(event_id)
+
+    @pyqtSlot(QEWallet, str)
+    def rejectPsbt(self, wallet: 'QEWallet', event_id: str):
+        cosigner_wallet = self._plugin.cosigner_wallets[wallet.wallet]
+        if not cosigner_wallet:
+            return
+        cosigner_wallet.reject_psbt(event_id)
 
 
 class Plugin(PsbtNostrPlugin):
@@ -103,13 +112,18 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
         self.plugin = plugin
         self.register_callbacks()
 
-        self.pending = None
+        self.tx = None
+        self.user_prompt_cooldown = None
 
     @event_listener
-    def on_event_psbt_nostr_received(self, wallet, pubkey, event, tx: 'PartialTransaction'):
+    def on_event_psbt_nostr_received(self, wallet, pubkey, event_id, tx: 'PartialTransaction'):
         if self.wallet == wallet:
-            self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event, tx.serialize())
-            self.on_receive(pubkey, event, tx)
+            self.tx = tx
+            if not (self.user_prompt_cooldown and self.user_prompt_cooldown > now()):
+                self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize())
+            else:
+                self.mark_pending_event_rcvd(event_id)
+                self.add_transaction_to_wallet(self.tx, on_failure=self.on_add_fail)
 
     def close(self):
         super().close()
@@ -133,11 +147,13 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
         except Exception as e:
             self.plugin.so.sendPsbtFailed.emit(str(e))
 
-    def on_receive(self, pubkey, event_id, tx):
-        self.pending = (pubkey, event_id, tx)
+    def accept_psbt(self, event_id):
+        self.mark_pending_event_rcvd(event_id)
 
-    def accept_psbt(self, my_event_id):
-        pubkey, event_id, tx = self.pending
-        if event_id == my_event_id:
-            self.mark_event_rcvd(event_id)
-            self.pending = None
+    def reject_psbt(self, event_id):
+        self.user_prompt_cooldown = now() + USER_PROMPT_COOLDOWN
+        self.mark_pending_event_rcvd(event_id)
+        self.add_transaction_to_wallet(self.tx, on_failure=self.on_add_fail)
+
+    def on_add_fail(self):
+        self.logger.error('failed to add tx to wallet')

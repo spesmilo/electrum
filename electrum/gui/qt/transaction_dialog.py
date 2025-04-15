@@ -28,7 +28,7 @@ import concurrent.futures
 import copy
 import datetime
 import time
-from typing import TYPE_CHECKING, Optional, List, Union, Mapping
+from typing import TYPE_CHECKING, Optional, List, Union, Mapping, Callable
 from functools import partial
 from decimal import Decimal
 
@@ -410,6 +410,7 @@ def show_transaction(
     prompt_if_unsaved: bool = False,
     external_keypairs: Mapping[bytes, bytes] = None,
     payment_identifier: 'PaymentIdentifier' = None,
+    on_closed: Callable[[], None] = None,
 ):
     try:
         d = TxDialog(
@@ -418,6 +419,7 @@ def show_transaction(
             prompt_if_unsaved=prompt_if_unsaved,
             external_keypairs=external_keypairs,
             payment_identifier=payment_identifier,
+            on_closed=on_closed,
         )
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
@@ -438,6 +440,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         prompt_if_unsaved: bool,
         external_keypairs: Mapping[bytes, bytes] = None,
         payment_identifier: 'PaymentIdentifier' = None,
+        on_closed: Callable[[], None] = None,
     ):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -451,6 +454,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.payment_identifier = payment_identifier
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.on_closed = on_closed
         self.saved = False
         self.desc = None
         if txid := tx.txid():
@@ -607,6 +611,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         if self._fetch_txin_data_fut:
             self._fetch_txin_data_fut.cancel()
             self._fetch_txin_data_fut = None
+
+        if self.on_closed:
+            self.on_closed()
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)

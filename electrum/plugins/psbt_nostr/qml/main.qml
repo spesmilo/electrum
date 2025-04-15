@@ -16,10 +16,15 @@ Item {
                 yesno: true
             })
             dialog.accepted.connect(function () {
-                app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
+                var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
                     rawtx: tx
                 })
-                target.acceptPsbt(Daemon.currentWallet, event)
+                page.closed.connect(function () {
+                    target.acceptPsbt(Daemon.currentWallet, event)
+                })
+            })
+            dialog.rejected.connect(function () {
+                target.rejectPsbt(Daemon.currentWallet, event)
             })
             dialog.open()
         }
