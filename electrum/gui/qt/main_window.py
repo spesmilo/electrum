@@ -706,50 +706,49 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def init_menubar(self):
         menubar = QMenuBar()
 
-        file_menu = menubar.addMenu(_("&File"))
-        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
-        file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.StandardKey.Open)
-        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.StandardKey.New)
-        file_menu.addAction(_("&Save backup"), self.backup_wallet).setShortcut(QKeySequence.StandardKey.SaveAs)
-        file_menu.addAction(_("Delete"), self.remove_wallet)
-        file_menu.addSeparator()
-        file_menu.addAction(_("&Quit"), self.close)
+        self.file_menu = menubar.addMenu(_("&File"))
+        self.recently_visited_menu = self.file_menu.addMenu(_("&Recently open"))
+        self.file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.StandardKey.Open)
+        self.file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.StandardKey.New)
+        self.file_menu.addAction(_("&Save backup"), self.backup_wallet).setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.file_menu.addAction(_("Delete"), self.remove_wallet)
+        self.file_menu.addSeparator()
+        self.file_menu.addAction(_("&Quit"), self.close)
 
-        wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&Information"), self.show_wallet_info)
-        wallet_menu.addSeparator()
-        self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
-        self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        self.wallet_menu = menubar.addMenu(_("&Wallet"))
+        self.wallet_menu.addAction(_("&Information"), self.show_wallet_info)
+        self.wallet_menu.addSeparator()
+
+        self.password_menu = self.wallet_menu.addAction(_("&Password"), self.change_password_dialog)
+        self.seed_menu = self.wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
+        self.private_keys_menu = self.wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
-        self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
-        wallet_menu.addSeparator()
+        self.import_address_menu = self.wallet_menu.addAction(_("Import addresses"), self.import_addresses)
 
-        labels_menu = wallet_menu.addMenu(_("&Labels"))
-        labels_menu.addAction(_("&Import"), self.do_import_labels)
-        labels_menu.addAction(_("&Export"), self.do_export_labels)
+        self.labels_menu = self.wallet_menu.addMenu(_("&Labels"))
+        self.labels_menu.addAction(_("&Import"), self.do_import_labels)
+        self.labels_menu.addAction(_("&Export"), self.do_export_labels)
 
-        wallet_menu.addSeparator()
-        wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
+        self.wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
+        self.wallet_menu.addSeparator()
 
-        def add_toggle_action(view_menu, tab):
+        def add_toggle_action(tab):
             is_shown = tab.is_shown_cv.get()
-            tab.menu_action = view_menu.addAction(tab.tab_description, lambda: self.toggle_tab(tab))
+            tab.menu_action = self.view_menu.addAction(tab.tab_description, lambda: self.toggle_tab(tab))
             tab.menu_action.setCheckable(True)
             tab.menu_action.setChecked(is_shown)
+        self.view_menu = menubar.addMenu(_("&View"))
+        add_toggle_action(self.addresses_tab)
+        add_toggle_action(self.utxo_tab)
+        add_toggle_action(self.channels_tab)
+        add_toggle_action(self.contacts_tab)
+        add_toggle_action(self.console_tab)
+        add_toggle_action(self.notes_tab)
 
-        view_menu = menubar.addMenu(_("&View"))
-        add_toggle_action(view_menu, self.addresses_tab)
-        add_toggle_action(view_menu, self.utxo_tab)
-        add_toggle_action(view_menu, self.channels_tab)
-        add_toggle_action(view_menu, self.contacts_tab)
-        add_toggle_action(view_menu, self.console_tab)
-        add_toggle_action(view_menu, self.notes_tab)
-
-        tools_menu = menubar.addMenu(_("&Tools"))  # type: QMenu
-        preferences_action = tools_menu.addAction(_("Preferences"), self.settings_dialog)  # type: QAction
+        self.tools_menu = menubar.addMenu(_("&Tools"))  # type: QMenu
+        preferences_action = self.tools_menu.addAction(_("Preferences"), self.settings_dialog)  # type: QAction
         if sys.platform == 'darwin':
             # "Settings"/"Preferences" are all reserved keywords in macOS.
             # preferences_action will get picked up based on name (and put into a standardized location,
@@ -757,26 +756,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # Hence, this menu item will be at a "uniform location re macOS processes"
             preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)  # make sure OS recognizes it as preferences
             # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
-            tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
+            self.tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
-        tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
-        tools_menu.addSeparator()
-        tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
-        tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
-        tools_menu.addSeparator()
+        self.tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
+        self.tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
+        self.tools_menu.addSeparator()
+        self.tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
+        self.tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
+        self.tools_menu.addSeparator()
 
-        raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
+        raw_transaction_menu = self.tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
         raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
-        run_hook('init_menubar_tools', self, tools_menu)
 
-        help_menu = menubar.addMenu(_("&Help"))
+        self.help_menu = menubar.addMenu(_("&Help"))
         if sys.platform != 'darwin':
-            help_menu.addAction(_("&About"), self.show_about)
+            self.help_menu.addAction(_("&About"), self.show_about)
         else:
             # macOS reserves the "About" menu item name, similarly to "Preferences" (see above).
             # The "About" keyword seems even more strictly locked down:
@@ -784,17 +782,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             about_action = QAction(self)
             about_action.triggered.connect(self.show_about)
             about_action.setMenuRole(QAction.MenuRole.AboutRole)  # make sure OS recognizes it as "About"
-            help_menu.addAction(about_action)
-        help_menu.addAction(_("&Check for updates"), self.show_update_check)
-        help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
-        help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.StandardKey.HelpContents)
+            self.help_menu.addAction(about_action)
+        self.help_menu.addAction(_("&Check for updates"), self.show_update_check)
+        self.help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
+        self.help_menu.addSeparator()
+        self.help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.StandardKey.HelpContents)
         if not constants.net.TESTNET:
-            help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
-        help_menu.addAction(_("&Report Bug"), self.show_report_bug)
-        help_menu.addSeparator()
-        help_menu.addAction(_("&Donate to server"), self.donate_to_server)
+            self.help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
+        self.help_menu.addAction(_("&Report Bug"), self.show_report_bug)
+        self.help_menu.addSeparator()
+        self.help_menu.addAction(_("&Donate to server"), self.donate_to_server)
 
+        run_hook('init_menubar', self)
         self.setMenuBar(menubar)
 
     def donate_to_server(self):

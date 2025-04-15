@@ -1,21 +1,18 @@
 from functools import partial
-import traceback
-import sys
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.gui.qt.util import ThreadedButton, Buttons, EnterButton, WindowModalDialog, OkButton
+from electrum.gui.qt.util import TaskThread
 
 from .labels import LabelsPlugin
 
 if TYPE_CHECKING:
-    from electrum.gui.qt import ElectrumGui
     from electrum.gui.qt.main_window import ElectrumWindow
     from electrum.wallet import Abstract_Wallet
+
 
 class QLabelsSignalObject(QObject):
     labels_changed_signal = pyqtSignal(object)
@@ -28,36 +25,32 @@ class Plugin(LabelsPlugin):
         self.obj = QLabelsSignalObject()
         self._init_qt_received = False
 
-    def requires_settings(self):
-        return True
-
-    def settings_dialog(self, window: WindowModalDialog, wallet: 'Abstract_Wallet'):
+    @hook
+    def init_menubar(self, window: 'ElectrumWindow'):
+        wallet = window.wallet
         if not wallet.get_fingerprint():
-            window.show_error(_("{} plugin does not support this type of wallet.")
-                              .format("Label Sync"))
             return
-        d = WindowModalDialog(window, _("Label Settings"))
-        hbox = QHBoxLayout()
-        hbox.addWidget(QLabel("Label sync options:"))
-        upload = ThreadedButton("Force upload",
-                                partial(self.push, wallet),
-                                partial(self.done_processing_success, d),
-                                partial(self.done_processing_error, d))
-        download = ThreadedButton("Force download",
-                                  partial(self.pull, wallet, True),
-                                  partial(self.done_processing_success, d),
-                                  partial(self.done_processing_error, d))
-        vbox = QVBoxLayout()
-        vbox.addWidget(upload)
-        vbox.addWidget(download)
-        hbox.addLayout(vbox)
-        vbox = QVBoxLayout(d)
-        vbox.addLayout(hbox)
-        vbox.addSpacing(20)
-        vbox.addLayout(Buttons(OkButton(d)))
-        return bool(d.exec())
+        m = window.wallet_menu.addMenu('LabelSync')
+        m.addAction("Force upload", lambda: self.do_push(window))
+        m.addAction("Force download", lambda: self.do_pull(window))
 
-    def on_pulled(self, wallet):
+    def do_push(self, window: 'ElectrumWindow'):
+        thread = TaskThread(window)
+        thread.add(
+            partial(self.push, window.wallet),
+            partial(self.done_processing_success, window),
+            thread.stop,
+            partial(self.done_processing_error, window))
+
+    def do_pull(self, window: 'ElectrumWindow'):
+        thread = TaskThread(window)
+        thread.add(
+            partial(self.pull, window.wallet, True),
+            partial(self.done_processing_success, window),
+            thread.stop,
+            partial(self.done_processing_error, window))
+
+    def on_pulled(self, wallet: 'Abstract_Wallet'):
         self.obj.labels_changed_signal.emit(wallet)
 
     def done_processing_success(self, dialog, result):

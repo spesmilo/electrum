@@ -1,6 +1,6 @@
 from electrum.i18n import _
 from .nwcserver import NWCServerPlugin
-from electrum.gui.qt.util import WindowModalDialog, Buttons, EnterButton, OkButton, CancelButton, \
+from electrum.gui.qt.util import WindowModalDialog, Buttons, OkButton, CancelButton, \
     CloseButton
 from electrum.gui.common_qt.util import paintQR
 from electrum.plugin import hook
@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
     from electrum.gui.qt.main_window import ElectrumWindow
-    from electrum.gui.qt import ElectrumGui
+
 
 class Plugin(NWCServerPlugin):
     def __init__(self, *args):
@@ -29,19 +29,22 @@ class Plugin(NWCServerPlugin):
             return
         self.start_plugin(wallet)
 
-    def requires_settings(self):
-        return True
+    @hook
+    def init_menubar(self, window):
+        window.wallet_menu.addAction('Nostr Wallet Connect', partial(self.settings_dialog, window))
 
-    def settings_dialog(self, window: WindowModalDialog, wallet: 'Abstract_Wallet'):
+    def settings_dialog(self, window: WindowModalDialog):
         if not self.initialized:
             window.show_error(
                 _("{} plugin requires a lightning enabled wallet. Open a lightning-enabled wallet first.")
                 .format("NWC"))
             return
+        if window.wallet != self.nwc_server.wallet:
+            window.show_error('not using this wallet')
+            return
 
         d = WindowModalDialog(window, _("Nostr Wallet Connect"))
         main_layout = QVBoxLayout(d)
-        main_layout.addWidget(QLabel(_("Using wallet:") + ' ' + self.nwc_server.wallet.basename()))
 
         # Connections list
         main_layout.addWidget(QLabel(_("Existing Connections:")))
@@ -117,6 +120,7 @@ class Plugin(NWCServerPlugin):
 
         # Create Connection button
         create_btn = QPushButton(_("Create Connection"))
+
         def create_connection():
             # Show a dialog to create a new connection
             connection_string = self.connection_info_input_dialog(window)
@@ -179,8 +183,8 @@ class Plugin(NWCServerPlugin):
         # dropdown menu to select prioritized nwc relay from self.config.NOSTR_RELAYS
         main_relay_label = QLabel(_("Main NWC Relay:"))
         relay_tooltip = (
-                _("Most clients only use the first relay url encoded in the connection string.")
-                + "\n" + _("The selected relay will be put first in the connection string."))
+            _("Most clients only use the first relay url encoded in the connection string.")
+            + "\n" + _("The selected relay will be put first in the connection string."))
         main_relay_label.setToolTip(relay_tooltip)
         layout.addWidget(main_relay_label)
         relay_combo = QComboBox()
