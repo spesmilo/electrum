@@ -253,6 +253,7 @@ class Plugin(TimelockRecoveryPlugin):
             assert all(tx_input.is_segwit() for tx_input in tx.inputs())
             recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
             if not create_cancel_cb.isChecked():
+                context.cancellation_tx = None
                 return
             context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
             assert all(tx_input.is_segwit() for tx_input in tx.inputs())
@@ -345,6 +346,7 @@ class Plugin(TimelockRecoveryPlugin):
             cancellation_label.setVisible(x)
             cancellation_tx_label.setVisible(x)
             view_cancellation_tx_button.setVisible(x)
+            update_transactions()
         create_cancel_cb.stateChanged.connect(on_cb_change)
         # Create the logo label.
         logo_label = QLabel()
@@ -369,7 +371,6 @@ class Plugin(TimelockRecoveryPlugin):
 
         # initialize
         on_cb_change(False)
-        update_transactions()
 
         return bool(plan_dialog.exec())
 
