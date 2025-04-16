@@ -238,7 +238,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
-        next_button.clicked.connect(partial(self.create_alert_fee_dialog, context))
+        next_button.clicked.connect(partial(self.start_plan, context))
         next_button.setEnabled(False)
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
@@ -360,7 +360,11 @@ class Plugin(TimelockRecoveryPlugin):
         payto_e.setToolTip("")
         next_button.setEnabled(True)
 
-    def create_alert_fee_dialog(self, context: TimelockRecoveryContext):
+    def start_plan(self, context):
+        password = context.main_window.password_dialog(msg=_('Please enter your password to sign Timelock Recovery transactions'))
+        self.create_alert_fee_dialog(context, password)
+
+    def create_alert_fee_dialog(self, context: TimelockRecoveryContext, password:str):
         tx: Optional['PartialTransaction']
         is_preview: bool
         tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_alert_tx, '!', allow_preview=False)
@@ -383,14 +387,14 @@ class Plugin(TimelockRecoveryPlugin):
                 context.main_window.show_error(_("Alert transaction is not complete."))
                 return
             context.alert_tx = tx
-            self.create_recovery_fee_dialog(context)
-        context.main_window.sign_tx(
+            self.create_recovery_fee_dialog(context, password)
+        context.main_window.sign_tx_with_password(
             tx,
             callback=sign_done,
-            external_keypairs=None,
+            password=password,
         )
 
-    def create_recovery_fee_dialog(self, context: TimelockRecoveryContext):
+    def create_recovery_fee_dialog(self, context: TimelockRecoveryContext, password: str):
         tx: Optional['PartialTransaction']
         is_preview: bool
         tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_recovery_tx, '!', allow_preview=False)
@@ -413,13 +417,14 @@ class Plugin(TimelockRecoveryPlugin):
                 context.main_window.show_error(_("Recovery transaction is not complete."))
                 return
             context.recovery_tx = tx
-            self.create_cancellation_dialog(context)
-        context.main_window.sign_tx(
+            self.create_cancellation_dialog(context, password)
+
+        context.main_window.sign_tx_with_password(
             tx,
             callback=sign_done,
-            external_keypairs=None)
+            password=password)
 
-    def create_cancellation_dialog(self, context: TimelockRecoveryContext):
+    def create_cancellation_dialog(self, context: TimelockRecoveryContext, password: str):
         answer = context.main_window.question('\n'.join([
             _("Do you want to also create a Cancellation transaction?"),
             _(
@@ -502,7 +507,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         next_button = QPushButton(_("Next"), cancel_dialog)
         next_button.clicked.connect(cancel_dialog.close)
-        next_button.clicked.connect(partial(self.create_cancellation_fee_dialog, context))
+        next_button.clicked.connect(partial(self.create_cancellation_fee_dialog, context, password))
 
         vbox_layout.addLayout(Buttons(next_button))
 
@@ -513,7 +518,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(cancel_dialog.exec())
 
-    def create_cancellation_fee_dialog(self, context: TimelockRecoveryContext):
+    def create_cancellation_fee_dialog(self, context: TimelockRecoveryContext, password: str):
         tx: Optional['PartialTransaction']
         is_preview: bool
         tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_cancellation_tx, '!', allow_preview=False)
@@ -537,10 +542,10 @@ class Plugin(TimelockRecoveryPlugin):
                 return
             context.cancellation_tx = tx
             self.create_download_dialog(context)
-        context.main_window.sign_tx(
+        context.main_window.sign_tx_with_password(
             tx,
             callback=sign_done,
-            external_keypairs=None,
+            password=password,
         )
 
     def create_download_dialog(self, context: TimelockRecoveryContext) -> bool:
