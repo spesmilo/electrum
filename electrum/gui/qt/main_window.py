@@ -1118,8 +1118,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         *,
         external_keypairs: Mapping[bytes, bytes] = None,
         payment_identifier: PaymentIdentifier = None,
+        show_sign_button: bool = True,
+        show_broadcast_button: bool = True,
     ):
-        show_transaction(tx, parent=self, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
+        show_transaction(
+            tx,
+            parent=self,
+            external_keypairs=external_keypairs,
+            payment_identifier=payment_identifier,
+            show_sign_button=show_sign_button,
+            show_broadcast_button=show_broadcast_button,
+        )
 
     def show_lightning_transaction(self, tx_item):
         from .lightning_tx_dialog import LightningTxDialog
