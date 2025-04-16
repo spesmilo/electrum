@@ -497,16 +497,17 @@ class Plugin(TimelockRecoveryPlugin):
         grid.addWidget(copy_button, line_number, 4)
         line_number += 1
 
-        cancellation_address = context.get_cancellation_address()
-        grid.addWidget(HelpLabel(
-            _("Cancellation Address"),
-            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcast."),
-        ), line_number, 0)
-        grid.addWidget(selectable_label(cancellation_address), line_number, 1, 1, 3)
-        copy_button2 = QPushButton(_("Copy"))
-        copy_button2.clicked.connect(lambda: context.main_window.do_copy(cancellation_address))
-        grid.addWidget(copy_button2, line_number, 4)
-        line_number += 1
+        if context.cancellation_tx is not None:
+            cancellation_address = context.get_cancellation_address()
+            grid.addWidget(HelpLabel(
+                _("Cancellation Address"),
+                _("This address in your wallet will receive the funds when the Cancellation transaction is broadcast."),
+            ), line_number, 0)
+            grid.addWidget(selectable_label(cancellation_address), line_number, 1, 1, 3)
+            copy_button2 = QPushButton(_("Copy"))
+            copy_button2.clicked.connect(lambda: context.main_window.do_copy(cancellation_address))
+            grid.addWidget(copy_button2, line_number, 4)
+            line_number += 1
 
         grid.addWidget(HelpLabel(
             _("Alert Transaction ID"),
