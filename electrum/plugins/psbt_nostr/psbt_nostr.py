@@ -218,6 +218,14 @@ class CosignerWallet(Logger):
         #      note that tx could also be unrelated from wallet?... (not ismine inputs)
         return True
 
+    def can_send_psbt(self, tx: Union[Transaction, PartialTransaction]) -> bool:
+        if tx.is_complete() or self.wallet.can_sign(tx):
+            return False
+        for xpub, pubkey in self.cosigner_list:
+            if self.cosigner_can_sign(tx, xpub):
+                return True
+        return False
+
     def mark_pending_event_rcvd(self, event_id):
         self.logger.debug('marking event rcvd')
         self.known_events[event_id] = now()
