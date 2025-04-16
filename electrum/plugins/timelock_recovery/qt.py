@@ -248,15 +248,15 @@ class Plugin(TimelockRecoveryPlugin):
                 return
             context.alert_tx = tx = context.make_unsigned_alert_tx(fee_policy)
             assert all(tx_input.is_segwit() for tx_input in tx.inputs())
-            alert_tx_label.setText(self.config.format_amount_and_units(context.alert_tx.get_fee()))
+            alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
             context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
             assert all(tx_input.is_segwit() for tx_input in tx.inputs())
-            recovery_tx_label.setText(self.config.format_amount_and_units(context.recovery_tx.get_fee()))
+            recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
             if not create_cancel_cb.isChecked():
                 return
             context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
             assert all(tx_input.is_segwit() for tx_input in tx.inputs())
-            cancellation_tx_label.setText(self.config.format_amount_and_units(context.cancellation_tx.get_fee()))
+            cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
 
         payto_e.paymentIdentifierChanged.connect(update_transactions)
         timelock_days_widget.textChanged.connect(update_transactions)
@@ -303,6 +303,18 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(create_cancel_cb, grid_row, 1, 1, 4)
         grid_row += 1
 
+        fee_slider = FeeSlider(
+            parent=plan_dialog, network=context.main_window.network,
+            fee_policy=fee_policy,
+            callback=lambda x: update_transactions()
+        )
+
+        fee_combo = FeeComboBox(fee_slider)
+        plan_grid.addWidget(QLabel('Fee policy'), grid_row, 0)
+        plan_grid.addWidget(fee_slider, grid_row, 1)
+        plan_grid.addWidget(fee_combo, grid_row, 2)
+        grid_row += 1
+
         plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
         plan_grid.addWidget(alert_tx_label, grid_row, 1, 1, 3)
         view_alert_tx_button = QPushButton(_('View'))
@@ -323,18 +335,6 @@ class Plugin(TimelockRecoveryPlugin):
         view_cancellation_tx_button = QPushButton(_('View'))
         view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx))
         plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
-        grid_row += 1
-
-        fee_slider = FeeSlider(
-            parent=plan_dialog, network=context.main_window.network,
-            fee_policy=fee_policy,
-            callback=lambda x: update_transactions()
-        )
-
-        fee_combo = FeeComboBox(fee_slider)
-        plan_grid.addWidget(QLabel('Fee policy'), grid_row, 0)
-        plan_grid.addWidget(fee_slider, grid_row, 1)
-        plan_grid.addWidget(fee_combo, grid_row, 2)
         grid_row += 1
 
         plan_grid.setRowStretch(grid_row, 1)  # Make sure the grid does not stretch
