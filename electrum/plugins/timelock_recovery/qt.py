@@ -217,17 +217,6 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.setSpacing(8)
         grid_row = 0
 
-        plan_grid.addWidget(HelpLabel(
-            _("Alert Address"),
-            _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
-        ), grid_row, 0)
-        alert_address = context.get_alert_address()
-        plan_grid.addWidget(selectable_label(alert_address), grid_row, 1, 1, 3)
-        copy_button = QPushButton(_("Copy"))
-        copy_button.clicked.connect(lambda: context.main_window.do_copy(alert_address))
-        plan_grid.addWidget(copy_button, grid_row, 4)
-        grid_row += 1
-
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
         next_button.clicked.connect(lambda: self.start_plan(context, bool(self.create_cancel_cb.isChecked())))
@@ -437,6 +426,7 @@ class Plugin(TimelockRecoveryPlugin):
         if not create_cancellation_tx:
             context.cancellation_tx = None
             return self.create_download_dialog(context)
+
         if not context.get_cancellation_address():
             context.main_window.show_error(''.join([
                 _("No more addresses in your wallet."), " ",
@@ -446,64 +436,15 @@ class Plugin(TimelockRecoveryPlugin):
             context.cancellation_tx = None
             return self.create_download_dialog(context)
 
-        cancel_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
-        cancel_dialog.setContentsMargins(11, 11, 1, 1)
-        cancel_dialog.resize(800, cancel_dialog.height())
-
         if not context.get_alert_address():
-            cancel_dialog.show_error(''.join([
+            context.main_window.show_error(''.join([
                 _("No more addresses in your wallet."), " ",
                 _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
                 _("If you want to create new addresses, use a deterministic wallet instead."),
             ]))
-            cancel_dialog.close()
             return
 
-        cancel_grid = QGridLayout()
-        cancel_grid.setSpacing(8)
-        grid_row = 0
-        cancellation_address = context.get_cancellation_address()
-        cancel_grid.addWidget(HelpLabel(
-            _("Cancellation Address"),
-            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcasted."),
-        ), grid_row, 0)
-        cancel_grid.addWidget(selectable_label(cancellation_address), grid_row, 1, 1, 3)
-        copy_button = QPushButton(_("Copy Address"))
-        copy_button.clicked.connect(lambda: context.main_window.do_copy(cancellation_address))
-        cancel_grid.addWidget(copy_button, grid_row, 4)
-
-        grid_row += 1
-        cancel_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
-
-        # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
-        hbox_layout = QHBoxLayout(cancel_dialog)
-
-        # Create the logo label.
-        logo_label = QLabel()
-
-        # Set the logo label pixmap.
-        logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
-
-        # Align the logo label to the top left.
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
-        # Create a VBox layout for the main contents of the dialog.
-        vbox_layout = QVBoxLayout()
-
-        vbox_layout.addLayout(cancel_grid, stretch=1)
-
-        next_button = QPushButton(_("Next"), cancel_dialog)
-        next_button.clicked.connect(cancel_dialog.close)
-        next_button.clicked.connect(partial(self.create_cancellation_fee_dialog, context, password))
-
-        vbox_layout.addLayout(Buttons(next_button))
-
-        # Populate the HBox layout.
-        hbox_layout.addWidget(logo_label)
-        hbox_layout.addSpacing(16)
-        hbox_layout.addLayout(vbox_layout, stretch=1)
-
-        return bool(cancel_dialog.exec())
+        self.create_cancellation_fee_dialog(context, password)
 
     def create_cancellation_fee_dialog(self, context: TimelockRecoveryContext, password: str):
         tx: Optional['PartialTransaction']
@@ -576,16 +517,38 @@ class Plugin(TimelockRecoveryPlugin):
         line_number += 1
 
         grid.addWidget(HelpLabel(
+            _("Alert Address"),
+            _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
+        ), line_number, 0)
+        alert_address = context.get_alert_address()
+        grid.addWidget(selectable_label(alert_address), line_number, 1, 1, 3)
+        copy_button = QPushButton(_("Copy"))
+        copy_button.clicked.connect(lambda: context.main_window.do_copy(alert_address))
+        grid.addWidget(copy_button, line_number, 4)
+        line_number += 1
+
+        cancellation_address = context.get_cancellation_address()
+        grid.addWidget(HelpLabel(
+            _("Cancellation Address"),
+            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcasted."),
+        ), line_number, 0)
+        grid.addWidget(selectable_label(cancellation_address), line_number, 1, 1, 3)
+        copy_button2 = QPushButton(_("Copy"))
+        copy_button2.clicked.connect(lambda: context.main_window.do_copy(cancellation_address))
+        grid.addWidget(copy_button2, line_number, 4)
+        line_number += 1
+
+        grid.addWidget(HelpLabel(
             _("Alert Transaction ID"),
             _("ID of the Alert transaction"),
-        ), 2, 0)
+        ), line_number, 0)
         grid.addWidget(selectable_label(context.alert_tx.txid()), line_number, 1, 1, 4)
         line_number += 1
 
         grid.addWidget(HelpLabel(
             _("Recovery Transaction ID"),
             _("ID of the Recovery transaction"),
-        ), 3, 0)
+        ), line_number, 0)
         grid.addWidget(selectable_label(context.recovery_tx.txid()), line_number, 1, 1, 4)
         line_number += 1
 
@@ -593,7 +556,7 @@ class Plugin(TimelockRecoveryPlugin):
             grid.addWidget(HelpLabel(
                 _("Cancellation Transaction ID"),
                 _("ID of the Cancellation transaction"),
-            ), 4, 0)
+            ), line_number, 0)
             grid.addWidget(selectable_label(context.cancellation_tx.txid()), line_number, 1, 1, 4)
             line_number += 1
 
