@@ -55,6 +55,8 @@ class Plugin(PsbtNostrPlugin):
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if not isinstance(wallet, Multisig_Wallet):
             return
+        if wallet.wallet_type == '2fa':
+            return
         self.add_cosigner_wallet(wallet, QtCosignerWallet(wallet, window))
 
     @hook

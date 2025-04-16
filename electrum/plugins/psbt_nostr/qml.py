@@ -109,6 +109,8 @@ class Plugin(PsbtNostrPlugin):
             self.remove_cosigner_wallet(wallet)
         if not isinstance(wallet, Multisig_Wallet):
             return
+        if wallet.wallet_type == '2fa':
+            return
         self.add_cosigner_wallet(wallet, QmlCosignerWallet(wallet, self))
 
 
