@@ -44,21 +44,22 @@ class TestTimelockRecovery(ElectrumTestCase):
 
         context = TimelockRecoveryContext(wallet)
         alert_address = context.get_alert_address()
-        self.assertEqual(alert_address, 'tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u')
+        self.assertEqual(alert_address, 'tb1qchyc02y9mv4xths4je9puc4yzuxt8rfm26ef07')
 
     async def test_get_cancellation_address(self):
         wallet = self._create_default_wallet()
 
         context = TimelockRecoveryContext(wallet)
-        alert_address = context.get_cancellation_address()
-        self.assertEqual(alert_address, 'tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u')
+        context.get_alert_address()
+        cancellation_address = context.get_cancellation_address()
+        self.assertEqual(cancellation_address, 'tb1q6k5h4cz6ra8nzhg90xm9wldvadgh0fpttfthcg')
 
     async def test_make_unsigned_alert_tx(self):
         wallet = self._create_default_wallet()
 
         context = TimelockRecoveryContext(wallet)
         context.outputs = [
-            PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
+            PartialTxOutput(scriptpubkey=address_to_script('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd'), value='!'),
         ]
 
         alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
@@ -70,17 +71,17 @@ class TestTimelockRecovery(ElectrumTestCase):
         ])
         alert_tx_outputs = [(tx_output.address, tx_output.value) for tx_output in alert_tx.outputs()]
         self.assertEqual(alert_tx_outputs, [
-            ('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u', 600),
-            ('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u', 743065),
+            ('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd', 600),
+            ('tb1qchyc02y9mv4xths4je9puc4yzuxt8rfm26ef07', 743065),
         ])
-        self.assertEqual(alert_tx.txid(), 'eff2f0b7bb21673afff875af9c9313a8eccbefc8f80b87e0a560cb424e1b5b1b')
+        self.assertEqual(alert_tx.txid(), '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60')
 
     async def test_make_unsigned_recovery_tx(self):
         wallet = self._create_default_wallet()
 
         context = TimelockRecoveryContext(wallet)
         context.outputs = [
-            PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
+            PartialTxOutput(scriptpubkey=address_to_script('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd'), value='!'),
         ]
         context.alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
         context.timelock_days = 90
@@ -89,13 +90,13 @@ class TestTimelockRecovery(ElectrumTestCase):
         self.assertEqual(recovery_tx.version, 2)
         recovery_tx_inputs = [tx_input.prevout.to_str() for tx_input in recovery_tx.inputs()]
         self.assertEqual(recovery_tx_inputs, [
-            'eff2f0b7bb21673afff875af9c9313a8eccbefc8f80b87e0a560cb424e1b5b1b:1',
+            '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60:1',
         ])
         self.assertEqual(recovery_tx.inputs()[0].nsequence, 0x00403b54)
 
         recovery_tx_outputs = [(tx_output.address, tx_output.value) for tx_output in recovery_tx.outputs()]
         self.assertEqual(recovery_tx_outputs, [
-            ('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u', 738065),
+            ('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd', 738065),
         ])
 
     async def test_make_unsigned_cancellation_tx(self):
@@ -103,7 +104,7 @@ class TestTimelockRecovery(ElectrumTestCase):
 
         context = TimelockRecoveryContext(wallet)
         context.outputs = [
-            PartialTxOutput(scriptpubkey=address_to_script('tb1qt339ksrha0n5a6lwpql778erkm272hxgamdc0u'), value='!'),
+            PartialTxOutput(scriptpubkey=address_to_script('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd'), value='!'),
         ]
         context.alert_tx = context.make_unsigned_alert_tx(fee_policy=FixedFeePolicy(5000))
 
@@ -111,10 +112,10 @@ class TestTimelockRecovery(ElectrumTestCase):
         self.assertEqual(cancellation_tx.version, 2)
         cancellation_tx_inputs = [tx_input.prevout.to_str() for tx_input in cancellation_tx.inputs()]
         self.assertEqual(cancellation_tx_inputs, [
-            'eff2f0b7bb21673afff875af9c9313a8eccbefc8f80b87e0a560cb424e1b5b1b:1',
+            '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60:1',
         ])
         self.assertEqual(cancellation_tx.inputs()[0].nsequence, 0xfffffffd)
         cancellation_tx_outputs = [(tx_output.address, tx_output.value) for tx_output in cancellation_tx.outputs()]
         self.assertEqual(cancellation_tx_outputs, [
-            ('tb1qtf9mwfv8ux0j90cwtx9nvz9l46jav40sak7ncg', 737065),
+            ('tb1q6k5h4cz6ra8nzhg90xm9wldvadgh0fpttfthcg', 737065),
         ])
