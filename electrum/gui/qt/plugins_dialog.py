@@ -45,11 +45,12 @@ class PluginDialog(WindowModalDialog):
             icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
             name_label.setIcon(icon)
         vbox.addWidget(name_label)
+        vbox.addStretch()
+        vbox.addWidget(WWLabel(description))
+        vbox.addStretch()
         form = QFormLayout(None)
         if author:
             form.addRow(QLabel(_('Author') + ':'), QLabel(author))
-        if description:
-            form.addRow(QLabel(_('Description') + ':'), WWLabel(description))
         if version:
             form.addRow(QLabel(_('Version') + ':'), QLabel(version))
         if zip_hash:
