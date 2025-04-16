@@ -223,7 +223,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
-        next_button.clicked.connect(lambda: self.start_plan(context, bool(create_cancel_cb.isChecked()), fee_policy))
+        next_button.clicked.connect(lambda: self.start_plan(context))
         next_button.setEnabled(False)
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
@@ -427,7 +427,7 @@ class Plugin(TimelockRecoveryPlugin):
         next_button.setEnabled(True)
         return True
 
-    def start_plan(self, context: TimelockRecoveryContext, create_cancellation_tx: bool, fee_policy):
+    def start_plan(self, context: TimelockRecoveryContext):
         main_window = context.main_window
         wallet = main_window.wallet
         password = main_window.get_password()
@@ -435,18 +435,18 @@ class Plugin(TimelockRecoveryPlugin):
         def task():
             wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
             wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
-            if create_cancellation_tx:
+            if context.cancellation_tx is not None:
                 wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
 
         def on_success(result):
-            self.create_download_dialog(context, create_cancellation_tx)
+            self.create_download_dialog(context)
         def on_failure(exc_info):
             main_window.on_error(exc_info)
         msg = _('Signing transaction...')
         WaitingDialog(main_window, msg, task, on_success, on_failure)
 
 
-    def create_download_dialog(self, context: TimelockRecoveryContext, create_cancellation_tx: bool) -> bool:
+    def create_download_dialog(self, context: TimelockRecoveryContext) -> bool:
         context.recovery_plan_id = str(uuid.uuid4())
         context.recovery_plan_created_at = datetime.now().astimezone()
         download_dialog = WindowModalDialog(context.main_window, "Timelock Recovery - Download")
@@ -522,7 +522,7 @@ class Plugin(TimelockRecoveryPlugin):
         grid.addWidget(selectable_label(context.recovery_tx.txid()), line_number, 1, 1, 4)
         line_number += 1
 
-        if create_cancellation_tx:
+        if context.cancellation_tx is not None:
             grid.addWidget(HelpLabel(
                 _("Cancellation Transaction ID"),
                 _("ID of the Cancellation transaction"),
@@ -561,7 +561,7 @@ class Plugin(TimelockRecoveryPlugin):
         close_button = QPushButton(_("Close"), download_dialog)
         close_button.clicked.connect(download_dialog.close)
         buttons = [recovery_button, close_button]
-        if create_cancellation_tx:
+        if context.cancellation_tx is not None:
             buttons.insert(1, cancellation_button)
         vbox_layout.addLayout(Buttons(*buttons))
         # Populate the HBox layout.
