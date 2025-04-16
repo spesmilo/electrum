@@ -34,7 +34,7 @@ from electrum.gui.common_qt.util import draw_qr, get_font_id
 from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.bitcoin import DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
-from electrum.plugin import hook, run_hook
+from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput
 from electrum.util import make_dir
@@ -221,21 +221,11 @@ class Plugin(TimelockRecoveryPlugin):
             _("Alert Address"),
             _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
         ), grid_row, 0)
-        plan_grid.addWidget(selectable_label(context.get_alert_address()), grid_row, 1, 1, 4)
-        grid_row += 1
-
-        fake_menu = QMenu()
-        fake_menu.addAction(_("Copy Address"), lambda: context.main_window.do_copy(context.get_alert_address()))
-        run_hook('receive_menu', fake_menu, [context.get_alert_address()], context.wallet)
-
-        fake_menu_actions = list(fake_menu.actions())
-        menu_actions_hbox = QHBoxLayout()
-        # Add stretch at the end to prevent buttons from stretching across the hbox
-        for action in fake_menu_actions:
-            action_button = QPushButton(action.text(), plan_dialog)
-            action_button.clicked.connect(action.triggered)
-            menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        plan_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
+        alert_address = context.get_alert_address()
+        plan_grid.addWidget(selectable_label(alert_address), grid_row, 1, 1, 3)
+        copy_button = QPushButton(_("Copy"))
+        copy_button.clicked.connect(lambda: context.main_window.do_copy(alert_address))
+        plan_grid.addWidget(copy_button, grid_row, 4)
         grid_row += 1
 
         next_button = QPushButton(_("Next"), plan_dialog)
@@ -472,25 +462,16 @@ class Plugin(TimelockRecoveryPlugin):
         cancel_grid = QGridLayout()
         cancel_grid.setSpacing(8)
         grid_row = 0
-
+        cancellation_address = context.get_cancellation_address()
         cancel_grid.addWidget(HelpLabel(
             _("Cancellation Address"),
             _("This address in your wallet will receive the funds when the Cancellation transaction is broadcasted."),
         ), grid_row, 0)
-        cancel_grid.addWidget(selectable_label(context.get_cancellation_address()), grid_row, 1, 1, 4)
-        grid_row += 1
-        fake_menu = QMenu()
-        fake_menu.addAction(_("Copy Address"), lambda: context.main_window.do_copy(context.get_cancellation_address()))
-        run_hook('receive_menu', fake_menu, [context.get_cancellation_address()], context.wallet)
+        cancel_grid.addWidget(selectable_label(cancellation_address), grid_row, 1, 1, 3)
+        copy_button = QPushButton(_("Copy Address"))
+        copy_button.clicked.connect(lambda: context.main_window.do_copy(cancellation_address))
+        cancel_grid.addWidget(copy_button, grid_row, 4)
 
-        fake_menu_actions = list(fake_menu.actions())
-        menu_actions_hbox = QHBoxLayout()
-        # Add stretch at the end to prevent buttons from stretching across the hbox
-        for action in fake_menu_actions:
-            action_button = QPushButton(action.text(), cancel_dialog)
-            action_button.clicked.connect(action.triggered)
-            menu_actions_hbox.addWidget(action_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        cancel_grid.addLayout(menu_actions_hbox, grid_row, 1, 1, 4)
         grid_row += 1
         cancel_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
 
