@@ -318,14 +318,14 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
         plan_grid.addWidget(alert_tx_label, grid_row, 1, 1, 3)
         view_alert_tx_button = QPushButton(_('View'))
-        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx))
+        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_sign_button=False, show_broadcast_button=False))
         plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
         grid_row += 1
 
         plan_grid.addWidget(QLabel('Recovery transaction'), grid_row, 0)
         plan_grid.addWidget(recovery_tx_label, grid_row, 1, 1, 3)
         view_recovery_tx_button = QPushButton(_('View'))
-        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx))
+        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_sign_button=False, show_broadcast_button=False))
         plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -333,7 +333,7 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(cancellation_label, grid_row, 0)
         plan_grid.addWidget(cancellation_tx_label, grid_row, 1, 1, 3)
         view_cancellation_tx_button = QPushButton(_('View'))
-        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx))
+        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_sign_button=False, show_broadcast_button=False))
         plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
         grid_row += 1
 
