@@ -1991,6 +1991,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(_("Wallet file not found: {}").format(basename))
 
     @protected
+    def get_password(self, password):
+        return password
+
+    @protected
     def show_seed_dialog(self, password):
         if not self.wallet.has_seed():
             self.show_message(_('This wallet has no seed'))
