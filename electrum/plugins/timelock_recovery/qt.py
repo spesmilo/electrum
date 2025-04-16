@@ -109,23 +109,14 @@ class Plugin(TimelockRecoveryPlugin):
             self.font_name = 'PT Mono'
 
     @hook
-    def create_status_bar(self, sb):
-        b = StatusBarButton(
-            read_QIcon_from_bytes(self.small_logo_bytes),
-            "Timelock Recovery "+_("Plugin"),
-            partial(self.setup_dialog, sb),
-            sb.height(),
-        )
-        sb.addPermanentWidget(b)
+    def init_menubar(self, window):
+        m = window.wallet_menu.addAction('Timelock Recovery', lambda: self.setup_dialog(window))
+        icon = read_QIcon_from_bytes(self.read_file('timelock_recovery_60.png'))
+        m.setIcon(icon)
 
-    def requires_settings(self) -> bool:
-        return False
-
-    def setup_dialog(self, status_bar: 'QStatusBar') -> bool:
-        main_window: 'ElectrumWindow' = status_bar.parent()
+    def setup_dialog(self, main_window: 'ElectrumWindow') -> bool:
         context = TimelockRecoveryContext(main_window.wallet)
         context.main_window = main_window
-
         if constants.net.NET_NAME == 'regtest':
             return self.create_plan_dialog(context)
         return self.create_intro_dialog(context)
