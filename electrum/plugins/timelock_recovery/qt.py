@@ -24,32 +24,30 @@ from decimal import Decimal
 import qrcode
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QMarginsF
-from PyQt6.QtGui import (QImage, QPainter, QFont, QIntValidator,
+from PyQt6.QtGui import (QImage, QPainter, QFont, QIntValidator, QAction,
                          QPageSize, QPageLayout, QFontMetrics)
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu, QCheckBox,
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu, QCheckBox, QToolButton,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
 from electrum import constants, version
 from electrum.gui.common_qt.util import draw_qr, get_font_id
 from electrum.gui.qt.paytoedit import PayToEdit
-from electrum.bitcoin import DummyAddress
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput
 from electrum.util import make_dir
 from electrum.gui.qt.util import ColorScheme, WindowModalDialog, Buttons, HelpLabel
-from electrum.gui.qt.main_window import StatusBarButton
-from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
+from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes, WaitingDialog
+from electrum.fee_policy import FeePolicy
+from electrum.gui.qt.fee_slider import FeeSlider, FeeComboBox
 
 from .timelock_recovery import TimelockRecoveryPlugin, TimelockRecoveryContext
 
 
 if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumGui
-    from electrum.transaction import PartialTransaction
     from electrum.gui.qt.main_window import ElectrumWindow
-    from PyQt6.QtWidgets import QStatusBar
 
 
 AGREEMENT_TEXT = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
@@ -57,10 +55,12 @@ MIN_LOCKTIME_DAYS = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 MAX_LOCKTIME_DAYS = 388
 
+
 def selectable_label(text: str) -> QLabel:
     label = QLabel(text)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     return label
+
 
 class FontManager:
     def __init__(self, font_name: str, resolution: int):
@@ -123,7 +123,7 @@ class Plugin(TimelockRecoveryPlugin):
 
     def create_intro_dialog(self, context: TimelockRecoveryContext) -> bool:
         intro_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
-        intro_dialog.setContentsMargins(11,11,1,1)
+        intro_dialog.setContentsMargins(11, 11, 1, 1)
 
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(intro_dialog)
@@ -202,7 +202,11 @@ class Plugin(TimelockRecoveryPlugin):
         plan_dialog.setContentsMargins(11, 11, 1, 1)
         plan_dialog.resize(800, plan_dialog.height())
 
-        self.create_cancel_cb = QCheckBox('', checked=True)
+        fee_policy = FeePolicy(context.main_window.config.FEE_POLICY)
+        create_cancel_cb = QCheckBox('', checked=False)
+        alert_tx_label = QLabel('')
+        recovery_tx_label = QLabel('')
+        cancellation_tx_label = QLabel('')
 
         if not context.get_alert_address():
             plan_dialog.show_error(''.join([
@@ -219,7 +223,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
-        next_button.clicked.connect(lambda: self.start_plan(context, bool(self.create_cancel_cb.isChecked())))
+        next_button.clicked.connect(lambda: self.start_plan(context, bool(create_cancel_cb.isChecked()), fee_policy))
         next_button.setEnabled(False)
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
@@ -230,16 +234,32 @@ class Plugin(TimelockRecoveryPlugin):
         timelock_days_widget.setValidator(QIntValidator(2, 388))
         timelock_days_widget.setText(str(context.timelock_days))
 
-        verify_step1_details = partial(
-            self._verify_step1_details,
-            context=context,
-            next_button=next_button,
-            payto_e=payto_e,
-            timelock_days_widget=timelock_days_widget,
-        )
+        def update_transactions():
+            x = self._verify_step1_details(
+                    context=context,
+                    next_button=next_button,
+                    payto_e=payto_e,
+                    timelock_days_widget=timelock_days_widget,
+            )
+            view_alert_tx_button.setEnabled(x)
+            view_recovery_tx_button.setEnabled(x)
+            view_cancellation_tx_button.setEnabled(x)
+            if not x:
+                return
+            context.alert_tx = tx = context.make_unsigned_alert_tx(fee_policy)
+            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            alert_tx_label.setText(self.config.format_amount_and_units(context.alert_tx.get_fee()))
+            context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
+            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            recovery_tx_label.setText(self.config.format_amount_and_units(context.recovery_tx.get_fee()))
+            if not create_cancel_cb.isChecked():
+                return
+            context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
+            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            cancellation_tx_label.setText(self.config.format_amount_and_units(context.cancellation_tx.get_fee()))
 
-        payto_e.paymentIdentifierChanged.connect(verify_step1_details)
-        timelock_days_widget.textChanged.connect(verify_step1_details)
+        payto_e.paymentIdentifierChanged.connect(update_transactions)
+        timelock_days_widget.textChanged.connect(update_transactions)
 
         plan_grid.addWidget(HelpLabel(
             _("Recipient of the funds"),
@@ -280,12 +300,52 @@ class Plugin(TimelockRecoveryPlugin):
                 )
             ])
         ), grid_row, 0)
-        plan_grid.addWidget(self.create_cancel_cb, grid_row, 1, 1, 4)
+        plan_grid.addWidget(create_cancel_cb, grid_row, 1, 1, 4)
         grid_row += 1
-        plan_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
+
+        plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
+        plan_grid.addWidget(alert_tx_label, grid_row, 1, 1, 3)
+        view_alert_tx_button = QPushButton(_('View'))
+        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx))
+        plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
+        grid_row += 1
+
+        plan_grid.addWidget(QLabel('Recovery transaction'), grid_row, 0)
+        plan_grid.addWidget(recovery_tx_label, grid_row, 1, 1, 3)
+        view_recovery_tx_button = QPushButton(_('View'))
+        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx))
+        plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
+        grid_row += 1
+
+        cancellation_label = QLabel('Cancellation transaction')
+        plan_grid.addWidget(cancellation_label, grid_row, 0)
+        plan_grid.addWidget(cancellation_tx_label, grid_row, 1, 1, 3)
+        view_cancellation_tx_button = QPushButton(_('View'))
+        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx))
+        plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
+        grid_row += 1
+
+        fee_slider = FeeSlider(
+            parent=plan_dialog, network=context.main_window.network,
+            fee_policy=fee_policy,
+            callback=lambda x: update_transactions()
+        )
+
+        fee_combo = FeeComboBox(fee_slider)
+        plan_grid.addWidget(QLabel('Fee policy'), grid_row, 0)
+        plan_grid.addWidget(fee_slider, grid_row, 1)
+        plan_grid.addWidget(fee_combo, grid_row, 2)
+        grid_row += 1
+
+        plan_grid.setRowStretch(grid_row, 1)  # Make sure the grid does not stretch
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
         hbox_layout = QHBoxLayout(plan_dialog)
 
+        def on_cb_change(x):
+            cancellation_label.setVisible(x)
+            cancellation_tx_label.setVisible(x)
+            view_cancellation_tx_button.setVisible(x)
+        create_cancel_cb.stateChanged.connect(on_cb_change)
         # Create the logo label.
         logo_label = QLabel()
 
@@ -307,9 +367,16 @@ class Plugin(TimelockRecoveryPlugin):
         hbox_layout.addSpacing(16)
         hbox_layout.addLayout(vbox_layout, stretch=1)
 
+        # initialize
+        on_cb_change(False)
+        update_transactions()
+
         return bool(plan_dialog.exec())
 
-    def _verify_step1_details(self, context: TimelockRecoveryContext, next_button: QPushButton, payto_e: PayToEdit, timelock_days_widget: QLineEdit):
+    def _verify_step1_details(
+            self,
+            context: TimelockRecoveryContext, next_button: QPushButton, payto_e: PayToEdit,
+            timelock_days_widget: QLineEdit) -> bool:
         context.timelock_days = None
         try:
             timelock_days_str = timelock_days_widget.text()
@@ -323,160 +390,62 @@ class Plugin(TimelockRecoveryPlugin):
             timelock_days_widget.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             timelock_days_widget.setToolTip("Value must be between {} and {} days.".format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
             next_button.setEnabled(False)
-            return
+            return False
         pi = payto_e.payment_identifier
         if not pi:
             next_button.setEnabled(False)
-            return
+            return False
         if not pi.is_valid():
             # Don't make background red - maybe the user did not complete typing yet.
             payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
             payto_e.setToolTip((pi.get_error() or "Invalid address.") if pi.text else "")
             next_button.setEnabled(False)
-            return
+            return False
         elif pi.is_multiline():
             if not pi.is_multiline_max():
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
                 next_button.setEnabled(False)
-                return
+                return False
             context.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
                 next_button.setEnabled(False)
-                return
+                return False
             scriptpubkey, is_address = pi.parse_output(pi.text.strip())
             if not is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Must be a valid address, not a script.")
                 next_button.setEnabled(False)
-                return
+                return False
             context.outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
         payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
         payto_e.setToolTip("")
         next_button.setEnabled(True)
+        return True
 
-    def start_plan(self, context: TimelockRecoveryContext, create_cancellation_tx: bool):
-        password = context.main_window.password_dialog(msg=_('Please enter your password to sign Timelock Recovery transactions'))
-        self.create_alert_fee_dialog(context, password, create_cancellation_tx)
+    def start_plan(self, context: TimelockRecoveryContext, create_cancellation_tx: bool, fee_policy):
+        main_window = context.main_window
+        wallet = main_window.wallet
+        password = main_window.get_password()
 
-    def create_alert_fee_dialog(self, context: TimelockRecoveryContext, password:str, create_cancellation_tx: bool):
-        tx: Optional['PartialTransaction']
-        is_preview: bool
-        tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_alert_tx, '!', allow_preview=False)
-        if tx is None or is_preview or tx.get_dummy_output(DummyAddress.SWAP):
-            return
-        if not tx.is_segwit():
-            context.main_window.show_error(_("Alert transaction is not segwit. This extension only works with segwit addresses."))
-            return
-        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
-            context.main_window.show_error(_("All of the Alert transaction inputs must be segwit."))
-            return
-        txid = tx.txid()
-        def sign_done(success: bool):
-            if not success:
-                return
-            if tx.txid() != txid:
-                context.main_window.show_error(_("Alert transaction has been modified."))
-                return
-            if not tx.is_complete():
-                context.main_window.show_error(_("Alert transaction is not complete."))
-                return
-            context.alert_tx = tx
-            self.create_recovery_fee_dialog(context, password, create_cancellation_tx)
-        context.main_window.sign_tx_with_password(
-            tx,
-            callback=sign_done,
-            password=password,
-        )
+        def task():
+            wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+            wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
+            if create_cancellation_tx:
+                wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
 
-    def create_recovery_fee_dialog(self, context: TimelockRecoveryContext, password: str, create_cancellation_tx: bool):
-        tx: Optional['PartialTransaction']
-        is_preview: bool
-        tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_recovery_tx, '!', allow_preview=False)
-        if tx is None or is_preview or tx.get_dummy_output(DummyAddress.SWAP):
-            return
-        if not tx.is_segwit():
-            context.main_window.show_error(_("Recovery transaction is not segwit. This extension only works with segwit addresses."))
-            return
-        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
-            context.main_window.show_error(_("All of the transaction inputs must be segwit."))
-            return
-        txid = tx.txid()
-        def sign_done(success: bool):
-            if not success:
-                return
-            if tx.txid() != txid:
-                context.main_window.show_error(_("Recovery transaction has been modified."))
-                return
-            if not tx.is_complete():
-                context.main_window.show_error(_("Recovery transaction is not complete."))
-                return
-            context.recovery_tx = tx
-            self.create_cancellation_dialog(context, password, create_cancellation_tx)
+        def on_success(result):
+            self.create_download_dialog(context, create_cancellation_tx)
+        def on_failure(exc_info):
+            main_window.on_error(exc_info)
+        msg = _('Signing transaction...')
+        WaitingDialog(main_window, msg, task, on_success, on_failure)
 
-        context.main_window.sign_tx_with_password(
-            tx,
-            callback=sign_done,
-            password=password)
 
-    def create_cancellation_dialog(self, context: TimelockRecoveryContext, password: str, create_cancellation_tx: bool):
-        if not create_cancellation_tx:
-            context.cancellation_tx = None
-            return self.create_download_dialog(context)
-
-        if not context.get_cancellation_address():
-            context.main_window.show_error(''.join([
-                _("No more addresses in your wallet."), " ",
-                _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
-                _("If you want to create new addresses, use a deterministic wallet instead."),
-            ]))
-            context.cancellation_tx = None
-            return self.create_download_dialog(context)
-
-        if not context.get_alert_address():
-            context.main_window.show_error(''.join([
-                _("No more addresses in your wallet."), " ",
-                _("You are using a non-deterministic wallet, which cannot create new addresses."), " ",
-                _("If you want to create new addresses, use a deterministic wallet instead."),
-            ]))
-            return
-
-        self.create_cancellation_fee_dialog(context, password)
-
-    def create_cancellation_fee_dialog(self, context: TimelockRecoveryContext, password: str):
-        tx: Optional['PartialTransaction']
-        is_preview: bool
-        tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_cancellation_tx, '!', allow_preview=False)
-        if tx is None or is_preview or tx.get_dummy_output(DummyAddress.SWAP):
-            return
-        if not tx.is_segwit():
-            context.main_window.show_error(_("Recovery transaction is not segwit. This extension only works with segwit addresses."))
-            return
-        if not all(tx_input.is_segwit() for tx_input in tx.inputs()):
-            context.main_window.show_error(_("All of the transaction inputs must be segwit."))
-            return
-        txid = tx.txid()
-        def sign_done(success: bool):
-            if not success:
-                return
-            if tx.txid() != txid:
-                context.main_window.show_error(_("Recovery transaction has been modified."))
-                return
-            if not tx.is_complete():
-                context.main_window.show_error(_("Recovery transaction is not complete."))
-                return
-            context.cancellation_tx = tx
-            self.create_download_dialog(context)
-        context.main_window.sign_tx_with_password(
-            tx,
-            callback=sign_done,
-            password=password,
-        )
-
-    def create_download_dialog(self, context: TimelockRecoveryContext) -> bool:
+    def create_download_dialog(self, context: TimelockRecoveryContext, create_cancellation_tx: bool) -> bool:
         context.recovery_plan_id = str(uuid.uuid4())
         context.recovery_plan_created_at = datetime.now().astimezone()
         download_dialog = WindowModalDialog(context.main_window, "Timelock Recovery - Download")
@@ -518,7 +487,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         grid.addWidget(HelpLabel(
             _("Alert Address"),
-            _("This address in your wallet will receive the funds when the Alert Transaction is broadcasted."),
+            _("This address in your wallet will receive the funds when the Alert Transaction is broadcast."),
         ), line_number, 0)
         alert_address = context.get_alert_address()
         grid.addWidget(selectable_label(alert_address), line_number, 1, 1, 3)
@@ -530,7 +499,7 @@ class Plugin(TimelockRecoveryPlugin):
         cancellation_address = context.get_cancellation_address()
         grid.addWidget(HelpLabel(
             _("Cancellation Address"),
-            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcasted."),
+            _("This address in your wallet will receive the funds when the Cancellation transaction is broadcast."),
         ), line_number, 0)
         grid.addWidget(selectable_label(cancellation_address), line_number, 1, 1, 3)
         copy_button2 = QPushButton(_("Copy"))
@@ -542,7 +511,7 @@ class Plugin(TimelockRecoveryPlugin):
             _("Alert Transaction ID"),
             _("ID of the Alert transaction"),
         ), line_number, 0)
-        grid.addWidget(selectable_label(context.alert_tx.txid()), line_number, 1, 1, 4)
+        grid.addWidget(selectable_label(context.alert_tx.txid()), line_number, 1, 1, 3)
         line_number += 1
 
         grid.addWidget(HelpLabel(
@@ -552,7 +521,7 @@ class Plugin(TimelockRecoveryPlugin):
         grid.addWidget(selectable_label(context.recovery_tx.txid()), line_number, 1, 1, 4)
         line_number += 1
 
-        if context.cancellation_tx is not None:
+        if create_cancellation_tx:
             grid.addWidget(HelpLabel(
                 _("Cancellation Transaction ID"),
                 _("ID of the Cancellation transaction"),
@@ -560,40 +529,40 @@ class Plugin(TimelockRecoveryPlugin):
             grid.addWidget(selectable_label(context.cancellation_tx.txid()), line_number, 1, 1, 4)
             line_number += 1
 
-        # Create buttons
-        # Save Recovery Plan button row
-        save_recovery_hbox = QHBoxLayout()
-        save_recovery_pdf_button = QPushButton(_("Save Recovery Plan PDF..."), download_dialog)
-        save_recovery_pdf_button.clicked.connect(partial(self._save_recovery_plan_pdf, context, download_dialog))
-        save_recovery_hbox.addWidget(save_recovery_pdf_button)
-        save_recovery_json_button = QPushButton(_("Save Recovery Plan JSON..."), download_dialog)
-        save_recovery_json_button.clicked.connect(partial(self._save_recovery_plan_json, context, download_dialog))
-        save_recovery_hbox.addWidget(save_recovery_json_button)
-        save_recovery_hbox.addStretch(1)
-        grid.addLayout(save_recovery_hbox, line_number, 0, 1, 5)
-        line_number += 1
-
+        grid.setRowStretch(line_number, 1)
+        # Create butttons
+        recovery_menu = QMenu()
+        action = QAction('Save as PDF', recovery_menu)
+        action.triggered.connect(partial(self._save_recovery_plan_pdf, context, download_dialog))
+        recovery_menu.addAction(action)
+        action = QAction('Save as JSON', recovery_menu)
+        action.triggered.connect(partial(self._save_recovery_plan_json, context, download_dialog))
+        recovery_menu.addAction(action)
+        recovery_button = QToolButton()
+        recovery_button.setText(_("Save Recovery Plan"))
+        recovery_button.setMenu(recovery_menu)
+        recovery_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # Save Cancellation Plan button row (if applicable)
-        if context.cancellation_tx is not None:
-            save_cancel_hbox = QHBoxLayout()
-            save_cancel_button = QPushButton(_("Save Cancellation Plan PDF..."), download_dialog)
-            save_cancel_button.clicked.connect(partial(self._save_cancellation_plan_pdf, context, download_dialog))
-            save_cancellation_json_button = QPushButton(_("Save Cancellation Plan JSON..."), download_dialog)
-            save_cancellation_json_button.clicked.connect(partial(self._save_cancellation_plan_json, context, download_dialog))
-            save_cancel_hbox.addWidget(save_cancel_button)
-            save_cancel_hbox.addWidget(save_cancellation_json_button)
-            save_cancel_hbox.addStretch(1)
-            grid.addLayout(save_cancel_hbox, line_number, 0, 1, 5)
-            line_number += 1
-
+        cancellation_menu = QMenu()
+        action = QAction('Save as PDF', cancellation_menu)
+        action.triggered.connect(partial(self._save_cancellation_plan_pdf, context, download_dialog))
+        cancellation_menu.addAction(action)
+        action = QAction('Save as JSON', cancellation_menu)
+        action.triggered.connect(partial(self._save_cancellation_plan_json, context, download_dialog))
+        cancellation_menu.addAction(action)
+        cancellation_button = QToolButton()
+        cancellation_button.setText(_("Save Cancellation Plan"))
+        cancellation_button.setMenu(cancellation_menu)
+        cancellation_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # Add layouts to main vbox
         vbox_layout.addLayout(grid)
-
+        vbox_layout.addStretch()
         close_button = QPushButton(_("Close"), download_dialog)
         close_button.clicked.connect(download_dialog.close)
-
-        vbox_layout.addLayout(Buttons(close_button))
-
+        buttons = [recovery_button, close_button]
+        if create_cancellation_tx:
+            buttons.insert(1, cancellation_button)
+        vbox_layout.addLayout(Buttons(*buttons))
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
         hbox_layout.addSpacing(16)
@@ -1160,7 +1129,7 @@ class Plugin(TimelockRecoveryPlugin):
             f"The Recovery Guide (the other document) will allow to transfer the funds from this wallet to "
             f"a different wallet within {context.timelock_days} days. To prevent this from happening accidentally "
             f"or maliciously by someone who found that document, you should periodically check if the Alert "
-            f"transaction has been broadcasted, using a Bitcoin block-explorer website such as:"
+            f"transaction has been broadcast, using a Bitcoin block-explorer website such as:"
         )
         drawn_rect = painter.drawText(
             QRectF(20, current_height, page_width - 40, page_height),
@@ -1197,13 +1166,13 @@ class Plugin(TimelockRecoveryPlugin):
             QRectF(20, current_height, page_width - 40, page_height - current_height),
             Qt.TextFlag.TextWordWrap,
             "It is also recommended to use a Watch-Tower service that will notify you immediately if the"
-            " Alert transaction has been broadcasted. For more details, visit: https://timelockrecovery.com ."
+            " Alert transaction has been broadcast. For more details, visit: https://timelockrecovery.com ."
         )
         current_height += drawn_rect.height() + 40
 
         # Cancellation transaction section
         cancellation_text = (
-            "In case the Alert transaction has been broadcasted, and you want to stop the funds from "
+            "In case the Alert transaction has been broadcast, and you want to stop the funds from "
             "leaving this wallet, you can scan the QR code on page 2, and broadcast "
             "the content using one of the following Bitcoin block-explorer websites:\n\n"
             "• https://mempool.space/tx/push\n"
