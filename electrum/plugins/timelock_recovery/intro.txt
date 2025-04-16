@@ -1,5 +1,5 @@
 Timelock Recovery is a mechanism which, in case of a catastrophic event
-(death or lose of your master key), can send your Bitcoin to a secondary wallet of your choice
+(death or loss of your master key), can send your Bitcoin to a secondary wallet of your choice
 within a time-window (i.e. 90 days).
 <br />
 During that time-window, you can see that the Timelock Recovery mechanism has been triggered (a
@@ -8,19 +8,19 @@ has happened against your will, you can use your master key to cancel the proces
 the funds elsewhere before the time-window expires).
 <br />
 The implementation of Timelock Recovery is done with two transactions that are signed in advance,
-but broadcasted only when needed:
+but broadcast only when needed:
 <ol>
     <li>
         An <i>Alert Transaction</i> which sends the funds from the wallet to itself (consolidating the UTXOs).
     </li>
     <li>
         A <i>Recovery Transaction</i> which sends the funds to a secondary wallet of your choice and can
-        be added to the blockchain only X days after the <i>Alert Transaction</i> has been broadcasted (and mined).
+        be added to the blockchain only X days after the <i>Alert Transaction</i> has been broadcast (and mined).
     </li>
 </ol>
 Optionally, this extension will also let you sign-in-advance a <i>Cancellation Transaction</i> which can be
 used to cancel the Timelock Recovery process, by broadcasting it before the time-window expires.
-If the <i>Alert Transaction</i> has been broadcasted, the Cancellation Transaction will send the funds again to
+If the <i>Alert Transaction</i> has been broadcast, the Cancellation Transaction will send the funds again to
 the same wallet, which would invalidate the <i>Recovery Transaction</i> (technically: the <i>Recovery Transaction</i>
 will be seen as a transaction that is trying to spend a UTXO that has already been spent).
 <br />
@@ -55,7 +55,7 @@ Before we begin, please note:
     </li>
     <li>
         Since we are preparing this recovery plan for the long future, it is hard
-        to estimate what the required fees will be.
+        to estimate what the required mining fees will be.
         If the fee is too low, your inheritors, who don't have access to the master
         keys, will not be able to simply "replace-by-fee" and use a higher fee.
         At the moment of writing this code (year 2025) this is not a big deal, because
