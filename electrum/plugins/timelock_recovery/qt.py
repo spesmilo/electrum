@@ -26,7 +26,7 @@ from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QMarginsF
 from PyQt6.QtGui import (QImage, QPainter, QFont, QIntValidator,
                          QPageSize, QPageLayout, QFontMetrics)
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu,
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu, QCheckBox,
                              QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
 
 from electrum import constants, version
@@ -202,6 +202,8 @@ class Plugin(TimelockRecoveryPlugin):
         plan_dialog.setContentsMargins(11, 11, 1, 1)
         plan_dialog.resize(800, plan_dialog.height())
 
+        self.create_cancel_cb = QCheckBox('', checked=True)
+
         if not context.get_alert_address():
             plan_dialog.show_error(''.join([
                 _("No more addresses in your wallet."), " ",
@@ -238,7 +240,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
-        next_button.clicked.connect(partial(self.start_plan, context))
+        next_button.clicked.connect(lambda: self.start_plan(context, bool(self.create_cancel_cb.isChecked())))
         next_button.setEnabled(False)
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
@@ -261,9 +263,9 @@ class Plugin(TimelockRecoveryPlugin):
         timelock_days_widget.textChanged.connect(verify_step1_details)
 
         plan_grid.addWidget(HelpLabel(
-            _("Pay to"),
+            _("Recipient of the funds"),
             (
-                _("Final recipient(s) of the funds.")
+                _("Recipient of the funds, after the cancellation time window has expired")
                 + "\n\n"
                 + _("This field must contain a single Bitcoin address, or multiple lines in the format: 'address, amount'.") + "\n"
                 + "\n"
@@ -282,7 +284,24 @@ class Plugin(TimelockRecoveryPlugin):
                 + _("Value must be between {} and {} days.").format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS)
             )
         ), grid_row, 0)
-        plan_grid.addWidget(timelock_days_widget, grid_row, 1, 1, 4)
+        plan_grid.addWidget(timelock_days_widget, grid_row, 1)
+        grid_row += 1
+        plan_grid.addWidget(HelpLabel(
+            _('Create a cancellation transaction'),
+            '\n'.join([
+                _(
+                    "If the Alert transaction is has been broadcast against your intention," +
+                    " you will be able to broadcast the Cancellation transaction within {} days," +
+                    " to invalidate the Recovery transaction and keep the funds in this wallet" +
+                    " - without the need to restore the seed of this wallet (i.e. in case you have split or hidden it)."
+                ).format(context.timelock_days),
+                _(
+                    "However, if the seed of this wallet is lost, broadcasting the Cancellation transaction" +
+                    " might lock the funds on this wallet forever."
+                )
+            ])
+        ), grid_row, 0)
+        plan_grid.addWidget(self.create_cancel_cb, grid_row, 1, 1, 4)
         grid_row += 1
         plan_grid.setRowStretch(grid_row, 1) # Make sure the grid does not stretch
         # Create an HBox layout.  The logo will be on the left and the rest of the dialog on the right.
@@ -360,11 +379,11 @@ class Plugin(TimelockRecoveryPlugin):
         payto_e.setToolTip("")
         next_button.setEnabled(True)
 
-    def start_plan(self, context):
+    def start_plan(self, context: TimelockRecoveryContext, create_cancellation_tx: bool):
         password = context.main_window.password_dialog(msg=_('Please enter your password to sign Timelock Recovery transactions'))
-        self.create_alert_fee_dialog(context, password)
+        self.create_alert_fee_dialog(context, password, create_cancellation_tx)
 
-    def create_alert_fee_dialog(self, context: TimelockRecoveryContext, password:str):
+    def create_alert_fee_dialog(self, context: TimelockRecoveryContext, password:str, create_cancellation_tx: bool):
         tx: Optional['PartialTransaction']
         is_preview: bool
         tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_alert_tx, '!', allow_preview=False)
@@ -387,14 +406,14 @@ class Plugin(TimelockRecoveryPlugin):
                 context.main_window.show_error(_("Alert transaction is not complete."))
                 return
             context.alert_tx = tx
-            self.create_recovery_fee_dialog(context, password)
+            self.create_recovery_fee_dialog(context, password, create_cancellation_tx)
         context.main_window.sign_tx_with_password(
             tx,
             callback=sign_done,
             password=password,
         )
 
-    def create_recovery_fee_dialog(self, context: TimelockRecoveryContext, password: str):
+    def create_recovery_fee_dialog(self, context: TimelockRecoveryContext, password: str, create_cancellation_tx: bool):
         tx: Optional['PartialTransaction']
         is_preview: bool
         tx, is_preview = context.main_window.confirm_tx_dialog(context.make_unsigned_recovery_tx, '!', allow_preview=False)
@@ -417,28 +436,15 @@ class Plugin(TimelockRecoveryPlugin):
                 context.main_window.show_error(_("Recovery transaction is not complete."))
                 return
             context.recovery_tx = tx
-            self.create_cancellation_dialog(context, password)
+            self.create_cancellation_dialog(context, password, create_cancellation_tx)
 
         context.main_window.sign_tx_with_password(
             tx,
             callback=sign_done,
             password=password)
 
-    def create_cancellation_dialog(self, context: TimelockRecoveryContext, password: str):
-        answer = context.main_window.question('\n'.join([
-            _("Do you want to also create a Cancellation transaction?"),
-            _(
-                "If the Alert transaction is has been broadcasted against your intention," +
-                " you will be able to broadcast the Cancellation transaction within {} days," +
-                " to invalidate the Recovery transaction and keep the funds in this wallet" +
-                " - without the need to restore the seed of this wallet (i.e. in case you have split or hidden it)."
-            ).format(context.timelock_days),
-            _(
-                "However, if the seed of this wallet is lost, broadcasting the Cancellation transaction" +
-                " might lock the funds on this wallet forever."
-            )
-        ]))
-        if not answer:
+    def create_cancellation_dialog(self, context: TimelockRecoveryContext, password: str, create_cancellation_tx: bool):
+        if not create_cancellation_tx:
             context.cancellation_tx = None
             return self.create_download_dialog(context)
         if not context.get_cancellation_address():
