@@ -100,7 +100,7 @@ class Plugin(TimelockRecoveryPlugin):
         self.plugin_version: str = plugin_metadata['version'] if plugin_metadata else 'unknown'
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
+    def load_wallet(self, wallet, window):
         if self._init_qt_received:  # only need/want the first signal
             return
         self._init_qt_received = True
