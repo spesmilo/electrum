@@ -9,7 +9,7 @@ from collections import defaultdict
 import logging
 import concurrent
 from concurrent import futures
-import unittest
+from unittest import mock
 from typing import Iterable, NamedTuple, Tuple, List, Dict
 
 from aiorpcx import timeout_after, TaskTimeout
@@ -45,6 +45,7 @@ from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
+from electrum.mpp_split import split_amount_normal
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -323,7 +324,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     is_forwarded_htlc = LNWallet.is_forwarded_htlc
     notify_upstream_peer = LNWallet.notify_upstream_peer
     _force_close_channel = LNWallet._force_close_channel
-    suggest_splits = LNWallet.suggest_splits
+    suggest_payment_splits = LNWallet.suggest_payment_splits
     register_hold_invoice = LNWallet.register_hold_invoice
     unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
@@ -1555,6 +1556,55 @@ class TestPeerForwarding(TestPeer):
             print(f"{a:5s}: {keys[a].pubkey}")
             print(f"       {keys[a].pubkey.hex()}")
         return graph
+
+    async def test_payment_in_graph_with_direct_channel(self):
+        """Test payment over a direct channel where sender has multiple available channels."""
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
+        peers = graph.peers.values()
+        # use same MPP_SPLIT_PART_FRACTION as in regular LNWallet
+        graph.workers['bob'].MPP_SPLIT_PART_FRACTION = LNWallet.MPP_SPLIT_PART_FRACTION
+
+        # mock split_amount_normal so it's possible to test both cases, the amount getting sorted
+        # out because one part is below the min size and the other case of both parts being just
+        # above the min size, so no part is getting sorted out
+        def mocked_split_amount_normal(total_amount: int, num_parts: int) -> List[int]:
+            if num_parts == 2 and total_amount == 21_000_000:  # test amount 21k sat
+                # this will not get sorted out by suggest_splits
+                return [10_500_000, 10_500_000]
+            elif num_parts == 2 and total_amount == 21_000_001:  # 2nd test case
+                # this will get sorted out by suggest_splits
+                return [11_000_002, 9_999_999]
+            else:
+                return split_amount_normal(total_amount, num_parts)
+
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+            with mock.patch('electrum.mpp_split.split_amount_normal',
+                                side_effect=mocked_split_amount_normal):
+                result, log = await graph.workers['bob'].pay_invoice(pay_req)
+            self.assertTrue(result)
+            self.assertEqual(PR_PAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                for test in [21_000_000, 21_000_001]:
+                    lnaddr, pay_req = self.prepare_invoice(
+                        graph.workers['alice'],
+                        amount_msat=test,
+                        include_routing_hints=True,
+                        invoice_features=LnFeatures.BASIC_MPP_OPT
+                                         | LnFeatures.PAYMENT_SECRET_REQ
+                                         | LnFeatures.VAR_ONION_REQ
+                    )
+                    await pay(lnaddr, pay_req)
+                raise PaymentDone()
+        with self.assertRaises(PaymentDone):
+            await f()
 
     async def test_payment_multihop(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
