@@ -130,11 +130,6 @@ class AddressList(MyTreeView):
         self._toolbar_checkbox = menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar())
         menu.addConfig(config.cv.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES, callback=self.main_window.app.update_fiat_signal.emit)
         hbox = self.create_toolbar_buttons()
-        if config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION:
-            self.automatic_sub_disabled_warn = QLabel()
-            self.automatic_sub_disabled_warn.setText("<font color=yellow>" + _('Manual Query Mode') + "</font>")
-            self.automatic_sub_disabled_warn.setToolTip(_("You can enable automatic mode again from 'Preferences -> Privacy'"))
-            toolbar.insertWidget(2, self.automatic_sub_disabled_warn)
         toolbar.insertLayout(1, hbox)
         return toolbar
 

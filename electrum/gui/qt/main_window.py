@@ -1030,6 +1030,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 network_text = _("Not connected")
             icon = read_QIcon("status_disconnected.png")
 
+        self.notice_button.setVisible(self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION)
+
         if self.tray:
             # note: don't include balance in systray tooltip, as some OSes persist tooltips,
             #       hence "leaking" the wallet balance (see #5665)
@@ -1766,6 +1768,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         self.tasks_label = QLabel('')
         sb.addPermanentWidget(self.tasks_label)
+
+        self.notice_button = QLabel('')
+        self.notice_button.setToolTip("Automatic address subscription is disabled.")
+        self.notice_button.setPixmap(read_QIcon("notice.png").pixmap(sb_height, sb_height))
+        sb.addPermanentWidget(self.notice_button)
 
         self.password_button = StatusBarButton(QIcon(), _("Password"), self.change_password_dialog, sb_height)
         sb.addPermanentWidget(self.password_button)

@@ -378,6 +378,8 @@ class SettingsDialog(QDialog, QtEventListener):
         disable_auto_addr_sub_cb.setChecked(self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION)
         def on_set_disable_auto_addr_sub(_x):
             self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION = disable_auto_addr_sub_cb.isChecked()
+            self.app.update_status_signal.emit()
+
         disable_auto_addr_sub_cb.stateChanged.connect(on_set_disable_auto_addr_sub)
 
         gui_widgets = []
