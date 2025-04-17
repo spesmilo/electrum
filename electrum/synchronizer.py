@@ -96,7 +96,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             await self.taskgroup.spawn(self._subscribe_to_address, addr)
         finally:
             self._adding_addrs.discard(addr)  # ok for addr not to be present
-    
+
     async def _check_address(self, addr: str):
         try:
             if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
@@ -125,7 +125,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
                 raise GracefulDisconnect(e, log_level=logging.ERROR) from e
             raise
         self._requests_answered += 1
-    
+
     async def _get_address_status(self, addr):
         """used to get a single address status and add it to status_queue"""
         h = address_to_scripthash(addr)
