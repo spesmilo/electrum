@@ -61,11 +61,15 @@ MSG_FORWARD_SWAP_FUNDING_MEMPOOL = (
     _("Please remain online until the funding transaction is confirmed.") + "\n\n" +
     _('The swap will be finalized once your transaction is confirmed.') + " " +
     _("After the funding transaction is mined, the server will reveal the preimage needed to "
-      "fulfill the pending received lightning HTLCs. The HTLCs expire in {} blocks. "
+      "fulfill the pending received lightning HTLCs.")
+)
+
+MSG_FORWARD_SWAP_HTLC_EXPIRY = _(
+      "The HTLCs expire in {} blocks. "
       "You will need to be online after the funding transaction is confirmed but before the HTLCs expire, "
       "to claim your money. If you go offline for several days while the swap is pending, "
       "you risk losing the swap amount!").format(MIN_FINAL_CLTV_DELTA_FOR_CLIENT)
-)
+
 
 MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
     _('The funding transaction has been detected.') + " " +
