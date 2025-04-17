@@ -246,17 +246,17 @@ class Plugin(TimelockRecoveryPlugin):
             view_cancellation_tx_button.setEnabled(x)
             if not x:
                 return
-            context.alert_tx = tx = context.make_unsigned_alert_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
+            assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
             alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
             context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
             recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
             if not create_cancel_cb.isChecked():
                 context.cancellation_tx = None
                 return
             context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in tx.inputs())
+            assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
             cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
 
         payto_e.paymentIdentifierChanged.connect(update_transactions)
