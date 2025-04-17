@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
 
 
-AGREEMENT_TEXT = "I understand that using this wallet after generating a Timelock Recovery plan might break the plan"
+AGREEMENT_TEXT = "I understand that the Timelock Recovery plan will be broken if I keep using this wallet"
 MIN_LOCKTIME_DAYS = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 MAX_LOCKTIME_DAYS = 388
@@ -117,9 +117,7 @@ class Plugin(TimelockRecoveryPlugin):
     def setup_dialog(self, main_window: 'ElectrumWindow') -> bool:
         context = TimelockRecoveryContext(main_window.wallet)
         context.main_window = main_window
-        if constants.net.NET_NAME == 'regtest':
-            return self.create_plan_dialog(context)
-        return self.create_intro_dialog(context)
+        return self.create_plan_dialog(context)
 
     def create_intro_dialog(self, context: TimelockRecoveryContext) -> bool:
         intro_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
@@ -163,29 +161,9 @@ class Plugin(TimelockRecoveryPlugin):
 
         vbox_layout.addWidget(intro_wrapper)
 
-        # Create the labels.
-        instructions_label = selectable_label(_(f'Please type in the textbox below:\n"{AGREEMENT_TEXT}"'))
-
-        # Create the noise scan QR text edit.
-        intro_agreement_textedit = QLineEdit()
-
-        # Create the buttons.
-        intro_next_button = QPushButton(_("Next"), intro_dialog)
-
-        # Update the UI when the text changes.
-        intro_agreement_textedit.textChanged.connect(partial(self.on_agreement_edit, intro_agreement_textedit, intro_next_button))
-
-        # Initially disable the next button.
-        intro_next_button.setEnabled(False)
-
-        # Handle clicks on the buttons.
-        intro_next_button.clicked.connect(intro_dialog.close)
-        intro_next_button.clicked.connect(partial(self.create_plan_dialog, context))
-
-        # Populate the VBox layout.
-        vbox_layout.addWidget(instructions_label)
-        vbox_layout.addWidget(intro_agreement_textedit)
-        vbox_layout.addLayout(Buttons(intro_next_button))
+        close_button = QPushButton(_("Close"), intro_dialog)
+        close_button.clicked.connect(intro_dialog.close)
+        vbox_layout.addLayout(Buttons(close_button))
 
         # Add stretches to the end of the layouts to prevent the contents from spreading when the dialog is enlarged.
         hbox_layout.addStretch(1)
@@ -193,9 +171,6 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(intro_dialog.exec())
 
-    def on_agreement_edit(self, intro_agreement_textedit: QLineEdit, intro_next_button: QPushButton):
-        text = intro_agreement_textedit.text()
-        intro_next_button.setEnabled(constants.net.NET_NAME == 'regtest' or text.lower() == AGREEMENT_TEXT.lower())
 
     def create_plan_dialog(self, context: TimelockRecoveryContext) -> bool:
         plan_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
@@ -220,6 +195,9 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid = QGridLayout()
         plan_grid.setSpacing(8)
         grid_row = 0
+
+        help_button = QPushButton(_("Help"))
+        help_button.clicked.connect(lambda: self.create_intro_dialog(context))
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
@@ -348,21 +326,15 @@ class Plugin(TimelockRecoveryPlugin):
             view_cancellation_tx_button.setVisible(x)
             update_transactions()
         create_cancel_cb.stateChanged.connect(on_cb_change)
-        # Create the logo label.
+
         logo_label = QLabel()
-
-        # Set the logo label pixmap.
         logo_label.setPixmap(read_QPixmap_from_bytes(self.small_logo_bytes))
-
-        # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
-
         vbox_layout.addLayout(plan_grid, stretch=1)
-
-        vbox_layout.addLayout(Buttons(next_button))
+        vbox_layout.addLayout(Buttons(help_button, next_button))
 
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
@@ -560,12 +532,23 @@ class Plugin(TimelockRecoveryPlugin):
         # Add layouts to main vbox
         vbox_layout.addLayout(grid)
         vbox_layout.addStretch()
+        download_hbox = QHBoxLayout()
+        download_hbox.addWidget(recovery_button)
+        if context.cancellation_tx is not None:
+            download_hbox.addWidget(cancellation_button)
+        vbox_layout.addLayout(download_hbox)
+        # agree checkbox
+        def on_agreement(b):
+            recovery_button.setEnabled(bool(b))
+            cancellation_button.setEnabled(bool(b))
+        on_agreement(False)
+        agree_cb = QCheckBox(AGREEMENT_TEXT)
+        agree_cb.stateChanged.connect(on_agreement)
+        vbox_layout.addWidget(agree_cb)
+        vbox_layout.addStretch()
         close_button = QPushButton(_("Close"), download_dialog)
         close_button.clicked.connect(download_dialog.close)
-        buttons = [recovery_button, close_button]
-        if context.cancellation_tx is not None:
-            buttons.insert(1, cancellation_button)
-        vbox_layout.addLayout(Buttons(*buttons))
+        vbox_layout.addLayout(Buttons(close_button))
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
         hbox_layout.addSpacing(16)
