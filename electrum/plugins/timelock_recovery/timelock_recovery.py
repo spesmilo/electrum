@@ -43,8 +43,6 @@ class TimelockRecoveryContext:
     _alert_address: Optional[str] = None
     _cancellation_address: Optional[str] = None
     _alert_tx_outputs: Optional[List[PartialTxOutput]] = None
-    _recovery_tx_input: Optional[PartialTxInputWithFixedNsequence] = None
-    _cancellation_tx_input: Optional[PartialTxInput] = None
 
     ANCHOR_OUTPUT_AMOUNT_SATS = 600
 
@@ -107,41 +105,39 @@ class TimelockRecoveryContext:
         return TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=out_idx)
 
     def make_unsigned_recovery_tx(self, fee_policy) -> 'PartialTransaction':
-        if self._recovery_tx_input is None:
-            prevout_index, prevout = self._alert_tx_output()
-            nsequence: int = round(self.timelock_days * 24 * 60 * 60 / 512)
-            if nsequence > 0xFFFF:
-                # Safety check - not expected to happen
-                raise ValueError("Sequence number is too large")
-            nsequence += 0x00400000 # time based lock instead of block-height based lock
-            self._recovery_tx_input = PartialTxInputWithFixedNsequence(
-                prevout=self._alert_tx_outpoint(prevout_index),
-                nsequence=nsequence,
-            )
-            self._recovery_tx_input.witness_utxo = prevout
+        prevout_index, prevout = self._alert_tx_output()
+        nsequence: int = round(self.timelock_days * 24 * 60 * 60 / 512)
+        if nsequence > 0xFFFF:
+            # Safety check - not expected to happen
+            raise ValueError("Sequence number is too large")
+        nsequence += 0x00400000 # time based lock instead of block-height based lock
+        recovery_tx_input = PartialTxInputWithFixedNsequence(
+            prevout=self._alert_tx_outpoint(prevout_index),
+            nsequence=nsequence,
+        )
+        recovery_tx_input.witness_utxo = prevout
 
         return self.wallet.make_unsigned_transaction(
-            coins=[self._recovery_tx_input],
+            coins=[recovery_tx_input],
             outputs=[output for output in self.outputs if output.value != 0],
             fee_policy=fee_policy,
             is_sweep=False,
         )
 
     def add_input_info(self):
-        self.recovery_tx._inputs[0].utxo = self.alert_tx
+        self.recovery_tx.inputs()[0].utxo = self.alert_tx
         if self.cancellation_tx:
-            self.cancellation_tx._inputs[0].utxo = self.alert_tx
+            self.cancellation_tx.inputs()[0].utxo = self.alert_tx
 
     def make_unsigned_cancellation_tx(self, fee_policy) -> 'PartialTransaction':
-        if self._cancellation_tx_input is None:
-            prevout_index, prevout = self._alert_tx_output()
-            self._cancellation_tx_input = PartialTxInput(
-                prevout=self._alert_tx_outpoint(prevout_index),
-            )
-            self._cancellation_tx_input.witness_utxo = prevout
+        prevout_index, prevout = self._alert_tx_output()
+        cancellation_tx_input = PartialTxInput(
+            prevout=self._alert_tx_outpoint(prevout_index),
+        )
+        cancellation_tx_input.witness_utxo = prevout
 
         return self.wallet.make_unsigned_transaction(
-            coins=[self._cancellation_tx_input],
+            coins=[cancellation_tx_input],
             outputs=[
                 PartialTxOutput(scriptpubkey=address_to_script(self.get_cancellation_address()), value='!'),
             ],
