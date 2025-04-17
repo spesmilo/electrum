@@ -411,6 +411,8 @@ def show_transaction(
     external_keypairs: Mapping[bytes, bytes] = None,
     payment_identifier: 'PaymentIdentifier' = None,
     on_closed: Callable[[], None] = None,
+    show_sign_button: bool = True,
+    show_broadcast_button: bool = True,
 ):
     try:
         d = TxDialog(
@@ -421,6 +423,10 @@ def show_transaction(
             payment_identifier=payment_identifier,
             on_closed=on_closed,
         )
+        if not show_sign_button:
+            d.sign_button.setVisible(False)
+        if not show_broadcast_button:
+            d.broadcast_button.setVisible(False)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
