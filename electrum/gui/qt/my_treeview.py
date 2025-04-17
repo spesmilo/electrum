@@ -106,14 +106,17 @@ class QMenuWithConfig(QMenu):
         if callback:
             callback()
 
-
-def create_toolbar_with_menu(config: 'SimpleConfig', title):
+def create_toolbar_button_with_menu(config: 'SimpleConfig'):
     menu = QMenuWithConfig(config)
     toolbar_button = QToolButton()
     toolbar_button.setIcon(read_QIcon("preferences.png"))
     toolbar_button.setMenu(menu)
     toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     toolbar_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    return toolbar_button, menu
+
+def create_toolbar_with_menu(config: 'SimpleConfig', title):
+    toolbar_button, menu = create_toolbar_button_with_menu(config)
     toolbar = QHBoxLayout()
     toolbar.addWidget(QLabel(title))
     toolbar.addStretch()

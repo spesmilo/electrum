@@ -8,9 +8,10 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QDialog, QPushButton, QWidget, QLabel, QVBoxLayout, QScrollArea,
                              QHBoxLayout, QLayout)
 
+from electrum.gui.qt.my_treeview import create_toolbar_button_with_menu
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget, AbstractQWidget
+from electrum.gui.qt.util import Buttons, icon_path, MessageBoxMixin, WWLabel, ResizableStackedWidget, AbstractQWidget, read_QIcon
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -99,6 +100,11 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         icon_vbox = QVBoxLayout()
         icon_vbox.addWidget(self.logo)
         icon_vbox.addStretch(1)
+        toolbar_button, menu = create_toolbar_button_with_menu('')
+        menu.addConfig(config.cv.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION)
+        toolbar_button_hbox = QHBoxLayout()
+        toolbar_button_hbox.addWidget(toolbar_button, 0, Qt.AlignmentFlag.AlignCenter)
+        icon_vbox.addLayout(toolbar_button_hbox)
         hbox = QHBoxLayout()
         hbox.addLayout(icon_vbox)
         hbox.addSpacing(5)

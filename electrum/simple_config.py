@@ -883,6 +883,14 @@ Warning: setting this to too low will result in lots of payment failures."""),
 
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 
+    DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION = ConfigVar(
+        'disable_automatic_address_subscription', default=False, type_=bool,
+        short_desc=lambda: _("Disable automatic address subscription."),
+        long_desc=lambda: ' '.join([
+            _("When this is checked, you will need to manually refresh address history to see the actual balance."),
+        ]),
+    )
+
 
 def read_user_config(path: Optional[str]) -> Dict[str, Any]:
     """Parse and store the user config settings in electrum.conf into user_config[]."""
