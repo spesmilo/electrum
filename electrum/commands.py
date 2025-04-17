@@ -339,7 +339,7 @@ class Commands(Logger):
         Change wallet password.
 
         arg:bool:encrypt_file:Whether the file on disk should be encrypted with the provided password (default=true)
-        arg:bool:new_password:New Password
+        arg:str:new_password:New Password
         """
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
             raise UserFacingException("Can't change the password of a wallet encrypted with a hw device.")
