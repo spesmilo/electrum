@@ -43,6 +43,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.util import UserCancelled, UserFacingException, ChoiceItem
 from electrum.plugin import hook, DeviceUnpairableError
+from electrum.wallet import Standard_Wallet
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
 
@@ -299,3 +300,14 @@ class QtPluginBase(object):
 
     def create_handler(self, window: Union['ElectrumWindow', 'QENewWalletWizard']) -> 'QtHandlerBase':
         raise NotImplementedError()
+
+    def _add_menu_action(self, menu, address, wallet):
+        keystore = wallet.get_keystore()
+        if type(keystore) != self.keystore_class:
+            return
+        if not wallet.is_mine(address):
+            return
+        def show_address():
+            keystore.thread.add(partial(self.show_address, wallet, address, keystore=keystore))
+        device_name = "{} ({})".format(self.device, keystore.label)
+        menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(device_name), show_address)

@@ -397,6 +397,7 @@ class TxInOutWidget(QWidget):
         for item in copy_list:
             menu.addAction(*item)
 
+        run_hook('transaction_dialog_address_menu', menu, addr, self.wallet)
         menu.addSeparator()
         std_menu = o_text.createStandardContextMenu()
         menu.addActions(std_menu.actions())
