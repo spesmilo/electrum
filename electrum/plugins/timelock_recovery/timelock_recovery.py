@@ -120,7 +120,6 @@ class TimelockRecoveryContext:
                 prevout=self._alert_tx_outpoint(prevout_index),
                 nsequence=nsequence,
             )
-            self._recovery_tx_input.utxo = self.alert_tx
             self._recovery_tx_input.witness_utxo = prevout
 
         return self.wallet.make_unsigned_transaction(
@@ -130,6 +129,11 @@ class TimelockRecoveryContext:
             is_sweep=False,
         )
 
+    def add_input_info(self):
+        self.recovery_tx._inputs[0].utxo = self.alert_tx
+        if self.cancellation_tx:
+            self.cancellation_tx._inputs[0].utxo = self.alert_tx
+
     def make_unsigned_cancellation_tx(self, fee_policy, *, confirmed_only=False, base_tx=None) -> 'PartialTransaction':
         assert base_tx is None, "Transaction batching is not supported by the Timelock Recovery plugin"
         if self._cancellation_tx_input is None:
@@ -137,7 +141,6 @@ class TimelockRecoveryContext:
             self._cancellation_tx_input = PartialTxInput(
                 prevout=self._alert_tx_outpoint(prevout_index),
             )
-            self._cancellation_tx_input.utxo = self.alert_tx
             self._cancellation_tx_input.witness_utxo = prevout
 
         return self.wallet.make_unsigned_transaction(

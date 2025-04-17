@@ -434,6 +434,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         def task():
             wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+            context.add_input_info()
             wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
             if context.cancellation_tx is not None:
                 wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
