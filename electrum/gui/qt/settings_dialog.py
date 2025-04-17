@@ -58,7 +58,7 @@ class SettingsDialog(QDialog, QtEventListener):
     def __init__(self, window: 'ElectrumWindow', config: 'SimpleConfig'):
         QDialog.__init__(self)
         self.setWindowTitle(_('Preferences'))
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(550)
         self.config = config
         self.network = window.network
         self.app = window.app
@@ -374,6 +374,12 @@ class SettingsDialog(QDialog, QtEventListener):
         self.history_rates_cb.stateChanged.connect(on_history_rates)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
+        disable_auto_addr_sub_cb = checkbox_from_configvar(self.config.cv.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION)
+        disable_auto_addr_sub_cb.setChecked(self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION)
+        def on_set_disable_auto_addr_sub(_x):
+            self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION = disable_auto_addr_sub_cb.isChecked()
+        disable_auto_addr_sub_cb.stateChanged.connect(on_set_disable_auto_addr_sub)
+
         gui_widgets = []
         gui_widgets.append((lang_label, lang_combo))
         gui_widgets.append((colortheme_label, colortheme_combo))
@@ -396,6 +402,8 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
+        privacy_widgets = []
+        privacy_widgets.append((disable_auto_addr_sub_cb, None))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
@@ -403,6 +411,7 @@ class SettingsDialog(QDialog, QtEventListener):
             (fiat_widgets, _('Fiat')),
             (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
+            (privacy_widgets, _('Privacy')),
         ]
         for widgets, name in tabs_info:
             tab = QWidget()

@@ -53,6 +53,7 @@ def history_status(h):
         status += tx_hash + ':%d:' % height
     return hashlib.sha256(status.encode('ascii')).digest().hex()
 
+_FETCH = "FETCH"
 
 class SynchronizerBase(NetworkJobOnDefaultServer):
     """Subscribe over the network to a set of addresses, and monitor their statuses.
@@ -95,6 +96,16 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             await self.taskgroup.spawn(self._subscribe_to_address, addr)
         finally:
             self._adding_addrs.discard(addr)  # ok for addr not to be present
+    
+    async def _check_address(self, addr: str):
+        try:
+            if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
+            if addr in self.requested_addrs: return
+            self.requested_addrs.add(addr)
+            await self.taskgroup.spawn(self._get_address_status, addr)
+        finally:
+            self.requested_addrs.discard(addr)
+            self._adding_addrs.discard(addr)  # ok for addr not to be present
 
     async def _on_address_status(self, addr, status):
         """Handle the change of the status of an address.
@@ -114,6 +125,12 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
                 raise GracefulDisconnect(e, log_level=logging.ERROR) from e
             raise
         self._requests_answered += 1
+    
+    async def _get_address_status(self, addr):
+        """used to get a single address status and add it to status_queue"""
+        h = address_to_scripthash(addr)
+        self.scripthash_to_address[h] = addr
+        await self.status_queue.put([h, _FETCH])
 
     async def handle_status(self):
         while True:
@@ -162,13 +179,14 @@ class Synchronizer(SynchronizerBase):
 
     async def _on_address_status(self, addr, status):
         try:
-            history = self.adb.db.get_addr_history(addr)
-            if history_status(history) == status:
-                return
-            # No point in requesting history twice for the same announced status.
-            # However if we got announced a new status, we should request history again:
-            if (addr, status) in self.requested_histories:
-                return
+            if status != _FETCH:
+                history = self.adb.db.get_addr_history(addr)
+                if history_status(history) == status:
+                    return
+                # No point in requesting history twice for the same announced status.
+                # However if we got announced a new status, we should request history again:
+                if (addr, status) in self.requested_histories:
+                    return
             # request address history
             self.requested_histories.add((addr, status))
             self._stale_histories.pop(addr, asyncio.Future()).cancel()
@@ -185,7 +203,7 @@ class Synchronizer(SynchronizerBase):
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that the status corresponds to what was announced
-        if history_status(hist) != status:
+        if status != _FETCH and history_status(hist) != status:
             # could happen naturally if history changed between getting status and history (race)
             self.logger.info(f"error: status mismatch: {addr}. we'll wait a bit for status update.")
             # The server is supposed to send a new status notification, which will trigger a new
@@ -252,16 +270,22 @@ class Synchronizer(SynchronizerBase):
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
             await self._request_missing_txs(history, allow_server_not_finding_tx=True)
-        # add addresses to bootstrap
-        for addr in random_shuffled_copy(self.adb.get_addresses()):
-            await self._add_address(addr)
+
+        manual_mode = self.adb.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION
+        if not manual_mode:
+            # add addresses to bootstrap
+            for addr in random_shuffled_copy(self.adb.get_addresses()):
+                await self._add_address(addr)
         # main loop
         self._init_done = True
         prev_uptodate = False
         while True:
             await asyncio.sleep(0.1)
             for addr in self._adding_addrs.copy(): # copy set to ensure iterator stability
-                await self._add_address(addr)
+                if manual_mode:
+                    await self._check_address(addr)
+                else:
+                    await self._add_address(addr)
             up_to_date = self.adb.is_up_to_date()
             # see if status changed
             if (up_to_date != prev_uptodate
