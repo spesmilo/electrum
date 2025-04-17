@@ -332,7 +332,7 @@ class AddressList(MyTreeView):
             act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
             act.setToolTip(MSG_FREEZE_ADDRESS)
             if self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION:
-                menu.addAction(_('Refresh history'), lambda: self.main_window.wallet.adb.refresh_addresses(addrs))
+                menu.addAction(_('Refresh history'), lambda: self.main_window.wallet.adb.add_address_list(addrs))
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:

@@ -231,8 +231,8 @@ class AddressSynchronizer(Logger, EventListener):
             self.synchronizer.add(address)
         self.up_to_date_changed()
 
-    def refresh_addresses(self, addesses):
-        for address in addesses:
+    def add_address_list(self, address_list):
+        for address in address_list:
             if address not in self.db.history:
                 self.db.history[address] = []
             if self.synchronizer:
