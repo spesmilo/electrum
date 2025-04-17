@@ -301,7 +301,7 @@ class AddressList(MyTreeView):
             addr = addrs[0]
             menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             if self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION:
-                menu.addAction(_('Refresh History'), lambda: self.main_window.wallet.adb.add_address(addr))
+                menu.addAction(_('Refresh history'), lambda: self.main_window.wallet.adb.add_address(addr))
             addr_column_title = self.std_model.horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
             self.add_copy_menu(menu, idx)
@@ -331,6 +331,8 @@ class AddressList(MyTreeView):
             act.setToolTip(MSG_FREEZE_ADDRESS)
             act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
             act.setToolTip(MSG_FREEZE_ADDRESS)
+            if self.config.DISABLE_AUTOMATIC_ADDRESS_SUBSCRIPTION:
+                menu.addAction(_('Refresh history'), lambda: self.main_window.wallet.adb.refresh_addresses(addrs))
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:

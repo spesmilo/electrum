@@ -231,6 +231,14 @@ class AddressSynchronizer(Logger, EventListener):
             self.synchronizer.add(address)
         self.up_to_date_changed()
 
+    def refresh_addresses(self, addesses):
+        for address in addesses:
+            if address not in self.db.history:
+                self.db.history[address] = []
+            if self.synchronizer:
+                self.synchronizer.add(address)
+        self.up_to_date_changed()
+
     def get_conflicting_transactions(self, tx: Transaction, *, include_self: bool = False) -> Set[str]:
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
