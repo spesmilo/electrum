@@ -50,7 +50,7 @@ from .lnsweep import SweepInfo
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
-    from .lnwatcher import LNWalletWatcher
+    from .lnwatcher import LNWatcher
     from .lnworker import LNWallet
     from .lnchannel import Channel
     from .simple_config import SimpleConfig
@@ -175,7 +175,7 @@ class SwapData(StoredObject):
 class SwapManager(Logger):
 
     network: Optional['Network'] = None
-    lnwatcher: Optional['LNWalletWatcher'] = None
+    lnwatcher: Optional['LNWatcher'] = None
 
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
