@@ -1,6 +1,8 @@
 import unittest
 from unittest import mock
 from decimal import Decimal
+from os import urandom
+from json import loads
 
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
@@ -9,6 +11,8 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
+from electrum.crypto import sha256
+from electrum.lnaddr import lndecode
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper
@@ -405,3 +409,76 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertEqual({"good_keys": 1, "bad_keys": 2},
                          await cmds.importprivkey(privkeys2_str, wallet=wallet))
         self.assertEqual(10, len(wallet.get_addresses()))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_hold_invoice_commands(self, mock_save_db):
+        wallet: Abstract_Wallet = restore_wallet_from_text(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            gap_limit=2,
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+
+        cmds = Commands(config=self.config)
+        preimage: str = sha256(urandom(32)).hex()
+        payment_hash: str = sha256(bytes.fromhex(preimage)).hex()
+        with mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000):
+            result: str = await cmds.add_hold_invoice(
+                payment_hash=payment_hash,
+                amount=0.0001,
+                memo="test",
+                expiry=3500,
+                wallet=wallet,
+            )
+        result: dict = loads(result)
+        invoice = lndecode(invoice=result['invoice'])
+        # no preimage should be generated or stored
+        assert invoice.paymenthash.hex() == payment_hash
+        assert payment_hash not in wallet.lnworker.preimages
+        # a callback should get registered
+        assert payment_hash in wallet.lnworker.cli_hold_invoice_callbacks
+        assert payment_hash in wallet.lnworker.payment_info
+        assert invoice.get_amount_sat() == 10000
+
+        cancel_result = await cmds.cancel_hold_invoice(
+            payment_hash=payment_hash,
+            wallet=wallet,
+        )
+        assert payment_hash not in wallet.lnworker.cli_hold_invoice_callbacks
+        assert payment_hash not in wallet.lnworker.payment_info
+        assert loads(cancel_result)['cancelled'] == payment_hash
+
+        with self.assertRaises(AssertionError):
+            # settling a cancelled invoice should raise
+            await cmds.settle_hold_invoice(
+                preimage=preimage,
+                wallet=wallet,
+            )
+            # cancelling an unknown invoice should raise an exception
+            await cmds.cancel_hold_invoice(
+                payment_hash=sha256(urandom(32)).hex(),
+                wallet=wallet,
+            )
+
+        # add another hold invoice
+        preimage: bytes = sha256(urandom(32))
+        payment_hash: str = sha256(preimage).hex()
+        with mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000):
+            await cmds.add_hold_invoice(
+                payment_hash=payment_hash,
+                amount=0.0001,
+                wallet=wallet,
+            )
+
+        with mock.patch.object(wallet.lnworker, 'is_accepted_mpp', return_value=True):
+            settle_result = await cmds.settle_hold_invoice(
+                preimage=preimage.hex(),
+                wallet=wallet,
+            )
+        assert loads(settle_result)['settled'] == payment_hash
+        assert wallet.lnworker.preimages[payment_hash] == preimage.hex()
+        assert payment_hash not in wallet.lnworker.cli_hold_invoice_callbacks
+        assert bytes.fromhex(payment_hash) not in wallet.lnworker.hold_invoice_callbacks
+
+        with self.assertRaises(AssertionError):
+            # cancelling a settled invoice should raise
+            await cmds.cancel_hold_invoice(payment_hash=payment_hash, wallet=wallet)

@@ -46,7 +46,7 @@ from .lnmsg import OnionWireSerializer
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
 from .util import (bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
-                   parse_max_spend, to_decimal, UserFacingException, InvalidPassword)
+                   parse_max_spend, to_decimal, UserFacingException, InvalidPassword, make_aiohttp_session)
 
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
@@ -55,15 +55,13 @@ from .i18n import _
 from .transaction import (Transaction, multisig_script, TxOutput, PartialTransaction, PartialTxOutput,
                           tx_from_any, PartialTxInput, TxOutpoint)
 from . import transaction
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, pr_tooltips
 from .synchronizer import Notifier
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy, Imported_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
-from .lnutil import SENT, RECEIVED
-from .lnutil import LnFeatures
 from .lntransport import extract_nodeid
-from .lnutil import channel_id_from_funding_tx
+from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_FOR_INVOICE
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -1345,6 +1343,119 @@ class Commands(Logger):
         key = wallet.create_request(amount, memo, expiry, addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
+
+    @command('wnl')
+    async def add_hold_invoice(
+            self,
+            payment_hash,
+            amount = None,
+            memo = "",
+            expiry = 3600,
+            callback_url = None,
+            wallet: Abstract_Wallet = None
+        ) -> str:
+        """
+        Create a lightning hold invoice for the given payment hash. Hold invoices have to get settled manually later.
+        The invoice has a final cltv delta of 147 blocks.
+        HTLCs will get failed if local_height + 144 > htlc.cltv_abs.
+
+        arg:str:payment_hash:Hex encoded payment hash to be used for the invoice
+        arg:decimal:amount:Optional requested amount (in btc)
+        arg:str:memo:Optional description of the invoice
+        arg:int:expiry:Optional expiry in seconds (default: 3600s)
+        arg:str:callback_url:Optional callback URL for the invoice, if provided a POST request will be triggered once all htlcs arrived (doesn't use proxy)
+        """
+        assert len(payment_hash) == 64, f"Invalid payment hash length: {len(payment_hash)} != 64"
+        assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already in use!"
+        amount = amount if amount and satoshis(amount) > 0 else None  # make amount either >0 or None
+        inbound_capacity = wallet.lnworker.num_sats_can_receive()
+        assert inbound_capacity > satoshis(amount or 0), \
+            f"Not enough inbound capacity [{inbound_capacity} sat] to receive this payment"
+        if callback_url:
+            assert callback_url.startswith("http"), "Callback URL must be http(s)://"
+        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
+            payment_hash=bfh(payment_hash),
+            amount_msat=satoshis(amount) * 1000 if amount else None,
+            message=memo,
+            expiry=expiry,
+            min_final_cltv_expiry_delta=MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+            fallback_address=None
+        )
+        wallet.lnworker.add_payment_info_for_hold_invoice(
+            bfh(payment_hash),
+            satoshis(amount) if amount else None,
+        )
+        wallet.lnworker.register_cli_hold_invoice(payment_hash, callback_url)
+        result = json.dumps({
+            "invoice": invoice
+        }, indent=4, sort_keys=True)
+        return result
+
+    @command('wnl')
+    async def settle_hold_invoice(self, preimage, wallet: Abstract_Wallet = None) -> str:
+        """
+        Settles lightning hold invoice with 'preimage'.
+        Doesn't wait for actual settlement of the HTLCs.
+
+        arg:str:preimage:Hex encoded preimage of the payment hash
+        """
+        assert len(preimage) == 64, f"Invalid preimage length: {len(preimage)} != 64"
+        payment_hash: str = crypto.sha256(bfh(preimage)).hex()
+        assert payment_hash in wallet.lnworker.payment_info, \
+            f"Couldn't find lightning invoice for payment hash {payment_hash}"
+        assert wallet.lnworker.is_accepted_mpp(bfh(payment_hash)), \
+            f"MPP incomplete, cannot settle hold invoice with preimage {preimage}"
+        wallet.lnworker.save_preimage(bfh(payment_hash), preimage=bfh(preimage))
+        wallet.lnworker.unregister_hold_invoice(bfh(payment_hash))
+        result: str = json.dumps({
+            "settled": payment_hash
+        }, indent=4)
+        return result
+
+    @command('wnl')
+    async def cancel_hold_invoice(self, payment_hash, wallet: Abstract_Wallet = None) -> str:
+        """
+        Cancels lightning hold invoice 'payment_hash'.
+
+        arg:str:payment_hash:Payment hash in hex of the hold invoice
+        """
+        assert payment_hash in wallet.lnworker.payment_info, \
+            f"Couldn't find lightning invoice for payment hash {payment_hash}"
+        assert payment_hash not in wallet.lnworker.preimages, \
+            f"Hold invoice already settled with preimage: {crypto.sha256(bfh(payment_hash)).hex()}"
+        # set to PR_UNPAID so it can get deleted
+        wallet.lnworker.set_payment_status(bfh(payment_hash), PR_UNPAID)
+        wallet.lnworker.delete_payment_info(payment_hash)
+        wallet.lnworker.unregister_hold_invoice(bfh(payment_hash))
+        result: str = json.dumps({
+            "cancelled": payment_hash
+        }, indent=4)
+        return result
+
+    @command('wnl')
+    async def check_hold_invoice(self, payment_hash, wallet: Abstract_Wallet = None) -> str:
+        """
+        Checks the status of a lightning hold invoice 'payment_hash'.
+        Possible states: unpaid, paid, settled, unknown (cancelled or not found)
+
+        arg:str:payment_hash:Payment hash in hex of the hold invoice
+        """
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        amount_sat = (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) // 1000
+        status = "unknown"
+        if info is None:
+            pass
+        elif info.status == PR_UNPAID or not wallet.lnworker.is_accepted_mpp(bfh(payment_hash)):
+            status = "unpaid"
+        elif info.status == PR_PAID and payment_hash not in wallet.lnworker.preimages:
+            status = "paid"
+        elif payment_hash in wallet.lnworker.preimages:
+            status = "settled"
+        result: str = json.dumps({
+            "status": status,
+            "amount_sat": amount_sat
+        }, indent=4)
+        return result
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
