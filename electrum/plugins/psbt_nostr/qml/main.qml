@@ -36,7 +36,7 @@ Item {
             property variant dialog
             text: qsTr('Nostr')
             icon.source: Qt.resolvedUrl('../../../gui/icons/network.png')
-            visible: Daemon.currentWallet.isMultisig && Daemon.currentWallet.walletType != '2fa'
+            visible: AppController.plugin('psbt_nostr').canSendPsbt(Daemon.currentWallet, dialog.text)
             onClicked: {
                 console.log('about to psbt nostr send')
                 psbt_nostr_send_button.enabled = false

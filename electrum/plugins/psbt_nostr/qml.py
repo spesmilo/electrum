@@ -58,23 +58,30 @@ class QReceiveSignalObject(QObject):
     def loader(self):
         return 'main.qml'
 
+    @pyqtSlot(QEWallet, str, result=bool)
+    def canSendPsbt(self, wallet: 'QEWallet', tx: str) -> bool:
+        cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
+        if not cosigner_wallet:
+            return False
+        return cosigner_wallet.can_send_psbt(tx_from_any(tx, deserialize=True))
+
     @pyqtSlot(QEWallet, str)
     def sendPsbt(self, wallet: 'QEWallet', tx: str):
-        cosigner_wallet = self._plugin.cosigner_wallets[wallet.wallet]
+        cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
         if not cosigner_wallet:
             return
         cosigner_wallet.send_psbt(tx_from_any(tx, deserialize=True))
 
     @pyqtSlot(QEWallet, str)
     def acceptPsbt(self, wallet: 'QEWallet', event_id: str):
-        cosigner_wallet = self._plugin.cosigner_wallets[wallet.wallet]
+        cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
         if not cosigner_wallet:
             return
         cosigner_wallet.accept_psbt(event_id)
 
     @pyqtSlot(QEWallet, str)
     def rejectPsbt(self, wallet: 'QEWallet', event_id: str):
-        cosigner_wallet = self._plugin.cosigner_wallets[wallet.wallet]
+        cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
         if not cosigner_wallet:
             return
         cosigner_wallet.reject_psbt(event_id)
@@ -98,9 +105,11 @@ class Plugin(PsbtNostrPlugin):
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet'):
         # remove existing, only foreground wallet active
-        if len(self.cosigner_wallets):
-            self.remove_cosigner_wallet(self.cosigner_wallets[0])
+        for wallet in self.cosigner_wallets.copy().keys():
+            self.remove_cosigner_wallet(wallet)
         if not isinstance(wallet, Multisig_Wallet):
+            return
+        if wallet.wallet_type == '2fa':
             return
         self.add_cosigner_wallet(wallet, QmlCosignerWallet(wallet, self))
 

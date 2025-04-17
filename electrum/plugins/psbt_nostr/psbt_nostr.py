@@ -38,7 +38,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
-from electrum.util import log_exceptions, OldTaskGroup, ca_path, trigger_callback
+from electrum.util import log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener
 from electrum.wallet import Multisig_Wallet
 
 if TYPE_CHECKING:
@@ -84,7 +84,10 @@ class CosignerWallet(Logger):
 
         self.network = wallet.network
         self.config = self.wallet.config
+
         self.pending = asyncio.Event()
+        self.wallet_uptodate = asyncio.Event()
+
         self.known_events = wallet.db.get_dict('cosigner_events')
 
         for k, v in list(self.known_events.items()):
@@ -114,10 +117,17 @@ class CosignerWallet(Logger):
         if self.network and self.nostr_pubkey:
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        if self.wallet == wallet and wallet.is_up_to_date() and not self.wallet_uptodate.is_set():
+            self.logger.debug('starting handling of PSBTs')
+            self.wallet_uptodate.set()
+
     @log_exceptions
     async def main_loop(self):
         self.logger.info("starting taskgroup.")
         try:
+            await self.wallet_uptodate.wait()  # start processing PSBTs only after wallet is_up_to_date
             async with self.taskgroup as group:
                 await group.spawn(self.check_direct_messages())
         except Exception as e:
@@ -189,7 +199,7 @@ class CosignerWallet(Logger):
                 except Exception as e:
                     self.logger.info(_("Unable to deserialize the transaction:") + "\n" + str(e))
                     self.known_events[event.id] = now()
-                    return
+                    continue
                 self.logger.info(f"received PSBT from {event.pubkey}")
                 trigger_callback('psbt_nostr_received', self.wallet, event.pubkey, event.id, tx)
                 await self.pending.wait()
@@ -207,6 +217,14 @@ class CosignerWallet(Logger):
         #      should return True iff cosigner (with given xpub) can sign and has not yet signed.
         #      note that tx could also be unrelated from wallet?... (not ismine inputs)
         return True
+
+    def can_send_psbt(self, tx: Union[Transaction, PartialTransaction]) -> bool:
+        if tx.is_complete() or self.wallet.can_sign(tx):
+            return False
+        for xpub, pubkey in self.cosigner_list:
+            if self.cosigner_can_sign(tx, xpub):
+                return True
+        return False
 
     def mark_pending_event_rcvd(self, event_id):
         self.logger.debug('marking event rcvd')

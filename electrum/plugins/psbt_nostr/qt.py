@@ -55,6 +55,8 @@ class Plugin(PsbtNostrPlugin):
     def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if not isinstance(wallet, Multisig_Wallet):
             return
+        if wallet.wallet_type == '2fa':
+            return
         self.add_cosigner_wallet(wallet, QtCosignerWallet(wallet, window))
 
     @hook
@@ -77,15 +79,7 @@ class Plugin(PsbtNostrPlugin):
     def transaction_dialog_update(self, d: 'TxDialog'):
         if cw := self.cosigner_wallets.get(d.wallet):
             assert isinstance(cw, QtCosignerWallet)
-            if d.tx.is_complete() or d.wallet.can_sign(d.tx):
-                d.cosigner_send_button.setVisible(False)
-                return
-            for xpub, pubkey in cw.cosigner_list:
-                if cw.cosigner_can_sign(d.tx, xpub):
-                    d.cosigner_send_button.setVisible(True)
-                    break
-            else:
-                d.cosigner_send_button.setVisible(False)
+            d.cosigner_send_button.setVisible(cw.can_send_psbt(d.tx))
 
 
 class QtCosignerWallet(EventListener, CosignerWallet):
