@@ -78,8 +78,7 @@ class TimelockRecoveryContext:
             self._cancellation_address = self._get_address_by_label(CANCELLATION_ADDRESS_LABEL)
         return self._cancellation_address
 
-    def make_unsigned_alert_tx(self, fee_policy, *, confirmed_only=False, base_tx=None) -> 'PartialTransaction':
-        assert base_tx is None, "Transaction batching is not supported by the Timelock Recovery plugin"
+    def make_unsigned_alert_tx(self, fee_policy) -> 'PartialTransaction':
         if self._alert_tx_outputs is None:
             self._alert_tx_outputs = [
                 PartialTxOutput(scriptpubkey=address_to_script(self.get_alert_address()), value='!'),
@@ -88,7 +87,7 @@ class TimelockRecoveryContext:
                 for output in self.outputs
             ]
         return self.wallet.make_unsigned_transaction(
-            coins=self.wallet.get_spendable_coins(confirmed_only=confirmed_only),
+            coins=self.wallet.get_spendable_coins(confirmed_only=False),
             outputs=self._alert_tx_outputs,
             fee_policy=fee_policy,
             is_sweep=False,
@@ -107,8 +106,7 @@ class TimelockRecoveryContext:
     def _alert_tx_outpoint(self, out_idx: int) -> TxOutpoint:
         return TxOutpoint(txid=bfh(self.alert_tx.txid()), out_idx=out_idx)
 
-    def make_unsigned_recovery_tx(self, fee_policy, *, confirmed_only=False, base_tx=None) -> 'PartialTransaction':
-        assert base_tx is None, "Transaction batching is not supported by the Timelock Recovery plugin"
+    def make_unsigned_recovery_tx(self, fee_policy) -> 'PartialTransaction':
         if self._recovery_tx_input is None:
             prevout_index, prevout = self._alert_tx_output()
             nsequence: int = round(self.timelock_days * 24 * 60 * 60 / 512)
@@ -134,8 +132,7 @@ class TimelockRecoveryContext:
         if self.cancellation_tx:
             self.cancellation_tx._inputs[0].utxo = self.alert_tx
 
-    def make_unsigned_cancellation_tx(self, fee_policy, *, confirmed_only=False, base_tx=None) -> 'PartialTransaction':
-        assert base_tx is None, "Transaction batching is not supported by the Timelock Recovery plugin"
+    def make_unsigned_cancellation_tx(self, fee_policy) -> 'PartialTransaction':
         if self._cancellation_tx_input is None:
             prevout_index, prevout = self._alert_tx_output()
             self._cancellation_tx_input = PartialTxInput(
