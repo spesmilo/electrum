@@ -442,7 +442,6 @@ class TxBatch(Logger):
         await future
         password = future.result()
         util.trigger_callback('password_not_required', self.wallet)
-        return 'xx' # for testing
         return password
 
     def _clear_unconfirmed_sweeps(self, tx):

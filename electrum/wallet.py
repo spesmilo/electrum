@@ -510,8 +510,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.lnworker is not None and len(self.lnworker._channels) > 0
 
     def requires_unlock(self):
-        return False
-        #return self.config.ENABLE_ANCHOR_CHANNELS and self.has_channels()
+        return self.db.get('requires_unlock', False)
 
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
@@ -3418,6 +3417,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.logger.info(f'unlocking wallet')
         self.check_password(password)
         self._password_in_memory = password
+
+    def lock_wallet(self):
+        self._password_in_memory = None
 
     def get_unlocked_password(self):
         return self._password_in_memory
