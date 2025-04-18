@@ -394,23 +394,29 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 1, 4)
 
+        self.one_server_cb = QCheckBox(_('One server'))
+        self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable())
+        self.one_server_cb.stateChanged.connect(self.on_server_settings_changed)
+        grid.addWidget(self.one_server_cb, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(self.config.cv.NETWORK_ONESERVER.get_long_desc()), 2, 4)
+
         self.server_e = QLineEdit()
         self.server_e.editingFinished.connect(self.on_server_settings_changed)
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
-        grid.addWidget(self.server_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(QLabel(_('Server') + ':'), 3, 0)
+        grid.addWidget(self.server_e, 3, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 3, 4)
 
         msg = _('This is the height of your local copy of the blockchain.')
         self.height_label_header = QLabel(_('Blockchain') + ':')
         self.height_label = QLabel('')
         self.height_label_helpbutton = HelpButton(msg)
-        grid.addWidget(self.height_label_header, 3, 0)
-        grid.addWidget(self.height_label, 3, 1)
-        grid.addWidget(self.height_label_helpbutton, 3, 4)
+        grid.addWidget(self.height_label_header, 4, 0)
+        grid.addWidget(self.height_label, 4, 1)
+        grid.addWidget(self.height_label_helpbutton, 4, 4)
 
         self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 4, 0, 1, 3)
+        grid.addWidget(self.split_label, 5, 0, 1, 3)
 
         self.layout().addLayout(grid)
 
@@ -442,13 +448,19 @@ class ServerWidget(QWidget, QtEventListener):
             self.update()
             return
         auto_connect = self.autoconnect_cb.isChecked()
+        one_server = self.one_server_cb.isChecked()
+        self.autoconnect_cb.setEnabled(not one_server and self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        self.one_server_cb.setEnabled(not auto_connect and self.config.cv.NETWORK_ONESERVER.is_modifiable())
         server = self.server_e.text().strip()
         net_params = self.network.get_parameters()
-        if server != net_params.server or auto_connect != net_params.auto_connect:
+        if server != net_params.server or auto_connect != net_params.auto_connect or one_server != net_params.oneserver:
             self.set_server()
 
     def update(self):
         auto_connect = self.autoconnect_cb.isChecked()
+        one_server = self.one_server_cb.isChecked()
+        self.autoconnect_cb.setEnabled(not one_server and self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        self.one_server_cb.setEnabled(not auto_connect and self.config.cv.NETWORK_ONESERVER.is_modifiable())
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
 
         for item in [
@@ -479,10 +491,13 @@ class ServerWidget(QWidget, QtEventListener):
     def update_from_config(self):
         auto_connect = self.config.NETWORK_AUTO_CONNECT
         self.autoconnect_cb.setChecked(auto_connect)
+        one_server = self.config.NETWORK_ONESERVER
+        self.one_server_cb.setChecked(one_server)
         server = self.config.NETWORK_SERVER
         self.server_e.setText(server)
 
-        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
+        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable() and not one_server)
+        self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable() and not auto_connect)
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
         self.nodes_list_widget.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable())
 
@@ -504,7 +519,8 @@ class ServerWidget(QWidget, QtEventListener):
         except Exception:
             return
         net_params = net_params._replace(server=server,
-                                         auto_connect=self.autoconnect_cb.isChecked())
+                                         auto_connect=self.autoconnect_cb.isChecked(),
+                                         oneserver=self.one_server_cb.isChecked())
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
 

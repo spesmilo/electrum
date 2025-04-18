@@ -614,7 +614,12 @@ class SimpleConfig(Logger):
 
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
-    NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
+    NETWORK_ONESERVER = ConfigVar(
+        'oneserver', default=False, type_=bool,
+        short_desc=lambda: _('Connect only to a single Electrum Server'),
+        long_desc=lambda: _('This is only intended for connecting to your own node. '
+                            'Using this option on a public server is a security risk and is discouraged.')
+    )
     NETWORK_PROXY = ConfigVar('proxy', default=None, type_=str, convert_getter=lambda v: "none" if v is None else v)
     NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None, type_=str)
     NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None, type_=str)
