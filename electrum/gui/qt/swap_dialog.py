@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, Tuple
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
@@ -78,6 +78,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.fee_policy = FeePolicy(self.config.FEE_POLICY)
         fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
+        self.swap_limits_label = QLabel()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
         vbox.addWidget(self.description_label)
@@ -90,12 +91,14 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         h.addWidget(self.toggle_button, 1, 3)
         h.addWidget(self.recv_label, 2, 0)
         h.addWidget(self.recv_amount_e, 2, 1)
-        h.addWidget(QLabel(_('Server fee')+':'), 4, 0)
-        h.addWidget(self.server_fee_label, 4, 1, 1, 2)
-        h.addWidget(QLabel(_('Mining fee')+':'), 5, 0)
-        h.addWidget(self.fee_label, 5, 1, 1, 2)
-        h.addWidget(fee_slider, 6, 1)
-        h.addWidget(fee_combo, 6, 2)
+        h.addWidget(QLabel(_('Swap limits')+':'), 4, 0)
+        h.addWidget(self.swap_limits_label, 4, 1, 1, 2)
+        h.addWidget(QLabel(_('Server fee')+':'), 5, 0)
+        h.addWidget(self.server_fee_label, 5, 1, 1, 2)
+        h.addWidget(QLabel(_('Mining fee')+':'), 6, 0)
+        h.addWidget(self.fee_label, 6, 1, 1, 2)
+        h.addWidget(fee_slider, 7, 1)
+        h.addWidget(fee_combo, 7, 2)
         vbox.addLayout(h)
         vbox.addStretch(1)
         self.ok_button = OkButton(self)
@@ -218,17 +221,43 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def update(self):
         from .util import IconLabel
         sm = self.swap_manager
+        w_base_unit = self.window.base_unit()
         send_icon = read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png")
         self.send_label.setIcon(send_icon)
         recv_icon = read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png")
         self.recv_label.setIcon(recv_icon)
         self.description_label.setText(self.get_description())
         self.description_label.repaint()  # macOS hack for #6269
+        min_swap_limit, max_swap_limit = self.get_client_swap_limits_sat()
+        if max_swap_limit == 0:
+            swap_name = _("reverse") if self.is_reverse else _("forward")
+            swap_limit_str = _("No {} swap possible").format(swap_name)
+        else:
+            swap_limit_str = (f"{self.window.format_amount(min_swap_limit)} - "
+                              f"{self.window.format_amount(max_swap_limit)} {w_base_unit}")
+        self.swap_limits_label.setText(swap_limit_str)
+        self.swap_limits_label.repaint()  # macOS hack for #6269
         server_mining_fee = sm.mining_fee
-        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
+        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + w_base_unit
         self.server_fee_label.setText(server_fee_str)
         self.server_fee_label.repaint()  # macOS hack for #6269
         self.needs_tx_update = True
+
+    def get_client_swap_limits_sat(self) -> Tuple[int, int]:
+        """Returns the (min, max) client swap limits in sat."""
+        sm = self.swap_manager
+
+        if self.is_reverse:
+            lower_limit = sm.get_min_amount()
+            upper_limit = sm.client_max_amount_reverse_swap() or 0
+        else:
+            lower_limit = sm.get_send_amount(sm.get_min_amount(), is_reverse=False) or sm.get_min_amount()
+            upper_limit = sm.client_max_amount_forward_swap() or 0
+
+        if lower_limit > upper_limit:
+            # if the max possible amount is below the lower limit no swap is possible
+            lower_limit, upper_limit = 0, 0
+        return lower_limit, upper_limit
 
     def update_fee(self, tx: Optional[PartialTransaction]) -> None:
         """Updates self.fee_label. No other side-effects."""

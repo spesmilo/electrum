@@ -1162,6 +1162,15 @@ class SwapManager(Logger):
         min_amt_oc = self.get_send_amount(self.get_min_amount(), is_reverse=False) or 0
         return max_amt_oc if max_amt_oc >= min_amt_oc else None
 
+    def client_max_amount_reverse_swap(self) -> Optional[int]:
+        """Returns None if swap is not possible"""
+        provider_max = self.get_provider_max_forward_amount()
+        max_ln_send = int(self.lnworker.num_sats_can_send())
+        max_swap_size = min(max_ln_send, provider_max)
+        if max_swap_size < self.get_min_amount():
+            return None
+        return max_swap_size
+
     def server_create_normal_swap(self, request):
         # normal for client, reverse for server
         #request = await r.json()
