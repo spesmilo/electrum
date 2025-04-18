@@ -112,7 +112,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
         serverobj = ServerAddr.from_str_with_inference('localhost:1:t')
         self.assertTrue(w._daemon.network.run_called)
-        self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=None), w._daemon.network.parameters)
+        self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
 
 
 class WalletWizardTestCase(WizardTestCase):
