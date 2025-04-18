@@ -137,8 +137,9 @@ def protected(func):
     def request_password(self, *args, **kwargs):
         parent = self.top_level_window()
         password = None
+        msg = kwargs.get('message')
         while self.wallet.has_keystore_encryption():
-            password = self.password_dialog(parent=parent)
+            password = self.password_dialog(parent=parent, msg=msg)
             if password is None:
                 # User cancelled password input
                 return
@@ -327,6 +328,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self._coroutines_scheduled[fut] = name
         self.need_update.set()
 
+    @protected
+    def get_password(self, password, message=None):
+        return password
+
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.refresh_all()
@@ -419,6 +424,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
+
+    @qt_event_listener
+    def on_event_password_required(self, wallet, future, message):
+        if wallet == self.wallet:
+            self.show_action_required(future, message)
+
+    @qt_event_listener
+    def on_event_password_not_required(self, wallet):
+        if wallet == self.wallet:
+            self.hide_action_required()
+
+    def hide_action_required(self):
+        self.take_action_button.clicked.disconnect()
+        self.take_action_button.hide()
+
+    def show_action_required(self, future, message):
+        def on_clicked():
+            password = self.get_password(message=message)
+            if password is not None:
+                future.set_result(password)
+        self.take_action_button.clicked.connect(on_clicked)
+        self.take_action_button.show()
 
     @qt_event_listener
     def on_event_status(self):
@@ -1763,6 +1790,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.update_check_button.setIcon(read_QIcon("update.png"))
         self.update_check_button.hide()
         sb.addPermanentWidget(self.update_check_button)
+
+        self.take_action_button = QPushButton(_('Action required'))
+        self.take_action_button.setFlat(True)
+        self.take_action_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.take_action_button.setIcon(read_QIcon("warning.png"))
+        self.take_action_button.hide()
+        sb.addPermanentWidget(self.take_action_button)
 
         self.tasks_label = QLabel('')
         sb.addPermanentWidget(self.tasks_label)

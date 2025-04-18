@@ -140,14 +140,11 @@ class TxBatcher(Logger):
     async def run(self):
         while True:
             await asyncio.sleep(self.SLEEP_INTERVAL)
-            password = self.wallet.get_unlocked_password()
-            if self.wallet.has_keystore_encryption() and not password:
-                continue
             if not (self.wallet.network and self.wallet.network.is_connected()):
                 continue
             for key, txbatch in list(self.tx_batches.items()):
                 try:
-                    await txbatch.run_iteration(password)
+                    await txbatch.run_iteration()
                     if txbatch.is_done():
                         self._delete_batch(key)
                 except Exception as e:
@@ -301,7 +298,7 @@ class TxBatch(Logger):
         # todo: require more than one confirmation
         return len(self.batch_inputs) == 0 and len(self.batch_payments) == 0 and len(self._batch_txids) == 0
 
-    async def run_iteration(self, password):
+    async def run_iteration(self):
         conf_tx = self._find_confirmed_base_tx()
         if conf_tx:
             self.logger.info(f'base tx confirmed {conf_tx.txid()}')
@@ -311,7 +308,7 @@ class TxBatch(Logger):
         base_tx = self.get_base_tx()
         # if base tx has been RBF-replaced, detect it here
         try:
-            tx = self.create_next_transaction(base_tx, password)
+            tx = await self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
             self.logger.debug('no dynamic fee estimates available')
             return
@@ -346,7 +343,7 @@ class TxBatch(Logger):
                 self._start_new_batch(base_tx)
 
 
-    def create_next_transaction(self, base_tx, password):
+    async def create_next_transaction(self, base_tx):
         to_pay = self._to_pay_after(base_tx)
         to_sweep = self._to_sweep_after(base_tx)
         to_sweep_now = {}
@@ -356,10 +353,11 @@ class TxBatch(Logger):
                 to_sweep_now[k] = v
             else:
                 self.wallet.add_future_tx(v, wanted_height)
-        if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
+        should_bump_fee = self._should_bump_fee(base_tx)
+        if not to_pay and not to_sweep_now and not should_bump_fee:
             return
         while True:
-            tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay, password)
+            tx = await self._create_batch_tx(base_tx, to_sweep_now, to_pay, should_bump_fee)
             # 100 kb max standardness rule
             if tx.estimated_size() < 100_000:
                 break
@@ -370,7 +368,7 @@ class TxBatch(Logger):
         self.logger.info(f'{str(tx)}')
         return tx
 
-    def _create_batch_tx(self, base_tx, to_sweep, to_pay, password):
+    async def _create_batch_tx(self, base_tx, to_sweep, to_pay, should_bump_fee):
         self.logger.info(f'to_sweep: {list(to_sweep.keys())}')
         self.logger.info(f'to_pay: {to_pay}')
         inputs = []
@@ -407,11 +405,45 @@ class TxBatch(Logger):
             BIP69_sort=False,
             merge_duplicate_outputs=False,
         )
+        # check if we need password
+        pw_required = self.wallet.has_keystore_encryption() and tx.requires_keystore()
+        reason = self.get_reason(tx, to_pay, to_sweep, should_bump_fee)
+        password = await self.get_password(reason) if pw_required else None
+        if password is None and pw_required:
+            return
+        # sign
         self.wallet.sign_transaction(tx, password)
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
         assert tx.is_complete()
         return tx
+
+    def get_reason(self, tx, to_pay, to_sweep, should_bump_fee):
+        # todo: show how many blocks we have
+        from .i18n import _
+        if should_bump_fee:
+            reason = _('Your password is needed to increase the fee of a transaction')
+        elif to_sweep:
+            names = '\n'.join(x.name for x in to_sweep.values())
+            reason = _('Your password is needed to sweep the following inputs:') + '\n' + names
+        elif to_pay:
+            names = '\n'.join(repr(x) for x in to_pay)
+            reason = _('Your password is needed to make a payment') + '\n' + names
+        return reason
+
+    async def get_password(self, reason:str):
+        # daemon, android have password in memory
+        password = self.wallet.get_unlocked_password()
+        if password:
+            return password
+        # send a signal to GUI
+        future = asyncio.Future()
+        util.trigger_callback('password_required', self.wallet, future, reason)
+        await future
+        password = future.result()
+        util.trigger_callback('password_not_required', self.wallet)
+        return 'xx' # for testing
+        return password
 
     def _clear_unconfirmed_sweeps(self, tx):
         # this ensures that we can accept an input again,
