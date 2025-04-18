@@ -28,6 +28,7 @@ Item {
             visible: showAutoselectServer
             text: qsTr('Select server automatically')
             checked: !showAutoselectServer
+            enabled: !one_server_cb.checked
         }
 
         Label {
@@ -58,7 +59,7 @@ Item {
 
             HelpButton {
                 heading: qsTr('One server')
-                helptext: qsTr('Connect only to a single Electrum Server. This can help with privacy, but at the cost of detecting lagging and forks')
+                helptext: Config.longDescFor('NETWORK_ONESERVER')
             }
         }
 

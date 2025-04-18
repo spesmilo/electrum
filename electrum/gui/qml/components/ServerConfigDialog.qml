@@ -42,11 +42,11 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             onClicked: {
-                Config.autoConnect = serverconfig.auto_connect
-                Network.server = serverconfig.address
                 Network.oneServer = serverconfig.auto_connect
                     ? false
                     : serverconfig.one_server
+                Config.autoConnect = serverconfig.auto_connect
+                Network.server = serverconfig.address
                 rootItem.close()
             }
         }
