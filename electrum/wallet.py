@@ -2219,8 +2219,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.remove_signatures()
         if not self.can_rbf_tx(tx):
             raise CannotBumpFee(_('Transaction is final'))
-        if self.txbatcher.is_mine(tx.txid()):
-            raise CannotBumpFee('Transaction managed by txbatcher')
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
@@ -2444,8 +2442,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_rbf_tx(self, tx: Transaction, *, is_dscancel: bool = False) -> bool:
         # do not mutate LN funding txs, as that would change their txid
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
-            return False
-        if self.txbatcher.is_mine(tx.txid()):
             return False
         return tx.is_rbf_enabled()
 
@@ -2682,6 +2678,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise TransactionDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
         if sh_danger.needs_confirm() and not ignore_warnings:
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
+
+        # find out if we are replacing a txbatcher transaction
+        prevout_str = tx.inputs()[0].prevout.to_str()
+        batch = self.txbatcher.find_batch_by_prevout(prevout_str)
+        if batch:
+            batch.add_sweep_info_to_tx(tx)
 
         # sign with make_witness
         for i, txin in enumerate(tx.inputs()):
