@@ -476,14 +476,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.hide_action_required()
 
     def hide_action_required(self):
-        self.take_action_button.clicked.disconnect()
         self.take_action_button.hide()
 
     def show_action_required(self, future, message):
         def on_clicked():
+            self.take_action_button.clicked.disconnect()
             password = self.get_password(message=message)
             if password is not None:
                 future.set_result(password)
+            else:
+                future.cancel()
         self.take_action_button.clicked.connect(on_clicked)
         self.take_action_button.show()
 

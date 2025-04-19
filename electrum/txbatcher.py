@@ -77,7 +77,8 @@ if TYPE_CHECKING:
 from .json_db import locked, StoredDict
 from .fee_policy import FeePolicy
 
-
+class NoPassword(Exception):
+    pass
 
 class TxBatcher(Logger):
 
@@ -318,6 +319,9 @@ class TxBatch(Logger):
         except NoDynamicFeeEstimates:
             self.logger.debug('no dynamic fee estimates available')
             return
+        except NoPassword:
+            self.logger.debug('password not provided')
+            return
         except Exception as e:
             if base_tx:
                 self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
@@ -445,7 +449,11 @@ class TxBatch(Logger):
         # send a signal to GUI
         future = asyncio.Future()
         util.trigger_callback('password_required', self.wallet, future, reason)
-        await future
+        # todo: cancel this future if a new block is mined, or if to_seep, to_pay changed
+        try:
+            await future
+        except asyncio.CancelledError as e:
+            raise NoPassword
         password = future.result()
         util.trigger_callback('password_not_required', self.wallet)
         return password
