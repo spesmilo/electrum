@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import QInputDialog, QLineEdit
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.plugin import only_hook_if_libraries_available
 
@@ -27,13 +26,14 @@ class Plugin(LedgerPlugin, QtPluginBase):
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) is not Standard_Wallet:
+        if len(addrs) != 1:
             return
-        keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
-            menu.addAction(_("Show on Ledger"), show_address)
+        self._add_menu_action(menu, addrs[0], wallet)
+
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        self._add_menu_action(menu, addr, wallet)
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
