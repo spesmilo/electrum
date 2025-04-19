@@ -210,7 +210,7 @@ class TxBatch(Logger):
         self.batch_payments.append(output)
 
     def is_dust(self, sweep_info):
-        if sweep_info.name in ['local_anchor', 'remote_anchor']:
+        if sweep_info.is_anchor():
             return False
         if sweep_info.txout is not None:
             return False
@@ -266,11 +266,17 @@ class TxBatch(Logger):
     def _to_sweep_after(self, tx) -> Dict[str, SweepInfo]:
         tx_prevouts = set(txin.prevout for txin in tx.inputs()) if tx else set()
         result = []
-        for k,v in self.batch_inputs.items():
+        for k, v in list(self.batch_inputs.items()):
             prevout = v.txin.prevout
             prev_txid, index = prevout.to_str().split(':')
             if not self.wallet.adb.db.get_transaction(prev_txid):
                 continue
+            if v.is_anchor():
+                prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
+                if prev_tx_mined_status.conf > 0:
+                    self.logger.info(f"anchor not needed {k}")
+                    self.batch_inputs.pop(k)
+                    continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
                 if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:

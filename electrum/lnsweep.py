@@ -45,6 +45,9 @@ class SweepInfo(NamedTuple):
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
     can_be_batched: bool # todo: this could be more fine-grained
 
+    def is_anchor(self):
+        return self.name in ['local_anchor', 'remote_anchor']
+
 
 def sweep_their_ctx_watchtower(
         chan: 'Channel',
