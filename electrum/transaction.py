@@ -2093,6 +2093,9 @@ class PartialTransaction(Transaction):
 
         return tx
 
+    def requires_keystore(self):
+        return not all(hasattr(txin, 'make_witness') for txin in self.inputs())
+
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
                 locktime: int = None, version: int = None, BIP69_sort: bool = True):
