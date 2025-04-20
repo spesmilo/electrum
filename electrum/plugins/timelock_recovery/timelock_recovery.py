@@ -42,7 +42,6 @@ class TimelockRecoveryContext:
     recovery_plan_created_at: Optional[datetime] = None
     _alert_address: Optional[str] = None
     _cancellation_address: Optional[str] = None
-    _alert_tx_outputs: Optional[List[PartialTxOutput]] = None
 
     ANCHOR_OUTPUT_AMOUNT_SATS = 600
 
@@ -77,16 +76,15 @@ class TimelockRecoveryContext:
         return self._cancellation_address
 
     def make_unsigned_alert_tx(self, fee_policy) -> 'PartialTransaction':
-        if self._alert_tx_outputs is None:
-            self._alert_tx_outputs = [
-                PartialTxOutput(scriptpubkey=address_to_script(self.get_alert_address()), value='!'),
-            ] + [
-                PartialTxOutput(scriptpubkey=output.scriptpubkey, value=self.ANCHOR_OUTPUT_AMOUNT_SATS)
-                for output in self.outputs
-            ]
+        alert_tx_outputs = [
+            PartialTxOutput(scriptpubkey=address_to_script(self.get_alert_address()), value='!'),
+        ] + [
+            PartialTxOutput(scriptpubkey=output.scriptpubkey, value=self.ANCHOR_OUTPUT_AMOUNT_SATS)
+            for output in self.outputs
+        ]
         return self.wallet.make_unsigned_transaction(
             coins=self.wallet.get_spendable_coins(confirmed_only=False),
-            outputs=self._alert_tx_outputs,
+            outputs=alert_tx_outputs,
             fee_policy=fee_policy,
             is_sweep=False,
         )
