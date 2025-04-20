@@ -27,7 +27,7 @@ from PyQt6.QtCore import Qt, QRectF, QMarginsF
 from PyQt6.QtGui import (QImage, QPainter, QFont, QIntValidator, QAction,
                          QPageSize, QPageLayout, QFontMetrics)
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QMenu, QCheckBox, QToolButton,
-                             QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog)
+                             QPushButton, QLineEdit, QScrollArea, QGridLayout, QFileDialog, QMessageBox)
 
 from electrum import constants, version
 from electrum.gui.common_qt.util import draw_qr, get_font_id
@@ -555,7 +555,34 @@ class Plugin(TimelockRecoveryPlugin):
         vbox_layout.addWidget(agree_cb)
         vbox_layout.addStretch()
         close_button = QPushButton(_("Close"), download_dialog)
-        close_button.clicked.connect(download_dialog.close)
+        def on_close():
+            if context.cancellation_tx is not None and not context.cancellation_plan_saved:
+                if not context.recovery_plan_saved:
+                    is_sure = download_dialog.question(
+                        _("Are you sure you want to close this dialog without saving any of the files?"),
+                        title=_("Close"),
+                        icon=QMessageBox.Icon.Question
+                    )
+                    if not is_sure:
+                        return
+                else:
+                    is_sure = download_dialog.question(
+                        _("Are you sure you want to close this dialog without saving the cancellation-plan?"),
+                        title=_("Close"),
+                        icon=QMessageBox.Icon.Question
+                    )
+                    if not is_sure:
+                        return
+            elif not context.recovery_plan_saved:
+                is_sure = download_dialog.question(
+                    _("Are you sure you want to close this dialog without saving the recovery-plan?"),
+                    title=_("Close"),
+                    icon=QMessageBox.Icon.Question
+                )
+                if not is_sure:
+                    return
+            download_dialog.close()
+        close_button.clicked.connect(on_close)
         vbox_layout.addLayout(Buttons(close_button))
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)
@@ -614,6 +641,7 @@ class Plugin(TimelockRecoveryPlugin):
                 json_data["checksum"] = self._checksum(json_data)
                 json.dump(json_data, json_file, indent=2)
             download_dialog.show_message(_("File saved successfully"))
+            context.recovery_plan_saved = True
         except Exception as e:
             self.logger.exception(repr(e))
             download_dialog.show_error(_("Error saving file"))
@@ -651,6 +679,7 @@ class Plugin(TimelockRecoveryPlugin):
                 json_data["checksum"] = self._checksum(json_data)
                 json.dump(json_data, f, indent=2)
             download_dialog.show_message(_("File saved successfully"))
+            context.cancellation_plan_saved = True
         except Exception as e:
             self.logger.exception(repr(e))
             download_dialog.show_error(_("Error saving file"))
@@ -702,6 +731,7 @@ class Plugin(TimelockRecoveryPlugin):
             painter.end()
             shutil.move(temp_file_path, file_path)
             download_dialog.show_message(_("File saved successfully"))
+            context.recovery_plan_saved = True
         except (IOError, MemoryError) as e:
             self.logger.exception(repr(e))
             download_dialog.show_error(_("Error saving file"))
@@ -1062,6 +1092,7 @@ class Plugin(TimelockRecoveryPlugin):
             painter.end()
             shutil.move(temp_file_path, file_path)
             download_dialog.show_message(_("File saved successfully"))
+            context.cancellation_plan_saved = True
         except (IOError, MemoryError) as e:
             self.logger.exception(repr(e))
             download_dialog.show_error(_("Error saving file"))

@@ -42,6 +42,8 @@ class TimelockRecoveryContext:
     recovery_plan_created_at: Optional[datetime] = None
     _alert_address: Optional[str] = None
     _cancellation_address: Optional[str] = None
+    recovery_plan_saved: bool = False
+    cancellation_plan_saved: bool = False
 
     ANCHOR_OUTPUT_AMOUNT_SATS = 600
 
