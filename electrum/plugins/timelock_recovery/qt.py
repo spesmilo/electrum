@@ -544,7 +544,6 @@ class Plugin(TimelockRecoveryPlugin):
         download_hbox.addWidget(recovery_button)
         if context.cancellation_tx is not None:
             download_hbox.addWidget(cancellation_button)
-        vbox_layout.addLayout(download_hbox)
         # agree checkbox
         def on_agreement(b):
             recovery_button.setEnabled(bool(b))
@@ -554,6 +553,7 @@ class Plugin(TimelockRecoveryPlugin):
         agree_cb.stateChanged.connect(on_agreement)
         vbox_layout.addWidget(agree_cb)
         vbox_layout.addStretch()
+        vbox_layout.addLayout(download_hbox)
         close_button = QPushButton(_("Close"), download_dialog)
         def on_close():
             if context.cancellation_tx is not None and not context.cancellation_plan_saved:
