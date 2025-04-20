@@ -392,7 +392,7 @@ class TxBatch(Logger):
         if base_tx:
             for txin in base_tx.inputs():
                 if sweep_info := self.batch_inputs.get(txin.prevout):
-                    if hasattr(txin, 'make_witness'):
+                    if hasattr(sweep_info.txin, 'make_witness'):
                         txin.make_witness = sweep_info.txin.make_witness
                         txin.privkey = sweep_info.txin.privkey
                         txin.witness_script = sweep_info.txin.witness_script
