@@ -36,7 +36,7 @@ from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput
-from electrum.util import make_dir
+from electrum.util import NotEnoughFunds, make_dir
 from electrum.gui.qt.util import ColorScheme, WindowModalDialog, Buttons, HelpLabel
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes, WaitingDialog
 from electrum.fee_policy import FeePolicy
@@ -213,29 +213,45 @@ class Plugin(TimelockRecoveryPlugin):
         timelock_days_widget.setText(str(context.timelock_days))
 
         def update_transactions():
-            x = self._verify_step1_details(
+            is_valid = self._validate_input_values(
                     context=context,
-                    next_button=next_button,
                     payto_e=payto_e,
                     timelock_days_widget=timelock_days_widget,
             )
-            view_alert_tx_button.setEnabled(x)
-            view_recovery_tx_button.setEnabled(x)
-            view_cancellation_tx_button.setEnabled(x)
-            if not x:
+            if not is_valid:
+                view_alert_tx_button.setEnabled(False)
+                view_recovery_tx_button.setEnabled(False)
+                view_cancellation_tx_button.setEnabled(False)
+                next_button.setEnabled(False)
                 return
-            context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
-            alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
-            context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
-            recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
-            if not create_cancel_cb.isChecked():
-                context.cancellation_tx = None
+            try:
+                context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
+                assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
+                alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
+                context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
+                assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
+                recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
+                if create_cancel_cb.isChecked():
+                    context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
+                    assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
+                    cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
+                else:
+                    context.cancellation_tx = None
+            except NotEnoughFunds:
+                view_alert_tx_button.setEnabled(False)
+                view_recovery_tx_button.setEnabled(False)
+                view_cancellation_tx_button.setEnabled(False)
+                payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                payto_e.setToolTip("Not enough funds to create the transactions.")
+                next_button.setEnabled(False)
                 return
-            context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
-            assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
-            cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
+            view_alert_tx_button.setEnabled(True)
+            view_recovery_tx_button.setEnabled(True)
+            view_cancellation_tx_button.setEnabled(True)
+            payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
+            payto_e.setToolTip("")
+            next_button.setEnabled(True)
+
 
         payto_e.paymentIdentifierChanged.connect(update_transactions)
         timelock_days_widget.textChanged.connect(update_transactions)
@@ -346,9 +362,10 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(plan_dialog.exec())
 
-    def _verify_step1_details(
+    def _validate_input_values(
             self,
-            context: TimelockRecoveryContext, next_button: QPushButton, payto_e: PayToEdit,
+            context: TimelockRecoveryContext,
+            payto_e: PayToEdit,
             timelock_days_widget: QLineEdit) -> bool:
         context.timelock_days = None
         try:
@@ -362,41 +379,32 @@ class Plugin(TimelockRecoveryPlugin):
         except ValueError:
             timelock_days_widget.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             timelock_days_widget.setToolTip("Value must be between {} and {} days.".format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
-            next_button.setEnabled(False)
             return False
         pi = payto_e.payment_identifier
         if not pi:
-            next_button.setEnabled(False)
             return False
         if not pi.is_valid():
             # Don't make background red - maybe the user did not complete typing yet.
             payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
             payto_e.setToolTip((pi.get_error() or "Invalid address.") if pi.text else "")
-            next_button.setEnabled(False)
             return False
         elif pi.is_multiline():
             if not pi.is_multiline_max():
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
-                next_button.setEnabled(False)
                 return False
             context.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
-                next_button.setEnabled(False)
                 return False
             scriptpubkey, is_address = pi.parse_output(pi.text.strip())
             if not is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Must be a valid address, not a script.")
-                next_button.setEnabled(False)
                 return False
             context.outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
-        payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
-        payto_e.setToolTip("")
-        next_button.setEnabled(True)
         return True
 
     def start_plan(self, context: TimelockRecoveryContext):
