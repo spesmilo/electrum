@@ -28,7 +28,7 @@ from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
                     Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
 import urllib
@@ -875,72 +875,41 @@ def age(
     """Takes a timestamp and returns a string with the approximation of the age"""
     if from_date is None:
         return _("Unknown")
-
     from_date = datetime.fromtimestamp(from_date)
     if since_date is None:
         since_date = datetime.now(target_tz)
-
     distance_in_time = from_date - since_date
     is_in_past = from_date < since_date
+    s = delta_time_str(distance_in_time)
+    return _("{} ago").format(s) if is_in_past else _("in {}").format(s)
+
+
+def delta_time_str(distance_in_time: timedelta) -> str:
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds / 60))
-
     if distance_in_minutes == 0:
         if include_seconds:
-            if is_in_past:
-                return _("{} seconds ago").format(distance_in_seconds)
-            else:
-                return _("in {} seconds").format(distance_in_seconds)
+            return _("{} seconds").format(distance_in_seconds)
         else:
-            if is_in_past:
-                return _("less than a minute ago")
-            else:
-                return _("in less than a minute")
+            return _("less than a minute")
     elif distance_in_minutes < 45:
-        if is_in_past:
-            return _("about {} minutes ago").format(distance_in_minutes)
-        else:
-            return _("in about {} minutes").format(distance_in_minutes)
+        return _("about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        if is_in_past:
-            return _("about 1 hour ago")
-        else:
-            return _("in about 1 hour")
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        if is_in_past:
-            return _("about {} hours ago").format(round(distance_in_minutes / 60.0))
-        else:
-            return _("in about {} hours").format(round(distance_in_minutes / 60.0))
+        return _("about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        if is_in_past:
-            return _("about 1 day ago")
-        else:
-            return _("in about 1 day")
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        if is_in_past:
-            return _("about {} days ago").format(round(distance_in_minutes / 1440))
-        else:
-            return _("in about {} days").format(round(distance_in_minutes / 1440))
+        return _("about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        if is_in_past:
-            return _("about 1 month ago")
-        else:
-            return _("in about 1 month")
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        if is_in_past:
-            return _("about {} months ago").format(round(distance_in_minutes / 43200))
-        else:
-            return _("in about {} months").format(round(distance_in_minutes / 43200))
+        return _("about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        if is_in_past:
-            return _("about 1 year ago")
-        else:
-            return _("in about 1 year")
+        return _("about 1 year")
     else:
-        if is_in_past:
-            return _("over {} years ago").format(round(distance_in_minutes / 525600))
-        else:
-            return _("in over {} years").format(round(distance_in_minutes / 525600))
+        return _("over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     '3xpl.com': ('https://3xpl.com/bitcoin/',

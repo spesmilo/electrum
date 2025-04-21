@@ -47,7 +47,7 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
-from electrum.util import ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES
+from electrum.util import ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES, delta_time_str
 from electrum.network import Network
 from electrum.wallet import TxSighashRiskLevel, TxSighashDanger
 
@@ -862,6 +862,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         locktime_final_str = _("LockTime: {} ({})").format(self.tx.locktime, locktime_str)
         self.locktime_final_label.setText(locktime_final_str)
 
+        nsequence_time = self.tx.get_time_based_relative_locktime()
+        nsequence_blocks = self.tx.get_block_based_relative_locktime()
+        if nsequence_time or nsequence_blocks:
+            if nsequence_time:
+                seconds = nsequence_time * 512
+                time_str = delta_time_str(datetime.timedelta(seconds=seconds))
+            else:
+                time_str = '{} blocks'.format(nsequence_blocks)
+            nsequence_str = _("Relative locktime: {}").format(time_str)
+            self.nsequence_label.setText(nsequence_str)
+        else:
+            self.nsequence_label.hide()
+
         # TODO: 'Yes'/'No' might be better translatable than 'True'/'False'?
         self.rbf_label.setText(_('Replace by fee: {}').format(_('True') if self.tx.is_rbf_enabled() else _('False')))
 
@@ -1000,6 +1013,9 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self.locktime_final_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_final_label)
+
+        self.nsequence_label = TxDetailLabel()
+        vbox_right.addWidget(self.nsequence_label)
 
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)

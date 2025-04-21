@@ -349,6 +349,19 @@ class TxInput:
         self.__address = None  # type: Optional[str]
         self.__value_sats = None  # type: Optional[int]
 
+    def get_time_based_relative_locktime(self) -> Optional[int]:
+        # see bip 68
+        if self.nsequence & (1<<31):
+            return
+        if self.nsequence & (1<<22):
+            return self.nsequence & 0xffff
+
+    def get_block_based_relative_locktime(self) -> Optional[int]:
+        if self.nsequence & (1<<31):
+            return
+        if not self.nsequence & (1<<22):
+            return self.nsequence & 0xffff
+
     @property
     def short_id(self):
         if self.block_txpos is not None and self.block_txpos >= 0:
@@ -1135,6 +1148,14 @@ class Transaction:
             show_error(repr(e))
             return False
         return True
+
+    def get_time_based_relative_locktime(self) -> Optional[int]:
+        locktimes = list(filter(None, [txin.get_time_based_relative_locktime() for txin in self.inputs()]))
+        return max(locktimes) if locktimes else None
+
+    def get_block_based_relative_locktime(self) -> Optional[int]:
+        locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
+        return max(locktimes) if locktimes else None
 
     def is_rbf_enabled(self) -> bool:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
