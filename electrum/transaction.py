@@ -1150,10 +1150,14 @@ class Transaction:
         return True
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
+        if self.version < 2:
+            return
         locktimes = list(filter(None, [txin.get_time_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
     def get_block_based_relative_locktime(self) -> Optional[int]:
+        if self.version < 2:
+            return
         locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
