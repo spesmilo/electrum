@@ -880,11 +880,11 @@ def age(
         since_date = datetime.now(target_tz)
     distance_in_time = from_date - since_date
     is_in_past = from_date < since_date
-    s = delta_time_str(distance_in_time)
+    s = delta_time_str(distance_in_time, include_seconds=include_seconds)
     return _("{} ago").format(s) if is_in_past else _("in {}").format(s)
 
 
-def delta_time_str(distance_in_time: timedelta) -> str:
+def delta_time_str(distance_in_time: timedelta, *, include_seconds: bool = False) -> str:
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds / 60))
     if distance_in_minutes == 0:
