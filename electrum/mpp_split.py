@@ -1,7 +1,6 @@
 import random
 import math
 from typing import List, Tuple, Dict, NamedTuple
-from collections import defaultdict
 
 from .lnutil import NoPathFound
 

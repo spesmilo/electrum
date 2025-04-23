@@ -22,22 +22,16 @@
 # SOFTWARE.
 import asyncio
 import time
-import queue
 import os
 import random
 import re
 from collections import defaultdict
 import threading
-import socket
 import json
-import sys
 from typing import (
     NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar,
     Callable
 )
-import traceback
-import concurrent
-from concurrent import futures
 import copy
 import functools
 from enum import IntEnum
@@ -48,20 +42,20 @@ from aiorpcx import ignore_after, NetAddress
 from aiohttp import ClientResponse
 
 from . import util
-from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
-                   bfh, make_aiohttp_session, send_exception_to_crash_reporter,
-                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
-                   error_text_str_to_safe_str, detect_tor_socks_proxy)
-from .bitcoin import COIN, DummyAddress, DummyAddressUsedInTxException
+from .util import (
+    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter, MyEncoder,
+    NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
+)
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain
-from . import bitcoin
 from . import dns_hacks
 from .transaction import Transaction
-from .blockchain import Blockchain, HEADER_SIZE
-from .interface import (Interface, PREFERRED_NETWORK_PROTOCOL,
-                        RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-                        NetworkException, RequestCorrupted, ServerAddr)
+from .blockchain import Blockchain
+from .interface import (
+    Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
+    NetworkException, RequestCorrupted, ServerAddr
+)
 from .version import PROTOCOL_VERSION
 from .i18n import _
 from .logging import get_logger, Logger
@@ -70,11 +64,9 @@ from .fee_policy import FeeHistogram, FeeTimeEstimates, FEE_ETA_TARGETS
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
-
     from .channel_db import ChannelDB
     from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
-    #from .lnwatcher import WatchTower
     from .daemon import Daemon
     from .simple_config import SimpleConfig
 
@@ -554,8 +546,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_banner():
             self.banner = await interface.get_server_banner()
             util.trigger_callback('banner', self.banner)
+
         async def get_donation_address():
             self.donation_address = await interface.get_donation_address()
+
         async def get_server_peers():
             server_peers = await session.send_request('server.peers.subscribe')
             random.shuffle(server_peers)
@@ -564,6 +558,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             # note that 'parse_servers' also validates the data (which is untrusted input!)
             self.server_peers = parse_servers(server_peers)
             util.trigger_callback('servers', self.get_servers())
+
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 

@@ -1,13 +1,13 @@
 import io
 import os
 import random
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List, Iterable, Sequence, Set, Any, \
-    MutableSequence
+from typing import Mapping, Tuple, Optional, List, Iterable, Sequence, Set, Any
 
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
-from .lnonion import calc_hops_data_for_payment, new_onion_packet, OnionPacket, \
-    TRAMPOLINE_HOPS_DATA_SIZE, PER_HOP_HMAC_SIZE
-from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_within_budget, LNPaymentTRoute
+from .lnonion import (
+    calc_hops_data_for_payment, new_onion_packet, OnionPacket, TRAMPOLINE_HOPS_DATA_SIZE, PER_HOP_HMAC_SIZE
+)
+from .lnrouter import TrampolineEdge, is_route_within_budget, LNPaymentTRoute
 from .lnutil import NoPathFound
 from .lntransport import LNPeerAddr
 from . import constants
@@ -38,6 +38,7 @@ TRAMPOLINE_NODES_SIGNET = {
 
 _TRAMPOLINE_NODES_UNITTESTS = {}  # used in unit tests
 
+
 def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
     if _TRAMPOLINE_NODES_UNITTESTS:
         return _TRAMPOLINE_NODES_UNITTESTS
@@ -52,11 +53,14 @@ def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
     else:
         return {}
 
+
 def trampolines_by_id():
     return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
 
+
 def is_hardcoded_trampoline(node_id: bytes) -> bool:
     return node_id in trampolines_by_id()
+
 
 def encode_routing_info(r_tags: Sequence[Sequence[Sequence[Any]]]) -> List[bytes]:
     routes = []
@@ -126,6 +130,8 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
 
 
 PLACEHOLDER_FEE = None
+
+
 def _extend_trampoline_route(
         route: List[TrampolineEdge],
         *,
@@ -301,7 +307,7 @@ def create_trampoline_onion(
             payload.pop('short_channel_id')
             next_edge = route[i+1]
             assert next_edge.is_trampoline()
-            hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
+            hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id": next_edge.node_id}
         # only for final
         if i == num_hops - 1:
             payload["payment_data"] = {
@@ -310,7 +316,7 @@ def create_trampoline_onion(
             }
         # legacy
         if i == num_hops - 2 and route_edge.invoice_features:
-            payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
+            payload["invoice_features"] = {"invoice_features": route_edge.invoice_features}
             routing_info_payload_index = i
             payload["payment_data"] = {
                 "payment_secret": payment_secret,

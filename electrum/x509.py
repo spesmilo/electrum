@@ -26,7 +26,6 @@
 import hashlib
 import time
 
-from . import util
 from .util import profiler, timestamp_to_datetime
 from .logging import get_logger
 
@@ -141,6 +140,7 @@ class ASN1_Node(bytes):
             raise TypeError('Can only open constructed types.', hex(self[ixs]))
         return self.get_node(ixf)
 
+    @staticmethod
     def is_child_of(node1, node2):
         ixs, ixf, ixl = node1
         jxs, jxf, jxl = node2

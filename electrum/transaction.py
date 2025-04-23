@@ -23,17 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
-
 # Note: The deserialization code originally comes from ABE.
 
 import struct
-import traceback
-import sys
 import io
 import base64
-from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
-                    Callable, List, Dict, Set, TYPE_CHECKING, Mapping)
+from typing import (
+    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping
+)
 from collections import defaultdict
 from enum import IntEnum
 import itertools
@@ -43,22 +40,18 @@ import copy
 import electrum_ecc as ecc
 from electrum_ecc.util import bip340_tagged_hash
 
-from . import bitcoin, constants, segwit_addr, bip32
+from . import bitcoin, bip32
 from .bip32 import BIP32Node
-from .i18n import _
-from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend
-from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
-                      hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
-                      var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      opcodes, base_decode,
-                      base_encode, construct_witness, construct_script,
-                      taproot_tweak_seckey)
+from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
+from .bitcoin import (
+    TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
+    TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
+    taproot_tweak_seckey
+)
 from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
-from .bitcoin import DummyAddress
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
-from .json_db import stored_in
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -659,7 +652,7 @@ class OPPushDataGeneric:
 
 
 class OPGeneric:
-    def __init__(self, matcher: Callable=None):
+    def __init__(self, matcher: Callable = None):
         if matcher is not None:
             self.matcher = matcher
 
@@ -672,6 +665,7 @@ class OPGeneric:
         # or other classes that are subclasses
         return isinstance(item, cls) \
                or (isinstance(item, type) and issubclass(item, cls))
+
 
 OPPushDataPubkey = OPPushDataGeneric(lambda x: x in (33, 65))
 OP_ANYSEGWIT_VERSION = OPGeneric(lambda x: x in list(range(opcodes.OP_1, opcodes.OP_16 + 1)))
@@ -702,6 +696,7 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
     if amount < dust_limit:
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
+
 def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['PartialTxOutput']:
     """Merges outputs that are paying to the same address by replacing them with a single larger output."""
     output_dict = {}
@@ -712,6 +707,7 @@ def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['Pa
         else:
             output_dict[output.scriptpubkey] = copy.copy(output)
     return list(output_dict.values())
+
 
 def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""
@@ -744,6 +740,7 @@ def match_script_against_template(script, template, debug=False) -> bool:
             return False
     return True
 
+
 def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
     if _bytes is None:
         return None
@@ -760,6 +757,7 @@ def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
     if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2WSH):
         return 'p2wsh'
     return None
+
 
 def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     try:
@@ -946,7 +944,7 @@ class Transaction:
         raise UnknownTxinType("cannot construct witness")
 
     @classmethod
-    def input_script(self, txin: TxInput, *, estimate_size=False) -> bytes:
+    def input_script(cls, txin: TxInput, *, estimate_size=False) -> bytes:
         if txin.script_sig is not None:
             return txin.script_sig
         if txin.is_coinbase_input():
@@ -1100,6 +1098,7 @@ class Transaction:
         num_tasks_total = 0
         has_errored = False
         has_finished = False
+
         async def add_info_to_txin(txin: TxInput):
             nonlocal num_tasks_done, has_errored
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
@@ -1113,6 +1112,7 @@ class Transaction:
             else:
                 has_errored = True
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+
         # schedule a network task for each txin
         try:
             async with OldTaskGroup() as group:
@@ -1177,7 +1177,7 @@ class Transaction:
 
     @classmethod
     def estimated_input_weight(cls, txin: TxInput, is_segwit_tx: bool) -> int:
-        '''Return an estimate of serialized input weight in weight units.'''
+        """Return an estimate of serialized input weight in weight units."""
         script_sig = cls.input_script(txin, estimate_size=True)
         input_size = len(txin.serialize_to_network(script_sig=script_sig))
 
@@ -2049,7 +2049,8 @@ class PartialTransaction(Transaction):
                 if kt == PSBTGlobalType.UNSIGNED_TX:
                     if tx is not None:
                         raise SerializationError(f"duplicate key: {repr(kt)}")
-                    if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+                    if key:
+                        raise SerializationError(f"key for {repr(kt)} must be empty")
                     unsigned_tx = Transaction(val.hex())
                     for txin in unsigned_tx.inputs():
                         if txin.script_sig or txin.witness:
@@ -2092,7 +2093,8 @@ class PartialTransaction(Transaction):
                     psbt_version = int.from_bytes(val, byteorder='little', signed=False)
                     if psbt_version > 0:
                         raise SerializationError(f"Only PSBTs with version 0 are supported. Found version: {psbt_version}")
-                    if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+                    if key:
+                        raise SerializationError(f"key for {repr(kt)} must be empty")
                 else:
                     full_key = PSBTSection.get_fullkey_from_keytype_and_key(kt, key)
                     if full_key in tx._unknown:
@@ -2119,8 +2121,15 @@ class PartialTransaction(Transaction):
         return tx
 
     @classmethod
-    def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None, BIP69_sort: bool = True):
+    def from_io(
+            cls,
+            inputs: Sequence[PartialTxInput],
+            outputs: Sequence[PartialTxOutput],
+            *,
+            locktime: int = None,
+            version: int = None,
+            BIP69_sort: bool = True
+    ) -> 'PartialTransaction':
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -2501,9 +2510,11 @@ class PartialTransaction(Transaction):
         await self.add_info_from_network(wallet.network)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
         from .keystore import Xpub
+
         def is_ks_missing_info(ks):
             return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
                                               or ks.get_derivation_prefix() is None))
+
         if any([is_ks_missing_info(ks) for ks in wallet.get_keystores()]):
             _logger.warning('PSBT was requested to be filled with full bip32 paths but '
                             'some keystores lacked either the derivation prefix or the root fingerprint')
