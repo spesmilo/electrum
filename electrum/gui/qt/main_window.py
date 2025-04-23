@@ -351,6 +351,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.wallet.unlock(password)
         self.update_lock_icon()
         self.update_lock_menu()
+        self.wallet.txbatcher.set_password_future(password)
         icon = read_QIcon("unlock.png")
         msg = ' '.join([
             _('Your wallet is unlocked.'),
@@ -462,6 +463,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
             self.need_update.set()
+
+    @qt_event_listener
+    def on_event_password_required(self, wallet):
+        if wallet == self.wallet:
+            self.password_required_button.show()
+
+    @qt_event_listener
+    def on_event_password_not_required(self, wallet):
+        if wallet == self.wallet:
+            self.password_required_button.hide()
+
+    def on_password_required_button_clicked(self):
+        if self.wallet.txbatcher.password_future is None:
+            return
+        txids = self.wallet.txbatcher.password_future.txids
+        labels = [ ' - %s ' % (self.wallet.get_label_for_txid(txid) or (txid[0:15] + '...')) for txid in txids ]
+        message = _('Your password is needed to sign the following transactions:') + '\n' + '\n'.join(labels)
+        password = self.get_password(message=message)
+        if password:
+            self.wallet.txbatcher.set_password_future(password)
 
     @qt_event_listener
     def on_event_status(self):
@@ -1800,6 +1821,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.update_check_button.hide()
         sb.addPermanentWidget(self.update_check_button)
 
+        self.password_required_button = QPushButton(_('Password required'))
+        self.password_required_button.setFlat(True)
+        self.password_required_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.password_required_button.setIcon(read_QIcon("warning.png"))
+        self.password_required_button.setIconSize(self.password_required_button.iconSize() * 1.3)
+        self.password_required_button.clicked.connect(self.on_password_required_button_clicked)
+        self.password_required_button.hide()
+        sb.addPermanentWidget(self.password_required_button)
+
         self.tasks_label = QLabel('')
         sb.addPermanentWidget(self.tasks_label)
 
@@ -2670,6 +2700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             coro_keys = list(self._coroutines_scheduled.keys())
         for fut in coro_keys:
             fut.cancel()
+        self.wallet.txbatcher.set_password_future(None)
         self.unregister_callbacks()
         self.config.GUI_QT_WINDOW_IS_MAXIMIZED = self.isMaximized()
         self.save_notes_text()

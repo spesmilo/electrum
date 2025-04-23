@@ -425,6 +425,8 @@ class AbstractChannel(Logger, ABC):
             conf = closing_height.conf
             if conf > 0:
                 self.set_state(ChannelState.CLOSED)
+                if self.lnworker:
+                    self.lnworker.wallet.txbatcher.set_password_future(None)
             else:
                 # we must not trust the server with unconfirmed transactions,
                 # because the state transition is irreversible. if the remote

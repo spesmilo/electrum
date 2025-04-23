@@ -6,7 +6,7 @@ from typing import Dict, Sequence
 from . import util
 from .bitcoin import dust_threshold
 from .logging import Logger
-from .util import log_exceptions, NotEnoughFunds, BelowDustLimit, NoDynamicFeeEstimates
+from .util import log_exceptions, NotEnoughFunds, BelowDustLimit, NoDynamicFeeEstimates, OldTaskGroup
 from .transaction import PartialTransaction, PartialTxOutput, Transaction
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .lnsweep import SweepInfo
@@ -92,6 +92,8 @@ class TxBatcher(Logger):
         for key, item_storage in self.storage.items():
             self.tx_batches[key] = TxBatch(self.wallet, item_storage)
         self._legacy_htlcs = {}
+        self.taskgroup = None
+        self.password_future = None
 
     @locked
     def add_payment_output(self, key: str, output: 'PartialTxOutput', fee_policy_descriptor: str):
@@ -114,15 +116,20 @@ class TxBatcher(Logger):
         batch.add_sweep_input(sweep_info)
 
     def _maybe_create_new_batch(self, key, fee_policy_descriptor: str):
+        assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         if key not in self.storage:
+            self.logger.info(f'creating new batch: {key}')
             self.storage[key] = { 'fee_policy': fee_policy_descriptor, 'txids': [], 'prevout': None }
-            self.tx_batches[key] = TxBatch(self.wallet, self.storage[key])
+            self.tx_batches[key] = batch = TxBatch(self.wallet, self.storage[key])
+            if self.taskgroup:
+                asyncio.ensure_future(self.taskgroup.spawn(self.run_batch(key, batch)))
         elif self.storage[key]['fee_policy'] != fee_policy_descriptor:
             # maybe update policy?
             self.logger.warning('fee policy passed to txbatcher inconsistent with existing batch')
         return self.tx_batches[key]
 
-    def _delete_batch(self, key):
+    @locked
+    def delete_batch(self, key):
         self.logger.info(f'deleting TxBatch {key}')
         self.storage.pop(key)
         self.tx_batches.pop(key)
@@ -141,24 +148,21 @@ class TxBatcher(Logger):
         # used to prevent GUI from interfering
         return bool(self.find_batch_of_txid(txid))
 
+    async def run_batch(self, key, batch):
+        await batch.run()
+        self.delete_batch(key)
+
     @log_exceptions
     async def run(self):
+        self.taskgroup = OldTaskGroup()
+        for key, batch in self.tx_batches.items():
+            await self.taskgroup.spawn(self.run_batch(key, batch))
+        async with self.taskgroup as group:
+            await group.spawn(self.redeem_legacy_htlcs())
+
+    async def redeem_legacy_htlcs(self):
         while True:
             await asyncio.sleep(self.SLEEP_INTERVAL)
-            password = self.wallet.get_unlocked_password()
-            if self.wallet.has_keystore_encryption() and not password:
-                continue
-            if not (self.wallet.network and self.wallet.network.is_connected()):
-                continue
-            for key, txbatch in list(self.tx_batches.items()):
-                try:
-                    await txbatch.run_iteration(password)
-                    if txbatch.is_done():
-                        self._delete_batch(key)
-                except Exception as e:
-                    self.logger.exception(f'TxBatch error: {repr(e)}')
-                    self._delete_batch(key)
-                    continue
             for sweep_info in self._legacy_htlcs.values():
                 await self._maybe_redeem_legacy_htlcs(sweep_info)
 
@@ -182,6 +186,39 @@ class TxBatcher(Logger):
         if await self.wallet.network.try_broadcasting(tx, sweep_info.name):
             self.wallet.adb.add_transaction(tx)
 
+    async def get_password(self, txid:str):
+        # daemon, android have password in memory
+        password = self.wallet.get_unlocked_password()
+        if password:
+            return password
+        future = self.get_password_future(txid)
+        try:
+
+            await future
+        except asyncio.CancelledError as e:
+            return
+        password = future.result()
+        return password
+
+    @locked
+    def set_password_future(self, password: Optional[str]):
+        if self.password_future is not None:
+            if password is not None:
+                self.password_future.set_result(password)
+            else:
+                self.password_future.cancel()
+            self.password_future = None
+            util.trigger_callback('password_not_required', self.wallet)
+
+    @locked
+    def get_password_future(self, txid: str):
+        if self.password_future is None:
+            self.password_future = asyncio.Future()
+            self.password_future.txids = []
+            self.logger.info(f'password required: {txid}')
+        self.password_future.txids.append(txid)
+        util.trigger_callback('password_required', self.wallet)
+        return self.password_future
 
 
 class TxBatch(Logger):
@@ -200,6 +237,18 @@ class TxBatch(Logger):
         self._base_tx = None           # current batch tx. last element of batch_txids
         self._parent_tx = None
         self._unconfirmed_sweeps = set()  # list of inputs we are sweeping (until spending tx is confirmed)
+
+    @log_exceptions
+    async def run(self):
+        while not self.is_done():
+            await asyncio.sleep(self.wallet.txbatcher.SLEEP_INTERVAL)
+            if not (self.wallet.network and self.wallet.network.is_connected()):
+                continue
+            try:
+                await self.run_iteration()
+            except Exception as e:
+                self.logger.exception(f'TxBatch error: {repr(e)}')
+                break
 
     def is_mine(self, txid):
         return txid in self._batch_txids
@@ -310,8 +359,6 @@ class TxBatch(Logger):
                 spender_txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index))
                 tx = self.wallet.adb.get_transaction(spender_txid)
                 if tx:
-                    tx = PartialTransaction.from_tx(tx)
-                    tx.add_info_from_wallet(self.wallet)  # this adds input amounts
                     if spender_txid == last_txid:
                         if self._base_tx is None:
                             # log initialization
@@ -322,7 +369,7 @@ class TxBatch(Logger):
                         self._new_base_tx(tx)
         return self._base_tx
 
-    async def run_iteration(self, password):
+    async def run_iteration(self):
         conf_tx = self._find_confirmed_base_tx()
         if conf_tx:
             self.logger.info(f'base tx confirmed {conf_tx.txid()}')
@@ -330,8 +377,11 @@ class TxBatch(Logger):
             self._start_new_batch(conf_tx)
 
         base_tx = self.find_base_tx()
+        if base_tx:
+            base_tx = PartialTransaction.from_tx(base_tx)
+            base_tx.add_info_from_wallet(self.wallet)  # this sets is_change
         try:
-            tx = self.create_next_transaction(base_tx, password)
+            tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
             self.logger.debug('no dynamic fee estimates available')
             return
@@ -348,19 +398,38 @@ class TxBatch(Logger):
             # nothing to do
             return
 
+        # add tx to wallet, in order to reserve utxos
+        self.wallet.adb.add_transaction(tx)
+        # await password
+        if not await self.sign_transaction(tx):
+            self.wallet.adb.remove_transaction(tx.txid())
+            return
+
         if await self.wallet.network.try_broadcasting(tx, 'batch'):
-            self.wallet.adb.add_transaction(tx)
             self._new_base_tx(tx)
         else:
             # most likely reason is that base_tx is not replaceable
             # this may be the case if it has children (because we don't pay enough fees to replace them)
             # or if we are trying to sweep unconfirmed inputs (replacement-adds-unconfirmed error)
-            self.logger.info(f'cannot broadcast tx {tx}')
+            self.logger.info(f'cannot broadcast tx {tx.txid()}')
+            self.wallet.adb.remove_transaction(tx.txid())
             if base_tx:
                 self.logger.info(f'starting new batch because could not broadcast')
                 self._start_new_batch(base_tx)
 
-    def create_next_transaction(self, base_tx, password):
+
+    async def sign_transaction(self, tx):
+        tx.add_info_from_wallet(self.wallet)  # this adds input amounts
+        self.add_sweep_info_to_tx(tx)
+        pw_required = self.wallet.has_keystore_encryption() and tx.requires_keystore()
+        password = await self.wallet.txbatcher.get_password(tx.txid()) if pw_required else None
+        if password is None and pw_required:
+            return
+        self.wallet.sign_transaction(tx, password)
+        assert tx.is_complete()
+        return tx
+
+    def create_next_transaction(self, base_tx):
         to_pay = self._to_pay_after(base_tx)
         to_sweep = self._to_sweep_after(base_tx)
         to_sweep_now = {}
@@ -373,15 +442,14 @@ class TxBatch(Logger):
         if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
             return
         while True:
-            tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay, password)
+            tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay)
             # 100 kb max standardness rule
             if tx.estimated_size() < 100_000:
                 break
             to_sweep_now = to_sweep_now[0:len(to_sweep_now)//2]
             to_pay = to_pay[0:len(to_pay)//2]
 
-        self.logger.info(f'created tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
-        self.logger.info(f'{str(tx)}')
+        self.logger.info(f'created tx {tx.txid()} with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
         return tx
 
     def add_sweep_info_to_tx(self, base_tx):
@@ -393,7 +461,7 @@ class TxBatch(Logger):
                     txin.witness_script = sweep_info.txin.witness_script
                     txin.script_sig = sweep_info.txin.script_sig
 
-    def _create_batch_tx(self, base_tx, to_sweep, to_pay, password):
+    def _create_batch_tx(self, base_tx, to_sweep, to_pay):
         self.logger.info(f'to_sweep: {list(to_sweep.keys())}')
         self.logger.info(f'to_pay: {to_pay}')
         inputs = []
@@ -411,10 +479,10 @@ class TxBatch(Logger):
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
         inputs += self._create_inputs_from_tx_change(self._parent_tx) if self._parent_tx else []
-        if base_tx:
-            self.add_sweep_info_to_tx(base_tx)
         # create tx
+        coins = self.wallet.get_spendable_coins(nonlocal_only=True)
         tx = self.wallet.make_unsigned_transaction(
+            coins=coins,
             fee_policy=self.fee_policy,
             base_tx=base_tx,
             inputs=inputs,
@@ -423,10 +491,8 @@ class TxBatch(Logger):
             BIP69_sort=False,
             merge_duplicate_outputs=False,
         )
-        self.wallet.sign_transaction(tx, password)
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
-        assert tx.is_complete()
         return tx
 
     def _clear_unconfirmed_sweeps(self, tx):

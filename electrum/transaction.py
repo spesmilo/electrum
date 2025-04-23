@@ -2120,6 +2120,13 @@ class PartialTransaction(Transaction):
 
         return tx
 
+    def requires_keystore(self):
+        """
+        Returns True if signing will require private keys from the keystore
+        Called by txbatcher in order to know if a password is needed
+        """
+        return not all(hasattr(txin, 'make_witness') for txin in self.inputs())
+
     @classmethod
     def from_io(
             cls,
