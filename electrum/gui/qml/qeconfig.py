@@ -294,6 +294,17 @@ class QEConfig(AuthMixin, QObject):
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = lightningPaymentFeeMaxMillionths
             self.lightningPaymentFeeMaxMillionthsChanged.emit()
 
+    nostrRelaysChanged = pyqtSignal()
+    @pyqtProperty(str, notify=nostrRelaysChanged)
+    def nostrRelays(self):
+        return self.config.NOSTR_RELAYS
+
+    @nostrRelays.setter
+    def nostrRelays(self, nostr_relays):
+        if nostr_relays != self.config.NOSTR_RELAYS:
+            self.config.NOSTR_RELAYS = nostr_relays
+            self.nostrRelaysChanged.emit()
+
     swapServerNPubChanged = pyqtSignal()
     @pyqtProperty(str, notify=swapServerNPubChanged)
     def swapServerNPub(self):
