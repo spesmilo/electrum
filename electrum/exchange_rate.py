@@ -93,7 +93,7 @@ class ExchangeBase(Logger):
             self.logger.exception(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
         else:
-            self.logger.info("received fx quotes")
+            self.logger.debug("received fx quotes")
             self._quotes_timestamp = time.time()
             self.on_quotes(received_new_data=True)
 
@@ -142,7 +142,7 @@ class ExchangeBase(Logger):
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
-            self.logger.info(f"received fx history for {ccy}")
+            self.logger.debug(f"received fx history for {ccy}")
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
@@ -208,6 +208,7 @@ class ExchangeBase(Logger):
             return Decimal('NaN')
         return Decimal(rate)
 
+
 class Yadio(ExchangeBase):
 
     async def get_currencies(self):
@@ -217,6 +218,7 @@ class Yadio(ExchangeBase):
     async def get_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
         json = await self.get_json('api.yadio.io', '/rate/%s/BTC' % ccy)
         return {ccy: to_decimal(json['rate'])}
+
 
 class BitcoinAverage(ExchangeBase):
     # note: historical rates used to be freely available
@@ -247,9 +249,8 @@ class BitcoinVenezuela(ExchangeBase):
         return ['ARS', 'EUR', 'USD', 'VEF']
 
     async def request_history(self, ccy):
-        json = await self.get_json('api.bitcoinvenezuela.com',
-                             "/historical/index.php?coin=BTC")
-        return json[ccy +'_BTC']
+        json = await self.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")
+        return json[ccy + '_BTC']
 
 
 class Bitbank(ExchangeBase):

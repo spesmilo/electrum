@@ -461,7 +461,7 @@ class Peer(Logger, EventListener):
             # as it might be for our own direct channel with this peer
             # (and we might not yet know the short channel id for that)
             # Background: this code is here to deal with a bug in LND,
-            # see https://github.com/lightningnetwork/lnd/issues/3651
+            # see https://github.com/lightningnetwork/lnd/issues/3651 (closed 2022-08-13, lnd-v0.15.1)
             # and https://github.com/lightningnetwork/lightning-rfc/pull/657
             # This code assumes gossip_queries is set. BOLT7: "if the
             # gossip_queries feature is negotiated, [a node] MUST NOT
@@ -469,7 +469,7 @@ class Peer(Logger, EventListener):
             # NOTE: The definition of gossip_queries changed
             # https://github.com/lightning/bolts/commit/fce8bab931674a81a9ea895c9e9162e559e48a65
             short_channel_id = ShortChannelID(payload['short_channel_id'])
-            self.logger.info(f'received orphan channel update {short_channel_id}')
+            self.logger.debug(f'received orphan channel update {short_channel_id}')
             self.orphan_channel_updates[short_channel_id] = payload
             while len(self.orphan_channel_updates) > 25:
                 self.orphan_channel_updates.popitem(last=False)
@@ -2643,7 +2643,7 @@ class Peer(Logger, EventListener):
                 feerate_per_kw += 1
         else:
             return
-        self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
+        self.logger.info(f"({chan.get_id_for_log()}) current pending feerate {chan_fee}. "
                          f"new feerate {feerate_per_kw}")
         chan.update_fee(feerate_per_kw, True)
         self.send_message(
@@ -2663,7 +2663,7 @@ class Peer(Logger, EventListener):
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         except asyncio.TimeoutError:
             txid = chan.unconfirmed_closing_txid
-            self.logger.info(f'({chan.get_id_for_log()}) did not send closing_signed, {txid}')
+            self.logger.warning(f'({chan.get_id_for_log()}) did not send closing_signed, {txid}')
             if txid is None:
                 raise Exception('The remote peer did not send their final signature. The channel may not have been be closed')
         return txid
