@@ -698,12 +698,12 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 
-def get_icon_qrcode() -> str:
+def get_icon_qrcode() -> QIcon:
     name = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
     return read_QIcon(name)
 
 
-def get_icon_camera() -> str:
+def get_icon_camera() -> QIcon:
     name = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
     return read_QIcon(name)
 
@@ -1023,7 +1023,7 @@ class OverlayControlMixin(GenericInputHandler):
     def add_menu_button(
             self,
             *,
-            options: Sequence[Tuple[Optional[str], str, Callable[[], None]]],  # list of (icon, text, cb)
+            options: Sequence[Tuple[Optional[Union[str, QIcon]], str, Callable[[], None]]],  # list of (icon, text, cb)
             icon: Optional[QIcon] = None,
             tooltip: Optional[str] = None,
     ):
@@ -1038,7 +1038,8 @@ class OverlayControlMixin(GenericInputHandler):
             if opt_icon is None:
                 menu.addAction(opt_text, opt_cb)
             else:
-                menu.addAction(read_QIcon(opt_icon), opt_text, opt_cb)
+                opt_icon = read_QIcon(opt_icon) if isinstance(opt_icon, str) else opt_icon
+                menu.addAction(opt_icon, opt_text, opt_cb)
         btn.setMenu(menu)
 
 
