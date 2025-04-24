@@ -8,17 +8,18 @@ import time
 import csv
 import decimal
 from decimal import Decimal
-from typing import Sequence, Optional, Mapping, Dict, Union, Any, Tuple
+from typing import Sequence, Optional, Mapping, Dict, Union, Tuple
 
-from aiorpcx.curio import timeout_after, TaskTimeout, ignore_after
+from aiorpcx.curio import timeout_after, ignore_after
 import aiohttp
 
 from . import util
 from .bitcoin import COIN
 from .i18n import _
-from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal,
-                   timestamp_to_datetime)
+from .util import (
+    ThreadJob, make_dir, log_exceptions, OldTaskGroup, make_aiohttp_session, resource_path, EventListener,
+    event_listener, to_decimal, timestamp_to_datetime
+)
 from .util import NetworkRetryManager
 from .network import Network
 from .simple_config import SimpleConfig
@@ -45,7 +46,7 @@ class ExchangeBase(Logger):
 
     def __init__(self, on_quotes, on_history):
         Logger.__init__(self)
-        self._history = {}  # type: Dict[str, Dict[str, str]]
+        self._history = {}  # type: Dict[str, Dict[str, float]]
         self._quotes = {}  # type: Dict[str, Optional[Decimal]]
         self._quotes_timestamp = 0  # type: Union[int, float]
         self.on_quotes = on_quotes
@@ -131,7 +132,7 @@ class ExchangeBase(Logger):
 
     @staticmethod
     def _write_historical_rates_to_file(
-        *, exchange_name: str, ccy: str, cache_dir: str, history: Dict[str, str],
+        *, exchange_name: str, ccy: str, cache_dir: str, history: Dict[str, float],
     ) -> None:
         filename = os.path.join(cache_dir, f"{exchange_name}_{ccy}")
         with open(filename, 'w', encoding='utf-8') as f:
