@@ -83,7 +83,7 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
                    WindowModalDialog, HelpLabel, Buttons,
-                   OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
+                   OkButton, InfoButton, WWLabel, CancelButton,
                    CloseButton, MessageBoxMixin, EnterButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
@@ -99,6 +99,8 @@ from .qrreader import scan_qrcode
 from .swap_dialog import SwapDialog, InvalidSwapParameters
 from .balance_dialog import (BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED,
                              COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING)
+
+from electrum.gui.common_qt.util import TaskThread
 
 if TYPE_CHECKING:
     from . import ElectrumGui

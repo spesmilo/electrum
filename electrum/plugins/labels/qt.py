@@ -5,7 +5,9 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.gui.qt.util import TaskThread, read_QIcon_from_bytes
+
+from electrum.gui.common_qt.util import TaskThread
+from electrum.gui.qt.util import read_QIcon_from_bytes
 
 from .labels import LabelsPlugin
 

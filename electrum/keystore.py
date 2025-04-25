@@ -54,14 +54,13 @@ from .plugin import run_hook
 from .logging import Logger
 
 if TYPE_CHECKING:
-    from .gui.qt.util import TaskThread
-    from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+    from .gui.common_qt.util import TaskThread
+    from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .wallet_db import WalletDB
     from .plugin import Device
 
 
 class CannotDerivePubkey(Exception): pass
-
 class ScriptTypeNotSupported(Exception): pass
 
 

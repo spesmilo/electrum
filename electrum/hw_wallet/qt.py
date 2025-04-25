@@ -31,9 +31,10 @@ from typing import TYPE_CHECKING, Union, Optional, Sequence, Tuple
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
+from electrum.gui.common_qt.util import TaskThread
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
-                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit,
+                                  Buttons, CancelButton, char_width_in_lineedit,
                                   PasswordLineEdit)
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes

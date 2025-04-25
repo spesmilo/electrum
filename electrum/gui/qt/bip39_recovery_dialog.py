@@ -14,8 +14,9 @@ from electrum.bip39_recovery import account_discovery
 from electrum.logging import get_logger
 from electrum.util import get_asyncio_loop, UserFacingException
 
-from .util import WindowModalDialog, TaskThread, Buttons, CancelButton, OkButton
+from electrum.gui.common_qt.util import TaskThread
 
+from .util import WindowModalDialog, Buttons, CancelButton, OkButton
 
 _logger = get_logger(__name__)
 
