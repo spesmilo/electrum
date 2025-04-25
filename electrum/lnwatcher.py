@@ -195,6 +195,9 @@ class LNWatcher(Logger, EventListener):
         return True
 
     def maybe_extract_preimage(self, chan: 'AbstractChannel', spender_tx: Transaction, prevout: str):
+        if not spender_tx.is_complete():
+            self.logger.info('spender tx is unsigned')
+            return
         txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
         assert txin_idx is not None
         spender_txin = spender_tx.inputs()[txin_idx]
