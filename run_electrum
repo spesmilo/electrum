@@ -419,6 +419,10 @@ def main():
         print_stderr('unknown command:', uri)
         sys.exit(1)
 
+    if sys.platform == "linux" and not is_android:
+        import electrum.harden_memory_linux
+        electrum.harden_memory_linux.set_dumpable_safe(False)
+
     if cmdname == 'daemon' and config.get("detach"):
         # detect lockfile.
         # This is not as good as get_file_descriptor, but that would require the asyncio loop
