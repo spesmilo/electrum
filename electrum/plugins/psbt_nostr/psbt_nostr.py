@@ -38,11 +38,13 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
-from electrum.util import log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener
+from electrum.util import (log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener,
+                           make_aiohttp_proxy_connector)
 from electrum.wallet import Multisig_Wallet
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
+    from aiohttp_socks import ProxyConnector
 
 # event kind used for nostr messages (with expiration tag)
 NOSTR_EVENT_KIND = 4
@@ -122,6 +124,14 @@ class CosignerWallet(Logger):
             self.logger.debug('starting handling of PSBTs')
             self.wallet_uptodate.set()
 
+    @event_listener
+    async def on_event_proxy_set(self, *args):
+        if not (self.network and self.nostr_pubkey):
+            return
+        await self.stop()
+        self.taskgroup = OldTaskGroup()
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+
     @log_exceptions
     async def main_loop(self):
         self.logger.info("starting taskgroup.")
@@ -139,15 +149,17 @@ class CosignerWallet(Logger):
 
     @asynccontextmanager
     async def nostr_manager(self):
+        if self.network.proxy and self.network.proxy.enabled:
+            proxy = make_aiohttp_proxy_connector(self.network.proxy, self.ssl_context)
+        else:
+            proxy: Optional['ProxyConnector'] = None
         manager_logger = self.logger.getChild('aionostr')
         manager_logger.setLevel("INFO")  # set to INFO because DEBUG is very spammy
         async with aionostr.Manager(
                 relays=self.config.NOSTR_RELAYS.split(','),
                 private_key=self.nostr_privkey,
                 ssl_context=self.ssl_context,
-                # todo: add proxy support, first needs:
-                # https://github.com/spesmilo/electrum-aionostr/pull/8
-                proxy=None,
+                proxy=proxy,
                 log=manager_logger
         ) as manager:
             yield manager
