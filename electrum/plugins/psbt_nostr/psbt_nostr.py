@@ -94,9 +94,8 @@ class CosignerWallet(Logger):
             if v < now() - self.KEEP_DELAY:
                 self.logger.info(f'deleting old event {k}')
                 self.known_events.pop(k)
-        self.relays = self.config.NOSTR_RELAYS.split(',')
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-        self.logger.info(f'relays {self.relays}')
+        self.logger.info(f"relays {self.config.NOSTR_RELAYS.split(',')}")
 
         self.cosigner_list = []  # type: List[Tuple[str, str]]
         self.nostr_pubkey = None
@@ -143,7 +142,7 @@ class CosignerWallet(Logger):
         manager_logger = self.logger.getChild('aionostr')
         manager_logger.setLevel("INFO")  # set to INFO because DEBUG is very spammy
         async with aionostr.Manager(
-                relays=self.relays,
+                relays=self.config.NOSTR_RELAYS.split(','),
                 private_key=self.nostr_privkey,
                 ssl_context=self.ssl_context,
                 # todo: add proxy support, first needs:
