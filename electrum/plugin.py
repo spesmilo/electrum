@@ -246,10 +246,12 @@ class Plugins(DaemonThread):
             os.mkdir(pkg_path)
         return pkg_path
 
-    async def download_external_plugin(self, url):
+    async def download_external_plugin(self, url: str) -> str:
         filename = os.path.basename(urlparse(url).path)
         pkg_path = self.get_external_plugin_dir()
         path = os.path.join(pkg_path, filename)
+        if os.path.exists(path):
+            raise FileExistsError(f"Plugin {filename} already exists at {path}")
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status == 200:

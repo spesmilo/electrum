@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidg
 from PyQt6.QtCore import Qt
 
 from electrum.i18n import _
+from electrum.logging import get_logger
 
 from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
 from .util import read_QIcon_from_bytes, IconLabel
@@ -88,7 +89,7 @@ class PluginDialog(WindowModalDialog):
                     _('Settings'),
                     partial(p.settings_dialog, self))
                 buttons.insert(1, settings_button)
-        # add buttonss
+        # add buttons
         vbox.addLayout(Buttons(*buttons))
 
     def do_toggle(self):
@@ -150,6 +151,7 @@ class PluginStatusButton(QPushButton):
 
 
 class PluginsDialog(WindowModalDialog, MessageBoxMixin):
+    _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', plugins:'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
         WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
@@ -264,7 +266,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.show_error(f"{e}")
             success = False
         if not success:
-            os.unlink(path)
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                self._logger.debug("", exc_info=True)
 
     def add_plugin_dialog(self):
         pubkey, salt = self.plugins.get_pubkey_bytes()
@@ -276,6 +281,9 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         plugins_dir = self.plugins.get_external_plugin_dir()
         path = os.path.join(plugins_dir, os.path.basename(filename))
+        if os.path.exists(path):
+            self.show_warning(_('Plugin already installed.'))
+            return
         shutil.copyfile(filename, path)
         try:
             success = self.add_external_plugin(path)
@@ -283,7 +291,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.show_error(f"{e}")
             success = False
         if not success:
-            os.unlink(path)
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                self._logger.debug("", exc_info=True)
 
     def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
