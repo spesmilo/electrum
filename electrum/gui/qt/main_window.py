@@ -1169,7 +1169,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         tx: Transaction,
         *,
         external_keypairs: Mapping[bytes, bytes] = None,
-        payment_identifier: PaymentIdentifier = None,
+        invoice: Invoice = None,
         show_sign_button: bool = True,
         show_broadcast_button: bool = True,
     ):
@@ -1177,7 +1177,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tx,
             parent=self,
             external_keypairs=external_keypairs,
-            payment_identifier=payment_identifier,
+            invoice=invoice,
             show_sign_button=show_sign_button,
             show_broadcast_button=show_broadcast_button,
         )
@@ -1413,18 +1413,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         """
         return self.utxo_list.get_spend_list()
 
-    def broadcast_or_show(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
+    def broadcast_or_show(self, tx: Transaction, *, invoice: 'Invoice' = None):
         if not tx.is_complete():
-            self.show_transaction(tx, payment_identifier=payment_identifier)
+            self.show_transaction(tx, invoice=invoice)
             return
         if not self.network:
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
-            self.show_transaction(tx, payment_identifier=payment_identifier)
+            self.show_transaction(tx, invoice=invoice)
             return
-        self.broadcast_transaction(tx, payment_identifier=payment_identifier)
+        self.broadcast_transaction(tx, invoice=invoice)
 
-    def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
-        self.send_tab.broadcast_transaction(tx, payment_identifier=payment_identifier)
+    def broadcast_transaction(self, tx: Transaction, *, invoice: Invoice = None):
+        self.send_tab.broadcast_transaction(tx, invoice=invoice)
 
     @protected
     def sign_tx(
