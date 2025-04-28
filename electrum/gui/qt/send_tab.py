@@ -304,10 +304,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if run_hook('abort_send', self):
             return
 
-        payment_identifier = None
-        if invoice and invoice.bip70:
-            payment_identifier = payment_identifier_from_invoice(self.wallet, invoice)
-
         is_sweep = bool(external_keypairs)
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
@@ -353,12 +349,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
-            self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
+            self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
             return
         self.save_pending_invoice()
         def sign_done(success):
             if success:
-                self.window.broadcast_or_show(tx, payment_identifier=payment_identifier)
+                self.window.broadcast_or_show(tx, invoice=invoice)
         self.window.sign_tx(
             tx,
             callback=sign_done,
@@ -711,7 +707,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
                 elif r == 'onchain':
-                    self.pay_onchain_dialog(invoice.get_outputs(), nonlocal_only=True)
+                    self.pay_onchain_dialog(invoice.get_outputs(), nonlocal_only=True, invoice=invoice)
             return
 
         assert lnworker is not None
@@ -724,9 +720,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
         self.window.run_coroutine_from_thread(coro, _('Sending payment'))
 
-    def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
-        # note: payment_identifier is explicitly passed as self.payto_e.payment_identifier might
-        #       already be cleared or otherwise have changed.
+    def broadcast_transaction(self, tx: Transaction, *, invoice: Invoice = None):
         if hasattr(tx, 'swap_payment_hash'):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
@@ -741,7 +735,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         def broadcast_thread():
             # non-GUI thread
-            if payment_identifier and payment_identifier.has_expired():
+            if invoice and invoice.has_expired():
                 return False, _("Invoice has expired")
             try:
                 self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
@@ -750,19 +744,22 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             except BestEffortRequestFailed as e:
                 return False, repr(e)
             # success
-            txid = tx.txid()
-            if payment_identifier and payment_identifier.need_merchant_notify():
-                refund_address = self.wallet.get_receiving_address()
-                payment_identifier.notify_merchant(
-                    tx=tx,
-                    refund_address=refund_address,
-                    on_finished=self.notify_merchant_done_signal.emit
-                )
-            return True, txid
+            if invoice and invoice.bip70:
+                payment_identifier = payment_identifier_from_invoice(invoice)
+                # FIXME: this should move to backend
+                if payment_identifier and payment_identifier.need_merchant_notify():
+                    refund_address = self.wallet.get_receiving_address()
+                    payment_identifier.notify_merchant(
+                        tx=tx,
+                        refund_address=refund_address,
+                        on_finished=self.notify_merchant_done_signal.emit
+                    )
+            return True, tx.txid()
 
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
+        # FIXME: move to backend and let Abstract_Wallet set broadcasting state, not gui
         self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
 
         def broadcast_done(result):
