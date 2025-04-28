@@ -7,13 +7,16 @@ import "../../../gui/qml/components/controls"
 Item {
     Connections {
         target: AppController ? AppController.plugin('psbt_nostr') : null
-        function onCosignerReceivedPsbt(pubkey, event, tx) {
+        function onCosignerReceivedPsbt(pubkey, event, tx, label) {
             var dialog = app.messageDialog.createObject(app, {
                 text: [
-                    qsTr('A transaction was received from your cosigner.'),
+                    label
+                        ? qsTr('A transaction was received from your cosigner with label: <br/><br/><b>%1</b>').arg(label)
+                        : qsTr('A transaction was received from your cosigner.'),
                     qsTr('Do you want to open it now?')
-                ].join('\n'),
-                yesno: true
+                ].join('<br/><br/>'),
+                yesno: true,
+                richText: true
             })
             dialog.accepted.connect(function () {
                 var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
@@ -40,16 +43,24 @@ Item {
             onClicked: {
                 console.log('about to psbt nostr send')
                 psbt_nostr_send_button.enabled = false
-                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.text)
+                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.text, dialog.tx_label)
             }
             Connections {
                 target: AppController ? AppController.plugin('psbt_nostr') : null
+                function onSendPsbtSuccess() {
+                    dialog.close()
+                    var msgdialog = app.messageDialog.createObject(app, {
+                        text: qsTr('PSBT sent successfully')
+                    })
+                    msgdialog.open()
+                }
                 function onSendPsbtFailed(message) {
                     psbt_nostr_send_button.enabled = true
-                    var dialog = app.messageDialog.createObject(app, {
-                        text: qsTr('Sending PSBT to co-signer failed:\n%1').arg(message)
+                    var msgdialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Sending PSBT to co-signer failed:\n%1').arg(message),
+                        iconSource: Qt.resolvedUrl('../../../gui/icons/warning.png')
                     })
-                    dialog.open()
+                    msgdialog.open()
                 }
             }
 

@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import asyncio
+import json
 import ssl
 import time
 from contextlib import asynccontextmanager
@@ -30,7 +31,7 @@ from contextlib import asynccontextmanager
 import electrum_ecc as ecc
 import electrum_aionostr as aionostr
 from electrum_aionostr.key import PrivateKey
-from typing import Dict, TYPE_CHECKING, Union, List, Tuple, Optional
+from typing import Dict, TYPE_CHECKING, Union, List, Tuple, Optional, Callable
 
 from electrum import util, Transaction
 from electrum.crypto import sha256
@@ -38,8 +39,9 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
-from electrum.util import (log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener,
-                           make_aiohttp_proxy_connector)
+from electrum.util import (
+    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode, make_aiohttp_proxy_connector
+)
 from electrum.wallet import Multisig_Wallet
 
 if TYPE_CHECKING:
@@ -165,11 +167,11 @@ class CosignerWallet(Logger):
             yield manager
 
     @log_exceptions
-    async def send_direct_messages(self, messages: List[Tuple[str, str]]):
+    async def send_direct_messages(self, messages: List[Tuple[str, dict]]):
         our_private_key: PrivateKey = aionostr.key.PrivateKey(bytes.fromhex(self.nostr_privkey))
         async with self.nostr_manager() as manager:
             for pubkey, msg in messages:
-                encrypted_msg: str = our_private_key.encrypt_message(msg, pubkey)
+                encrypted_msg: str = our_private_key.encrypt_message(json.dumps(msg), pubkey)
                 eid = await aionostr._add_event(
                     manager,
                     kind=NOSTR_EVENT_KIND,
@@ -206,13 +208,16 @@ class CosignerWallet(Logger):
                     self.known_events[event.id] = now()
                     continue
                 try:
-                    tx = tx_from_any(message)
+                    message = json_decode(message)
+                    tx_hex = message.get('tx')
+                    label = message.get('label', '')
+                    tx = tx_from_any(tx_hex)
                 except Exception as e:
                     self.logger.info(_("Unable to deserialize the transaction:") + "\n" + str(e))
                     self.known_events[event.id] = now()
                     continue
                 self.logger.info(f"received PSBT from {event.pubkey}")
-                trigger_callback('psbt_nostr_received', self.wallet, event.pubkey, event.id, tx)
+                trigger_callback('psbt_nostr_received', self.wallet, event.pubkey, event.id, tx, label)
                 await self.pending.wait()
                 self.pending.clear()
 
@@ -242,25 +247,34 @@ class CosignerWallet(Logger):
         self.known_events[event_id] = now()
         self.pending.set()
 
-    def prepare_messages(self, tx: Union[Transaction, PartialTransaction]) -> List[Tuple[str, str]]:
+    def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str = None) -> List[Tuple[str, dict]]:
         messages = []
         for xpub, pubkey in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
                 continue
-            raw_tx_bytes = tx.serialize_as_bytes()
-            messages.append((pubkey, raw_tx_bytes.hex()))
+            payload = {'tx': tx.serialize_as_bytes().hex()}
+            if label:
+                payload['label'] = label
+            messages.append((pubkey, payload))
         return messages
 
-    def send_psbt(self, tx: Union[Transaction, PartialTransaction]):
-        self.do_send(self.prepare_messages(tx), tx.txid())
+    def send_psbt(self, tx: Union[Transaction, PartialTransaction], label: str):
+        self.do_send(self.prepare_messages(tx, label), tx.txid())
 
-    def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
+    def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
         raise NotImplementedError()
 
-    def on_receive(self, pubkey, event_id, tx):
+    def on_receive(self, pubkey, event_id, tx, label: str):
         raise NotImplementedError()
 
-    def add_transaction_to_wallet(self, tx, *, on_failure=None, on_success=None):
+    def add_transaction_to_wallet(
+        self,
+        tx: Union['Transaction', 'PartialTransaction'],
+        *,
+        label: str = None,
+        on_failure: Callable = None,
+        on_success: Callable = None
+    ) -> None:
         try:
             # TODO: adding tx should be handled more gracefully here:
             # 1) don't replace tx with same tx with less signatures
@@ -269,6 +283,8 @@ class CosignerWallet(Logger):
             if not self.wallet.adb.add_transaction(tx):
                 # TODO: instead of bool return value, we could use specific fail reason exceptions here
                 raise Exception('transaction was not added')
+            if label:
+                self.wallet.set_label(tx.txid(), label)
         except Exception as e:
             if on_failure:
                 on_failure(str(e))
