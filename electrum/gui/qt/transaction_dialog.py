@@ -822,7 +822,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             tx_item_fiat = self.wallet.get_tx_item_fiat(
                 tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
 
-        if self.wallet.lnworker:
+        if self.wallet.lnworker and txid:
             # if it is a group, collect ln amount
             full_history = self.wallet.get_full_history()
             item = full_history.get('group:' + txid)
