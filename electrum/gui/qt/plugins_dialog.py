@@ -4,7 +4,7 @@ import shutil
 import os
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog, QMenu, QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QTimer
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -365,8 +365,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             status_button.update()
         if self.gui_object:
             self.gui_object.reload_windows()
-        self.setFocus()
-        self.activateWindow()
+        self.bring_to_front()
 
     def uninstall_plugin(self, name):
         if not self.question(_('Remove plugin \'{}\'?').format(name)):
@@ -375,3 +374,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
+        self.bring_to_front()
+
+    def bring_to_front(self):
+        def _bring_self_to_front():
+            self.activateWindow()
+            self.setFocus()
+        QTimer.singleShot(100, _bring_self_to_front)
