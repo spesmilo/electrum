@@ -9,8 +9,8 @@ from PyQt6.QtCore import Qt
 from electrum.i18n import _
 from electrum.logging import get_logger
 
-from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
-from .util import read_QIcon_from_bytes, IconLabel
+from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin,
+                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog)
 
 
 if TYPE_CHECKING:
@@ -254,7 +254,8 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         coro = self.plugins.download_external_plugin(url)
         try:
-            path = self.window.run_coroutine_dialog(coro, _("Downloading plugin..."))
+            d = RunCoroutineDialog(self, _("Downloading plugin..."), coro)
+            path = d.run()
         except UserCancelled:
             return
         except Exception as e:
