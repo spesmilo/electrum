@@ -401,6 +401,8 @@ class Plugins(DaemonThread):
         self.config.set_key(f'plugins.{name}.enabled', [])
 
     def install_external_plugin(self, name, path, privkey, manifest):
+        # uninstall old version first to get rid of old zip files when updating plugin
+        self.uninstall(name)
         self.external_plugin_metadata[name] = manifest
         self.authorize_plugin(name, path, privkey)
 
