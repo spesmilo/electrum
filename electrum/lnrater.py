@@ -258,6 +258,12 @@ class LNRater(Logger):
             # don't want to connect to nodes we already have a channel with on another device
             if self.lnworker.has_conflicting_backup_with(pk):
                 continue
+            # node should be on clearnet and have an address saved
+            for (hostname, _, _) in self.lnworker.channel_db.get_node_addresses(node_id=pk):
+                if not hostname.endswith(".onion"):
+                    break
+            else:
+                continue
             break
 
         alias = node_info.alias if node_info else 'unknown node alias'
