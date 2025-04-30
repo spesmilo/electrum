@@ -68,6 +68,10 @@ class PluginDialog(WindowModalDialog):
             install_button = QPushButton(_('Install...'))
             install_button.clicked.connect(self.accept)
             buttons.insert(0, install_button)
+        elif self.plugins.get_metadata(name).get('zip_hash_sha256') != zip_hash:
+            update_button = QPushButton(_('Update...'))
+            update_button.clicked.connect(self.accept)
+            buttons.insert(0, update_button)
         else:
             remove_button = QPushButton(_('Uninstall'))
             remove_button.clicked.connect(self.do_remove)
