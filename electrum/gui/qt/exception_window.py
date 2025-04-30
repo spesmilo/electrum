@@ -99,6 +99,9 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         main_box.addLayout(buttons)
 
+        # prioritizes the window input over all other windows
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+
         self.setLayout(main_box)
         self.show()
 
