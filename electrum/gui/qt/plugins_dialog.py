@@ -4,12 +4,13 @@ import shutil
 import os
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog, QMenu, QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QTimer
 
 from electrum.i18n import _
+from electrum.logging import get_logger
 
-from .util import WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin, EnterButton
-from .util import read_QIcon_from_bytes, IconLabel
+from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin,
+                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog)
 
 
 if TYPE_CHECKING:
@@ -88,7 +89,7 @@ class PluginDialog(WindowModalDialog):
                     _('Settings'),
                     partial(p.settings_dialog, self))
                 buttons.insert(1, settings_button)
-        # add buttonss
+        # add buttons
         vbox.addLayout(Buttons(*buttons))
 
     def do_toggle(self):
@@ -150,6 +151,7 @@ class PluginStatusButton(QPushButton):
 
 
 class PluginsDialog(WindowModalDialog, MessageBoxMixin):
+    _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', plugins:'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
         WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
@@ -252,7 +254,8 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         coro = self.plugins.download_external_plugin(url)
         try:
-            path = self.window.run_coroutine_dialog(coro, _("Downloading plugin..."))
+            d = RunCoroutineDialog(self, _("Downloading plugin..."), coro)
+            path = d.run()
         except UserCancelled:
             return
         except Exception as e:
@@ -264,7 +267,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.show_error(f"{e}")
             success = False
         if not success:
-            os.unlink(path)
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                self._logger.debug("", exc_info=True)
 
     def add_plugin_dialog(self):
         pubkey, salt = self.plugins.get_pubkey_bytes()
@@ -276,6 +282,9 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             return
         plugins_dir = self.plugins.get_external_plugin_dir()
         path = os.path.join(plugins_dir, os.path.basename(filename))
+        if os.path.exists(path):
+            self.show_warning(_('Plugin already installed.'))
+            return
         shutil.copyfile(filename, path)
         try:
             success = self.add_external_plugin(path)
@@ -283,7 +292,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.show_error(f"{e}")
             success = False
         if not success:
-            os.unlink(path)
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                self._logger.debug("", exc_info=True)
 
     def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
@@ -353,8 +365,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             status_button.update()
         if self.gui_object:
             self.gui_object.reload_windows()
-        self.setFocus()
-        self.activateWindow()
+        self.bring_to_front()
 
     def uninstall_plugin(self, name):
         if not self.question(_('Remove plugin \'{}\'?').format(name)):
@@ -363,3 +374,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
+        self.bring_to_front()
+
+    def bring_to_front(self):
+        def _bring_self_to_front():
+            self.activateWindow()
+            self.setFocus()
+        QTimer.singleShot(100, _bring_self_to_front)
