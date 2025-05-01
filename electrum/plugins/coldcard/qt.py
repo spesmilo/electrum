@@ -4,17 +4,18 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, getOpenFileName, getSaveFileName
-from electrum.gui.qt.main_window import ElectrumWindow
-
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Multisig_Wallet
 
-from .coldcard import ColdcardPlugin, xfp2str
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.plugin import only_hook_if_libraries_available
+
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWXPub, WCHWUninitialized, WCHWUnlock
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, getOpenFileName, getSaveFileName, RichLabel
+from electrum.gui.qt.main_window import ElectrumWindow
+
+from .coldcard import ColdcardPlugin, xfp2str
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -177,14 +178,12 @@ class CKCCSettingsDialog(WindowModalDialog):
         grid = QGridLayout()
         grid.setColumnStretch(2, 1)
 
-        # see <http://doc.qt.io/archives/qt-4.8/richtext-html-subset.html>
-        title = QLabel('''<center>
+        title = RichLabel('''<center>
 <span style="font-size: x-large">Coldcard Wallet</span>
 <br><span style="font-size: medium">from Coinkite Inc.</span>
 <br><a href="https://coldcardwallet.com">coldcardwallet.com</a>''')
-        title.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
 
-        grid.addWidget(title, 0,0, 1,2, Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(title, 0, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y = 3
 
         rows = [
@@ -199,7 +198,7 @@ class CKCCSettingsDialog(WindowModalDialog):
             widget = QLabel('<tt>000000000000')
             widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
-            grid.addWidget(QLabel(label), y, 0, 1,1, Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(QLabel(label), y, 0, 1, 1, Qt.AlignmentFlag.AlignRight)
             grid.addWidget(widget, y, 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
             setattr(self, member_name, widget)
             y += 1

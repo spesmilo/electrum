@@ -105,10 +105,19 @@ class ThreadedButton(QPushButton):
 
 
 class WWLabel(QLabel):
-    def __init__ (self, text="", parent=None):
+    """Word-wrapping label"""
+    def __init__(self, text="", parent=None):
         QLabel.__init__(self, text, parent)
         self.setWordWrap(True)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+
+class RichLabel(WWLabel):
+    """Word-wrapping label with link activation"""
+    def __init__(self, text='', parent=None):
+        WWLabel.__init__(self, text, parent)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.setOpenExternalLinks(True)
 
 
 class AmountLabel(QLabel):
