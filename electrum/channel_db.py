@@ -217,6 +217,7 @@ class NodeInfo(NamedTuple):
                 return b'\x01' + ip_addr.packed + port_bytes
             elif ip_addr.version == 6:
                 return b'\x02' + ip_addr.packed + port_bytes
+            return b''
         elif hostname.endswith('.onion'):  # Tor onion v3
             onion_addr: bytes = base64.b32decode(hostname[:-6], casefold=True)
             return b'\x04' + onion_addr + port_bytes
