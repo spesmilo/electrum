@@ -859,8 +859,8 @@ Warning: setting this to too low will result in lots of payment failures."""),
         type_=str,
         short_desc=lambda: _("Nostr relays"),
         long_desc=lambda: ' '.join([
-            _('Nostr relays are used to send and receive submarine swap offers'),
-            _('If this list is empty, Electrum will use http instead'),
+            _('Nostr relays are used to send and receive submarine swap offers.'),
+            _('These relays are also used for some plugins, e.g. Nostr Wallet Connect or Nostr Cosigner'),
         ]),
     )
 
