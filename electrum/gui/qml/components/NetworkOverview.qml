@@ -219,6 +219,22 @@ Pane {
 
                 Heading {
                     Layout.columnSpan: 2
+                    text: qsTr('Nostr')
+                }
+
+                Label {
+                    text: qsTr('Relays:')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: Config.nostrRelays.replace(/,/g, "\n")
+                    wrapMode: Text.Wrap
+                }
+
+                Heading {
+                    Layout.columnSpan: 2
                     text: qsTr('Proxy')
                 }
 
@@ -286,6 +302,16 @@ Pane {
                     dialog.open()
                 }
             }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Nostr Settings');
+                icon.source: '../../icons/nostr.png'
+                onClicked: {
+                    var dialog = nostrConfig.createObject(root)
+                    dialog.open()
+                }
+            }
         }
     }
 
@@ -299,6 +325,13 @@ Pane {
     Component {
         id: proxyConfig
         ProxyConfigDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: nostrConfig
+        NostrConfigDialog {
             onClosed: destroy()
         }
     }
