@@ -3,6 +3,7 @@
 Revealer
 Do you have something to hide?
 Secret backup plug-in for the electrum wallet.
+https://web.archive.org/web/20181204193709/https://revealer.cc/how-it-works/
 
 Copyright:
     2017 Tiago Romagnani Silveira
@@ -15,10 +16,8 @@ file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
 import random
-import traceback
 from decimal import Decimal
 from functools import partial
-import sys
 from typing import TYPE_CHECKING
 
 from PyQt6.QtPrintSupport import QPrinter
@@ -31,8 +30,9 @@ from PyQt6.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.util import make_dir, InvalidPassword, UserCancelled
-from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path, internal_plugin_icon_path,
-                                  WindowModalDialog, Buttons, CloseButton, OkButton)
+from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path,
+                                  internal_plugin_icon_path, WindowModalDialog, Buttons,
+                                  CloseButton, OkButton, HelpButton)
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
@@ -48,6 +48,22 @@ if TYPE_CHECKING:
 class Plugin(RevealerPlugin):
 
     MAX_PLAINTEXT_LEN = 189  # chars
+    HELP_TEXT = "\n".join([
+        _("Revealer is a tool to encrypt your secrets visually."),
+        _("Revealer is based on the scheme 'Visual Cryptography' by Moni Naor and Adi Shamir."),
+        "",
+        _("Each Revealer has a unique code. It starts with a version number, "
+          "then 128 bits of entropy encoded in hex format, and the last three "
+          "digits as a checksum."),
+        _("This code is visible in the bottom right corner of the Revealer."),
+        _("With the 128bits of entropy as a random seed, the software generates a noise image."),
+        _("In the following step your secret is encrypted into a second image."),
+        _("Then you can print those two images on transparent film."),
+        _("To decrypt the secret, you need to overlay the two films, "
+          "then your secret will become visible."),
+        "",
+        _("You can calibrate your printer in the plugin settings to achieve better print quality."),
+    ])
 
     def __init__(self, parent, config, name):
         RevealerPlugin.__init__(self, parent, config, name)
@@ -134,8 +150,14 @@ class Plugin(RevealerPlugin):
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
+        # help text button
+        help_button = HelpButton(self.HELP_TEXT)
+
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
+
+        # create a HBox for the first line to show help button and label side by side
+        first_line_hbox = QHBoxLayout()
 
         # Populate the HBox layout with spacing between the two columns.
         hbox_layout.addWidget(logo_label)
@@ -145,6 +167,9 @@ class Plugin(RevealerPlugin):
         # Create the labels.
         create_or_load_noise_file_label = QLabel(_("To encrypt a secret, you must first create or load a noise file."))
         instructions_label = QLabel(_("Click the button above or type an existing revealer code in the box below."))
+
+        first_line_hbox.addWidget(create_or_load_noise_file_label)
+        first_line_hbox.addWidget(help_button)
 
         # Allow users to select text in the labels.
         create_or_load_noise_file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -190,7 +215,7 @@ class Plugin(RevealerPlugin):
         self.noise_scan_qr_textedit.textChanged.connect(self.on_edit)
 
         # Populate the VBox layout.
-        vbox_layout.addWidget(create_or_load_noise_file_label)
+        vbox_layout.addLayout(first_line_hbox)
         vbox_layout.addWidget(create_button, alignment=Qt.AlignmentFlag.AlignCenter)
         vbox_layout.addWidget(instructions_label)
         vbox_layout.addWidget(self.noise_scan_qr_textedit)
