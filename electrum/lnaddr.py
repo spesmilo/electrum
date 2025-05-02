@@ -7,7 +7,7 @@ import time
 from hashlib import sha256
 from binascii import hexlify
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Type, Dict, Any, Union, Sequence, List, Tuple
+from typing import Optional, TYPE_CHECKING, Type, Dict, Any, Sequence, Tuple
 import random
 
 import electrum_ecc as ecc
@@ -535,7 +535,7 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
             features = int_from_data5(tagdata)
             addr.tags.append(('9', features))
             # note: The features are not validated here in the parser,
-            #       instead, validation is done just before we try paying the invoice (in lnworker._check_invoice).
+            #       instead, validation is done just before we try paying the invoice (in lnworker._check_bolt11_invoice).
             #       Context: invoice parsing happens when opening a wallet. If there was a backwards-incompatible
             #       change to a feature, and we raised, some existing wallets could not be opened. Such a change
             #       can happen to features not-yet-merged-to-BOLTs (e.g. trampoline feature bit was moved and reused).
@@ -557,7 +557,7 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
     # field specified below).
     addr.signature = sigdecoded[:65]
     hrp_hash = sha256(hrp.encode("ascii") + bytes(convertbits(data5, 5, 8, True))).digest()
-    if addr.pubkey: # Specified by `n`
+    if addr.pubkey:  # Specified by `n`
         # BOLT #11:
         #
         # A reader MUST use the `n` field to validate the signature instead of
@@ -565,8 +565,10 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         if not ecc.ECPubkey(addr.pubkey).ecdsa_verify(sigdecoded[:64], hrp_hash):
             raise LnDecodeException("bad signature")
         pubkey_copy = addr.pubkey
+
         class WrappedBytesKey:
             serialize = lambda: pubkey_copy
+
         addr.pubkey = WrappedBytesKey
     else: # Recover pubkey from signature.
         addr.pubkey = SerializableKey(ecc.ECPubkey.from_ecdsa_sig64(sigdecoded[:64], sigdecoded[64], hrp_hash))
