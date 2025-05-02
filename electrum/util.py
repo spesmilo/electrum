@@ -31,14 +31,13 @@ from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable,
 from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
-import urllib
+from urllib.parse import urlparse
 import threading
 import hmac
 import hashlib
 import stat
 import locale
 import asyncio
-import urllib.request, urllib.parse, urllib.error
 import builtins
 import json
 import time
@@ -699,6 +698,27 @@ def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None
 
+def is_valid_websocket_url(url: str) -> bool:
+    """
+    uses this django url validation regex:
+    https://github.com/django/django/blob/2c6906a0c4673a7685817156576724aba13ad893/django/core/validators.py#L45C1-L52C43
+    Note: this is not perfect, urls and their parsing can get very complex (see recent django code).
+    however its sufficient for catching weird user input in the gui dialog
+    """
+    # stores the compiled regex in the function object itself to avoid recompiling it every call
+    if not hasattr(is_valid_websocket_url, "regex"):
+        is_valid_websocket_url.regex = re.compile(
+            r'^(?:ws|wss)://'  # ws:// or wss://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+            r'localhost|'  # localhost...
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
+            r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    try:
+        return re.match(is_valid_websocket_url.regex, url) is not None
+    except Exception:
+        return False
 
 def is_hash256_str(text: Any) -> bool:
     if not isinstance(text, str): return False
