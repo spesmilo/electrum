@@ -83,6 +83,7 @@ class Contacts(dict, Logger):
             res = dict.pop(self, key)
             self.save()
             return res
+        return None
 
     def resolve(self, k):
         if bitcoin.is_address(k):
@@ -160,6 +161,8 @@ class Contacts(dict, Logger):
                 if not address:
                     continue
                 return address, name, validated
+            return None
+        return None
 
     @staticmethod
     def find_regex(haystack, needle):
