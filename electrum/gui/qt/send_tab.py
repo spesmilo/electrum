@@ -180,6 +180,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         menu.addAction(get_icon_camera(),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
         menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
+        menu.addAction(read_QIcon("qr_file.png"), _("Read QR code from file"), self.payto_e.on_qr_from_file_input_btn)
         menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
         self.paytomany_menu = menu.addToggle(_("&Pay to many"), self.toggle_paytomany)
         menu.addSeparator()

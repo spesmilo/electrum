@@ -161,6 +161,13 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
             show_error=self.send_tab.show_error,
             setText=self.try_payment_identifier,
         )
+        self.on_qr_from_file_input_btn = partial(
+            self.input_qr_from_file,
+            allow_multi=False,
+            config=self.config,
+            show_error=self.send_tab.show_error,
+            setText=self.try_payment_identifier,
+        )
         self.on_input_file = partial(
             self.input_file,
             config=self.config,
