@@ -289,6 +289,10 @@ class PaymentIdentifier(Logger):
                 self._type = PaymentIdentifierType.EMAILLIKE
                 self.emaillike = contact['address']
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
+            elif contact['type'] == 'lnaddress':
+                self._type = PaymentIdentifierType.LNADDR
+                self.lnurl = contact['address']
+                self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif re.match(RE_EMAIL, text):
             self._type = PaymentIdentifierType.EMAILLIKE
             self.emaillike = text
