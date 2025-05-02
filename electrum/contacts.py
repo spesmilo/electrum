@@ -29,7 +29,7 @@ from dns.exception import DNSException
 
 from . import bitcoin
 from . import dnssec
-from .util import read_json_file, write_json_file, to_string
+from .util import read_json_file, write_json_file, to_string, is_valid_email
 from .logging import Logger, get_logger
 from .util import trigger_callback
 
@@ -83,6 +83,7 @@ class Contacts(dict, Logger):
             res = dict.pop(self, key)
             self.save()
             return res
+        return None
 
     def resolve(self, k):
         if bitcoin.is_address(k):
@@ -90,11 +91,12 @@ class Contacts(dict, Logger):
                 'address': k,
                 'type': 'address'
             }
-        if k in self.keys():
-            _type, addr = self[k]
-            if _type == 'address':
+        for address, (_type, label) in self.items():
+            if k.casefold() != label.casefold():
+                continue
+            if _type in ('address', 'lnaddress'):
                 return {
-                    'address': addr,
+                    'address': address,
                     'type': 'contact'
                 }
         if openalias := self.resolve_openalias(k):
@@ -159,6 +161,8 @@ class Contacts(dict, Logger):
                 if not address:
                     continue
                 return address, name, validated
+            return None
+        return None
 
     @staticmethod
     def find_regex(haystack, needle):
@@ -172,11 +176,11 @@ class Contacts(dict, Logger):
         for k, v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
-            if not bitcoin.is_address(k):
+            if not (bitcoin.is_address(k) or is_valid_email(k)):
                 data.pop(k)
             else:
                 _type, _ = v
-                if _type != 'address':
+                if _type not in ('address', 'lnaddress'):
                     data.pop(k)
         return data
 

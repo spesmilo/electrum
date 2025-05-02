@@ -34,6 +34,7 @@ from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
+from electrum.gui.qt.util import read_QIcon
 
 from .util import webopen
 from .my_treeview import MyTreeView
@@ -118,6 +119,9 @@ class ContactList(MyTreeView):
             items[self.Columns.NAME].setEditable(contact_type != 'openalias')
             items[self.Columns.ADDRESS].setEditable(False)
             items[self.Columns.NAME].setData(key, self.ROLE_CONTACT_KEY)
+            items[self.Columns.NAME].setIcon(
+                read_QIcon("lightning" if contact_type == 'lnaddress' else "bitcoin")
+            )
             row_count = self.model().rowCount()
             self.model().insertRow(row_count, items)
             if key == current_key:
