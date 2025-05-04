@@ -422,6 +422,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
+            self.need_update.set()
 
     @qt_event_listener
     def on_event_status(self):
