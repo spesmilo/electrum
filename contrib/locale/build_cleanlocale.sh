@@ -2,7 +2,7 @@
 
 set -e
 
-CONTRIB_LOCALE="$(dirname "$(readlink -e "$0")")"
+CONTRIB_LOCALE="$(dirname "$(realpath "$0" 2> /dev/null || grealpath "$0")")"
 CONTRIB="$CONTRIB_LOCALE"/..
 PROJECT_ROOT="$CONTRIB"/..
 
