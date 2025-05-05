@@ -117,7 +117,8 @@ class Plugin(PsbtNostrPlugin):
 class QmlCosignerWallet(EventListener, CosignerWallet):
 
     def __init__(self, wallet: 'Multisig_Wallet', plugin: 'Plugin'):
-        CosignerWallet.__init__(self, wallet)
+        db_storage = plugin.get_storage(wallet)
+        CosignerWallet.__init__(self, wallet, db_storage)
         self.plugin = plugin
         self.register_callbacks()
 
