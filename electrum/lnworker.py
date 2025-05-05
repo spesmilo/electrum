@@ -2888,15 +2888,23 @@ class LNWallet(LNWorker):
         try:
             suggestions = self._suggest_channels_for_rebalance(SENT, amount_sat)
         except NotEnoughFunds:
-            return
+            return None
         for chan, swap_recv_amount in suggestions:
             # check that we can send onchain
             swap_server_mining_fee = 10000 # guessing, because we have not called get_pairs yet
             swap_funding_sat = swap_recv_amount + swap_server_mining_fee
             swap_output = PartialTxOutput.from_address_and_value(DummyAddress.SWAP, int(swap_funding_sat))
-            if not self.wallet.can_pay_onchain([swap_output], coins=coins):
+            try:
+                # check if we have enough onchain funds
+                self.wallet.make_unsigned_transaction(
+                    coins=coins,
+                    outputs=[swap_output],
+                    fee_policy=FeePolicy(self.config.FEE_POLICY_SWAPS),
+                )
+            except NotEnoughFunds:
                 continue
             return chan, swap_recv_amount
+        return None
 
     def suggest_swap_to_receive(self, amount_sat):
         assert amount_sat > self.num_sats_can_receive()
