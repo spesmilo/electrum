@@ -60,6 +60,8 @@ class FeeSlider(QSlider):
 
     def moved(self, pos):
         with self.lock:
+            if self.fee_policy.method == FeeMethod.FIXED:
+                return
             self.fee_policy.set_value_from_slider_pos(pos)
             fee_rate = self.fee_policy.fee_per_kb(self.network)
             tooltip = self.fee_policy.get_tooltip(self.network)
@@ -69,6 +71,8 @@ class FeeSlider(QSlider):
 
     def update(self, *, is_initialized: bool = True):
         with self.lock:
+            if self.fee_policy.method == FeeMethod.FIXED:
+                return
             pos = self.fee_policy.get_slider_pos()
             maxp = self.fee_policy.get_slider_max()
             self.setRange(0, maxp)

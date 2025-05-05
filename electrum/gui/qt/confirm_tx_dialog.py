@@ -38,7 +38,7 @@ from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
-from electrum.fee_policy import FeePolicy, FixedFeePolicy
+from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    WWLabel, read_QIcon)
@@ -163,7 +163,6 @@ class TxEditor(WindowModalDialog):
         self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 0)
-        self.feerate_e.setAmount(self.fee_policy.fee_per_byte(self.network))
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
         self.update_feerate_label()
@@ -174,6 +173,11 @@ class TxEditor(WindowModalDialog):
 
         self.feerate_e.setFixedWidth(150)
         self.fee_e.setFixedWidth(150)
+
+        if self.fee_policy.method != FeeMethod.FIXED:
+            self.feerate_e.setAmount(self.fee_policy.fee_per_byte(self.network))
+        else:
+            self.fee_e.setAmount(self.fee_policy.value)
 
         self.fee_e.textChanged.connect(self.entry_changed)
         self.feerate_e.textChanged.connect(self.entry_changed)
@@ -229,6 +233,8 @@ class TxEditor(WindowModalDialog):
         self.needs_update = True
 
     def fee_slider_callback(self, fee_rate):
+        if self.fee_policy.method == FeeMethod.FIXED:
+            return
         self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         self.fee_slider.activate()
         if fee_rate:

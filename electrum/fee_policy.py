@@ -64,8 +64,10 @@ class FeeMethod(IntEnum):
 
     @classmethod
     def slider_index_of_method(cls, method):
-        i = FeeMethod.slider_values().index(method)
-        assert i is not None
+        try:
+            i = FeeMethod.slider_values().index(method)
+        except ValueError:
+            i = -1
         return i
 
 
