@@ -166,24 +166,26 @@ class LNWatcher(Logger, EventListener):
                 # do not keep watching if prevout does not exist
                 self.logger.info(f'prevout does not exist for {name}: {prevout}')
                 continue
+            was_added = self.maybe_redeem(sweep_info)
             spender_txid = self.adb.get_spender(prevout)
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
+                    htlc_was_added = self.maybe_redeem(htlc_sweep_info)
                     htlc_tx_spender = self.adb.get_spender(prevout2)
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
                         keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
                         self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
                     else:
-                        keep_watching |= self.maybe_redeem(htlc_sweep_info)
+                        keep_watching |= htlc_was_added
                 keep_watching |= not self.adb.is_deeply_mined(spender_txid)
                 self.maybe_extract_preimage(chan, spender_tx, prevout)
                 self.maybe_add_accounting_address(spender_txid, sweep_info)
             else:
-                keep_watching |= self.maybe_redeem(sweep_info)
+                keep_watching |= was_added
         return keep_watching
 
     def maybe_redeem(self, sweep_info: 'SweepInfo') -> bool:
