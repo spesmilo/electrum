@@ -1207,7 +1207,7 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
-    def handle_onchain_state(self, chan: Channel):
+    async def handle_onchain_state(self, chan: Channel):
         if self.network is None:
             # network not started yet
             return
@@ -1219,7 +1219,7 @@ class LNWallet(LNWorker):
         if (chan.get_state() in (ChannelState.OPEN, ChannelState.SHUTDOWN)
                 and chan.should_be_closed_due_to_expiring_htlcs(self.wallet.adb.get_local_height())):
             self.logger.info(f"force-closing due to expiring htlcs")
-            asyncio.ensure_future(self.schedule_force_closing(chan.channel_id))
+            await self.schedule_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
             peer = self._peers.get(chan.node_id)
@@ -1238,7 +1238,7 @@ class LNWallet(LNWorker):
             height = self.lnwatcher.adb.get_tx_height(txid).height
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
-                asyncio.ensure_future(self.network.try_broadcasting(force_close_tx, 'force-close'))
+                await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     def get_peer_by_static_jit_scid_alias(self, scid_alias: bytes) -> Optional[Peer]:
         for nodeid, peer in self.peers.items():

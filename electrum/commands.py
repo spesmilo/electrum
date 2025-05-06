@@ -1061,6 +1061,9 @@ class Commands(Logger):
         arg:bool:show_fees:Show miner fees paid by transactions
         arg:int:year:Show history for a given year
         """
+        # trigger lnwatcher callbacks for their side effects: setting labels and accounting_addresses
+        await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
+
         #'from_height': (None, "Only show transactions that confirmed after given block height"),
         #'to_height':   (None, "Only show transactions that confirmed before given block height"),
         kwargs = self.get_year_timestamps(year)
