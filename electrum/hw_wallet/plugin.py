@@ -30,7 +30,7 @@ from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr,
                              assert_runs_in_hwd_thread, runs_in_hwd_thread)
 from electrum.i18n import _
 from electrum.bitcoin import is_address, opcodes
-from electrum.util import versiontuple, UserFacingException
+from electrum.util import versiontuple, UserFacingException, ChoiceItem
 from electrum.transaction import TxOutput, PartialTransaction
 from electrum.bip32 import BIP32Node
 from electrum.storage import get_derivation_used_for_hw_device_encryption
@@ -316,7 +316,8 @@ class HardwareHandlerBase:
     def update_status(self, paired: bool) -> None:
         pass
 
-    def query_choice(self, msg: str, labels: Sequence[str]) -> Optional[int]:
+    def query_choice(self, msg: str, choices: Sequence[ChoiceItem]) -> Optional[Any]:
+        """Returns ChoiceItem.key (for selected item), or None if the user cancels the dialog."""
         raise NotImplementedError()
 
     def yes_no_question(self, msg: str) -> bool:

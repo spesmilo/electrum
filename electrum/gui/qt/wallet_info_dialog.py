@@ -12,10 +12,13 @@ from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
+from electrum.util import ChoiceItem
 
 from .qrtextedit import ShowQRTextEdit
-from .util import (read_QIcon, WindowModalDialog, Buttons,
-                   WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit, ChoiceWidget)
+from .util import (
+    read_QIcon, WindowModalDialog, Buttons,
+    WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit, ChoiceWidget,
+)
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -117,7 +120,8 @@ class WalletInfoDialog(WindowModalDialog):
                     else:
                         return _("keystore") + f' {idx+1}'
 
-                labels = [(idx, label(idx, ks)) for idx, ks in enumerate(wallet.get_keystores())]
+                labels = [ChoiceItem(key=idx, label=label(idx, ks))
+                          for idx, ks in enumerate(wallet.get_keystores())]
 
                 keystore_choice = ChoiceWidget(message=_("Select keystore"), choices=labels)
                 keystore_choice.itemSelected.connect(lambda x: select_ks(x))

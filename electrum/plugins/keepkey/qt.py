@@ -14,6 +14,7 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.logging import Logger
+from electrum.util import ChoiceItem
 
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
@@ -619,10 +620,10 @@ class WCKeepkeyInitMethod(WalletWizardComponent):
                 ).format(_info.model_name, _info.model_name)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
-            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
-            (TIM_PRIVKEY, _("Upload a master private key"))
+            ChoiceItem(key=TIM_NEW, label=_("Let the device generate a completely new seed randomly")),
+            ChoiceItem(key=TIM_RECOVER, label=_("Recover from a seed you have previously written down")),
+            ChoiceItem(key=TIM_MNEMONIC, label=_("Upload a BIP39 mnemonic to generate the seed")),
+            ChoiceItem(key=TIM_PRIVKEY, label=_("Upload a master private key")),
         ]
         self.choice_w = ChoiceWidget(message=msg, choices=choices)
         self.layout().addWidget(self.choice_w)

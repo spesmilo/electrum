@@ -12,6 +12,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.plugin import hook
 from electrum.keystore import ScriptTypeNotSupported
+from electrum.util import ChoiceItem
 
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
@@ -847,8 +848,8 @@ class WCTrezorInitMethod(WalletWizardComponent, Logger):
         message = _('Choose how you want to initialize your {}.').format(_info.model_name)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
+            ChoiceItem(key=TIM_NEW, label=_("Let the device generate a completely new seed randomly")),
+            ChoiceItem(key=TIM_RECOVER, label=_("Recover from a seed you have previously written down")),
         ]
         self.choice_w = ChoiceWidget(message=message, choices=choices)
         self.layout().addWidget(self.choice_w)

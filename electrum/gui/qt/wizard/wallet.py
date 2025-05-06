@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List, Tuple
 
 from PyQt6.QtCore import Qt, QTimer, QRect, pyqtSignal
 from PyQt6.QtGui import QPen, QPainter, QPalette, QPixmap
@@ -17,7 +17,7 @@ from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivat
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
-from electrum.util import is_subpath
+from electrum.util import is_subpath, ChoiceItem
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -34,7 +34,7 @@ from electrum.gui.qt.plugins_dialog import PluginsDialog
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
+    from electrum.plugin import Plugins, DeviceInfo
     from electrum.gui.qt import QElectrumApplication
 
 WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
@@ -399,14 +399,14 @@ class WCWalletType(WalletWizardComponent):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Create new wallet'))
         message = _('What kind of wallet do you want to create?')
         wallet_kinds = [
-            ('standard',  _('Standard wallet')),
-            ('2fa',       _('Wallet with two-factor authentication')),
-            ('multisig',  _('Multi-signature wallet')),
-            ('imported',  _('Import Bitcoin addresses or private keys')),
+            ChoiceItem(key='standard', label=_('Standard wallet')),
+            ChoiceItem(key='2fa', label=_('Wallet with two-factor authentication')),
+            ChoiceItem(key='multisig', label=_('Multi-signature wallet')),
+            ChoiceItem(key='imported', label=_('Import Bitcoin addresses or private keys')),
         ]
-        choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
+        choices = [c for c in wallet_kinds if c.key in wallet_types]
 
-        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='standard')
+        self.choice_w = ChoiceWidget(message=message, choices=choices, default_key='standard')
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
@@ -420,10 +420,10 @@ class WCKeystoreType(WalletWizardComponent):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Keystore'))
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
         choices = [
-            ('createseed', _('Create a new seed')),
-            ('haveseed',   _('I already have a seed')),
-            ('masterkey',  _('Use a master key')),
-            ('hardware',   _('Use a hardware device'))
+            ChoiceItem(key='createseed', label=_('Create a new seed')),
+            ChoiceItem(key='haveseed', label=_('I already have a seed')),
+            ChoiceItem(key='masterkey', label=_('Use a master key')),
+            ChoiceItem(key='hardware', label=_('Use a hardware device')),
         ]
 
         self.choice_w = ChoiceWidget(message=message, choices=choices)
@@ -658,7 +658,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Script type and Derivation path'))
         Logger.__init__(self)
 
-        self.choice_w = None
+        self.choice_w = None  # type: ChoiceWidget
         self.derivation_path_edit = None
 
         self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
@@ -675,9 +675,12 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
         if self.wizard_data['wallet_type'] == 'multisig':
             choices = [
                 # TODO: nicer to refactor 'standard' to 'p2sh', but backend wallet still uses 'standard'
-                ('standard', 'legacy multisig (p2sh)', normalize_bip32_derivation("m/45'/0")),
-                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
-                ('p2wsh', 'native segwit multisig (p2wsh)', purpose48_derivation(0, xtype='p2wsh')),
+                ChoiceItem(key='standard', label='legacy multisig (p2sh)',
+                           extra_data=normalize_bip32_derivation("m/45'/0")),
+                ChoiceItem(key='p2wsh-p2sh', label='p2sh-segwit multisig (p2wsh-p2sh)',
+                           extra_data=purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ChoiceItem(key='p2wsh', label='native segwit multisig (p2wsh)',
+                           extra_data=purpose48_derivation(0, xtype='p2wsh')),
             ]
             if 'multisig_current_cosigner' in self.wizard_data:
                 # get script type of first cosigner
@@ -690,9 +693,12 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
             default_choice = 'p2wpkh'
             choices = [
                 # TODO: nicer to refactor 'standard' to 'p2pkh', but backend wallet still uses 'standard'
-                ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
-                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
-                ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
+                ChoiceItem(key='standard', label='legacy (p2pkh)',
+                           extra_data=bip44_derivation(0, bip43_purpose=44)),
+                ChoiceItem(key='p2wpkh-p2sh', label='p2sh-segwit (p2wpkh-p2sh)',
+                           extra_data=bip44_derivation(0, bip43_purpose=49)),
+                ChoiceItem(key='p2wpkh', label='native segwit (p2wpkh)',
+                           extra_data=bip44_derivation(0, bip43_purpose=84)),
             ]
 
         if self.wizard_data['wallet_type'] == 'standard' and not self.wizard_data['keystore_type'] == 'hardware':
@@ -722,8 +728,8 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
             self.layout().addWidget(QLabel(_("Or")))
 
         def on_choice_click(index):
-            self.derivation_path_edit.setText(self.choice_w.selected_item[2])
-        self.choice_w = ChoiceWidget(message=message1, choices=choices, selected=default_choice)
+            self.derivation_path_edit.setText(self.choice_w.selected_item.extra_data)
+        self.choice_w = ChoiceWidget(message=message1, choices=choices, default_key=default_choice)
         self.choice_w.itemSelected.connect(on_choice_click)
 
         if not hide_choices:
@@ -768,9 +774,9 @@ class WCCosignerKeystore(WalletWizardComponent):
 
         message = _('Add a cosigner to your multi-sig wallet')
         choices = [
-            ('masterkey', _('Enter cosigner key')),
-            ('haveseed', _('Enter cosigner seed')),
-            ('hardware', _('Cosign with hardware device'))
+            ChoiceItem(key='masterkey', label=_('Enter cosigner key')),
+            ChoiceItem(key='haveseed', label=_('Enter cosigner seed')),
+            ChoiceItem(key='hardware', label=_('Cosign with hardware device')),
         ]
 
         self.choice_w = ChoiceWidget(message=message, choices=choices)
@@ -1090,7 +1096,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.device_list = QWidget()
         self.device_list_layout = QVBoxLayout()
         self.device_list.setLayout(self.device_list_layout)
-        self.choice_w = None
+        self.choice_w = None  # type: ChoiceWidget
 
         self.rescan_button = QPushButton(_('Rescan devices'))
         self.rescan_button.clicked.connect(self.on_rescan)
@@ -1132,7 +1138,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.error_l.setVisible(False)
         self.device_list.setVisible(True)
 
-        choices = []
+        choices = []  # type: List[ChoiceItem]
         for name, info in self.devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
@@ -1141,7 +1147,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
             except Exception:
                 transport_str = 'unknown transport'
             descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
-            choices.append(((name, info), descr))
+            choices.append(ChoiceItem(key=(name, info), label=descr))
         msg = _('Select a device') + ':'
 
         if self.choice_w:

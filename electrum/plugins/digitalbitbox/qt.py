@@ -69,10 +69,6 @@ class DigitalBitbox_Handler(QtHandlerBase):
     def __init__(self, win):
         super(DigitalBitbox_Handler, self).__init__(win, 'Digital Bitbox')
 
-    def query_choice(self, msg, labels):
-        choices = [(i, v) for i, v in enumerate(labels)]
-        return QtHandlerBase.query_choice(self, msg, choices)
-
 
 class WCDigitalBitboxScriptAndDerivation(WCScriptAndDerivation):
     requestRecheck = pyqtSignal()

@@ -34,7 +34,7 @@ from PyQt6.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxL
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, ChoiceItem
 from electrum.logging import Logger, get_logger
 from electrum import keystore
 
@@ -357,8 +357,8 @@ class WCChooseSeed(WalletWizardComponent):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Create or restore'))
         message = _('Do you want to create a new seed, or restore a wallet using an existing seed?')
         choices = [
-            ('createseed',  _('Create a new seed')),
-            ('haveseed',    _('I already have a seed')),
+            ChoiceItem(key='createseed', label=_('Create a new seed')),
+            ChoiceItem(key='haveseed', label=_('I already have a seed')),
         ]
 
         self.choice_w = ChoiceWidget(message=message, choices=choices)

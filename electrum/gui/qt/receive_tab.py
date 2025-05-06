@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QTextEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum.i18n import _
-from electrum.util import InvoiceError
+from electrum.util import InvoiceError, ChoiceItem
 from electrum.invoices import pr_expiration_values
 from electrum.logging import Logger
 
@@ -195,8 +195,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        choices = list(pr_expiration_values().items())
-        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_choice=expiry)
+        choices = [ChoiceItem(key=exptime, label=label)
+                   for (exptime, label) in pr_expiration_values().items()]
+        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_key=expiry)
         if v is None:
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v

@@ -22,6 +22,7 @@
 # SOFTWARE.
 import binascii
 import concurrent.futures
+from dataclasses import dataclass
 import logging
 import os, sys, re
 from collections import defaultdict, OrderedDict
@@ -2311,3 +2312,10 @@ class LightningHistoryItem(NamedTuple):
             'ln_value': Satoshis(Decimal(self.amount_msat) / 1000),
             'direction': self.direction,
         }
+
+
+@dataclass(kw_only=True, slots=True)
+class ChoiceItem:
+    key: Any
+    label: str  # user facing string
+    extra_data: Any = None
