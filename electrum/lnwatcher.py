@@ -221,10 +221,8 @@ class LNWatcher(Logger, EventListener):
             # always consider ours
             pass
         else:
-            privkey = sweep_info.txin.privkey
             witness = txin.witness_elements()
             for sig in witness:
-                sig = witness[0]
                 # fixme: verify sig is ours
                 witness2 = sweep_info.txin.make_witness(sig)
                 if txin.witness == witness2:
