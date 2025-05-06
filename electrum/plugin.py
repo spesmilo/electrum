@@ -46,7 +46,7 @@ from electrum_ecc import ECPrivkey, ECPubkey
 from ._vendor.distutils.version import StrictVersion
 from .version import ELECTRUM_VERSION
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
@@ -682,6 +682,17 @@ class DeviceInfo(NamedTuple):
     soft_device_id: Optional[str] = None  # if available, used to distinguish same-type hw devices
     model_name: Optional[str] = None  # e.g. "Ledger Nano S"
 
+    def label_for_device_select(self) -> str:
+        return (
+            "{label} ({maybe_model}{init}, {transport})"
+            .format(
+                label=self.label or _("An unnamed {}").format(self.plugin_name),
+                init=(_("initialized") if self.initialized else _("wiped")),
+                transport=self.device.transport_ui_string,
+                maybe_model=f"{self.model_name}, " if self.model_name else ""
+            )
+        )
+
 
 class HardwarePluginToScan(NamedTuple):
     name: str
@@ -1068,15 +1079,10 @@ class DeviceMgr(ThreadJob):
                 + f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r})\n\n")
         msg += _("Please select which {} device to use:").format(plugin.device)
         msg += "\n(" + _("Or click cancel to skip this keystore instead.") + ")"
-        descriptions = ["{label} ({maybe_model}{init}, {transport})"
-                        .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
-                                init=(_("initialized") if info.initialized else _("wiped")),
-                                transport=info.device.transport_ui_string,
-                                maybe_model=f"{info.model_name}, " if info.model_name else "")
-                        for info in infos]
+        choices = [ChoiceItem(key=idx, label=info.label_for_device_select())
+                   for (idx, info) in enumerate(infos)]
         self.logger.debug(f"select_device. prompting user for manual selection of {plugin.device}. "
                           f"num options: {len(infos)}. options: {infos}")
-        choices = list(enumerate(descriptions))
         c = handler.query_choice(msg, choices)
         if c is None:
             raise UserCancelled()

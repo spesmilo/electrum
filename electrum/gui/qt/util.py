@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
 
 from electrum.i18n import _
 from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener, event_listener,
-                           get_logger, UserCancelled, UserFacingException)
+                           get_logger, UserCancelled, UserFacingException, ChoiceItem)
 from electrum.invoices import (PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING,
                                PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST)
 from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
@@ -315,12 +315,18 @@ class MessageBoxMixin(object):
             rich_text=rich_text, checkbox=checkbox
         )
 
-    def query_choice(self,
-                     msg: Optional[str],
-                     choices: Sequence[Tuple],
-                     title: Optional[str] = None,
-                     default_choice: Optional[Any] = None) -> Optional[Any]:
-        # Needed by QtHandler for hardware wallets
+    def query_choice(
+        self,
+        msg: Optional[str],
+        choices: Sequence['ChoiceItem'],
+        *,
+        title: Optional[str] = None,
+        default_choice: Optional[Any] = None,
+    ) -> Optional[Any]:
+        """Returns ChoiceItem.key (for selected item), or None if the user cancels the dialog.
+
+        Needed by QtHandler for hardware wallets.
+        """
         if title is None:
             title = _('Question')
         dialog = WindowModalDialog(self.top_level_window(), title=title)
@@ -506,18 +512,21 @@ def text_dialog(
 
 
 class ChoiceWidget(QWidget):
-    """Renders a list of tuples as a radiobuttons group.
-    The first element of each tuple is used as a key.
-    The second element of each tuple is used as user facing string.
-    The remainder of the tuple can be any additional data.
+    """Renders a list of ChoiceItems as a radiobuttons group.
     Callers can pre-select an item by key, through the 'selected' parameter.
     The selected item is made available by index (selected_index),
-    by key (selected_key) and by whole tuple (selected_item).
+    by key (selected_key) and by Choice (selected_item).
     """
 
     itemSelected = pyqtSignal([int], arguments=['index'])
 
-    def __init__(self, *, message: Optional[str] = None, choices: Sequence[Tuple] = None, selected: Optional[Any] = None):
+    def __init__(
+        self,
+        *,
+        message: Optional[str] = None,
+        choices: Sequence[ChoiceItem] = None,
+        selected: Optional[Any] = None,
+    ):
         QWidget.__init__(self)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -525,11 +534,10 @@ class ChoiceWidget(QWidget):
         if choices is None:
             choices = []
 
-        self.selected_index = -1   # int
-        self.selected_item = None  # Optional[Tuple]
-        self.selected_key = None   # Optional[Any]
-
-        self.choices = choices
+        self.selected_index = -1   # type: int
+        self.selected_item = None  # type: Optional[ChoiceItem]
+        self.selected_key = None   # type: Optional[Any]
+        self.choices = choices     # type: Sequence[ChoiceItem]
 
         if message and len(message) > 50:
             vbox.addWidget(WWLabel(message))
@@ -540,31 +548,29 @@ class ChoiceWidget(QWidget):
         gb2.setLayout(vbox2)
         self.group = group = QButtonGroup()
         assert isinstance(choices, list)
-        iterator = enumerate(choices)
-        for i, c in iterator:
-            assert isinstance(c, tuple), f"{c=!r}"
+        for i, c in enumerate(choices):
+            assert isinstance(c, ChoiceItem), f"{c=!r}"
             button = QRadioButton(gb2)
-            button.setText(c[1])
+            button.setText(c.label)
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
-            if (i == 0 and selected is None) or c[0] == selected:
+            if (i == 0 and selected is None) or c.key == selected:
                 self.selected_index = i
                 self.selected_item = c
-                self.selected_key = c[0]
+                self.selected_key = c.key
                 button.setChecked(True)
         group.buttonClicked.connect(self.on_selected)
 
     def on_selected(self, button):
         self.selected_index = self.group.id(button)
         self.selected_item = self.choices[self.selected_index]
-        self.selected_key = self.choices[self.selected_index][0]
+        self.selected_key = self.choices[self.selected_index].key
         self.itemSelected.emit(self.selected_index)
 
     def select(self, key):
-        iterator = enumerate(self.choices)
-        for i, c in iterator:
-            if key == c[0]:
+        for i, c in enumerate(self.choices):
+            if key == c.key:
                 self.group.button(i).click()
 
 

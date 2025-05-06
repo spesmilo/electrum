@@ -35,9 +35,12 @@ from electrum.i18n import _
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum import old_mnemonic
 from electrum import slip39
+from electrum.util import ChoiceItem
 
-from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
-                   EnterButton, CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget)
+from .util import (
+    Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path, EnterButton,
+    CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget,
+)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -98,15 +101,15 @@ class SeedWidget(QWidget):
 
         if options:
             self.seed_types = [
-                (value, title) for value, title in (
+                ChoiceItem(key=stype, label=label) for stype, label in (
                     ('electrum', _('Electrum')),
                     ('bip39', _('BIP39 seed')),
                     ('slip39', _('SLIP39 seed')),
                 )
-                if value in self.options
+                if stype in self.options
             ]
             assert len(self.seed_types)
-            self.seed_type = self.seed_types[0][0]
+            self.seed_type = self.seed_types[0].key
         else:
             self.seed_type = 'electrum'
 

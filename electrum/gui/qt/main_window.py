@@ -55,7 +55,7 @@ from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
                            UserFacingException, get_new_wallet_name, send_exception_to_crash_reporter,
-                           AddTransactionException, os_chmod, UI_UNIT_NAME_TXSIZE_VBYTES)
+                           AddTransactionException, os_chmod, UI_UNIT_NAME_TXSIZE_VBYTES, ChoiceItem)
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.invoices import PR_PAID, Invoice
@@ -1326,7 +1326,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return (f"pubkey={x['pubkey'][0:10]},  "
                     f"fee={x['percentage_fee']}% + {x['mining_fee']} sats,  "
                     f"last_seen: {last_seen}")
-        server_keys = [(x['pubkey'], descr(x)) for x in recent_offers]
+        server_keys = [ChoiceItem(key=x['pubkey'], label=descr(x)) for x in recent_offers]
         msg = '\n'.join([
             _("Please choose a server from this list."),
             _("Note that fees may be updated frequently.")

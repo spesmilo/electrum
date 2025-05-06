@@ -1,5 +1,5 @@
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayo
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Multisig_Wallet
+from electrum.keystore import Hardware_KeyStore
+from electrum.util import ChoiceItem
 
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from electrum.hw_wallet.plugin import only_hook_if_libraries_available
@@ -76,13 +78,13 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         buttons.append(btn_import_usb)
         return buttons
 
-    def import_multisig_wallet_to_cc(self, main_window, coldcard_keystores):
+    def import_multisig_wallet_to_cc(self, main_window: 'ElectrumWindow', coldcard_keystores: Sequence[Hardware_KeyStore]):
         from io import StringIO
         from ckcc.protocol import CCProtocolPacker
 
         index = main_window.query_choice(
             _("Please select which {} device to use:").format(self.device),
-            [(i, ks.label) for i, ks in enumerate(coldcard_keystores)]
+            [ChoiceItem(key=i, label=ks.label) for i, ks in enumerate(coldcard_keystores)]
         )
         if index is not None:
             selected_keystore = coldcard_keystores[index]

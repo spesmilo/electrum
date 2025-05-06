@@ -13,7 +13,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled, ChoiceItem
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
@@ -672,25 +672,25 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
                 can_rebalance = bool(rebalance_suggestion) and self.window.num_tasks() == 0
-            choices = []
+            choices = []  # type: List[ChoiceItem]
             if can_rebalance:
                 msg = ''.join([
                     _('Rebalance existing channels'), '\n',
                     _('Move funds between your channels in order to increase your sending capacity.')
                 ])
-                choices.append(('rebalance', msg))
+                choices.append(ChoiceItem(key='rebalance', label=msg))
             if can_pay_with_new_channel:
                 msg = ''.join([
                     _('Open a new channel'), '\n',
                     _('You will be able to pay once the channel is open.')
                 ])
-                choices.append(('new_channel', msg))
+                choices.append(ChoiceItem(key='new_channel', label=msg))
             if can_pay_with_swap:
                 msg = ''.join([
                     _('Swap onchain funds for lightning funds'), '\n',
                     _('You will be able to pay once the swap is confirmed.')
                 ])
-                choices.append(('swap', msg))
+                choices.append(ChoiceItem(key='swap', label=msg))
             msg = _('You cannot pay that invoice using Lightning.')
             if lnworker and lnworker.channels:
                 num_sats_can_send = int(lnworker.num_sats_can_send())

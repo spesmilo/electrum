@@ -29,7 +29,7 @@ from electrum import constants
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.util import to_string, UserCancelled, UserFacingException, bfh
+from electrum.util import to_string, UserCancelled, UserFacingException, bfh, ChoiceItem
 from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
@@ -239,13 +239,13 @@ class DigitalBitbox_Client(HardwareClientBase):
     def recover_or_erase_dialog(self):
         msg = _("The Digital Bitbox is already seeded. Choose an option:") + "\n"
         choices = [
-            (_("Create a wallet using the current seed")),
-            (_("Erase the Digital Bitbox"))
+            ChoiceItem(key="create", label=_("Create a wallet using the current seed")),
+            ChoiceItem(key="erase", label=_("Erase the Digital Bitbox")),
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
             raise UserCancelled()
-        if reply == 1:
+        if reply == "erase":
             self.dbb_erase()
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
@@ -256,13 +256,13 @@ class DigitalBitbox_Client(HardwareClientBase):
     def seed_device_dialog(self):
         msg = _("Choose how to initialize your Digital Bitbox:") + "\n"
         choices = [
-            (_("Generate a new random wallet")),
-            (_("Load a wallet from the micro SD card"))
+            ChoiceItem(key="generate", label=_("Generate a new random wallet")),
+            ChoiceItem(key="load", label=_("Load a wallet from the micro SD card")),
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
             raise UserCancelled()
-        if reply == 0:
+        if reply == "generate":
             self.dbb_generate_wallet()
         else:
             if not self.dbb_load_backup(show_msg=False):
@@ -291,8 +291,8 @@ class DigitalBitbox_Client(HardwareClientBase):
             return
 
         choices = [
-            _('Do not pair'),
-            _('Import pairing from the Digital Bitbox desktop app'),
+            ChoiceItem(key=0, label=_('Do not pair')),
+            ChoiceItem(key=1, label=_('Import pairing from the Digital Bitbox desktop app')),
         ]
         reply = self.handler.query_choice(_('Mobile pairing options'), choices)
         if reply is None:
@@ -334,7 +334,8 @@ class DigitalBitbox_Client(HardwareClientBase):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
             raise UserFacingException(backups['error']['message'])
-        f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
+        backup_choices = [ChoiceItem(key=idx, label=v) for (idx, v) in enumerate(backups['backup'])]
+        f = self.handler.query_choice(_("Choose a backup file:"), backup_choices)
         if f is None:
             raise UserCancelled()
         key = self.backup_password_dialog()
