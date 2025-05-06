@@ -689,7 +689,7 @@ def invoice_from_payment_identifier(
         invoice = pi.bolt11
         if not invoice:
             return
-        if invoice.amount_msat is None:
+        if invoice._lnaddr.get_amount_msat() is None:
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
