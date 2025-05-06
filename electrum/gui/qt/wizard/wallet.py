@@ -406,7 +406,7 @@ class WCWalletType(WalletWizardComponent):
         ]
         choices = [c for c in wallet_kinds if c.key in wallet_types]
 
-        self.choice_w = ChoiceWidget(message=message, choices=choices, selected='standard')
+        self.choice_w = ChoiceWidget(message=message, choices=choices, default_key='standard')
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
@@ -729,7 +729,7 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
 
         def on_choice_click(index):
             self.derivation_path_edit.setText(self.choice_w.selected_item.extra_data)
-        self.choice_w = ChoiceWidget(message=message1, choices=choices, selected=default_choice)
+        self.choice_w = ChoiceWidget(message=message1, choices=choices, default_key=default_choice)
         self.choice_w.itemSelected.connect(on_choice_click)
 
         if not hide_choices:

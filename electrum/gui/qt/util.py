@@ -321,7 +321,7 @@ class MessageBoxMixin(object):
         choices: Sequence['ChoiceItem'],
         *,
         title: Optional[str] = None,
-        default_choice: Optional[Any] = None,
+        default_key: Optional[Any] = None,
     ) -> Optional[Any]:
         """Returns ChoiceItem.key (for selected item), or None if the user cancels the dialog.
 
@@ -331,7 +331,7 @@ class MessageBoxMixin(object):
             title = _('Question')
         dialog = WindowModalDialog(self.top_level_window(), title=title)
         dialog.setMinimumWidth(400)
-        choice_widget = ChoiceWidget(message=msg, choices=choices, selected=default_choice)
+        choice_widget = ChoiceWidget(message=msg, choices=choices, default_key=default_key)
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(choice_widget)
         cancel_button = CancelButton(dialog)
@@ -513,7 +513,7 @@ def text_dialog(
 
 class ChoiceWidget(QWidget):
     """Renders a list of ChoiceItems as a radiobuttons group.
-    Callers can pre-select an item by key, through the 'selected' parameter.
+    Callers can pre-select an item by key, through the 'default_key' parameter.
     The selected item is made available by index (selected_index),
     by key (selected_key) and by Choice (selected_item).
     """
@@ -525,7 +525,7 @@ class ChoiceWidget(QWidget):
         *,
         message: Optional[str] = None,
         choices: Sequence[ChoiceItem] = None,
-        selected: Optional[Any] = None,
+        default_key: Optional[Any] = None,
     ):
         QWidget.__init__(self)
         vbox = QVBoxLayout()
@@ -555,7 +555,7 @@ class ChoiceWidget(QWidget):
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
-            if (i == 0 and selected is None) or c.key == selected:
+            if (i == 0 and default_key is None) or c.key == default_key:
                 self.selected_index = i
                 self.selected_item = c
                 self.selected_key = c.key

@@ -209,7 +209,7 @@ class SeedWidget(QWidget):
             self.initialize_completer()
 
         if len(self.seed_types) > 1:
-            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=self.seed_types, selected=self.seed_type)
+            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=self.seed_types, default_key=self.seed_type)
             seed_type_choice.itemSelected.connect(on_selected)
             vbox.addWidget(seed_type_choice)
 

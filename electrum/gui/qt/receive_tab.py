@@ -197,7 +197,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         choices = [ChoiceItem(key=exptime, label=label)
                    for (exptime, label) in pr_expiration_values().items()]
-        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_choice=expiry)
+        v = self.window.query_choice(msg, choices, title=_('Expiry'), default_key=expiry)
         if v is None:
             return
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v

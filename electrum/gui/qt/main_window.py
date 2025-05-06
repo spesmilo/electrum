@@ -1332,10 +1332,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             _("Note that fees may be updated frequently.")
         ])
         choice = self.query_choice(
-            msg = msg,
-            choices = server_keys,
-            title = _("Choose Swap Server"),
-            default_choice = self.config.SWAPSERVER_NPUB
+            msg=msg,
+            choices=server_keys,
+            title=_("Choose Swap Server"),
+            default_key=self.config.SWAPSERVER_NPUB,
         )
         if choice is None:
             return False
