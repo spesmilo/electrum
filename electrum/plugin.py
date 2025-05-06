@@ -1076,7 +1076,8 @@ class DeviceMgr(ThreadJob):
                         for info in infos]
         self.logger.debug(f"select_device. prompting user for manual selection of {plugin.device}. "
                           f"num options: {len(infos)}. options: {infos}")
-        c = handler.query_choice(msg, descriptions)
+        choices = list(enumerate(descriptions))
+        c = handler.query_choice(msg, choices)
         if c is None:
             raise UserCancelled()
         info = infos[c]

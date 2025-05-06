@@ -542,6 +542,7 @@ class ChoiceWidget(QWidget):
         assert isinstance(choices, list)
         iterator = enumerate(choices)
         for i, c in iterator:
+            assert isinstance(c, tuple), f"{c=!r}"
             button = QRadioButton(gb2)
             button.setText(c[1])
             vbox2.addWidget(button)
