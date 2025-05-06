@@ -341,7 +341,8 @@ class SwapManager(Logger):
             if sha256(preimage) == swap.payment_hash:
                 return preimage
 
-    def _claim_swap(self, swap: SwapData) -> None:
+    @log_exceptions
+    async def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
         assert self.lnwatcher
         if not self.lnwatcher.adb.is_up_to_date():
