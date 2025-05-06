@@ -487,10 +487,6 @@ ElDialog {
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }
-                    if (!invoice.isSaved) {
-                        // save invoice if newly parsed
-                        invoice.saveInvoice()
-                    }
                     doPay() // only signal here
                 }
             }
@@ -506,9 +502,6 @@ ElDialog {
         }
         if (payImmediately) {
             if (invoice.canPay) {
-                if (!invoice.isSaved) {
-                    invoice.saveInvoice()
-                }
                 doPay()
             }
         }
