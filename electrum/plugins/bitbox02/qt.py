@@ -30,19 +30,13 @@ class Plugin(BitBox02Plugin, QtPluginBase):
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        # Context menu on each address in the Addresses Tab, right click...
-        if len(addrs) != 1:
-            return
-        for keystore in wallet.get_keystores():
-            if type(keystore) == self.keystore_class:
+        if len(addrs) == 1:
+            self._add_menu_action(menu, addrs[0], wallet)
 
-                def show_address(keystore=keystore):
-                    keystore.thread.add(
-                        partial(self.show_address, wallet, addrs[0], keystore=keystore)
-                    )
-
-                device_name = "{} ({})".format(self.device, keystore.label)
-                menu.addAction(_("Show on {}").format(device_name), show_address)
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        self._add_menu_action(menu, addr, wallet)
 
     @only_hook_if_libraries_available
     @hook

@@ -29,7 +29,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Union, Optional, Sequence, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
-from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel, QMenu
 
 from electrum.gui.common_qt.util import TaskThread
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
@@ -43,6 +43,7 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.util import UserCancelled, UserFacingException, ChoiceItem
 from electrum.plugin import hook, DeviceUnpairableError
+from electrum.wallet import Standard_Wallet
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
 
@@ -299,3 +300,13 @@ class QtPluginBase(object):
 
     def create_handler(self, window: Union['ElectrumWindow', 'QENewWalletWizard']) -> 'QtHandlerBase':
         raise NotImplementedError()
+
+    def _add_menu_action(self, menu: QMenu, address: str, wallet: 'Abstract_Wallet'):
+        if not wallet.is_mine(address):
+            return
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class:
+                def show_address(keystore=keystore):
+                    keystore.thread.add(partial(self.show_address, wallet, address, keystore=keystore))
+                device_name = "{} ({})".format(self.device, keystore.label)
+                menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(device_name), show_address)
