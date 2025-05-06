@@ -141,7 +141,7 @@ def protected(func):
         password = None
         msg = kwargs.get('message')
         while self.wallet.has_keystore_encryption():
-            password = self.password_dialog(parent=parent, msg=msg)
+            password = self.wallet.get_unlocked_password() or self.password_dialog(parent=parent, msg=msg)
             if password is None:
                 # User cancelled password input
                 return
@@ -330,6 +330,46 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self._coroutines_scheduled[fut] = name
         self.need_update.set()
 
+    def toggle_lock(self):
+        if self.wallet.get_unlocked_password():
+            self.lock_wallet()
+        else:
+            msg = ' '.join([
+                _('Your wallet is locked.'),
+                _('If you unlock it, its password will not be required to sign transactions.'),
+                _('Enter your password to unlock your wallet:')
+            ])
+            self.unlock_wallet(message=msg)
+
+    def update_lock_menu(self):
+        self.lock_menu.setEnabled(self.wallet.has_password())
+        text = _('Lock') if self.wallet.get_unlocked_password() else _('Unlock')
+        self.lock_menu.setText(text)
+
+    @protected
+    def unlock_wallet(self, password, message=None):
+        self.wallet.unlock(password)
+        self.update_lock_icon()
+        self.update_lock_menu()
+        self.wallet.txbatcher.set_password_future(password)
+        icon = read_QIcon("unlock.png")
+        msg = ' '.join([
+            _('Your wallet is unlocked.'),
+            _('Its password will not be required to sign transactions.'),
+        ])
+        self.show_message(msg, icon=icon.pixmap(30))
+
+    def lock_wallet(self):
+        self.wallet.lock_wallet()
+        self.update_lock_icon()
+        self.update_lock_menu()
+        icon = read_QIcon("lock.png")
+        msg = ' '.join([
+            _('Your wallet is locked.'),
+            _('Its password will be required to sign transactions.'),
+        ])
+        self.show_message(msg, icon=icon.pixmap(30))
+
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.refresh_all()
@@ -423,6 +463,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
             self.need_update.set()
+
+    @qt_event_listener
+    def on_event_password_required(self, wallet):
+        if wallet == self.wallet:
+            self.password_required_button.show()
+
+    @qt_event_listener
+    def on_event_password_not_required(self, wallet):
+        if wallet == self.wallet:
+            self.password_required_button.hide()
+
+    def on_password_required_button_clicked(self):
+        if self.wallet.txbatcher.password_future is None:
+            return
+        txids = self.wallet.txbatcher.password_future.txids
+        labels = [ ' - %s ' % (self.wallet.get_label_for_txid(txid) or (txid[0:15] + '...')) for txid in txids ]
+        message = _('Your password is needed to sign the following transactions:') + '\n' + '\n'.join(labels)
+        password = self.get_password(message=message)
+        if password:
+            self.wallet.txbatcher.set_password_future(password)
 
     @qt_event_listener
     def on_event_status(self):
@@ -580,24 +640,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
-    def require_full_encryption(self):
-        if self.wallet.has_keystore_encryption() and not self.wallet.has_storage_encryption():
-            msg = ' '.join([
-                _("Your wallet is password-protected, but the wallet file is not encrypted."),
-                _("This is no longer supported."),
-                _("Please enter your password in order to encrypt your wallet file."),
-            ])
-            while True:
-                password = self.password_dialog(msg)
-                if not password:
-                    self.close()
-                    raise UserCancelled()
-                try:
-                    self.wallet.update_password(password, password, encrypt_storage=True)
-                    break
-                except InvalidPassword as e:
-                    self.show_error(str(e))
-
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
             return
@@ -724,6 +766,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.wallet_menu.addSeparator()
 
         self.password_menu = self.wallet_menu.addAction(_("&Password"), self.change_password_dialog)
+        self.lock_menu = self.wallet_menu.addAction(_("&Unlock"), self.toggle_lock)
+        self.update_lock_menu()
         self.seed_menu = self.wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
         self.private_keys_menu = self.wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
@@ -1777,6 +1821,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.update_check_button.hide()
         sb.addPermanentWidget(self.update_check_button)
 
+        self.password_required_button = QPushButton(_('Password required'))
+        self.password_required_button.setFlat(True)
+        self.password_required_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.password_required_button.setIcon(read_QIcon("warning.png"))
+        self.password_required_button.setIconSize(self.password_required_button.iconSize() * 1.3)
+        self.password_required_button.clicked.connect(self.on_password_required_button_clicked)
+        self.password_required_button.hide()
+        sb.addPermanentWidget(self.password_required_button)
+
         self.tasks_label = QLabel('')
         sb.addPermanentWidget(self.tasks_label)
 
@@ -1864,7 +1917,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                                                "Payments are more likely to succeed with a more complete graph."))
 
     def update_lock_icon(self):
-        icon = read_QIcon("lock.png") if self.wallet.has_password() else read_QIcon("unlock.png")
+        icon = read_QIcon("lock.png") if self.wallet.has_password() and (self.wallet.get_unlocked_password() is None) else read_QIcon("unlock.png")
         self.password_button.setIcon(icon)
 
     def update_buttons_on_seed(self):
@@ -1897,6 +1950,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
             self._update_wallet_password(
                 old_password=old_password, new_password=new_password, encrypt_storage=encrypt_file)
+        self.update_lock_menu()
 
     def _update_wallet_password(self, *, old_password, new_password, encrypt_storage: bool):
         try:
@@ -2646,6 +2700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             coro_keys = list(self._coroutines_scheduled.keys())
         for fut in coro_keys:
             fut.cancel()
+        self.wallet.txbatcher.set_password_future(None)
         self.unregister_callbacks()
         self.config.GUI_QT_WINDOW_IS_MAXIMIZED = self.isMaximized()
         self.save_notes_text()

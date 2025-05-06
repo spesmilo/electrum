@@ -470,8 +470,6 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
-        if wallet.requires_unlock() and password is not None:
-            wallet.unlock(password)
         wallet.start_network(self.network)
         self.add_wallet(wallet)
         self.update_recently_opened_wallets(path)
