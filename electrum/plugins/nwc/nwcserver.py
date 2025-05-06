@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from aiohttp_socks import ProxyConnector
 
 
-STORAGE_NAME = 'nwc_plugin'
-
 class NWCServerPlugin(BasePlugin):
     URI_SCHEME = 'nostr+walletconnect://'
 
@@ -47,10 +45,10 @@ class NWCServerPlugin(BasePlugin):
         if self.initialized:
             # this might be called for several wallets. only use one.
             return
-        storage = self.get_plugin_storage(wallet)
-        self.connections = storage['connections']
+        storage = self.get_storage(wallet)
+        self.connections = storage.setdefault('connections', {})
         self.delete_expired_connections()
-        self.nwc_server = NWCServer(self.config, wallet, self.taskgroup)
+        self.nwc_server = NWCServer(self.config, wallet, self.taskgroup, self.connections)
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.nwc_server.run()), get_asyncio_loop())
         self.initialized = True
 
@@ -66,13 +64,6 @@ class NWCServerPlugin(BasePlugin):
             get_asyncio_loop()
         )
         self.logger.debug(f"NWCServerPlugin closed, stopping taskgroup")
-
-    @staticmethod
-    def get_plugin_storage(wallet: 'Abstract_Wallet') -> dict:
-        storage = wallet.db.get_dict(STORAGE_NAME)
-        if 'connections' not in storage:
-            storage['connections'] = {}
-        return storage
 
     def delete_expired_connections(self):
         if self.connections is None:
@@ -167,12 +158,17 @@ class NWCServer(Logger, EventListener):
                                     'notifications']
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
 
-    def __init__(self, config: 'SimpleConfig', wallet: 'Abstract_Wallet', taskgroup: 'OldTaskGroup'):
+    def __init__(
+        self,
+        config: 'SimpleConfig',
+        wallet: 'Abstract_Wallet',
+        taskgroup: 'OldTaskGroup',
+        connection_storage: dict,
+    ):
         Logger.__init__(self)
         self.config = config  # type: 'SimpleConfig'
         self.wallet = wallet  # type: 'Abstract_Wallet'
-        storage = wallet.db.get_dict(STORAGE_NAME)  # type: dict
-        self.connections = storage['connections']  # type: dict[str, dict]  # client hex pubkey -> connection data
+        self.connections = connection_storage  # type: dict[str, dict]  # client hex pubkey -> connection data
         self.relays = config.NOSTR_RELAYS.split(",") or []  # type: List[str]
         self.do_stop = False
         self.taskgroup = taskgroup  # type: 'OldTaskGroup'

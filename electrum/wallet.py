@@ -553,6 +553,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         finally:  # even if we get cancelled
             if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
                 self.save_keystore()
+            self.db.prune_uninstalled_plugin_data(self.config.get_installed_plugins())
             self.save_db()
 
     def is_up_to_date(self) -> bool:

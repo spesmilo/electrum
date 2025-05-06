@@ -78,7 +78,7 @@ class CosignerWallet(Logger):
 
     KEEP_DELAY = 24*60*60
 
-    def __init__(self, wallet: 'Multisig_Wallet'):
+    def __init__(self, wallet: 'Multisig_Wallet', db_storage: dict):
         assert isinstance(wallet, Multisig_Wallet)
         self.wallet = wallet
 
@@ -90,7 +90,7 @@ class CosignerWallet(Logger):
         self.pending = asyncio.Event()
         self.wallet_uptodate = asyncio.Event()
 
-        self.known_events = wallet.db.get_dict('cosigner_events')
+        self.known_events = db_storage.setdefault('cosigner_events', {})
 
         for k, v in list(self.known_events.items()):
             if v < now() - self.KEEP_DELAY:

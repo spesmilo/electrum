@@ -654,6 +654,10 @@ class BasePlugin(Logger):
     def read_file(self, filename: str) -> bytes:
         return self.parent.read_file(self.name, filename)
 
+    def get_storage(self, wallet: 'Abstract_Wallet') -> dict:
+        """Returns a dict which is persisted in the per-wallet database."""
+        plugin_storage = wallet.db.get_plugin_storage()
+        return plugin_storage.setdefault(self.name, {})
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass

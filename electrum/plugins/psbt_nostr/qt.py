@@ -57,7 +57,7 @@ class Plugin(PsbtNostrPlugin):
             return
         if wallet.wallet_type == '2fa':
             return
-        self.add_cosigner_wallet(wallet, QtCosignerWallet(wallet, window))
+        self.add_cosigner_wallet(wallet, QtCosignerWallet(wallet, window, self))
 
     @hook
     def on_close_window(self, window):
@@ -83,8 +83,9 @@ class Plugin(PsbtNostrPlugin):
 
 
 class QtCosignerWallet(EventListener, CosignerWallet):
-    def __init__(self, wallet: 'Multisig_Wallet', window: 'ElectrumWindow'):
-        CosignerWallet.__init__(self, wallet)
+    def __init__(self, wallet: 'Multisig_Wallet', window: 'ElectrumWindow', plugin: 'Plugin'):
+        db_storage = plugin.get_storage(wallet)
+        CosignerWallet.__init__(self, wallet, db_storage)
         self.window = window
         self.obj = QReceiveSignalObject()
         self.obj.cosignerReceivedPsbt.connect(self.on_receive)

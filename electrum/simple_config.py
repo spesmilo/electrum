@@ -4,7 +4,7 @@ import time
 import os
 import stat
 from decimal import Decimal
-from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set, Callable
+from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set, Callable, AbstractSet
 from numbers import Real
 from functools import cached_property
 
@@ -348,6 +348,10 @@ class SimpleConfig(Logger):
 
     def is_plugin_enabled(self, name: str) -> bool:
         return bool(self.get(f'plugins.{name}.enabled'))
+
+    def get_installed_plugins(self) -> AbstractSet[str]:
+        """Returns all plugin names registered in the config."""
+        return self.get('plugins', {}).keys()
 
     def enable_plugin(self, name: str):
         self.set_key(f'plugins.{name}.enabled', True, save=True)
