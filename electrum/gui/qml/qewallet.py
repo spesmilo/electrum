@@ -656,8 +656,23 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.paymentAuthRejected.emit()
 
     @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice: 'Invoice'):
-        amount_msat = invoice.get_amount_msat()
+    def pay_lightning_invoice(self, invoice: 'Invoice', amount_msat: int = None):
+        # at this point, the user confirmed the payment, potentially with an override amount.
+        # we save the invoice with the override amount if there was no amount defined in the invoice.
+        # (this is similar to what the desktop client does)
+        #
+        # Note: amount_msat can be greater than the invoice-specified amount. This is validated and handled
+        # in lnworker.pay_invoice()
+        if amount_msat is not None:
+            assert type(amount_msat) is int
+            if invoice.get_amount_msat() is None:
+                invoice.set_amount_msat(amount_msat)
+        else:
+            amount_msat = invoice.get_amount_msat()
+
+        self.wallet.save_invoice(invoice)
+        if self._invoiceModel:
+            self._invoiceModel.initModel()
 
         def pay_thread():
             try:

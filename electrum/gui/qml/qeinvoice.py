@@ -1,3 +1,4 @@
+import copy
 import threading
 from enum import IntEnum
 from typing import Optional, Dict, Any
@@ -213,14 +214,11 @@ class QEInvoice(QObject, QtEventListener):
 
     @key.setter
     def key(self, key):
-        if self._key != key:
-            self._key = key
-            if self._effectiveInvoice and self._effectiveInvoice.get_id() == key:
-                return
-            invoice = self._wallet.wallet.get_invoice(key)
-            self._logger.debug(f'invoice from key {key}: {repr(invoice)}')
-            self.set_effective_invoice(invoice)
-            self.keyChanged.emit()
+        self._key = key
+        invoice = copy.copy(self._wallet.wallet.get_invoice(key))  # copy, so any mutations stay out of wallet invoice list
+        self._logger.debug(f'invoice from key {key}: {repr(invoice)}')
+        self.set_effective_invoice(invoice)
+        self.keyChanged.emit()
 
     userinfoChanged = pyqtSignal()
     @pyqtProperty(str, notify=userinfoChanged)
@@ -386,12 +384,13 @@ class QEInvoice(QObject, QtEventListener):
         if self.invoiceType != QEInvoice.Type.LightningInvoice:
             raise Exception('payLightningInvoice can only pay lightning invoices')
 
+        amount_msat = None
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
                 raise Exception('can not pay 0 amount')
-            self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
+            amount_msat = self.amountOverride.satsInt * 1000
 
-        self._wallet.pay_lightning_invoice(self._effectiveInvoice)
+        self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
     def get_max_spendable_onchain(self):
         spendable = self._wallet.confirmedBalance.satsInt
@@ -505,6 +504,7 @@ class QEInvoiceParser(QEInvoice):
         self._logger.debug('setValidLightningInvoice')
         if not invoice.is_lightning():
             raise Exception('unexpected Onchain invoice')
+        self._key = invoice.get_id()
         self.set_effective_invoice(invoice)
 
     def setValidLNURLPayRequest(self):
@@ -707,6 +707,6 @@ class QEInvoiceParser(QEInvoice):
         self.canSave = False
 
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
-        self.key = self._effectiveInvoice.get_id()
-        self._wallet.invoiceModel.addInvoice(self.key)
-        self.invoiceSaved.emit(self.key)
+        self._key = self._effectiveInvoice.get_id()
+        self._wallet.invoiceModel.addInvoice(self._key)
+        self.invoiceSaved.emit(self._key)
