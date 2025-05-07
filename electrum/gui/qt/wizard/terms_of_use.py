@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QLabel, QHBoxLayout, QScrollArea
 
 from electrum.i18n import _
 from electrum.wizard import TermsOfUseWizard
-from electrum.gui.qt.util import icon_path
+from electrum.gui.qt.util import icon_path, WWLabel
 from electrum.gui import messages
 from .wizard import QEAbstractWizard, WizardComponent
 
@@ -48,9 +48,8 @@ class WCTermsOfUseScreen(WizardComponent):
 
         self.layout().addLayout(hbox_img)
 
-        self.tos_label = QLabel()
+        self.tos_label = WWLabel()
         self.tos_label.setText(messages.MSG_TERMS_OF_USE)
-        self.tos_label.setWordWrap(True)
         self.layout().addWidget(self.tos_label)
         self._valid = False
 

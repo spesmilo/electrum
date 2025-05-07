@@ -3,6 +3,8 @@ import os
 
 from typing import List, NamedTuple, Any, Dict, Optional, Tuple, TYPE_CHECKING
 
+from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
+
 from electrum.i18n import _
 from electrum.interface import ServerAddr
 from electrum.keystore import hardware_keystore
@@ -784,7 +786,7 @@ class TermsOfUseWizard(AbstractWizard):
         }
 
     def accept_terms_of_use(self, _):
-        self._config.TERMS_OF_USE_ACCEPTED = True
+        self._config.TERMS_OF_USE_ACCEPTED = TERMS_OF_USE_LATEST_VERSION
 
     def start(self, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:

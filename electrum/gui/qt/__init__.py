@@ -74,6 +74,7 @@ from electrum.keystore import load_keystore
 from electrum.bip32 import is_xprv
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
+from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
 
 from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
 from .main_window import ElectrumWindow
@@ -504,7 +505,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         """Ask the user to accept the terms of use.
         This is only shown if the user has not accepted them yet.
         """
-        if self.config.TERMS_OF_USE_ACCEPTED:
+        if self.config.TERMS_OF_USE_ACCEPTED >= TERMS_OF_USE_LATEST_VERSION:
             return
         from electrum.gui.qt.wizard.terms_of_use import QETermsOfUseWizard
         dialog = QETermsOfUseWizard(self.config, self.app)
