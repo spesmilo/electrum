@@ -72,6 +72,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.wizard import WizardViewState
 from electrum.keystore import load_keystore
 from electrum.bip32 import is_xprv
+from electrum import constants
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
@@ -505,7 +506,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         """Ask the user to accept the terms of use.
         This is only shown if the user has not accepted them yet.
         """
-        if self.config.TERMS_OF_USE_ACCEPTED >= TERMS_OF_USE_LATEST_VERSION:
+        if self.config.TERMS_OF_USE_ACCEPTED >= TERMS_OF_USE_LATEST_VERSION\
+                or constants.net.NET_NAME == "regtest":
             return
         from electrum.gui.qt.wizard.terms_of_use import QETermsOfUseWizard
         dialog = QETermsOfUseWizard(self.config, self.app)
