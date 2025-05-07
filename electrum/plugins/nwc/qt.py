@@ -3,12 +3,12 @@ from .nwcserver import NWCServerPlugin
 from electrum.gui.qt.util import WindowModalDialog, Buttons, OkButton, CancelButton, \
     CloseButton
 from electrum.gui.common_qt.util import paintQR
-from electrum.gui.qt.util import read_QIcon_from_bytes
+from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
 from electrum.plugin import hook
 from functools import partial
 from datetime import datetime
 
-from PyQt6.QtWidgets import QVBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem, \
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem, \
     QTextEdit, QApplication, QSpinBox, QSizePolicy, QComboBox, QLineEdit
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt
@@ -47,15 +47,25 @@ class Plugin(NWCServerPlugin):
             return
 
         d = WindowModalDialog(window, _("Nostr Wallet Connect"))
-        main_layout = QVBoxLayout(d)
+        main_layout = QHBoxLayout(d)
+
+        # Create the logo label.
+        logo_label = QLabel()
+        pixmap = read_QPixmap_from_bytes(self.read_file('nwc.png'))
+        logo_label.setPixmap(pixmap.scaled(50, 50))
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        vbox = QVBoxLayout()
+        main_layout.addWidget(logo_label)
+        main_layout.addSpacing(16)
+        main_layout.addLayout(vbox)
 
         # Connections list
-        main_layout.addWidget(QLabel(_("Existing Connections:")))
         connections_list = QTreeWidget()
         connections_list.setHeaderLabels([_("Name"), _("Budget [{}]").format(self.config.get_base_unit()), _("Expiry")])
         # Set the resize mode for all columns to adjust to content
         header = connections_list.header()
-        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
         header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
         header.setStretchLastSection(False)
@@ -91,7 +101,6 @@ class Plugin(NWCServerPlugin):
 
         update_connections_list()
         connections_list.setMinimumHeight(min(connections_list.sizeHint().height(), 400))
-        main_layout.addWidget(connections_list)
 
         # Delete button - initially disabled
         delete_btn = QPushButton(_("Delete"))
@@ -119,10 +128,9 @@ class Plugin(NWCServerPlugin):
 
         connections_list.itemSelectionChanged.connect(on_item_selected)
         delete_btn.clicked.connect(delete_selected_connection)
-        main_layout.addWidget(delete_btn)
 
         # Create Connection button
-        create_btn = QPushButton(_("Create Connection"))
+        create_btn = QPushButton(_("Create"))
 
         def create_connection():
             # Show a dialog to create a new connection
@@ -131,28 +139,33 @@ class Plugin(NWCServerPlugin):
                 update_connections_list()
                 self.show_new_connection_dialog(window, connection_string)
         create_btn.clicked.connect(create_connection)
-        main_layout.addWidget(create_btn)
 
         # Add the info and close button to the footer
         close_button = OkButton(d, label=_("Close"))
-        info_button = QPushButton(_("Info"))
+        info_button = QPushButton(_("Help"))
         info = _("This plugin allows you to create Nostr Wallet Connect connections and "
                  "remote control your wallet using Nostr NIP-47.")
         warning = _("Most NWC clients only use a single of your relays, so ensure the relays accept your events.")
         supported_methods = _("Supported NIP-47 methods: {}").format(", ".join(self.nwc_server.SUPPORTED_METHODS))
         info_msg = f"{info}\n\n{warning}\n\n{supported_methods}"
         info_button.clicked.connect(lambda: window.show_message(info_msg))
+
+        title_hbox = QHBoxLayout()
+        title_hbox.addStretch(1)
+        title_hbox.addWidget(info_button)
+
         footer_buttons = Buttons(
-            info_button,
+            create_btn,
+            delete_btn,
             close_button,
         )
-        main_layout.addLayout(footer_buttons)
 
+        vbox.addLayout(title_hbox)
+        vbox.addWidget(QLabel(_('Existing Connections:')))
+        vbox.addWidget(connections_list)
+        vbox.addLayout(footer_buttons)
         d.setLayout(main_layout)
 
-        # Resize the dialog to show the connections list properly
-        conn_list_width = sum(header.sectionSize(i) for i in range(header.count()))
-        d.resize(min(conn_list_width + 40, 600), d.height())
         return bool(d.exec())
 
     def connection_info_input_dialog(self, window) -> Optional[str]:
