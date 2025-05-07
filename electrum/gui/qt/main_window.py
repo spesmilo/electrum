@@ -2696,14 +2696,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 warnings.add(warning)
 
         for warning in list(warnings)[:3]:
-                warning = _("An ongoing operation prevents Electrum from closing:") + "\n\n" + warning
-                result = self.question(
-                    msg=warning,
-                    icon=QMessageBox.Icon.Warning,
-                    title=_("Are you sure you want to close?"),
-                )
-                if not result:
-                    break
+            warning = ''.join([
+                _("Are you sure you want to close Electrum?"),
+                '\n\n',
+                _("An ongoing operation prevents Electrum from closing:"),
+                '\n',
+                warning
+            ])
+            result = self.question(
+                msg=warning,
+                icon=QMessageBox.Icon.Warning,
+                title=_("Warning"),
+            )
+            if not result:
+                break
         else:
             # user chose to cancel all warnings or there were no warnings
             return True
