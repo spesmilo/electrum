@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.plugin import Plugins
     from electrum.keystore import Hardware_KeyStore
+    from electrum.simple_config import SimpleConfig
 
 
 class WizardViewState(NamedTuple):
@@ -766,3 +767,31 @@ class ServerConnectWizard(AbstractWizard):
         params = self.navmap[start_view].get('params', {})
         self._current = WizardViewState(start_view, initial_data, params)
         return self._current
+
+
+class TermsOfUseWizard(AbstractWizard):
+
+    _logger = get_logger(__name__)
+
+    def __init__(self, config: 'SimpleConfig'):
+        AbstractWizard.__init__(self)
+        self._config = config
+        self.navmap = {
+            'terms_of_use': {
+                'accept': self.accept_terms_of_use,
+                'last': True,
+            },
+        }
+
+    def accept_terms_of_use(self, _):
+        self._config.TERMS_OF_USE_ACCEPTED = True
+
+    def start(self, initial_data: dict = None) -> WizardViewState:
+        if initial_data is None:
+            initial_data = {}
+        self.reset()
+        start_view = 'terms_of_use'
+        params = self.navmap[start_view].get('params', {})
+        self._current = WizardViewState(start_view, initial_data, params)
+        return self._current
+

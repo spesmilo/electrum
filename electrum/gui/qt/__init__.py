@@ -500,6 +500,19 @@ class ElectrumGui(BaseElectrumGui, Logger):
             window.close()
             self._create_window_for_wallet(wallet)
 
+    def ask_terms_of_use(self):
+        """Ask the user to accept the terms of use.
+        This is only shown if the user has not accepted them yet.
+        """
+        if self.config.TERMS_OF_USE_ACCEPTED:
+            return
+        from electrum.gui.qt.wizard.terms_of_use import QETermsOfUseWizard
+        dialog = QETermsOfUseWizard(self.config, self.app)
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Rejected:
+            self.logger.info('terms of use not accepted by user')
+            raise UserCancelled()
+
     def init_network(self):
         """Start the network, including showing a first-start network dialog if config does not exist."""
         if self.daemon.network:
@@ -524,6 +537,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         Exception_Hook.maybe_setup(config=self.config)
         # start network, and maybe show first-start network-setup
         try:
+            self.ask_terms_of_use()
             self.init_network()
         except UserCancelled:
             return

@@ -847,6 +847,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     QR_READER_FLIP_X = ConfigVar('qrreader_flip_x', default=True, type_=bool)
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
+    TERMS_OF_USE_ACCEPTED = ConfigVar('terms_of_use_accepted', default=False, type_=bool)
 
     # connect to remote submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
