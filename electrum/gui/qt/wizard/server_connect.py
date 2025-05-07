@@ -27,7 +27,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
         # attach gui classes
         self.navmap_merge({
-            'welcome': {'gui': WCWelcome, 'params': {'icon': ''}},
+            'welcome': {'gui': WCWelcome},
             'proxy_config': {'gui': WCProxyConfig},
             'server_config': {'gui': WCServerConfig},
         })
@@ -35,31 +35,22 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 
 class WCWelcome(WizardComponent):
     def __init__(self, parent, wizard):
-        WizardComponent.__init__(self, parent, wizard, title='')
+        WizardComponent.__init__(self, parent, wizard, title='Network Configuration')
         self.wizard_title = _('Electrum Bitcoin Wallet')
-        self.use_advanced_w = QCheckBox(_('Advanced network settings'))
-        self.use_advanced_w.setChecked(False)
-        self.use_advanced_w.stateChanged.connect(self.on_advanced_changed)
 
-        self.img_label = QLabel()
-        pixmap = QPixmap(icon_path('electrum_darkblue_1.png'))
-        self.img_label.setPixmap(pixmap)
-        self.img_label2 = QLabel()
-        pixmap = QPixmap(icon_path('electrum_text.png'))
-        self.img_label2.setPixmap(pixmap)
-        hbox_img = QHBoxLayout()
-        hbox_img.addStretch(1)
-        hbox_img.addWidget(self.img_label)
-        hbox_img.addWidget(self.img_label2)
-        hbox_img.addStretch(1)
+        self.help_label = QLabel()
+        self.help_label.setText("\n".join([
+            _("Optional settings to customize your network connection."),
+            _("If you are unsure what this is, leave them unchecked and Electrum will automatically "
+              "select servers."),
+        ]))
+        self.help_label.setWordWrap(True)
 
         self.config_proxy_w = QCheckBox(_('Configure Proxy'))
         self.config_proxy_w.setChecked(False)
-        self.config_proxy_w.setVisible(False)
         self.config_proxy_w.stateChanged.connect(self.on_updated)
         self.config_server_w = QCheckBox(_('Select Server'))
         self.config_server_w.setChecked(False)
-        self.config_server_w.setVisible(False)
         self.config_server_w.stateChanged.connect(self.on_updated)
         options_w = QWidget()
         vbox = QVBoxLayout()
@@ -68,21 +59,15 @@ class WCWelcome(WizardComponent):
         vbox.addStretch(1)
         options_w.setLayout(vbox)
 
-        self.layout().addLayout(hbox_img)
-        self.layout().addSpacing(50)
-        self.layout().addWidget(self.use_advanced_w, False, Qt.AlignmentFlag.AlignHCenter)
-        self.layout().addWidget(options_w, False, Qt.AlignmentFlag.AlignHCenter)
+        self.layout().addWidget(self.help_label)
+        self.layout().addSpacing(30)
+        self.layout().addWidget(options_w, False, Qt.AlignmentFlag.AlignLeft)
         self._valid = True
 
-    def on_advanced_changed(self):
-        self.config_proxy_w.setVisible(self.use_advanced_w.isChecked())
-        self.config_server_w.setVisible(self.use_advanced_w.isChecked())
-        self.on_updated()
-
     def apply(self):
-        self.wizard_data['use_defaults'] = not self.use_advanced_w.isChecked()
-        self.wizard_data['want_proxy'] = self.use_advanced_w.isChecked() and self.config_proxy_w.isChecked()
-        self.wizard_data['autoconnect'] = not self.use_advanced_w.isChecked() or not self.config_server_w.isChecked()
+        self.wizard_data['use_defaults'] = not (self.config_server_w.isChecked() or self.config_proxy_w.isChecked())
+        self.wizard_data['want_proxy'] = self.config_proxy_w.isChecked()
+        self.wizard_data['autoconnect'] = not self.config_server_w.isChecked()
 
 
 class WCProxyConfig(WizardComponent):
