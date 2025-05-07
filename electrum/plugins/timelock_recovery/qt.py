@@ -192,17 +192,21 @@ class Plugin(TimelockRecoveryPlugin):
             plan_dialog.close()
             return
 
-        plan_grid = QGridLayout()
-        plan_grid.setSpacing(8)
-        grid_row = 0
-
+        title_hbox = QHBoxLayout()
+        title_hbox.addWidget(QLabel(_('To create a recovery plan, enter a recipient and a cancellation time window')))
+        title_hbox.addStretch(1)
         help_button = QPushButton(_("Help"))
         help_button.clicked.connect(lambda: self.create_intro_dialog(context))
+        title_hbox.addWidget(help_button)
 
         next_button = QPushButton(_("Next"), plan_dialog)
         next_button.clicked.connect(plan_dialog.close)
         next_button.clicked.connect(lambda: self.start_plan(context))
         next_button.setEnabled(False)
+
+        plan_grid = QGridLayout()
+        plan_grid.setSpacing(8)
+        grid_row = 0
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
         payto_e.toggle_paytomany()
@@ -349,8 +353,10 @@ class Plugin(TimelockRecoveryPlugin):
 
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
+        vbox_layout.addLayout(title_hbox)
+        vbox_layout.addStretch(1)
         vbox_layout.addLayout(plan_grid, stretch=1)
-        vbox_layout.addLayout(Buttons(help_button, next_button))
+        vbox_layout.addLayout(Buttons(next_button))
 
         # Populate the HBox layout.
         hbox_layout.addWidget(logo_label)

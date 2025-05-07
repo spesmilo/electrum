@@ -98,12 +98,10 @@ class Plugin(RevealerPlugin):
         QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
 
     @hook
-    def create_status_bar(self, sb):
-        b = StatusBarButton(
-            read_QIcon_from_bytes(self.icon_bytes),
-            "Revealer "+_("Visual Cryptography Plugin"),
-            partial(self.setup_dialog, sb), sb.height())
-        sb.addPermanentWidget(b)
+    def init_menubar(self, window):
+        ma = window.wallet_menu.addAction('Revealer', partial(self.setup_dialog, window))
+        icon = read_QIcon_from_bytes(self.icon_bytes)
+        ma.setIcon(icon)
 
     def requires_settings(self):
         return True
@@ -131,7 +129,7 @@ class Plugin(RevealerPlugin):
         return keystore.get_seed(password)
 
     def setup_dialog(self, window):
-        self.wallet = window.parent().wallet
+        self.wallet = window.wallet
         self.update_wallet_name(self.wallet)
         self.user_input = False
 
