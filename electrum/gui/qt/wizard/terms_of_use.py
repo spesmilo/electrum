@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, QEvent
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QScrollArea
 
@@ -55,11 +55,18 @@ class WCTermsOfUseScreen(WizardComponent):
 
         # Find the scroll area and connect to its scrollbar
         QTimer.singleShot(0, self.check_scroll_position)
+        self.window().installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if obj == self.window() and event.type() == QEvent.Type.Resize:
+            # catch window resize events to check if the scrollbar is visible
+            QTimer.singleShot(100, self.check_scroll_position)
+        return super().eventFilter(obj, event)
 
     def check_scroll_position(self):
-        # Find the scroll area
         scroll_area = self.window().findChild(QScrollArea)
-        if scroll_area and scroll_area.verticalScrollBar():
+        if scroll_area and scroll_area.verticalScrollBar() \
+                and scroll_area.verticalScrollBar().isVisible():
             scrollbar = scroll_area.verticalScrollBar()
             def on_scroll_change(value):
                 if value >= scrollbar.maximum() - 5:  # Allow 5 pixel margin
@@ -67,7 +74,7 @@ class WCTermsOfUseScreen(WizardComponent):
                     self.on_updated()
             scrollbar.valueChanged.connect(on_scroll_change)
         else:
-            # Fallback if the scroll area is not detected
+            # scrollbar is not visible or not found
             self._valid = True
             self.on_updated()
 
