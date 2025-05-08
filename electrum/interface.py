@@ -307,8 +307,8 @@ class PaddedRSTransport(RSTransport):
         self._sbuffer += framed_message
         self._sbuffer_has_data_evt.set()
         self._maybe_consume_sbuffer()
-        if not self._sbuffer:
-            self._sbuffer_has_data_evt.clear()
+        if isinstance(self.session, NotificationSession):
+            self.session.maybe_log(f"heyheyhey. write. {self._sbuffer=}")
 
     def _maybe_consume_sbuffer(self):
         if not self._can_send.is_set() or self.is_closing():
@@ -351,6 +351,8 @@ class PaddedRSTransport(RSTransport):
         self._asyncio_transport.write(buf2)
         self._last_send = time.monotonic()
         del self._sbuffer[:p_idx]
+        if not self._sbuffer:
+            self._sbuffer_has_data_evt.clear()
 
     async def _poll_sbuffer(self):
         while True:
@@ -505,7 +507,7 @@ class Interface(Logger):
         self.fee_estimates_eta = {}  # type: Dict[int, int]
 
         # Dump network messages (only for this interface).  Set at runtime from the console.
-        self.debug = False
+        self.debug = True
 
         self.taskgroup = OldTaskGroup()
 
