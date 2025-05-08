@@ -27,7 +27,8 @@ from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Tr
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
                    gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector,
-                   get_running_loop, get_asyncio_loop, wait_for2, run_sync_function_on_asyncio_thread)
+                   get_running_loop, get_asyncio_loop, wait_for2, run_sync_function_on_asyncio_thread,
+                   EventListener, event_listener)
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
@@ -172,7 +173,7 @@ class SwapData(StoredObject):
         return self._payment_pending or bool(self.funding_txid)
 
 
-class SwapManager(Logger):
+class SwapManager(Logger, EventListener):
 
     network: Optional['Network'] = None
     lnwatcher: Optional['LNWatcher'] = None
@@ -211,6 +212,8 @@ class SwapManager(Logger):
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
         self._liquidity_changed = asyncio.Event()
+        self._ongoing_liquidity_update: bool = False
+        self.register_callbacks()
 
     def start_network(self, network: 'Network'):
         assert network
@@ -230,7 +233,7 @@ class SwapManager(Logger):
         await self.set_nostr_proof_of_work()
         with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
             # wait a bit so we don't publish 0 liquidity on startup if channels are not yet reestablished
-            await asyncio.sleep(10)
+            await asyncio.sleep(20)
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
             # will publish a new announcement if liquidity changed or every OFFER_UPDATE_INTERVAL_SEC
@@ -261,6 +264,7 @@ class SwapManager(Logger):
                 await group.spawn(task)
 
     async def stop(self):
+        self.unregister_callbacks()
         await self.taskgroup.cancel_remaining()
 
     def create_transport(self) -> 'SwapServerTransport':
@@ -446,7 +450,6 @@ class SwapManager(Logger):
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
-            self.server_maybe_trigger_liquidity_update()
 
     def get_swap_tx_fee(self):
         return self._get_tx_fee(self.config.FEE_POLICY)
@@ -975,17 +978,47 @@ class SwapManager(Logger):
         To be called when the available liquidity changes so the new liquidity is announced.
         (ln in/out, onchain in/out)
         """
-        if not self.is_server:
+        if not self.is_server or self._ongoing_liquidity_update:
             return
-        assert get_running_loop() == get_asyncio_loop(), "Events must be set in the asyncio thread"
-        previous_max_forward = self._max_forward
-        previous_max_reverse = self._max_reverse
-        self.server_update_pairs()
-        # if liquidity really changed the event is triggered so a new provider announcement is published
-        if self._max_forward != previous_max_forward or self._max_reverse != previous_max_reverse:
-                self.logger.debug(f"liquidity changed, updating announcement")
-                self._liquidity_changed.set()
-                self._liquidity_changed.clear()
+        # set bool to prevent triggering multiple redundant updates at the same time if this gets called in
+        # quick succession (e.g. lnwatcher triggers _claim_swap on new block for multiple swaps)
+        self._ongoing_liquidity_update = True
+        async def trigger_update():
+            # some sleep makes this more reliable as the trigger may is called close to the
+            # action that is supposed to change the liquidity, but the action can take some time to
+            # complete and change the available liquidity data (e.g. settling htlcs after preimage got added)
+            # it also prevents the server ip from getting rate limited by relays for publishing too often
+            await asyncio.sleep(10)
+            previous_max_forward = self._max_forward
+            previous_max_reverse = self._max_reverse
+            try:
+                self.server_update_pairs()
+            except Exception:
+                self.logger.exception("server_update_pairs failed")
+            # if liquidity really changed the event is triggered so a new provider announcement is published
+            if self._max_forward != previous_max_forward or self._max_reverse != previous_max_reverse:
+                    self.logger.debug(f"liquidity changed, updating announcement")
+                    self._liquidity_changed.set()
+                    self._liquidity_changed.clear()
+            self._ongoing_liquidity_update = False
+
+        asyncio.run_coroutine_threadsafe(trigger_update(), loop=get_asyncio_loop())
+
+    @event_listener
+    async def on_event_channel(self, wallet, channel):
+        """
+        Called when a channels state / liquidity changes.
+        """
+        if self.is_server and wallet == self.wallet:
+            self.server_maybe_trigger_liquidity_update()
+
+    @event_listener
+    async def on_event_new_transaction(self, wallet, _tx):
+        """
+        Called when a new onchain transaction is detected.
+        """
+        if self.is_server and wallet == self.wallet:
+            self.server_maybe_trigger_liquidity_update()
 
     def get_provider_max_forward_amount(self) -> int:
         """in sat"""
@@ -1657,7 +1690,6 @@ class NostrTransport(SwapServerTransport):
         r['reply_to'] = event_id
         self.logger.debug(f'sending response id={event_id}')
         await self.send_direct_message(event_pubkey, json.dumps(r))
-        self.sm.server_maybe_trigger_liquidity_update()
 
     def _store_last_swapserver_relays(self, relays: Sequence[str]):
         self._last_swapserver_relays = relays
