@@ -400,7 +400,7 @@ class QEInvoice(QObject, QtEventListener):
         return spendable
 
     def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
+        return self._wallet.wallet.lnworker.num_sats_can_send(single_payment=True) if self._wallet.wallet.lnworker else 0
 
     @pyqtSlot()
     def updateMaxAmount(self):

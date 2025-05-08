@@ -106,12 +106,12 @@ ElDialog {
             }
             FlatButton {
                 Layout.fillWidth: true
-                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
+                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceiveSinglePayment.satsInt
                             > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
                 onClicked: {
-                    if (Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt) {
+                    if (Daemon.currentWallet.lightningCanReceiveSinglePayment.satsInt > amountBtc.textAsSats.satsInt) {
                         // can receive on existing channel
                         dialog.isLightning = true
                         doAccept()

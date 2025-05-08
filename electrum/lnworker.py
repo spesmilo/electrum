@@ -1507,7 +1507,7 @@ class LNWallet(LNWorker):
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
-        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send()
+        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send(single_payment=True)
 
     @log_exceptions
     async def pay_invoice(
@@ -2919,7 +2919,7 @@ class LNWallet(LNWorker):
         return None
 
     def suggest_swap_to_receive(self, amount_sat):
-        assert amount_sat > self.num_sats_can_receive()
+        assert amount_sat > self.num_sats_can_receive(single_payment=True)
         try:
             suggestions = self._suggest_channels_for_rebalance(RECEIVED, amount_sat)
         except NotEnoughFunds:

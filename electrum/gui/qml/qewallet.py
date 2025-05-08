@@ -105,6 +105,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._minchannelfunding = QEAmount(amount_sat=int(MIN_FUNDING_SAT))
         self._lightningcansend = QEAmount()
         self._lightningbalancefrozen = QEAmount()
+        self._lightningcansend_singlepayment = QEAmount()
+        self._lightningbalancefrozen_singlepayment = QEAmount()
 
         self._seed = ''
         self._seed_passphrase = ''
@@ -512,6 +514,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self.isLightning:
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningCanSendSinglePayment(self):
+        if self.isLightning:
+            self._lightningcansend_singlepayment.satsInt = int(self.wallet.lnworker.num_sats_can_send(single_payment=True))
+        return self._lightningcansend_singlepayment
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningCanReceiveSinglePayment(self):
+        if self.isLightning:
+            self._lightningcanreceive_singlepayment.satsInt = int(self.wallet.lnworker.num_sats_can_receive(single_payment=True))
+        return self._lightningcanreceive_singlepayment
 
     @pyqtProperty(bool, notify=balanceChanged)
     def isLowReserve(self):
