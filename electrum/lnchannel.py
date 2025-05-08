@@ -172,14 +172,22 @@ class RemoteCtnTooFarInFuture(Exception): pass
 def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
 
+
 def now():
     return int(time.time())
+
 
 class HTLCWithStatus(NamedTuple):
     channel_id: bytes
     htlc: UpdateAddHtlc
     direction: Direction
     status: str
+
+
+class ChannelPaymentConstraints(NamedTuple):
+    htlc_minimum_msat: int
+    htlc_maximum_msat: int
+    num_htlcs: int
 
 
 class AbstractChannel(Logger, ABC):
@@ -1070,9 +1078,43 @@ class Channel(AbstractChannel):
         """Raises PaymentFailure if the htlc_proposer cannot add this new HTLC.
         (this is relevant both for forwarding and endpoint)
         """
+        # NOTE: ignore_min_htlc_value never used?
         htlc_receiver = htlc_proposer.inverted()
         # note: all these tests are about the *receiver's* *next* commitment transaction,
         #       and the constraints are the ones imposed by their config
+        ctn = self.get_next_ctn(htlc_receiver)
+        chan_config = self.config[htlc_receiver]
+
+        chan_payment_constraints = self.determine_payment_constraints(htlc_proposer)
+
+        # If proposer is LOCAL we apply stricter checks as that is behaviour we can control.
+        # This should lead to fewer disagreements (i.e. channels failing).
+        strict = (htlc_proposer == LOCAL)
+
+        # check htlc raw value
+        if not ignore_min_htlc_value:
+            if amount_msat <= 0:
+                raise PaymentFailure("HTLC value must be positive")
+            if amount_msat < chan_payment_constraints.htlc_minimum_msat:
+                raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
+
+        # check proposer can afford htlc
+        max_can_send_msat = self.available_to_spend(htlc_proposer, strict=strict)
+        if max_can_send_msat < amount_msat:
+            raise PaymentFailure(f'Not enough balance. can send: {max_can_send_msat}, tried: {amount_msat}')
+
+        # check "max_htlc_value_in_flight_msat"
+        current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn).values())
+        if current_htlc_sum + amount_msat > chan_config.max_htlc_value_in_flight_msat:
+            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
+                                 f'plus new htlc: {amount_msat/1000} sat) '
+                                 f'would exceed max allowed: {chan_config.max_htlc_value_in_flight_msat/1000} sat')
+
+    def determine_payment_constraints(self, htlc_proposer: HTLCOwner) -> ChannelPaymentConstraints:
+        """Raises PaymentFailure if no valid amount range can be determined, or if no HTLCs can be added.
+        (this is relevant both for forwarding and endpoint)
+        """
+        htlc_receiver = htlc_proposer.inverted()
         ctn = self.get_next_ctn(htlc_receiver)
         chan_config = self.config[htlc_receiver]
         if self.get_state() != ChannelState.OPEN:
@@ -1087,36 +1129,37 @@ class Channel(AbstractChannel):
         # This should lead to fewer disagreements (i.e. channels failing).
         strict = (htlc_proposer == LOCAL)
 
-        # check htlc raw value
-        if not ignore_min_htlc_value:
-            if amount_msat <= 0:
-                raise PaymentFailure("HTLC value must be positive")
-            if amount_msat < chan_config.htlc_minimum_msat:
-                raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
-
-        # check proposer can afford htlc
-        max_can_send_msat = self.available_to_spend(htlc_proposer, strict=strict)
-        if max_can_send_msat < amount_msat:
-            raise PaymentFailure(f'Not enough balance. can send: {max_can_send_msat}, tried: {amount_msat}')
-
         # check "max_accepted_htlcs"
         # this is the loose check BOLT-02 specifies:
-        if len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn)) + 1 > chan_config.max_accepted_htlcs:
+        remaining_num_htlcs = (chan_config.max_accepted_htlcs
+                               - len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn)))
+        if remaining_num_htlcs < 1:
             raise PaymentFailure('Too many HTLCs already in channel')
         # however, c-lightning is a lot stricter, so extra checks:
         # https://github.com/ElementsProject/lightning/blob/4dcd4ca1556b13b6964a10040ba1d5ef82de4788/channeld/full_channel.c#L581
         if strict:
             max_concurrent_htlcs = min(self.config[htlc_proposer].max_accepted_htlcs,
                                        self.config[htlc_receiver].max_accepted_htlcs)
-            if len(self.hm.htlcs(htlc_receiver, ctn=ctn)) + 1 > max_concurrent_htlcs:
+            remaining_num_htlcs = max_concurrent_htlcs - len(self.hm.htlcs(htlc_receiver, ctn=ctn))
+            if remaining_num_htlcs < 1:
                 raise PaymentFailure('Too many HTLCs already in channel')
 
         # check "max_htlc_value_in_flight_msat"
         current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn).values())
-        if current_htlc_sum + amount_msat > chan_config.max_htlc_value_in_flight_msat:
-            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
-                                 f'plus new htlc: {amount_msat/1000} sat) '
-                                 f'would exceed max allowed: {chan_config.max_htlc_value_in_flight_msat/1000} sat')
+        remaining_max_inflight = chan_config.max_htlc_value_in_flight_msat - current_htlc_sum
+        # remaining_max_inflight = chan_config.max_htlc_value_in_flight_msat // 10 - current_htlc_sum  #testing
+        max_can_send_msat = min(self.available_to_spend(htlc_proposer, strict=strict), remaining_max_inflight)
+
+        if max_can_send_msat <= chan_config.htlc_minimum_msat:
+            raise PaymentFailure(f'Remaining allowed inflight HTLC amount '
+                                 f'(max: {chan_config.max_htlc_value_in_flight_msat/1000} sat, '
+                                 f'sum of pending htlcs: {current_htlc_sum/1000} sat) '
+                                 f'does not exceed min HTLC amount (min: {chan_config.htlc_minimum_msat/1000} sat). ')
+        return ChannelPaymentConstraints(
+            htlc_minimum_msat=chan_config.htlc_minimum_msat,
+            htlc_maximum_msat=max_can_send_msat,
+            num_htlcs=remaining_num_htlcs
+        )
 
     def can_pay(self, amount_msat: int, *, check_frozen=False) -> bool:
         """Returns whether we can add an HTLC of given value."""

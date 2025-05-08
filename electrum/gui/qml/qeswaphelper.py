@@ -430,9 +430,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             max_onchain_spend = self._tx.output_value_for_address(DummyAddress.SWAP)
         except AttributeError:  # happens if there are no utxos
             max_onchain_spend = 0
-        reverse = int(min(lnworker.num_sats_can_send(),
+        reverse = int(min(lnworker.num_sats_can_send(single_payment=True),
                           swap_manager.get_provider_max_forward_amount()))
-        max_recv_amt_ln = min(swap_manager.get_provider_max_reverse_amount(), int(lnworker.num_sats_can_receive()))
+        max_recv_amt_ln = min(swap_manager.get_provider_max_reverse_amount(), int(lnworker.num_sats_can_receive(single_payment=True)))
         max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or 0
         forward = int(min(max_recv_amt_oc,
                           # maximally supported swap amount by provider

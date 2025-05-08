@@ -3331,7 +3331,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
-        can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
+        can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive(single_payment=True)
         try:
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:

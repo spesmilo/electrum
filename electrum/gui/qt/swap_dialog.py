@@ -180,7 +180,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             self.max_button.setChecked(False)
 
     def _spend_max_reverse_swap(self) -> None:
-        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_provider_max_forward_amount())
+        amount = min(self.lnworker.num_sats_can_send(single_payment=True), self.swap_manager.get_provider_max_forward_amount())
         amount = int(amount)  # round down msats
         self.send_amount_e.setAmount(amount)
 
@@ -190,10 +190,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         send_amount = self.send_amount_e.get_amount()
         recv_amount = self.swap_manager.get_recv_amount(send_amount, is_reverse=self.is_reverse)
-        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
+        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send(single_payment=True):
             # cannot send this much on lightning
             recv_amount = None
-        if (not self.is_reverse) and recv_amount and recv_amount > self.lnworker.num_sats_can_receive():
+        if (not self.is_reverse) and recv_amount and recv_amount > self.lnworker.num_sats_can_receive(single_payment=True):
             # cannot receive this much on lightning
             recv_amount = None
         self.recv_amount_e.follows = True
@@ -209,7 +209,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         recv_amount = self.recv_amount_e.get_amount()
         send_amount = self.swap_manager.get_send_amount(recv_amount, is_reverse=self.is_reverse)
-        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
+        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send(single_payment=True):
             send_amount = None
         self.send_amount_e.follows = True
         self.send_amount_e.setAmount(send_amount)

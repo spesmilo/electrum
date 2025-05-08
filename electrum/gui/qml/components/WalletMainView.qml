@@ -540,7 +540,7 @@ Item {
                     var amountToSend = invoice.amountOverride.isEmpty
                         ? invoice.amount.satsInt
                         : invoice.amountOverride.satsInt
-                    if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                    if (amountToSend > Daemon.currentWallet.lightningCanSendSinglePayment.satsInt) {
                         lninvoiceButPayOnchain = true
                     }
                 }

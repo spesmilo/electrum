@@ -938,8 +938,8 @@ class SwapManager(Logger):
         self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = 20000
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
-        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
-        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)
+        max_forward: int = min(int(self.lnworker.num_sats_can_receive(single_payment=True)), oc_balance_sat, 10000000)
+        max_reverse: int = min(int(self.lnworker.num_sats_can_send(single_payment=True)), 10000000)
         self._max_forward: int = self._keep_leading_digits(max_forward, 2)
         self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
         self.mining_fee = self.get_fee_for_txbatcher()
@@ -1166,7 +1166,7 @@ class SwapManager(Logger):
     def client_max_amount_reverse_swap(self) -> Optional[int]:
         """Returns None if swap is not possible"""
         provider_max = self.get_provider_max_forward_amount()
-        max_ln_send = int(self.lnworker.num_sats_can_send())
+        max_ln_send = int(self.lnworker.num_sats_can_send(single_payment=True))
         max_swap_size = min(max_ln_send, provider_max)
         if max_swap_size < self.get_min_amount():
             return None

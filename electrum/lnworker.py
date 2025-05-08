@@ -1507,7 +1507,7 @@ class LNWallet(LNWorker):
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
-        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send()
+        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send(single_payment=True)
 
     @log_exceptions
     async def pay_invoice(
@@ -2702,7 +2702,7 @@ class LNWallet(LNWorker):
         amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
         return Decimal(amount_msat - amount_minus_fees) / 1000
 
-    def num_sats_can_send(self, deltas=None) -> Decimal:
+    def num_sats_can_send(self, deltas=None, *, single_payment: bool = False) -> Decimal:
         """
         without trampoline, sum of all channel capacity
         with trampoline, MPP must use a single trampoline
@@ -2717,7 +2717,13 @@ class LNWallet(LNWorker):
                     delta_msat = 0
             else:
                 delta_msat = 0
-            return chan.available_to_spend(LOCAL) + delta_msat
+            if single_payment:
+                try:
+                    return chan.determine_payment_constraints(LOCAL).htlc_maximum_msat + delta_msat
+                except PaymentFailure:
+                    return 0
+            else:
+                return chan.available_to_spend(LOCAL) + delta_msat
         can_send_dict = defaultdict(int)
         with self.lock:
             for c in self.get_channels_for_sending():
@@ -2764,10 +2770,10 @@ class LNWallet(LNWorker):
             channels = channels[:10]
             return channels
 
-    def num_sats_can_receive(self, deltas=None) -> Decimal:
+    def num_sats_can_receive(self, deltas=None, *, single_payment: bool = False) -> Decimal:
         """
         We no longer assume the sender to send MPP on different channels,
-        because channel liquidities are hard to guess
+        because channel liquidities are hard to guess.
         """
         if deltas is None:
             deltas = {}
@@ -2779,13 +2785,19 @@ class LNWallet(LNWorker):
                     delta_msat = 0
             else:
                 delta_msat = 0
-            return chan.available_to_spend(REMOTE) + delta_msat
+            if single_payment:
+                try:
+                    return chan.determine_payment_constraints(REMOTE).htlc_maximum_msat + delta_msat
+                except PaymentFailure:
+                    return 0
+            else:
+                return chan.available_to_spend(REMOTE) + delta_msat
         with self.lock:
             recv_channels = self.get_channels_for_receiving()
             recv_chan_msats = [recv_capacity(chan) for chan in recv_channels]
         if not recv_chan_msats:
             return Decimal(0)
-        can_receive_msat = max(recv_chan_msats)
+        can_receive_msat = max(recv_chan_msats)  # assuming no mpp (max, not sum), see docstring
         return Decimal(can_receive_msat) / 1000
 
     def receive_requires_jit_channel(self, amount_msat: Optional[int]) -> bool:
@@ -2907,7 +2919,7 @@ class LNWallet(LNWorker):
         return None
 
     def suggest_swap_to_receive(self, amount_sat):
-        assert amount_sat > self.num_sats_can_receive()
+        assert amount_sat > self.num_sats_can_receive(single_payment=True)
         try:
             suggestions = self._suggest_channels_for_rebalance(RECEIVED, amount_sat)
         except NotEnoughFunds:
