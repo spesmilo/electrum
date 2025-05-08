@@ -74,6 +74,16 @@ MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
       "you will not get back the already pre-paid mining fees.")
 )
 
+MSG_FORWARD_SWAP_WARNING = (
+    _('You will need to come back online after the funding transaction is confirmed, in order to settle the swap.') + ' ' +
+    _('If you remain offline for more than {} blocks, your channel will be force closed and you might lose the funds you sent in the swap.')
+)
+
+MSG_REVERSE_SWAP_WARNING = (
+    _('You will need to come back online after the funding transaction is confirmed, in order to settle the swap.') + ' ' +
+    _('If you remain offline for more than {} blocks, the swap will be cancelled and you will lose the prepaid mining fees.')
+)
+
 MSG_LN_UTXO_RESERVE = (
     _("You do not have enough on-chain funds to protect your Lightning channels.") + ' ' +
     _("You should have at least {} on-chain in order to be able to sweep channel outputs.")
