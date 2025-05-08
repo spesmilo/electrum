@@ -287,9 +287,9 @@ class PaddedRSTransport(RSTransport):
     due to it being wrapped e.g. in TLS)
     """
 
-    MIN_PAYLOAD_SIZE = 1024
+    MIN_PACKET_SIZE = 1024
 
-    session: Optional['NotificationSession']
+    session: Optional['RPCSession']
 
     def __init__(self, *args, **kwargs):
         RSTransport.__init__(self, *args, **kwargs)
@@ -297,6 +297,7 @@ class PaddedRSTransport(RSTransport):
         self._sbuffer_task = None  # type: Optional[asyncio.Task]
         self._sbuffer_has_data_evt = asyncio.Event()
         self._last_send = time.monotonic()
+        self._low_watermark = self.MIN_PACKET_SIZE
 
     async def write(self, message):
         await self._can_send.wait()
@@ -316,16 +317,16 @@ class PaddedRSTransport(RSTransport):
         if not buf:
             return
         # if there is enough data in the buffer, or if we haven't sent in a while, send now:
-        if not (len(buf) >= self.MIN_PAYLOAD_SIZE or self._last_send + 1 < time.monotonic()):
+        if not (len(buf) >= self._low_watermark or self._last_send + 1 < time.monotonic()):
             return
         assert buf[-2:] in (b"}\n", b"]\n"), f"unexpected json-rpc terminator: {buf[-2:]=!r}"
         # either (1) pad length to next power of two, to create "lsize" packet:
         payload_lsize = len(buf)
-        total_lsize = max(self.MIN_PAYLOAD_SIZE, 2 ** (payload_lsize.bit_length()))
+        total_lsize = max(self.MIN_PACKET_SIZE, 2 ** (payload_lsize.bit_length()))
         npad_lsize = total_lsize - payload_lsize
         # or if that wasted a lot of bandwidth with padding, (2) defer sending some messages
         # and create a packet with half that size ("ssize", s for small)
-        total_ssize = max(self.MIN_PAYLOAD_SIZE, total_lsize//2)
+        total_ssize = max(self.MIN_PACKET_SIZE, total_lsize // 2)
         payload_ssize = buf.rfind(b"\n", 0, total_ssize)
         if payload_ssize != -1:
             payload_ssize += 1  # for "\n" char
@@ -341,11 +342,11 @@ class PaddedRSTransport(RSTransport):
             p_idx = payload_ssize
         # pad by adding spaces near end
         assert buf[p_idx-2:p_idx] in (b"}\n", b"]\n"), f"unexpected json-rpc terminator: {buf[p_idx-2:p_idx]=!r}"
-        self.session.maybe_log(
-            f"PaddedRSTransport. calling low-level write(). "
-            f"chose between (lsize:{payload_lsize}+{npad_lsize}, ssize:{payload_ssize}+{npad_ssize}). "
-            f"won: {'tie' if npad_lsize == npad_ssize else 'lsize' if npad_lsize < npad_ssize else 'ssize'}."
-        )
+        # self.session.maybe_log(
+        #     f"PaddedRSTransport. calling low-level write(). "
+        #     f"chose between (lsize:{payload_lsize}+{npad_lsize}, ssize:{payload_ssize}+{npad_ssize}). "
+        #     f"won: {'tie' if npad_lsize == npad_ssize else 'lsize' if npad_lsize < npad_ssize else 'ssize'}."
+        # )
         buf2 = buf[:p_idx - 2] + (npad * b" ") + buf[p_idx - 2:p_idx]
         self._asyncio_transport.write(buf2)
         self._last_send = time.monotonic()
@@ -359,8 +360,13 @@ class PaddedRSTransport(RSTransport):
 
     def connection_made(self, transport: asyncio.BaseTransport):
         super().connection_made(transport)
-        coro = self.session.interface.taskgroup.spawn(self._poll_sbuffer())
-        self._sbuffer_task = self.loop.create_task(coro)
+        if isinstance(self.session, NotificationSession):
+            coro = self.session.interface.taskgroup.spawn(self._poll_sbuffer())
+            self._sbuffer_task = self.loop.create_task(coro)
+        else:
+            # This a short-lived "fetch_certificate"-type session.
+            # No polling here, we always force-empty the buffer.
+            self._low_watermark = 0
 
 
 class ServerAddr:
