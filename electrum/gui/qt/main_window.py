@@ -2699,7 +2699,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             warning = ''.join([
                 _("Are you sure you want to close Electrum?"),
                 '\n\n',
-                _("An ongoing operation prevents Electrum from closing:"),
+                _("An ongoing operation requires you to stay online."),
                 '\n',
                 warning
             ])
@@ -2733,6 +2733,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
         """Callback that will return a warning string if there are unconfirmed swap funding txs."""
         if not (self.wallet.has_lightning() and self.wallet.lnworker.swap_manager):
+            return None
+        if not self.network:
             return None
         if ongoing_swaps := self.wallet.lnworker.swap_manager.get_pending_swaps():
             return "".join((

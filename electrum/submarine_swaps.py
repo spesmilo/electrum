@@ -1283,11 +1283,11 @@ class SwapManager(Logger):
         """Returns a list of swaps with unconfirmed funding tx (which require us to stay online)."""
         pending_swaps: List[SwapData] = []
         for swap in self.swaps.values():
-            if swap.funding_txid and not swap.is_redeemed:
-                # swap is funded but not marked redeemed by _claim_swap
-                if self.lnworker.wallet.adb.get_tx_height(swap.funding_txid).height < 1:
-                    # funding TX is not yet confirmed, wallet should not be closed
-                    pending_swaps.append(swap)
+            # note: adb.get_tx_height returns TX_HEIGHT_LOCAL if the txid is unknown
+            funding_height = self.lnworker.wallet.adb.get_tx_height(swap.funding_txid).height
+            spending_height = self.lnworker.wallet.adb.get_tx_height(swap.spending_txid).height
+            if funding_height > TX_HEIGHT_LOCAL and spending_height <= TX_HEIGHT_LOCAL:
+                pending_swaps.append(swap)
         return pending_swaps
 
 class SwapServerTransport(Logger):
