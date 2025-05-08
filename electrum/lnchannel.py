@@ -303,12 +303,14 @@ class AbstractChannel(Logger, ABC):
     def get_remote_scid_alias(self) -> Optional[bytes]:
         return None
 
-    def sweep_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+    def get_ctx_sweep_info(self, ctx: Transaction) -> Tuple[bool, Dict[str, SweepInfo]]:
         txid = ctx.txid()
+        is_local = False
         if self._sweep_info.get(txid) is None:
             our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
             their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
             if our_sweep_info:
+                is_local = True
                 self._sweep_info[txid] = our_sweep_info
                 self.logger.info(f'we (local) force closed')
             elif their_sweep_info:
@@ -317,7 +319,7 @@ class AbstractChannel(Logger, ABC):
             else:
                 self._sweep_info[txid] = {}
                 self.logger.info(f'not sure who closed.')
-        return self._sweep_info[txid]
+        return is_local, self._sweep_info[txid]
 
     def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         return {}

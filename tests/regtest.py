@@ -70,8 +70,11 @@ class TestLightningAB(TestLightning):
     def test_extract_preimage(self):
         self.run_shell(['extract_preimage'])
 
-    def test_redeem_htlcs(self):
-        self.run_shell(['redeem_htlcs'])
+    def test_redeem_received_htlcs(self):
+        self.run_shell(['redeem_received_htlcs'])
+
+    def test_redeem_offered_htlcs(self):
+        self.run_shell(['redeem_offered_htlcs'])
 
     def test_breach_with_unspent_htlc(self):
         self.run_shell(['breach_with_unspent_htlc'])

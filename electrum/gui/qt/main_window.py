@@ -274,6 +274,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # wallet closing warning callbacks
         self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
         self.register_closing_warning_callback(self._check_ongoing_submarine_swaps_callback)
+        self.register_closing_warning_callback(self._check_ongoing_force_closures)
         # banner may already be there
         if self.network and self.network.banner:
             self.console.showMessage(self.network.banner)
@@ -2730,6 +2731,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.logger.debug(f"registering wallet closing warning callback")
         self.closing_warning_callbacks.append(warning_callback)
 
+    def _check_ongoing_force_closures(self) -> Optional[str]:
+        from electrum.lnutil import MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        if not self.wallet.has_lightning():
+            return None
+        if not self.network:
+            return None
+        force_closes = self.wallet.lnworker.lnwatcher.get_pending_force_closes()
+        if not force_closes:
+            return
+        # fixme: this is inaccurate, we need local_height - cltv_of_htlc
+        cltv_delta = MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        msg = '\n\n'.join([
+            _("Pending channel force-close"),
+            messages.MSG_FORCE_CLOSE_WARNING.format(cltv_delta),
+        ])
+        return msg
+
     def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
         """Callback that will return a warning string if there are unconfirmed swap funding txs."""
         from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT, LOCKTIME_DELTA_REFUND
@@ -2749,10 +2767,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             locktime = min(swap.locktime for swap in ongoing_swaps)
             delta = locktime - self.wallet.adb.get_local_height()
             warning = messages.MSG_REVERSE_SWAP_WARNING.format(delta)
-        return "".join((
-            f"{str(len(ongoing_swaps))} ",
-            _("pending submarine swap") if len(ongoing_swaps) == 1 else _("pending submarine swaps"),
-            "\n\n",
+        return "\n\n".join((
+            _("Pending submarine swap"),
             warning,
         ))
 

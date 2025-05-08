@@ -74,6 +74,11 @@ MSG_REVERSE_SWAP_FUNDING_MEMPOOL = (
       "you will not get back the already pre-paid mining fees.")
 )
 
+MSG_FORCE_CLOSE_WARNING = (
+    _('You will need to come back online after the commitment transaction is confirmed, in order to broadcast second-stage htlc transactions.') + ' ' +
+    _('If you remain offline for more than {} blocks, your channel counterparty will be able to sweep those funds.')
+)
+
 MSG_FORWARD_SWAP_WARNING = (
     _('You will need to come back online after the funding transaction is confirmed, in order to settle the swap.') + ' ' +
     _('If you remain offline for more than {} blocks, your channel will be force closed and you might lose the funds you sent in the swap.')

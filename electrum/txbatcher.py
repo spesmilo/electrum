@@ -106,7 +106,7 @@ class TxBatcher(Logger):
         assert sweep_info.csv_delay >= (sweep_info.txin.get_block_based_relative_locktime() or 0)
         if sweep_info.txin and sweep_info.txout:
             # todo: don't use name, detect sighash
-            if sweep_info.name == 'first-stage-htlc':
+            if sweep_info.name in ['received-htlc', 'offered-htlc'] and sweep_info.csv_delay == 0:
                 if sweep_info.txin.prevout not in self._legacy_htlcs:
                     self.logger.info(f'received {sweep_info.name}')
                     self._legacy_htlcs[sweep_info.txin.prevout] = sweep_info

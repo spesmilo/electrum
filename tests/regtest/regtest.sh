@@ -342,7 +342,8 @@ if [[ $1 == "extract_preimage" ]]; then
 fi
 
 
-if [[ $1 == "redeem_htlcs" ]]; then
+if [[ $1 == "redeem_offered_htlcs" ]]; then
+    # alice force closes and redeems using htlc timeout
     $bob enable_htlc_settle false
     wait_for_balance alice 1
     echo "alice opens channel"
@@ -381,6 +382,32 @@ if [[ $1 == "redeem_htlcs" ]]; then
     # fixme: add local to getbalance
     wait_for_balance alice $(echo "$balance_before - 0.02" | bc -l)
     $alice getbalance
+fi
+
+
+if [[ $1 == "redeem_received_htlcs" ]]; then
+    # bob force closes and redeems with the preimage
+    $bob enable_htlc_settle false
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice open_channel $bob_node 0.15 --password=''
+    new_blocks 3
+    wait_until_channel_open alice
+    # alice pays bob
+    invoice=$($bob add_request 0.04 --lightning --memo "test" | jq -r ".lightning_invoice")
+    $alice lnpay $invoice --timeout=1 || true
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work'
+        exit 1
+    fi
+    $alice stop
+    chan_id=$($bob list_channels | jq -r ".[0].channel_point")
+    $bob close_channel $chan_id --force
+    # if we exit here, bob GUI will show a warning
+    new_blocks 1
+    wait_for_balance bob 1.039
 fi
 
 

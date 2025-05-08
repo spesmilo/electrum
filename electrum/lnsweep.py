@@ -385,7 +385,7 @@ def sweep_our_ctx(
             htlc_relative_idx=htlc_relative_idx)
 
         if actual_htlc_tx is None:
-            name = 'first-stage-htlc-anchors' if chan.has_anchors() else 'first-stage-htlc'
+            name = 'offered-htlc' if htlc_direction == SENT else 'received-htlc'
             prevout = ctx.txid() + f':{ctx_output_idx}'
             csv_delay = 1 if chan.has_anchors() else 0
             txs[prevout] = SweepInfo(

@@ -8,6 +8,7 @@ from .util import TxMinedInfo, BelowDustLimit
 from .util import EventListener, event_listener, log_exceptions, ignore_exceptions
 from .transaction import Transaction, TxOutpoint
 from .logging import Logger
+from .address_synchronizer import TX_HEIGHT_LOCAL
 
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ class LNWatcher(Logger, EventListener):
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
+        self._pending_force_closes = set()
 
     def start_network(self, network: 'Network'):
         self.network = network
@@ -140,6 +142,8 @@ class LNWatcher(Logger, EventListener):
             closing_txid=closing_txid,
             closing_height=closing_height,
             keep_watching=keep_watching)
+        if closing_height.conf > 0:
+            self._pending_force_closes.discard(chan)
         await self.lnworker.handle_onchain_state(chan)
 
     async def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
@@ -157,7 +161,7 @@ class LNWatcher(Logger, EventListener):
         if not chan:
             return False
         # detect who closed and get information about how to claim outputs
-        sweep_info_dict = chan.sweep_ctx(closing_tx)
+        is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
         keep_watching = False if sweep_info_dict else not self.adb.is_deeply_mined(closing_tx.txid())
         # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
@@ -188,7 +192,11 @@ class LNWatcher(Logger, EventListener):
                 self.maybe_add_accounting_address(spender_txid, sweep_info)
             else:
                 keep_watching |= was_added
+            self.maybe_add_pending_forceclose(chan, spender_txid, is_local_ctx, sweep_info, was_added)
         return keep_watching
+
+    def get_pending_force_closes(self):
+        return self._pending_force_closes
 
     def maybe_redeem(self, sweep_info: 'SweepInfo') -> bool:
         """ returns False if it was dust """
@@ -219,7 +227,7 @@ class LNWatcher(Logger, EventListener):
                 break
         else:
             return
-        if sweep_info.name in ['first-stage-htlc', 'first-stage-htlc-anchors']:
+        if sweep_info.name in ['offered-htlc', 'received-htlc']:
             # always consider ours
             pass
         else:
@@ -237,3 +245,10 @@ class LNWatcher(Logger, EventListener):
         prev_tx = self.adb.get_transaction(prev_txid)
         txout = prev_tx.outputs()[int(prev_index)]
         self.lnworker.wallet._accounting_addresses.add(txout.address)
+
+    def maybe_add_pending_forceclose(self, chan, spender_txid, is_local_ctx, sweep_info, was_added):
+        """ we are waiting for ctx to be confirmed and there are received htlcs """
+        if was_added and is_local_ctx and sweep_info.name == 'received-htlc' and chan.has_anchors():
+            tx_mined_status = self.adb.get_tx_height(spender_txid)
+            if tx_mined_status.height == TX_HEIGHT_LOCAL:
+                self._pending_force_closes.add(chan)
