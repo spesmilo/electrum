@@ -515,6 +515,8 @@ class TxBatch(Logger):
     def _new_base_tx(self, tx: Transaction):
         self._prevout = tx.inputs()[0].prevout.to_str()
         self.storage['prevout'] = self._prevout
+        tx = PartialTransaction.from_tx(tx)
+        tx.add_info_from_wallet(self.wallet)  # this sets is_change
         if tx.has_change():
             self._batch_txids.append(tx.txid())
             self._base_tx = tx
