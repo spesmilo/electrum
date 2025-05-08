@@ -1240,6 +1240,15 @@ class LNWallet(LNWorker):
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
+    def get_pending_force_closures(self):
+        # fixme: examine the ctx
+        out = []
+        for chan in self.channels.values():
+            if chan.has_anchors() and chan.get_state() == ChannelState.FORCE_CLOSING:
+                if any(direction==RECEIVED for direction, htlc in chan.hm.get_htlcs_in_latest_ctx(LOCAL)):
+                    out.append(chan)
+        return out
+
     def get_peer_by_static_jit_scid_alias(self, scid_alias: bytes) -> Optional[Peer]:
         for nodeid, peer in self.peers.items():
             if scid_alias == self._scid_alias_of_node(nodeid):
