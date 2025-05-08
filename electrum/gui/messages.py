@@ -83,7 +83,7 @@ MSG_LN_UTXO_RESERVE = (
 MSG_TERMS_OF_USE = (
 """1. Electrum is distributed under the MIT licence by Electrum Technologies GmbH. Most notably, this means that the Electrum software is provided as is, and that it comes without warranty.
 
-2. We are neither a bank nor a financial service provider. In addition, we do not not store user account data, and we are not an intermediary in the interaction between our software and the Bitcoin blockchain. Therefore, we do not have the possibility to freeze funds or to undo a fraudulent transaction.
+2. We are neither a bank nor a financial service provider. In addition, we do not store user account data, and we are not an intermediary in the interaction between our software and the Bitcoin blockchain. Therefore, we do not have the possibility to freeze funds or to undo a fraudulent transaction.
 
 3. We do not provide private user support. All issue resolutions are public, and take place on Github or public forums. If someone posing as 'Electrum support' proposes to help you via a private channel, this person is most likely an imposter trying to steal your bitcoins."""
 )
