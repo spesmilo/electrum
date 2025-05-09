@@ -113,6 +113,7 @@ Item {
         })
         var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
         dialog.accepted.connect(function() {
+            invoice.saveInvoice()
             if (!canComplete) {
                 if (Daemon.currentWallet.isWatchOnly) {
                     dialog.finalizer.saveOrShow()

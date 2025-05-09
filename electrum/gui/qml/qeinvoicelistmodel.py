@@ -132,7 +132,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
             item['address'] = ''
         item['date'] = format_time(item['timestamp'])
         item['amount'] = QEAmount(from_invoice=invoice)
-        item['onchain_fallback'] = invoice.is_lightning() and invoice.get_address()
+        item['onchain_fallback'] = invoice.is_lightning() and bool(invoice.get_address())
 
         return item
 
