@@ -47,6 +47,13 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             show_error=self.show_error,
             setText=setText,
         )
+        self.on_qr_from_file_input_btn = partial(
+            self.input_qr_from_file,
+            allow_multi=allow_multi,
+            config=config,
+            show_error=self.show_error,
+            setText=setText,
+        )
         self.on_input_file = partial(
             self.input_file,
             config=config,
@@ -62,7 +69,8 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         self.add_menu_button(
             options=[
                 ("picture_in_picture.png", _("Read QR code from screen"), self.on_qr_from_screenshot_input_btn),
-                ("file.png",               _("Read file"),                self.on_input_file),
+                ("qr_file.png",            _("Read QR code from file"),   self.on_qr_from_file_input_btn),
+                ("file.png",               _("Read text from file"),      self.on_input_file),
             ],
         )
         self.add_qr_input_from_camera_button(config=config, show_error=self.show_error, allow_multi=allow_multi, setText=setText)
@@ -72,7 +80,8 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         m.addSeparator()
         m.addAction(get_icon_camera(), _("Read QR code with camera"), self.on_qr_from_camera_input_btn)
         m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.on_qr_from_screenshot_input_btn)
-        m.addAction(read_QIcon("file.png"), _("Read file"), self.on_input_file)
+        m.addAction(read_QIcon("qr_file.png"), _("Read QR code from file"), self.on_qr_from_file_input_btn)
+        m.addAction(read_QIcon("file.png"), _("Read text from file"), self.on_input_file)
         m.exec(e.globalPos())
 
 

@@ -839,6 +839,8 @@ class GenericInputHandler:
         fileName = getOpenFileName(
             parent=None,
             title='select file',
+            # trying to open non-text things like pdfs makes electrum freeze
+            filter="Text files (*.txt *.csv);;All files (*)",
             config=config,
         )
         if not fileName:
@@ -858,6 +860,52 @@ class GenericInputHandler:
                 setText(data)
             except Exception as e:
                 show_error(_('Invalid payment identifier in file') + ':\n' + repr(e))
+
+    def input_qr_from_file(
+        self,
+        *,
+        allow_multi: bool = False,
+        config: 'SimpleConfig',
+        show_error: Callable[[str], None],
+        setText: Callable[[str], None] = None,
+    ):
+        from .qrreader import scan_qr_from_image
+        if setText is None:
+            setText = self.setText
+
+        file_name = getOpenFileName(
+            parent=None,
+            title=_("Select image file"),
+            config=config,
+            filter="Image files (*.png *.jpg *.jpeg *.bmp);;",
+        )
+        if not file_name:
+            return
+        image = QImage(file_name)
+        if image.isNull():
+            show_error(_("Failed to open image file."))
+            return
+        try:
+            scan_result: Sequence[QrCodeResult] = scan_qr_from_image(image)
+        except MissingQrDetectionLib as e:
+            show_error(_("Unable to scan image.") + "\n" + repr(e))
+            return
+        if len(scan_result) < 1:
+            show_error(_("No QR code was found in the image."))
+            return
+        if len(scan_result) > 1 and not allow_multi:
+            show_error(_("More than one QR code was found in the image."))
+            return
+
+        if len(scan_result) > 1:
+            result_text = "\n".join([r.data for r in scan_result])
+        else:
+            result_text = scan_result[0].data
+
+        try:
+            setText(result_text)
+        except Exception as e:
+            show_error(_("Couldn't set result") + ':\n' + repr(e))
 
     def input_paste_from_clipboard(
             self,
