@@ -98,7 +98,8 @@ Item {
                 ? ''
                 : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
                    qsTr('This might cause issues if signing offline.'),
-                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' ')
+                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' '),
+            tx_label: data[3]
         })
         dialog.open()
     }

@@ -24,7 +24,7 @@
 # SOFTWARE.
 import asyncio
 from functools import partial
-from typing import TYPE_CHECKING, List, Tuple, Optional
+from typing import TYPE_CHECKING, List, Tuple, Optional, Union
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QPushButton, QMessageBox
@@ -39,11 +39,12 @@ from electrum.gui.qt.util import read_QIcon_from_bytes
 from .psbt_nostr import PsbtNostrPlugin, CosignerWallet
 
 if TYPE_CHECKING:
+    from electrum.transaction import Transaction, PartialTransaction
     from electrum.gui.qt.main_window import ElectrumWindow
 
 
 class QReceiveSignalObject(QObject):
-    cosignerReceivedPsbt = pyqtSignal(str, str, object)
+    cosignerReceivedPsbt = pyqtSignal(str, str, object, str)
 
 
 class Plugin(PsbtNostrPlugin):
@@ -71,7 +72,7 @@ class Plugin(PsbtNostrPlugin):
             d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
             icon = read_QIcon_from_bytes(self.read_file("nostr_multisig.png"))
             b.setIcon(icon)
-            b.clicked.connect(lambda: cw.send_to_cosigners(d.tx))
+            b.clicked.connect(lambda: cw.send_to_cosigners(d.tx, d.desc))
             d.buttons.insert(0, b)
             b.setVisible(False)
 
@@ -100,11 +101,11 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         if self.wallet == wallet:
             self.obj.cosignerReceivedPsbt.emit(*args)  # put on UI thread via signal
 
-    def send_to_cosigners(self, tx):
-        self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
-        self.send_psbt(tx)
+    def send_to_cosigners(self, tx: Union['Transaction', 'PartialTransaction'], label: str):
+        self.add_transaction_to_wallet(tx, label=label, on_failure=self.on_add_fail)
+        self.send_psbt(tx, label)
 
-    def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
+    def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
         if not messages:
             return
         coro = self.send_direct_messages(messages)
@@ -122,21 +123,26 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         self.window.show_message(
             _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + txid)
 
-    def on_receive(self, pubkey, event_id, tx):
-        msg = _("A transaction was received from your cosigner ({}).").format(str(event_id)[0:8]) + '\n' + \
-              _("Do you want to open it now?")
-        result = self.window.show_message(msg, icon=QMessageBox.Icon.Question, buttons=[
+    def on_receive(self, pubkey, event_id, tx, label):
+        msg = '<br/>'.join([
+            _("A transaction was received from your cosigner.") if not label else
+            _("A transaction was received from your cosigner with label: <br/><big>{}</big><br/>").format(label),
+            _("Do you want to open it now?")
+        ])
+        result = self.window.show_message(msg, rich_text=True, icon=QMessageBox.Icon.Question, buttons=[
                 QMessageBox.StandardButton.Open,
                 (QPushButton('Discard'), QMessageBox.ButtonRole.DestructiveRole, 100),
                 (QPushButton('Save to wallet'), QMessageBox.ButtonRole.AcceptRole, 101)]
         )
         if result == QMessageBox.StandardButton.Open:
+            if label:
+                self.wallet.set_label(tx.txid(), label)
             show_transaction(tx, parent=self.window, prompt_if_unsaved=True, on_closed=partial(self.on_tx_dialog_closed, event_id))
         else:
             self.mark_pending_event_rcvd(event_id)
             if result == 100:  # Discard
                 return
-            self.add_transaction_to_wallet(tx, on_failure=self.on_add_fail)
+            self.add_transaction_to_wallet(tx, label=label, on_failure=self.on_add_fail)
             self.window.update_tabs()
 
     def on_tx_dialog_closed(self, event_id):

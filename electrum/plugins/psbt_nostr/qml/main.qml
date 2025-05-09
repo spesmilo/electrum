@@ -7,26 +7,38 @@ import "../../../gui/qml/components/controls"
 Item {
     Connections {
         target: AppController ? AppController.plugin('psbt_nostr') : null
-        function onCosignerReceivedPsbt(pubkey, event, tx) {
-            var dialog = app.messageDialog.createObject(app, {
-                text: [
-                    qsTr('A transaction was received from your cosigner.'),
-                    qsTr('Do you want to open it now?')
-                ].join('\n'),
-                yesno: true
+        function onCosignerReceivedPsbt(pubkey, event, tx, label) {
+            var dialog = psbtReceiveDialog.createObject(app, {
+                tx_label: label
             })
             dialog.accepted.connect(function () {
-                var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
-                    rawtx: tx
-                })
-                page.closed.connect(function () {
-                    target.acceptPsbt(Daemon.currentWallet, event)
-                })
+                if (dialog.choice == PsbtReceiveDialog.Choice.Open) {
+                    console.log('label:' + label)
+                    console.log('tx:' + tx)
+                    target.saveTxLabel(Daemon.currentWallet, tx, label)
+                    var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
+                        rawtx: tx
+                    })
+                    page.closed.connect(function () {
+                        target.acceptPsbt(Daemon.currentWallet, event)
+                    })
+                } else if (dialog.choice == PsbtReceiveDialog.Choice.Save) {
+                    target.acceptPsbt(Daemon.currentWallet, event, true)
+                } else {
+                    console.log('choice not set')
+                }
             })
             dialog.rejected.connect(function () {
                 target.rejectPsbt(Daemon.currentWallet, event)
             })
             dialog.open()
+        }
+    }
+
+    Component {
+        id: psbtReceiveDialog
+        PsbtReceiveDialog {
+            onClosed: destroy()
         }
     }
 
@@ -40,16 +52,24 @@ Item {
             onClicked: {
                 console.log('about to psbt nostr send')
                 psbt_nostr_send_button.enabled = false
-                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.text)
+                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.text, dialog.tx_label)
             }
             Connections {
                 target: AppController ? AppController.plugin('psbt_nostr') : null
+                function onSendPsbtSuccess() {
+                    dialog.close()
+                    var msgdialog = app.messageDialog.createObject(app, {
+                        text: qsTr('PSBT sent successfully')
+                    })
+                    msgdialog.open()
+                }
                 function onSendPsbtFailed(message) {
                     psbt_nostr_send_button.enabled = true
-                    var dialog = app.messageDialog.createObject(app, {
-                        text: qsTr('Sending PSBT to co-signer failed:\n%1').arg(message)
+                    var msgdialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Sending PSBT to co-signer failed:\n%1').arg(message),
+                        iconSource: Qt.resolvedUrl('../../../gui/icons/warning.png')
                     })
-                    dialog.open()
+                    msgdialog.open()
                 }
             }
 
