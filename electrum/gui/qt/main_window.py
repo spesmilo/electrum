@@ -274,6 +274,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # wallet closing warning callbacks
         self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
         self.register_closing_warning_callback(self._check_ongoing_submarine_swaps_callback)
+        self.register_closing_warning_callback(self._check_ongoing_force_closures)
         # banner may already be there
         if self.network and self.network.banner:
             self.console.showMessage(self.network.banner)
@@ -2699,7 +2700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             warning = ''.join([
                 _("Are you sure you want to close Electrum?"),
                 '\n\n',
-                _("An ongoing operation requires you to stay online."),
+                _("An ongoing operation requires you to stay online:"),
                 '\n',
                 warning
             ])
@@ -2730,23 +2731,46 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.logger.debug(f"registering wallet closing warning callback")
         self.closing_warning_callbacks.append(warning_callback)
 
-    def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
-        """Callback that will return a warning string if there are unconfirmed swap funding txs."""
+    def _check_ongoing_force_closures(self) -> Optional[str]:
         if not (self.wallet.has_lightning() and self.wallet.lnworker.swap_manager):
             return None
         if not self.network:
             return None
-        if ongoing_swaps := self.wallet.lnworker.swap_manager.get_pending_swaps():
-            return "".join((
-                f"{str(len(ongoing_swaps))} ",
-                _("pending submarine swap") if len(ongoing_swaps) == 1 else _("pending submarine swaps"),
-                ":\n",
-                _("Wait until the funding transaction of your swap confirms, otherwise you risk losing your"),
-                " ",
-                _("funds") if any(not swap.is_reverse for swap in ongoing_swaps) else _("mining fee prepayment"),
-                ".",
-            ))
-        return None
+        force_closing = self.wallet.lnworker.get_pending_force_closures()
+        if not force_closing:
+            return
+        # check that it has anchors and received htlcs
+        msg = ''.join([
+            _("Pending channel force-close"),
+            '\n\n',
+            messages.MSG_FORCE_CLOSE_WARNING,
+        ])
+        return msg
+
+    def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
+        """Callback that will return a warning string if there are unconfirmed swap funding txs."""
+        from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT, LOCKTIME_DELTA_REFUND
+        if not (self.wallet.has_lightning() and self.wallet.lnworker.swap_manager):
+            return None
+        if not self.network:
+            return None
+        ongoing_swaps = self.wallet.lnworker.swap_manager.get_pending_swaps()
+        if not ongoing_swaps:
+            return None
+        is_forward = any(not swap.is_reverse for swap in ongoing_swaps)
+        if is_forward:
+            delta = MIN_FINAL_CLTV_DELTA_FOR_CLIENT
+            warning = messages.MSG_FORWARD_SWAP_WARNING.format(delta)
+        else:
+            locktime = min(swap.locktime for swap in ongoing_swaps)
+            delta = locktime - self.wallet.adb.get_local_height()
+            warning = messages.MSG_REVERSE_SWAP_WARNING.format(delta)
+        return "".join((
+            f"{str(len(ongoing_swaps))} ",
+            _("pending submarine swap") if len(ongoing_swaps) == 1 else _("pending submarine swaps"),
+            "\n\n",
+            warning,
+        ))
 
     def closeEvent(self, event):
         # note that closeEvent is NOT called if the user quits with Ctrl-C
