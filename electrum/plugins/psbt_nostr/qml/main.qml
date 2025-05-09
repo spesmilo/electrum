@@ -8,28 +8,37 @@ Item {
     Connections {
         target: AppController ? AppController.plugin('psbt_nostr') : null
         function onCosignerReceivedPsbt(pubkey, event, tx, label) {
-            var dialog = app.messageDialog.createObject(app, {
-                text: [
-                    label
-                        ? qsTr('A transaction was received from your cosigner with label: <br/><br/><b>%1</b>').arg(label)
-                        : qsTr('A transaction was received from your cosigner.'),
-                    qsTr('Do you want to open it now?')
-                ].join('<br/><br/>'),
-                yesno: true,
-                richText: true
+            var dialog = psbtReceiveDialog.createObject(app, {
+                tx_label: label
             })
             dialog.accepted.connect(function () {
-                var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
-                    rawtx: tx
-                })
-                page.closed.connect(function () {
-                    target.acceptPsbt(Daemon.currentWallet, event)
-                })
+                if (dialog.choice == PsbtReceiveDialog.Choice.Open) {
+                    console.log('label:' + label)
+                    console.log('tx:' + tx)
+                    target.saveTxLabel(Daemon.currentWallet, tx, label)
+                    var page = app.stack.push(Qt.resolvedUrl('../../../gui/qml/components/TxDetails.qml'), {
+                        rawtx: tx
+                    })
+                    page.closed.connect(function () {
+                        target.acceptPsbt(Daemon.currentWallet, event)
+                    })
+                } else if (dialog.choice == PsbtReceiveDialog.Choice.Save) {
+                    target.acceptPsbt(Daemon.currentWallet, event, true)
+                } else {
+                    console.log('choice not set')
+                }
             })
             dialog.rejected.connect(function () {
                 target.rejectPsbt(Daemon.currentWallet, event)
             })
             dialog.open()
+        }
+    }
+
+    Component {
+        id: psbtReceiveDialog
+        PsbtReceiveDialog {
+            onClosed: destroy()
         }
     }
 
