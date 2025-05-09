@@ -271,6 +271,36 @@ def sys_exit(i):
         loop_thread.join(timeout=1)
     sys.exit(i)
 
+
+def show_simple_qt_error_dialog(exception: Exception):
+    """Used to show an exception in a Qt dialog before the main window is initialized."""
+    try:
+        from PyQt6.QtWidgets import QApplication, QMessageBox
+        from PyQt6.QtCore import Qt
+    except ImportError:
+        return
+
+    app = QApplication.instance()
+    if not app:
+        app = QApplication([])
+
+    msg_box = QMessageBox()
+    msg_box.setWindowTitle("Error")
+    msg_box.setIcon(QMessageBox.Icon.Critical)
+    msg_box.setText(f"An error occurred:")
+    msg_box.setInformativeText(str(exception))
+
+    # Add detailed traceback if available
+    if hasattr(exception, "__traceback__"):
+        import traceback
+        detailed_text = ''.join(traceback.format_exception(
+            type(exception), exception, exception.__traceback__)
+        )
+        msg_box.setDetailedText(detailed_text)
+
+    msg_box.exec()
+
+
 def parse_command_line(simple_parser=False) -> Dict:
     # parse command line from sys.argv
     if simple_parser:
@@ -371,7 +401,13 @@ def main():
                 sys.argv.remove(x)
         # parse first without plugins
         config_options = parse_command_line(simple_parser=True)
-        tmp_config = SimpleConfig(config_options)
+        try:
+            tmp_config = SimpleConfig(config_options)
+        except Exception as e:
+            if parse_command_line().get("cmd") == 'gui':
+                # show an error dialog on GUI
+                show_simple_qt_error_dialog(e)
+            raise
         # load (only) the commands modules of plugins so their commands are registered
         plugin_commands = Plugins(tmp_config, cmd_only=True)
         # re-parse command line
