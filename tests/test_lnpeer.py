@@ -323,7 +323,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     is_forwarded_htlc = LNWallet.is_forwarded_htlc
     notify_upstream_peer = LNWallet.notify_upstream_peer
     _force_close_channel = LNWallet._force_close_channel
-    suggest_splits = LNWallet.suggest_splits
+    suggest_payment_splits = LNWallet.suggest_payment_splits
     register_hold_invoice = LNWallet.register_hold_invoice
     unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
@@ -1555,6 +1555,39 @@ class TestPeerForwarding(TestPeer):
             print(f"{a:5s}: {keys[a].pubkey}")
             print(f"       {keys[a].pubkey.hex()}")
         return graph
+
+    async def test_payment_direct_channel(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
+        peers = graph.peers.values()
+        # use same MPP_SPLIT_PART_FRACTION as in LNWallet
+        graph.workers['bob'].MPP_SPLIT_PART_FRACTION = 0.2
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+            result, log = await graph.workers['bob'].pay_invoice(pay_req)
+            self.assertTrue(result)
+            self.assertEqual(PR_PAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                # test multiple iterations of the same payment as there is randomness involved
+                # in selecting outgoing channels, however a direct payment should always find a path
+                for attempt in range(15):
+                    lnaddr, pay_req = self.prepare_invoice(
+                        graph.workers['alice'],
+                        amount_msat=21_000_000,
+                        include_routing_hints=True,
+                        invoice_features=LnFeatures.BASIC_MPP_OPT
+                                         | LnFeatures.PAYMENT_SECRET_REQ
+                                         | LnFeatures.VAR_ONION_REQ
+                    )
+                    await pay(lnaddr, pay_req)
+                raise PaymentDone()
+        with self.assertRaises(PaymentDone):
+            await f()
 
     async def test_payment_multihop(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
