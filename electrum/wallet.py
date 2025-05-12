@@ -1659,14 +1659,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         labels = []
         tx = self.adb.get_transaction(tx_hash)
         if tx:
-            for i in range(len(tx.outputs())):
-                outpoint = tx_hash + f':{i}'
-                if label := self.get_label_for_outpoint(outpoint):
-                    labels.append(label)
             for txin in tx.inputs():
                 outpoint = txin.prevout.to_str()
                 if label := self.get_label_for_outpoint(outpoint):
-                    labels.append(label)
+                    labels.append('sweep ' + label)
+            if not labels:
+                for i in range(len(tx.outputs())):
+                    outpoint = tx_hash + f':{i}'
+                    if label := self.get_label_for_outpoint(outpoint):
+                        labels.append(label)
 
         # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
         if not self.db.get_txi_addresses(tx_hash):
