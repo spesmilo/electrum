@@ -13,12 +13,11 @@ try:
 except ImportError:  # only use vendored lib as fallback, to allow Linux distros to bring their own
     from electrum._vendor import pyperclip
 
-import electrum
 from electrum.gui import BaseElectrumGui
 from electrum.bip21 import parse_bip21_URI
-from electrum.util import format_satoshis, format_time
+from electrum.util import format_time
 from electrum.util import EventListener, event_listener
-from electrum.bitcoin import is_address, address_to_script, COIN
+from electrum.bitcoin import is_address, address_to_script
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
@@ -64,15 +63,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
+        password = None
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
-            storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
-        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
-        self.wallet.start_network(self.network)
+        del storage
+        self.wallet = self.daemon.load_wallet(config.get_wallet_path(use_gui_last_wallet=True), password)
         self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
@@ -87,7 +85,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
         curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
         curses.halfdelay(1)
-        self.stdscr.keypad(1)
+        self.stdscr.keypad(True)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
         self.set_cursor(0)
@@ -137,11 +135,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def verify_seed(self):
         pass
 
-    def get_string(self, y, x):
+    def get_string(self, y, x) -> str:
         self.set_cursor(1)
         curses.echo()
         self.stdscr.addstr(y, x, " "*20, curses.A_REVERSE)
-        s = self.stdscr.getstr(y,x)
+        s = self.stdscr.getstr(y,x).decode()
         curses.noecho()
         self.set_cursor(0)
         return s
@@ -515,7 +513,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             elif out == "Edit label":
                 s = self.get_string(6 + self.pos, 18)
                 if s:
-                    self.wallet.set_label(key, s)
+                    self.contacts[key] = ('address', s)
+            elif out == "Delete":
+                self.contacts.pop(key)
+                self.pos = 0
 
     def run_addresses_tab(self, c):
         pass
@@ -524,7 +525,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def run_channels_tab(self, c):
-        if c == ord("\n"):
+        if c == ord("\n") and self.channel_ids:
             out = self.run_popup('Channel Details', ['Short channel ID:', self.channel_ids[self.pos]])
 
     def run_banner_tab(self, c):
@@ -549,7 +550,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         finally:
             tty.setcbreak(sys.stdin)
             curses.nocbreak()
-            self.stdscr.keypad(0)
+            self.stdscr.keypad(False)
             curses.echo()
             curses.endwin()
 
@@ -625,10 +626,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 if amount_sat:
                     invoice.set_amount_msat(int(amount_sat * 1000))
                 else:
-                    self.show_error(_('No amount'))
-                    return
+                    self.show_message(_('No amount'))
+                    return None
         elif is_address(self.str_recipient):
             amount_sat = self.parse_amount(self.str_amount)
+            if not amount_sat:
+                self.show_message(_('No amount'))
+                return None
             scriptpubkey = address_to_script(self.str_recipient)
             outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat)]
             invoice = self.wallet.create_invoice(
@@ -638,7 +642,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 URI=None)
         else:
             self.show_message(_('Invalid Bitcoin address'))
-            return
+            return None
         return invoice
 
     def do_save_invoice(self):
