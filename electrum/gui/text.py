@@ -524,7 +524,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def run_channels_tab(self, c):
-        if c == ord("\n"):
+        if c == ord("\n") and self.channel_ids:
             out = self.run_popup('Channel Details', ['Short channel ID:', self.channel_ids[self.pos]])
 
     def run_banner_tab(self, c):
