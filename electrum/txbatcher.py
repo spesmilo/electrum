@@ -102,6 +102,8 @@ class TxBatcher(Logger):
 
     @locked
     def add_sweep_input(self, key: str, sweep_info: 'SweepInfo', fee_policy_descriptor: str):
+        # sanity check csv_delay (note: values differ for swaps)
+        assert sweep_info.csv_delay >= (sweep_info.txin.get_block_based_relative_locktime() or 0)
         if sweep_info.txin and sweep_info.txout:
             # todo: don't use name, detect sighash
             if sweep_info.name == 'first-stage-htlc':
