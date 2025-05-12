@@ -63,15 +63,14 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
+        password = None
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
-            storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
-        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
-        self.wallet.start_network(self.network)
+        del storage
+        self.wallet = self.daemon.load_wallet(config.get_wallet_path(use_gui_last_wallet=True), password)
         self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
