@@ -136,11 +136,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def verify_seed(self):
         pass
 
-    def get_string(self, y, x):
+    def get_string(self, y, x) -> str:
         self.set_cursor(1)
         curses.echo()
         self.stdscr.addstr(y, x, " "*20, curses.A_REVERSE)
-        s = self.stdscr.getstr(y,x)
+        s = self.stdscr.getstr(y,x).decode()
         curses.noecho()
         self.set_cursor(0)
         return s
@@ -514,7 +514,10 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             elif out == "Edit label":
                 s = self.get_string(6 + self.pos, 18)
                 if s:
-                    self.wallet.set_label(key, s)
+                    self.contacts[key] = ('address', s)
+            elif out == "Delete":
+                self.contacts.pop(key)
+                self.pos = 0
 
     def run_addresses_tab(self, c):
         pass
