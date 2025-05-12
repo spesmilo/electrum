@@ -13,12 +13,11 @@ try:
 except ImportError:  # only use vendored lib as fallback, to allow Linux distros to bring their own
     from electrum._vendor import pyperclip
 
-import electrum
 from electrum.gui import BaseElectrumGui
 from electrum.bip21 import parse_bip21_URI
-from electrum.util import format_satoshis, format_time
+from electrum.util import format_time
 from electrum.util import EventListener, event_listener
-from electrum.bitcoin import is_address, address_to_script, COIN
+from electrum.bitcoin import is_address, address_to_script
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
@@ -87,7 +86,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
         curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
         curses.halfdelay(1)
-        self.stdscr.keypad(1)
+        self.stdscr.keypad(True)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
         self.set_cursor(0)
@@ -549,7 +548,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         finally:
             tty.setcbreak(sys.stdin)
             curses.nocbreak()
-            self.stdscr.keypad(0)
+            self.stdscr.keypad(False)
             curses.echo()
             curses.endwin()
 
