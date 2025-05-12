@@ -265,7 +265,7 @@ class LnAddr(object):
         self.signature = None
         self.pubkey = None
         self.net = constants.net if net is None else net  # type: Type[AbstractNet]
-        self._amount = amount  # type: Optional[Decimal]  # in bitcoins
+        self._amount = amount  # type: Optional[Decimal]  # in bitcoin
 
     @property
     def amount(self) -> Optional[Decimal]:
