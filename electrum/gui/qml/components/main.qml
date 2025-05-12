@@ -360,6 +360,14 @@ ApplicationWindow
         }
     }
 
+    property alias termsOfUseWizard: _termsOfUseWizard
+    Component {
+        id: _termsOfUseWizard
+        TermsOfUseWizard {
+            onClosed: destroy()
+        }
+    }
+
     property alias serverConnectWizard: _serverConnectWizard
     Component {
         id: _serverConnectWizard
@@ -517,38 +525,57 @@ ApplicationWindow
             app.scanDialog = _qtScanDialog
         }
 
-        if (!Config.autoConnectDefined) {
-            var dialog = serverConnectWizard.createObject(app)
-            // without completed serverConnectWizard we can't start
+        function continueWithServerConnection() {
+            if (!Config.autoConnectDefined) {
+                var dialog = serverConnectWizard.createObject(app)
+                // without completed serverConnectWizard we can't start
+                dialog.rejected.connect(function() {
+                    app.visible = false
+                    AppController.wantClose = true
+                    Qt.callLater(Qt.quit)
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.startNetwork()
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.loadWallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                })
+                dialog.open()
+            } else {
+                Daemon.startNetwork()
+                if (Daemon.availableWallets.rowCount() > 0) {
+                    Daemon.loadWallet()
+                } else {
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.loadWallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                }
+            }
+        }
+
+        if (!Config.termsOfUseAccepted) {
+            var dialog = termsOfUseWizard.createObject(app)
+
             dialog.rejected.connect(function() {
                 app.visible = false
                 AppController.wantClose = true
                 Qt.callLater(Qt.quit)
             })
             dialog.accepted.connect(function() {
-                Daemon.startNetwork()
-                var newww = app.newWalletWizard.createObject(app)
-                newww.walletCreated.connect(function() {
-                    Daemon.availableWallets.reload()
-                    // and load the new wallet
-                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
-                })
-                newww.open()
+                Config.termsOfUseAccepted = true
+                continueWithServerConnection()
             })
             dialog.open()
         } else {
-            Daemon.startNetwork()
-            if (Daemon.availableWallets.rowCount() > 0) {
-                Daemon.loadWallet()
-            } else {
-                var newww = app.newWalletWizard.createObject(app)
-                newww.walletCreated.connect(function() {
-                    Daemon.availableWallets.reload()
-                    // and load the new wallet
-                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
-                })
-                newww.open()
-            }
+            continueWithServerConnection()
         }
     }
 

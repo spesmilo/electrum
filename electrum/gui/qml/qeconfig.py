@@ -66,6 +66,19 @@ class QEConfig(AuthMixin, QObject):
         langs_sorted.insert(0, {'value': '', 'text': default})
         return langs_sorted
 
+    termsOfUseChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=termsOfUseChanged)
+    def termsOfUseAccepted(self) -> bool:
+        return self.config.TERMS_OF_USE_ACCEPTED >= messages.TERMS_OF_USE_LATEST_VERSION
+
+    @termsOfUseAccepted.setter
+    def termsOfUseAccepted(self, accepted: bool) -> None:
+        if accepted:
+            self.config.TERMS_OF_USE_ACCEPTED = messages.TERMS_OF_USE_LATEST_VERSION
+        else:
+            self.config.TERMS_OF_USE_ACCEPTED = 0
+        self.termsOfUseChanged.emit()
+
     autoConnectChanged = pyqtSignal()
     @pyqtProperty(bool, notify=autoConnectChanged)
     def autoConnect(self):

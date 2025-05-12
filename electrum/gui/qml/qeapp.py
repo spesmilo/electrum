@@ -41,7 +41,7 @@ from .qechannelopener import QEChannelOpener
 from .qelnpaymentdetails import QELnPaymentDetails
 from .qechanneldetails import QEChannelDetails
 from .qeswaphelper import QESwapHelper
-from .qewizard import QENewWalletWizard, QEServerConnectWizard
+from .qewizard import QENewWalletWizard, QEServerConnectWizard, QETermsOfUseWizard
 from .qemodelfilter import QEFilterProxyModel
 from .qebip39recovery import QEBip39RecoveryListModel
 
@@ -428,6 +428,7 @@ class ElectrumQmlApplication(QGuiApplication):
         # TODO QT6 order of declaration is important now?
         qmlRegisterType(QEAmount, 'org.electrum', 1, 0, 'Amount')
         qmlRegisterType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard')
+        qmlRegisterType(QETermsOfUseWizard, 'org.electrum', 1, 0, 'QTermsOfUseWizard')
         qmlRegisterType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard')
         qmlRegisterType(QEFilterProxyModel, 'org.electrum', 1, 0, 'FilterProxyModel')
         qmlRegisterType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel')
