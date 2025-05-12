@@ -53,8 +53,8 @@ MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP = _(
 If you want to keep using this channel, you need to disable trampoline routing in your preferences."""
 )
 
-MSG_FREEZE_ADDRESS = _("When you freeze an address, the funds in that address will not be used for sending bitcoins.")
-MSG_FREEZE_COIN = _("When you freeze a coin, it will not be used for sending bitcoins.")
+MSG_FREEZE_ADDRESS = _("When you freeze an address, the funds in that address will not be used for sending bitcoin.")
+MSG_FREEZE_COIN = _("When you freeze a coin, it will not be used for sending bitcoin.")
 
 MSG_FORWARD_SWAP_FUNDING_MEMPOOL = (
     _('Your funding transaction has been broadcast.') + " " +
@@ -85,7 +85,7 @@ MSG_TERMS_OF_USE = (
 
 2. We are neither a bank nor a financial service provider. In addition, we do not store user account data, and we are not an intermediary in the interaction between our software and the Bitcoin blockchain. Therefore, we do not have the possibility to freeze funds or to undo a fraudulent transaction.
 
-3. We do not provide private user support. All issue resolutions are public, and take place on Github or public forums. If someone posing as 'Electrum support' proposes to help you via a private channel, this person is most likely an imposter trying to steal your bitcoins."""
+3. We do not provide private user support. All issue resolutions are public, and take place on Github or public forums. If someone posing as 'Electrum support' proposes to help you via a private channel, this person is most likely an imposter trying to steal your bitcoin."""
 )
 TERMS_OF_USE_LATEST_VERSION : int = 1  # bump this if we want users re-prompted due to changes
 
