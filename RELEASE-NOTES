@@ -883,7 +883,7 @@ below are user-visible.
      Channels are not announced ('private'), forwarding is disabled.
      We do not serve gossip queries, only consume them.
    - Submarine swaps: the GUI integrates a service that offers
-     atomically exchanging on-chain and lightning bitcoins for a fee.
+     atomically exchanging on-chain and lightning bitcoin for a fee.
      Electrum Technologies runs a central server for this, powered by
      the Boltz backend.
    - Watchtowers: Electrum can run a local watchtower (GUI setting),
@@ -1374,7 +1374,7 @@ issue #3374. Users should upgrade to 3.0.5.
       following BIP173. Please note that BIP173 is still in draft
       status, and that other wallets/websites may not support
       it. Thus, you should keep a non-segwit wallet in order to be
-      able to receive bitcoins during the transition period. If BIP173
+      able to receive bitcoin during the transition period. If BIP173
       ends up being rejected or substantially modified, your wallet
       may have to be restored from seed. This will not affect funds
       sent to bech32 addresses, and it will not affect the capacity of
@@ -1922,7 +1922,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
  * Audio Modem plugin: send and receive transactions by sound.
 
- * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC.
+ * OpenAlias plugin: send bitcoin to aliases verified using DNSSEC.
 
  * New 'Receive' tab in the GUI:
    - create and manage payment requests, with QR Codes
