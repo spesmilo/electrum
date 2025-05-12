@@ -540,21 +540,26 @@ class TxBatch(Logger):
         name = sweep_info.name
         prev_txid, index = prevout.split(':')
         can_broadcast = True
-        wanted_height = None
+        wanted_height_cltv = None
+        wanted_height_csv = None
         local_height = self.wallet.network.get_local_height()
         if sweep_info.cltv_abs:
-            wanted_height = sweep_info.cltv_abs
-            if wanted_height - local_height > 0:
+            wanted_height_cltv = sweep_info.cltv_abs
+            if wanted_height_cltv - local_height > 0:
                 can_broadcast = False
         prev_height = self.wallet.adb.get_tx_height(prev_txid).height
         if sweep_info.csv_delay:
             if prev_height > 0:
-                wanted_height = prev_height + sweep_info.csv_delay - 1
-                if wanted_height - local_height > 0:
+                wanted_height_csv = prev_height + sweep_info.csv_delay - 1
+                if wanted_height_csv - local_height > 0:
                     can_broadcast = False
             else:
                 can_broadcast = False
-                wanted_height = local_height + sweep_info.csv_delay
+                wanted_height_csv = local_height + sweep_info.csv_delay
+        if not can_broadcast:
+            wanted_height = max((wanted_height_csv or 0), (wanted_height_cltv or 0))
+        else:
+            wanted_height = None
         if base_tx and prev_height <= 0:
             # we cannot add unconfirmed inputs to existing base_tx (per RBF rules)
             # thus, we will wait until the current batch is confirmed
