@@ -625,10 +625,13 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 if amount_sat:
                     invoice.set_amount_msat(int(amount_sat * 1000))
                 else:
-                    self.show_error(_('No amount'))
-                    return
+                    self.show_message(_('No amount'))
+                    return None
         elif is_address(self.str_recipient):
             amount_sat = self.parse_amount(self.str_amount)
+            if not amount_sat:
+                self.show_message(_('No amount'))
+                return None
             scriptpubkey = address_to_script(self.str_recipient)
             outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat)]
             invoice = self.wallet.create_invoice(
@@ -638,7 +641,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 URI=None)
         else:
             self.show_message(_('Invalid Bitcoin address'))
-            return
+            return None
         return invoice
 
     def do_save_invoice(self):
