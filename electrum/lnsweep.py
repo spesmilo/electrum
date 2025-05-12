@@ -387,9 +387,10 @@ def sweep_our_ctx(
         if actual_htlc_tx is None:
             name = 'first-stage-htlc-anchors' if chan.has_anchors() else 'first-stage-htlc'
             prevout = ctx.txid() + f':{ctx_output_idx}'
+            csv_delay = 1 if chan.has_anchors() else 0
             txs[prevout] = SweepInfo(
                 name=name,
-                csv_delay=0,
+                csv_delay=csv_delay,
                 cltv_abs=htlc_tx.locktime,
                 txin=htlc_tx.inputs()[0],
                 txout=htlc_tx.outputs()[0],
