@@ -38,13 +38,9 @@ class WCWelcome(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title='Network Configuration')
         self.wizard_title = _('Electrum Bitcoin Wallet')
 
-        self.help_label = QLabel()
-        self.help_label.setText("\n".join([
-            _("Optional settings to customize your network connection."),
-            _("If you are unsure what this is, leave them unchecked and Electrum will automatically "
-              "select servers."),
-        ]))
-        self.help_label.setWordWrap(True)
+        self.first_help_label = QLabel()
+        self.first_help_label.setText(_("Optional settings to customize your network connection") + ":")
+        self.first_help_label.setWordWrap(True)
 
         self.config_proxy_w = QCheckBox(_('Configure Proxy'))
         self.config_proxy_w.setChecked(False)
@@ -59,9 +55,17 @@ class WCWelcome(WizardComponent):
         vbox.addStretch(1)
         options_w.setLayout(vbox)
 
-        self.layout().addWidget(self.help_label)
+        self.second_help_label = QLabel()
+        self.second_help_label.setText(
+            _("If you are unsure what this is, leave them unchecked and Electrum will "
+              "automatically select servers.")
+        )
+        self.second_help_label.setWordWrap(True)
+
+        self.layout().addWidget(self.first_help_label)
         self.layout().addSpacing(30)
-        self.layout().addWidget(options_w, False, Qt.AlignmentFlag.AlignLeft)
+        self.layout().addWidget(options_w)
+        self.layout().addWidget(self.second_help_label)
         self._valid = True
 
     def apply(self):
