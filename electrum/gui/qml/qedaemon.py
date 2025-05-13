@@ -18,7 +18,7 @@ from electrum.storage import StorageReadWriteError
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
-from .qewizard import QENewWalletWizard, QEServerConnectWizard
+from .qewizard import QENewWalletWizard, QEServerConnectWizard, QETermsOfUseWizard
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -128,6 +128,7 @@ class QEDaemon(AuthMixin, QObject):
     _available_wallets = None
     _current_wallet = None
     _new_wallet_wizard = None
+    _terms_of_use_wizard = None
     _server_connect_wizard = None
     _path = None
     _name = None
@@ -140,6 +141,7 @@ class QEDaemon(AuthMixin, QObject):
     availableWalletsChanged = pyqtSignal()
     fxChanged = pyqtSignal()
     newWalletWizardChanged = pyqtSignal()
+    termsOfUseWizardChanged = pyqtSignal()
     serverConnectWizardChanged = pyqtSignal()
     loadingChanged = pyqtSignal()
     requestNewPassword = pyqtSignal()
@@ -364,6 +366,12 @@ class QEDaemon(AuthMixin, QObject):
             self._server_connect_wizard = QEServerConnectWizard(self)
 
         return self._server_connect_wizard
+
+    @pyqtProperty(QETermsOfUseWizard, notify=termsOfUseWizardChanged)
+    def termsOfUseWizard(self):
+        if not self._terms_of_use_wizard:
+            self._terms_of_use_wizard = QETermsOfUseWizard(self)
+        return self._terms_of_use_wizard
 
     @pyqtSlot()
     def startNetwork(self):
