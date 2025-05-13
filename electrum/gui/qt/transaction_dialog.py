@@ -285,8 +285,16 @@ class TxInOutWidget(QWidget):
             else:
                 short_id = f"unknown:{txout_idx}"
             addr = o.get_ui_address_str()
+            spender_txid = None  # type: Optional[str]
+            if tx_hash:
+                spender_txid = self.wallet.db.get_spent_outpoint(tx_hash, txout_idx)
+            tcf_shortid = None
+            if spender_txid:
+                tcf_shortid = QTextCharFormat(lnk)
+                tcf_shortid.setAnchorHref(spender_txid)
             insert_tx_io(
                 cursor=cursor, is_coinbase=False, txio_idx=txout_idx,
+                tcf_shortid=tcf_shortid,
                 short_id=str(short_id), addr=addr, value=o.value,
             )
 
