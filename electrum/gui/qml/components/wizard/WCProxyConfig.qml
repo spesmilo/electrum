@@ -19,7 +19,7 @@ WizardComponent {
         ProxyConfig {
             id: pc
             Layout.fillWidth: true
-            proxy_enabled: true
+            proxy_enabled: false
         }
     }
 }
