@@ -47,6 +47,7 @@ class WCTermsOfUseScreen(WizardComponent):
         hbox_img.addStretch(1)
 
         self.layout().addLayout(hbox_img)
+        self.layout().addSpacing(15)
 
         self.tos_label = WWLabel()
         self.tos_label.setText(messages.MSG_TERMS_OF_USE)
