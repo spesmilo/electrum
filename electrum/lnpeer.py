@@ -918,6 +918,7 @@ class Peer(Logger, EventListener):
         # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
         # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
         # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
+        max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
@@ -926,7 +927,7 @@ class Peer(Logger, EventListener):
             upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
             dust_limit_sat=dust_limit_sat,
-            max_htlc_value_in_flight_msat=funding_sat * 1000,
+            max_htlc_value_in_flight_msat=max_htlc_value_in_flight_msat,
             max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
