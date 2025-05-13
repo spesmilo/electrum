@@ -55,7 +55,7 @@ from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
-from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .fee_policy import FEE_LN_ETA_TARGET, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
@@ -994,7 +994,9 @@ class Peer(Logger, EventListener):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
-        feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw()
+        feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw(
+            has_anchors=self.use_anchors()
+        )
         if feerate is None:
             raise NoDynamicFeeEstimates()
         # we set a channel type for internal bookkeeping
@@ -1603,7 +1605,8 @@ class Peer(Logger, EventListener):
             return
         if self.network.blockchain().is_tip_stale() \
                 or not self.lnworker.wallet.is_up_to_date() \
-                or self.lnworker.current_target_feerate_per_kw() is None:
+                or self.lnworker.current_target_feerate_per_kw(has_anchors=chan.has_anchors()) \
+            is None:
             # don't try to reestablish until we can do fee estimation and are up-to-date
             return
         # if we get here, we will try to do a proper reestablish
@@ -2605,51 +2608,66 @@ class Peer(Logger, EventListener):
             return
         if chan.get_state() != ChannelState.OPEN:
             return
-        feerate_per_kw: Optional[int] = self.lnworker.current_target_feerate_per_kw()
-        if feerate_per_kw is None:
+        current_feerate_per_kw: Optional[int] = self.lnworker.current_target_feerate_per_kw(
+            has_anchors=chan.has_anchors()
+        )
+        if current_feerate_per_kw is None:
             return
+        # add some buffer to anchor chan fees as we always act at the lower end and don't
+        # want to get kicked out of the mempool immediately if it grows
+        fee_buffer = current_feerate_per_kw * 0.5 if chan.has_anchors() else 0
+        update_feerate_per_kw = int(current_feerate_per_kw + fee_buffer)
         def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> Optional[bool]:
-            # We raise fees more aggressively than we lower them. Overpaying is not too bad,
-            # but lowballing can be fatal if we can't even get into the mempool...
-            high_fee = 2 * feerate_per_kw  # type: Union[float, int]
-            low_fee = self.lnworker.current_low_feerate_per_kw()  # type: Optional[Union[float, int]]
-            if low_fee is None:
-                return None
-            low_fee = max(low_fee, 0.75 * feerate_per_kw)
-            # make sure low_feerate and target_feerate are not too close to each other:
-            low_fee = min(low_fee, feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
-            assert low_fee < high_fee, (low_fee, high_fee)
-            return not (low_fee < chan_feerate < high_fee)
+            if chan.has_anchors():
+                # TODO: once package relay and electrum servers with submitpackage are more common,
+                # TODO: we should reconsider this logic and move towards 0 fee ctx
+                # update if we used up half of the buffer or the fee decreased a lot again
+                fee_increased = current_feerate_per_kw + (fee_buffer / 2) > chan_feerate
+                changed_significantly = abs((chan_feerate - update_feerate_per_kw) / chan_feerate) > 0.2
+                return fee_increased or changed_significantly
+            else:
+                # We raise fees more aggressively than we lower them. Overpaying is not too bad,
+                # but lowballing can be fatal if we can't even get into the mempool...
+                high_fee = 2 * current_feerate_per_kw  # type: # Union[float, int]
+                low_fee = self.lnworker.current_low_feerate_per_kw_srk_channel()  # type: Optional[Union[float, int]]
+                if low_fee is None:
+                    return None
+                low_fee = max(low_fee, 0.75 * current_feerate_per_kw)
+                # make sure low_feerate and target_feerate are not too close to each other:
+                low_fee = min(low_fee, current_feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
+                assert low_fee < high_fee, (low_fee, high_fee)
+                return not (low_fee < chan_feerate < high_fee)
         if not chan.constraints.is_initiator:
             if constants.net is not constants.BitcoinRegtest:
                 chan_feerate = chan.get_latest_feerate(LOCAL)
-                ratio = chan_feerate / feerate_per_kw
+                ratio = chan_feerate / update_feerate_per_kw
                 if ratio < 0.5:
                     # Note that we trust the Electrum server about fee rates
                     # Thus, automated force-closing might not be a good idea
                     # Maybe we should display something in the GUI instead
                     self.logger.warning(
                         f"({chan.get_id_for_log()}) feerate is {chan_feerate} sat/kw, "
-                        f"current recommended feerate is {feerate_per_kw} sat/kw, consider force closing!")
+                        f"current recommended feerate is {update_feerate_per_kw} sat/kw, consider force closing!")
             return
         # it is our responsibility to update the fee
         chan_fee = chan.get_next_feerate(REMOTE)
         if does_chan_fee_need_update(chan_fee):
             self.logger.info(f"({chan.get_id_for_log()}) onchain fees have changed considerably. updating fee.")
         elif chan.get_latest_ctn(REMOTE) == 0:
-            # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730
+            # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730 (fixed in 2022)
             self.logger.info(f"({chan.get_id_for_log()}) updating fee to bump remote ctn")
-            if feerate_per_kw == chan_fee:
-                feerate_per_kw += 1
+            if current_feerate_per_kw == chan_fee:
+                update_feerate_per_kw += 1
         else:
             return
         self.logger.info(f"({chan.get_id_for_log()}) current pending feerate {chan_fee}. "
-                         f"new feerate {feerate_per_kw}")
-        chan.update_fee(feerate_per_kw, True)
+                         f"new feerate {update_feerate_per_kw}")
+        assert update_feerate_per_kw >= FEERATE_PER_KW_MIN_RELAY_LIGHTNING, f"fee below minimum: {update_feerate_per_kw}"
+        chan.update_fee(update_feerate_per_kw, True)
         self.send_message(
             "update_fee",
             channel_id=chan.channel_id,
-            feerate_per_kw=feerate_per_kw)
+            feerate_per_kw=update_feerate_per_kw)
         self.maybe_send_commitment(chan)
 
     @log_exceptions
