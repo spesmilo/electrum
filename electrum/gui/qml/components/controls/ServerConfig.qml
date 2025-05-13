@@ -12,6 +12,7 @@ Item {
     property bool showAutoselectServer: true
     property alias auto_connect: auto_server_cb.checked
     property alias address: address_tf.text
+    property alias one_server: one_server_cb.checked
 
     implicitHeight: rootLayout.height
 
@@ -26,7 +27,8 @@ Item {
             id: auto_server_cb
             visible: showAutoselectServer
             text: qsTr('Select server automatically')
-            checked: true
+            checked: !showAutoselectServer
+            enabled: !one_server_cb.checked
         }
 
         Label {
@@ -42,6 +44,22 @@ Item {
                 enabled: !auto_server_cb.checked
                 width: parent.width
                 inputMethodHints: Qt.ImhNoPredictiveText
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: !auto_server_cb.checked && address_tf.text
+
+            CheckBox {
+                id: one_server_cb
+                Layout.fillWidth: true
+                text: qsTr('One server')
+            }
+
+            HelpButton {
+                heading: qsTr('One server')
+                helptext: Config.longDescFor('NETWORK_ONESERVER')
             }
         }
 
@@ -96,6 +114,7 @@ Item {
     Component.onCompleted: {
         root.auto_connect = Config.autoConnectDefined ? Config.autoConnect : false
         root.address = Network.server
+        one_server_cb.checked = Network.oneServer
         // TODO: initial setup should not connect already, is Network.server defined?
     }
 }
