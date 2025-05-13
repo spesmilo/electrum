@@ -194,7 +194,6 @@ class TestTxBatcher(ElectrumTestCase):
         txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=swap_data)
         sweep_info = SweepInfo(
             txin=txin,
-            csv_delay=0,
             cltv_abs=locktime,
             txout=None,
             name='swap claim',

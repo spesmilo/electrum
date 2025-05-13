@@ -39,7 +39,6 @@ HTLCTX_INPUT_OUTPUT_INDEX = 0
 
 class SweepInfo(NamedTuple):
     name: str
-    csv_delay: int
     cltv_abs: Optional[int] # set to None only if the script has no cltv
     txin: PartialTxInput
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
@@ -47,6 +46,10 @@ class SweepInfo(NamedTuple):
 
     def is_anchor(self):
         return self.name in ['local_anchor', 'remote_anchor']
+
+    @property
+    def csv_delay(self):
+        return self.txin.get_block_based_relative_locktime() or 0
 
 
 def sweep_their_ctx_watchtower(
@@ -253,7 +256,6 @@ def sweep_their_htlctx_justice(
             prevout = htlc_tx.txid() + f':{output_idx}'
             index_to_sweepinfo[prevout] = SweepInfo(
                 name=f'second-stage-htlc:{output_idx}',
-                csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -331,7 +333,6 @@ def sweep_our_ctx(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='local_anchor',
-                csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -353,7 +354,6 @@ def sweep_our_ctx(
             prevout = ctx.txid() + ':%d'%output_idx
             txs[prevout] = SweepInfo(
                 name='our_ctx_to_local',
-                csv_delay=to_self_delay,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -387,10 +387,8 @@ def sweep_our_ctx(
         if actual_htlc_tx is None:
             name = 'offered-htlc' if htlc_direction == SENT else 'received-htlc'
             prevout = ctx.txid() + f':{ctx_output_idx}'
-            csv_delay = 1 if chan.has_anchors() else 0
             txs[prevout] = SweepInfo(
                 name=name,
-                csv_delay=csv_delay,
                 cltv_abs=htlc_tx.locktime,
                 txin=htlc_tx.inputs()[0],
                 txout=htlc_tx.outputs()[0],
@@ -413,7 +411,6 @@ def sweep_our_ctx(
                 ):
                     txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
                         name=f'second-stage-htlc:{output_idx}',
-                        csv_delay=to_self_delay,
                         cltv_abs=0,
                         txin=sweep_txin,
                         txout=None,
@@ -553,7 +550,6 @@ def sweep_their_ctx_to_remote_backup(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_ms_funding_keypair):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
-                csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -561,7 +557,6 @@ def sweep_their_ctx_to_remote_backup(
             )
 
     # to_remote
-    csv_delay = 1
     our_payment_privkey = ecc.ECPrivkey(our_payment_pubkey.privkey)
     output_idxs = ctx.get_output_idxs_from_address(to_remote_address)
     if output_idxs:
@@ -575,7 +570,6 @@ def sweep_their_ctx_to_remote_backup(
         ):
             txs[prevout] = SweepInfo(
                 name='their_ctx_to_remote_backup',
-                csv_delay=csv_delay,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -633,7 +627,6 @@ def sweep_their_ctx(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
-                csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -646,7 +639,6 @@ def sweep_their_ctx(
         if txin := sweep_their_ctx_justice(chan, ctx, per_commitment_secret):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
-                csv_delay=0,
                 cltv_abs=None,
                 txin=txin,
                 txout=None,
@@ -655,12 +647,10 @@ def sweep_their_ctx(
 
     # to_remote
     if chan.has_anchors():
-        csv_delay = 1
         sweep_to_remote = True
         our_payment_privkey = ecc.ECPrivkey(our_conf.payment_basepoint.privkey)
     else:
         assert chan.is_static_remotekey_enabled()
-        csv_delay = 0
         sweep_to_remote = False
         our_payment_privkey = None
 
@@ -679,7 +669,6 @@ def sweep_their_ctx(
                 # todo: we might not want to sweep this at all, if we add it to the wallet addresses
                 txs[prevout] = SweepInfo(
                     name='their_ctx_to_remote',
-                    csv_delay=csv_delay,
                     cltv_abs=None,
                     txin=txin,
                     txout=None,
@@ -705,7 +694,6 @@ def sweep_their_ctx(
             has_anchors=chan.has_anchors())
 
         cltv_abs = htlc.cltv_abs if is_received_htlc and not is_revocation else 0
-        csv_delay = 1 if chan.has_anchors() else 0
         prevout = ctx.txid() + ':%d'%ctx_output_idx
         if txin := sweep_their_ctx_htlc(
                 ctx=ctx,
@@ -719,7 +707,6 @@ def sweep_their_ctx(
         ):
             txs[prevout] = SweepInfo(
                 name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
-                csv_delay=csv_delay,
                 cltv_abs=cltv_abs,
                 txin=txin,
                 txout=None,
