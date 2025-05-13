@@ -114,7 +114,7 @@ if [[ $1 == "start" ]]; then
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent daemon -d
     $agent load_wallet
-    sleep 1 # give time to synchronize
+    $agent wait_for_sync
 fi
 
 if [[ $1 == "stop" ]]; then
@@ -170,6 +170,7 @@ if [[ $1 == "backup" ]]; then
     $alice daemon -d
     $alice load_wallet
     $alice import_channel_backup $backup
+    $alice wait_for_sync
     echo "request force close $channel1"
     $alice request_force_close $channel1
     echo "request force close $channel2"

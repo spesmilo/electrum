@@ -438,6 +438,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # true when synchronized. this is stricter than adb.is_up_to_date():
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
         self._up_to_date = False
+        self.up_to_date_changed_event = asyncio.Event()
 
         self.test_addresses_sanity()
         if self.storage and self.has_storage_encryption():
@@ -588,6 +589,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
             util.trigger_callback('wallet_updated', self)
             util.trigger_callback('status')
+            self.up_to_date_changed_event.set()
+            self.up_to_date_changed_event.clear()
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
