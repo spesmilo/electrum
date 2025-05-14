@@ -534,7 +534,7 @@ class NWCServer(Logger, EventListener):
         if direction:
             response['result']['type'] = direction
         if status == PR_PAID:
-            response['result']['preimage'] = self.wallet.lnworker.preimages.get(invoice.rhash, "not found")
+            response['result']['preimage'] = self.wallet.lnworker.get_preimage_hex(invoice.rhash) or "not found"
         self.logger.debug(f"lookup_invoice response: {response}")
         await self.send_encrypted_response(request_event.pubkey, json.dumps(response), request_event.id)
 
@@ -731,7 +731,7 @@ class NWCServer(Logger, EventListener):
             "amount": request.get_amount_msat(),
             "created_at": request.time,
             "expires_at": request.get_expiration_date(),
-            "preimage": self.wallet.lnworker.preimages.get(request.rhash, "not found"),
+            "preimage": self.wallet.lnworker.get_preimage_hex(invoice.rhash) or "not found",
             "metadata": {},
             "fees_paid": 0
         }
@@ -760,7 +760,7 @@ class NWCServer(Logger, EventListener):
             "type": "outgoing",
             "invoice": invoice.lightning_invoice or "",
             "description": invoice.message,
-            "preimage": self.wallet.lnworker.preimages.get(key, "not found"),
+            "preimage": self.wallet.lnworker.get_preimage_hex(invoice.rhash) or "not found",
             "payment_hash": invoice.rhash,
             "amount": invoice.get_amount_msat(),
             "created_at": invoice.time,

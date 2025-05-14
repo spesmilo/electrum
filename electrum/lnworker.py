@@ -845,7 +845,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
         self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
-        self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
+        self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[HtlcLog]]  # key is RHASH  # (not persisted)
@@ -2286,19 +2286,23 @@ class LNWallet(LNWorker):
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
-        self.preimages[payment_hash.hex()] = preimage.hex()
+        self._preimages[payment_hash.hex()] = preimage.hex()
         if write_to_disk:
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
-        preimage_hex = self.preimages.get(payment_hash.hex())
+        preimage_hex = self._preimages.get(payment_hash.hex())
         if preimage_hex is None:
             return None
         preimage_bytes = bytes.fromhex(preimage_hex)
         if sha256(preimage_bytes) != payment_hash:
             raise Exception("found incorrect preimage for payment_hash")
         return preimage_bytes
+
+    def get_preimage_hex(self, payment_hash: str) -> Optional[str]:
+        preimage_bytes = self.get_preimage(bytes.fromhex(payment_hash)) or b""
+        return preimage_bytes.hex() or None
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""

@@ -206,7 +206,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.active_forwardings = {}
         self.forwarding_failures = {}
         self.inflight_payments = set()
-        self.preimages = {}
+        self._preimages = {}
         self.stopping_soon = False
         self.downstream_to_upstream_htlc = {}
         self.dont_settle_htlcs = {}
@@ -593,7 +593,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_recipient(self, w2, payment_hash, test_hold_invoice, test_failure):
         if not test_hold_invoice and not test_failure:
             return
-        preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
+        preimage = bytes.fromhex(w2._preimages.pop(payment_hash.hex()))
         if test_hold_invoice:
             async def cb(payment_hash):
                 if not test_failure:
