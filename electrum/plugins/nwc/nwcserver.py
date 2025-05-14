@@ -731,7 +731,7 @@ class NWCServer(Logger, EventListener):
             "amount": request.get_amount_msat(),
             "created_at": request.time,
             "expires_at": request.get_expiration_date(),
-            "preimage": self.wallet.lnworker.get_preimage_hex(invoice.rhash) or "not found",
+            "preimage": self.wallet.lnworker.get_preimage_hex(request.rhash) or "not found",
             "metadata": {},
             "fees_paid": 0
         }
@@ -756,6 +756,7 @@ class NWCServer(Logger, EventListener):
             return
         _, fee_msat, _, settled_at = payment_info
 
+        assert key == invoice.rhash, f"{key=!r} != {invoice.rhash=!r}"
         notification = {
             "type": "outgoing",
             "invoice": invoice.lightning_invoice or "",
