@@ -1540,6 +1540,12 @@ class Channel(AbstractChannel):
                                 consider_ctx(ctx_owner=sender, is_htlc_dust=False),
                             ),
         )
+
+        ctn = self.get_next_ctn(receiver)
+        current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(receiver, direction=RECEIVED, ctn=ctn).values())
+        remaining_max_inflight = self.config[receiver].max_htlc_value_in_flight_msat - current_htlc_sum
+        max_send_msat = min(max_send_msat, remaining_max_inflight)
+
         max_send_msat = max(max_send_msat, 0)
         return max_send_msat
 
