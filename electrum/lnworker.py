@@ -2045,7 +2045,7 @@ class LNWallet(LNWorker):
                         self.logger.info(f'per trampoline fees: {per_trampoline_fees}')
                         for chan_id, part_amount_msat in trampoline_parts:
                             chan = self.channels[chan_id]
-                            margin = chan.available_to_spend(LOCAL, strict=True) - part_amount_msat
+                            margin = chan.available_to_spend(LOCAL) - part_amount_msat
                             delta_fee = min(per_trampoline_fees, margin)
                             # TODO: distribute trampoline fee over several channels?
                             part_amount_msat_with_fees = part_amount_msat + delta_fee

@@ -1088,10 +1088,6 @@ class Channel(AbstractChannel):
             if not self.can_send_update_add_htlc():
                 raise PaymentFailure('Channel cannot add htlc')
 
-        # If proposer is LOCAL we apply stricter checks as that is behaviour we can control.
-        # This should lead to fewer disagreements (i.e. channels failing).
-        strict = (htlc_proposer == LOCAL)
-
         # check htlc raw value
         if not ignore_min_htlc_value:
             if amount_msat <= 0:
@@ -1099,7 +1095,7 @@ class Channel(AbstractChannel):
             if amount_msat < chan_config.htlc_minimum_msat:
                 raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
-        if self.too_many_htlcs(htlc_proposer, strict):
+        if self.too_many_htlcs(htlc_proposer):
             raise PaymentFailure('Too many HTLCs already in channel')
 
         if amount_msat > self.remaining_max_inflight(htlc_receiver):
@@ -1108,15 +1104,18 @@ class Channel(AbstractChannel):
                 f'would exceed max allowed: {chan_config.max_htlc_value_in_flight_msat/1000} sat')
 
         # check proposer can afford htlc
-        max_can_send_msat = self.available_to_spend(htlc_proposer, strict=strict)
+        max_can_send_msat = self.available_to_spend(htlc_proposer)
         if max_can_send_msat < amount_msat:
             raise PaymentFailure(f'Not enough balance. can send: {max_can_send_msat}, tried: {amount_msat}')
 
-    def too_many_htlcs(self, htlc_proposer: HTLCOwner, strict:bool) -> bool:
+    def too_many_htlcs(self, htlc_proposer: HTLCOwner) -> bool:
         # check "max_accepted_htlcs"
         htlc_receiver = htlc_proposer.inverted()
         ctn = self.get_next_ctn(htlc_receiver)
         chan_config = self.config[htlc_receiver]
+        # If proposer is LOCAL we apply stricter checks as that is behaviour we can control.
+        # This should lead to fewer disagreements (i.e. channels failing).
+        strict = (htlc_proposer == LOCAL)
         # this is the loose check BOLT-02 specifies:
         if len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn)) + 1 > chan_config.max_accepted_htlcs:
             return True
@@ -1476,7 +1475,7 @@ class Channel(AbstractChannel):
     def has_unsettled_htlcs(self) -> bool:
         return len(self.hm.htlcs(LOCAL)) + len(self.hm.htlcs(REMOTE)) > 0
 
-    def available_to_spend(self, subject: HTLCOwner, *, strict: bool = True) -> int:
+    def available_to_spend(self, subject: HTLCOwner) -> int:
         """The usable balance of 'subject' in msat, after taking reserve and fees (and anchors) into
         consideration. Note that fees (and hence the result) fluctuate even without user interaction.
         """
