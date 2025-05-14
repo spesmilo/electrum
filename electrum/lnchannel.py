@@ -1553,6 +1553,8 @@ class Channel(AbstractChannel):
         )
 
         max_send_msat = min(max_send_msat, self.remaining_max_inflight(receiver))
+        if self.too_many_htlcs(sender):
+            max_send_msat = 0
 
         max_send_msat = max(max_send_msat, 0)
         return max_send_msat
