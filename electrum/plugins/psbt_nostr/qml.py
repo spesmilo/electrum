@@ -105,8 +105,8 @@ class Plugin(PsbtNostrPlugin):
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet'):
         # remove existing, only foreground wallet active
-        for wallet in self.cosigner_wallets.copy().keys():
-            self.remove_cosigner_wallet(wallet)
+        for _wallet in self.cosigner_wallets.copy().keys():
+            self.remove_cosigner_wallet(_wallet)
         if not isinstance(wallet, Multisig_Wallet):
             return
         if wallet.wallet_type == '2fa':
