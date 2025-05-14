@@ -185,7 +185,6 @@ class HTLCWithStatus(NamedTuple):
 class AbstractChannel(Logger, ABC):
     storage: Union['StoredDict', dict]
     config: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
-    _sweep_info: Dict[str, Dict[str, 'SweepInfo']]
     lnworker: Optional['LNWallet']
     channel_id: bytes
     short_channel_id: Optional[ShortChannelID] = None
@@ -193,6 +192,7 @@ class AbstractChannel(Logger, ABC):
     node_id: bytes  # note that it might not be the full 33 bytes; for OCB it is only the prefix
     should_request_force_close: bool = False
     _state: ChannelState
+    _who_closed: Optional[int] = None  # HTLCOwner (1 or -1).  0 means "unknown"
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
@@ -304,22 +304,27 @@ class AbstractChannel(Logger, ABC):
         return None
 
     def get_ctx_sweep_info(self, ctx: Transaction) -> Tuple[bool, Dict[str, SweepInfo]]:
-        txid = ctx.txid()
-        is_local = False
-        if self._sweep_info.get(txid) is None:
-            our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
-            their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
-            if our_sweep_info:
-                is_local = True
-                self._sweep_info[txid] = our_sweep_info
+        our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
+        their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
+        if our_sweep_info:
+            sweep_info = our_sweep_info
+            who_closed = LOCAL
+        elif their_sweep_info:
+            sweep_info = their_sweep_info
+            who_closed = REMOTE
+        else:
+            sweep_info = {}
+            who_closed = 0
+        if self._who_closed != who_closed:  # mostly here to limit log spam
+            self._who_closed = who_closed
+            if who_closed == LOCAL:
                 self.logger.info(f'we (local) force closed')
-            elif their_sweep_info:
-                self._sweep_info[txid] = their_sweep_info
+            elif who_closed == REMOTE:
                 self.logger.info(f'they (remote) force closed.')
             else:
-                self._sweep_info[txid] = {}
-                self.logger.info(f'not sure who closed.')
-        return is_local, self._sweep_info[txid]
+                self.logger.info(f'not sure who closed. maybe co-op close?')
+        is_local_ctx = who_closed == LOCAL
+        return is_local_ctx, sweep_info
 
     def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
         return {}
@@ -569,7 +574,6 @@ class ChannelBackup(AbstractChannel):
         self.name = None
         self.cb = cb
         self.is_imported = isinstance(self.cb, ImportedChannelBackupStorage)
-        self._sweep_info = {}
         self.storage = {} # dummy storage
         self._state = ChannelState.OPENING
         self.node_id = cb.node_id if self.is_imported else cb.node_id_prefix
@@ -782,7 +786,6 @@ class Channel(AbstractChannel):
         # ^ htlc_id -> onion_packet_hex, forwarding_key
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
-        self._sweep_info = {}
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool

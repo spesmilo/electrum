@@ -59,11 +59,6 @@ class LNWatcher(Logger, EventListener):
 
     @event_listener
     async def on_event_blockchain_updated(self, *args):
-        # we invalidate the cache on each new block because
-        # some processes affect the list of sweep transactions
-        # (hold invoice preimage revealed, MPP completed, etc)
-        for chan in self.lnworker.channels.values():
-            chan._sweep_info.clear()
         await self.trigger_callbacks()
 
     @event_listener
