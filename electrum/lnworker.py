@@ -22,7 +22,7 @@ import urllib.parse
 import itertools
 
 import aiohttp
-import dns.resolver
+import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
@@ -427,10 +427,9 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             return [random.choice(fallback_list)]
 
         # last resort: try dns seeds (BOLT-10)
-        return await run_in_thread(self._get_peers_from_dns_seeds)
+        return await self._get_peers_from_dns_seeds()
 
-    def _get_peers_from_dns_seeds(self) -> Sequence[LNPeerAddr]:
-        # NOTE: potentially long blocking call, do not run directly on asyncio event loop.
+    async def _get_peers_from_dns_seeds(self) -> Sequence[LNPeerAddr]:
         # Return several peers to reduce the number of dns queries.
         if not constants.net.LN_DNS_SEEDS:
             return []
@@ -439,7 +438,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         try:
             # note: this might block for several seconds
             # this will include bech32-encoded-pubkeys and ports
-            srv_answers = resolve_dns_srv('r{}.{}'.format(
+            srv_answers = await resolve_dns_srv('r{}.{}'.format(
                 constants.net.LN_REALM_BYTE, dns_seed))
         except dns.exception.DNSException as e:
             self.logger.info(f'failed querying (1) dns seed "{dns_seed}" for ln peers: {repr(e)}')
@@ -451,8 +450,8 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         peers = []
         for srv_ans in srv_answers:
             try:
-                # note: this might block for several seconds
-                answers = dns.resolver.resolve(srv_ans['host'])
+                # note: this might take several seconds
+                answers = await dns.asyncresolver.resolve(srv_ans['host'])
             except dns.exception.DNSException as e:
                 self.logger.info(f'failed querying (2) dns seed "{dns_seed}" for ln peers: {repr(e)}')
                 continue
