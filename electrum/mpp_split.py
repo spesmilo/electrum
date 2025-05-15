@@ -167,6 +167,11 @@ def suggest_splits(
             if config.total_config_amount() != amount_msat:
                 raise NoPathFound('Cannot distribute payment over channels.')
             if target_parts > 1 and config.is_any_amount_smaller_than_min_part_size():
+                if target_parts == 2:
+                    # if there are already too small parts at the first split excluding single
+                    # part payments may return only few configurations, this will allow single part
+                    # payments for more payments, if they are too small to split
+                    exclude_single_part_payments = False
                 continue
             assert config.total_config_amount() == amount_msat
             configs.append(config)

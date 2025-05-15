@@ -1915,20 +1915,24 @@ class LNWallet(LNWorker):
         else:
             return random.choice(list(hardcoded_trampoline_nodes().values())).pubkey
 
-    def suggest_splits(
+    def suggest_payment_splits(
         self,
         *,
         amount_msat: int,
         final_total_msat: int,
         my_active_channels: Sequence[Channel],
         invoice_features: LnFeatures,
-        r_tags,
+        r_tags: Sequence[Sequence[Sequence[Any]]],
+        receiver_pubkey: bytes,
     ) -> List['SplitConfigRating']:
         channels_with_funds = {
             (chan.channel_id, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
             for chan in my_active_channels
         }
-        self.logger.info(f"channels_with_funds: {channels_with_funds}")
+        # if we have a direct channel it's preferrable to send a single part directly through this
+        # channel, so this bool will disable excluding single part payments
+        have_direct_channel = any(chan.node_id == receiver_pubkey for chan in my_active_channels)
+        self.logger.info(f"channels_with_funds: {channels_with_funds}, {have_direct_channel=}")
         exclude_single_part_payments = False
         if self.uses_trampoline():
             # in the case of a legacy payment, we don't allow splitting via different
@@ -1944,22 +1948,18 @@ class LNWallet(LNWorker):
             if invoice_features.supports(LnFeatures.BASIC_MPP_OPT) and not self.config.TEST_FORCE_DISABLE_MPP:
                 # if amt is still large compared to total_msat, split it:
                 if (amount_msat / final_total_msat > self.MPP_SPLIT_PART_FRACTION
-                        and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT):
+                        and amount_msat > self.MPP_SPLIT_PART_MINAMT_MSAT
+                        and not have_direct_channel):
                     exclude_single_part_payments = True
 
-        def get_splits():
-            return suggest_splits(
-                amount_msat,
-                channels_with_funds,
-                exclude_single_part_payments=exclude_single_part_payments,
-                exclude_multinode_payments=exclude_multinode_payments,
-                exclude_single_channel_splits=exclude_single_channel_splits
-            )
+        split_configurations = suggest_splits(
+            amount_msat,
+            channels_with_funds,
+            exclude_single_part_payments=exclude_single_part_payments,
+            exclude_multinode_payments=exclude_multinode_payments,
+            exclude_single_channel_splits=exclude_single_channel_splits
+        )
 
-        split_configurations = get_splits()
-        if not split_configurations and exclude_single_part_payments:
-            exclude_single_part_payments = False
-            split_configurations = get_splits()
         self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
         return split_configurations
 
@@ -1989,12 +1989,13 @@ class LNWallet(LNWorker):
                 chan.is_active() and not chan.is_frozen_for_sending()]
         # try random order
         random.shuffle(my_active_channels)
-        split_configurations = self.suggest_splits(
+        split_configurations = self.suggest_payment_splits(
             amount_msat=amount_msat,
             final_total_msat=paysession.amount_to_pay,
             my_active_channels=my_active_channels,
             invoice_features=paysession.invoice_features,
             r_tags=paysession.r_tags,
+            receiver_pubkey=paysession.invoice_pubkey,
         )
         for sc in split_configurations:
             is_multichan_mpp = len(sc.config.items()) > 1
