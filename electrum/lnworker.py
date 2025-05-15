@@ -2288,6 +2288,9 @@ class LNWallet(LNWorker):
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
+        if self._preimages.get(payment_hash.hex()) is not None:
+            return  # we already have this preimage
+        self.logger.debug(f"saving preimage for {payment_hash.hex()}")
         self._preimages[payment_hash.hex()] = preimage.hex()
         if write_to_disk:
             self.wallet.save_db()

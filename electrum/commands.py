@@ -1639,7 +1639,8 @@ class Commands(Logger):
     @command('wnpl')
     async def close_channel(self, channel_point, force=False, password=None, wallet: Abstract_Wallet = None):
         """
-        Close a lightning channel
+        Close a lightning channel.
+        Returns txid of closing tx.
 
         arg:str:channel_point:channel point
         arg:bool:force:Force closes (broadcast local commitment transaction)

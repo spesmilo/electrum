@@ -249,11 +249,17 @@ if [[ $1 == "swapserver_forceclose" ]]; then
     swap=$($alice reverse_swap 0.02 $onchain_amount)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
-    $bob close_channel --force $channel
+    ctx_id=$($bob close_channel --force $channel)
     new_blocks 1
     wait_until_spent $funding_txid 0 # alice reveals preimage
     new_blocks 1
-    sleep 2
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        output_index=3  # received_htlc_output in bob's ctx. FIXME index depends on Alice not using MPP
+    else
+        output_index=1
+    fi
+    # wait until Bob finds preimage onchain and uses it to create an htlc_success tx
+    wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
     new_blocks 144
     wait_for_balance bob 0.999
 fi
