@@ -54,8 +54,10 @@ from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
-                           UserFacingException, get_new_wallet_name, send_exception_to_crash_reporter,
-                           AddTransactionException, os_chmod, UI_UNIT_NAME_TXSIZE_VBYTES, ChoiceItem)
+                           UserFacingException, get_new_wallet_name,
+                           send_exception_to_crash_reporter,
+                           AddTransactionException, os_chmod, UI_UNIT_NAME_TXSIZE_VBYTES,
+                           is_valid_email, ChoiceItem)
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.invoices import PR_PAID, Invoice
@@ -1614,11 +1616,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.payto_contacts(labels)
 
     def set_contact(self, label, address):
-        if not is_address(address):
+        if not (is_address(address) or is_valid_email(address)):  # email = lightning address
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
-        self.contacts[address] = ('address', label)
+        address_type = 'address' if is_address(address) else 'lnaddress'
+        self.contacts[address] = (address_type, label)
         self.contact_list.update()
         self.history_list.update()
         self.update_completions()
@@ -2008,7 +2011,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         line1.setFixedWidth(32 * char_width_in_lineedit())
         line2 = QLineEdit()
         line2.setFixedWidth(32 * char_width_in_lineedit())
-        grid.addWidget(QLabel(_("Address")), 1, 0)
+        address_label = QLabel(_("Address"))
+        address_label.setToolTip(_("Bitcoin- or Lightning address"))
+        grid.addWidget(address_label, 1, 0)
         grid.addWidget(line1, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
         grid.addWidget(line2, 2, 1)

@@ -285,7 +285,7 @@ class PaymentIdentifier(Logger):
                     'label': contact['name']
                 }
                 self.set_state(PaymentIdentifierState.AVAILABLE)
-            elif contact['type'] == 'openalias':
+            elif contact['type'] in ('openalias', 'lnaddress'):
                 self._type = PaymentIdentifierType.EMAILLIKE
                 self.emaillike = contact['address']
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
@@ -649,9 +649,6 @@ class PaymentIdentifier(Logger):
         return pubkey, amount, description
 
     async def resolve_openalias(self, key: str) -> Optional[dict]:
-        # TODO: below check needed? we already matched RE_EMAIL/RE_DOMAIN
-        # if not (('.' in key) and ('<' not in key) and (' ' not in key)):
-        #     return None
         parts = key.split(sep=',')  # assuming single line
         if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
             return None

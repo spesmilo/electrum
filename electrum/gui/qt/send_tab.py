@@ -801,7 +801,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
         self.window.show_send_tab()
-        self.payto_e.do_clear()
+        self.do_clear()
         if len(paytos) == 1:
             self.logger.debug('payto_e setText 1')
             self.payto_e.setText(paytos[0])
