@@ -11,7 +11,9 @@ from .logging import Logger
 if TYPE_CHECKING:
     from .network import Network
 
-FEE_ETA_TARGETS = [25, 10, 5, 2, 1]
+# 1008 = max conf target of core's estimatesmartfee, requesting more results in rpc error.
+# estimatesmartfee guarantees that the fee will get accepted into the mempool
+FEE_ETA_TARGETS = [1008, 144, 25, 10, 5, 2, 1]
 FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
                      800_000, 600_000, 400_000, 250_000, 100_000]
 FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
@@ -27,8 +29,10 @@ FEERATE_MAX_RELAY = 50000
 # warn user if fee/amount for on-chain tx is higher than this
 FEE_RATIO_HIGH_WARNING = 0.05
 
-FEE_LN_ETA_TARGET = 2       # note: make sure the network is asking for estimates for this target
-FEE_LN_LOW_ETA_TARGET = 25  # note: make sure the network is asking for estimates for this target
+# note: make sure the network is asking for estimates for these targets
+FEE_LN_ETA_TARGET = 2
+FEE_LN_LOW_ETA_TARGET = 25
+FEE_LN_MINIMUM_ETA_TARGET = 1008
 
 
 # The min feerate_per_kw that can be used in lightning so that
@@ -149,6 +153,10 @@ class FeePolicy(Logger):
             return _('Low fee')
         elif x == 1:
             return _('In the next block')
+        elif x == 144:
+            return _('Within one day')
+        elif x == 1008:
+            return _("Within one week")
         else:
             return _('Within {} blocks').format(x)
 
