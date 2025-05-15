@@ -84,6 +84,7 @@ class RequestList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
+        self.selectionModel().selectionChanged.connect(self.selection_changed)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     def set_current_key(self, key):
@@ -98,14 +99,16 @@ class RequestList(MyTreeView):
     def get_current_key(self):
         return self.get_role_data_for_current_item(col=self.Columns.DATE, role=ROLE_KEY)
 
+    def selection_changed(self, selected, deselected):
+        self.receive_tab.update_current_request()
+
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
             self.receive_tab.update_current_request()
             return
         if not idx.isValid():
             return
-        # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.siblingAtColumn(self.Columns.DATE))
         key = item.data(ROLE_KEY)
         req = self.wallet.get_request(key)
         if req is None:
@@ -186,8 +189,7 @@ class RequestList(MyTreeView):
             menu.exec(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
-        # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.siblingAtColumn(self.Columns.DATE))
         if not item:
             return
         key = item.data(ROLE_KEY)

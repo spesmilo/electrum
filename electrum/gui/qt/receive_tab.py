@@ -224,7 +224,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_widget.update_visibility(b)
 
     def update_current_request(self):
-        key = self.request_list.get_current_key()
+        if len(self.request_list.selectionModel().selectedRows(0)) > 1:
+            key = None
+        else:
+            key = self.request_list.get_current_key()
         req = self.wallet.get_request(key) if key else None
         if req is None:
             self.receive_e.setText('')
