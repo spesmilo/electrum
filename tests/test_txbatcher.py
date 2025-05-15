@@ -41,7 +41,7 @@ class MockNetwork(Logger):
 
     async def try_broadcasting(self, tx, name):
         for w in self.wallets:
-            w.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
+            w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         self._tx_queue.put_nowait(tx)
         return tx.txid()
@@ -121,7 +121,7 @@ class TestTxBatcher(ElectrumTestCase):
         assert output1 in tx1_prime.outputs()
         assert output2 in tx1_prime.outputs()
         # tx1 gets confirmed, tx2 gets removed
-        wallet.adb.receive_tx_callback(tx1, 1)
+        wallet.adb.receive_tx_callback(tx1, tx_height=1)
         tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
         wallet.adb.add_verified_tx(tx1.txid(), tx_mined_status._replace(conf=1))
         assert wallet.adb.get_transaction(tx1.txid()) is not None
@@ -187,7 +187,7 @@ class TestTxBatcher(ElectrumTestCase):
             is_redeemed=False,
         )
         wallet.adb.db.transactions[swap_data.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, 1)
+        wallet.adb.receive_tx_callback(tx, tx_height=1)
         txin = PartialTxInput(
             prevout=TxOutpoint(txid=bytes.fromhex(swap_data.funding_txid), out_idx=0),
         )

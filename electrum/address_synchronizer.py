@@ -434,7 +434,7 @@ class AddressSynchronizer(Logger, EventListener):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx: Transaction, tx_height: int) -> None:
+    def receive_tx_callback(self, tx: Transaction, *, tx_height: int) -> None:
         txid = tx.txid()
         assert txid is not None
         self.add_unverified_or_unconfirmed_tx(txid, tx_height)

@@ -133,7 +133,7 @@ class TestWalletStorage(WalletTestCase):
         del wallet1
         wallet1 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         tx = tx_from_any("02000000000101a97a9ae7fb1a9220fdd170a974987ac24631dcff89b60fa4907c78c3639994db0000000000fdffffff0210270000000000001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac20491e0000000000160014b8e4fdc91593b67de2bf214694ef47e38dc2ee8e02473044022005326882904906cfa9c1de75333ace1019596f2ab25d21118220d037dfc0e48b02207d0b3f075cfe5e1e0247ff3cdd7155dc05e7459daf1bfa0ea02e9112b9151ec90121026cc6a74c2b0e38661d341ffae48fe7dde5196ca4afe95d28b496673fa4cf646700000000")
-        wallet1.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
+        wallet1.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         await wallet1.stop()
 
