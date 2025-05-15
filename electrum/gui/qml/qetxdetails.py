@@ -383,9 +383,11 @@ class QETxDetails(QObject, QtEventListener):
 
         self.detailsChanged.emit()
 
-        if self._label != txinfo.label:
-            self._label = txinfo.label
-            self.labelChanged.emit()
+        if self._txid:
+            label = self._wallet.wallet.get_label_for_txid(self._txid)
+            if self._label != label:
+                self._label = label
+                self.labelChanged.emit()
 
     def update_mined_status(self, tx_mined_info: TxMinedInfo):
         self._mempool_depth = ''
@@ -505,4 +507,5 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtSlot(result='QVariantList')
     def getSerializedTx(self):
         txqr = self._tx.to_qr_data()
-        return [str(self._tx), txqr[0], txqr[1]]
+        label = self._wallet.wallet.get_label_for_txid(self._tx.txid())
+        return [str(self._tx), txqr[0], txqr[1], label]

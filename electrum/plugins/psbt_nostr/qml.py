@@ -50,7 +50,7 @@ class QReceiveSignalObject(QObject):
         QObject.__init__(self)
         self._plugin = plugin
 
-    cosignerReceivedPsbt = pyqtSignal(str, str, str)
+    cosignerReceivedPsbt = pyqtSignal(str, str, str, str)
     sendPsbtFailed = pyqtSignal(str, arguments=['reason'])
     sendPsbtSuccess = pyqtSignal()
 
@@ -66,11 +66,12 @@ class QReceiveSignalObject(QObject):
         return cosigner_wallet.can_send_psbt(tx_from_any(tx, deserialize=True))
 
     @pyqtSlot(QEWallet, str)
-    def sendPsbt(self, wallet: 'QEWallet', tx: str):
+    @pyqtSlot(QEWallet, str, str)
+    def sendPsbt(self, wallet: 'QEWallet', tx: str, label: str = None):
         cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
         if not cosigner_wallet:
             return
-        cosigner_wallet.send_psbt(tx_from_any(tx, deserialize=True))
+        cosigner_wallet.send_psbt(tx_from_any(tx, deserialize=True), label)
 
     @pyqtSlot(QEWallet, str)
     def acceptPsbt(self, wallet: 'QEWallet', event_id: str):
@@ -126,20 +127,20 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
         self.user_prompt_cooldown = None
 
     @event_listener
-    def on_event_psbt_nostr_received(self, wallet, pubkey, event_id, tx: 'PartialTransaction'):
+    def on_event_psbt_nostr_received(self, wallet, pubkey, event_id, tx: 'PartialTransaction', label: str):
         if self.wallet == wallet:
             self.tx = tx
             if not (self.user_prompt_cooldown and self.user_prompt_cooldown > now()):
-                self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize())
+                self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize(), label)
             else:
                 self.mark_pending_event_rcvd(event_id)
-                self.add_transaction_to_wallet(self.tx, on_failure=self.on_add_fail)
+                self.add_transaction_to_wallet(self.tx, label=label, on_failure=self.on_add_fail)
 
     def close(self):
         super().close()
         self.unregister_callbacks()
 
-    def do_send(self, messages: List[Tuple[str, str]], txid: Optional[str] = None):
+    def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
         if not messages:
             return
         coro = self.send_direct_messages(messages)

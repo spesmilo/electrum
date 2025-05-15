@@ -13,6 +13,7 @@ ElDialog {
     // if text_qr is undefined text will be used
     property string text_help
     property string text_warn
+    property string tx_label
 
     title: qsTr('Share Transaction')
 
