@@ -434,10 +434,12 @@ class AddressSynchronizer(Logger, EventListener):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx: Transaction, *, tx_height: int) -> None:
+    def receive_tx_callback(self, tx: Transaction, *, tx_height: Optional[int] = None) -> None:
         txid = tx.txid()
         assert txid is not None
-        self.add_unverified_or_unconfirmed_tx(txid, tx_height)
+        if tx_height is not None:
+            # note: tx_height is only set by the unit tests: to inject a tx into the history
+            self.add_unverified_or_unconfirmed_tx(txid, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
@@ -618,7 +620,7 @@ class AddressSynchronizer(Logger, EventListener):
         assert self.is_mine(addr), "address needs to be is_mine to be watched"
         await self._address_history_changed_events[addr].wait()
 
-    def add_unverified_or_unconfirmed_tx(self, tx_hash, tx_height):
+    def add_unverified_or_unconfirmed_tx(self, tx_hash: str, tx_height: int) -> None:
         if self.db.is_in_verified_tx(tx_hash):
             if tx_height <= 0:
                 # tx was previously SPV-verified but now in mempool (probably reorg)
@@ -634,7 +636,7 @@ class AddressSynchronizer(Logger, EventListener):
                 else:
                     self.unconfirmed_tx[tx_hash] = tx_height
 
-    def remove_unverified_tx(self, tx_hash, tx_height):
+    def remove_unverified_tx(self, tx_hash: str, tx_height: int) -> None:
         with self.lock:
             new_height = self.unverified_tx.get(tx_hash)
             if new_height == tx_height:
