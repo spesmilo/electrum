@@ -40,7 +40,8 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
 from . import bitcoin, constants, util, transaction, x509, rsakey
-from .util import bfh, make_aiohttp_session, error_text_bytes_to_safe_str, get_running_loop
+from .util import (bfh, make_aiohttp_session, error_text_bytes_to_safe_str, get_running_loop,
+                   get_asyncio_loop)
 from .invoices import Invoice, get_id_from_onchain_outputs
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
@@ -104,10 +105,8 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
         data = None
         error = f"Unknown scheme for payment request. URL: {url}"
     pr = PaymentRequest(data, error=error)
-    loop = get_running_loop()
-    # do x509/dnssec verification now (in separate thread, to avoid blocking event loop).
-    # we still expect the caller to at least check pr.error!
-    await loop.run_in_executor(None, pr.verify)
+    # do x509/dnssec verification now. we still expect the caller to at least check pr.error!
+    await pr.verify()
     return pr
 
 
@@ -153,7 +152,7 @@ class PaymentRequest:
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
-    def verify(self) -> bool:
+    async def verify(self) -> bool:
         # FIXME: we should enforce that this method was called before we attempt payment
         # note: this method might do network requests (at least for verify_dnssec)
         if self._verified_success is True:
@@ -176,7 +175,7 @@ class PaymentRequest:
         if pr.pki_type in ["x509+sha256", "x509+sha1"]:
             return self.verify_x509(pr)
         elif pr.pki_type in ["dnssec+btc", "dnssec+ecdsa"]:
-            return self.verify_dnssec(pr)
+            return await self.verify_dnssec(pr)
         else:
             self.error = "ERROR: Unsupported PKI Type for Message Signature"
             return False
@@ -222,10 +221,10 @@ class PaymentRequest:
         self._verified_success = True
         return True
 
-    def verify_dnssec(self, pr):
+    async def verify_dnssec(self, pr):
         sig = pr.signature
         alias = pr.pki_data
-        info = Contacts.resolve_openalias(alias)
+        info: dict = await Contacts.resolve_openalias(alias)
         if info.get('validated') is not True:
             self.error = "Alias verification failed (DNSSEC)"
             return False
