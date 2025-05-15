@@ -27,7 +27,7 @@ import os
 import signal
 import sys
 import threading
-from typing import Optional, TYPE_CHECKING, List, Sequence
+from typing import Optional, TYPE_CHECKING, List, Sequence, Union
 
 try:
     import PyQt6
@@ -582,3 +582,25 @@ class ElectrumGui(BaseElectrumGui, Logger):
         message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
         self.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
+
+
+def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
+    app = QApplication.instance()
+    if not app:
+        app = QApplication([])
+
+    msg_box = QMessageBox()
+    msg_box.setWindowTitle(_("Error starting Electrum"))
+    msg_box.setIcon(QMessageBox.Icon.Critical)
+    msg_box.setText(_("An error occurred") + ":")
+    msg_box.setInformativeText(str(exception))
+
+    # Add detailed traceback if available
+    if hasattr(exception, "__traceback__"):
+        import traceback
+        detailed_text = ''.join(traceback.format_exception(
+            type(exception), exception, exception.__traceback__)
+        )
+        msg_box.setDetailedText(detailed_text)
+
+    msg_box.exec()

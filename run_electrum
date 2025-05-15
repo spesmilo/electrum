@@ -271,6 +271,25 @@ def sys_exit(i):
         loop_thread.join(timeout=1)
     sys.exit(i)
 
+def read_config(config_options: dict) -> SimpleConfig:
+    """
+    Reads the config file and returns SimpleConfig, on failure it will potentially
+    show a GUI error dialog if a gui is available, and then re-raise the exception.
+    """
+    try:
+        return SimpleConfig(config_options)
+    except Exception as config_error:
+        # parse full cmd to find out which UI is being used
+        full_config_options = parse_command_line(simple_parser=False)
+        if full_config_options.get("cmd") == 'gui':
+            gui_name = full_config_options.get(SimpleConfig.GUI_NAME.key(), 'qt')
+            try:
+                gui = __import__(f'electrum.gui.{gui_name}', fromlist=['electrum'])
+                gui.standalone_exception_dialog(config_error)  # type: ignore
+            except Exception as e:
+                print_stderr(f"Error showing standalone gui dialog: {e}")
+        raise
+
 def parse_command_line(simple_parser=False) -> Dict:
     # parse command line from sys.argv
     if simple_parser:
@@ -371,14 +390,14 @@ def main():
                 sys.argv.remove(x)
         # parse first without plugins
         config_options = parse_command_line(simple_parser=True)
-        tmp_config = SimpleConfig(config_options)
+        tmp_config = read_config(config_options)
         # load (only) the commands modules of plugins so their commands are registered
-        plugin_commands = Plugins(tmp_config, cmd_only=True)
+        _plugin_commands = Plugins(tmp_config, cmd_only=True)
         # re-parse command line
         sys.argv = saved_sys_argv[:]
         config_options = parse_command_line()
 
-    config = SimpleConfig(config_options)
+    config = read_config(config_options)
     cmdname = config.get('cmd')
 
     # set language as early as possible

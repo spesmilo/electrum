@@ -6,7 +6,6 @@ import shutil
 from io import StringIO
 
 from electrum.simple_config import SimpleConfig, read_user_config
-from electrum import constants
 
 from . import ElectrumTestCase
 
@@ -250,5 +249,5 @@ class TestUserConfig(ElectrumTestCase):
         with open(thefile, "w") as f:
             f.write(repr(payload))
 
-        result = read_user_config(self.user_dir)
-        self.assertEqual({}, result)
+        with self.assertRaises(ValueError):
+            read_user_config(self.user_dir)
