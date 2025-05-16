@@ -1222,18 +1222,25 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return msg if msg else substring
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/rpc/rawtransaction.cpp
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/util/error.cpp
+        # https://github.com/bitcoin/bitcoin/blob/3f83c744ac28b700090e15b5dda2260724a56f49/src/common/messages.cpp#L126
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
+        # grep "TransactionError"
         rawtransaction_error_messages = {
             r"Missing inputs": None,
             r"Inputs missing or spent": None,
             r"transaction already in block chain": None,
             r"Transaction already in block chain": None,
+            r"Transaction outputs already in utxo set": None,
             r"TX decode failed": None,
             r"Peer-to-peer functionality missing or disabled": None,
             r"Transaction rejected by AcceptToMemoryPool": None,
             r"AcceptToMemoryPool failed": None,
+            r"Transaction rejected by mempool": None,
+            r"Mempool internal error": None,
             r"Fee exceeds maximum configured by user": None,
+            r"Unspendable output exceeds maximum configured by user": None,
+            r"Transaction rejected due to invalid package": None,
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
