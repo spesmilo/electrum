@@ -841,10 +841,10 @@ class Commands(Logger):
                 "bad_keys": len(bad_inputs),
             }
 
-    def _resolver(self, x, wallet: Abstract_Wallet):
+    async def _resolver(self, x, wallet: Abstract_Wallet):
         if x is None:
             return None
-        out = wallet.contacts.resolve(x)
+        out = await wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
             raise UserFacingException(f"cannot verify alias: {x}")
         return out['address']
@@ -967,11 +967,13 @@ class Commands(Logger):
         fee_policy = self._get_fee_policy(fee, feerate)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
-        change_addr = self._resolver(change_addr, wallet)
-        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
+        change_addr = await self._resolver(change_addr, wallet)
+        if domain_addr is not None:
+            resolvers = [self._resolver(addr, wallet) for addr in domain_addr]
+            domain_addr = await asyncio.gather(*resolvers)
         final_outputs = []
         for address, amount in outputs:
-            address = self._resolver(address, wallet)
+            address = await self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
         coins = wallet.get_spendable_coins(domain_addr)
@@ -1115,7 +1117,7 @@ class Commands(Logger):
 
         arg:str:key:the alias to be retrieved
         """
-        return wallet.contacts.resolve(key)
+        return await wallet.contacts.resolve(key)
 
     @command('w')
     async def searchcontacts(self, query, wallet: Abstract_Wallet = None):

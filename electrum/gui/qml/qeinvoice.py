@@ -17,6 +17,7 @@ from electrum.lnutil import format_short_channel_id
 from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
+from electrum.network import Network
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -523,7 +524,7 @@ class QEInvoiceParser(QEInvoice):
 
     def _bip70_payment_request_resolved(self, pr: 'PaymentRequest'):
         self._logger.debug('resolved payment request')
-        if pr.verify():
+        if Network.run_from_another_thread(pr.verify()):
             invoice = Invoice.from_bip70_payreq(pr, height=0)
             if self._wallet.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.validationError.emit('unknown', _('Invoice already paid'))
