@@ -14,7 +14,7 @@ from electrum.fee_policy import FeePolicy
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener
+from .util import QtEventListener, qt_event_listener
 
 
 class QETxDetails(QObject, QtEventListener):
@@ -75,19 +75,19 @@ class QETxDetails(QObject, QtEventListener):
     def on_destroy(self):
         self.unregister_callbacks()
 
-    @event_listener
+    @qt_event_listener
     def on_event_verified(self, wallet, txid, info):
         if wallet == self._wallet.wallet and txid == self._txid:
             self._logger.debug(f'verified event for our txid {txid}')
             self.update()
 
-    @event_listener
+    @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
             self._logger.debug(f'new_transaction event for our txid {self._txid}')
             self.update()
 
-    @event_listener
+    @qt_event_listener
     def on_event_removed_transaction(self, wallet, tx):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
             self._logger.debug(f'removed my transaction {tx.txid()}')
