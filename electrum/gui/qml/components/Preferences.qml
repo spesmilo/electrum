@@ -236,6 +236,24 @@ Pane {
                         Layout.fillWidth: true
                         spacing: 0
                         Switch {
+                            id: psbtNostr
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    AppController.setPluginEnabled('psbt_nostr', checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Nostr Cosigner')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
                             id: setMaxBrightnessOnQrDisplay
                             onCheckedChanged: {
                                 if (activeFocus)
@@ -465,5 +483,6 @@ Pane {
         setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
         useRecoverableChannels.checked = Config.useRecoverableChannels
         syncLabels.checked = AppController.isPluginEnabled('labels')
+        psbtNostr.checked = AppController.isPluginEnabled('psbt_nostr')
     }
 }
