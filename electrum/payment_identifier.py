@@ -14,7 +14,8 @@ from .logging import Logger
 from .util import parse_max_spend, InvoiceError
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
-from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url
+from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url,
+                    try_resolve_lnurl)
 from .bitcoin import opcodes, construct_script
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
@@ -311,39 +312,33 @@ class PaymentIdentifier(Logger):
     async def _do_resolve(self, *, on_finished: Callable[['PaymentIdentifier'], None] = None):
         try:
             if self.emaillike or self.domainlike:
-                # TODO: parallel lookup?
-                key = self.emaillike if self.emaillike else self.domainlike
-                data = await self.resolve_openalias(key)
-                if data:
-                    self.openalias_data = data
-                    self.logger.debug(f'OA: {data!r}')
-                    address = data.get('address')
-                    if not data.get('validated'):
+                openalias_key = self.emaillike if self.emaillike else self.domainlike
+                openalias_task = asyncio.create_task(self.resolve_openalias(openalias_key))
+
+                # prefers lnurl over openalias if both are available
+                lnurl = lightning_address_to_url(self.emaillike) if self.emaillike else None
+                if lnurl is not None and (lnurl_result := await try_resolve_lnurl(lnurl)):
+                    openalias_task.cancel()
+                    self._type = PaymentIdentifierType.LNADDR
+                    self.lnurl = lnurl
+                    self.lnurl_data = lnurl_result
+                    self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+                elif openalias_result := await openalias_task:
+                    self.openalias_data = openalias_result
+                    address = openalias_result.get('address')
+                    if not openalias_result.get('validated'):
                         self.warning = _(
                             'WARNING: the alias "{}" could not be validated via an additional '
-                            'security check, DNSSEC, and thus may not be correct.').format(key)
+                            'security check, DNSSEC, and thus may not be correct.').format(openalias_key)
                     try:
-                        assert bitcoin.is_address(address)
+                        # this assertion error message is shown in the GUI
+                        assert bitcoin.is_address(address), f"{_('Openalias address invalid')}: {address[:100]}"
                         scriptpubkey = bitcoin.address_to_script(address)
                         self._type = PaymentIdentifierType.OPENALIAS
                         self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)
                     except Exception as e:
                         self.error = str(e)
-                        self.set_state(PaymentIdentifierState.NOT_FOUND)
-                elif self.emaillike:
-                    lnurl = lightning_address_to_url(self.emaillike)
-                    try:
-                        data = await request_lnurl(lnurl)
-                        self._type = PaymentIdentifierType.LNADDR
-                        self.lnurl = lnurl
-                        self.lnurl_data = data
-                        self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
-                    except LNURLError as e:
-                        self.set_state(PaymentIdentifierState.NOT_FOUND)
-                    except Exception as e:
-                        # NOTE: any other exception is swallowed here (e.g. DNS error)
-                        # as the user may be typing and we have an incomplete emaillike
                         self.set_state(PaymentIdentifierState.NOT_FOUND)
                 else:
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
@@ -654,6 +649,7 @@ class PaymentIdentifier(Logger):
             return None
         try:
             data = await self.contacts.resolve(key)  # TODO: don't use contacts as delegate to resolve openalias, separate.
+            self.logger.debug(f'OA: {data!r}')
             return data
         except AliasNotFoundException as e:
             self.logger.info(f'OpenAlias not found: {repr(e)}')

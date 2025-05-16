@@ -141,6 +141,15 @@ async def request_lnurl(url: str) -> LNURL6Data:
     return data
 
 
+async def try_resolve_lnurl(lnurl: Optional[str]) -> Optional[LNURL6Data]:
+    if lnurl:
+        try:
+            return await request_lnurl(lnurl)
+        except Exception as request_error:
+            _logger.debug(f"Error resolving lnurl: {request_error!r}")
+    return None
+
+
 async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""
     if not _is_url_safe_enough_for_lnurl(url):
