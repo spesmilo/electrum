@@ -587,14 +587,13 @@ class Plugins(DaemonThread):
 
     def maybe_load_plugin_init_method(self, name: str) -> None:
         """Loads the __init__.py module of the plugin if it is not already loaded."""
-        is_external = name in self.external_plugin_metadata
-        base_name = ('electrum_external_plugins.' if is_external else 'electrum.plugins.') + name
+        base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
         if base_name not in sys.modules:
             metadata = self.get_metadata(name)
             is_zip = metadata.get('is_zip', False)
             # if the plugin was not enabled on startup the init module hasn't been loaded yet
             if not is_zip:
-                if is_external:
+                if self.is_external(name):
                     # this branch is deprecated: external plugins are always zip files
                     path = os.path.join(metadata['path'], '__init__.py')
                     init_spec = importlib.util.spec_from_file_location(base_name, path)
@@ -612,7 +611,7 @@ class Plugins(DaemonThread):
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
         self.maybe_load_plugin_init_method(name)
-        is_external = name in self.external_plugin_metadata
+        is_external = self.is_external(name)
         if is_external and not self.is_authorized(name):
             self.logger.info(f'plugin not authorized {name}')
             return
@@ -642,15 +641,6 @@ class Plugins(DaemonThread):
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
 
-    def install_internal_plugin(self, name):
-        self.config.set_key(f'plugins.{name}.enabled', [])
-
-    def install_external_plugin(self, name, path, privkey, manifest):
-        # uninstall old version first to get rid of old zip files when updating plugin
-        self.uninstall(name)
-        self.external_plugin_metadata[name] = manifest
-        self.authorize_plugin(name, path, privkey)
-
     def uninstall(self, name: str):
         if self.config.get(f'plugins.{name}'):
             self.config.set_key(f'plugins.{name}', None)
@@ -662,14 +652,16 @@ class Plugins(DaemonThread):
     def is_internal(self, name) -> bool:
         return name in self.internal_plugin_metadata
 
+    def is_external(self, name) -> bool:
+        return name in self.external_plugin_metadata
+
     def is_auto_loaded(self, name):
         metadata = self.external_plugin_metadata.get(name) or self.internal_plugin_metadata.get(name)
         return metadata and (metadata.get('registers_keystore') or metadata.get('registers_wallet_type'))
 
     def is_installed(self, name) -> bool:
         """an external plugin may be installed but not authorized """
-        return (name in self.internal_plugin_metadata and self.config.get(f'plugins.{name}'))\
-            or name in self.external_plugin_metadata
+        return (name in self.internal_plugin_metadata or name in self.external_plugin_metadata)
 
     def is_authorized(self, name) -> bool:
         if name in self.internal_plugin_metadata:
@@ -695,7 +687,8 @@ class Plugins(DaemonThread):
         plugin_hash = get_file_hash256(filename)
         sig = privkey.ecdsa_sign(plugin_hash)
         value = sig.hex()
-        self.config.set_key(f'plugins.{name}.authorized', value, save=True)
+        self.config.set_key(f'plugins.{name}.authorized', value)
+        self.config.set_key(f'plugins.{name}.enabled', True)
 
     def enable(self, name: str) -> 'BasePlugin':
         self.config.enable_plugin(name)
@@ -802,11 +795,13 @@ class Plugins(DaemonThread):
             with zipfile_lib.ZipFile(plugin_filename) as myzip:
                 with myzip.open(os.path.join(dirname, filename)) as myfile:
                     return myfile.read()
-        else:
-            assert name in self.internal_plugin_metadata
+        elif name in self.internal_plugin_metadata:
             path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
             with open(path, 'rb') as myfile:
                 return myfile.read()
+        else:
+            # no icon
+            return None
 
 def get_file_hash256(path: str) -> bytes:
     '''Get the sha256 hash of a file, similar to `sha256sum`.'''
@@ -880,6 +875,8 @@ class BasePlugin(Logger):
 
     def is_enabled(self):
         if not self.is_available():
+            return False
+        if not self.parent.is_authorized(self.name):
             return False
         return self.config.is_plugin_enabled(self.name)
 

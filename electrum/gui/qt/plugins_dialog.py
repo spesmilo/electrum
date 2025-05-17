@@ -65,35 +65,32 @@ class PluginDialog(WindowModalDialog):
         close_button = CloseButton(self)
         close_button.setText(_('Close'))
         buttons = [close_button]
-        if not self.plugins.is_installed(name):
-            install_button = QPushButton(_('Install...'))
-            install_button.clicked.connect(self.accept)
-            buttons.insert(0, install_button)
-        elif self.plugins.get_metadata(name).get('zip_hash_sha256') != zip_hash:
-            update_button = QPushButton(_('Update...'))
-            update_button.clicked.connect(self.accept)
-            buttons.insert(0, update_button)
-        else:
-            remove_button = QPushButton(_('Uninstall'))
-            remove_button.clicked.connect(self.do_remove)
-            buttons.insert(0, remove_button)
-            if not self.plugins.is_authorized(name):
-                auth_button = QPushButton(_('Authorize...'))
+        p = self.plugins.get(name)
+        is_enabled = p and p.is_enabled()
+        is_external = self.plugins.is_external(name)
+        if is_external:
+            is_authorized = self.plugins.is_authorized(name)
+            if status_button is not None:
+                # status_button is None when called from add_external_plugin
+                remove_button = QPushButton('')
+                remove_button.clicked.connect(self.do_remove)
+                remove_button.setText(_('Remove'))
+                buttons.insert(0, remove_button)
+            if not is_authorized:
+                auth_button = QPushButton('Authorize')
                 auth_button.clicked.connect(self.do_authorize)
                 buttons.insert(0, auth_button)
-            elif not self.plugins.is_auto_loaded(name):
-                toggle_button = QPushButton('')
-                p = self.plugins.get(name)
-                is_enabled = p and p.is_enabled()
-                toggle_button.setText(_('Disable') if is_enabled else _('Enable'))
-                toggle_button.clicked.connect(self.do_toggle)
-                buttons.insert(0, toggle_button)
-            # add settings button
-            if p and p.requires_settings() and p.is_enabled():
-                settings_button = EnterButton(
-                    _('Settings'),
-                    partial(p.settings_dialog, self))
-                buttons.insert(1, settings_button)
+        else:
+            toggle_button = QPushButton('')
+            toggle_button.setText(_('Disable') if is_enabled else _('Enable'))
+            toggle_button.clicked.connect(self.do_toggle)
+            buttons.insert(0, toggle_button)
+        # add settings button
+        if p and p.requires_settings() and p.is_enabled():
+            settings_button = EnterButton(
+                _('Settings'),
+                partial(p.settings_dialog, self))
+            buttons.insert(1, settings_button)
         # add buttons
         vbox.addLayout(Buttons(*buttons))
 
@@ -112,9 +109,10 @@ class PluginDialog(WindowModalDialog):
             return
         filename = self.plugins.zip_plugin_path(self.name)
         self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        self.window.plugins.enable(self.name)
         if self.status_button:
             self.status_button.update()
-        self.close()
+        self.accept()
 
 
 class PluginStatusButton(QPushButton):
@@ -136,21 +134,12 @@ class PluginStatusButton(QPushButton):
         from .util import ColorScheme
         p = self.plugins.get(self.name)
         plugin_is_loaded = p is not None
-        enabled = (
-            not plugin_is_loaded
-            or plugin_is_loaded and p.can_user_disable()
-        )
+        enabled = not plugin_is_loaded or (plugin_is_loaded and p.can_user_disable())
         self.setEnabled(enabled)
-        if not self.window.plugins.is_authorized(self.name):
-            text, color = _('Unauthorized'), ColorScheme.RED
+        if p is not None and p.is_enabled():
+            text, color = _('Enabled'), ColorScheme.BLUE
         else:
-            if self.window.plugins.is_auto_loaded(self.name):
-                text, color = _('Auto-loaded'), ColorScheme.DEFAULT
-            else:
-                if p is not None and p.is_enabled():
-                    text, color = _('Enabled'), ColorScheme.BLUE
-                else:
-                    text, color = _('Disabled'), ColorScheme.DEFAULT
+            text, color = _('Disabled'), ColorScheme.RED
         self.setStyleSheet(color.as_stylesheet())
         self.setText(text)
 
@@ -158,7 +147,7 @@ class PluginStatusButton(QPushButton):
 class PluginsDialog(WindowModalDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', plugins:'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
+    def __init__(self, config: 'SimpleConfig', plugins: 'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
         WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
         self.gui_object = gui_object
         self.config = config
@@ -177,17 +166,8 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         add_button = QPushButton(_('Add'))
         add_button.setMinimumWidth(40)  # looks better on windows, no difference on linux
         menu = QMenu()
-        for name, item in self.plugins.internal_plugin_metadata.items():
-            fullname = item['fullname']
-            if not fullname:
-                continue
-            if self.plugins.is_auto_loaded(name):
-                continue
-            menu.addAction(fullname, partial(self.add_internal_plugin, name))
-        menu.addSeparator()
-        m3 = menu.addMenu('Third-party plugin')
-        m3.addAction(_('Local ZIP file'), self.add_plugin_dialog)
-        m3.addAction(_('Download ZIP file'), self.download_plugin_dialog)
+        menu.addAction(_('Local ZIP file'), self.add_plugin_dialog)
+        menu.addAction(_('Download ZIP file'), self.download_plugin_dialog)
         add_button.setMenu(menu)
         vbox.addLayout(Buttons(add_button, CloseButton(self)))
         self.show_list()
@@ -343,25 +323,15 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
     def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
         name = manifest['name']
+        self.plugins.external_plugin_metadata[name] = manifest
         d = PluginDialog(name, manifest, None, self)
         if not d.exec():
+            self.plugins.external_plugin_metadata.pop(name)
             return False
-        # ask password once user has approved
-        privkey = self.get_plugins_privkey()
-        if not privkey:
-            return False
-        self.plugins.install_external_plugin(name, path, privkey, manifest)
+        if self.gui_object:
+            self.gui_object.reload_windows()
         self.show_list()
         return True
-
-    def add_internal_plugin(self, name):
-        """ simply set the config """
-        manifest = self.plugins.internal_plugin_metadata[name]
-        d = PluginDialog(name, manifest, None, self)
-        if not d.exec():
-            return False
-        self.plugins.install_internal_plugin(name)
-        self.show_list()
 
     def show_list(self):
         descriptions = self.plugins.descriptions
@@ -375,8 +345,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         for name, metadata in descriptions:
             i += 1
             if self.plugins.is_internal(name) and self.plugins.is_auto_loaded(name):
-                continue
-            if not self.plugins.is_installed(name):
                 continue
             display_name = metadata.get('fullname')
             if not display_name:
@@ -393,11 +361,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         grid.setRowStretch(i + 1, 1)
 
     def do_toggle(self, name, status_button):
-        if not self.plugins.is_authorized(name):
-            #self.show_plugin_dialog(name, status_button)
-            return
-        if self.plugins.is_auto_loaded(name):
-            return
         p = self.plugins.get(name)
         is_enabled = p and p.is_enabled()
         if is_enabled:
