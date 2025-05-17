@@ -1095,7 +1095,7 @@ class Channel(AbstractChannel):
             if amount_msat < chan_config.htlc_minimum_msat:
                 raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
-        if self.too_many_htlcs(htlc_proposer):
+        if self.htlc_slots_left(htlc_proposer) == 0:
             raise PaymentFailure('Too many HTLCs already in channel')
 
         if amount_msat > self.remaining_max_inflight(htlc_receiver):
@@ -1108,7 +1108,7 @@ class Channel(AbstractChannel):
         if max_can_send_msat < amount_msat:
             raise PaymentFailure(f'Not enough balance. can send: {max_can_send_msat}, tried: {amount_msat}')
 
-    def too_many_htlcs(self, htlc_proposer: HTLCOwner) -> bool:
+    def htlc_slots_left(self, htlc_proposer: HTLCOwner) -> int:
         # check "max_accepted_htlcs"
         htlc_receiver = htlc_proposer.inverted()
         ctn = self.get_next_ctn(htlc_receiver)
@@ -1116,17 +1116,16 @@ class Channel(AbstractChannel):
         # If proposer is LOCAL we apply stricter checks as that is behaviour we can control.
         # This should lead to fewer disagreements (i.e. channels failing).
         strict = (htlc_proposer == LOCAL)
-        # this is the loose check BOLT-02 specifies:
-        if len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn)) + 1 > chan_config.max_accepted_htlcs:
-            return True
-        # however, c-lightning is a lot stricter, so extra checks:
-        # https://github.com/ElementsProject/lightning/blob/4dcd4ca1556b13b6964a10040ba1d5ef82de4788/channeld/full_channel.c#L581
-        if strict:
-            max_concurrent_htlcs = min(self.config[htlc_proposer].max_accepted_htlcs,
-                                       self.config[htlc_receiver].max_accepted_htlcs)
-            if len(self.hm.htlcs(htlc_receiver, ctn=ctn)) + 1 > max_concurrent_htlcs:
-                return True
-        return False
+        if not strict:
+            # this is the loose check BOLT-02 specifies:
+            return chan_config.max_accepted_htlcs - len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn))
+        else:
+            # however, c-lightning is a lot stricter, so extra checks:
+            # https://github.com/ElementsProject/lightning/blob/4dcd4ca1556b13b6964a10040ba1d5ef82de4788/channeld/full_channel.c#L581
+            max_concurrent_htlcs = min(
+                self.config[htlc_proposer].max_accepted_htlcs,
+                self.config[htlc_receiver].max_accepted_htlcs)
+            return max_concurrent_htlcs - len(self.hm.htlcs(htlc_receiver, ctn=ctn))
 
     def remaining_max_inflight(self, htlc_receiver: HTLCOwner) -> int:
         # check "max_htlc_value_in_flight_msat"
@@ -1553,7 +1552,7 @@ class Channel(AbstractChannel):
         )
 
         max_send_msat = min(max_send_msat, self.remaining_max_inflight(receiver))
-        if self.too_many_htlcs(sender):
+        if self.htlc_slots_left(sender) == 0:
             max_send_msat = 0
 
         max_send_msat = max(max_send_msat, 0)
