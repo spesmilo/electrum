@@ -67,6 +67,18 @@ function wait_until_channel_closed()
     printf "\n"
 }
 
+function wait_until_preimage()
+{
+    msg="wait until $1 has preimage for $2"
+    cmd="./run_electrum --regtest -D /tmp/$1"
+    while [[ $($cmd get_invoice $2 | jq '.preimage' | tr -d '"') == "null" ]]; do
+        sleep 1
+        msg="$msg."
+        printf "$msg\r"
+    done
+    printf "\n"
+}
+
 function wait_until_spent()
 {
     msg="wait until $1:$2 is spent"
@@ -311,7 +323,9 @@ if [[ $1 == "extract_preimage" ]]; then
     wait_until_channel_open alice
     chan_id=$($alice list_channels | jq -r ".[0].channel_point")
     # alice pays bob
-    invoice1=$($bob add_request 0.04 --lightning --memo "test1" | jq -r ".lightning_invoice")
+    request1=$($bob add_request 0.04 --lightning --memo "test1")
+    invoice1=$(echo $request1 | jq -r ".lightning_invoice")
+    rhash1=$(echo $request1 | jq -r ".rhash")
     screen -S alice_payment -dm -L -Logfile /tmp/alice/screen1.log $alice lnpay $invoice1 --timeout=600
     sleep 1
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
@@ -320,7 +334,9 @@ if [[ $1 == "extract_preimage" ]]; then
         exit 1
     fi
     # bob pays alice
-    invoice2=$($alice add_request 0.04 --lightning --memo "test2" | jq -r ".lightning_invoice")
+    request2=$($alice add_request 0.04 --lightning --memo "test2")
+    invoice2=$(echo $request2 | jq -r ".lightning_invoice")
+    rhash2=$(echo $request2 | jq -r ".rhash")
     screen -S bob_payment -dm -L -Logfile /tmp/bob/screen2.log $bob lnpay $invoice2 --timeout=600
     sleep 1
     unsettled=$($bob list_channels | jq '.[] | .local_unsettled_sent')
@@ -331,14 +347,8 @@ if [[ $1 == "extract_preimage" ]]; then
     # bob force closes
     $bob close_channel $chan_id --force
     new_blocks 1
-    wait_until_channel_closed bob
-    wait_until_channel_closed alice
-    sleep 5
-    # check logs
-    alice_log_found=$(grep -rnw "/tmp/alice/regtest/logs/" -e "found preimage in witness of length 5" | wc -l)
-    bob_log_found=$(grep -rnw "/tmp/bob/regtest/logs/" -e "found preimage in witness of length 3" | wc -l)
-    if [[ "$alice_log_found" != "1" ]]; then exit 1; fi
-    if [[ "$bob_log_found" != "1" ]]; then exit 1; fi
+    wait_until_preimage alice $rhash1
+    wait_until_preimage bob $rhash2
     # check both "lnpay" commands succeeded
     success=$(cat /tmp/alice/screen1.log | jq -r ".success")
     if [[ "$success" != "true" ]]; then exit 1; fi

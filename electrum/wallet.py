@@ -2864,6 +2864,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             d['lightning_invoice'] = x.lightning_invoice
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
+            if self.lnworker and status == PR_PAID:
+                payment_hash = bytes.fromhex(d['invoice_id'])
+                preimage = self.lnworker.get_preimage(payment_hash)
+                d['preimage'] = preimage.hex() if preimage else None
         else:
             amount_sat = x.get_amount_sat()
             assert isinstance(amount_sat, (int, str, type(None)))
