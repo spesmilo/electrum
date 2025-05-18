@@ -28,7 +28,8 @@ from enum import IntEnum
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox, QLineEdit, QDialog, QVBoxLayout, QHeaderView,
-    QCheckBox, QTabWidget, QWidget, QLabel, QPushButton, QHBoxLayout
+    QCheckBox, QTabWidget, QWidget, QLabel, QPushButton, QHBoxLayout,
+    QListWidget, QListWidgetItem,
 )
 from PyQt6.QtGui import QIntValidator
 
@@ -37,10 +38,11 @@ from electrum import blockchain
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port
 from electrum.logging import get_logger
+from electrum.util import is_valid_websocket_url
 
 from .util import (
     Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit, PasswordLineEdit, QtEventListener,
-    qt_event_listener, Spinner
+    qt_event_listener, Spinner, HelpLabel
 )
 
 
@@ -56,11 +58,12 @@ class NetworkDialog(QDialog, QtEventListener):
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 500)
         self.tabs = tabs = QTabWidget()
-        self._blockchain_tab = blockchain_tab = ServerWidget(network)
-        self._proxy_tab = proxy_tab = ProxyWidget(network)
-        tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Proxy'))
-
+        self._blockchain_tab = ServerWidget(network)
+        self._proxy_tab = ProxyWidget(network)
+        self._nostr_tab = NostrWidget(network)
+        tabs.addTab(self._blockchain_tab, _('Electrum servers'))
+        tabs.addTab(self._nostr_tab, _('Nostr'))
+        tabs.addTab(self._proxy_tab, _('Proxy'))
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.tabs)
         vbox.addLayout(Buttons(CloseButton(self)))
@@ -360,6 +363,7 @@ class ProxyWidget(QWidget):
 
 
 class ServerWidget(QWidget, QtEventListener):
+
     def __init__(self, network: Network, parent=None):
         super().__init__(parent)
         self.network = network
@@ -502,3 +506,55 @@ class ServerWidget(QWidget, QtEventListener):
         net_params = net_params._replace(server=server,
                                          auto_connect=self.autoconnect_cb.isChecked())
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+
+class NostrWidget(QWidget, QtEventListener):
+
+    def __init__(self, network: Network, parent=None):
+        super().__init__(parent)
+        self.network = network
+        self.config = network.config
+        vbox = QVBoxLayout()
+        self.setLayout(vbox)
+        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
+        self.relays_list = QListWidget()
+        self.relay_edit = QLineEdit()
+        self.relay_edit.textChanged.connect(self.on_relay_edited)
+        vbox.addWidget(nostr_relays_label)
+        vbox.addWidget(self.relays_list)
+        vbox.addStretch()
+        self.add_button = QPushButton(_('Add'))
+        self.add_button.clicked.connect(self.add_relay)
+        self.add_button.setEnabled(False)
+        remove_button = QPushButton(_('Remove'))
+        remove_button.clicked.connect(self.remove_relay)
+        reset_button = QPushButton(_('Reset'))
+        reset_button.clicked.connect(self.reset_relays)
+        buttons = Buttons(self.relay_edit, self.add_button, remove_button, reset_button)
+        vbox.addLayout(buttons)
+        self.update_list()
+
+    def on_relay_edited(self, text):
+        self.add_button.setEnabled(is_valid_websocket_url(text))
+
+    def update_list(self):
+        self.relays_list.clear()
+        for relay in self.config.get_nostr_relays():
+            item = QListWidgetItem(relay)
+            self.relays_list.addItem(item)
+
+    def add_relay(self):
+        relay = self.relay_edit.text()
+        self.config.add_nostr_relay(relay)
+        self.update_list()
+
+    def remove_relay(self):
+        item = self.relays_list.currentItem()
+        if item is None:
+            return
+        self.config.remove_nostr_relay(item.text())
+        self.update_list()
+
+    def reset_relays(self):
+        self.config.NOSTR_RELAYS = None
+        self.update_list()

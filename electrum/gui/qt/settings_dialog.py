@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog, QSpinBox,  QCheckB
 
 from electrum.i18n import _, languages
 from electrum import util
-from electrum.util import base_units_list, event_listener, is_valid_websocket_url
+from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
 
@@ -176,22 +176,6 @@ class SettingsDialog(QDialog, QtEventListener):
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
-        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
-        nostr_relays = self.config.NOSTR_RELAYS
-        self.nostr_relays_e = QLineEdit(nostr_relays)
-
-        def on_nostr_edit():
-            relays: Dict[str, None] = dict()  # dicts keep insertion order
-            for url in self.nostr_relays_e.text().split(','):
-                url = url.strip()
-                if url and is_valid_websocket_url(url):
-                    relays[url] = None
-            if relays.keys():
-                self.config.NOSTR_RELAYS = ",".join(relays.keys())
-            else:  # if no valid relays are given, assign default relays from config
-                self.config.NOSTR_RELAYS = None
-            self.nostr_relays_e.setText(self.config.NOSTR_RELAYS)
-        self.nostr_relays_e.editingFinished.connect(on_nostr_edit)
 
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
@@ -402,7 +386,6 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
-        misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 

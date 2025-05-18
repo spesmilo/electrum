@@ -1,28 +1,21 @@
 import json
 import threading
-import time
 import os
 import stat
-from decimal import Decimal
-from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set, Callable, AbstractSet
-from numbers import Real
+from typing import Union, Optional, Dict, Sequence, Any, Set, Callable, AbstractSet
 from functools import cached_property
 
 from copy import deepcopy
 
 from . import util
-from . import constants
 from . import invoices
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
 from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir
+from .util import is_valid_websocket_url
 from .lnutil import LN_MAX_FUNDING_SAT_LEGACY
 from .i18n import _
 from .logging import get_logger, Logger
-
-
-
-
 
 
 _logger = get_logger(__name__)
@@ -181,7 +174,6 @@ class SimpleConfig(Logger):
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
-
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -401,14 +393,12 @@ class SimpleConfig(Logger):
     def convert_version_3(self):
         if not self._is_upgrade_method_needed(2, 2):
             return
-
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
+            map_ = {'btc': 8, 'mbtc': 5, 'ubtc': 2, 'bits': 2, 'sat': 0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
-
         self.set_key('config_version', 3)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
@@ -556,6 +546,26 @@ class SimpleConfig(Logger):
 
     def get_decimal_point(self):
         return self.decimal_point
+
+    def get_nostr_relays(self) -> Sequence[str]:
+        relays = []
+        for url in self.NOSTR_RELAYS.split(','):
+            url = url.strip()
+            if url and is_valid_websocket_url(url):
+                relays.append(url)
+        return relays
+
+    def add_nostr_relay(self, relay: str):
+        l = self.get_nostr_relays()
+        if is_valid_websocket_url(relay) and relay not in l:
+            l.append(relay)
+            self.NOSTR_RELAYS = ','.join(l)
+
+    def remove_nostr_relay(self, relay: str):
+        l = self.get_nostr_relays()
+        if relay in l:
+            l.remove(relay)
+            self.NOSTR_RELAYS = ','.join(l)
 
     def __setattr__(self, name, value):
         """Disallows setting instance attributes outside __init__.
@@ -719,9 +729,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
 
-    FEE_POLICY = ConfigVar('fee_policy', default='eta:2', type_=str) # exposed to GUI
-    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy_lightning', default='eta:2', type_=str) # for txbatcher (sweeping)
-    FEE_POLICY_SWAPS = ConfigVar('fee_policy_swaps', default='eta:2', type_=str) # for txbatcher (sweeping and sending if we are a swapserver)
+    FEE_POLICY = ConfigVar('fee_policy', default='eta:2', type_=str)  # exposed to GUI
+    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy_lightning', default='eta:2', type_=str)  # for txbatcher (sweeping)
+    FEE_POLICY_SWAPS = ConfigVar('fee_policy_swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)
