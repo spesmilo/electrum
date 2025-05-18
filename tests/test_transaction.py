@@ -943,6 +943,120 @@ class TestTransactionTestnet(ElectrumTestCase):
         self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
                          tx.serialize())
 
+
+class TestTransactionVerifySig(ElectrumTestCase):
+
+    def test_verifysig_spending_uncompressed_p2pk(self):
+        funding_tx_raw = "010000000001021b41471d6af3aa80ebe536dbf4f505a6d46af456131a8e12e1950171959b690e0f00000000fdffffff2ef29833a69863b31e884fc5e6f7b99a23b5601e14f0eb65905faa42fec0776d0000000000fdffffff02f96a070000000000160014e61b989a740056254b5f8061281ac96ca15d35e140420f00000000004341049afa8fb50f52104b381a673c6e4fb7fb54987271d0e948dd9a568bb2af6f9310a7a809ce06e09d1510e5836f20414596232e2c0be63715459fa3cf8e7092af05ac0247304402201fe20012c1c732a6a8f942c4e0feed5ed0bddfb94db736ec3d0c0d38f0f7f46a022021d690e6d2688b90b76002f4c3134981502d666211e85e8a6ca91e78405dfa3801210346fb31136ab48e6c648865264d32004b43643d01f0ba485cffac4bb0b3f739470247304402204a2473ab4b3bfc8e6b1a6b8675dc2c3d115d8c04f5df37f29779dca6d300d9db02205e72ebbccd018c67b86ae4da6b0e6222902a8de85915ed6115330b9328764b370121027a93ffc9444a12d99307318e2e538949072cb35b2aca344b8163795a022414c7d73a1400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "010000000129349e5641d79915e9d0282fdbaee8c3df0b6731bab9d70bf626e8588bde24ac010000004847304402206bf0d0a93abae0d5873a62ebf277a5dd2f33837821e8b93e74d04e19d71b578002201a6d729bc159941ef5c4c9e5fe13ece9fc544351ba531b00f68ba549c8b38a9a01fdffffff01b82e0f00000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071fd93a1400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = list(script_GetOp(spending_tx.inputs()[0].script_sig))[0][1]
+        pubkey = list(script_GetOp(funding_tx.outputs()[1].scriptpubkey))[0][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_compressed_p2pk(self):
+        funding_tx_raw = "02000000000102b7bfcd442c91134743c6e4100bb9f79456a6015de3c3920166bb0c3b7a8f7c070100000000fdffffff5ab39480d4b35ffa843691d944a8479dfe825d38b03fcb1804197482bfad80fb0100000000fdffffff02d4ec000000000000160014769114e56e0913de3719a3b00a446b78e61751f007b201000000000023210332e147520e4743299d95196afaf9db7c86fe02507d9ca89acd7a4e96a63653d5ac0247304402200387fe79ffe10cec73d9b131058d7128665f729d14597828b483842889c4f5ea02201197b2f1295e4011e2d174d53c240fd13c6351451ab961ccb3678fc21fa5323b0121023c221dfbf7c3f61b9e5f66343c1a302d6beca2a8883504b0f484faec9919636b024730440220687d387af37df458efc104ee0065262cb5ea195e526ed7a480fd16e6cf708c3a022019bd3fd9c3ca3f1a1fbeabe20547876eb4572a7339de37b706fbd55031e60428012102c9c459e58b01a864d7bb80f6d577326465a04219c48541b5f3ea556a06ca61a425ed2400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "02000000015eb359ccfcd67c3e6b10bb937a796807007708c1f413840d0e627a3f94a1a48401000000484730440220043fc85a43e918ac41e494e309fdf204ca245d260cb5ea09108b196ca65d8a09022056f852f0f521e79ab2124d7e9f779c7290329ce5628ef8e92601980b065d3eb501fdffffff017f9e010000000000160014a709434b13a510e6db68bdd672062c70a2f39d3a26ed2400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = list(script_GetOp(spending_tx.inputs()[0].script_sig))[0][1]
+        pubkey = list(script_GetOp(funding_tx.outputs()[1].scriptpubkey))[0][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_uncompressed_p2pkh(self):
+        funding_tx_raw = "02000000000101c6a49fbd701f1526c8e43025a6dda8dd235b3593cfd38af040cba3e37b474fdb0e00000000fdffffff020e640300000000001976a914f1b02b7028fb81aefbb25809a2baf8d94d0c2ba288acb9e3080000000000160014c2eee75efe6621be177f7edd8198f671d1640c2602473044022072b8a6154590704063c377af451b4d69f76cc9064085d4a0c80f08625c57628802207844164839d93ce54ce7db092bbd809d5270142b5dedc823e95400e8bdae88c6012102b6ad13f48fd679a209b7d822376550e5e694a3a2862546ceb72c4012977eac4829ed2400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "02000000010615142d6c296f276c7da9fb2b09f655d594f73b76740404f1424c66c78ca715000000008a47304402206d2dae571ca2f51e0d4a8ce6a6335fa25ac09f4bbed26439124d93f035bdbb130220249dc2039f1da338a40679f0e79c25a2dc2983688e6c04753348f2aa8435e375014104b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b2987b4c862d5b687bb5328adccc69e67a17b109b6328228695a1c384573acd6199fdffffff0186500300000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071f2aed2400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = list(script_GetOp(spending_tx.inputs()[0].script_sig))[0][1]
+        pubkey = list(script_GetOp(spending_tx.inputs()[0].script_sig))[1][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_compressed_p2pkh(self):
+        funding_tx_raw = "020000000001010615142d6c296f276c7da9fb2b09f655d594f73b76740404f1424c66c78ca7150100000000fdffffff0240e20100000000001976a914f1d49f51f9b58c4805431c303d12d3dcf51ae54188ace9000700000000001600145bdb04f2d096ee48b8b350c85481392ab47c01e70247304402200a72a4599cb27f16011cd67e2951733d6775cbd008506eacb2c20d69db3f531702204c944ec09224a347481c9eea78cac79b77b194b19dfef01b1e3b428010a82570012102fc38612ca7cc42d05a7089f1a6ec3900535604bd779f83c7817aae7bfd907dbd2aed2400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "02000000016717835a2e1e152a69e7528a0f1346c1d37ee6e76c5e23b5d1c5a5b40241768a000000006a473044022038ad38003943bfd3ed39ba4340d545753fcad632a8fe882d01e4f0140ddb3cfb022019498260e29f5fbbcde9176bfb3553b7acec5fe284a9a3a33547a2d082b60355012103b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b29fdffffff0158de010000000000160014f1d49f51f9b58c4805431c303d12d3dcf51ae5412aed2400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = list(script_GetOp(spending_tx.inputs()[0].script_sig))[0][1]
+        pubkey = list(script_GetOp(spending_tx.inputs()[0].script_sig))[1][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_p2wpkh_p2sh(self):
+        funding_tx_raw = "020000000001038fc862be3bc8022866cc83b4f2feeaa914b015a3c6644251960baaccc4a5740b0000000000fdffffff7bfd61e391034e28848fae269183f1c5929e26befd5b2d798cf12c91d4d00dbf0100000000fdffffff014764d324e70e7e3e4fa27077bda2d880b3d1545588b75f79deb2855d9f31cb0000000000fdffffff01f04902000000000017a9147d0530db22c8124ff1558269f543dfeedd37131b87024730440220568ae75314f6414ccf2b0bbed522e1b4b1086ed6eb185ba4bc044ba2723c1f3402206c82253797d0f180db38986b46d8ad952829cf25bc31e3ca6ee54665f5a44b3c0121038a466bdcb979b96d70fde84b9ded4aba0c3cd9c0d2d59121fc3555428fd1a4890247304402203ba1b482b0b6ce5c3d29ef21ee8afad641af8381d3b131103c384757922f0c04022072320e260b60fc862669b2ea3dfb663f7f3a0b6babe8d265ac9ebf268e7225c2012103ff0877f34157a3444afbfdd7432032a93187bc1932e1c155d56dd66ef527906c02473044022058b1c1a2a8c1a256d4870b550ba93777a2cce36b89abe3515f024fd4eec48ce4022023e0002193a26064275433e8ade98642d74d58ee4f8e9717a8acca737856a6c401210364e8f5d9c30986931bca1197138d7250a17a0711a223f113b3ccc11ef09efccb2aed2400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "020000000001011d1725072a6e60687a59b878ecaf940ea0385880613d9d5502102bd78ef97b9a0000000017160014e7a6a58b657f629516cc37ee2863cbabdadb3fd4fdffffff01fc47020000000000160014e7a6a58b657f629516cc37ee2863cbabdadb3fd402473044022048ea4c558fd374f5d5066440a7f4933393cb377802cb949e3039fedf0378a29402204b4a58c591117cc1e37f07b03cc03cc6198dbf547e2bff813e2e2102bd2057e00121029f46ba81b3c6ad84e52841364dc54ca1097d0c30a68fb529766504c4b1c599352aed2400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = spending_tx.inputs()[0].witness_elements()[0]
+        pubkey = spending_tx.inputs()[0].witness_elements()[1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_p2wpkh(self):
+        funding_tx_raw = "02000000000101208840a3310ae4b88181374b5812f56f5dd56f12574f3bcd8041b48bfadc92cf0000000000fdffffff02fc7f010000000000160014d339efed7cd5d28d31995caf10b8973a9a13c656a08601000000000043410403886197eb13c59721b94a29f9a68a841caedb7782b35121cd81d50d0cc70db3f8955c7a07b08dd6470141b66eedd324406e29d6b6799033314512334461e3f9ac0247304402203328153753e934d7a13215bf58f093f84281d57f8c7d42f3b7704cd714c7b32c02205a502f3f3e4302561ccc93df413be3c78a439ff35b60cea03d19f8804a9a1239012103f41052be701441d1bc8f7cc6a6053d7e7f5e63be212fe5e3687344ddd52e3af525ed2400"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "02000000000101e328aeb4f9dc1b85a2709ce59b0478a15ed9fb5e7f84fb62422f99b8cd6ad7010000000000fdffffff01087e010000000000160014bf08acd69f1b7012c2b91642b352ce3627db89010247304402204993099c4663d92ef4c9a28b3f45a40a6585754fe22ecfdc0a76c43fda7c9d04022006a75e0fd3ad1862d8e81015a71d2a1489ec7a9264e6e63b8fe6bb90c27e799b0121038ca94e7c715152fd89803c2a40a934c7c4035fb87b3cba981cd1e407369cfe312aed2400"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig = spending_tx.inputs()[0].witness_elements()[0]
+        pubkey = spending_tx.inputs()[0].witness_elements()[1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+
+    def test_verifysig_spending_p2sh_multisig_2of3(self):
+        funding_tx_raw = "010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "01000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb201000000fc004730440220751ee3599e59debb8b2aeef61bb5f574f26379cd961caf382d711a507bc632390220598d53e62557c4a5ab8cfb2f8948f37cca06a861714b55c781baf2c3d7a580b501473044022023b55c679397bdf3a04d545adc6193eabc11b3a28850d3d46049a51a30c6732402205dbfdade5620e9072ae4aa7577c5f0fd294f59a6b0064cc7105093c0fe7a6d24014c69522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefeffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig1 = list(script_GetOp(spending_tx.inputs()[0].script_sig))[1][1]
+        sig2 = list(script_GetOp(spending_tx.inputs()[0].script_sig))[2][1]
+        redeem_script = list(script_GetOp(spending_tx.inputs()[0].script_sig))[-1][1]
+        pubkey1 = list(script_GetOp(redeem_script))[1][1]
+        pubkey2 = list(script_GetOp(redeem_script))[2][1]
+        pubkey3 = list(script_GetOp(redeem_script))[3][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey1, sig=sig1))
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey2, sig=sig2))
+
+        self.assertFalse(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey3, sig=sig2))
+
+    def test_verifysig_spending_p2wsh_p2sh_multisig_2of2(self):
+        funding_tx_raw = "01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "0100000000010149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e01000000232200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163cfeffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a086010000000000220020f7b6b30c3073ae2680a7e90c589bbfec5303331be68bbab843eed5d51ba0123904004730440220091ea67af7c1131f51f62fe9596dff0a60c8b45bfc5be675389e193912e8a71802201bf813bbf83933a35ecc46e2d5b0442bd8758fa82e0f8ed16392c10d51f7f7660147304402203ecf75b0316a449dd31bc549251b687dc904194aa551941bd5e8c67603661bdb02204ed58b3a6b070ec138d2127093bebcc6581495818fa611583e1c81cd9b2cf5ee0147522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae00000000"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig1 = spending_tx.inputs()[0].witness_elements()[1]
+        sig2 = spending_tx.inputs()[0].witness_elements()[2]
+        witness_script = spending_tx.inputs()[0].witness_elements()[-1]
+        pubkey1 = list(script_GetOp(witness_script))[1][1]
+        pubkey2 = list(script_GetOp(witness_script))[2][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey1, sig=sig1))
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey2, sig=sig2))
+
+        self.assertFalse(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey1, sig=sig2))
+
+    def test_verifysig_spending_p2wsh_multisig_2of3(self):
+        funding_tx_raw = "01000000000101a41aae475d026c9255200082c7fad26dc47771275b0afba238dccda98a597bd20000000000fdffffff02400d0300000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c9dcd410000000000160014824626055515f3ed1d2cfc9152d2e70685c71e8f02483045022100b9f39fad57d07ce1e18251424034f21f10f20e59931041b5167ae343ce973cf602200fefb727fa0ffd25b353f1bcdae2395898fe407b692c62f5885afbf52fa06f5701210301a28f68511ace43114b674371257bb599fd2c686c4b19544870b1799c954b40e9c11300"
+        funding_tx = Transaction(funding_tx_raw)
+        spending_tx_raw = "01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000"
+        spending_tx = Transaction(spending_tx_raw)
+        spending_tx.inputs()[0].utxo = funding_tx
+        sig1 = spending_tx.inputs()[0].witness_elements()[1]
+        sig2 = spending_tx.inputs()[0].witness_elements()[2]
+        witness_script = spending_tx.inputs()[0].witness_elements()[-1]
+        pubkey1 = list(script_GetOp(witness_script))[1][1]
+        pubkey2 = list(script_GetOp(witness_script))[2][1]
+        pubkey3 = list(script_GetOp(witness_script))[3][1]
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey1, sig=sig1))
+        self.assertTrue(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey3, sig=sig2))
+
+        self.assertFalse(spending_tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey2, sig=sig2))
+
+
 class TestSighashBIP143(ElectrumTestCase):
     #These tests are taken from bip143, https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki
     #Input of transaction
