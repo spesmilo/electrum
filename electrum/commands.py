@@ -385,14 +385,7 @@ class Commands(Logger):
                 pass
         return value
 
-    @command('')
-    async def setconfig(self, key, value):
-        """
-        Set a configuration variable.
-
-        arg:str:key:name of the configuration variable
-        arg:str:value:value. may be a string or a Python expression.
-        """
+    def _setconfig(self, key, value):
         value = self._setconfig_normalize_value(key, value)
         if self.daemon and key == SimpleConfig.RPC_USERNAME.key():
             self.daemon.commands_server.rpc_user = value
@@ -403,6 +396,26 @@ class Commands(Logger):
         else:
             cv = self.config.cv.from_key(key)
             cv.set(value)
+
+    @command('')
+    async def setconfig(self, key, value):
+        """
+        Set a configuration variable.
+
+        arg:str:key:name of the configuration variable
+        arg:str:value:value. may be a string or a Python expression.
+        """
+        self._setconfig(key, value)
+
+    @command('')
+    async def clearconfig(self, key):
+        """
+        Clear a configuration variable.
+        The variable will be reset to its default value.
+
+        arg:str:key:name of the configuration variable
+        """
+        self._setconfig(key, None)
 
     @command('')
     async def listconfig(self):
