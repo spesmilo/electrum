@@ -1327,22 +1327,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 ]))
             return False
         sm = self.wallet.lnworker.swap_manager
-        def descr(x):
-            last_seen = util.age(x['timestamp'])
-            return (f"pubkey={x['pubkey'][0:10]},  "
-                    f"fee={x['percentage_fee']}% + {x['mining_fee']} sats,  "
-                    f"last_seen: {last_seen}")
-        server_keys = [ChoiceItem(key=x['pubkey'], label=descr(x)) for x in recent_offers]
-        msg = '\n'.join([
-            _("Please choose a server from this list."),
-            _("Note that fees may be updated frequently.")
-        ])
-        choice = self.query_choice(
-            msg=msg,
-            choices=server_keys,
-            title=_("Choose Swap Server"),
-            default_key=self.config.SWAPSERVER_NPUB,
-        )
+        from .swap_dialog import SwapServerDialog
+        d = SwapServerDialog(self, recent_offers)
+        choice = d.run()
         if choice is None:
             return False
         self.config.SWAPSERVER_NPUB = choice
