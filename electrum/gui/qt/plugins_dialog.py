@@ -3,7 +3,8 @@ from functools import partial
 import shutil
 import os
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, QFormLayout, QFileDialog, QMenu, QApplication
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
+    QFormLayout, QFileDialog, QMenu, QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 
 from electrum.i18n import _
@@ -15,7 +16,7 @@ from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spac
 
 if TYPE_CHECKING:
     from . import ElectrumGui
-    from electrum_cc import ECPrivkey
+    from electrum_ecc import ECPrivkey
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
@@ -174,6 +175,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         scroll_w.setLayout(self.grid)
         vbox.addWidget(scroll)
         add_button = QPushButton(_('Add'))
+        add_button.setMinimumWidth(40)  # looks better on windows, no difference on linux
         menu = QMenu()
         for name, item in self.plugins.internal_plugin_metadata.items():
             fullname = item['fullname']
@@ -194,7 +196,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         pubkey, salt = self.plugins.get_pubkey_bytes()
         if not pubkey:
             self.init_plugins_password()
-            return
+            return None
         # ask for url and password, same window
         pw = self.password_dialog(
             msg=' '.join([
@@ -208,18 +210,39 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             ])
         )
         if not pw:
-            return
+            return None
         privkey = self.plugins.derive_privkey(pw, salt)
         if pubkey != privkey.get_public_key_bytes():
-            keyfile_path, keyfile_help = self.plugins.get_keyfile_path()
-            self.show_error(
-                ''.join([
-                    _('Incorrect password.'), '\n\n',
-                    _('Your plugin authorization password is required to install plugins.'), ' ',
-                    _('If you need to reset it, remove the following file:'), '\n\n',
-                    keyfile_path
-                ]))
-            return
+            keyfile_path, _keyfile_help = self.plugins.get_keyfile_path(None)
+
+            while True:
+                exit_dialog = True
+                auto_reset_btn = QPushButton(_('Try Auto-Reset'))
+                def on_try_auto_reset_clicked():
+                    nonlocal exit_dialog
+                    if not self.plugins.try_auto_key_reset():
+                        self.show_error(_("Auto-Reset not possible. Delete the file manually."))
+                        exit_dialog = False
+                    else:
+                        self.show_message(_("Auto-Reset successful. You can now setup a new password."))
+                auto_reset_btn.clicked.connect(on_try_auto_reset_clicked)
+
+                buttons = [
+                    QMessageBox.StandardButton.Ok,
+                    (auto_reset_btn, QMessageBox.ButtonRole.ActionRole, 0),
+                ]
+                if self.show_error(
+                    ''.join([
+                        _('Incorrect password.'), '\n\n',
+                        _('Your plugin authorization password is required to install plugins.'), ' ',
+                        _('If you need to reset it, remove the following file:'), '\n\n',
+                        keyfile_path
+                    ]),
+                    buttons=buttons
+                ) or exit_dialog:
+                    break
+
+            return None
         return privkey
 
     def init_plugins_password(self):
@@ -233,7 +256,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if not pw:
             return
         key_hex = self.plugins.create_new_key(pw)
-        keyfile_path, keyfile_help = self.plugins.get_keyfile_path()
+        keyfile_path, keyfile_help = self.plugins.get_keyfile_path(key_hex)
         msg = '\n\n'.join([
             _('Your plugins key is:'), key_hex,
             _('This key has been copied to your clipboard. Please save it in:'),
@@ -243,10 +266,30 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         ])
         clipboard = QApplication.clipboard()
         clipboard.setText(key_hex)
-        self.show_message(msg)
+
+        while True:
+            exit_dialog = True
+            # the button has to be recreated inside the loop, as qt destroys it when the dialog is closed
+            auto_setup_btn = QPushButton(_('Try Auto-Setup'))
+            def on_auto_setup_clicked():
+                nonlocal exit_dialog
+                if not self.plugins.try_auto_key_setup(key_hex):
+                    self.show_error(_("Auto-Setup not possible. Try the manual setup."))
+                    exit_dialog = False
+                else:
+                    self.show_message(_("Auto-Setup successful. You can now install plugins."))
+            auto_setup_btn.clicked.connect(on_auto_setup_clicked)
+
+            # on windows, the auto-setup button is shown right of the ok button,
+            # apparently due to OS conventions
+            buttons = [
+                (auto_setup_btn, QMessageBox.ButtonRole.ActionRole, 0),
+                QMessageBox.StandardButton.Ok,
+            ]
+            if self.show_message(msg, buttons=buttons) or exit_dialog:
+                break
 
     def download_plugin_dialog(self):
-        import os
         from .util import line_dialog
         from electrum.util import UserCancelled
         pubkey, salt = self.plugins.get_pubkey_bytes()
@@ -263,18 +306,10 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         except UserCancelled:
             return
         except Exception as e:
+            self._logger.exception("")
             self.show_error(f"{e}")
             return
-        try:
-            success = self.add_external_plugin(path)
-        except Exception as e:
-            self.show_error(f"{e}")
-            success = False
-        if not success:
-            try:
-                os.unlink(path)
-            except FileNotFoundError:
-                self._logger.debug("", exc_info=True)
+        self._try_add_external_plugin_from_path(path)
 
     def add_plugin_dialog(self):
         pubkey, salt = self.plugins.get_pubkey_bytes()
@@ -290,9 +325,13 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.show_warning(_('Plugin already installed.'))
             return
         shutil.copyfile(filename, path)
+        self._try_add_external_plugin_from_path(path)
+
+    def _try_add_external_plugin_from_path(self, path: str):
         try:
             success = self.add_external_plugin(path)
         except Exception as e:
+            self._logger.exception("")
             self.show_error(f"{e}")
             success = False
         if not success:
