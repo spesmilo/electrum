@@ -282,9 +282,10 @@ class Peer(Logger, EventListener):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: "
                          f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
-        if chan_id in self.channels:
+        if chan := self.channels.get(chan_id):
             self.schedule_force_closing(chan_id)
             self.ordered_message_queues[chan_id].put_nowait((None, {'error': err_bytes}))
+            chan.save_remote_peer_sent_error(err_bytes)
         elif chan_id in self.temp_id_to_id:
             chan_id = self.temp_id_to_id[chan_id] or chan_id
             self.ordered_message_queues[chan_id].put_nowait((None, {'error': err_bytes}))

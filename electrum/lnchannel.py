@@ -37,7 +37,7 @@ import electrum_ecc as ecc
 from electrum_ecc import ECPubkey
 
 from . import constants, util
-from .util import bfh, chunks, TxMinedInfo
+from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str
 from .invoices import PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
@@ -301,6 +301,9 @@ class AbstractChannel(Logger, ABC):
         return None
 
     def get_remote_scid_alias(self) -> Optional[bytes]:
+        return None
+
+    def get_remote_peer_sent_error(self) -> Optional[str]:
         return None
 
     def get_ctx_sweep_info(self, ctx: Transaction) -> Tuple[bool, Dict[str, SweepInfo]]:
@@ -891,6 +894,21 @@ class Channel(AbstractChannel):
         for net_addr_str, ts in addrs:
             net_addr = NetAddress.from_string(net_addr_str)
             yield LNPeerAddr(host=str(net_addr.host), port=net_addr.port, pubkey=self.node_id)
+
+    def save_remote_peer_sent_error(self, original_error: bytes):
+        # We save the original arbitrary text(/bytes) error, as received.
+        # The length is only implicitly limited by the BOLT-08 max msg size.
+        # Receiving an error usually results in the channel getting closed, so
+        # there is likely no need to store multiple errors. We only store one, and overwrite.
+        self.storage['remote_peer_sent_error'] = original_error.hex()
+
+    def get_remote_peer_sent_error(self) -> Optional[str]:
+        original_error = self.storage.get('remote_peer_sent_error')
+        if not original_error:
+            return None
+        err_bytes = bytes.fromhex(original_error)
+        safe_str = error_text_bytes_to_safe_str(err_bytes)   # note: truncates
+        return safe_str
 
     def get_outgoing_gossip_channel_update(self, *, scid: ShortChannelID = None) -> bytes:
         """
