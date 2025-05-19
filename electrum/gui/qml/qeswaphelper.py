@@ -2,7 +2,7 @@ import asyncio
 import concurrent
 import threading
 from enum import IntEnum
-from typing import Union, Optional
+from typing import Union, Optional, TYPE_CHECKING, Sequence
 
 from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
                           QModelIndex)
@@ -21,6 +21,9 @@ from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import QtEventListener, qt_event_listener
+
+if TYPE_CHECKING:
+    from electrum.submarine_swaps import SwapOffer
 
 
 class InvalidSwapParameters(Exception): pass
@@ -64,16 +67,16 @@ class QESwapServerNPubListModel(QAbstractListModel):
         self._services = []
         self.endResetModel()
 
-    def initModel(self, items):
+    def initModel(self, items: Sequence['SwapOffer']):
         self.beginInsertRows(QModelIndex(), len(items), len(items))
         self._services = [{
-            'npub': x['pubkey'],
-            'percentage_fee': x['percentage_fee'],
-            'mining_fee': x['mining_fee'],
-            'min_amount': x['min_amount'],
-            'max_forward_amount': x['max_forward_amount'],
-            'max_reverse_amount': x['max_reverse_amount'],
-            'timestamp': age(x['timestamp']),
+            'npub': x.server_npub,
+            'percentage_fee': x.pairs.percentage,
+            'mining_fee': x.pairs.mining_fee,
+            'min_amount': x.pairs.min_amount,
+            'max_forward_amount': x.pairs.max_forward,
+            'max_reverse_amount': x.pairs.max_reverse,
+            'timestamp': age(x.timestamp),
         } for x in items]
         self.endInsertRows()
         self.countChanged.emit()

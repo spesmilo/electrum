@@ -135,13 +135,25 @@ class SwapServerError(Exception):
 def now():
     return int(time.time())
 
-@attr.s
+@attr.s(frozen=True)
 class SwapFees:
     percentage = attr.ib(type=int)
     mining_fee = attr.ib(type=int)
     min_amount = attr.ib(type=int)
     max_forward = attr.ib(type=int)
     max_reverse = attr.ib(type=int)
+
+@attr.frozen
+class SwapOffer:
+    pairs = attr.ib(type=SwapFees)
+    relays = attr.ib(type=list[str])
+    pow_bits = attr.ib(type=int)
+    server_pubkey = attr.ib(type=str)
+    timestamp = attr.ib(type=int)
+
+    @property
+    def server_npub(self):
+        return to_nip19('npub', self.server_pubkey)
 
 @stored_in('submarine_swaps')
 @attr.s
@@ -962,7 +974,7 @@ class SwapManager(Logger):
         zeroed_num_str = f"{num_str[:digits]}{(len(num_str[digits:])) * '0'}"
         return int(zeroed_num_str)
 
-    def update_pairs(self, pairs):
+    def update_pairs(self, pairs: SwapFees):
         self.logger.info(f'updating fees {pairs}')
         self.mining_fee = pairs.mining_fee
         self.percentage = pairs.percentage
@@ -1365,7 +1377,7 @@ class NostrTransport(SwapServerTransport):
 
     def __init__(self, config, sm, keypair):
         SwapServerTransport.__init__(self, config=config, sm=sm)
-        self._offers = {}  # type: Dict[str, Dict]
+        self._offers = {}  # type: Dict[str, SwapOffer]
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
@@ -1447,28 +1459,18 @@ class NostrTransport(SwapServerTransport):
             )
         return self.relay_manager
 
-    def get_offer(self, pubkey):
-        offer = self._offers.get(pubkey)
-        return self._parse_offer(offer)
+    def get_offer(self, pubkey) -> Optional[SwapOffer]:
+        return self._offers.get(pubkey)
 
-    def get_recent_offers(self) -> Sequence[Dict]:
+    def get_recent_offers(self) -> Sequence[SwapOffer]:
         # filter to fresh timestamps
         now = int(time.time())
-        recent_offers = [x for x in self._offers.values() if now - x['timestamp'] < 3600]
+        recent_offers = [x for x in self._offers.values() if now - x.timestamp < 3600]
         # sort by proof-of-work
-        recent_offers = sorted(recent_offers, key=lambda x: x['pow_bits'], reverse=True)
+        recent_offers = sorted(recent_offers, key=lambda x: x.pow_bits, reverse=True)
         # cap list size
         recent_offers = recent_offers[:20]
         return recent_offers
-
-    def _parse_offer(self, offer):
-        return SwapFees(
-            percentage=offer['percentage_fee'],
-            mining_fee=offer['mining_fee'],
-            min_amount=offer['min_amount'],
-            max_forward=offer['max_forward_amount'],
-            max_reverse=offer['max_reverse_amount'],
-        )
 
     @ignore_exceptions
     @log_exceptions
@@ -1515,8 +1517,8 @@ class NostrTransport(SwapServerTransport):
     async def send_request_to_server(self, method: str, request_data: dict) -> dict:
         self.logger.debug(f"swapserver req: method: {method} relays: {self.relays}")
         request_data['method'] = method
-        server_pubkey = self.config.SWAPSERVER_NPUB
-        event_id = await self.send_direct_message(server_pubkey, json.dumps(request_data))
+        server_npub = self.config.SWAPSERVER_NPUB
+        event_id = await self.send_direct_message(server_npub, json.dumps(request_data))
         response = await self.dm_replies[event_id]
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
@@ -1544,12 +1546,13 @@ class NostrTransport(SwapServerTransport):
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
+            if (event.created_at > time.time() + 60 * 60
+                    or event.created_at < time.time() - 60 * 60):
+                continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
-            ts = self._offers.get(pubkey, {}).get('timestamp', 0)
-            if (event.created_at <= ts
-                    or event.created_at > time.time() + 60 * 60
-                    or event.created_at < time.time() - 60 * 60):
+            prev_offer = self._offers.get(to_nip19('npub', pubkey))
+            if prev_offer and event.created_at <= prev_offer.timestamp:
                 continue
             try:
                 pow_bits = get_nostr_ann_pow_amount(
@@ -1561,15 +1564,28 @@ class NostrTransport(SwapServerTransport):
             if pow_bits < self.config.SWAPSERVER_POW_TARGET:
                 self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {content.get('pow_nonce', 0)}")
                 continue
-            content['pow_bits'] = pow_bits
-            content['pubkey'] = pubkey
-            content['timestamp'] = event.created_at
             server_relays = content['relays'].split(',') if 'relays' in content else []
-            content['relays'] = server_relays[:10]  # limit to 10 relays
-            self._offers[pubkey] = content
-            if self.config.SWAPSERVER_NPUB == pubkey:
-                pairs = self._parse_offer(content)
+            try:
+                pairs = SwapFees(
+                    percentage=content['percentage_fee'],
+                    mining_fee=content['mining_fee'],
+                    min_amount=content['min_amount'],
+                    max_forward=content['max_forward_amount'],
+                    max_reverse=content['max_reverse_amount'],
+                )
+            except Exception:
+                self.logger.debug(f"swap fees couldn't be parsed", exc_info=True)
+                continue
+            offer = SwapOffer(
+                pairs=pairs,
+                relays=server_relays[:10],
+                timestamp=event.created_at,
+                server_pubkey=pubkey,
+                pow_bits=pow_bits,
+            )
+            if self.config.SWAPSERVER_NPUB == offer.server_npub:
                 self.sm.update_pairs(pairs)
+            self._offers[offer.server_npub] = offer
             # mirror event to other relays
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
 
@@ -1581,7 +1597,7 @@ class NostrTransport(SwapServerTransport):
         while True:
             previous_relays = self._last_swapserver_relays
             await self.sm.pairs_updated.wait()
-            latest_known_relays = self._offers[self.config.SWAPSERVER_NPUB]['relays']
+            latest_known_relays = self._offers[self.config.SWAPSERVER_NPUB].relays
             if latest_known_relays != previous_relays:
                 self.logger.debug(f"swapserver relays changed, updating relay list.")
                 # store the latest known relays to a file

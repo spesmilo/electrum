@@ -106,6 +106,7 @@ from electrum.gui.common_qt.util import TaskThread
 
 if TYPE_CHECKING:
     from . import ElectrumGui
+    from electrum.submarine_swaps import SwapOffer
 
 
 class StatusBarButton(QToolButton):
@@ -1333,8 +1334,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if choice is None:
             return False
         self.config.SWAPSERVER_NPUB = choice
-        pairs = transport.get_offer(choice)
-        sm.update_pairs(pairs)
+        offer = transport.get_offer(choice)
+        sm.update_pairs(offer.pairs)
         return True
 
     @qt_event_listener

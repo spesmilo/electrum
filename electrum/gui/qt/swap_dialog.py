@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence
 
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
@@ -21,7 +21,7 @@ from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
-    from electrum.submarine_swaps import SwapServerTransport
+    from electrum.submarine_swaps import SwapServerTransport, SwapOffer
 
 CANNOT_RECEIVE_WARNING = _(
 """The requested amount is higher than what you can receive in your currently open channels.
@@ -31,7 +31,7 @@ Do you want to continue?"""
 )
 
 
-ROLE_PUBKEY = Qt.ItemDataRole.UserRole + 1000
+ROLE_NPUB = Qt.ItemDataRole.UserRole + 1000
 
 class InvalidSwapParameters(Exception): pass
 
@@ -51,7 +51,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addAction(
             _('Choose swap provider'),
-            lambda: self.window.choose_swapserver_dialog(transport),
+            lambda: self.choose_swap_server(transport),
         ).setEnabled(not self.config.SWAPSERVER_URL)
         vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())
@@ -395,6 +395,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             capacityType="receiving" if self.is_reverse else "sending",
         )
 
+    def choose_swap_server(self, transport: 'SwapServerTransport') -> None:
+        self.window.choose_swapserver_dialog(transport)  # type: ignore
+        self.update()
+
 
 class SwapServerDialog(WindowModalDialog, QtEventListener):
 
@@ -425,21 +429,21 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
 
     def run(self):
         if self.exec() != 1:
-            return
+            return None
         if item := self.servers_list.currentItem():
-            return item.data(0, ROLE_PUBKEY)
+            return item.data(0, ROLE_NPUB)
+        return None
 
-    def update_servers_list(self, servers):
+    def update_servers_list(self, servers: Sequence['SwapOffer']):
         self.servers_list.clear()
         from electrum.util import age
         items = []
         for x in servers:
-            # fixme: these fields have not been sanitized yet
-            last_seen = age(x['timestamp'])
-            fee = f"{x['percentage_fee']}% + {x['mining_fee']} sats"
-            max_forward = self.window.format_amount(x['max_forward_amount']) + ' ' + self.window.base_unit()
-            max_reverse = self.window.format_amount(x['max_reverse_amount']) + ' ' + self.window.base_unit()
-            item = QTreeWidgetItem([x['pubkey'][0:10], fee, max_forward, max_reverse, last_seen])
-            item.setData(0, ROLE_PUBKEY, x['pubkey'])
+            last_seen = age(x.timestamp)
+            fee = f"{x.pairs.percentage}% + {x.pairs.mining_fee} sats"
+            max_forward = self.window.format_amount(x.pairs.max_forward) + ' ' + self.window.base_unit()
+            max_reverse = self.window.format_amount(x.pairs.max_reverse) + ' ' + self.window.base_unit()
+            item = QTreeWidgetItem([x.server_pubkey[0:10], fee, max_forward, max_reverse, last_seen])
+            item.setData(0, ROLE_NPUB, x.server_npub)
             items.append(item)
         self.servers_list.insertTopLevelItems(0, items)
