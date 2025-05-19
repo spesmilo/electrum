@@ -9,7 +9,7 @@ import "controls"
 
 ElDialog {
     id: dialog
-    title: qsTr("Select Swap Server")
+    title: qsTr("Select Swap Provider")
 
     property QtObject swaphelper
 
@@ -78,11 +78,12 @@ ElDialog {
                                 Layout.preferredWidth: 1
                             }
                             Image {
-                                Layout.rowSpan: 3
+                                Layout.rowSpan: 5
+                                Layout.alignment: Qt.AlignTop
                                 source: Qt.resolvedUrl('../../icons/network.png')
                             }
                             Label {
-                                text: qsTr('npub')
+                                text: qsTr('Npub')
                                 color: Material.accentColor
                             }
                             Label {
@@ -91,7 +92,7 @@ ElDialog {
                                 wrapMode: Text.Wrap
                             }
                             Label {
-                                text: qsTr('fee')
+                                text: qsTr('Fee')
                                 color: Material.accentColor
                             }
                             Label {
@@ -99,12 +100,40 @@ ElDialog {
                                 text: model.percentage_fee + '% + ' + model.mining_fee + ' sat'
                             }
                             Label {
-                                text: qsTr('last seen')
+                                text: qsTr('Last seen')
                                 color: Material.accentColor
                             }
                             Label {
                                 Layout.fillWidth: true
                                 text: model.timestamp
+                            }
+                            Label {
+                                text: qsTr('Max Forward')
+                                color: Material.accentColor
+                            }
+                            RowLayout{
+                                Layout.fillWidth: true
+                                Label {
+                                    text: Config.formatSats(model.max_forward_amount)
+                                }
+                                Label {
+                                    text: Config.baseUnit
+                                    color: Material.accentColor
+                                }
+                            }
+                            Label {
+                                text: qsTr('Max Reverse')
+                                color: Material.accentColor
+                            }
+                            RowLayout{
+                                Layout.fillWidth: true
+                                Label {
+                                    text: Config.formatSats(model.max_reverse_amount)
+                                }
+                                Label {
+                                    text: Config.baseUnit
+                                    color: Material.accentColor
+                                }
                             }
                             Item {
                                 Layout.columnSpan: 3
@@ -122,7 +151,7 @@ ElDialog {
                         width: listview.width * 4/5
                         font.pixelSize: constants.fontSizeXXLarge
                         color: constants.mutedForeground
-                        text: qsTr('No swap servers found')
+                        text: qsTr('No swap providers found')
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                     }
