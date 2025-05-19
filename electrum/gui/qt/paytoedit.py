@@ -218,15 +218,13 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
 
     def try_payment_identifier(self, text) -> None:
         '''set payment identifier only if valid, else exception'''
-        text = text.strip()
         pi = PaymentIdentifier(self.send_tab.wallet, text)
         if not pi.is_valid():
             raise InvalidPaymentIdentifier('Invalid payment identifier')
         self.set_payment_identifier(text)
 
     def set_payment_identifier(self, text) -> None:
-        text = text.strip()
-        if self.payment_identifier and self.payment_identifier.text == text:
+        if self.payment_identifier and self.payment_identifier.text == text.strip():
             # no change.
             return
 
