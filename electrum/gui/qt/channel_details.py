@@ -179,7 +179,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
             return
         self.window.show_transaction(tx)
 
-    def get_common_form(self, chan):
+    def get_common_form(self, chan: AbstractChannel):
         form = QtWidgets.QFormLayout(None)
         remote_id_e = ShowQRLineEdit(chan.node_id.hex(), self.window.config, title=_("Remote Node ID"))
         form.addRow(QLabel(_('Remote Node') + ':'), remote_id_e)
@@ -191,6 +191,10 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         if remote_scid_alias := chan.get_remote_scid_alias():
             form.addRow(QLabel('Remote SCID Alias:'), SelectableLabel(str(ShortID(remote_scid_alias))))
         form.addRow(QLabel(_('State') + ':'), SelectableLabel(chan.get_state_for_GUI()))
+        if remote_peer_sent_error := chan.get_remote_peer_sent_error():
+            err_label = WWLabel(remote_peer_sent_error)  # note: text is already truncated to reasonable len
+            err_label.setTextFormat(QtCore.Qt.TextFormat.PlainText)
+            form.addRow(WWLabel(_('Remote peer sent error [DO NOT TRUST]') + ':'), err_label)
         self.capacity = self.format_sat(chan.get_capacity())
         form.addRow(QLabel(_('Capacity') + ':'), SelectableLabel(self.capacity))
         if not chan.is_backup():
