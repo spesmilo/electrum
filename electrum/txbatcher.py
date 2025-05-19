@@ -439,10 +439,16 @@ class TxBatch(Logger):
                 to_sweep_now[k] = v
             else:
                 self.wallet.add_future_tx(v, wanted_height)
-        if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
-            return
         while True:
-            tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay)
+            if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
+                return
+            try:
+                tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay)
+            except NotEnoughFunds:
+                k = max(to_pay, key=lambda x: x.value)
+                self.logger.info(f'Not enough funds, removing output {k}')
+                to_pay.remove(k)
+                continue
             # 100 kb max standardness rule
             if tx.estimated_size() < 100_000:
                 break
