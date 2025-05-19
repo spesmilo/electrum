@@ -470,7 +470,12 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
-        wallet.start_network(self.network)
+        if self.network:
+            wallet.start_network(self.network)
+        elif wallet.lnworker:
+            # in offline mode, we need to trigger callbacks
+            coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
+            asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
         self.update_recently_opened_wallets(path)
         return wallet

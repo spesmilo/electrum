@@ -1077,7 +1077,8 @@ class Commands(Logger):
         arg:int:year:Show history for a given year
         """
         # trigger lnwatcher callbacks for their side effects: setting labels and accounting_addresses
-        await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
+        if not self.network and wallet.lnworker:
+            await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
 
         #'from_height': (None, "Only show transactions that confirmed after given block height"),
         #'to_height':   (None, "Only show transactions that confirmed before given block height"),
