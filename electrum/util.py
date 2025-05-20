@@ -60,7 +60,7 @@ import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
 import certifi
-import dns.resolver
+import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -1851,9 +1851,9 @@ def list_enabled_bits(x: int) -> Sequence[int]:
     return tuple(i for i, b in enumerate(rev_bin) if b == '1')
 
 
-def resolve_dns_srv(host: str):
+async def resolve_dns_srv(host: str):
     # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
-    srv_records = dns.resolver.resolve(host, 'SRV')
+    srv_records = await dns.asyncresolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))
