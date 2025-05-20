@@ -64,6 +64,7 @@ class Contacts(dict, Logger):
 
     def save(self):
         self.db.put('contacts', dict(self))
+        trigger_callback('contacts_updated')
 
     def import_file(self, path):
         data = read_json_file(path)
