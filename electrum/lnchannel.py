@@ -18,13 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import enum
-import os
-from collections import namedtuple, defaultdict
-import binascii
-import json
+from collections import defaultdict
 from enum import IntEnum, Enum
-from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
-                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
+from typing import (
+    Optional, Dict, List, Tuple, NamedTuple,
+    Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
 import time
 import threading
 from abc import ABC, abstractmethod
@@ -38,7 +36,6 @@ from electrum_ecc import ECPubkey
 
 from . import constants, util
 from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str
-from .invoices import PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
@@ -70,7 +67,7 @@ from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 if TYPE_CHECKING:
     from .lnworker import LNWallet
     from .json_db import StoredDict
-    from .lnrouter import RouteEdge
+
 
 # channel flags
 CF_ANNOUNCE_CHANNEL = 0x01
@@ -1116,7 +1113,7 @@ class Channel(AbstractChannel):
         if self.htlc_slots_left(htlc_proposer) == 0:
             raise PaymentFailure('Too many HTLCs already in channel')
 
-        if amount_msat > self.remaining_max_inflight(htlc_receiver):
+        if amount_msat > self.remaining_max_inflight(htlc_receiver, strict=False):
             raise PaymentFailure(
                 f'HTLC value sum (sum of pending htlcs plus new htlc) '
                 f'would exceed max allowed: {chan_config.max_htlc_value_in_flight_msat/1000} sat')
@@ -1145,12 +1142,16 @@ class Channel(AbstractChannel):
                 self.config[htlc_receiver].max_accepted_htlcs)
             return max_concurrent_htlcs - len(self.hm.htlcs(htlc_receiver, ctn=ctn))
 
-    def remaining_max_inflight(self, htlc_receiver: HTLCOwner) -> int:
-        # check "max_htlc_value_in_flight_msat"
+    def remaining_max_inflight(self, htlc_receiver: HTLCOwner, *, strict: bool) -> int:
+        """
+        Checks max_htlc_value_in_flight_msat
+        strict = False -> how much we can accept according to BOLT2
+        strict = True -> how much the remote will accept to send to us (Eclair has stricter rules)
+        """
         ctn = self.get_next_ctn(htlc_receiver)
         current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn).values())
         max_inflight = self.config[htlc_receiver].max_htlc_value_in_flight_msat
-        if htlc_receiver == LOCAL:
+        if strict and htlc_receiver == LOCAL:
             # in order to send, eclair applies both local and remote max values
             # https://github.com/ACINQ/eclair/blob/9b0c00a2a28d3ba6c7f3d01fbd2d8704ebbdc75d/eclair-core/src/main/scala/fr/acinq/eclair/channel/Commitments.scala#L503
             max_inflight = min(
@@ -1175,9 +1176,10 @@ class Channel(AbstractChannel):
         if check_frozen and self.is_frozen_for_receiving():
             return False
         try:
-            self._assert_can_add_htlc(htlc_proposer=REMOTE,
-                                      amount_msat=amount_msat,
-                                      ignore_min_htlc_value=ignore_min_htlc_value)
+            self._assert_can_add_htlc(
+                htlc_proposer=REMOTE,
+                amount_msat=amount_msat,
+                ignore_min_htlc_value=ignore_min_htlc_value)
         except PaymentFailure:
             return False
         return True
@@ -1567,17 +1569,17 @@ class Channel(AbstractChannel):
                     return max_send_msat
 
         max_send_msat = min(
-                            max(
-                                consider_ctx(ctx_owner=receiver, is_htlc_dust=True),
-                                consider_ctx(ctx_owner=receiver, is_htlc_dust=False),
-                            ),
-                            max(
-                                consider_ctx(ctx_owner=sender, is_htlc_dust=True),
-                                consider_ctx(ctx_owner=sender, is_htlc_dust=False),
-                            ),
+            max(
+                consider_ctx(ctx_owner=receiver, is_htlc_dust=True),
+                consider_ctx(ctx_owner=receiver, is_htlc_dust=False),
+            ),
+            max(
+                consider_ctx(ctx_owner=sender, is_htlc_dust=True),
+                consider_ctx(ctx_owner=sender, is_htlc_dust=False),
+            ),
         )
 
-        max_send_msat = min(max_send_msat, self.remaining_max_inflight(receiver))
+        max_send_msat = min(max_send_msat, self.remaining_max_inflight(receiver, strict=True))
         if self.htlc_slots_left(sender) == 0:
             max_send_msat = 0
 
