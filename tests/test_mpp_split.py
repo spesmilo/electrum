@@ -68,6 +68,25 @@ class TestMppSplit(ElectrumTestCase):
             # a splitting of the parts into two
             self.assertEqual(2, splits[4].config.number_parts())
 
+        with self.subTest(msg="no htlc slots available"):
+            channels = self.channels_with_funds.copy()
+            # set all available slots to 0
+            for chan, (amount, _slots) in channels.items():
+                channels[chan] = (amount, 0)
+            with self.assertRaises(NoPathFound):
+                mpp_split.suggest_splits(20_000_000, channels, exclude_single_part_payments=False)
+
+        with self.subTest(msg="only one channel can add htlcs"):
+            channels = self.channels_with_funds.copy()
+            # set all available slots to 0 except for the first channel
+            for chan, (amount, _slots) in channels.items():
+                if chan != (b"0", b"0"):
+                    channels[chan] = (amount, 0)
+            splits = mpp_split.suggest_splits(1_000_000_000, channels, exclude_single_part_payments=True)
+            for split in splits:
+                # check that the whole amount has been split on this channel
+                self.assertEqual(sum(split.config[(b"0", b"0")]), 1_000_000_000)
+
     def test_send_to_single_node(self):
         splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_part_payments=False, exclude_multinode_payments=True)
         for split in splits:
