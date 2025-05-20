@@ -1926,7 +1926,7 @@ class LNWallet(LNWorker):
         receiver_pubkey: bytes,
     ) -> List['SplitConfigRating']:
         channels_with_funds = {
-            (chan.channel_id, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
+            (chan.channel_id, chan.node_id): ( int(chan.available_to_spend(HTLCOwner.LOCAL)), chan.htlc_slots_left(HTLCOwner.LOCAL))
             for chan in my_active_channels
         }
         # if we have a direct channel it's preferrable to send a single part directly through this

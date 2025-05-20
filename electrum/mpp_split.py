@@ -15,7 +15,7 @@ MAX_PARTS = 5  # maximum number of parts for splitting
 
 
 # maps a channel (channel_id, node_id) to the funds it has available
-ChannelsFundsInfo = Dict[Tuple[bytes, bytes], int]
+ChannelsFundsInfo = Dict[Tuple[bytes, bytes], Tuple[int, int]]
 
 
 class SplitConfig(dict, Dict[Tuple[bytes, bytes], List[int]]):
@@ -105,7 +105,7 @@ def rate_config(
     total_amount = config.total_config_amount()
 
     for channel, amounts in config.items():
-        funds = channels_with_funds[channel]
+        funds, slots = channels_with_funds[channel]
         if amounts:
             for amount in amounts:
                 rating += amount * amount / (total_amount * total_amount)  # penalty to favor equal distribution of amounts
@@ -116,7 +116,8 @@ def rate_config(
 
 
 def suggest_splits(
-        amount_msat: int, channels_with_funds: ChannelsFundsInfo,
+        amount_msat: int,
+        channels_with_funds: ChannelsFundsInfo,
         exclude_single_part_payments=False,
         exclude_multinode_payments=False,
         exclude_single_channel_splits=False
@@ -132,32 +133,37 @@ def suggest_splits(
     """
 
     configs = []
-    channels_order = list(channels_with_funds.keys())
+    channel_keys = list(channels_with_funds.keys())
 
     # generate multiple configurations to get more configurations (there is randomness in this loop)
     for _ in range(CANDIDATES_PER_LEVEL):
         # we want to have configurations with no splitting to many splittings
         for target_parts in range(1, MAX_PARTS):
             config = SplitConfig()
-
             # randomly split amount into target_parts chunks
             split_amounts = split_amount_normal(amount_msat, target_parts)
             # randomly distribute amounts over channels
             for amount in split_amounts:
-                random.shuffle(channels_order)
+                random.shuffle(channel_keys)
                 # we check each channel and try to put the funds inside, break if we succeed
-                for c in channels_order:
+                for c in channel_keys:
                     if c not in config:
                         config[c] = []
-                    if sum(config[c]) + amount <= channels_with_funds[c]:
+                    channel_funds, channel_slots = channels_with_funds[c]
+                    if sum(config[c]) + amount <= channel_funds and len(config[c]) < channel_slots:
                         config[c].append(amount)
                         break
                 # if we don't succeed to put the amount anywhere,
                 # we try to fill up channels and put the rest somewhere else
                 else:
                     distribute_amount = amount
-                    for c in channels_order:
-                        funds_left = channels_with_funds[c] - sum(config[c])
+                    for c in channel_keys:
+                        channel_funds, channel_slots = channels_with_funds[c]
+                        slots_left = channel_slots - len(config[c])
+                        if slots_left == 0:
+                            # no slot left in that channel
+                            continue
+                        funds_left = channel_funds - sum(config[c])
                         # it would be good to not fill the full channel if possible
                         add_amount = min(funds_left, distribute_amount)
                         config[c].append(add_amount)
@@ -165,7 +171,7 @@ def suggest_splits(
                         if distribute_amount == 0:
                             break
             if config.total_config_amount() != amount_msat:
-                raise NoPathFound('Cannot distribute payment over channels.')
+                continue
             if target_parts > 1 and config.is_any_amount_smaller_than_min_part_size():
                 if target_parts == 2:
                     # if there are already too small parts at the first split excluding single
@@ -175,6 +181,8 @@ def suggest_splits(
                 continue
             assert config.total_config_amount() == amount_msat
             configs.append(config)
+        if not configs:
+            raise NoPathFound('Cannot distribute payment over channels.')
 
     configs = remove_duplicates(configs)
 
