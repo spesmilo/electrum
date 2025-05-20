@@ -82,14 +82,10 @@ def remove_single_part_configs(configs: List[SplitConfig]) -> List[SplitConfig]:
 
 
 def remove_single_channel_splits(configs: List[SplitConfig]) -> List[SplitConfig]:
-    filtered = []
-    for config in configs:
-        for v in config.values():
-            if len(v) > 1:
-                continue
-            filtered.append(config)
-    return filtered
-
+    return [
+        config for config in configs
+        if all(len(channel_splits) <= 1 for channel_splits in config.values())
+    ]
 
 def rate_config(
         config: SplitConfig,

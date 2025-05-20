@@ -87,6 +87,12 @@ class TestMppSplit(ElectrumTestCase):
                 # check that the whole amount has been split on this channel
                 self.assertEqual(sum(split.config[(b"0", b"0")]), 1_000_000_000)
 
+        with self.subTest(msg="test exclude single channel splits"):
+            splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_channel_splits=True)
+            for split in splits:
+                for channel_split in split.config.values():
+                    assert len(channel_split) <= 1, split
+
     def test_send_to_single_node(self):
         splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_part_payments=False, exclude_multinode_payments=True)
         for split in splits:
