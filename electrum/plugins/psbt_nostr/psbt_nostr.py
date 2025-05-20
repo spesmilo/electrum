@@ -228,6 +228,8 @@ class CosignerWallet(Logger):
         return self.wallet.diagnostic_name()
 
     def close(self):
+        if not self.network:
+            return
         self.logger.info("shutting down listener")
         asyncio.run_coroutine_threadsafe(self.stop(), self.network.asyncio_loop)
 
