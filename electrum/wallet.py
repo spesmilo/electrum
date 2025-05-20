@@ -3035,7 +3035,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return False
 
     def has_password(self) -> bool:
-        return self.has_keystore_encryption() or self.has_storage_encryption()
+        return self.has_keystore_encryption() or self.has_storage_encryption() #and self.storage.is_encrypted_with_user_pw())
 
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
@@ -3951,6 +3951,22 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_txin_type(self, address=None):
         return self.txin_type
 
+    def enable_keystore(self, keystore, is_hardware_keystore: bool, password):
+        if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
+            keystore.update_password(None, password)
+        self._update_keystore(keystore)
+
+    def disable_keystore(self, keystore):
+        from .keystore import BIP32_KeyStore
+        assert not self.has_channels()
+        if keystore.thread:
+            keystore.thread.stop()
+        if self.storage.is_encrypted_with_hw_device():
+            password = keystore.get_password_for_storage_encryption()
+            self.update_password(password, None, encrypt_storage=False)
+        new = BIP32_KeyStore({'xpub':keystore.xpub})
+        self._update_keystore(new)
+
 
 class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     """ Deterministic Wallet with a single pubkey per address """
@@ -3988,6 +4004,12 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     def add_slip_19_ownership_proofs_to_tx(self, tx: PartialTransaction) -> None:
         tx.add_info_from_wallet(self)
         self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
+
+    def _update_keystore(self, keystore):
+        assert self.keystore.xpub == keystore.xpub
+        self.keystore = keystore
+        self.save_keystore()
+
 
 
 class Multisig_Wallet(Deterministic_Wallet):
@@ -4038,6 +4060,16 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_keystores(self):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
+
+    def _update_keystore(self, keystore):
+        for name, k in self.keystores.items():
+            if k.xpub == keystore.xpub:
+                break
+        else:
+            raise Exception('keystore not found')
+        self.keystores[name] = keystore
+        self.keystore = keystore
+        self.save_keystore()
 
     def can_have_keystore_encryption(self):
         return any([k.may_have_password() for k in self.get_keystores()])

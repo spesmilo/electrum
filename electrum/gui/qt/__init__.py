@@ -495,12 +495,18 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if window.should_stop_wallet_on_close:
             self.daemon.stop_wallet(window.wallet.storage.path)
 
+    def reload_window(self, window):
+        # bump counter so that we do not close the app
+        self._num_wizards_in_progress += 1
+        wallet = window.wallet
+        window.should_stop_wallet_on_close = False
+        window.close()
+        self._create_window_for_wallet(wallet)
+        self._num_wizards_in_progress -= 1
+
     def reload_windows(self):
         for window in list(self.windows):
-            wallet = window.wallet
-            window.should_stop_wallet_on_close = False
-            window.close()
-            self._create_window_for_wallet(wallet)
+            self.reload_window(window)
 
     def ask_terms_of_use(self):
         """Ask the user to accept the terms of use.

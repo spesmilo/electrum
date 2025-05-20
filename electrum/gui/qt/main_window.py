@@ -143,7 +143,7 @@ def protected(func):
         parent = self.top_level_window()
         password = None
         msg = kwargs.get('message')
-        while self.wallet.has_keystore_encryption():
+        while self._protected_requires_password():
             password = self.wallet.get_unlocked_password() or self.password_dialog(parent=parent, msg=msg)
             if password is None:
                 # User cancelled password input
@@ -176,6 +176,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.gui_thread = gui_object.gui_thread
         assert wallet, "no wallet"
         self.wallet = wallet
+        self._protected_requires_password = self.wallet.has_keystore_encryption
         if wallet.has_lightning() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
             self.config.GUI_QT_SHOW_TAB_CHANNELS = True  # override default, but still allow disabling tab manually
 

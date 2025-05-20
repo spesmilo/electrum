@@ -422,7 +422,8 @@ class NewWalletWizard(AbstractWizard):
         if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
             seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
             if data['seed_variant'] == 'electrum':
-                return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=True)
+                for_multisig = wallet_type in ['multisig']
+                return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=for_multisig)
             elif data['seed_variant'] == 'bip39':
                 root_seed = keystore.bip39_to_seed(data['seed'], passphrase=seed_extension)
                 derivation = normalize_bip32_derivation(data['derivation_path'])
@@ -796,6 +797,58 @@ class TermsOfUseWizard(AbstractWizard):
             initial_data = {}
         self.reset()
         start_view = 'terms_of_use'
+        params = self.navmap[start_view].get('params', {})
+        self._current = WizardViewState(start_view, initial_data, params)
+        return self._current
+
+
+class KeystoreWizard(NewWalletWizard):
+
+    _logger = get_logger(__name__)
+
+    def __init__(self, plugins):
+        AbstractWizard.__init__(self)
+        self.plugins = plugins
+        self.navmap = {
+            'keystore_type': {
+                'next': self.on_keystore_type
+            },
+            'enterseed': {
+                'accept': self.update_keystore,
+                'last': True
+            },
+            'choose_hardware_device': {
+                'next': self.on_hardware_device,
+            },
+        }
+
+    def maybe_master_pubkey(self, wizard_data):
+        self.update_keystore(wizard_data)
+
+    def update_keystore(self, wizard_data):
+        wallet_type = wizard_data['wallet_type']
+        keystore = self.keystore_from_data(wallet_type, wizard_data)
+        self._result = keystore, (wizard_data['keystore_type'] == 'hardware')
+
+    def on_keystore_type(self, wizard_data: dict) -> str:
+        t = wizard_data['keystore_type']
+        return {
+            'haveseed': 'enterseed',
+            'hardware': 'choose_hardware_device'
+        }.get(t)
+
+    def is_multisig(self, wizard_data: dict) -> bool:
+        return wizard_data['wallet_type'] == 'multisig'
+
+    def last_cosigner(self, wizard_data: dict) -> bool:
+        # one at a time
+        return True
+
+    def start(self, initial_data: dict = None) -> WizardViewState:
+        if initial_data is None:
+            initial_data = {}
+        self.reset()
+        start_view = 'keystore_type'
         params = self.navmap[start_view].get('params', {})
         self._current = WizardViewState(start_view, initial_data, params)
         return self._current

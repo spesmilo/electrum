@@ -4,20 +4,23 @@
 
 import os
 from typing import TYPE_CHECKING
+from functools import partial
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
-                             QHBoxLayout, QPushButton, QWidget, QStackedWidget)
+from PyQt6.QtWidgets import (
+    QLabel, QVBoxLayout, QGridLayout,
+    QHBoxLayout, QPushButton, QWidget, QTabWidget)
 
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
-from electrum.util import ChoiceItem
 
+from .main_window import protected
+from electrum.gui.qt.wizard.wallet import QEKeystoreWizard
 from .qrtextedit import ShowQRTextEdit
 from .util import (
     read_QIcon, WindowModalDialog, Buttons,
-    WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit, ChoiceWidget,
+    WWLabel, CloseButton, HelpButton, font_height, ShowQRLineEdit
 )
 
 if TYPE_CHECKING:
@@ -29,7 +32,10 @@ class WalletInfoDialog(WindowModalDialog):
     def __init__(self, parent: QWidget, *, window: 'ElectrumWindow'):
         WindowModalDialog.__init__(self, parent, _("Wallet Information"))
         self.setMinimumSize(800, 100)
-        wallet = window.wallet
+        self.window = window
+        self.wallet = wallet = window.wallet
+        # required for @protected decorator
+        self._protected_requires_password = lambda: self.wallet.has_keystore_encryption() or self.wallet.storage.is_encrypted_with_user_pw()
         config = window.config
         vbox = QVBoxLayout()
         wallet_type = wallet.db.get('wallet_type', '')
@@ -107,31 +113,17 @@ class WalletInfoDialog(WindowModalDialog):
         if wallet.is_deterministic():
             keystores = wallet.get_keystores()
 
-            ks_stack = QStackedWidget()
+            self.keystore_tabs = QTabWidget()
 
-            def select_ks(index):
-                ks_stack.setCurrentIndex(index)
-
-            # only show the combobox in case multiple accounts are available
-            if len(keystores) > 1:
-                def label(idx, ks):
-                    if isinstance(wallet, Multisig_Wallet) and hasattr(ks, 'label'):
-                        return _("cosigner") + f' {idx+1}: {ks.get_type_text()} {ks.label}'
-                    else:
-                        return _("keystore") + f' {idx+1}'
-
-                labels = [ChoiceItem(key=idx, label=label(idx, ks))
-                          for idx, ks in enumerate(wallet.get_keystores())]
-
-                keystore_choice = ChoiceWidget(message=_("Select keystore"), choices=labels)
-                keystore_choice.itemSelected.connect(lambda x: select_ks(x))
-                vbox.addWidget(keystore_choice)
-
-            for ks in keystores:
+            for idx, ks in enumerate(keystores):
                 ks_w = QWidget()
                 ks_vbox = QVBoxLayout()
-                ks_vbox.setContentsMargins(0, 0, 0, 0)
                 ks_w.setLayout(ks_vbox)
+
+                status_label = _('This keystore is watching-only (disabled)') if ks.is_watching_only() else _('This keystore is active (enabled)')
+                ks_vbox.addWidget(QLabel(status_label))
+                label = f'{ks.label}' if hasattr(ks, 'label') and ks.label else ''
+                ks_vbox.addWidget(QLabel(_('Type') + ': ' + f'{ks.get_type_text()}' + ' ' + label))
 
                 mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=config)
                 mpk_text.setMaximumHeight(max(150, 10 * font_height()))
@@ -157,18 +149,64 @@ class WalletInfoDialog(WindowModalDialog):
                 bip32fp_hbox.addWidget(bip32fp_text)
                 bip32fp_hbox.addStretch()
                 ks_vbox.addLayout(bip32fp_hbox)
-
-                ks_stack.addWidget(ks_w)
-
-            select_ks(0)
-            vbox.addWidget(ks_stack)
+                ks_buttons = []
+                if not ks.is_watching_only():
+                    rm_keystore_button = QPushButton('Disable keystore')
+                    rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
+                    ks_buttons.insert(0, rm_keystore_button)
+                else:
+                    add_keystore_button = QPushButton('Enable Keystore')
+                    add_keystore_button.clicked.connect(self.enable_keystore)
+                    ks_buttons.insert(0, add_keystore_button)
+                ks_vbox.addLayout(Buttons(*ks_buttons))
+                tab_label = _("Cosigner") + f' {idx+1}' if len(keystores) > 1 else _("Keystore")
+                index = self.keystore_tabs.addTab(ks_w, tab_label)
+                if not ks.is_watching_only():
+                    self.keystore_tabs.setTabIcon(index, read_QIcon('confirmed.svg'))
+            vbox.addWidget(self.keystore_tabs)
 
         vbox.addStretch(1)
+
+        buttons = [CloseButton(self)]
         btn_export_info = run_hook('wallet_info_buttons', window, self)
         if btn_export_info is None:
             btn_export_info = []
+        buttons = btn_export_info + buttons
 
-        btn_close = CloseButton(self)
-        btns = Buttons(*btn_export_info, btn_close)
+        btns = Buttons(*buttons)
         vbox.addLayout(btns)
         self.setLayout(vbox)
+
+    def disable_keystore(self, keystore):
+        if self.wallet.has_channels():
+            self.window.show_message(_('Cannot disable keystore: You have active lightning channels'))
+            return
+
+        msg = _('Disable keystore? This will make the keytore watching-only.')
+        if self.wallet.storage.is_encrypted_with_hw_device():
+            msg += '\n\n' + _('Note that this will disable wallet file encryption, because it uses your hardware wallet device.')
+        if not self.window.question(msg):
+            return
+        self.accept()
+        self.wallet.disable_keystore(keystore)
+        self.window.gui_object.reload_windows()
+
+    def enable_keystore(self, b: bool):
+        dialog = QEKeystoreWizard(self.window.config, self.window.wallet.wallet_type, self.window.gui_object.app, self.window.gui_object.plugins)
+        result = dialog.run()
+        if not result:
+            return
+        keystore, is_hardware = result
+        for k in self.wallet.get_keystores():
+            if k.xpub == keystore.xpub:
+                break
+        else:
+            self.window.show_error(_('Keystore not found in this wallet'))
+            return
+        self._enable_keystore(keystore, is_hardware)
+
+    @protected
+    def _enable_keystore(self, keystore, is_hardware, password):
+        self.accept()
+        self.wallet.enable_keystore(keystore, is_hardware, password)
+        self.window.gui_object.reload_windows()
