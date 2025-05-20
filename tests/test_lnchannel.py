@@ -738,24 +738,31 @@ class TestAvailableToSpend(ElectrumTestCase):
             local_max_inflight=1000000000,
             remote_max_inflight=2000000000)
 
+        # alice can send 20 but bob can only receive 10, because of stricter receiving rules
         self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, bob_channel.available_to_spend(REMOTE))
+
+        # bob can send 10, alice can receive 10
         self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
         paymentPreimage1 = b"\x01" * 32
         htlc = UpdateAddHtlc(
             payment_hash=bitcoin.sha256(paymentPreimage1),
-            amount_msat=1500000000,
+            amount_msat=1000000000,
             cltv_abs=5,
             timestamp=0,
         )
-
-        # put 15mBTC inflight a->b
+        # put 10mBTC inflight a->b
         alice_idx1 = alice_channel.add_htlc(htlc).htlc_id
         bob_idx1 = bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
 
-        self.assertEqual(500000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(0, bob_channel.available_to_spend(REMOTE))
+
         self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
         paymentPreimage2 = b"\x02" * 32
         htlc2 = UpdateAddHtlc(
@@ -764,7 +771,6 @@ class TestAvailableToSpend(ElectrumTestCase):
             cltv_abs=5,
             timestamp=0,
         )
-
         # try to add another 15mBTC HTLC while 15mBTC already inflight
         with self.assertRaises(lnutil.PaymentFailure):
             alice_idx2 = alice_channel.add_htlc(htlc2).htlc_id
@@ -775,7 +781,10 @@ class TestAvailableToSpend(ElectrumTestCase):
         force_state_transition(alice_channel, bob_channel)
 
         self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+
         self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
 
 class TestAvailableToSpendAnchors(TestAvailableToSpend):

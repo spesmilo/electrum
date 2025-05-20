@@ -1150,7 +1150,15 @@ class Channel(AbstractChannel):
         # check "max_htlc_value_in_flight_msat"
         ctn = self.get_next_ctn(htlc_receiver)
         current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn).values())
-        return self.config[htlc_receiver].max_htlc_value_in_flight_msat - current_htlc_sum
+        max_inflight = self.config[htlc_receiver].max_htlc_value_in_flight_msat
+        if htlc_receiver == LOCAL:
+            # in order to send, eclair applies both local and remote max values
+            # https://github.com/ACINQ/eclair/blob/9b0c00a2a28d3ba6c7f3d01fbd2d8704ebbdc75d/eclair-core/src/main/scala/fr/acinq/eclair/channel/Commitments.scala#L503
+            max_inflight = min(
+                self.config[LOCAL].max_htlc_value_in_flight_msat,
+                self.config[REMOTE].max_htlc_value_in_flight_msat
+            )
+        return max_inflight - current_htlc_sum
 
     def can_pay(self, amount_msat: int, *, check_frozen=False) -> bool:
         """Returns whether we can add an HTLC of given value."""
