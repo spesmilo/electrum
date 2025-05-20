@@ -1941,7 +1941,7 @@ class LNWallet(LNWorker):
             exclude_multinode_payments = is_legacy
             # we don't split within a channel when sending to a trampoline node,
             # the trampoline node will split for us
-            exclude_single_channel_splits = True
+            exclude_single_channel_splits = not self.config.TEST_FORCE_MPP
         else:
             exclude_multinode_payments = False
             exclude_single_channel_splits = False
