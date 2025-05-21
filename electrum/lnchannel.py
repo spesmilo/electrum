@@ -1054,18 +1054,21 @@ class Channel(AbstractChannel):
     def set_can_send_ctx_updates(self, b: bool) -> None:
         self._can_send_ctx_updates = b
 
-    def can_send_ctx_updates(self) -> bool:
-        """Whether we can send update_fee, update_*_htlc changes to the remote."""
+    def can_update_ctx(self, *, proposer: HTLCOwner) -> bool:
+        """Whether proposer is allowed to send commitment_signed, revoke_and_ack,
+        and update_* messages.
+        """
         if self.get_state() not in (ChannelState.OPEN, ChannelState.SHUTDOWN):
             return False
         if self.peer_state != PeerState.GOOD:
             return False
-        if not self._can_send_ctx_updates:
-            return False
+        if proposer == LOCAL:
+            if not self._can_send_ctx_updates:
+                return False
         return True
 
     def can_send_update_add_htlc(self) -> bool:
-        return self.can_send_ctx_updates() and self.is_open()
+        return self.can_update_ctx(proposer=LOCAL) and self.is_open()
 
     def is_frozen_for_sending(self) -> bool:
         if self.lnworker and self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
@@ -1096,10 +1099,10 @@ class Channel(AbstractChannel):
         ctn = self.get_next_ctn(htlc_receiver)
         chan_config = self.config[htlc_receiver]
         if self.get_state() != ChannelState.OPEN:
-            raise PaymentFailure('Channel not open', self.get_state())
+            raise PaymentFailure(f"Channel not open. {self.get_state()!r}")
+        if not self.can_update_ctx(proposer=htlc_proposer):
+            raise PaymentFailure(f"cannot update channel. {self.get_state()!r} {self.peer_state!r}")
         if htlc_proposer == LOCAL:
-            if not self.can_send_ctx_updates():
-                raise PaymentFailure('Channel cannot send ctx updates')
             if not self.can_send_update_add_htlc():
                 raise PaymentFailure('Channel cannot add htlc')
 
@@ -1239,6 +1242,7 @@ class Channel(AbstractChannel):
         # TODO: when more channel types are supported, this method should depend on channel type
         next_remote_ctn = self.get_next_ctn(REMOTE)
         self.logger.info(f"sign_next_commitment. ctn={next_remote_ctn}")
+        assert not self.is_closed(), self.get_state()
 
         pending_remote_commitment = self.get_next_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
@@ -1286,6 +1290,7 @@ class Channel(AbstractChannel):
         # TODO: when more channel types are supported, this method should depend on channel type
         next_local_ctn = self.get_next_ctn(LOCAL)
         self.logger.info(f"receive_new_commitment. ctn={next_local_ctn}, len(htlc_sigs)={len(htlc_sigs)}")
+        assert not self.is_closed(), self.get_state()
 
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
@@ -1364,6 +1369,7 @@ class Channel(AbstractChannel):
 
     def revoke_current_commitment(self):
         self.logger.info("revoke_current_commitment")
+        assert not self.is_closed(), self.get_state()
         new_ctn = self.get_latest_ctn(LOCAL)
         new_ctx = self.get_latest_commitment(LOCAL)
         if not self.signature_fits(new_ctx):
@@ -1377,6 +1383,7 @@ class Channel(AbstractChannel):
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
+        assert not self.is_closed(), self.get_state()
         new_ctn = self.get_latest_ctn(REMOTE)
         cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -1689,7 +1696,7 @@ class Channel(AbstractChannel):
         Action must be initiated by LOCAL.
         """
         self.logger.info("settle_htlc")
-        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
+        assert self.can_update_ctx(proposer=LOCAL), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(REMOTE, htlc_id)
         if htlc.payment_hash != sha256(preimage):
             raise Exception("incorrect preimage for HTLC")
@@ -1706,6 +1713,7 @@ class Channel(AbstractChannel):
         Action must be initiated by REMOTE.
         """
         self.logger.info("receive_htlc_settle")
+        assert self.can_update_ctx(proposer=REMOTE), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         if htlc.payment_hash != sha256(preimage):
             raise RemoteMisbehaving("received incorrect preimage for HTLC")
@@ -1718,7 +1726,7 @@ class Channel(AbstractChannel):
         Action must be initiated by LOCAL.
         """
         self.logger.info("fail_htlc")
-        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
+        assert self.can_update_ctx(proposer=LOCAL), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         with self.db_lock:
             self.hm.send_fail(htlc_id)
 
@@ -1729,6 +1737,7 @@ class Channel(AbstractChannel):
         Action must be initiated by REMOTE.
         """
         self.logger.info("receive_fail_htlc")
+        assert self.can_update_ctx(proposer=REMOTE), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         with self.db_lock:
             self.hm.recv_fail(htlc_id)
         self._receive_fail_reasons[htlc_id] = (error_bytes, reason)
@@ -1762,9 +1771,9 @@ class Channel(AbstractChannel):
         if remainder < 0:
             raise Exception(f"Cannot update_fee. {sender} tried to update fee but they cannot afford it. "
                             f"Their balance would go below reserve: {remainder} msat missing.")
+        assert self.can_update_ctx(proposer=LOCAL if from_us else REMOTE), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}. {from_us=}"
         with self.db_lock:
             if from_us:
-                assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
                 self.hm.send_update_fee(feerate)
             else:
                 self.hm.recv_update_fee(feerate)
