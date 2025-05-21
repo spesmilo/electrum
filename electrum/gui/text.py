@@ -560,7 +560,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.str_fee = ''
         self.str_description = ''
 
-    def do_create_request(self, lightning:bool):
+    def do_create_request(self, lightning: bool):
         amount_sat = self.parse_amount(self.str_recv_amount) or 0
         if not lightning:
             if amount_sat and amount_sat < self.wallet.dust_threshold():
@@ -568,7 +568,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 return
             address = self.wallet.get_unused_address()
             if not address:
-                self.show_message(_('Nor more unused sddress'))
+                self.show_message(_('No more unused address'))
                 return
         else:
             if not self.wallet.has_lightning():
