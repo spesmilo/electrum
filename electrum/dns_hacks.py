@@ -14,6 +14,7 @@ import dns.asyncresolver
 
 from .logging import get_logger
 from .util import get_asyncio_loop
+from . import util
 
 _logger = get_logger(__name__)
 
@@ -63,6 +64,7 @@ def _fast_getaddrinfo(host, *args, **kwargs):
         expected_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
                            concurrent.futures.CancelledError, concurrent.futures.TimeoutError)
         loop = get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
         ipv6_fut = asyncio.run_coroutine_threadsafe(
             dns.asyncresolver.resolve(host, dns.rdatatype.AAAA),
             loop,
