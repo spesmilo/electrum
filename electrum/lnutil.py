@@ -154,7 +154,7 @@ class ChannelConfig(StoredObject):
             raise Exception(f"{conf_name}. max_accepted_htlcs too high: {self.max_accepted_htlcs}")
         if self.to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
             raise Exception(f"{conf_name}. to_self_delay too high: {self.to_self_delay} > {MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED}")
-        if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 100_000_000):
+        if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 90_000_000):
             raise Exception(f"{conf_name}. max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
 
     @classmethod
