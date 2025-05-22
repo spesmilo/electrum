@@ -325,6 +325,13 @@ class TestUtil(ElectrumTestCase):
         self.assertTrue(is_private_netaddress("[::1]"))
         self.assertTrue(is_private_netaddress("localhost"))
         self.assertTrue(is_private_netaddress("localhost."))
+        self.assertTrue(is_private_netaddress("192.168.1.1"))  # RFC1918
+        self.assertTrue(is_private_netaddress("10.10.10.10"))  # RFC1918
+        self.assertTrue(is_private_netaddress("172.16.0.1"))   # RFC1918
+        self.assertTrue(is_private_netaddress("172.31.255.254"))  # RFC1918
+        self.assertTrue(is_private_netaddress("::ffff:ac10:0001"))  # RFC1918 IPv4 in IPv6
+        self.assertTrue(is_private_netaddress("[::ffff:c0a8:0001]"))  # RFC1918 IPv4 in IPv6
+        self.assertTrue(is_private_netaddress("fe80::0001"))  # IPv6 link-local
         self.assertFalse(is_private_netaddress("[::2]"))
         self.assertFalse(is_private_netaddress("2a00:1450:400e:80d::200e"))
         self.assertFalse(is_private_netaddress("[2a00:1450:400e:80d::200e]"))
