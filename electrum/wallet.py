@@ -401,7 +401,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for addr in self.get_addresses():
             self.adb.add_address(addr)
         self.lock = self.adb.lock
-        self.transaction_lock = self.adb.transaction_lock
         self._last_full_history = None
         self._tx_parents_cache = {}
         self._default_labels = {}
@@ -568,7 +567,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return is_mine
 
     def clear_tx_parents_cache(self):
-        with self.lock, self.transaction_lock:
+        with self.lock:
             self._tx_parents_cache.clear()
             self._num_parents.clear()
             self._last_full_history = None
@@ -877,7 +876,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         is_relevant = False  # "related to wallet?"
         num_input_ismine = 0
         v_in = v_in_mine = v_out = v_out_mine = 0
-        with self.lock, self.transaction_lock:
+        with self.lock:
             for txin in tx.inputs():
                 addr = self.adb.get_txin_address(txin)
                 value = self.adb.get_txin_value(txin, address=addr)
@@ -1015,7 +1014,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         returns a flat dict:
         txid -> list of parent txids
         """
-        with self.lock, self.transaction_lock:
+        with self.lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_onchain_history()
                 # populate cache in chronological order (confirmed tx only)
@@ -1252,7 +1251,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
                 _logger.info("saving invoice... but it is already paid!")
-            with self.transaction_lock:
+            with self.lock:
                 for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
@@ -1362,7 +1361,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         relevant_txs = set()
         is_paid = True
         conf_needed = None  # type: Optional[int]
-        with self.lock, self.transaction_lock:
+        with self.lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
                 scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey)
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
@@ -2879,7 +2878,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_invoices_and_requests_touched_by_tx(self, tx):
         request_keys = set()
         invoice_keys = set()
-        with self.lock, self.transaction_lock:
+        with self.lock:
             for txo in tx.outputs():
                 addr = txo.address
                 if request := self.get_request_by_addr(addr):
