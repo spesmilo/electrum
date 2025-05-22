@@ -338,15 +338,15 @@ class Plugins(DaemonThread):
         Executes the given commands in a subprocess and asserts that it was successful.
         """
         import subprocess
-        process = subprocess.Popen(
+        with subprocess.Popen(
             commands,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
-        )
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            raise Exception(f'error executing command ({process.returncode}): {stderr}')
+            text=True,
+        ) as process:
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                raise Exception(f'error executing command ({process.returncode}): {stderr}')
 
     def _write_key_to_root_file_linux(self, key_hex: str) -> None:
         """
