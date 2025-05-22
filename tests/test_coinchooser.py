@@ -1,7 +1,7 @@
 from electrum.coinchooser import CoinChooserPrivacy
 from electrum.util import NotEnoughFunds
 from electrum.transaction import PartialTxInput, TxOutpoint, Transaction, PartialTxOutput
-from electrum.fee_policy import FeePolicy, FixedFeePolicy
+from electrum.fee_policy import FeePolicy, FixedFeePolicy, FEERATE_FALLBACK_STATIC_FEE, FixedFeeRatePolicy
 from functools import partial
 from typing import Optional
 
@@ -48,7 +48,8 @@ class TestCoinChooser(ElectrumTestCase):
 
     def test_make_tx_no_outputs_adds_change(self):
         coin_chooser = CoinChooserPrivacy(enable_output_value_rounding=False)
-        fee_estimator = partial(FeePolicy('eta:2').estimate_fee, allow_fallback_to_static_rates=True)
+        static_rates_fallback_policy = FixedFeeRatePolicy(FEERATE_FALLBACK_STATIC_FEE)
+        fee_estimator = partial(FeePolicy('eta:2', fallback_feepolicy=static_rates_fallback_policy).estimate_fee)
 
         # dummy input with value of 330 sat
         prevout_txid = bytes.fromhex("81d0b29f08c6256dcfbaf02ff1f1e756461cb1df550672e049af7429331c643f")

@@ -37,7 +37,7 @@ from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .i18n import _
-from .fee_policy import FeePolicy
+from .fee_policy import FeePolicy, FixedFeeRatePolicy, FEERATE_FALLBACK_STATIC_FEE
 
 from .bitcoin import construct_script
 from .crypto import ripemd
@@ -473,8 +473,8 @@ class SwapManager(Logger):
         return self._get_tx_fee(self.config.FEE_POLICY_SWAPS)
 
     def _get_tx_fee(self, policy_descriptor: str):
-        fee_policy = FeePolicy(policy_descriptor)
-        return fee_policy.estimate_fee(SWAP_TX_SIZE, network=self.network, allow_fallback_to_static_rates=True)
+        fee_policy = FeePolicy(policy_descriptor, fallback_feepolicy=FixedFeeRatePolicy(FEERATE_FALLBACK_STATIC_FEE))
+        return fee_policy.estimate_fee(SWAP_TX_SIZE, network=self.network)
 
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
