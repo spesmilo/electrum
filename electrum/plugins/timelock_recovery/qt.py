@@ -226,6 +226,7 @@ class Plugin(TimelockRecoveryPlugin):
                 view_recovery_tx_button.setEnabled(False)
                 view_cancellation_tx_button.setEnabled(False)
                 next_button.setEnabled(False)
+                next_button.setToolTip("")
                 return
             try:
                 context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
@@ -247,13 +248,20 @@ class Plugin(TimelockRecoveryPlugin):
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Not enough funds to create the transactions.")
                 next_button.setEnabled(False)
+                next_button.setToolTip("")
                 return
             view_alert_tx_button.setEnabled(True)
             view_recovery_tx_button.setEnabled(True)
             view_cancellation_tx_button.setEnabled(True)
             payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
             payto_e.setToolTip("")
+            if context.main_window.wallet.is_watching_only():
+                if not context.alert_tx.is_complete() or not context.recovery_tx.is_complete() or (context.cancellation_tx is not None and not context.cancellation_tx.is_complete()):
+                    next_button.setEnabled(False)
+                    next_button.setToolTip(_("This is a watching-only wallet. You must sign the transactions externally - use the View button of each transaction."))
+                    return
             next_button.setEnabled(True)
+            next_button.setToolTip("")
 
 
         payto_e.paymentIdentifierChanged.connect(update_transactions)
