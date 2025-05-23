@@ -2288,9 +2288,10 @@ class OnchainHistoryItem(NamedTuple):
             'group_id': self.group_id,
         }
 
+
 class LightningHistoryItem(NamedTuple):
-    payment_hash: str
-    preimage: str
+    payment_hash: Optional[str]
+    preimage: Optional[str]
     amount_msat: int
     fee_msat: Optional[int]
     type: str

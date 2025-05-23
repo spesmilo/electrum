@@ -35,16 +35,17 @@ from . import constants, util
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
-    make_aiohttp_session, timestamp_to_datetime, random_shuffled_copy, is_private_netaddress,
+    make_aiohttp_session, random_shuffled_copy, is_private_netaddress,
     UnrelatedTransactionException, LightningHistoryItem
 )
-from .fee_policy import FeePolicy, FixedFeePolicy
-from .fee_policy import (FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
-                         FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET)
+from .fee_policy import (
+    FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
+    FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET
+)
 from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
 from .bip32 import BIP32Node
-from .address_synchronizer import TX_HEIGHT_LOCAL, TX_TIMESTAMP_INF
+from .address_synchronizer import TX_HEIGHT_LOCAL
 from .transaction import (
     Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
 )
@@ -53,7 +54,10 @@ from .crypto import (
 )
 
 from .onion_message import OnionMessageManager
-from .lntransport import LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid, ConnStringFormatError
+from .lntransport import (
+    LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid,
+    ConnStringFormatError
+)
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .lnchannel import Channel, AbstractChannel, ChannelState, PeerState, HTLCWithStatus, ChannelBackup
@@ -844,7 +848,7 @@ class LNWallet(LNWorker):
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
-        self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
+        self.payment_info = self.db.get_dict('lightning_payments')  # RHASH -> amount, direction, is_paid
         self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -915,7 +919,7 @@ class LNWallet(LNWorker):
     def has_anchor_channels(self) -> bool:
         """Returns True if any active channel is an anchor channel."""
         return any(chan.has_anchors() and not chan.is_redeemed()
-                    for chan in self.channels.values())
+                   for chan in self.channels.values())
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
@@ -989,7 +993,7 @@ class LNWallet(LNWorker):
 
         for coro in [
                 self.maybe_listen(),
-                self.lnwatcher.trigger_callbacks(), # shortcut (don't block) if funding tx locked and verified
+                self.lnwatcher.trigger_callbacks(),  # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
                 self.sync_with_remote_watchtower(),
         ]:
@@ -1044,7 +1048,8 @@ class LNWallet(LNWorker):
 
     def get_payment_value(
             self, info: Optional['PaymentInfo'],
-            plist: List[HTLCWithStatus]) -> Tuple[PaymentDirection, int, Optional[int], int]:
+            plist: List[HTLCWithStatus]
+    ) -> Tuple[PaymentDirection, int, Optional[int], int]:
         """ fee_msat is included in amount_msat"""
         assert plist
         amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
@@ -1085,13 +1090,13 @@ class LNWallet(LNWorker):
             preimage = self.get_preimage(payment_hash).hex()
             group_id = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
             item = LightningHistoryItem(
-                type = 'payment',
-                payment_hash = payment_hash.hex(),
-                preimage = preimage,
-                amount_msat = amount_msat,
-                fee_msat = fee_msat,
-                group_id = group_id,
-                timestamp = timestamp or 0,
+                type='payment',
+                payment_hash=payment_hash.hex(),
+                preimage=preimage,
+                amount_msat=amount_msat,
+                fee_msat=fee_msat,
+                group_id=group_id,
+                timestamp=timestamp or 0,
                 label=label,
                 direction=direction,
             )
@@ -1105,14 +1110,14 @@ class LNWallet(LNWorker):
             self.wallet.set_default_label(funding_txid, label)
             self.wallet.set_group_label(funding_txid, label)
             item = LightningHistoryItem(
-                type = 'channel_opening',
-                label = label,
-                group_id = funding_txid,
-                timestamp = funding_timestamp,
-                amount_msat = chan.balance(LOCAL, ctn=0),
-                fee_msat = None,
-                payment_hash = None,
-                preimage = None,
+                type='channel_opening',
+                label=label,
+                group_id=funding_txid,
+                timestamp=funding_timestamp,
+                amount_msat=chan.balance(LOCAL, ctn=0),
+                fee_msat=None,
+                payment_hash=None,
+                preimage=None,
                 direction=None,
             )
             out[funding_txid] = item
@@ -1124,14 +1129,14 @@ class LNWallet(LNWorker):
             self.wallet.set_default_label(closing_txid, label)
             self.wallet.set_group_label(closing_txid, label)
             item = LightningHistoryItem(
-                type = 'channel_closing',
-                label = label,
-                group_id = closing_txid,
-                timestamp = closing_timestamp,
-                amount_msat = -chan.balance(LOCAL),
-                fee_msat = None,
-                payment_hash = None,
-                preimage = None,
+                type='channel_closing',
+                label=label,
+                group_id=closing_txid,
+                timestamp=closing_timestamp,
+                amount_msat=-chan.balance(LOCAL),
+                fee_msat=None,
+                payment_hash=None,
+                preimage=None,
                 direction=None,
             )
             out[closing_txid] = item
@@ -1139,7 +1144,7 @@ class LNWallet(LNWorker):
         # sanity check
         balance_msat = sum([x.amount_msat for x in out.values()])
         lb = sum(chan.balance(LOCAL) if not chan.is_closed_or_closing() else 0
-                for chan in self.channels.values())
+                 for chan in self.channels.values())
         if balance_msat != lb:
             # this typically happens when a channel is recently force closed
             self.logger.info(f'get_lightning_history: balance mismatch {balance_msat - lb}')
@@ -1447,14 +1452,16 @@ class LNWallet(LNWorker):
             return
         fee_policy = FeePolicy(f'feerate:{FEERATE_FALLBACK_STATIC_FEE}')
         try:
-            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
+            self.mktx_for_open_channel(
+                coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
             funding_sat = min_funding_sat
         except NotEnoughFunds:
             return
         # if available, suggest twice that amount:
         if 2 * min_funding_sat <= self.config.LIGHTNING_MAX_FUNDING_SAT:
             try:
-                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
+                self.mktx_for_open_channel(
+                    coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_policy=fee_policy)
                 funding_sat = 2 * min_funding_sat
             except NotEnoughFunds:
                 pass
@@ -1906,7 +1913,7 @@ class LNWallet(LNWorker):
         peer = self._peers.get(node_id)
         if not peer:
             return False
-        return (peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)\
+        return (peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)
                 or peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM))
 
     def suggest_peer(self) -> Optional[bytes]:
@@ -2804,8 +2811,8 @@ class LNWallet(LNWorker):
         if (self.can_get_zeroconf_channel()
                 # we cannot receive the amount specified
                 and ((amount_msat and self.num_sats_can_receive() < (amount_msat // 1000))
-                    # or we cannot receive anything, and it's a 0 amount invoice
-                    or (not amount_msat and self.num_sats_can_receive() < 1))):
+                        # or we cannot receive anything, and it's a 0 amount invoice
+                        or (not amount_msat and self.num_sats_can_receive() < 1))):
             return True
         return False
 
@@ -2838,7 +2845,7 @@ class LNWallet(LNWorker):
                 delta += delta // 100 + 1
                 if func(deltas={chan:delta}) >= amount_sat:
                     suggestions.append((chan, delta))
-                elif direction==RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
+                elif direction == RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
                     # MPP heuristics has a 0.5 slope
                     suggestions.append((chan, 2*delta))
         if not suggestions:
@@ -2867,10 +2874,10 @@ class LNWallet(LNWorker):
                     continue
                 if direction == SENT:
                     if chan1.can_pay(delta*1000):
-                        return (chan1, chan2, delta)
+                        return chan1, chan2, delta
                 else:
                     if chan1.can_receive(delta*1000):
-                        return (chan2, chan1, delta)
+                        return chan2, chan1, delta
             else:
                 continue
         else:
@@ -3079,19 +3086,19 @@ class LNWallet(LNWorker):
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0]
         return ImportedChannelBackupStorage(
-            node_id = chan.node_id,
-            privkey = self.node_keypair.privkey,
-            funding_txid = chan.funding_outpoint.txid,
-            funding_index = chan.funding_outpoint.output_index,
-            funding_address = chan.get_funding_address(),
-            host = peer_addr.host,
-            port = peer_addr.port,
-            is_initiator = chan.constraints.is_initiator,
-            channel_seed = chan.config[LOCAL].channel_seed,
-            local_delay = chan.config[LOCAL].to_self_delay,
-            remote_delay = chan.config[REMOTE].to_self_delay,
-            remote_revocation_pubkey = chan.config[REMOTE].revocation_basepoint.pubkey,
-            remote_payment_pubkey = chan.config[REMOTE].payment_basepoint.pubkey,
+            node_id=chan.node_id,
+            privkey=self.node_keypair.privkey,
+            funding_txid=chan.funding_outpoint.txid,
+            funding_index=chan.funding_outpoint.output_index,
+            funding_address=chan.get_funding_address(),
+            host=peer_addr.host,
+            port=peer_addr.port,
+            is_initiator=chan.constraints.is_initiator,
+            channel_seed=chan.config[LOCAL].channel_seed,
+            local_delay=chan.config[LOCAL].to_self_delay,
+            remote_delay=chan.config[REMOTE].to_self_delay,
+            remote_revocation_pubkey=chan.config[REMOTE].revocation_basepoint.pubkey,
+            remote_payment_pubkey=chan.config[REMOTE].payment_basepoint.pubkey,
             local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
             multisig_funding_privkey=chan.config[LOCAL].multisig_key.privkey,
         )
@@ -3234,11 +3241,11 @@ class LNWallet(LNWorker):
             return
         funding_txid = tx.txid()
         cb_storage = OnchainChannelBackupStorage(
-            node_id_prefix = node_id_prefix,
-            funding_txid = funding_txid,
-            funding_index = funding_index,
-            funding_address = funding_address,
-            is_initiator = True)
+            node_id_prefix=node_id_prefix,
+            funding_txid=funding_txid,
+            funding_index=funding_index,
+            funding_address=funding_address,
+            is_initiator=True)
         channel_id = cb_storage.channel_id().hex()
         if channel_id in self.db.get_dict("channels"):
             return
@@ -3254,9 +3261,12 @@ class LNWallet(LNWorker):
         self.lnwatcher.add_channel(cb)
 
     def save_forwarding_failure(
-            self, payment_key:str, *,
+            self,
+            payment_key: str,
+            *,
             error_bytes: Optional[bytes] = None,
-            failure_message: Optional['OnionRoutingFailure'] = None):
+            failure_message: Optional['OnionRoutingFailure'] = None
+    ) -> None:
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
         self.forwarding_failures[payment_key] = (error_hex, failure_hex)
