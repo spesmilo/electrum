@@ -565,10 +565,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             if p2pkhTransaction:
                 tx_copy = copy.deepcopy(tx)
                 # monkey-patch method of tx_copy instance to change serialization
-                def input_script(self, txin: PartialTxInput, *, estimate_size=False):
+                def input_script(self, txin: PartialTxInput, *, estimate_size=False) -> bytes:
                     desc = txin.script_descriptor
                     if isinstance(desc, descriptor.PKHDescriptor):
-                        return Transaction.get_preimage_script(txin)
+                        return txin.get_scriptcode_for_sighash()
                     raise Exception(f"unsupported txin type. only p2pkh is supported. got: {desc.to_string()[:10]}")
                 tx_copy.input_script = input_script.__get__(tx_copy, PartialTransaction)
                 tx_dbb_serialized = tx_copy.serialize_to_network()
