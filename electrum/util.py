@@ -481,18 +481,29 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     """Function decorator that logs execution time.
 
     min_threshold: if set, only log if time taken is higher than threshold
-    NOTE: does not work with async methods.
     """
     if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
-    def do_profile(*args, **kw_args):
-        name = func.__qualname__
+    t0 = None  # type: Optional[float]
+    def timer_start():
+        nonlocal t0
         t0 = time.time()
-        o = func(*args, **kw_args)
+    def timer_done():
         t = time.time() - t0
         if min_threshold is None or t > min_threshold:
-            _profiler_logger.debug(f"{name} {t:,.4f} sec")
-        return o
+            _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
+    if asyncio.iscoroutinefunction(func):
+        async def do_profile(*args, **kw_args):
+            timer_start()
+            o = await func(*args, **kw_args)
+            timer_done()
+            return o
+    else:
+        def do_profile(*args, **kw_args):
+            timer_start()
+            o = func(*args, **kw_args)
+            timer_done()
+            return o
     return do_profile
 
 
