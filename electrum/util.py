@@ -1159,13 +1159,21 @@ def os_chmod(path, mode):
             raise
 
 
-def make_dir(path, allow_symlink=True):
-    """Make directory if it does not yet exist."""
+def make_dir(path, *, allow_symlink=True):
+    """Makes directory if it does not yet exist.
+    Also sets sane 0700 permissions on the dir.
+    """
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
-        os.mkdir(path)
+        try:
+            os.mkdir(path)
+        except FileExistsError:
+            # this can happen in a multiprocess race, e.g. when an electrum daemon
+            # and an electrum cli command are launched in rapid fire
+            pass
         os_chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        assert os.path.exists(path)
 
 
 def is_subpath(long_path: str, short_path: str) -> bool:
