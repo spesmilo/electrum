@@ -46,7 +46,7 @@ from electrum_ecc import ECPrivkey, ECPubkey
 from ._vendor.distutils.version import StrictVersion
 from .version import ELECTRUM_VERSION
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem, make_dir)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
@@ -485,8 +485,7 @@ class Plugins(DaemonThread):
 
     def get_external_plugin_dir(self) -> str:
         pkg_path = os.path.join(self.config.electrum_path(), 'plugins')
-        if not os.path.exists(pkg_path):
-            os.mkdir(pkg_path)
+        make_dir(pkg_path)
         return pkg_path
 
     async def download_external_plugin(self, url: str) -> str:
