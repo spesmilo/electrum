@@ -179,11 +179,11 @@ class Plugin(TimelockRecoveryPlugin):
 
         fee_policy = FeePolicy(context.main_window.config.FEE_POLICY)
         create_cancel_cb = QCheckBox('', checked=False)
-        alert_tx_label = QLabel('')
+        alert_tx_fee_label = QLabel('')
         alert_tx_complete_label = QLabel('')
-        recovery_tx_label = QLabel('')
+        recovery_tx_fee_label = QLabel('')
         recovery_tx_complete_label = QLabel('')
-        cancellation_tx_label = QLabel('')
+        cancellation_tx_fee_label = QLabel('')
         cancellation_tx_complete_label = QLabel('')
 
         if not context.get_alert_address():
@@ -238,32 +238,32 @@ class Plugin(TimelockRecoveryPlugin):
                     context.alert_tx = new_alert_tx
                 alert_tx_complete_label.setText(_("✓ Signed" if context.alert_tx.is_complete() else ""))
                 assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
-                alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
+                alert_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
                 new_recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
                 if not context.recovery_tx or context.recovery_tx.txid() != new_recovery_tx.txid():
                     context.recovery_tx = new_recovery_tx
                 recovery_tx_complete_label.setText(_("✓ Signed" if context.recovery_tx.is_complete() else ""))
                 assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
-                recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
+                recovery_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
                 if create_cancel_cb.isChecked():
                     new_cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
                     if not context.cancellation_tx or context.cancellation_tx.txid() != new_cancellation_tx.txid():
                         context.cancellation_tx = new_cancellation_tx
                     assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
-                    cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
+                    cancellation_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
                 else:
                     context.cancellation_tx = None
                 cancellation_tx_complete_label.setText(_("✓ Signed" if context.cancellation_tx is not None and context.cancellation_tx.is_complete() else ""))
             except NotEnoughFunds:
                 view_alert_tx_button.setEnabled(False)
                 alert_tx_complete_label.setText("")
-                alert_tx_label.setText("")
+                alert_tx_fee_label.setText("")
                 view_recovery_tx_button.setEnabled(False)
                 recovery_tx_complete_label.setText("")
-                recovery_tx_label.setText("")
+                recovery_tx_fee_label.setText("")
                 view_cancellation_tx_button.setEnabled(False)
                 cancellation_tx_complete_label.setText("")
-                cancellation_tx_label.setText("")
+                cancellation_tx_fee_label.setText("")
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Not enough funds to create the transactions.")
                 next_button.setEnabled(False)
@@ -341,7 +341,7 @@ class Plugin(TimelockRecoveryPlugin):
         grid_row += 1
 
         plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
-        plan_grid.addWidget(alert_tx_label, grid_row, 1, 1, 2)
+        plan_grid.addWidget(alert_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(alert_tx_complete_label, grid_row, 3)
         view_alert_tx_button = QPushButton(_('View'))
         view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_sign_button=False, show_broadcast_button=False))
@@ -349,7 +349,7 @@ class Plugin(TimelockRecoveryPlugin):
         grid_row += 1
 
         plan_grid.addWidget(QLabel('Recovery transaction'), grid_row, 0)
-        plan_grid.addWidget(recovery_tx_label, grid_row, 1, 1, 2)
+        plan_grid.addWidget(recovery_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(recovery_tx_complete_label, grid_row, 3)
         view_recovery_tx_button = QPushButton(_('View'))
         view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_sign_button=False, show_broadcast_button=False))
@@ -358,7 +358,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         cancellation_label = QLabel('Cancellation transaction')
         plan_grid.addWidget(cancellation_label, grid_row, 0)
-        plan_grid.addWidget(cancellation_tx_label, grid_row, 1, 1, 3)
+        plan_grid.addWidget(cancellation_tx_fee_label, grid_row, 1, 1, 3)
         plan_grid.addWidget(cancellation_tx_complete_label, grid_row, 3)
         view_cancellation_tx_button = QPushButton(_('View'))
         view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_sign_button=False, show_broadcast_button=False))
@@ -371,7 +371,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         def on_cb_change(x):
             cancellation_label.setVisible(x)
-            cancellation_tx_label.setVisible(x)
+            cancellation_tx_fee_label.setVisible(x)
             view_cancellation_tx_button.setVisible(x)
             update_transactions()
         create_cancel_cb.stateChanged.connect(on_cb_change)
