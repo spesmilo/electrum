@@ -414,11 +414,20 @@ class Plugin(TimelockRecoveryPlugin):
         password = main_window.get_password()
 
         def task():
-            wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+            if not context.alert_tx.is_complete():
+                wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+            if not context.alert_tx.is_complete():
+                raise Exception(_("Alert transaction signing was not completed"))
             context.add_input_info()
-            wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
+            if not context.recovery_tx.is_complete():
+                wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
+            if not context.recovery_tx.is_complete():
+                raise Exception(_("Recovery transaction signing was not completed"))
             if context.cancellation_tx is not None:
-                wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
+                if not context.cancellation_tx.is_complete():
+                    wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
+                if not context.cancellation_tx.is_complete():
+                    raise Exception(_("Cancellation transaction signing was not completed"))
 
         def on_success(result):
             self.create_download_dialog(context)
