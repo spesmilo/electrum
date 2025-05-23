@@ -644,9 +644,11 @@ class NewWalletWizard(AbstractWizard):
                 k.update_password(None, data['password'])
 
         if data['encrypt']:
-            enc_version = StorageEncryptionVersion.USER_PASSWORD
-            if data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard':
+            if data.get('xpub_encrypt'):
+                assert data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard'
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD
+            else:
+                enc_version = StorageEncryptionVersion.USER_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
         db = WalletDB('', storage=storage, upgrade=True)

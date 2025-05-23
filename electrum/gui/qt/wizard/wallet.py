@@ -45,8 +45,8 @@ WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\
 
 MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
-                          + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
-                          + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
+                          + _("It also contains your master public key that allows watching your addresses.")
+
 
 
 class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
@@ -984,16 +984,15 @@ class WCImport(WalletWizardComponent):
 
 
 class WCWalletPassword(WalletWizardComponent):
+
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Wallet Password'))
-
         # TODO: PasswordLayout assumes a button, refactor PasswordLayout
         # for now, fake next_button.setEnabled
         class Hack:
             def setEnabled(self2, b):
                 self.valid = b
         self.next_button = Hack()
-
         self.pw_layout = PasswordLayout(
             msg=MSG_ENTER_PASSWORD,
             kind=PW_NEW,
@@ -1250,25 +1249,40 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
 
 
 class WCWalletPasswordHardware(WalletWizardComponent):
+
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Encrypt using hardware'))
         self.plugins = wizard.plugins
-
-        self.playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
+        # TODO: PasswordLayout assumes a button, refactor PasswordLayout
+        # for now, fake next_button.setEnabled
+        class Hack:
+            def setEnabled(self2, b):
+                self.valid = b
+        self.next_button = Hack()
+        self.playout = PasswordLayoutForHW(
+            MSG_HW_STORAGE_ENCRYPTION,
+            kind=PW_NEW,
+            OK_button=self.next_button,
+        )
         self.layout().addLayout(self.playout.layout())
         self.layout().addStretch(1)
 
         self._valid = True
 
     def apply(self):
-        self.wizard_data['encrypt'] = self.playout.should_encrypt_storage()
-        _name, _info = self.wizard_data['hardware_device']
-        device_id = _info.device.id_
-        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
-        # client.handler = self.plugin.create_handler(self.wizard)
-        # FIXME client can be None if it was recently disconnected.
-        #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
-        self.wizard_data['password'] = client.get_password_for_storage_encryption()
+        self.wizard_data['encrypt'] = True
+        if self.playout.should_encrypt_storage_with_xpub():
+            self.wizard_data['xpub_encrypt'] = True
+            _name, _info = self.wizard_data['hardware_device']
+            device_id = _info.device.id_
+            client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+            # client.handler = self.plugin.create_handler(self.wizard)
+            # FIXME client can be None if it was recently disconnected.
+            #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
+            self.wizard_data['password'] = client.get_password_for_storage_encryption()
+        else:
+            self.wizard_data['xpub_encrypt'] = False
+            self.wizard_data['password'] = self.playout.new_password()
 
 
 class WCHWUnlock(WalletWizardComponent, Logger):

@@ -441,7 +441,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         self.test_addresses_sanity()
         if self.storage and self.has_storage_encryption():
-            if (se := self.storage.get_encryption_version()) != (ae := self.get_available_storage_encryption_version()):
+            if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
 
         self.register_callbacks()
@@ -3040,16 +3040,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
 
-    def get_available_storage_encryption_version(self) -> StorageEncryptionVersion:
+    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
         """Returns the type of storage encryption offered to the user.
 
         A wallet file (storage) is either encrypted with this version
         or is stored in plaintext.
         """
+        out = [StorageEncryptionVersion.USER_PASSWORD]
         if isinstance(self.keystore, Hardware_KeyStore):
-            return StorageEncryptionVersion.XPUB_PASSWORD
-        else:
-            return StorageEncryptionVersion.USER_PASSWORD
+            out.append(StorageEncryptionVersion.XPUB_PASSWORD)
+        return out
 
     def has_keystore_encryption(self) -> bool:
         """Returns whether encryption is enabled for the keystore.
@@ -3079,13 +3079,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.has_storage_encryption():
             self.storage.check_password(password)
 
-    def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True):
+    def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True, xpub_encrypt: bool = False):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)
         if self.storage:
             if encrypt_storage:
-                enc_version = self.get_available_storage_encryption_version()
+                enc_version = StorageEncryptionVersion.XPUB_PASSWORD if xpub_encrypt else StorageEncryptionVersion.USER_PASSWORD
+                assert enc_version in self.get_available_storage_encryption_versions()
             else:
                 enc_version = StorageEncryptionVersion.PLAINTEXT
             self.storage.set_password(new_pw, enc_version)
@@ -4054,9 +4055,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         if self.has_storage_encryption():
             self.storage.check_password(password)
 
-    def get_available_storage_encryption_version(self):
+    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
         # multisig wallets are not offered hw device encryption
-        return StorageEncryptionVersion.USER_PASSWORD
+        return [StorageEncryptionVersion.USER_PASSWORD]
 
     def has_seed(self):
         return self.keystore.has_seed()
