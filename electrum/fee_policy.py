@@ -80,7 +80,11 @@ class FeePolicy(Logger):
 
     def __init__(self, descriptor: str, *, fallback_feepolicy: 'FeePolicy' = None):
         Logger.__init__(self)
-        self._fallback_feepolicy = fallback_feepolicy
+        if len(chain := descriptor.split(',', 1)) > 1:
+            self._fallback_feepolicy = FeePolicy(chain[1], fallback_feepolicy=fallback_feepolicy)
+            descriptor = chain[0]
+        else:
+            self._fallback_feepolicy = fallback_feepolicy
         try:
             name, value = descriptor.split(':')
             self.method = FeeMethod[name.upper()]
@@ -94,7 +98,8 @@ class FeePolicy(Logger):
         return self.get_descriptor()
 
     def get_descriptor(self) -> str:
-        return self.method.name.lower() + ':' + str(self.value)
+        return self.method.name.lower() + ':' + str(self.value) + \
+            (f',{self._fallback_feepolicy.get_descriptor()}' if self._fallback_feepolicy else '')
 
     def set_method(self, method: FeeMethod):
         assert isinstance(method, FeeMethod)
