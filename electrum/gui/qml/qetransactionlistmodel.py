@@ -149,12 +149,13 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         # newly arriving txs, or (partially/fully signed) local txs have no (block) timestamp
         # FIXME just use wallet.get_tx_status, and change that as needed
         if not item['timestamp']:  # onchain: local or mempool or unverified txs
-            txid = item['txid']
-            assert txid
-            tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
-            item['section'] = 'local' if tx_mined_info.is_local_like() else 'mempool'
-            status, status_str = self.wallet.get_tx_status(txid, tx_mined_info=tx_mined_info)
-            item['date'] = status_str
+            if not item['lightning']:
+                txid = item['txid']
+                assert txid
+                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
+                item['section'] = 'local' if tx_mined_info.is_local_like() else 'mempool'
+                status, status_str = self.wallet.get_tx_status(txid, tx_mined_info=tx_mined_info)
+                item['date'] = status_str
         else:  # lightning or already mined (and SPV-ed) onchain txs
             item['section'] = self.get_section_by_timestamp(item['timestamp'])
             item['date'] = self.format_date_by_section(item['section'], datetime.fromtimestamp(item['timestamp']))
