@@ -145,7 +145,7 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             self.add_transaction_to_wallet(tx, label=label, on_failure=self.on_add_fail)
             self.window.update_tabs()
 
-    def on_tx_dialog_closed(self, event_id):
+    def on_tx_dialog_closed(self, event_id, _tx: Optional['Transaction']):
         self.mark_pending_event_rcvd(event_id)
 
     def on_add_fail(self, msg: str):

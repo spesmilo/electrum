@@ -427,7 +427,7 @@ def show_transaction(
     prompt_if_unsaved: bool = False,
     external_keypairs: Mapping[bytes, bytes] = None,
     invoice: 'Invoice' = None,
-    on_closed: Callable[[], None] = None,
+    on_closed: Callable[[Optional[Transaction]], None] = None,
     show_sign_button: bool = True,
     show_broadcast_button: bool = True,
 ):
@@ -463,7 +463,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         prompt_if_unsaved: bool,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: 'Invoice' = None,
-        on_closed: Callable[[], None] = None,
+        on_closed: Callable[[Optional[Transaction]], None] = None,
     ):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -640,7 +640,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self._fetch_txin_data_fut = None
 
         if self.on_closed:
-            self.on_closed()
+            self.on_closed(self.tx)
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)

@@ -1183,6 +1183,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         *,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: Invoice = None,
+        on_closed: Callable[[Optional[Transaction]], None] = None,
         show_sign_button: bool = True,
         show_broadcast_button: bool = True,
     ):
@@ -1191,6 +1192,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             parent=self,
             external_keypairs=external_keypairs,
             invoice=invoice,
+            on_closed=on_closed,
             show_sign_button=show_sign_button,
             show_broadcast_button=show_broadcast_button,
         )
