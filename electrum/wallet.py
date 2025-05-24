@@ -3954,12 +3954,13 @@ class Deterministic_Wallet(Abstract_Wallet):
     def enable_keystore(self, keystore, is_hardware_keystore: bool, password):
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
+            self.db.put('use_encryption', True)
         self._update_keystore(keystore)
 
     def disable_keystore(self, keystore):
         from .keystore import BIP32_KeyStore
         assert not self.has_channels()
-        if keystore.thread:
+        if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
         if self.storage.is_encrypted_with_hw_device():
             password = keystore.get_password_for_storage_encryption()
