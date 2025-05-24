@@ -1,4 +1,4 @@
-from electrum.fee_policy import FeeHistogram
+from electrum.fee_policy import FeeHistogram, FeePolicy, FixedFeePolicy
 
 from . import ElectrumTestCase
 
@@ -52,4 +52,9 @@ class Test_FeeHistogram(ElectrumTestCase):
         self.assertEqual(495000, mempool_fees.fee_to_depth(5.5))
         self.assertEqual(36495000, mempool_fees.fee_to_depth(0.5))
 
-
+    def test_policy_chain(self):
+        policy = FeePolicy('eta:2,mempool:1000000,feerate:150000', fallback_feepolicy=FixedFeePolicy(100000))
+        self.assertTrue(policy.get_descriptor() == 'eta:2,mempool:1000000,feerate:150000,fixed:100000')
+        self.assertTrue(policy._fallback_feepolicy.get_descriptor() == 'mempool:1000000,feerate:150000,fixed:100000')
+        self.assertTrue(policy._fallback_feepolicy._fallback_feepolicy.get_descriptor() == 'feerate:150000,fixed:100000')
+        self.assertTrue(policy._fallback_feepolicy._fallback_feepolicy._fallback_feepolicy.get_descriptor() == 'fixed:100000')

@@ -78,8 +78,13 @@ class FeeMethod(IntEnum):
 class FeePolicy(Logger):
     # object associated to a fee slider
 
-    def __init__(self, descriptor: str):
+    def __init__(self, descriptor: str, *, fallback_feepolicy: 'FeePolicy' = None):
         Logger.__init__(self)
+        if len(chain := descriptor.split(',', 1)) > 1:
+            self._fallback_feepolicy = FeePolicy(chain[1], fallback_feepolicy=fallback_feepolicy)
+            descriptor = chain[0]
+        else:
+            self._fallback_feepolicy = fallback_feepolicy
         try:
             name, value = descriptor.split(':')
             self.method = FeeMethod[name.upper()]
@@ -93,7 +98,8 @@ class FeePolicy(Logger):
         return self.get_descriptor()
 
     def get_descriptor(self) -> str:
-        return self.method.name.lower() + ':' + str(self.value)
+        return self.method.name.lower() + ':' + str(self.value) + \
+            (f',{self._fallback_feepolicy.get_descriptor()}' if self._fallback_feepolicy else '')
 
     def set_method(self, method: FeeMethod):
         assert isinstance(method, FeeMethod)
@@ -248,14 +254,13 @@ class FeePolicy(Logger):
     def estimate_fee(
             self, size: Union[int, float, Decimal], *,
             network: 'Network' = None,
-            allow_fallback_to_static_rates: bool = False,
     ) -> int:
         if self.method == FeeMethod.FIXED:
             return self.value
         fee_per_kb = self.fee_per_kb(network)
         if fee_per_kb is None and self.use_dynamic_estimates:
-            if allow_fallback_to_static_rates:
-                fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+            if self._fallback_feepolicy:
+                return self._fallback_feepolicy.estimate_fee(size, network=network)
             else:
                 raise NoDynamicFeeEstimates()
 
@@ -277,6 +282,11 @@ class FeePolicy(Logger):
 class FixedFeePolicy(FeePolicy):
     def __init__(self, fee):
         FeePolicy.__init__(self, 'fixed:%d' % fee)
+
+
+class FixedFeeRatePolicy(FeePolicy):
+    def __init__(self, fee):
+        FeePolicy.__init__(self, 'feerate:%d' % fee)
 
 
 def impose_hard_limits_on_fee(func):

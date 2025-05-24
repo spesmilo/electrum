@@ -62,7 +62,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
-from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FixedFeeRatePolicy, FEERATE_FALLBACK_STATIC_FEE
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -1663,12 +1663,12 @@ class Channel(AbstractChannel):
         secret, ctx = self.get_secret_and_commitment(REMOTE, ctn=ctn)
         txs = []
         txins = sweep_their_ctx_watchtower(self, ctx, secret)
-        fee_policy = FeePolicy('eta:2')
+        fee_policy = FeePolicy('eta:2', fallback_feepolicy=FixedFeeRatePolicy(FEERATE_FALLBACK_STATIC_FEE))
         for txin in txins:
             output_idx = txin.prevout.out_idx
             value = ctx.outputs()[output_idx].value
             tx_size_bytes = 121
-            fee = fee_policy.estimate_fee(tx_size_bytes, network=self.lnworker.network, allow_fallback_to_static_rates=True)
+            fee = fee_policy.estimate_fee(tx_size_bytes, network=self.lnworker.network)
             outvalue = value - fee
             sweep_outputs = [PartialTxOutput.from_address_and_value(self.get_sweep_address(), outvalue)]
             sweep_tx = PartialTransaction.from_io([txin], sweep_outputs, version=2)

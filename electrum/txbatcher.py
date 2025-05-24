@@ -75,8 +75,7 @@ if TYPE_CHECKING:
 # the payment output, so that we can prevent paying twice.
 
 from .json_db import locked, StoredDict
-from .fee_policy import FeePolicy
-
+from .fee_policy import FeePolicy, FixedFeeRatePolicy, FEERATE_FALLBACK_STATIC_FEE
 
 
 class TxBatcher(Logger):
@@ -267,7 +266,10 @@ class TxBatch(Logger):
         witness_size = len(sweep_info.txin.make_witness(71*b'\x00'))
         tx_size_vbytes = 84 + witness_size//4     # assumes no batching, sweep to p2wpkh
         self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}')
-        fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.wallet.network, allow_fallback_to_static_rates=True)
+        fee_policy_with_ensured_static_fallback = FeePolicy(
+            self.fee_policy.get_descriptor(), fallback_feepolicy=FixedFeeRatePolicy(FEERATE_FALLBACK_STATIC_FEE)
+        )
+        fee = fee_policy_with_ensured_static_fallback.estimate_fee(tx_size_vbytes, network=self.wallet.network)
         return value - fee <= dust_threshold()
 
     @locked
