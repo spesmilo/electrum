@@ -1181,6 +1181,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self,
         tx: Transaction,
         *,
+        prompt_if_complete_unsaved: bool = True,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: Invoice = None,
         on_closed: Callable[[Optional[Transaction]], None] = None,
@@ -1190,6 +1191,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         show_transaction(
             tx,
             parent=self,
+            prompt_if_complete_unsaved=prompt_if_complete_unsaved,
             external_keypairs=external_keypairs,
             invoice=invoice,
             on_closed=on_closed,
