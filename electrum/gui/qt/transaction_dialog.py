@@ -461,6 +461,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         *,
         parent: 'ElectrumWindow',
         prompt_if_unsaved: bool,
+        prompt_if_complete_unsaved: bool = True,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: 'Invoice' = None,
         on_closed: Callable[[Optional[Transaction]], None] = None,
@@ -477,6 +478,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.invoice = invoice
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.prompt_if_complete_unsaved = prompt_if_complete_unsaved
         self.on_closed = on_closed
         self.saved = False
         self.desc = None
@@ -711,7 +713,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def sign(self):
         def sign_done(success):
-            if self.tx.is_complete():
+            if self.tx.is_complete() and self.prompt_if_complete_unsaved:
                 self.prompt_if_unsaved = True
                 self.saved = False
             self.update()
