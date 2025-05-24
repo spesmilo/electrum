@@ -265,9 +265,14 @@ class WCWalletName(WalletWizardComponent, Logger):
         self.name_e = QLineEdit()
         hbox.addWidget(self.name_e)
         button = QPushButton(_('Choose...'))
+        button_create_new = QPushButton(_('New'))
         hbox.addWidget(button)
+        hbox.addWidget(button_create_new)
         self.layout().addLayout(hbox)
+        outside_label = WWLabel('')
+        self.layout().addWidget(outside_label)
 
+        self.layout().addSpacing(50)
         msg_label = WWLabel('')
         self.layout().addWidget(msg_label)
         hbox2 = QHBoxLayout()
@@ -278,17 +283,6 @@ class WCWalletName(WalletWizardComponent, Logger):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         self.layout().addLayout(hbox2)
-
-        self.layout().addSpacing(50)
-        vbox_create_new = QVBoxLayout()
-        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignmentFlag.AlignLeft)
-        button_create_new = QPushButton(_('Create New Wallet'))
-        button_create_new.setMinimumWidth(120)
-        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignmentFlag.AlignLeft)
-        widget_create_new = QWidget()
-        widget_create_new.setLayout(vbox_create_new)
-        vbox_create_new.setContentsMargins(0, 0, 0, 0)
-        self.layout().addWidget(widget_create_new)
         self.layout().addStretch(1)
 
         temp_storage = None  # type: Optional[WalletStorage]
@@ -343,8 +337,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                           + _("Press 'Next' to create this wallet, or choose another file.")
                 elif not wallet_from_memory:
                     if temp_storage.is_encrypted_with_user_pw():
-                        msg = _("This file is encrypted with a password.") + '\n' \
-                              + _('Enter your password or choose another file.')
+                        msg = _("This file is encrypted with a password.")
                         user_needs_to_enter_password = True
                     elif temp_storage.is_encrypted_with_hw_device():
                         msg = _("This file is encrypted using a hardware device.") + '\n' \
@@ -358,9 +351,11 @@ class WCWalletName(WalletWizardComponent, Logger):
             if msg is None:
                 msg = _('Cannot read file')
             if filename and os.path.isabs(relative_path(_path)):
-                msg += '\n\n' + _('Note: this wallet file is outside the default wallets folder.')
+                outside_text = _('Note: this wallet file is outside the default wallets folder.')
+            else:
+                outside_text = ''
+            outside_label.setText(outside_text)
             msg_label.setText(msg)
-            widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
                 pw_label.show()
                 self.pw_e.show()
