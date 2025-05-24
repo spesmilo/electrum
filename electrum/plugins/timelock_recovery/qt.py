@@ -352,7 +352,12 @@ class Plugin(TimelockRecoveryPlugin):
             if tx is not None and context.alert_tx is not None and tx.txid() == context.alert_tx.txid() and tx.is_complete():
                 context.alert_tx = tx
                 update_transactions()
-        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_broadcast_button=False, on_closed=on_alert_tx_closed))
+        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.alert_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_alert_tx_closed
+        ))
         plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -364,7 +369,12 @@ class Plugin(TimelockRecoveryPlugin):
             if tx is not None and context.recovery_tx is not None and tx.txid() == context.recovery_tx.txid() and tx.is_complete():
                 context.recovery_tx = tx
                 update_transactions()
-        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_broadcast_button=False, on_closed=on_recovery_tx_closed))
+        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.recovery_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_recovery_tx_closed
+        ))
         plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -377,7 +387,12 @@ class Plugin(TimelockRecoveryPlugin):
             if tx is not None and context.cancellation_tx is not None and tx.txid() == context.cancellation_tx.txid() and tx.is_complete():
                 context.cancellation_tx = tx
                 update_transactions()
-        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_broadcast_button=False, on_closed=on_cancellation_tx_closed))
+        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.cancellation_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_cancellation_tx_closed
+        ))
         plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
         grid_row += 1
 
