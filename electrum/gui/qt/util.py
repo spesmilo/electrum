@@ -519,13 +519,14 @@ class ChoiceWidget(QWidget):
     """
 
     itemSelected = pyqtSignal([int], arguments=['index'])
+    returnSignal = pyqtSignal()
 
     def __init__(
-        self,
-        *,
+        self, *,
         message: Optional[str] = None,
         choices: Sequence[ChoiceItem] = None,
         default_key: Optional[Any] = None,
+        on_return = None,
     ):
         QWidget.__init__(self)
         vbox = QVBoxLayout()
@@ -538,6 +539,8 @@ class ChoiceWidget(QWidget):
         self.selected_item = None  # type: Optional[ChoiceItem]
         self.selected_key = None   # type: Optional[Any]
         self.choices = choices     # type: Sequence[ChoiceItem]
+        if on_return:
+            self.returnSignal.connect(on_return)
 
         if message and len(message) > 50:
             vbox.addWidget(WWLabel(message))
@@ -548,9 +551,16 @@ class ChoiceWidget(QWidget):
         gb2.setLayout(vbox2)
         self.group = group = QButtonGroup()
         assert isinstance(choices, list)
+
+        class MyRadioButton(QRadioButton):
+            def keyPressEvent(self, event):
+                if event.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return):
+                    self.parent().parent().returnSignal.emit()
+                QRadioButton.keyPressEvent(self, event)
+
         for i, c in enumerate(choices):
             assert isinstance(c, ChoiceItem), f"{c=!r}"
-            button = QRadioButton(gb2)
+            button = MyRadioButton(gb2)
             button.setText(c.label)
             vbox2.addWidget(button)
             group.addButton(button)

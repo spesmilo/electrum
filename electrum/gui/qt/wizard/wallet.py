@@ -429,7 +429,9 @@ class WCWalletType(WalletWizardComponent):
         ]
         choices = [c for c in wallet_kinds if c.key in wallet_types]
 
-        self.choice_w = ChoiceWidget(message=message, choices=choices, default_key='standard')
+        self.choice_w = ChoiceWidget(
+            message=message, choices=choices, default_key='standard',
+            on_return=wizard.on_next_button_clicked)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
@@ -449,7 +451,9 @@ class WCKeystoreType(WalletWizardComponent):
             ChoiceItem(key='masterkey', label=_('Use a master key')),
             ChoiceItem(key='hardware', label=_('Use a hardware device')),
         ]
-        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.choice_w = ChoiceWidget(
+            message=message, choices=choices,
+            on_return=wizard.on_next_button_clicked)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
@@ -468,7 +472,9 @@ class WCExtendKeystore(WalletWizardComponent):
             ChoiceItem(key='haveseed', label=_('Enter seed')),
             ChoiceItem(key='hardware', label=_('Use a hardware device')),
         ]
-        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.choice_w = ChoiceWidget(
+            message=message, choices=choices,
+            on_return=wizard.on_next_button_clicked)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
@@ -778,7 +784,9 @@ class WCScriptAndDerivation(WalletWizardComponent, Logger):
 
         def on_choice_click(index):
             self.derivation_path_edit.setText(self.choice_w.selected_item.extra_data)
-        self.choice_w = ChoiceWidget(message=message1, choices=choices, default_key=default_choice)
+        self.choice_w = ChoiceWidget(
+            message=message1, choices=choices, default_key=default_choice,
+            on_return=wizard.on_next_button_clicked)
         self.choice_w.itemSelected.connect(on_choice_click)
 
         if not hide_choices:
@@ -828,7 +836,9 @@ class WCCosignerKeystore(WalletWizardComponent):
             ChoiceItem(key='hardware', label=_('Cosign with hardware device')),
         ]
 
-        self.choice_w = ChoiceWidget(message=message, choices=choices)
+        self.choice_w = ChoiceWidget(
+            message=message, choices=choices,
+            on_return=wizard.on_next_button_clicked)
         self.layout().addWidget(self.choice_w)
 
         self.cosigner = 0
@@ -1201,7 +1211,9 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         if self.choice_w:
             self.device_list_layout.removeWidget(self.choice_w)
 
-        self.choice_w = ChoiceWidget(message=msg, choices=choices)
+        self.choice_w = ChoiceWidget(
+            message=msg, choices=choices,
+            on_return=wizard.on_next_button_clicked)
         self.device_list_layout.addWidget(self.choice_w)
 
         self.valid = True
