@@ -734,9 +734,10 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
 
-    FEE_POLICY = ConfigVar('fee_policy', default='eta:2', type_=str)  # exposed to GUI
-    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy_lightning', default='eta:2', type_=str)  # for txbatcher (sweeping)
-    FEE_POLICY_SWAPS = ConfigVar('fee_policy_swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
+    # fee_policy is a dict: fee_policy_name -> fee_policy_descriptor
+    FEE_POLICY = ConfigVar('fee_policy.default', default='eta:2', type_=str)  # exposed to GUI
+    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy.lnwatcher', default='eta:2', type_=str)  # for txbatcher (sweeping)
+    FEE_POLICY_SWAPS = ConfigVar('fee_policy.swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)

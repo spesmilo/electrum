@@ -70,7 +70,7 @@ class TestTxBatcher(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.fee_policy_descriptor = 'feerate:5000'
+        self.config.FEE_POLICY = 'feerate:5000'
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -109,12 +109,12 @@ class TestTxBatcher(ElectrumTestCase):
         self.logger.info(f'wallet balance {wallet.get_balance()}')
         # payment 1 -> tx1(output1)
         output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
-        wallet.txbatcher.add_payment_output('default', output1, self.fee_policy_descriptor)
+        wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
         assert output1 in tx1.outputs()
         # payment 2 -> tx2(output1, output2)
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
-        wallet.txbatcher.add_payment_output('default', output2, self.fee_policy_descriptor)
+        wallet.txbatcher.add_payment_output('default', output2)
         tx1_prime = await self.network.next_tx()
         assert wallet.adb.get_transaction(tx1_prime.txid()) is not None
         assert len(tx1_prime.outputs()) == 3
@@ -152,14 +152,14 @@ class TestTxBatcher(ElectrumTestCase):
 
         # to_self_payment tx1
         output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
-        wallet.txbatcher.add_payment_output('default', output1, self.fee_policy_descriptor)
+        wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
         assert len(tx1.outputs()) == 2
         assert output1 in tx1.outputs()
 
         # outgoing payment tx2
         output2 = PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)
-        wallet.txbatcher.add_payment_output('default', output2, self.fee_policy_descriptor)
+        wallet.txbatcher.add_payment_output('default', output2)
         # before tx1 gets confirmed, txbatch.create_transaction will raise notenoughfunds
         await asyncio.sleep(wallet.txbatcher.SLEEP_INTERVAL)
 
@@ -208,14 +208,14 @@ class TestTxBatcher(ElectrumTestCase):
             name='swap claim',
             can_be_batched=True,
         )
-        wallet.txbatcher.add_sweep_input('swaps', sweep_info, self.fee_policy_descriptor)
+        wallet.txbatcher.add_sweep_input('default', sweep_info)
         tx = await self.network.next_tx()
         txid = tx.txid()
         self.assertEqual(SWAP_CLAIM_TX, str(tx))
         # add a new payment, reusing the same input
         # this tests that txin.make_witness() can be called more than once
         output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
-        wallet.txbatcher.add_payment_output('swaps', output1, self.fee_policy_descriptor)
+        wallet.txbatcher.add_payment_output('default', output1)
         new_tx = await self.network.next_tx()
         # check that we batched with previous tx
         assert new_tx.inputs()[0].prevout == tx.inputs()[0].prevout == txin.prevout

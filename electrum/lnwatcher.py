@@ -196,7 +196,7 @@ class LNWatcher(Logger, EventListener):
     def maybe_redeem(self, sweep_info: 'SweepInfo') -> bool:
         """ returns False if it was dust """
         try:
-            self.lnworker.wallet.txbatcher.add_sweep_input('lnwatcher', sweep_info, self.config.FEE_POLICY_LIGHTNING)
+            self.lnworker.wallet.txbatcher.add_sweep_input('lnwatcher', sweep_info)
         except BelowDustLimit:
             return False
         return True

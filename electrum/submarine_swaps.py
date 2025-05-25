@@ -461,7 +461,7 @@ class SwapManager(Logger):
                 can_be_batched=can_be_batched,
             )
             try:
-                self.wallet.txbatcher.add_sweep_input('swaps', sweep_info, self.config.FEE_POLICY_SWAPS)
+                self.wallet.txbatcher.add_sweep_input('swaps', sweep_info)
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
@@ -496,7 +496,7 @@ class SwapManager(Logger):
             swap = self.swaps[key]
             if not swap.is_funded():
                 output = self.create_funding_output(swap)
-                self.wallet.txbatcher.add_payment_output('swaps', output, self.config.FEE_POLICY_SWAPS)
+                self.wallet.txbatcher.add_payment_output('swaps', output)
                 swap._payment_pending = True
         else:
             self.logger.info(f'key not in swaps {key}')

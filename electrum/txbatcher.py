@@ -96,12 +96,12 @@ class TxBatcher(Logger):
         self.password_future = None
 
     @locked
-    def add_payment_output(self, key: str, output: 'PartialTxOutput', fee_policy_descriptor: str):
-        batch = self._maybe_create_new_batch(key, fee_policy_descriptor)
+    def add_payment_output(self, key: str, output: 'PartialTxOutput'):
+        batch = self._maybe_create_new_batch(key, fee_policy_name=key)
         batch.add_payment_output(output)
 
     @locked
-    def add_sweep_input(self, key: str, sweep_info: 'SweepInfo', fee_policy_descriptor: str):
+    def add_sweep_input(self, key: str, sweep_info: 'SweepInfo'):
         if sweep_info.txin and sweep_info.txout:
             # detect legacy htlc using name and csv delay
             if sweep_info.name in ['received-htlc', 'offered-htlc'] and sweep_info.csv_delay == 0:
@@ -109,23 +109,21 @@ class TxBatcher(Logger):
                     self.logger.info(f'received {sweep_info.name}')
                     self._legacy_htlcs[sweep_info.txin.prevout] = sweep_info
                 return
+        fee_policy_name = key
         if not sweep_info.can_be_batched:
             # create a batch only for that input
             key = sweep_info.txin.prevout.to_str()
-        batch = self._maybe_create_new_batch(key, fee_policy_descriptor)
+        batch = self._maybe_create_new_batch(key, fee_policy_name)
         batch.add_sweep_input(sweep_info)
 
-    def _maybe_create_new_batch(self, key, fee_policy_descriptor: str):
+    def _maybe_create_new_batch(self, key, fee_policy_name: str):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         if key not in self.storage:
             self.logger.info(f'creating new batch: {key}')
-            self.storage[key] = { 'fee_policy': fee_policy_descriptor, 'txids': [], 'prevout': None }
+            self.storage[key] = { 'fee_policy_name': fee_policy_name, 'txids': [], 'prevout': None }
             self.tx_batches[key] = batch = TxBatch(self.wallet, self.storage[key])
             if self.taskgroup:
                 asyncio.ensure_future(self.taskgroup.spawn(self.run_batch(key, batch)))
-        elif self.storage[key]['fee_policy'] != fee_policy_descriptor:
-            # maybe update policy?
-            self.logger.warning('fee policy passed to txbatcher inconsistent with existing batch')
         return self.tx_batches[key]
 
     @locked
@@ -233,10 +231,17 @@ class TxBatch(Logger):
         # list of tx that were broadcast. Each tx is a RBF replacement of the previous one. Ony one can get mined.
         self._prevout = storage.get('prevout')
         self._batch_txids = storage['txids']
-        self.fee_policy = FeePolicy(storage['fee_policy'])
+        self._fee_policy_name = storage.get('fee_policy_name', 'default')
         self._base_tx = None           # current batch tx. last element of batch_txids
         self._parent_tx = None
         self._unconfirmed_sweeps = set()  # list of inputs we are sweeping (until spending tx is confirmed)
+
+    @property
+    def fee_policy(self):
+        # this assumes the descriptor is in config.fee_policy
+        cv_name = 'fee_policy' + '.' + self._fee_policy_name
+        descriptor = self.wallet.config.get(cv_name, 'eta:2')
+        return FeePolicy(descriptor)
 
     @log_exceptions
     async def run(self):
