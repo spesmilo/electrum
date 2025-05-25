@@ -167,11 +167,11 @@ class TxBatcher(Logger):
                 await self._maybe_redeem_legacy_htlcs(sweep_info)
 
     async def _maybe_redeem_legacy_htlcs(self, sweep_info):
+        assert sweep_info.csv_delay == 0
         local_height = self.wallet.network.get_local_height()
         wanted_height = sweep_info.cltv_abs
         if wanted_height - local_height > 0:
             return
-        # fixme: what if sweep info has a csv?
         outpoint = sweep_info.txin.prevout.to_str()
         prev_txid, index = outpoint.split(':')
         if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
