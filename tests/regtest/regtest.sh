@@ -271,7 +271,7 @@ if [[ $1 == "swapserver_forceclose" ]]; then
         output_index=1
     fi
     # wait until Bob finds preimage onchain and uses it to create an htlc_success tx
-    wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
+    wait_until_spent $ctx_id $output_index
     new_blocks 144
     wait_for_balance bob 0.999
 fi
@@ -351,9 +351,9 @@ if [[ $1 == "extract_preimage" ]]; then
     wait_until_preimage bob $rhash2
     # check both "lnpay" commands succeeded
     success=$(cat /tmp/alice/screen1.log | jq -r ".success")
-    if [[ "$success" != "true" ]]; then exit 1; fi
+    if [[ "$success" != "true" ]]; then echo "alice payment failed"; exit 1; fi
     success=$(cat /tmp/bob/screen2.log | jq -r ".success")
-    if [[ "$success" != "true" ]]; then exit 1; fi
+    if [[ "$success" != "true" ]]; then echo "bob payment failed"; exit 1; fi
     cat /tmp/alice/screen1.log
     cat /tmp/bob/screen2.log
 fi
