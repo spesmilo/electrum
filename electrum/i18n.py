@@ -35,7 +35,7 @@ LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale', 'locale')
 
 # Set initial default language to None. i.e. translations explicitly disabled.
 # The main script or GUIs can call set_language to enable translations.
-language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
+_language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
 
 
 # note: do not use old-style (%) formatting inside translations,
@@ -56,18 +56,18 @@ def _(msg: str, *, context=None) -> str:
         else:
             contexts.append(context[:-1])
         for ctx in contexts:
-            out = language.pgettext(ctx, msg)
+            out = _language.pgettext(ctx, msg)
             if out != msg:  # found non-trivial translation
                 return out
         # else try without context
-    return language.gettext(msg)
+    return _language.gettext(msg)
 
 
 def set_language(x: Optional[str]) -> None:
     _logger.info(f"setting language to {x!r}")
-    global language
+    global _language
     if x:
-        language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
+        _language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
 
 
 languages = {
