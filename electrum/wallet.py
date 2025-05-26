@@ -2250,7 +2250,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 f"got {actual_fee}, expected >={target_min_fee}. "
                 f"target rate was {new_fee_rate}")
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
-        tx_new.set_rbf(True)
         tx_new.add_info_from_wallet(self)
         return tx_new
 
@@ -2298,6 +2297,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         coins = [c for c in coins
                  if c.prevout.txid.hex() not in self.adb.get_conflicting_transactions(tx, include_self=True)]
         for item in coins:
+            item.nsequence = 0xffffffff - 2
             self.add_input_info(item)
         def fee_estimator(size):
             return FeePolicy.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
