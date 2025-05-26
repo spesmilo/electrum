@@ -813,7 +813,10 @@ class KeystoreWizard(NewWalletWizard):
             'keystore_type': {
                 'next': self.on_keystore_type
             },
-            'enterseed': {
+            'enter_seed': {
+                'next': lambda d: 'enter_ext' if self.wants_ext(d) else self.update_keystore
+            },
+            'enter_ext': {
                 'accept': self.update_keystore,
                 'last': True
             },
@@ -833,7 +836,7 @@ class KeystoreWizard(NewWalletWizard):
     def on_keystore_type(self, wizard_data: dict) -> str:
         t = wizard_data['keystore_type']
         return {
-            'haveseed': 'enterseed',
+            'haveseed': 'enter_seed',
             'hardware': 'choose_hardware_device'
         }.get(t)
 

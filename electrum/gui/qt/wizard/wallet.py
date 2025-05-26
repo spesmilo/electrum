@@ -60,7 +60,8 @@ class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
         # attach gui classes to views
         self.navmap_merge({
             'keystore_type': {'gui': WCExtendKeystore},
-            'enterseed': {'gui': WCHaveSeed},
+            'enter_seed': {'gui': WCHaveSeed},
+            'enter_ext': {'gui': WCEnterExt},
             'choose_hardware_device': {'gui': WCChooseHWDevice},
             'script_and_derivation': {'gui': WCScriptAndDerivation},
             'wallet_password': {'gui': WCWalletPassword},
