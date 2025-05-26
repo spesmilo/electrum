@@ -33,9 +33,15 @@ from .logging import get_logger
 _logger = get_logger(__name__)
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale', 'locale')
 
+
+def _get_null_translations():
+    """Returns a gettext Translations obj with translations explicitly disabled."""
+    return gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
+
+
 # Set initial default language to None. i.e. translations explicitly disabled.
 # The main script or GUIs can call set_language to enable translations.
-_language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
+_language = _get_null_translations()
 
 
 # note: do not use old-style (%) formatting inside translations,
@@ -66,7 +72,13 @@ def _(msg: str, *, context=None) -> str:
 def set_language(x: Optional[str]) -> None:
     _logger.info(f"setting language to {x!r}")
     global _language
-    if x:
+    if not x:
+        return
+    if x.startswith("en_"):
+        # Setting the language to "English" is a protected special-case:
+        # we disable all translations and use the source strings.
+        _language = _get_null_translations()
+    else:
         _language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
 
 
@@ -79,7 +91,7 @@ languages = {
     'de_DE': _('German'),
     'el_GR': _('Greek'),
     'eo_UY': _('Esperanto'),
-    'en_UK': _('English'),
+    'en_UK': _('English'),  # selecting this guarantees seeing the untranslated source strings
     'es_ES': _('Spanish'),
     'fa_IR': _('Persian'),
     'fr_FR': _('French'),
