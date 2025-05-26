@@ -814,7 +814,9 @@ class KeystoreWizard(NewWalletWizard):
                 'next': self.on_keystore_type
             },
             'enter_seed': {
-                'next': lambda d: 'enter_ext' if self.wants_ext(d) else self.update_keystore
+                'next': 'enter_ext',
+                'accept': lambda d: None if self.wants_ext(d) else self.update_keystore(d),
+                'last': lambda d: not self.wants_ext(d),
             },
             'enter_ext': {
                 'accept': self.update_keystore,
