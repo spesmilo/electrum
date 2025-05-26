@@ -176,8 +176,7 @@ class Plugin(TimelockRecoveryPlugin):
         plan_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
         plan_dialog.setContentsMargins(11, 11, 1, 1)
         plan_dialog.resize(800, plan_dialog.height())
-
-        fee_policy = FeePolicy(context.main_window.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:1')
         create_cancel_cb = QCheckBox('', checked=False)
         alert_tx_label = QLabel('')
         recovery_tx_label = QLabel('')
