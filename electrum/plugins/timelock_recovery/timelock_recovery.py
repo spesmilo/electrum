@@ -126,9 +126,12 @@ class TimelockRecoveryContext:
             locktime=self.recovery_tx.locktime if self.recovery_tx else None,
         )
 
-    def add_input_info(self):
-        self.recovery_tx.inputs()[0].utxo = self.alert_tx
-        if self.cancellation_tx:
+    def add_input_info_to_recovery_tx(self):
+        if self.recovery_tx and self.alert_tx.is_complete():
+            self.recovery_tx.inputs()[0].utxo = self.alert_tx
+
+    def add_input_info_to_cancellation_tx(self):
+        if self.cancellation_tx and self.alert_tx.is_complete():
             self.cancellation_tx.inputs()[0].utxo = self.alert_tx
 
     def make_unsigned_cancellation_tx(self, fee_policy) -> 'PartialTransaction':
