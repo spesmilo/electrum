@@ -221,7 +221,7 @@ class TxBatcher(Logger):
 
 class TxBatch(Logger):
 
-    def __init__(self, wallet, storage: StoredDict):
+    def __init__(self, wallet: 'Abstract_Wallet', storage: StoredDict):
         Logger.__init__(self)
         self.wallet = wallet
         self.storage = storage
@@ -404,6 +404,9 @@ class TxBatch(Logger):
             return
 
         # add tx to wallet, in order to reserve utxos
+        # note: This saves the tx as local *unsigned*.
+        #       It will transition to local and signed, after we broadcast
+        #       the signed tx and get it back via the Synchronizer dance.
         self.wallet.adb.add_transaction(tx)
         # await password
         if not await self.sign_transaction(tx):
