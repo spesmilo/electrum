@@ -35,7 +35,7 @@ from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.payment_identifier import PaymentIdentifierType
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.transaction import PartialTxOutput
+from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, make_dir
 from electrum.gui.qt.util import ColorScheme, WindowModalDialog, Buttons, HelpLabel
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes, WaitingDialog
@@ -232,16 +232,26 @@ class Plugin(TimelockRecoveryPlugin):
                 next_button.setToolTip("")
                 return
             try:
-                context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
+                new_alert_tx = context.make_unsigned_alert_tx(fee_policy)
+                alert_changed = False
+                if not context.alert_tx or context.alert_tx.txid() != new_alert_tx.txid():
+                    context.alert_tx = new_alert_tx
+                    alert_changed = True
                 assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
                 alert_tx_complete_label.setText(_("✓ Signed") if context.alert_tx.is_complete() else "")
                 alert_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
-                context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
+                new_recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
+                if alert_changed or not context.recovery_tx or context.recovery_tx.txid() != new_recovery_tx.txid():
+                    context.recovery_tx = new_recovery_tx
+                    context.add_input_info_to_recovery_tx()
                 assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
                 recovery_tx_complete_label.setText(_("✓ Signed") if context.recovery_tx.is_complete() else "")
                 recovery_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
                 if create_cancel_cb.isChecked():
-                    context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
+                    new_cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
+                    if alert_changed or not context.cancellation_tx or context.cancellation_tx.txid() != new_cancellation_tx.txid():
+                        context.cancellation_tx = new_cancellation_tx
+                        context.add_input_info_to_cancellation_tx()
                     assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
                     cancellation_tx_complete_label.setText(_("✓ Signed") if context.cancellation_tx.is_complete() else "")
                     cancellation_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
@@ -338,7 +348,15 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(alert_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(alert_tx_complete_label, grid_row, 3)
         view_alert_tx_button = QPushButton(_('View'))
-        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_alert_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.alert_tx is not None and tx.txid() == context.alert_tx.txid() and tx.is_complete():
+                old_alert_tx_complete = context.alert_tx and context.alert_tx.is_complete()
+                context.alert_tx = tx
+                if not old_alert_tx_complete and context.alert_tx.is_complete():
+                    context.add_input_info_to_recovery_tx()
+                    context.add_input_info_to_cancellation_tx()
+                update_transactions()
+        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_broadcast_button=False, on_closed=on_alert_tx_closed))
         plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -346,7 +364,11 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(recovery_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(recovery_tx_complete_label, grid_row, 3)
         view_recovery_tx_button = QPushButton(_('View'))
-        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_recovery_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.recovery_tx is not None and tx.txid() == context.recovery_tx.txid() and tx.is_complete():
+                context.recovery_tx = tx
+                update_transactions()
+        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_broadcast_button=False, on_closed=on_recovery_tx_closed))
         plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -355,7 +377,11 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(cancellation_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(cancellation_tx_complete_label, grid_row, 3)
         view_cancellation_tx_button = QPushButton(_('View'))
-        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_cancellation_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.cancellation_tx is not None and tx.txid() == context.cancellation_tx.txid() and tx.is_complete():
+                context.cancellation_tx = tx
+                update_transactions()
+        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_broadcast_button=False, on_closed=on_cancellation_tx_closed))
         plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -440,9 +466,10 @@ class Plugin(TimelockRecoveryPlugin):
         def task():
             if not context.alert_tx.is_complete():
                 wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+                context.add_input_info_to_recovery_tx()
+                context.add_input_info_to_cancellation_tx()
             if not context.alert_tx.is_complete():
                 raise Exception(_("Alert transaction signing was not completed"))
-            context.add_input_info()
             if not context.recovery_tx.is_complete():
                 wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
             if not context.recovery_tx.is_complete():
