@@ -617,6 +617,7 @@ class AddressSynchronizer(Logger, EventListener):
         await self._address_history_changed_events[addr].wait()
 
     def add_unverified_or_unconfirmed_tx(self, tx_hash: str, tx_height: int) -> None:
+        assert tx_height >= TX_HEIGHT_UNCONF_PARENT, f"got {tx_height=} for {tx_hash=}"  # forbid local/future txs here
         with self.lock:
             if self.db.is_in_verified_tx(tx_hash):
                 if tx_height <= 0:
@@ -704,6 +705,24 @@ class AddressSynchronizer(Logger, EventListener):
         if tx_hash is None:  # ugly backwards compat...
             return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
         with self.lock:
+            if verified_tx_mined_info := self.db.get_verified_tx(tx_hash):  # mined and spv-ed
+                conf = max(self.get_local_height() - verified_tx_mined_info.height + 1, 0)
+                tx_mined_info = verified_tx_mined_info._replace(conf=conf)
+            elif tx_hash in self.unverified_tx:  # mined, no spv
+                height = self.unverified_tx[tx_hash]
+                tx_mined_info = TxMinedInfo(height=height, conf=0)
+            elif tx_hash in self.unconfirmed_tx: # mempool
+                height = self.unconfirmed_tx[tx_hash]
+                tx_mined_info = TxMinedInfo(height=height, conf=0)
+            elif wanted_height := self.future_tx.get(tx_hash):  # future
+                if wanted_height > self.get_local_height():
+                    tx_mined_info = TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
+                else:
+                    tx_mined_info = TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+            else:  # local
+                tx_mined_info = TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+            if tx_mined_info.height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
+                return tx_mined_info
             if force_local_if_missing_tx:
                 # It can happen for a txid in any state (unconf/unverified/verified) that we
                 # don't have the raw tx yet, simply due to network timing.
@@ -713,24 +732,7 @@ class AddressSynchronizer(Logger, EventListener):
                 tx = self.db.get_transaction(tx_hash)
                 if tx is None or isinstance(tx, PartialTransaction):
                     return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
-            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
-            if verified_tx_mined_info:
-                conf = max(self.get_local_height() - verified_tx_mined_info.height + 1, 0)
-                return verified_tx_mined_info._replace(conf=conf)
-            elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                return TxMinedInfo(height=height, conf=0)
-            elif tx_hash in self.unconfirmed_tx:
-                height = self.unconfirmed_tx[tx_hash]
-                return TxMinedInfo(height=height, conf=0)
-            elif wanted_height := self.future_tx.get(tx_hash):
-                if wanted_height > self.get_local_height():
-                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
-                else:
-                    return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
-            else:
-                # local transaction
-                return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+            return tx_mined_info
 
     def up_to_date_changed(self) -> None:
         # fire triggers
