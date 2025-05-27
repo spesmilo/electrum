@@ -295,7 +295,7 @@ class SimpleConfig(Logger):
                 d = self.user_config
                 for x in keypath[0:-1]:
                     d2 = d.get(x)
-                    if d2 is None:
+                    if not isinstance(d2, dict):
                         d2 = d[x] = {}
                     d = d2
                 d[keypath[-1]] = value
@@ -328,6 +328,8 @@ class SimpleConfig(Logger):
                 path = key.split('.')
                 for key in path[0:-1]:
                     d = d.get(key, {})
+                if not isinstance(d, dict):
+                    d = {}
                 out = d.get(path[-1], default)
         return out
 
