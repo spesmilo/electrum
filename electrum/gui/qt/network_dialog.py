@@ -384,17 +384,13 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(self.status_label, 0, 1, 1, 3)
         grid.addWidget(self.status_label_helpbutton, 0, 4)
 
-        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
+        self.autoconnect_cb = QCheckBox(self.config.cv.NETWORK_AUTO_CONNECT.get_short_desc())
         self.autoconnect_cb.stateChanged.connect(self.on_server_settings_changed)
 
-        msg = ' '.join([
-            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
-        ])
         grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 1, 4)
+        grid.addWidget(HelpButton(self.config.cv.NETWORK_AUTO_CONNECT.get_long_desc()), 1, 4)
 
-        self.one_server_cb = QCheckBox(_('One server'))
+        self.one_server_cb = QCheckBox(self.config.cv.NETWORK_ONESERVER.get_short_desc())
         self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable())
         self.one_server_cb.stateChanged.connect(self.on_server_settings_changed)
         grid.addWidget(self.one_server_cb, 2, 0, 1, 3)

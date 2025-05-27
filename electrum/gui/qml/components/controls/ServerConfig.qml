@@ -26,7 +26,7 @@ Item {
         CheckBox {
             id: auto_server_cb
             visible: showAutoselectServer
-            text: qsTr('Select server automatically')
+            text: Config.shortDescFor('NETWORK_AUTO_CONNECT')
             checked: !showAutoselectServer
             enabled: !one_server_cb.checked
         }
@@ -54,11 +54,11 @@ Item {
             CheckBox {
                 id: one_server_cb
                 Layout.fillWidth: true
-                text: qsTr('One server')
+                text: Config.shortDescFor('NETWORK_ONESERVER')
             }
 
             HelpButton {
-                heading: qsTr('One server')
+                heading: Config.shortDescFor('NETWORK_ONESERVER')
                 helptext: Config.longDescFor('NETWORK_ONESERVER')
             }
         }
