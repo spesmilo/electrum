@@ -198,7 +198,7 @@ class WalletInfoDialog(WindowModalDialog):
             return
         keystore, is_hardware = result
         for k in self.wallet.get_keystores():
-            if k.xpub == keystore.xpub:
+            if k.get_master_public_key() == keystore.get_master_public_key():
                 break
         else:
             self.window.show_error(_('Keystore not found in this wallet'))

@@ -3965,7 +3965,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         if self.storage.is_encrypted_with_hw_device():
             password = keystore.get_password_for_storage_encryption()
             self.update_password(password, None, encrypt_storage=False)
-        new = BIP32_KeyStore({'xpub':keystore.xpub})
+        new = keystore.watching_only_keystore()
         self._update_keystore(new)
 
 
@@ -4007,7 +4007,7 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
         self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
 
     def _update_keystore(self, keystore):
-        assert self.keystore.xpub == keystore.xpub
+        assert self.keystore.get_master_public_key() == keystore.get_master_public_key()
         self.keystore = keystore
         self.save_keystore()
 

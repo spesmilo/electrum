@@ -639,6 +639,9 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         self.xpub = d.get('xpub')
         self.xprv = d.get('xprv')
 
+    def watching_only_keystore(self):
+        return BIP32_KeyStore({'xpub':self.xpub})
+
     def format_seed(self, seed):
         return ' '.join(seed.split())
 
@@ -730,6 +733,9 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
         self._root_fingerprint = None
+
+    def watching_only_keystore(self):
+        return Old_KeyStore({'mpk': self.mpk})
 
     def get_hex_seed(self, password):
         return pw_decode(self.seed, password, version=self.pw_hash_version).encode('utf8')
