@@ -36,7 +36,10 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot(str, result=str)
     def longDescFor(self, key) -> str:
         cv = getattr(self.config.cv, key)
-        return cv.get_long_desc() if cv else ''
+        if not cv:
+            return ""
+        desc = cv.get_long_desc()
+        return messages.to_rtf(desc)
 
     @pyqtSlot(str, result=str)
     def getTranslatedMessage(self, key) -> str:
