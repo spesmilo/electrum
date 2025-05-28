@@ -223,6 +223,9 @@ class KeystoreWizard(AbstractWizard):
             },
         }
 
+    def maybe_master_pubkey(self, wizard_data):
+        self.update_keystore(wizard_data)
+
     def check_multisig_constraints(self, wizard_data: dict) -> Tuple[bool, str]:
         # called by GUI. overloaded in NewWalletWizard
         return True, ''
