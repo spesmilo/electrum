@@ -39,6 +39,7 @@ from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port
 from electrum.logging import get_logger
 from electrum.util import is_valid_websocket_url
+from electrum.gui import messages
 
 from .util import (
     Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit, PasswordLineEdit, QtEventListener,
@@ -61,7 +62,7 @@ class NetworkDialog(QDialog, QtEventListener):
         self._blockchain_tab = ServerWidget(network)
         self._proxy_tab = ProxyWidget(network)
         self._nostr_tab = NostrWidget(network)
-        tabs.addTab(self._blockchain_tab, _('Electrum servers'))
+        tabs.addTab(self._blockchain_tab, _('Server'))
         tabs.addTab(self._nostr_tab, _('Nostr'))
         tabs.addTab(self._proxy_tab, _('Proxy'))
         vbox = QVBoxLayout(self)
@@ -362,7 +363,17 @@ class ProxyWidget(QWidget):
             self.update()
 
 
+class ConnectMode(IntEnum):
+    AUTOCONNECT = 0
+    MANUAL      = 1
+    ONESERVER   = 2
+
 class ServerWidget(QWidget, QtEventListener):
+    CONNECT_MODES = {
+        ConnectMode.AUTOCONNECT: messages.MSG_CONNECTMODE_AUTOCONNECT,
+        ConnectMode.MANUAL: messages.MSG_CONNECTMODE_MANUAL,
+        ConnectMode.ONESERVER: messages.MSG_CONNECTMODE_ONESERVER,
+    }
 
     def __init__(self, network: Network, parent=None):
         super().__init__(parent)
@@ -373,46 +384,47 @@ class ServerWidget(QWidget, QtEventListener):
 
         grid = QGridLayout()
 
-        msg = ' '.join([
-            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
-            _("This blockchain is used to verify the transactions sent by your transaction server.")
-        ])
+        self.connect_combo = QComboBox()
+        for i, v in sorted(self.CONNECT_MODES.items()):
+            self.connect_combo.addItem(v, i)
+        self.connect_combo.currentIndexChanged.connect(self.on_server_settings_changed)
+        grid.addWidget(QLabel(_('Connection mode') + ':'), 0, 0)
+        msg = (
+            f"""
+            {messages.MSG_CONNECTMODE_SERVER_HELP}<br/><br/>
+            {messages.MSG_CONNECTMODE_NODES_HELP}
+            <ul>
+            <li><b>{messages.MSG_CONNECTMODE_AUTOCONNECT}</b>: {messages.MSG_CONNECTMODE_AUTOCONNECT_HELP}</li>
+            <li><b>{messages.MSG_CONNECTMODE_MANUAL}</b>: {messages.MSG_CONNECTMODE_MANUAL_HELP}</li>
+            <li><b>{messages.MSG_CONNECTMODE_ONESERVER}</b>: {messages.MSG_CONNECTMODE_ONESERVER_HELP}</li>
+            </ul>
+            """
+        )
+        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(self.connect_combo, 0, 1, 1, 3)
         self.status_label_header = QLabel(_('Status') + ':')
         self.status_label = QLabel('')
-        self.status_label_helpbutton = HelpButton(msg)
-        grid.addWidget(self.status_label_header, 0, 0)
-        grid.addWidget(self.status_label, 0, 1, 1, 3)
-        grid.addWidget(self.status_label_helpbutton, 0, 4)
-
-        self.autoconnect_cb = QCheckBox(self.config.cv.NETWORK_AUTO_CONNECT.get_short_desc())
-        self.autoconnect_cb.stateChanged.connect(self.on_server_settings_changed)
-
-        grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
-        grid.addWidget(HelpButton(self.config.cv.NETWORK_AUTO_CONNECT.get_long_desc()), 1, 4)
-
-        self.one_server_cb = QCheckBox(self.config.cv.NETWORK_ONESERVER.get_short_desc())
-        self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable())
-        self.one_server_cb.stateChanged.connect(self.on_server_settings_changed)
-        grid.addWidget(self.one_server_cb, 2, 0, 1, 3)
-        grid.addWidget(HelpButton(self.config.cv.NETWORK_ONESERVER.get_long_desc()), 2, 4)
+        self.status_label_helpbutton = HelpButton(messages.MSG_CONNECTMODE_NODES_HELP)
+        grid.addWidget(self.status_label_header, 1, 0)
+        grid.addWidget(self.status_label, 1, 1, 1, 3)
+        grid.addWidget(self.status_label_helpbutton, 1, 4)
 
         self.server_e = QLineEdit()
         self.server_e.editingFinished.connect(self.on_server_settings_changed)
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 3, 0)
-        grid.addWidget(self.server_e, 3, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 3, 4)
+        grid.addWidget(QLabel(_('Server') + ':'), 4, 0)
+        grid.addWidget(self.server_e, 4, 1, 1, 3)
+        grid.addWidget(HelpButton(messages.MSG_CONNECTMODE_SERVER_HELP), 4, 4)
 
         msg = _('This is the height of your local copy of the blockchain.')
         self.height_label_header = QLabel(_('Blockchain') + ':')
         self.height_label = QLabel('')
         self.height_label_helpbutton = HelpButton(msg)
-        grid.addWidget(self.height_label_header, 4, 0)
-        grid.addWidget(self.height_label, 4, 1)
-        grid.addWidget(self.height_label_helpbutton, 4, 4)
+        grid.addWidget(self.height_label_header, 2, 0)
+        grid.addWidget(self.height_label, 2, 1)
+        grid.addWidget(self.height_label_helpbutton, 2, 4)
 
         self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 5, 0, 1, 3)
+        grid.addWidget(self.split_label, 3, 1, 1, 3)
 
         self.layout().addLayout(grid)
 
@@ -439,32 +451,28 @@ class ServerWidget(QWidget, QtEventListener):
         self.nodes_list_widget.update()  # NOTE: move event handling to widget itself?
         self.update()
 
+    def is_auto_connect(self):
+        return self.connect_combo.currentIndex() == ConnectMode.AUTOCONNECT
+
+    def is_one_server(self):
+        return self.connect_combo.currentIndex() == ConnectMode.ONESERVER
+
     def on_server_settings_changed(self):
         if not self.network._was_started:
             self.update()
             return
-        auto_connect = self.autoconnect_cb.isChecked()
-        one_server = self.one_server_cb.isChecked()
-        self.autoconnect_cb.setEnabled(not one_server and self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
-        self.one_server_cb.setEnabled(not auto_connect and self.config.cv.NETWORK_ONESERVER.is_modifiable())
         server = self.server_e.text().strip()
         net_params = self.network.get_parameters()
-        if server != net_params.server or auto_connect != net_params.auto_connect or one_server != net_params.oneserver:
+        if server != net_params.server or self.is_auto_connect() != net_params.auto_connect or self.is_one_server() != net_params.oneserver:
             self.set_server()
 
     def update(self):
-        auto_connect = self.autoconnect_cb.isChecked()
-        one_server = self.one_server_cb.isChecked()
-        self.autoconnect_cb.setEnabled(not one_server and self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
-        self.one_server_cb.setEnabled(not auto_connect and self.config.cv.NETWORK_ONESERVER.is_modifiable())
-        self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
-
+        self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not self.is_auto_connect())
         for item in [
                 self.status_label_header, self.status_label, self.status_label_helpbutton,
                 self.height_label_header, self.height_label, self.height_label_helpbutton]:
             item.setVisible(self.network._was_started)
-
-        msg = ''
+        msg = _('Fork detection disabled') if self.is_one_server() else ''
         if self.network._was_started:
             # Network was started, so we don't run in initial setup wizard.
             # behavior in this case is to apply changes immediately.
@@ -477,8 +485,8 @@ class ServerWidget(QWidget, QtEventListener):
                 chain = self.network.blockchain()
                 forkpoint = chain.get_max_forkpoint()
                 name = chain.get_name()
-                msg = _('Chain split detected at block {0}').format(forkpoint) + '\n'
-                if auto_connect:
+                msg = _('Fork detected at block {0}').format(forkpoint) + '\n'
+                if self.is_auto_connect():
                     msg += _('You are following branch {}').format(name)
                 else:
                     msg += _('Your server is on branch {0} ({1} blocks)').format(name, chain.get_branch_size())
@@ -486,14 +494,13 @@ class ServerWidget(QWidget, QtEventListener):
 
     def update_from_config(self):
         auto_connect = self.config.NETWORK_AUTO_CONNECT
-        self.autoconnect_cb.setChecked(auto_connect)
         one_server = self.config.NETWORK_ONESERVER
-        self.one_server_cb.setChecked(one_server)
+        v = ConnectMode.AUTOCONNECT if auto_connect else ConnectMode.ONESERVER if one_server else ConnectMode.MANUAL
+        self.connect_combo.setCurrentIndex(v)
+
         server = self.config.NETWORK_SERVER
         self.server_e.setText(server)
 
-        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable() and not one_server)
-        self.one_server_cb.setEnabled(self.config.cv.NETWORK_ONESERVER.is_modifiable() and not auto_connect)
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
         self.nodes_list_widget.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable())
 
@@ -514,9 +521,11 @@ class ServerWidget(QWidget, QtEventListener):
                 raise Exception("failed to parse server")
         except Exception:
             return
-        net_params = net_params._replace(server=server,
-                                         auto_connect=self.autoconnect_cb.isChecked(),
-                                         oneserver=self.one_server_cb.isChecked())
+        net_params = net_params._replace(
+            server=server,
+            auto_connect=self.is_auto_connect(),
+            oneserver=self.is_one_server(),
+        )
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
 
@@ -528,11 +537,16 @@ class NostrWidget(QWidget, QtEventListener):
         self.config = network.config
         vbox = QVBoxLayout()
         self.setLayout(vbox)
-        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
+        grid = QGridLayout()
+        nostr_relays_label = QLabel(self.config.cv.NOSTR_RELAYS.get_short_desc())
+        nostr_helpbutton = HelpButton(self.config.cv.NOSTR_RELAYS.get_long_desc())
+        grid.addWidget(nostr_relays_label, 0, 0)
+        grid.addWidget(nostr_helpbutton, 0, 1)
+        vbox.addLayout(grid)
+
         self.relays_list = QListWidget()
         self.relay_edit = QLineEdit()
         self.relay_edit.textChanged.connect(self.on_relay_edited)
-        vbox.addWidget(nostr_relays_label)
         vbox.addWidget(self.relays_list)
         vbox.addStretch()
         self.add_button = QPushButton(_('Add'))

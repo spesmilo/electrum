@@ -104,3 +104,34 @@ MSG_TERMS_OF_USE = (
 )
 TERMS_OF_USE_LATEST_VERSION : int = 1  # bump this if we want users re-prompted due to changes
 
+
+MSG_CONNECTMODE_AUTOCONNECT = _('Auto-connect')
+MSG_CONNECTMODE_MANUAL = _('Manual server selection')
+MSG_CONNECTMODE_ONESERVER = _('Connect only to a single server')
+
+MSG_CONNECTMODE_SERVER_HELP = _(
+    "Electrum connects to a unique server in order to receive your transaction history. "
+    "This server will learn your wallet adddresses."
+)
+MSG_CONNECTMODE_NODES_HELP = _(
+    "In addition to your history server, Electrum will try to maintain connections with ~10 extra servers, in order to download block headers and find out the longest blockchain. "
+    "These servers are only used for block header notifications and fee estimates; they do not learn your wallet addresses. "
+    "Getting block headers from multiple sources is useful to detect lagging servers and forks. "
+    "Fork detection is security-critical for determining number of confirmations."
+)
+
+MSG_CONNECTMODE_AUTOCONNECT_HELP = _(
+    "Electrum will always use a history server that is on the longest blockchain. "
+    "If your current server is unresponsive or lagging, Electrum will switch to another server."
+)
+
+MSG_CONNECTMODE_MANUAL_HELP = _(
+    "Electrum will stay with the server you selected. It will warn you if your server is lagging."
+)
+
+MSG_CONNECTMODE_ONESERVER_HELP = _(
+    "Electrum will stay with the server you selected, and it will not connect to additional nodes. "
+    "This will disable fork detection. "
+    "This mode is only intended for connecting to your own fully trusted server. "
+    "Using this option on a public server is a security risk and is discouraged."
+)
