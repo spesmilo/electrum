@@ -53,8 +53,8 @@ class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', wallet_type: str, app: 'QElectrumApplication', plugins: 'Plugins', *, start_viewstate=None):
-        KeystoreWizard.__init__(self, plugins)
         QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
+        KeystoreWizard.__init__(self, plugins)
         self._wallet_type = wallet_type
         self.window_title = _('Extend wallet keystore')
         # attach gui classes to views

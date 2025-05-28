@@ -198,12 +198,185 @@ class AbstractWizard:
         return copy.deepcopy(self._current.wizard_data)
 
 
-class NewWalletWizard(AbstractWizard):
+class KeystoreWizard(AbstractWizard):
+
+    _logger = get_logger(__name__)
+
+    def __init__(self, plugins):
+        AbstractWizard.__init__(self)
+        self.plugins = plugins
+        self.navmap = {
+            'keystore_type': {
+                'next': self.on_keystore_type
+            },
+            'enter_seed': {
+                'next': 'enter_ext',
+                'accept': lambda d: None if self.wants_ext(d) else self.update_keystore(d),
+                'last': lambda d: not self.wants_ext(d),
+            },
+            'enter_ext': {
+                'accept': self.update_keystore,
+                'last': True
+            },
+            'choose_hardware_device': {
+                'next': self.on_hardware_device,
+            },
+        }
+
+    def check_multisig_constraints(self, wizard_data: dict) -> Tuple[bool, str]:
+        # called by GUI. overloaded in NewWalletWizard
+        return True, ''
+
+    def update_keystore(self, wizard_data):
+        wallet_type = wizard_data['wallet_type']
+        keystore = self.keystore_from_data(wallet_type, wizard_data)
+        self._result = keystore, (wizard_data['keystore_type'] == 'hardware')
+
+    def on_keystore_type(self, wizard_data: dict) -> str:
+        t = wizard_data['keystore_type']
+        return {
+            'haveseed': 'enter_seed',
+            'hardware': 'choose_hardware_device'
+        }.get(t)
+
+    def last_cosigner(self, wizard_data: dict) -> bool:
+        # one at a time
+        return True
+
+    def start(self, initial_data: dict = None) -> WizardViewState:
+        if initial_data is None:
+            initial_data = {}
+        self.reset()
+        start_view = 'keystore_type'
+        params = self.navmap[start_view].get('params', {})
+        self._current = WizardViewState(start_view, initial_data, params)
+        return self._current
+
+    # returns (sub)dict of current cosigner (or root if first)
+    def current_cosigner(self, wizard_data: dict) -> dict:
+        wdata = wizard_data
+        if wizard_data.get('wallet_type') == 'multisig' and 'multisig_current_cosigner' in wizard_data:
+            cosigner = wizard_data['multisig_current_cosigner']
+            wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
+        return wdata
+
+    def needs_derivation_path(self, wizard_data: dict) -> bool:
+        wdata = self.current_cosigner(wizard_data)
+        return 'seed_variant' in wdata and wdata['seed_variant'] in ['bip39', 'slip39']
+
+    def wants_ext(self, wizard_data: dict) -> bool:
+        wdata = self.current_cosigner(wizard_data)
+        return 'seed_variant' in wdata and wdata['seed_extend']
+
+    def is_multisig(self, wizard_data: dict) -> bool:
+        return wizard_data['wallet_type'] == 'multisig'
+
+    def is_hardware(self, wizard_data: dict) -> bool:
+        return wizard_data['keystore_type'] == 'hardware'
+
+    def wallet_password_view(self, wizard_data: dict) -> str:
+        if self.is_hardware(wizard_data) and wizard_data['wallet_type'] == 'standard':
+            return 'wallet_password_hardware'
+        return 'wallet_password'
+
+    def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
+        current_cosigner = self.current_cosigner(wizard_data)
+        _type, _info = current_cosigner['hardware_device']
+        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
+        plugin = self.plugins.get_plugin(_type)
+        return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
+
+    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str):
+        seed_type = ''
+        seed_valid = False
+        validation_message = ''
+        can_passphrase = True
+
+        if seed_variant == 'electrum':
+            seed_type = mnemonic.calc_seed_type(seed)
+            if seed_type != '':
+                seed_valid = True
+                can_passphrase = can_seed_have_passphrase(seed)
+        elif seed_variant == 'bip39':
+            is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
+            validation_message = ('' if is_checksum else _('BIP39 checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
+            if not bool(seed):
+                validation_message = ''
+            seed_type = 'bip39'
+            # bip39 always valid, even if checksum failed, see #8720
+            # however, reject empty string
+            seed_valid = bool(seed)
+        elif seed_variant == 'slip39':
+            # seed shares should be already validated by wizard page, we have a combined encrypted seed
+            if seed and isinstance(seed, EncryptedSeed):
+                seed_valid = True
+                seed_type = 'slip39'
+            else:
+                seed_valid = False
+        else:
+            raise Exception(f'unknown seed variant {seed_variant}')
+
+        # check if seed matches wallet type
+        if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
+            seed_valid = False
+        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39', 'slip39']:
+            seed_valid = False
+        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39', 'slip39']:
+            seed_valid = False
+
+        self._logger.debug(f'seed verified: {seed_valid}, type={seed_type!r}, validation_message={validation_message}')
+
+        return seed_valid, seed_type, validation_message, can_passphrase
+
+    def keystore_from_data(self, wallet_type: str, data: dict):
+        if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
+            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
+            if data['seed_variant'] == 'electrum':
+                for_multisig = wallet_type in ['multisig']
+                return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=for_multisig)
+            elif data['seed_variant'] == 'bip39':
+                root_seed = keystore.bip39_to_seed(data['seed'], passphrase=seed_extension)
+                derivation = normalize_bip32_derivation(data['derivation_path'])
+                if wallet_type == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                return keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
+            elif data['seed_variant'] == 'slip39':
+                root_seed = data['seed'].decrypt(seed_extension)
+                derivation = normalize_bip32_derivation(data['derivation_path'])
+                if wallet_type == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                return keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
+            else:
+                raise Exception('Unsupported seed variant %s' % data['seed_variant'])
+        elif data['keystore_type'] == 'masterkey' and 'master_key' in data:
+            return keystore.from_master_key(data['master_key'])
+        elif data['keystore_type'] == 'hardware':
+            return self.hw_keystore(data)
+        else:
+            raise Exception('no seed or master_key in data')
+
+    def hw_keystore(self, data: dict) -> 'Hardware_KeyStore':
+        return hardware_keystore({
+            'type': 'hardware',
+            'hw_type': data['hw_type'],
+            'derivation': data['derivation_path'],
+            'root_fingerprint': data['root_fingerprint'],
+            'xpub': data['master_key'],
+            'label': data['label'],
+            'soft_device_id': data['soft_device_id']
+        })
+
+
+class NewWalletWizard(KeystoreWizard):
 
     _logger = get_logger(__name__)
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins'):
-        AbstractWizard.__init__(self)
+        KeystoreWizard.__init__(self, plugins)
         self.navmap = {
             'wallet_name': {
                 'next': 'wallet_type'
@@ -290,25 +463,6 @@ class NewWalletWizard(AbstractWizard):
     def is_single_password(self) -> bool:
         raise NotImplementedError()
 
-    # returns (sub)dict of current cosigner (or root if first)
-    def current_cosigner(self, wizard_data: dict) -> dict:
-        wdata = wizard_data
-        if wizard_data.get('wallet_type') == 'multisig' and 'multisig_current_cosigner' in wizard_data:
-            cosigner = wizard_data['multisig_current_cosigner']
-            wdata = wizard_data['multisig_cosigner_data'][str(cosigner)]
-        return wdata
-
-    def needs_derivation_path(self, wizard_data: dict) -> bool:
-        wdata = self.current_cosigner(wizard_data)
-        return 'seed_variant' in wdata and wdata['seed_variant'] in ['bip39', 'slip39']
-
-    def wants_ext(self, wizard_data: dict) -> bool:
-        wdata = self.current_cosigner(wizard_data)
-        return 'seed_variant' in wdata and wdata['seed_extend']
-
-    def is_multisig(self, wizard_data: dict) -> bool:
-        return wizard_data['wallet_type'] == 'multisig'
-
     def on_wallet_type(self, wizard_data: dict) -> str:
         t = wizard_data['wallet_type']
         return {
@@ -326,21 +480,6 @@ class NewWalletWizard(AbstractWizard):
             'masterkey': 'have_master_key',
             'hardware': 'choose_hardware_device'
         }.get(t)
-
-    def is_hardware(self, wizard_data: dict) -> bool:
-        return wizard_data['keystore_type'] == 'hardware'
-
-    def wallet_password_view(self, wizard_data: dict) -> str:
-        if self.is_hardware(wizard_data) and wizard_data['wallet_type'] == 'standard':
-            return 'wallet_password_hardware'
-        return 'wallet_password'
-
-    def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
-        current_cosigner = self.current_cosigner(wizard_data)
-        _type, _info = current_cosigner['hardware_device']
-        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
-        plugin = self.plugins.get_plugin(_type)
-        return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 
     def on_have_or_confirm_seed(self, wizard_data: dict) -> str:
         if self.needs_derivation_path(wizard_data):
@@ -418,37 +557,6 @@ class NewWalletWizard(AbstractWizard):
                 return True
         return False
 
-    def keystore_from_data(self, wallet_type: str, data: dict):
-        if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
-            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
-            if data['seed_variant'] == 'electrum':
-                for_multisig = wallet_type in ['multisig']
-                return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=for_multisig)
-            elif data['seed_variant'] == 'bip39':
-                root_seed = keystore.bip39_to_seed(data['seed'], passphrase=seed_extension)
-                derivation = normalize_bip32_derivation(data['derivation_path'])
-                if wallet_type == 'multisig':
-                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
-                else:
-                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
-                return keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
-            elif data['seed_variant'] == 'slip39':
-                root_seed = data['seed'].decrypt(seed_extension)
-                derivation = normalize_bip32_derivation(data['derivation_path'])
-                if wallet_type == 'multisig':
-                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
-                else:
-                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
-                return keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
-            else:
-                raise Exception('Unsupported seed variant %s' % data['seed_variant'])
-        elif data['keystore_type'] == 'masterkey' and 'master_key' in data:
-            return keystore.from_master_key(data['master_key'])
-        elif data['keystore_type'] == 'hardware':
-            return self.hw_keystore(data)
-        else:
-            raise Exception('no seed or master_key in data')
-
     def is_current_cosigner_hardware(self, wizard_data: dict) -> bool:
         cosigner_data = self.current_cosigner(wizard_data)
         cosigner_is_hardware = cosigner_data == wizard_data and wizard_data['keystore_type'] == 'hardware'
@@ -489,48 +597,6 @@ class NewWalletWizard(AbstractWizard):
             multisig_keys_valid = True
 
         return multisig_keys_valid, user_info
-
-    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str):
-        seed_type = ''
-        seed_valid = False
-        validation_message = ''
-        can_passphrase = True
-
-        if seed_variant == 'electrum':
-            seed_type = mnemonic.calc_seed_type(seed)
-            if seed_type != '':
-                seed_valid = True
-                can_passphrase = can_seed_have_passphrase(seed)
-        elif seed_variant == 'bip39':
-            is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
-            validation_message = ('' if is_checksum else _('BIP39 checksum failed')) if is_wordlist else _('Unknown BIP39 wordlist')
-            if not bool(seed):
-                validation_message = ''
-            seed_type = 'bip39'
-            # bip39 always valid, even if checksum failed, see #8720
-            # however, reject empty string
-            seed_valid = bool(seed)
-        elif seed_variant == 'slip39':
-            # seed shares should be already validated by wizard page, we have a combined encrypted seed
-            if seed and isinstance(seed, EncryptedSeed):
-                seed_valid = True
-                seed_type = 'slip39'
-            else:
-                seed_valid = False
-        else:
-            raise Exception(f'unknown seed variant {seed_variant}')
-
-        # check if seed matches wallet type
-        if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
-            seed_valid = False
-        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39', 'slip39']:
-            seed_valid = False
-        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39', 'slip39']:
-            seed_valid = False
-
-        self._logger.debug(f'seed verified: {seed_valid}, type={seed_type!r}, validation_message={validation_message}')
-
-        return seed_valid, seed_type, validation_message, can_passphrase
 
     def validate_master_key(self, key: str, wallet_type: str):
         # TODO: deduplicate with master key check in create_storage()
@@ -697,17 +763,6 @@ class NewWalletWizard(AbstractWizard):
         db.load_plugins()
         db.write()
 
-    def hw_keystore(self, data: dict) -> 'Hardware_KeyStore':
-        return hardware_keystore({
-            'type': 'hardware',
-            'hw_type': data['hw_type'],
-            'derivation': data['derivation_path'],
-            'root_fingerprint': data['root_fingerprint'],
-            'xpub': data['master_key'],
-            'label': data['label'],
-            'soft_device_id': data['soft_device_id']
-        })
-
 
 class ServerConnectWizard(AbstractWizard):
 
@@ -800,61 +855,3 @@ class TermsOfUseWizard(AbstractWizard):
         params = self.navmap[start_view].get('params', {})
         self._current = WizardViewState(start_view, initial_data, params)
         return self._current
-
-
-class KeystoreWizard(NewWalletWizard):
-
-    _logger = get_logger(__name__)
-
-    def __init__(self, plugins):
-        AbstractWizard.__init__(self)
-        self.plugins = plugins
-        self.navmap = {
-            'keystore_type': {
-                'next': self.on_keystore_type
-            },
-            'enter_seed': {
-                'next': 'enter_ext',
-                'accept': lambda d: None if self.wants_ext(d) else self.update_keystore(d),
-                'last': lambda d: not self.wants_ext(d),
-            },
-            'enter_ext': {
-                'accept': self.update_keystore,
-                'last': True
-            },
-            'choose_hardware_device': {
-                'next': self.on_hardware_device,
-            },
-        }
-
-    def maybe_master_pubkey(self, wizard_data):
-        self.update_keystore(wizard_data)
-
-    def update_keystore(self, wizard_data):
-        wallet_type = wizard_data['wallet_type']
-        keystore = self.keystore_from_data(wallet_type, wizard_data)
-        self._result = keystore, (wizard_data['keystore_type'] == 'hardware')
-
-    def on_keystore_type(self, wizard_data: dict) -> str:
-        t = wizard_data['keystore_type']
-        return {
-            'haveseed': 'enter_seed',
-            'hardware': 'choose_hardware_device'
-        }.get(t)
-
-    def is_multisig(self, wizard_data: dict) -> bool:
-        return wizard_data['wallet_type'] == 'multisig'
-
-    def last_cosigner(self, wizard_data: dict) -> bool:
-        # one at a time
-        return True
-
-    def start(self, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
-        self.reset()
-        start_view = 'keystore_type'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
-        return self._current
-
