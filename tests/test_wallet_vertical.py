@@ -9,7 +9,7 @@ import copy
 from electrum import storage, bitcoin, keystore, bip32, slip39, wallet
 from electrum import SimpleConfig
 from electrum import util
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException, TransactionDangerousException,
@@ -2838,6 +2838,74 @@ class TestWalletSending(ElectrumTestCase):
             tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(0))
             self.assertEqual(1, len(tx.inputs()))
             self.assertEqual(2, len(tx.outputs()))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_wallet_adb_gettxheight_treats_mempool_txid_as_local_if_missing_fulltx(self, mock_save_db):
+        wallet = self.create_standard_wallet_from_seed('dismiss smile transfer input market ten damage city duck dolphin entire because',
+                                                       config=self.config, gap_limit=2)
+        self.assertEqual(0, len(wallet.get_spendable_coins()))
+
+        # fund wallet with two utxos
+        funding_tx1 = Transaction('02000000000101bf03f2d37ae084d729e5685d64988c92e8a98cb73062802646dfbb10d77e88410000000000fdffffff02a03007000000000016001443a24a730a7ddd2ce4da777a949a9e87c6ad870920a107000000000016001447597395323a834378d7577d848187684d0d70fe0247304402200e6f1898a0681c4ff1f5995b357c3388ca53fcf56760e0d14d4ea72c48d1134b0220683b8e5045743c087d488dfc5f8c5b7369ff92f611595eaba0dbb0c0009c816e0121021bd313412fad3802801f6c45321a10c7bf35603bf8571aa263ece764d1ab7ef1a2434300')
+        wallet.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=True)))
+        self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=False)))
+
+        funding_tx2 = Transaction('02000000000101d8a9691c534e90655623cd1a642c3b3f31db09548a5922e0218289a34daf27fc0000000000fdffffff021061070000000000160014910f3a772d33c615abe4f1c346476cae1414f6d7c027090000000000160014071955c9141dfaa8df1abbfe04527ff061b652450247304402203e45c9d4191239273af9fa97eb986f66afe66345a2f2b6284e214ab91fce072802205a50e8b74f191202442876d6a0cd7e95262e6c125a21eebaebe0bd93aa15107f0121022e8590152fad3aa6a8730648dfcb84ebe432c9190987d498b81707588e40626da2434300')
+        wallet.adb.receive_tx_callback(funding_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=True)))
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
+
+        # create payment_tx that spends utxo1 and creates a change txo
+        outputs = [PartialTxOutput.from_address_and_value('tb1qrxrp08s5d4cgudlmyfasyme9rgxc7n6z29g2m9', 200_000)]
+        coins = wallet.get_spendable_coins()
+        payment_tx = wallet.make_unsigned_transaction(coins=[coins[0]], outputs=outputs, fee_policy=FixedFeePolicy(0))
+        payment_txid = payment_tx.txid()
+        assert payment_txid
+        # save payment_tx as LOCAL and UNSIGNED
+        wallet.adb.add_transaction(payment_tx)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=True)))
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
+        # transition payment_tx to mempool (but it is still unsigned!)
+        #   This can happen organically in a workflow if
+        #     1. we save as local an unsigned tx,
+        #     2. sign+broadcast it, but we don't save the signed tx as local,
+        #     3. then some RTTs later the server will tell us that the txid is now in the mempool (or mined),
+        #     4. then yet more RTTs later we request and receive the full tx from the server
+        #   between (3) and (4), the wallet could consider txid to be mempool/mined,
+        #   but the wallet db does not yet have the corresponding full tx.
+        #   In such cases, we instead want the txid to be considered LOCAL.
+        wallet.adb.receive_tx_callback(payment_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=True)))
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
+        # wallet gets signed tx (e.g. from network).  payment_tx is now considered to be in mempool
+        wallet.sign_transaction(payment_tx, password=None)
+        wallet.adb.receive_tx_callback(payment_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual(TX_HEIGHT_UNCONFIRMED, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=True)))
+        self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_wallet_adb_gettxheight_treats_future_txid_as_future_even_if_missing_fulltx(self, mock_save_db):
+        wallet = self.create_standard_wallet_from_seed('dismiss smile transfer input market ten damage city duck dolphin entire because',
+                                                       config=self.config, gap_limit=2)
+        # fund wallet
+        funding_tx1 = Transaction('02000000000101bf03f2d37ae084d729e5685d64988c92e8a98cb73062802646dfbb10d77e88410000000000fdffffff02a03007000000000016001443a24a730a7ddd2ce4da777a949a9e87c6ad870920a107000000000016001447597395323a834378d7577d848187684d0d70fe0247304402200e6f1898a0681c4ff1f5995b357c3388ca53fcf56760e0d14d4ea72c48d1134b0220683b8e5045743c087d488dfc5f8c5b7369ff92f611595eaba0dbb0c0009c816e0121021bd313412fad3802801f6c45321a10c7bf35603bf8571aa263ece764d1ab7ef1a2434300')
+        wallet.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+        # create payment_tx that spends utxo1 and creates a change txo
+        outputs = [PartialTxOutput.from_address_and_value('tb1qrxrp08s5d4cgudlmyfasyme9rgxc7n6z29g2m9', 200_000)]
+        coins = wallet.get_spendable_coins()
+        payment_tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(0))
+        payment_txid = payment_tx.txid()
+        assert payment_txid
+        # save payment_tx as LOCAL and UNSIGNED
+        wallet.adb.add_transaction(payment_tx)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        # mark payment_tx as future
+        wallet.adb.set_future_tx(payment_txid, wanted_height=300)
+        self.assertEqual(TX_HEIGHT_FUTURE, wallet.adb.get_tx_height(payment_txid).height)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_imported_wallet_usechange_off(self, mock_save_db):
