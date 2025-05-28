@@ -773,6 +773,8 @@ class Interface(Logger):
             self._mark_ready()
             blockchain_updated = await self._process_header_at_tip()
             # header processing done
+            if self.is_main_server():
+                self.logger.info(f"new chain tip on main interface. {height=}")
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
             util.trigger_callback('network_updated')
