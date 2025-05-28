@@ -130,6 +130,7 @@ class Command:
 
     def parse_docstring(self, docstring):
         docstring = docstring or ''
+        docstring = docstring.strip()
         self.description = docstring
         self.arg_descriptions = {}
         self.arg_types = {}
@@ -137,6 +138,7 @@ class Command:
             self.arg_descriptions[x.group(2)] = x.group(3)
             self.arg_types[x.group(2)] = x.group(1)
             self.description = self.description.replace(x.group(), '')
+        self.short_description = self.description.split('.')[0]
 
 
 def command(s):
@@ -229,11 +231,6 @@ class Commands(Logger):
         if self._callback:
             self._callback()
         return result
-
-    @command('')
-    async def commands(self):
-        """List of commands"""
-        return ' '.join(sorted(known_commands.keys()))
 
     @command('n')
     async def getinfo(self):
@@ -1595,11 +1592,13 @@ class Commands(Logger):
 
     @command('wl')
     async def nodeid(self, wallet: Abstract_Wallet = None):
+        """Return the Lightning Node ID of a wallet"""
         listen_addr = self.config.LIGHTNING_LISTEN
         return wallet.lnworker.node_keypair.pubkey.hex() + (('@' + listen_addr) if listen_addr else '')
 
     @command('wl')
     async def list_channels(self, wallet: Abstract_Wallet = None):
+        """Return the list of Lightning channels in a wallet"""
         # FIXME: we need to be online to display capacity of backups
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
         channels = list(wallet.lnworker.channels.items())
@@ -2182,7 +2181,9 @@ def get_parser():
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(
-            cmdname, description=cmd.description,
+            cmdname,
+            description=cmd.description,
+            help=cmd.short_description,
             epilog="Run 'electrum -h to see the list of global options",
         )
         for optname, default in zip(cmd.options, cmd.defaults):
