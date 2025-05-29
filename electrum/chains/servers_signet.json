@@ -1,10 +1,4 @@
 {
-    "127.0.0.1": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.4"
-    },
     "signet-electrumx.wakiyamap.dev": {
         "pruning": "-",
         "s": "50002",
@@ -14,6 +8,11 @@
     "electrum.emzy.de": {
         "pruning": "-",
         "s": "53002",
+        "version": "1.4"
+    },
+    "mempool.space": {
+        "pruning": "-",
+        "s": "60602",
         "version": "1.4"
     }
 }

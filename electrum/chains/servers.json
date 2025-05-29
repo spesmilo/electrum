@@ -223,6 +223,11 @@
         "t": "50001",
         "version": "1.4.2"
     },
+    "electrum.diynodes.com": {
+        "pruning": "-",
+        "s": "50022",
+        "version": "1.4"
+    },
     "electrum.emzy.de": {
         "pruning": "-",
         "s": "50002",
@@ -321,6 +326,11 @@
         "s": "51002",
         "t": "51001",
         "version": "1.4.5"
+    },
+    "fulcrum.sethforprivacy.com": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
     },
     "gall.pro": {
         "pruning": "-",
