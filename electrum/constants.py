@@ -28,7 +28,7 @@ import json
 from typing import Sequence, Tuple, Mapping, Type, List
 
 from .lntransport import LNPeerAddr
-from .util import inv_dict, all_subclasses
+from .util import inv_dict, all_subclasses, classproperty
 from . import bitcoin
 
 
@@ -74,9 +74,6 @@ class AbstractNet:
     BIP44_COIN_TYPE: int
     LN_REALM_BYTE: int
     DEFAULT_PORTS: Mapping[str, str]
-    DEFAULT_SERVERS: Mapping[str, Mapping[str, str]]
-    FALLBACK_LN_NODES: Sequence[LNPeerAddr]
-    CHECKPOINTS: Sequence[Tuple[str, int]]
     LN_DNS_SEEDS: Sequence[str]
     XPRV_HEADERS: Mapping[str, int]
     XPRV_HEADERS_INV: Mapping[int, str]
@@ -96,6 +93,31 @@ class AbstractNet:
         global net
         net = cls
 
+    _cached_default_servers = None
+    @classproperty
+    def DEFAULT_SERVERS(cls) -> Mapping[str, Mapping[str, str]]:
+        if cls._cached_default_servers is None:
+            default_file = {} if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
+            cls._cached_default_servers = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
+        return cls._cached_default_servers
+
+    _cached_fallback_lnnodes = None
+    @classproperty
+    def FALLBACK_LN_NODES(cls) -> Sequence[LNPeerAddr]:
+        if cls._cached_fallback_lnnodes is None:
+            default_file = {} if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
+            d = read_json(os.path.join('chains', cls.NET_NAME, 'fallback_lnnodes.json'), default_file)
+            cls._cached_fallback_lnnodes = create_fallback_node_list(d)
+        return cls._cached_fallback_lnnodes
+
+    _cached_checkpoints = None
+    @classproperty
+    def CHECKPOINTS(cls) -> Sequence[Tuple[str, int]]:
+        if cls._cached_checkpoints is None:
+            default_file = [] if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
+            cls._cached_checkpoints = read_json(os.path.join('chains', cls.NET_NAME, 'checkpoints.json'), default_file)
+        return cls._cached_checkpoints
+
 
 class BitcoinMainnet(AbstractNet):
 
@@ -108,9 +130,6 @@ class BitcoinMainnet(AbstractNet):
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers.json'))
-    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_mainnet.json')))
-    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints.json'))
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
@@ -149,9 +168,6 @@ class BitcoinTestnet(AbstractNet):
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_testnet.json'), {})
-    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_testnet3.json'), {}))
-    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints_testnet.json'), [])
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
@@ -181,9 +197,6 @@ class BitcoinTestnet4(BitcoinTestnet):
 
     NET_NAME = "testnet4"
     GENESIS = "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043"
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_testnet4.json'), {})
-    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_testnet4.json'), {}))
-    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints_testnet4.json'), [])
     LN_DNS_SEEDS = []
 
 
@@ -193,9 +206,6 @@ class BitcoinRegtest(BitcoinTestnet):
     SEGWIT_HRP = "bcrt"
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_regtest.json'), {})
-    FALLBACK_LN_NODES = []
-    CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
 
@@ -208,9 +218,6 @@ class BitcoinSimnet(BitcoinTestnet):
     SEGWIT_HRP = "sb"
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_regtest.json'), {})
-    FALLBACK_LN_NODES = []
-    CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
 
@@ -219,9 +226,6 @@ class BitcoinSignet(BitcoinTestnet):
     NET_NAME = "signet"
     BOLT11_HRP = "tbs"
     GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
-    DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_signet.json'), {})
-    FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_signet.json'), {}))
-    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints_signet.json'), [])
     LN_DNS_SEEDS = []
 
 
