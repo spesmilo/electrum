@@ -221,7 +221,7 @@ class BitcoinSignet(BitcoinTestnet):
     GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
     DEFAULT_SERVERS = read_json(os.path.join('chains', 'servers_signet.json'), {})
     FALLBACK_LN_NODES = create_fallback_node_list(read_json(os.path.join('chains', 'fallback_lnnodes_signet.json'), {}))
-    CHECKPOINTS = []
+    CHECKPOINTS = read_json(os.path.join('chains', 'checkpoints_signet.json'), [])
     LN_DNS_SEEDS = []
 
 
