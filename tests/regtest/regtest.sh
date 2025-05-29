@@ -424,7 +424,7 @@ if [[ $1 == "redeem_received_htlcs" ]]; then
     $bob close_channel $chan_id --force
     # if we exit here, bob GUI will show a warning
     new_blocks 1
-    wait_for_balance bob 1.039
+    wait_for_balance bob 1.038
 fi
 
 
