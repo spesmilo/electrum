@@ -43,8 +43,6 @@ class LogFormatterForConsole(logging.Formatter):
     def format(self, record):
         record = copy.copy(record)  # avoid mutating arg
         record = _shorten_name_of_logrecord(record)
-        if shortcut := getattr(record, 'custom_shortcut', None):
-            record.name = f"{shortcut}/{record.name}"
         text = super().format(record)
         return text
 
@@ -192,37 +190,6 @@ def _process_verbosity_log_levels(verbosity):
             raise Exception(f"invalid log filter: {filt}")
 
 
-
-class ShortcutFilteringFilter(logging.Filter):
-
-    def __init__(self, *, is_blacklist: bool, filters: str):
-        super().__init__()
-        self.__is_blacklist = is_blacklist
-        self.__filters = filters
-
-    def filter(self, record):
-        # all errors are let through
-        if record.levelno >= logging.ERROR:
-            return True
-        # the logging module itself is let through
-        if record.name == __name__:
-            return True
-        # do filtering
-        shortcut = getattr(record, 'custom_shortcut', None)
-        if self.__is_blacklist:
-            if shortcut is None:
-                return True
-            if shortcut in self.__filters:
-                return False
-            return True
-        else:  # whitelist
-            if shortcut is None:
-                return False
-            if shortcut in self.__filters:
-                return True
-            return False
-
-
 # enable logs universally (including for other libraries)
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.WARNING)
@@ -260,9 +227,6 @@ _logger.setLevel(logging.INFO)
 
 
 class Logger:
-
-    # Single character short "name" for this class.
-    # Can be used for filtering log lines. Does not need to be unique.
 
     def __init__(self):
         self.logger = self.__get_logger_for_obj()
