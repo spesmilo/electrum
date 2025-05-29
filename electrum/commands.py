@@ -547,10 +547,10 @@ class Commands(Logger):
 
     @command('')
     async def signtransaction_with_privkey(self, tx, privkey):
-        """Sign a transaction. The provided list of private keys will be used to sign the transaction.
+        """Sign a transaction with private keys passed as parameter.
 
         arg:tx:tx:Transaction to sign
-        arg:str:privkey:private key
+        arg:str:privkey:private key or list of private keys
         """
         tx = tx_from_any(tx)
 
@@ -576,7 +576,7 @@ class Commands(Logger):
     @command('wp')
     async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None, ignore_warnings: bool=False):
         """
-        Sign a transaction. The wallet keys will be used to sign the transaction.
+        Sign a transaction with the current wallet.
 
         arg:tx:tx:transaction
         arg:bool:ignore_warnings:ignore warnings
@@ -1122,7 +1122,7 @@ class Commands(Logger):
         return wallet.contacts
 
     @command('w')
-    async def getalias(self, key, wallet: Abstract_Wallet = None):
+    async def getopenalias(self, key, wallet: Abstract_Wallet = None):
         """
         Retrieve alias. Lookup in your list of contacts, and for an OpenAlias DNS record.
 
@@ -1250,11 +1250,6 @@ class Commands(Logger):
         if not r:
             raise UserFacingException("Request not found")
         return wallet.export_invoice(r)
-
-    #@command('w')
-    #async def ackrequest(self, serialized):
-    #    """<Not implemented>"""
-    #    pass
 
     def _filter_invoices(self, _list, wallet, pending, expired, paid):
         if pending:
@@ -1480,6 +1475,7 @@ class Commands(Logger):
 
     @command('')
     async def help(self):
+        """Show help about a command"""
         # for the python console
         return sorted(known_commands.keys())
 
