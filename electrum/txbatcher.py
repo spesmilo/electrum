@@ -453,10 +453,14 @@ class TxBatch(Logger):
             try:
                 tx = self._create_batch_tx(base_tx, to_sweep_now, to_pay)
             except NotEnoughFunds:
-                k = max(to_pay, key=lambda x: x.value)
-                self.logger.info(f'Not enough funds, removing output {k}')
-                to_pay.remove(k)
-                continue
+                if to_pay:
+                    k = max(to_pay, key=lambda x: x.value)
+                    self.logger.info(f'Not enough funds, removing output {k}')
+                    to_pay.remove(k)
+                    continue
+                else:
+                    self.logger.info(f'Not enough funds, waiting')
+                    return
             # 100 kb max standardness rule
             if tx.estimated_size() < 100_000:
                 break
