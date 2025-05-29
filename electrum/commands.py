@@ -2190,7 +2190,7 @@ def get_parser():
             if optname in ['wallet_path', 'wallet', 'plugin']:
                 continue
             if optname == 'password':
-                p.add_argument("-W", "--password", dest='password', help="Wallet password. Use '--password :' if you want a prompt.")
+                p.add_argument("--password", dest='password', help="Wallet password. Use '--password :' if you want a prompt.")
                 continue
             help = cmd.arg_descriptions.get(optname)
             if not help:
