@@ -533,7 +533,6 @@ class LNGossip(LNWorker):
     independently of the active LNWallets. LNGossip keeps a curated batch of gossip in _forwarding_gossip
     that is fetched by the LNWallets for regular forwarding."""
     max_age = 14*24*3600
-    LOGGING_SHORTCUT = 'g'
 
     def __init__(self, config: 'SimpleConfig'):
         seed = os.urandom(32)

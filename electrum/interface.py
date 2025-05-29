@@ -374,8 +374,6 @@ def _get_cert_path_for_host(*, config: 'SimpleConfig', host: str) -> str:
 
 class Interface(Logger):
 
-    LOGGING_SHORTCUT = 'i'
-
     def __init__(self, *, network: 'Network', server: ServerAddr):
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()

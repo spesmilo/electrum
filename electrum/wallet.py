@@ -376,7 +376,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
     """
 
-    LOGGING_SHORTCUT = 'w'
     max_change_outputs = 3
     gap_limit_for_change = 10
 

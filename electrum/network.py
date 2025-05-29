@@ -346,8 +346,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     servers, each connected socket is handled by an Interface() object.
     """
 
-    LOGGING_SHORTCUT = 'n'
-
     taskgroup: Optional[OldTaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]

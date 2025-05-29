@@ -64,8 +64,6 @@ class WatchtowerPlugin(BasePlugin):
 
 class WatchTower(Logger, EventListener):
 
-    LOGGING_SHORTCUT = 'W'
-
     def __init__(self, network: 'Network'):
         Logger.__init__(self)
         self.adb = AddressSynchronizer(WalletDB('', storage=None, upgrade=True), network.config, name=self.diagnostic_name())

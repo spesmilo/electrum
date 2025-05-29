@@ -20,8 +20,6 @@ if TYPE_CHECKING:
 
 class LNWatcher(Logger, EventListener):
 
-    LOGGING_SHORTCUT = 'W'
-
     def __init__(self, lnworker: 'LNWallet'):
         self.lnworker = lnworker
         Logger.__init__(self)

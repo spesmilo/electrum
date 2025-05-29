@@ -70,8 +70,6 @@ LN_P2P_NETWORK_TIMEOUT = 20
 class Peer(Logger, EventListener):
     # note: in general this class is NOT thread-safe. Most methods are assumed to be running on asyncio thread.
 
-    LOGGING_SHORTCUT = 'P'
-
     ORDERED_MESSAGES = (
         'accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'closing_signed')
     SPAMMY_MESSAGES = (

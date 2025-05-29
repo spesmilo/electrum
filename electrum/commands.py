@@ -2086,9 +2086,6 @@ def add_global_options(parser, suppress=False):
         "-v", dest="verbosity", default='',
         help=argparse.SUPPRESS if suppress else "Set verbosity (log levels)")
     group.add_argument(
-        "-V", dest="verbosity_shortcuts", default='',
-        help=argparse.SUPPRESS if suppress else "Set verbosity (shortcut-filter list)")
-    group.add_argument(
         "-D", "--dir", dest="electrum_path",
         help=argparse.SUPPRESS if suppress else "electrum directory")
     group.add_argument(

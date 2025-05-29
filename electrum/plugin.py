@@ -70,7 +70,6 @@ PLUGIN_PASSWORD_VERSION = 1
 
 class Plugins(DaemonThread):
 
-    LOGGING_SHORTCUT = 'p'
     pkgpath = os.path.dirname(plugins.__file__)
     # TODO: use XDG Base Directory Specification instead of hardcoding /etc
     keyfile_posix = '/etc/electrum/plugins_key'
