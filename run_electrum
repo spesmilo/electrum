@@ -420,16 +420,8 @@ def main():
                 _logger.info(f"get_default_language: failed. got exc={e!r}")
         set_language(lang)
 
-    if config.get('testnet'):
-        constants.BitcoinTestnet.set_as_network()
-    elif config.get('testnet4'):
-        constants.BitcoinTestnet4.set_as_network()
-    elif config.get('regtest'):
-        constants.BitcoinRegtest.set_as_network()
-    elif config.get('simnet'):
-        constants.BitcoinSimnet.set_as_network()
-    elif config.get('signet'):
-        constants.BitcoinSignet.set_as_network()
+    chain = config.get_selected_chain()
+    chain.set_as_network()
 
     # check if we received a valid payment identifier
     uri = config_options.get('url')

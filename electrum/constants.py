@@ -25,7 +25,7 @@
 
 import os
 import json
-from typing import Sequence, Tuple, Mapping, Type, List
+from typing import Sequence, Tuple, Mapping, Type, List, Optional
 
 from .lntransport import LNPeerAddr
 from .util import inv_dict, all_subclasses, classproperty
@@ -118,6 +118,23 @@ class AbstractNet:
             cls._cached_checkpoints = read_json(os.path.join('chains', cls.NET_NAME, 'checkpoints.json'), default_file)
         return cls._cached_checkpoints
 
+    @classmethod
+    def datadir_subdir(cls) -> Optional[str]:
+        """The name of the folder in the filesystem.
+        None means top-level, used by mainnet.
+        """
+        return cls.NET_NAME
+
+    @classmethod
+    def cli_flag(cls) -> str:
+        """as used in e.g. `$ run_electrum --testnet4`"""
+        return cls.NET_NAME
+
+    @classmethod
+    def config_key(cls) -> str:
+        """as used for SimpleConfig.get()"""
+        return cls.NET_NAME
+
 
 class BitcoinMainnet(AbstractNet):
 
@@ -155,6 +172,10 @@ class BitcoinMainnet(AbstractNet):
         'lseed.bitcoinstats.com.',
         'lseed.darosior.ninja',
     ]
+
+    @classmethod
+    def datadir_subdir(cls):
+        return None
 
 
 class BitcoinTestnet(AbstractNet):
@@ -229,7 +250,12 @@ class BitcoinSignet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
-NETS_LIST = tuple(all_subclasses(AbstractNet))
+NETS_LIST = tuple(all_subclasses(AbstractNet))  # type: Sequence[Type[AbstractNet]]
+
+assert len(NETS_LIST) == len(set([chain.NET_NAME for chain in NETS_LIST])), "NET_NAME must be unique for each concrete AbstractNet"
+assert len(NETS_LIST) == len(set([chain.datadir_subdir() for chain in NETS_LIST])), "datadir must be unique for each concrete AbstractNet"
+assert len(NETS_LIST) == len(set([chain.cli_flag() for chain in NETS_LIST])), "cli_flag must be unique for each concrete AbstractNet"
+assert len(NETS_LIST) == len(set([chain.config_key() for chain in NETS_LIST])), "config_key must be unique for each concrete AbstractNet"
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet  # type: Type[AbstractNet]

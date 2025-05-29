@@ -2090,21 +2090,10 @@ def add_global_options(parser, suppress=False):
     group.add_argument(
         "-P", "--portable", action="store_true", dest="portable", default=False,
         help=argparse.SUPPRESS if suppress else "Use local 'electrum_data' directory")
-    group.add_argument(
-        "--testnet", action="store_true", dest="testnet", default=False,
-        help=argparse.SUPPRESS if suppress else "Use Testnet")
-    group.add_argument(
-        "--testnet4", action="store_true", dest="testnet4", default=False,
-        help=argparse.SUPPRESS if suppress else "Use Testnet4")
-    group.add_argument(
-        "--regtest", action="store_true", dest="regtest", default=False,
-        help=argparse.SUPPRESS if suppress else "Use Regtest")
-    group.add_argument(
-        "--simnet", action="store_true", dest="simnet", default=False,
-        help=argparse.SUPPRESS if suppress else "Use Simnet")
-    group.add_argument(
-        "--signet", action="store_true", dest="signet", default=False,
-        help=argparse.SUPPRESS if suppress else "Use Signet")
+    for chain in constants.NETS_LIST:
+        group.add_argument(
+            f"--{chain.cli_flag()}", action="store_true", dest=chain.config_key(), default=False,
+            help=argparse.SUPPRESS if suppress else f"Use {chain.NET_NAME} chain")
     group.add_argument(
         "-o", "--offline", action="store_true", dest=SimpleConfig.NETWORK_OFFLINE.key(), default=None,
         help=argparse.SUPPRESS if suppress else "Run offline")
@@ -2134,11 +2123,8 @@ def get_simple_parser():
     parser = PassThroughOptionParser()
     parser.add_option("-D", "--dir", dest="electrum_path", help="electrum directory")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
-    parser.add_option("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    parser.add_option("--testnet4", action="store_true", dest="testnet4", default=False, help="Use Testnet4")
-    parser.add_option("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
-    parser.add_option("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    parser.add_option("--signet", action="store_true", dest="signet", default=False, help="Use Signet")
+    for chain in constants.NETS_LIST:
+        parser.add_option(f"--{chain.cli_flag()}", action="store_true", dest=chain.config_key(), default=False, help=f"Use {chain.NET_NAME} chain")
     return parser
 
 
