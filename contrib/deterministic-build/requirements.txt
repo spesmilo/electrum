@@ -36,8 +36,8 @@ pip==25.1.1 \
     --hash=sha256:3de45d411d308d5054c2168185d8da7f9a2cd753dbac8acbfa88a8909ecd9077
 propcache==0.3.1 \
     --hash=sha256:40d980c33765359098837527e18eddefc9a24cea5b45e078a7f3bb5b032c6ecf
-protobuf==6.31.1 \
-    --hash=sha256:d8cac4c982f0b957a4dc73a80e2ea24fab08e679c0de9deb835f4a12d69aca9a
+protobuf==3.20.3 \
+    --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2
 python-socks==2.7.1 \
     --hash=sha256:f1a0bb603830fe81e332442eada96757b8f8dec02bd22d1d6f5c99a79704c550
 QDarkStyle==3.2.3 \
