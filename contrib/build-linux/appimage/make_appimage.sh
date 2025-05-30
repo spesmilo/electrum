@@ -95,29 +95,6 @@ fi
 cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
 
 
-# note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
-#       This pkg is needed on some distros for Qt to launch. (see #8011)
-download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
-verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
-info "building libxcb-util1."
-(
-    if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
-        info "libxcb-util1 already built, skipping"
-        exit 0
-    fi
-    cd "$CACHEDIR"
-    mkdir "libxcb-util1"
-    cd "libxcb-util1"
-    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
-    mv "xcb-util-0.4.0" util
-    cd util
-    ./autogen.sh
-    ./configure --enable-shared
-    make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
-) || fail "Could build libxcb-util1"
-cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
-
-
 appdir_python() {
     env \
         PYTHONNOUSERSITE=1 \
