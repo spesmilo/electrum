@@ -39,6 +39,7 @@ verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c0000
 
 download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+# TODO migrate to https://github.com/AppImage/appimagetool/releases
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "07ab697474595e06f06647417d3c7fa97ded07afc1a7e4454c5639919b46eaea"
@@ -136,6 +137,7 @@ info "Installing build dependencies."
 
 # opt out of compiling C extensions
 export YARL_NO_EXTENSIONS=1
+export FROZENLIST_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 
