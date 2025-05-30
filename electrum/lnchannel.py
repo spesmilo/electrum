@@ -1563,7 +1563,7 @@ class Channel(AbstractChannel):
                 # nobody pays additional HTLC transaction fees
                 return min(max_send_msat, htlc_trim_threshold_msat - 1)
             else:
-                # somebody has to pay for the additonal HTLC transaction fees
+                # somebody has to pay for the additional HTLC transaction fees
                 if sender == initiator:
                     return max_send_msat - htlc_fee_msat
                 else:
