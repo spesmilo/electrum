@@ -26,3 +26,7 @@ bitbox02>=6.2.0
 # device plugin: jade
 cbor2>=5.4.6,<6.0.0
 pyserial>=3.5.0,<4.0.0
+
+# prefer older urllib3 to avoid needing hatchling
+# (pulled in via trezor -> requests -> urllib3)
+urllib3<2
