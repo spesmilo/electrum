@@ -2,11 +2,12 @@ import json
 import threading
 import os
 import stat
-from typing import Union, Optional, Dict, Sequence, Any, Set, Callable, AbstractSet
+from typing import Union, Optional, Dict, Sequence, Any, Set, Callable, AbstractSet, Type
 from functools import cached_property
 
 from copy import deepcopy
 
+from . import constants
 from . import util
 from . import invoices
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
@@ -232,25 +233,23 @@ class SimpleConfig(Logger):
         make_dir(path, allow_symlink=False)
         return path
 
+    def get_selected_chain(self) -> Type[constants.AbstractNet]:
+        selected_chains = [
+            chain for chain in constants.NETS_LIST
+            if self.get(chain.config_key())]
+        if selected_chains:
+            # note: if multiple are selected, we just pick one deterministically random
+            return selected_chains[0]
+        return constants.BitcoinMainnet
+
     def electrum_path(self):
         path = self.electrum_path_root()
-        if self.get('testnet'):
-            path = os.path.join(path, 'testnet')
-            make_dir(path, allow_symlink=False)
-        elif self.get('testnet4'):
-            path = os.path.join(path, 'testnet4')
-            make_dir(path, allow_symlink=False)
-        elif self.get('regtest'):
-            path = os.path.join(path, 'regtest')
-            make_dir(path, allow_symlink=False)
-        elif self.get('simnet'):
-            path = os.path.join(path, 'simnet')
-            make_dir(path, allow_symlink=False)
-        elif self.get('signet'):
-            path = os.path.join(path, 'signet')
+        chain = self.get_selected_chain()
+        if subdir := chain.datadir_subdir():
+            path = os.path.join(path, subdir)
             make_dir(path, allow_symlink=False)
 
-        self.logger.info(f"electrum directory {path}")
+        self.logger.info(f"electrum directory {path} (chain={chain.NET_NAME})")
         return path
 
     def rename_config_keys(self, config, keypairs, deprecation_warning=False):
