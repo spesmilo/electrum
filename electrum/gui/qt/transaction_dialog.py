@@ -417,9 +417,10 @@ def show_transaction(
     *,
     parent: 'ElectrumWindow',
     prompt_if_unsaved: bool = False,
+    prompt_if_complete_unsaved: bool = True,
     external_keypairs: Mapping[bytes, bytes] = None,
     invoice: 'Invoice' = None,
-    on_closed: Callable[[], None] = None,
+    on_closed: Callable[[Optional[Transaction]], None] = None,
     show_sign_button: bool = True,
     show_broadcast_button: bool = True,
 ):
@@ -428,6 +429,7 @@ def show_transaction(
             tx,
             parent=parent,
             prompt_if_unsaved=prompt_if_unsaved,
+            prompt_if_complete_unsaved=prompt_if_complete_unsaved,
             external_keypairs=external_keypairs,
             invoice=invoice,
             on_closed=on_closed,
@@ -453,9 +455,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         *,
         parent: 'ElectrumWindow',
         prompt_if_unsaved: bool,
+        prompt_if_complete_unsaved: bool = True,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: 'Invoice' = None,
-        on_closed: Callable[[], None] = None,
+        on_closed: Callable[[Optional[Transaction]], None] = None,
     ):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -469,6 +472,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.invoice = invoice
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.prompt_if_complete_unsaved = prompt_if_complete_unsaved
         self.on_closed = on_closed
         self.saved = False
         self.desc = None
@@ -632,7 +636,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self._fetch_txin_data_fut = None
 
         if self.on_closed:
-            self.on_closed()
+            self.on_closed(self.tx)
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)
@@ -703,7 +707,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def sign(self):
         def sign_done(success):
-            if self.tx.is_complete():
+            if self.tx.is_complete() and self.prompt_if_complete_unsaved:
                 self.prompt_if_unsaved = True
                 self.saved = False
             self.update()
