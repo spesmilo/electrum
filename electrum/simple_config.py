@@ -458,27 +458,18 @@ class SimpleConfig(Logger):
         else:
             return self.WALLET_BACKUP_DIRECTORY
 
-    def get_wallet_path(self, *, use_gui_last_wallet=False):
-        """Set the path of the wallet."""
-
+    def get_wallet_path(self, *, use_fallback=True) -> Optional[str]:
+        """Returns the wallet path."""
         # command line -w option
         if self.get('wallet_path'):
             return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
-
-        if use_gui_last_wallet:
-            path = self.GUI_LAST_WALLET
-            if path and os.path.exists(path):
-                return path
-
-        new_path = self.get_fallback_wallet_path()
-
-        # TODO: this can be removed by now
-        # default path in pre 1.9 versions
-        old_path = os.path.join(self.path, "electrum.dat")
-        if os.path.exists(old_path) and not os.path.exists(new_path):
-            os.rename(old_path, new_path)
-
-        return new_path
+        # current wallet
+        path = self.CURRENT_WALLET
+        if path and os.path.exists(path):
+            return path
+        if use_fallback:
+            return self.get_fallback_wallet_path()
+        return
 
     def get_datadir_wallet_path(self):
         util.assert_datadir_available(self.path)
@@ -495,11 +486,6 @@ class SimpleConfig(Logger):
 
     def get_session_timeout(self):
         return self.HWD_SESSION_TIMEOUT
-
-    def save_last_wallet(self, wallet):
-        if self.get('wallet_path') is None:
-            path = wallet.storage.path
-            self.GUI_LAST_WALLET = path
 
     def get_video_device(self):
         device = self.VIDEO_DEVICE_PATH
@@ -762,7 +748,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RPC_SOCKET_FILEPATH = ConfigVar('rpcsockpath', default=None, type_=str)
 
     GUI_NAME = ConfigVar('gui', default='qt', type_=str)
-    GUI_LAST_WALLET = ConfigVar('gui_last_wallet', default=None, type_=str)
+    CURRENT_WALLET = ConfigVar('current_wallet', default=None, type_=str)
 
     GUI_QT_COLOR_THEME = ConfigVar(
         'qt_gui_color_theme', default='default', type_=str,

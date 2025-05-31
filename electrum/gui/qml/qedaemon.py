@@ -178,7 +178,7 @@ class QEDaemon(AuthMixin, QObject):
         if path is None:
             self._path = self.daemon.config.get('wallet_path')  # command line -w option
             if self._path is None:
-                self._path = self.daemon.config.GUI_LAST_WALLET
+                self._path = self.daemon.config.CURRENT_WALLET
         else:
             self._path = path
         if self._path is None:

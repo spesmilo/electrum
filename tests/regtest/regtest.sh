@@ -112,7 +112,7 @@ if [[ $1 == "init" ]]; then
     $agent setconfig --offline test_force_disable_mpp True
     echo "funding $2"
     # note: changing the funding amount affects all tests, as they rely on "wait_for_balance"
-    $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
+    $bitcoin_cli sendtoaddress $($agent getunusedaddress -o -w "/tmp/$2/regtest/wallets/default_wallet") 1
 fi
 
 if [[ $1 == "setconfig" ]]; then

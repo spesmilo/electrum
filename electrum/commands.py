@@ -246,7 +246,7 @@ class Commands(Logger):
             'connected': self.network.is_connected(),
             'auto_connect': net_params.auto_connect,
             'version': ELECTRUM_VERSION,
-            'default_wallet': self.config.get_wallet_path(),
+            'current_wallet': self.config.get_wallet_path(use_fallback=False),
             'fee_estimates': self.network.fee_estimates.get_data()
         }
         return response
@@ -278,6 +278,7 @@ class Commands(Logger):
         if wallet is None:
             raise UserFacingException('could not load wallet')
         run_hook('load_wallet', wallet, None)
+        return wallet_path
 
     @command('n')
     async def close_wallet(self, wallet_path=None):

@@ -488,9 +488,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if window in self.windows:
             self.windows.remove(window)
         self.build_tray_menu()
-        # save wallet path of last open window
-        if not self.windows:
-            self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
         if window.should_stop_wallet_on_close:
             self.daemon.stop_wallet(window.wallet.storage.path)
@@ -555,7 +552,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
         # start wizard to select/create wallet
         self.timer.start()
-        path = self.config.get_wallet_path(use_gui_last_wallet=True)
+        path = self.config.get_wallet_path()
         try:
             if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
                 return

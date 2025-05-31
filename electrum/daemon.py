@@ -342,7 +342,7 @@ class CommandsServer(AuthenticatedServer):
                 if config_options.get(SimpleConfig.NETWORK_OFFLINE.key()) and not self.config.NETWORK_OFFLINE:
                     raise UserFacingException(
                         "error: current GUI is running online, so it cannot open a new wallet offline.")
-                path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
+                path = config_options.get('wallet_path') or self.config.get_wallet_path()
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
                 return True
             else:
@@ -477,8 +477,14 @@ class Daemon(Logger):
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
+        self.update_current_wallet()
         self.update_recently_opened_wallets(path)
         return wallet
+
+    def update_current_wallet(self):
+        if not self._wallets:
+            return
+        self.config.CURRENT_WALLET = list(self._wallets.keys())[0] if len(self._wallets) == 1 else None
 
     @staticmethod
     @profiler
@@ -540,6 +546,7 @@ class Daemon(Logger):
         wallet = self._wallets.pop(wallet_key, None)
         if not wallet:
             return False
+        self.update_current_wallet()
         await wallet.stop()
         return True
 

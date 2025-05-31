@@ -138,8 +138,12 @@ def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'Simpl
     if cmdname in ['payto', 'paytomany'] and config.get('broadcast'):
         cmd.requires_network = True
 
+    if cmd.requires_wallet and not wallet_path:
+        print_msg("wallet path not provided.")
+        sys_exit(1)
+
     # instantiate wallet for command-line
-    storage = WalletStorage(wallet_path)
+    storage = WalletStorage(wallet_path) if wallet_path else None
 
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
@@ -215,14 +219,14 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
         sys.exit(0)
 
 
-async def run_offline_command(config, config_options, plugins: 'Plugins'):
+async def run_offline_command(config, config_options, wallet_path, plugins: 'Plugins'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
     if 'wallet_path' in cmd.options and config_options.get('wallet_path') is None:
-        config_options['wallet_path'] = config.get_wallet_path()
+        config_options['wallet_path'] = wallet_path
     if cmd.requires_wallet:
-        storage = WalletStorage(config.get_wallet_path())
+        storage = WalletStorage(wallet_path)
         if storage.is_encrypted():
             if storage.is_encrypted_with_hw_device():
                 password = get_password_for_hw_device_encrypted_storage(plugins)
@@ -512,7 +516,6 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 sys_exit(1)
 
     elif cmdname == 'daemon':
-
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
@@ -528,7 +531,11 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         # command line
         configure_logging(config, log_to_file=False)  # don't spam logfiles for each client-side RPC, but support "-v"
         cmd = known_commands[cmdname]
-        wallet_path = config.get_wallet_path()
+        use_fallback = (cmdname in ['create', 'restore', 'load_wallet'])
+        wallet_path = config.get_wallet_path(use_fallback=use_fallback)
+        if cmd.requires_wallet and not wallet_path:
+            print_stderr('wallet path not provided')
+            sys_exit(1)
         if not config.NETWORK_OFFLINE:
             init_cmdline(config_options, wallet_path, rpcserver=True, config=config)
             timeout = config.CLI_TIMEOUT
@@ -568,7 +575,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 sys_exit(1)
             init_cmdline(config_options, wallet_path, rpcserver=False, config=config)
             plugins = Plugins(config, 'cmdline')
-            coro = run_offline_command(config, config_options, plugins)
+            coro = run_offline_command(config, config_options, wallet_path, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
                 try:
