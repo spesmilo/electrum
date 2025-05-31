@@ -19,8 +19,8 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.11.9
-PY_VER_MAJOR="3.11"  # as it appears in fs paths
+PYTHON_VERSION=3.12.10
+PY_VER_MAJOR="3.12"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
@@ -39,9 +39,10 @@ verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c0000
 
 download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+# TODO migrate to https://github.com/AppImage/appimagetool/releases
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "9b1e896523fc510691126c864406d9360a3d1e986acbda59cda57b5abda45b87"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "07ab697474595e06f06647417d3c7fa97ded07afc1a7e4454c5639919b46eaea"
 
 
 
@@ -95,29 +96,6 @@ fi
 cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
 
 
-# note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
-#       This pkg is needed on some distros for Qt to launch. (see #8011)
-download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
-verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
-info "building libxcb-util1."
-(
-    if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
-        info "libxcb-util1 already built, skipping"
-        exit 0
-    fi
-    cd "$CACHEDIR"
-    mkdir "libxcb-util1"
-    cd "libxcb-util1"
-    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
-    mv "xcb-util-0.4.0" util
-    cd util
-    ./autogen.sh
-    ./configure --enable-shared
-    make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
-) || fail "Could build libxcb-util1"
-cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
-
-
 appdir_python() {
     env \
         PYTHONNOUSERSITE=1 \
@@ -159,6 +137,7 @@ info "Installing build dependencies."
 
 # opt out of compiling C extensions
 export YARL_NO_EXTENSIONS=1
+export FROZENLIST_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 

@@ -5,7 +5,7 @@
 set -e
 
 DEBIAN_SNAPSHOT_BASE="https://snapshot.debian.org/archive/debian/"
-DEBIAN_APPIMAGE_DISTRO="buster"  # should match build-linux/appimage Dockerfile base
+DEBIAN_APPIMAGE_DISTRO="bullseye"  # should match build-linux/appimage Dockerfile base
 DEBIAN_WINE_DISTRO="bookworm"    # should match build-wine Dockerfile base
 DEBIAN_ANDROID_DISTRO="bookworm" # should match android Dockerfile base
 
