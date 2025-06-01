@@ -430,7 +430,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             )
         invoice = lndecode(invoice=result['invoice'])
         assert invoice.paymenthash.hex() == payment_hash
-        assert payment_hash in wallet.lnworker.preimages
+        assert payment_hash in wallet.lnworker._preimages
         assert payment_hash in wallet.lnworker.payment_info
         assert payment_hash in wallet.lnworker.dont_settle_htlcs
         assert invoice.get_amount_sat() == 10000
@@ -441,7 +441,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         )
         assert payment_hash not in wallet.lnworker.payment_info
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs
-        assert payment_hash not in wallet.lnworker.preimages
+        assert payment_hash not in wallet.lnworker._preimages
         assert cancel_result['cancelled'] == payment_hash
 
         with self.assertRaises(AssertionError):
@@ -477,7 +477,7 @@ class TestCommandsTestnet(ElectrumTestCase):
                 wallet=wallet,
             )
         assert settle_result['settled'] == payment_hash
-        assert wallet.lnworker.preimages[payment_hash] == preimage.hex()
+        assert wallet.lnworker._preimages[payment_hash] == preimage.hex()
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs
 
         with self.assertRaises(AssertionError):

@@ -1378,8 +1378,7 @@ class Commands(Logger):
         """
         assert len(preimage) == 64, f"Invalid preimage length: {len(preimage)} != 64"
         payment_hash: str = crypto.sha256(bfh(preimage)).hex()
-        assert preimage not in wallet.lnworker.preimages, "Preimage has been used as payment hash already!"
-        assert payment_hash not in wallet.lnworker.preimages, "Preimage already in use!"
+        assert payment_hash not in wallet.lnworker._preimages, "Preimage already in use!"
         assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already used!"
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs, "Payment hash already used!"
         assert MIN_FINAL_CLTV_DELTA_FOR_INVOICE < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
@@ -1417,7 +1416,7 @@ class Commands(Logger):
         arg:str:payment_hash:Hex encoded payment hash of the invoice to be settled
         """
         assert len(payment_hash) == 64, f"Invalid payment_hash length: {len(payment_hash)} != 64"
-        assert payment_hash in wallet.lnworker.preimages, f"Couldn't find preimage for {payment_hash}"
+        assert payment_hash in wallet.lnworker._preimages, f"Couldn't find preimage for {payment_hash}"
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, "Is already settled!"
         assert payment_hash in wallet.lnworker.payment_info, \
             f"Couldn't find lightning invoice for payment hash {payment_hash}"
@@ -1439,9 +1438,9 @@ class Commands(Logger):
         """
         assert payment_hash in wallet.lnworker.payment_info, \
             f"Couldn't find lightning invoice for payment hash {payment_hash}"
-        assert payment_hash in wallet.lnworker.preimages, "Nothing to cancel, no known preimage."
+        assert payment_hash in wallet.lnworker._preimages, "Nothing to cancel, no known preimage."
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, "Is already settled!"
-        del wallet.lnworker.preimages[payment_hash]
+        del wallet.lnworker._preimages[payment_hash]
         # set to PR_UNPAID so it can get deleted
         wallet.lnworker.set_payment_status(bfh(payment_hash), PR_UNPAID)
         wallet.lnworker.delete_payment_info(payment_hash)
@@ -1474,7 +1473,7 @@ class Commands(Logger):
             status = "unpaid"
         elif is_accepted_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
             status = "paid"
-        elif (payment_hash in wallet.lnworker.preimages
+        elif (payment_hash in wallet.lnworker._preimages
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs
                 and is_accepted_mpp):
             status = "settled"
