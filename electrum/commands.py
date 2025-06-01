@@ -264,7 +264,7 @@ class Commands(Logger):
             {
                 'path': path,
                 'synchronized': w.is_up_to_date(),
-                'unlocked': w.has_password() and (w.get_unlocked_password() is not None),
+                'unlocked': not w.has_password() or (w.get_unlocked_password() is not None),
             }
             for path, w in self.daemon.get_wallets().items()
         ]
