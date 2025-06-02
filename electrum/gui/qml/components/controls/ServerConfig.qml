@@ -10,9 +10,8 @@ Item {
     id: root
 
     property bool showAutoselectServer: true
-    property alias auto_connect: auto_server_cb.checked
     property alias address: address_tf.text
-    property alias one_server: one_server_cb.checked
+    property alias serverConnectMode: server_connect_mode_cb.currentValue
 
     implicitHeight: rootLayout.height
 
@@ -23,12 +22,32 @@ Item {
         height: parent.height
         spacing: constants.paddingLarge
 
-        CheckBox {
-            id: auto_server_cb
-            visible: showAutoselectServer
-            text: Config.shortDescFor('NETWORK_AUTO_CONNECT')
-            checked: !showAutoselectServer
-            enabled: !one_server_cb.checked
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            ServerConnectModeComboBox {
+                id: server_connect_mode_cb
+            }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+            }
+
+            HelpButton {
+                Layout.alignment: Qt.AlignRight
+                heading: qsTr('Connection mode')+':'
+                helptext: Config.getTranslatedMessage('MSG_CONNECTMODE_SERVER_HELP') + '<br/><br/>' +
+                    Config.getTranslatedMessage('MSG_CONNECTMODE_NODES_HELP') + '<ul>' +
+                    '<li><b>' + Config.getTranslatedMessage('MSG_CONNECTMODE_AUTOCONNECT') +
+                    '</b>: ' + Config.getTranslatedMessage('MSG_CONNECTMODE_AUTOCONNECT_HELP') + '</li>' +
+                    '<li><b>' + Config.getTranslatedMessage('MSG_CONNECTMODE_MANUAL') +
+                    '</b>: ' + Config.getTranslatedMessage('MSG_CONNECTMODE_MANUAL_HELP') + '</li>' +
+                    '<li><b>' + Config.getTranslatedMessage('MSG_CONNECTMODE_ONESERVER') +
+                    '</b>: ' + Config.getTranslatedMessage('MSG_CONNECTMODE_ONESERVER_HELP') + '</li>' +
+                    '</ul>'
+            }
         }
 
         Label {
@@ -41,25 +60,9 @@ Item {
 
             TextField {
                 id: address_tf
-                enabled: !auto_server_cb.checked
+                enabled: server_connect_mode_cb.currentValue != ServerConnectModeComboBox.Mode.Autoconnect
                 width: parent.width
                 inputMethodHints: Qt.ImhNoPredictiveText
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            visible: !auto_server_cb.checked && address_tf.text
-
-            CheckBox {
-                id: one_server_cb
-                Layout.fillWidth: true
-                text: Config.shortDescFor('NETWORK_ONESERVER')
-            }
-
-            HelpButton {
-                heading: Config.shortDescFor('NETWORK_ONESERVER')
-                helptext: Config.longDescFor('NETWORK_ONESERVER')
             }
         }
 
@@ -112,9 +115,6 @@ Item {
     }
 
     Component.onCompleted: {
-        root.auto_connect = Config.autoConnectDefined ? Config.autoConnect : false
         root.address = Network.server
-        one_server_cb.checked = Network.oneServer
-        // TODO: initial setup should not connect already, is Network.server defined?
     }
 }
