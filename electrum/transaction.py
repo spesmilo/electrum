@@ -52,6 +52,7 @@ from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
+from .silent_payment import SilentPaymentAddress, SILENT_PAYMENT_DUMMY_SPK
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -136,6 +137,7 @@ class TxOutput:
         if not (isinstance(value, int) or parse_max_spend(value) is not None):
             raise ValueError(f"bad txout value: {value!r}")
         self.value = value  # int in satoshis; or spend-max-like str
+        self.sp_addr = None  # type: Optional[SilentPaymentAddress] # if set, this output is a silent payment
 
     @classmethod
     def from_address_and_value(cls, address: str, value: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
@@ -191,6 +193,9 @@ class TxOutput:
         if addr is not None:
             return addr
         return f"SCRIPT {self.scriptpubkey.hex()}"
+
+    def is_silent_payment(self):
+        return self.sp_addr is not None
 
     def __repr__(self):
         return f"<TxOutput script={self.scriptpubkey.hex()} address={self.address} value={self.value}>"
