@@ -359,7 +359,7 @@ class PaddedRSTransport(RSTransport):
             self._sbuffer_has_data_evt.clear()
 
     async def _poll_sbuffer(self):
-        while True:
+        while not self.is_closing():
             await self._sbuffer_has_data_evt.wait()  # to avoid busy-waiting
             self._maybe_consume_sbuffer()
             # If there is still data in the buffer, sleep until it would time out.
