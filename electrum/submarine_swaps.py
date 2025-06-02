@@ -13,6 +13,7 @@ import aiohttp
 from electrum_ecc import ECPrivkey
 
 import electrum_aionostr as aionostr
+import electrum_aionostr.key
 from electrum_aionostr.event import Event
 from electrum_aionostr.util import to_nip19
 
@@ -28,7 +29,7 @@ from .transaction import script_GetOp, match_script_against_template, OPPushData
 from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
                    gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector,
                    get_running_loop, get_asyncio_loop, wait_for2, run_sync_function_on_asyncio_thread)
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
 from .bitcoin import dust_threshold, DummyAddress
 from .logging import Logger
 from .lnutil import hex_to_bytes
@@ -356,11 +357,13 @@ class SwapManager(Logger):
         if not swap.is_funded():
             self.swaps.pop(swap.payment_hash.hex())
 
-    def extract_preimage(self, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
+    @classmethod
+    def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
         for txin in claim_tx.inputs():
             preimage = txin.witness_elements()[1]
             if sha256(preimage) == swap.payment_hash:
                 return preimage
+        return None
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -484,6 +487,7 @@ class SwapManager(Logger):
         payment_hash = self.prepayments.get(payment_hash)
         if payment_hash:
             return self.swaps.get(payment_hash.hex())
+        return None
 
     def add_lnwatcher_callback(self, swap: SwapData) -> None:
         callback = lambda: self._claim_swap(swap)
@@ -492,8 +496,7 @@ class SwapManager(Logger):
     async def hold_invoice_callback(self, payment_hash: bytes) -> None:
         # note: this assumes the wallet has been unlocked
         key = payment_hash.hex()
-        if key in self.swaps:
-            swap = self.swaps[key]
+        if swap := self.swaps.get(key):
             if not swap.is_funded():
                 output = self.create_funding_output(swap)
                 self.wallet.txbatcher.add_payment_output('swaps', output)
@@ -1277,11 +1280,12 @@ class SwapManager(Logger):
                     self.wallet._accounting_addresses.add(swap.lockup_address)
         return d
 
-    def get_group_id_for_payment_hash(self, payment_hash):
+    def get_group_id_for_payment_hash(self, payment_hash: bytes) -> Optional[str]:
         # add group_id to swap transactions
         swap = self.get_swap(payment_hash)
         if swap:
             return swap.spending_txid if swap.is_reverse else swap.funding_txid
+        return None
 
     def get_pending_swaps(self) -> List[SwapData]:
         """Returns a list of swaps with unconfirmed funding tx (which require us to stay online)."""
@@ -1380,7 +1384,7 @@ class NostrTransport(SwapServerTransport):
     OFFER_UPDATE_INTERVAL_SEC = 60 * 10
     LIQUIDITY_UPDATE_INTERVAL_SEC = 30
 
-    def __init__(self, config, sm, keypair):
+    def __init__(self, config, sm, keypair: Keypair):
         SwapServerTransport.__init__(self, config=config, sm=sm)
         self._offers = {}  # type: Dict[str, SwapOffer]
         self.private_key = keypair.privkey
@@ -1464,7 +1468,7 @@ class NostrTransport(SwapServerTransport):
             )
         return self.relay_manager
 
-    def get_offer(self, pubkey) -> Optional[SwapOffer]:
+    def get_offer(self, pubkey: str) -> Optional[SwapOffer]:
         return self._offers.get(pubkey)
 
     def get_recent_offers(self) -> Sequence[SwapOffer]:
@@ -1479,7 +1483,7 @@ class NostrTransport(SwapServerTransport):
 
     @ignore_exceptions
     @log_exceptions
-    async def publish_offer(self, sm) -> None:
+    async def publish_offer(self, sm: 'SwapManager') -> None:
         assert self.sm.is_server
         if sm._max_forward < sm._min_amount and sm._max_reverse < sm._min_amount:
             self.logger.warning(f"not publishing swap offer, no liquidity available: {sm._max_forward=}, {sm._max_reverse=}")
