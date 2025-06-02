@@ -424,6 +424,7 @@ class AddressSynchronizer(Logger, EventListener):
                     scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey)
                     prevout = TxOutpoint(bfh(tx_hash), idx)
                     self.db.remove_prevout_by_scripthash(scripthash, prevout=prevout, value=txo.value)
+                    self.db.remove_silent_payment_address(txo.address)
         util.trigger_callback('adb_removed_tx', self, tx_hash, tx)
 
     @with_lock
