@@ -75,7 +75,7 @@ Pane {
                             : txdetails.isRemoved ? qsTr('This transaction has been replaced or removed and is no longer valid')
                             : txdetails.inMempool
                                 ? qsTr('This transaction is still unconfirmed.') +
-                                    (txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
+                                    (txdetails.canBump || txdetails.canCancel
                                         ? txdetails.canCancel
                                             ? '\n' + qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction.')
                                             : '\n' + qsTr('You can bump its fee to speed up its confirmation.')
