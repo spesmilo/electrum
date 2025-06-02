@@ -33,13 +33,13 @@ Pane {
                 text: qsTr('Lightning payment details')
             }
 
-            Label {
-                text: qsTr('Status')
-                color: Material.accentColor
-            }
-
-            Label {
-                text: lnpaymentdetails.status
+            InfoTextArea {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.bottomMargin: constants.paddingLarge
+                visible: text
+                text:  lnpaymentdetails.status ? qsTr('Paid') : ''
+                iconStyle: InfoTextArea.IconStyle.Done
             }
 
             Label {
