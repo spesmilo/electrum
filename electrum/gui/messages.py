@@ -20,15 +20,21 @@ To prevent fund losses, please save this backup on another device.
 It may be imported in another Electrum wallet with the same seed."""
 )
 
-MSG_LIGHTNING_EXPERIMENTAL_WARNING = _(
-"""Lightning support in Electrum is experimental. Do not put large amounts in lightning channels."""
-)
-
-MSG_LIGHTNING_SCB_WARNING = _(
+MSG_LIGHTNING_WARNING = _(
 """Electrum uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data."""
 )
 
-MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + "\n\n" + MSG_LIGHTNING_SCB_WARNING
+MSG_THIRD_PARTY_PLUGIN_WARNING = ' '.join([
+    '<b>' + _('Warning: Thirt-party plugins have access to your wallet!') + '</b>',
+    '<br/><br/>',
+    _('Installing this plugin will grant third-party software access to your wallet. You must trust the plugin not to be malicious.'),
+    _('You should at minimum check who the author of the plugin is, and be careful of imposters.'),
+    '<br/><br/>',
+    _('Third-party plugins are not endorsed by Electrum.'),
+    _('Electrum will not be responsible in case of theft, loss of funds or privacy that might result from third-party plugins.'),
+    '<br/><br/>',
+    _('To install this plugin, please enter your plugin authorization password') + ':'
+])
 
 MSG_CONFLICTING_BACKUP_INSTANCE = _(
 """Another instance of this wallet (same seed) has an open channel with the same remote node. If you create this channel, you will not be able to use both wallets at the same time.

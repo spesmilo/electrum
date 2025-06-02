@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidg
 from PyQt6.QtCore import QTimer
 
 from electrum.i18n import _
+from electrum.gui import messages
 from electrum.logging import get_logger
 
 from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin,
@@ -77,7 +78,7 @@ class PluginDialog(WindowModalDialog):
                 remove_button.setText(_('Remove'))
                 buttons.insert(0, remove_button)
             if not is_authorized:
-                auth_button = QPushButton('Authorize')
+                auth_button = QPushButton('Install')
                 auth_button.clicked.connect(self.do_authorize)
                 buttons.insert(0, auth_button)
         else:
@@ -178,17 +179,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.init_plugins_password()
             return None
         # ask for url and password, same window
-        pw = self.password_dialog(
-            msg=' '.join([
-                _('<b>Warning</b>: Third-party plugins are not endorsed by Electrum!'),
-                '<br/><br/>',
-                _('If you install a third-party plugin, you trust the software not to be malicious.'),
-                _('Electrum will not be responsible in case of theft, loss of funds or privacy that might result from third-party plugins.'),
-                _('You should at minimum check who the author of the plugin is, and be careful of imposters.'),
-                '<br/><br/>',
-                _('Please enter your plugin authorization password') + ':'
-            ])
-        )
+        pw = self.password_dialog(msg=messages.MSG_THIRD_PARTY_PLUGIN_WARNING)
         if not pw:
             return None
         privkey = self.plugins.derive_privkey(pw, salt)
