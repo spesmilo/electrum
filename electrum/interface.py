@@ -360,6 +360,7 @@ class PaddedRSTransport(RSTransport):
 
     async def _poll_sbuffer(self):
         while not self.is_closing():
+            await self._can_send.wait()
             await self._sbuffer_has_data_evt.wait()  # to avoid busy-waiting
             self._maybe_consume_sbuffer()
             # If there is still data in the buffer, sleep until it would time out.
@@ -639,6 +640,9 @@ class Interface(Logger):
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
                 self.got_disconnected.set()
+                # Make sure taskgroup gets cleaned-up. This explicit clean-up is needed here
+                # in case the "with taskgroup" ctx mgr never got a chance to run:
+                await self.taskgroup.cancel_remaining()
                 await self.network.connection_down(self)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
