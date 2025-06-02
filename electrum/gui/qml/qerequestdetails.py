@@ -29,7 +29,7 @@ class QERequestDetails(QObject, QtEventListener):
 
     _logger = get_logger(__name__)
 
-    detailsChanged = pyqtSignal() # generic request properties changed signal
+    detailsChanged = pyqtSignal()  # generic request properties changed signal
     statusChanged = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -95,7 +95,7 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=detailsChanged)
     def isLightning(self):
-        return self._req.is_lightning()
+        return self._req.is_lightning() if self._req else False
 
     @pyqtProperty(str, notify=detailsChanged)
     def address(self):
@@ -117,6 +117,16 @@ class QERequestDetails(QObject, QtEventListener):
     @pyqtProperty(int, notify=detailsChanged)
     def expiration(self):
         return self._req.get_expiration_date()
+
+    @pyqtProperty(str, notify=statusChanged)
+    def paidTxid(self):
+        """only used when Request status is PR_PAID"""
+        if not self._req:
+            return ''
+        is_paid, conf_needed, txids = self._wallet.wallet._is_onchain_invoice_paid(self._req)
+        if len(txids) > 0:
+            return txids[0]
+        return ''
 
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):

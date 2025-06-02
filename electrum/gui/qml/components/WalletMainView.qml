@@ -639,6 +639,15 @@ Item {
             width: parent.width
             height: parent.height
 
+            onRequestPaid: {
+                close()
+                if (isLightning) {
+                    app.stack.push(Qt.resolvedUrl('LightningPaymentDetails.qml'), {'key': key})
+                } else {
+                    let paidTxid = getPaidTxid()
+                    app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': paidTxid})
+                }
+            }
             onClosed: destroy()
         }
     }
