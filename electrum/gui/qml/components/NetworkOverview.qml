@@ -219,22 +219,6 @@ Pane {
 
                 Heading {
                     Layout.columnSpan: 2
-                    text: qsTr('Nostr')
-                }
-
-                Label {
-                    text: qsTr('Relays:')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    Layout.fillWidth: true
-                    text: Config.nostrRelays.replace(/,/g, "\n")
-                    wrapMode: Text.Wrap
-                }
-
-                Heading {
-                    Layout.columnSpan: 2
                     text: qsTr('Proxy')
                 }
 
