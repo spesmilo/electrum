@@ -14,7 +14,7 @@ class NetworkMock:
 
     def reset(self):
         self.run_called = False
-        self.parameters = NetworkParameters(server=None, proxy=None, auto_connect=None, oneserver=None)
+        self.parameters = NetworkParameters(servers=[], proxy=None, auto_connect=None, oneserver=None)
 
     def run_from_another_thread(self, *args, **kwargs):
         self.run_called = True
@@ -88,7 +88,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertTrue(w.is_last_view(v.view, d))
 
         self.assertTrue(w._daemon.network.run_called)
-        self.assertEqual(NetworkParameters(server=None, proxy=ProxySettings.from_dict(d_proxy), auto_connect=True, oneserver=None), w._daemon.network.parameters)
+        self.assertEqual(NetworkParameters(servers=[], proxy=ProxySettings.from_dict(d_proxy), auto_connect=True, oneserver=None), w._daemon.network.parameters)
 
     async def test_proxy_and_server(self):
         w = ServerConnectWizard(DaemonMock(self.config))
@@ -112,7 +112,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
         serverobj = ServerAddr.from_str_with_inference('localhost:1:t')
         self.assertTrue(w._daemon.network.run_called)
-        self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
+        self.assertEqual(NetworkParameters(servers=[serverobj], proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
 
 
 class WalletWizardTestCase(WizardTestCase):

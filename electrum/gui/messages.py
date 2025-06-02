@@ -112,11 +112,12 @@ TERMS_OF_USE_LATEST_VERSION : int = 1  # bump this if we want users re-prompted 
 
 
 MSG_CONNECTMODE_AUTOCONNECT = _('Auto-connect')
-MSG_CONNECTMODE_MANUAL = _('Manual server selection')
-MSG_CONNECTMODE_ONESERVER = _('Connect only to a single server')
+MSG_CONNECTMODE_MANUAL = _('Bookmarked servers')
+MSG_CONNECTMODE_ONESERVER = _('Bookmarked servers (strict)')
 
 MSG_CONNECTMODE_SERVER_HELP = _(
-    "Electrum connects to a unique server in order to receive your transaction history. "
+    "This is the list of servers from wich Electrum may request your transaction history"
+    "Electrum will pick one server from this list, with the longest blockchain. "
     "This server will learn your wallet adddresses."
 )
 MSG_CONNECTMODE_NODES_HELP = _(
@@ -132,12 +133,13 @@ MSG_CONNECTMODE_AUTOCONNECT_HELP = _(
 )
 
 MSG_CONNECTMODE_MANUAL_HELP = _(
-    "Electrum will stay with the server you selected. It will warn you if your server is lagging."
+    "Electrum will use the servers you selected in order to request your wallet history. "
+    "It will connect to other nodes for block headers and warn you if your server is lagging."
 )
 
 MSG_CONNECTMODE_ONESERVER_HELP = _(
-    "Electrum will stay with the server you selected, and it will not connect to additional nodes. "
+    "Electrum will use the servers you selected inorder to request your history, and it will not connect to additional nodes. "
     "This will disable fork detection. "
-    "This mode is only intended for connecting to your own fully trusted server. "
-    "Using this option on a public server is a security risk and is discouraged."
+    "This mode is only intended for connecting to a set of fully trusted server. "
+    "Using this option on a single public server is a security risk and is discouraged."
 )
