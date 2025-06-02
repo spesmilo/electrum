@@ -51,19 +51,15 @@ ElDialog {
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
 
-            RowLayout {
+            TextHighlightPane {
                 Layout.fillWidth: true
-                TextHighlightPane {
-                    Layout.fillWidth: true
-                    Label {
-                        text: qsTr('Enter the list of Nostr relays')
-                        width: parent.width
-                        wrapMode: Text.Wrap
-                    }
-                }
-                HelpButton {
-                    heading: Config.shortDescFor('NOSTR_RELAYS')
-                    helptext: Config.longDescFor('NOSTR_RELAYS')
+                Label {
+                    text: Config.shortDescFor('NOSTR_RELAYS') + '<br/><br/>' +
+                        qsTr('Nostr relays are used to send and receive submarine swap offers.') +
+                        ' ' + qsTr('For multisig wallets, nostr is also used to relay transactions to your co-signers.') +
+                        ' ' + qsTr('Connections to nostr are only made when required, and ephemerally.')
+                    width: parent.width
+                    wrapMode: Text.Wrap
                 }
             }
 
