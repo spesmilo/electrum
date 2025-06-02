@@ -8,6 +8,7 @@ from electrum.transaction import PartialTxOutput
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
+from electrum.silent_payment import SILENT_PAYMENT_DUMMY_SPK
 
 
 class WalletMock:
@@ -303,3 +304,85 @@ class TestPaymentIdentifier(ElectrumTestCase):
             invoice_from_payment_identifier(pi, wallet2, '!')
         invoice = invoice_from_payment_identifier(pi, wallet2, 1)
         self.assertEqual(1000, invoice.amount_msat)
+
+    def test_silent_payment_spk(self):
+        sp_addr = 'sp1qqtr5s60ek5sh4nrmz0rlvh8hcph3yjkjsh922zk7auwekk9dwk3akq4amvvy93num5fas38t73yvl80kf5x0p3ty7s69e5hvqs25szaux572xhta'
+        for pi_str in [
+            f'{sp_addr}',
+            f'{sp_addr}   ',
+            f'  {sp_addr}',
+            f'{sp_addr.upper()}   ',
+        ]:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertTrue(pi.is_available())
+            self.assertTrue(pi.spk == SILENT_PAYMENT_DUMMY_SPK)
+            self.assertTrue(pi.spk_is_address) # we treat it as is_address to make sure an amount is set
+            self.assertTrue(pi.involves_silent_payments())
+            self.assertTrue(pi.get_onchain_outputs(0)[0].is_silent_payment())
+
+        # test manually enter SILENT_PAYMENT_DUMMY_SPK behavior
+        pi = PaymentIdentifier(None, f"script({SILENT_PAYMENT_DUMMY_SPK.hex()})")
+        self.assertFalse(pi.spk == SILENT_PAYMENT_DUMMY_SPK)
+        self.assertFalse(pi.spk_is_address)
+        self.assertFalse(pi.involves_silent_payments())
+
+    def test_silent_payment_multiline(self):
+        # sp_addr with same B_Scan
+        sp_addr1 = 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj'
+        sp_addr2 = 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q3nxe92cnvvhgwp0tqnj6wa9lwu5l8fenke99kkftmymrrkete8kg06hd4v'
+        #
+        sp_addr3 = 'sp1qqtr5s60ek5sh4nrmz0rlvh8hcph3yjkjsh922zk7auwekk9dwk3akq4amvvy93num5fas38t73yvl80kf5x0p3ty7s69e5hvqs25szaux572xhta'
+        #
+        normal_addr = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
+        pi_str = '\n'.join([
+            f'{sp_addr1},0.01',
+            f'{sp_addr2},0.01',
+            f'{normal_addr},0.01',
+            f'{sp_addr3},0.01',
+            f'{sp_addr3},0.01',
+            f'{normal_addr},0.01'
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str) # wallet is needed because multiline depends on wallet.config
+        self.assertTrue(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertFalse(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(6, len(pi.multiline_outputs))
+        self.assertTrue(all(isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertTrue(all(1000 == o.value for o in pi.multiline_outputs))
+        self.assertTrue(pi.involves_silent_payments())
+        self.assertEqual(4, len([o for o in pi.multiline_outputs if o.is_silent_payment()]))
+
+        # test max spend:
+
+        pi_str = '\n'.join([
+            f'{sp_addr1},0.01',
+            f'{sp_addr2},2!',
+            f'{normal_addr},3!'
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertTrue(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertTrue(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(3, len(pi.multiline_outputs))
+        self.assertTrue(all(isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertTrue(pi.involves_silent_payments())
+        self.assertTrue(pi.multiline_outputs[0].is_silent_payment())
+        self.assertEqual(sp_addr1, pi.multiline_outputs[0].sp_addr.encoded)
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertTrue(pi.multiline_outputs[1].is_silent_payment())
+        self.assertEqual(sp_addr2, pi.multiline_outputs[1].sp_addr.encoded)
+        self.assertEqual('2!', pi.multiline_outputs[1].value)
+        self.assertFalse(pi.multiline_outputs[2].is_silent_payment())
+        self.assertEqual('3!', pi.multiline_outputs[2].value)
+
+    def test_silent_payment_bip21(self):
+        bip21 = 'bitcoin:sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj?message=sp_unit_test?amount=0.001'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertTrue(pi.is_available())
+        self.assertFalse(pi.is_lightning())
+        self.assertTrue(pi.is_onchain())
+        self.assertIsNotNone(pi.bip21)
+        self.assertTrue(pi.involves_silent_payments())

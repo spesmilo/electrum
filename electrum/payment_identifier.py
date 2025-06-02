@@ -21,6 +21,7 @@ from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
 from . import paymentrequest
+from .silent_payment import is_silent_payment_address, SILENT_PAYMENT_DUMMY_SPK, SilentPaymentAddress
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -469,12 +470,18 @@ class PaymentIdentifier(Logger):
         elif self.multiline_outputs:
             return self.multiline_outputs
         elif self.spk:
-            return [PartialTxOutput(scriptpubkey=self.spk, value=amount)]
+            output = PartialTxOutput(scriptpubkey=self.spk, value=amount)
+            if self.spk == SILENT_PAYMENT_DUMMY_SPK:
+                output.sp_addr = SilentPaymentAddress(self.text)
+            return [output]
         elif self.bip21:
             address = self.bip21.get('address')
             scriptpubkey, is_address = self.parse_output(address)
             assert is_address  # unlikely, but make sure it is an address, not a script
-            return [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)]
+            output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+            if scriptpubkey == SILENT_PAYMENT_DUMMY_SPK:
+                output.sp_addr = SilentPaymentAddress(address)
+            return [output]
         else:
             raise Exception('not onchain')
 
@@ -512,7 +519,10 @@ class PaymentIdentifier(Logger):
         if not scriptpubkey:
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
-        return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+        output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+        if scriptpubkey == SILENT_PAYMENT_DUMMY_SPK:
+            output.sp_addr = SilentPaymentAddress(x)
+        return output
 
     def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
         try:
@@ -526,7 +536,8 @@ class PaymentIdentifier(Logger):
             return script, False
         except Exception as e:
             pass
-
+        if is_silent_payment_address(x):
+            return SILENT_PAYMENT_DUMMY_SPK, True # Should be treated as address
         return None, False
 
     def parse_script(self, x: str) -> bytes:
@@ -667,6 +678,12 @@ class PaymentIdentifier(Logger):
             expires = self.bip21.get('exp') + self.bip21.get('time') if self.bip21.get('exp') else 0
             return bool(expires) and expires < time.time()
         return False
+
+    def involves_silent_payments(self):
+        try:
+            return any(o.is_silent_payment() for o in self.get_onchain_outputs(0))
+        except Exception as e:
+            return False
 
 
 def invoice_from_payment_identifier(

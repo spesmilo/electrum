@@ -7,6 +7,7 @@ from . import bitcoin
 from .util import format_satoshis_plain
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .lnaddr import lndecode, LnDecodeException
+from .silent_payment import is_silent_payment_address
 
 # note: when checking against these, use .lower() to support case-insensitivity
 BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
@@ -49,7 +50,7 @@ def parse_bip21_URI(uri: str) -> dict:
 
     out = {k: v[0] for k, v in pq.items()}
     if address:
-        if not bitcoin.is_address(address):
+        if not bitcoin.is_address(address) and not is_silent_payment_address(address):
             raise InvalidBitcoinURI(f"Invalid bitcoin address: {address}")
         out['address'] = address
     if 'amount' in out:
