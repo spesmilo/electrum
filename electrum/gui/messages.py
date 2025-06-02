@@ -25,7 +25,7 @@ MSG_LIGHTNING_WARNING = _(
 )
 
 MSG_THIRD_PARTY_PLUGIN_WARNING = ' '.join([
-    '<b>' + _('Warning: Thirt-party plugins have access to your wallet!') + '</b>',
+    '<b>' + _('Warning: Third-party plugins have access to your wallet!') + '</b>',
     '<br/><br/>',
     _('Installing this plugin will grant third-party software access to your wallet. You must trust the plugin not to be malicious.'),
     _('You should at minimum check who the author of the plugin is, and be careful of imposters.'),
