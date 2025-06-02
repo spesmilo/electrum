@@ -780,11 +780,13 @@ def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['Pa
     """Merges outputs that are paying to the same address by replacing them with a single larger output."""
     output_dict = {}
     for output in outputs:
+        spk = output.scriptpubkey
+        key = output.sp_addr if output.is_silent_payment() and spk == SILENT_PAYMENT_DUMMY_SPK else spk
         assert isinstance(output.value, int), "tx outputs with spend-max-like str cannot be merged"
-        if output.scriptpubkey in output_dict:
-            output_dict[output.scriptpubkey].value += output.value
+        if key in output_dict:
+            output_dict[key].value += output.value
         else:
-            output_dict[output.scriptpubkey] = copy.copy(output)
+            output_dict[key] = copy.copy(output)
     return list(output_dict.values())
 
 
@@ -1262,6 +1264,9 @@ class Transaction:
         # populate prev_txs
         for txin in self.inputs():
             wallet.add_input_info(txin)
+        # populate silent payment info if any
+        for txout in self.outputs():
+            wallet.add_silent_payment_output_info(txout)
 
     async def add_info_from_network(
         self,
@@ -1342,6 +1347,9 @@ class Transaction:
             return
         locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
+
+    def contains_silent_payment(self):
+        return any(o.is_silent_payment() for o in self.outputs())
 
     def is_rbf_enabled(self) -> bool:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
