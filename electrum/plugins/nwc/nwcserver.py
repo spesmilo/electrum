@@ -96,7 +96,7 @@ class NWCServerPlugin(BasePlugin):
             "our_secret": our_connection_secret.hex(),
             "budget_spends": []
         }
-        if daily_limit_sat:
+        if daily_limit_sat is not None:
             connection['daily_limit_sat'] = daily_limit_sat
         if valid_for_sec:
             connection['valid_until'] = int(time.time()) + valid_for_sec
@@ -153,9 +153,9 @@ class NWCServer(Logger, EventListener):
     REQUEST_EVENT_KIND: int     = 23194
     RESPONSE_EVENT_KIND: int    = 23195
     NOTIFICATION_EVENT_KIND: int = 23196
-    SUPPORTED_METHODS: list[str] = ['pay_invoice', 'multi_pay_invoice', 'make_invoice',
-                                    'lookup_invoice', 'get_balance', 'get_info', 'list_transactions',
-                                    'notifications']
+    SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice', 'multi_pay_invoice'}
+    SUPPORTED_METHODS: set[str] = {'make_invoice', 'lookup_invoice', 'get_balance', 'get_info',
+                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
 
     def __init__(
@@ -310,9 +310,9 @@ class NWCServer(Logger, EventListener):
             method: str = content.get('method')
             self.logger.debug(f"got request: {method=}, {params=}")
             task: Optional[Awaitable] = None
-            if method == "pay_invoice":
+            if method == "pay_invoice" and not self.is_receive_only(event.pubkey):
                 task = self.handle_pay_invoice(event, params)
-            elif method == "multi_pay_invoice":
+            elif method == "multi_pay_invoice" and not self.is_receive_only(event.pubkey):
                 task = self.handle_multi_pay_invoice(event, params)
             elif method == "make_invoice":
                 task = self.handle_make_invoice(event, params)
@@ -559,6 +559,9 @@ class NWCServer(Logger, EventListener):
         """
         height = self.wallet.lnworker.network.blockchain().height()
         blockhash = self.wallet.lnworker.network.blockchain().get_hash(height)
+        supported_methods = self.SUPPORTED_METHODS.copy()
+        if self.is_receive_only(request_event.pubkey):
+            supported_methods -= self.SUPPORTED_SPENDING_METHODS
         response = {
             "result_type": "get_info",
             "result": {
@@ -568,7 +571,7 @@ class NWCServer(Logger, EventListener):
                 "network": net.NET_NAME,
                 "block_height": height,
                 "block_hash": blockhash,
-                "methods": self.SUPPORTED_METHODS,
+                "methods": list(supported_methods),
             }
         }
         if self.SUPPORTED_NOTIFICATIONS:
@@ -861,12 +864,15 @@ class NWCServer(Logger, EventListener):
         We publish one info event for each client connection.
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#example-nip-47-info-event
         """
-        content = ' '.join(self.SUPPORTED_METHODS)
         if self.SUPPORTED_NOTIFICATIONS:
             tags = [['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)]]
         else:
             tags = None
         for client_pubkey, connection in list(self.connections.items()):
+            supported_methods = self.SUPPORTED_METHODS.copy()
+            if self.is_receive_only(client_pubkey):
+                supported_methods -= self.SUPPORTED_SPENDING_METHODS
+            content = ' '.join(supported_methods)
             event_id = await aionostr._add_event(
                 self.manager,
                 kind=self.INFO_EVENT_KIND,
@@ -913,3 +919,6 @@ class NWCServer(Logger, EventListener):
                 fee = abs(fee) if fee else None
                 return dir, abs(amount), fee, ts
         return None
+
+    def is_receive_only(self, pubkey: str) -> bool:
+        return self.connections[pubkey].get('daily_limit_sat') == 0

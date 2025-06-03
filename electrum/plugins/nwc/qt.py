@@ -222,14 +222,13 @@ class Plugin(NWCServerPlugin):
         if not name or len(name) < 1:
             window.show_error(_("Connection name is required"))
             return None
-        value_limit = limit_edit.value() if limit_edit.value() else None
         duration_limit = validity_edit.value() if validity_edit.value() else None
 
         # Call create_connection function with user-provided parameters
         try:
             connection_string = self.create_connection(
                 name=name,
-                daily_limit_sat=value_limit,
+                daily_limit_sat=limit_edit.value(),
                 valid_for_sec=duration_limit
             )
         except ValueError as e:
