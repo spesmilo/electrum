@@ -472,7 +472,8 @@ class PaymentIdentifier(Logger):
         elif self.spk:
             output = PartialTxOutput(scriptpubkey=self.spk, value=amount)
             if self.spk == SILENT_PAYMENT_DUMMY_SPK:
-                output.sp_addr = SilentPaymentAddress(self.text)
+                addr = self.parse_address(self.text) # if e.g. a contact was entered
+                output.sp_addr = SilentPaymentAddress(addr)
             return [output]
         elif self.bip21:
             address = self.bip21.get('address')
@@ -527,6 +528,8 @@ class PaymentIdentifier(Logger):
     def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
         try:
             address = self.parse_address(x)
+            if is_silent_payment_address(address):
+                return SILENT_PAYMENT_DUMMY_SPK, True  # Should be treated as address
             return bitcoin.address_to_script(address), True
         except Exception as e:
             pass
@@ -536,8 +539,6 @@ class PaymentIdentifier(Logger):
             return script, False
         except Exception as e:
             pass
-        if is_silent_payment_address(x):
-            return SILENT_PAYMENT_DUMMY_SPK, True # Should be treated as address
         return None, False
 
     def parse_script(self, x: str) -> bytes:
@@ -567,7 +568,7 @@ class PaymentIdentifier(Logger):
         r = line.strip()
         m = re.match('^' + RE_ALIAS + '$', r)
         address = str(m.group(2) if m else r)
-        assert bitcoin.is_address(address)
+        assert bitcoin.is_address(address) or is_silent_payment_address(address)
         return address
 
     def _get_error_from_invoiceerror(self, e: 'InvoiceError') -> str:
