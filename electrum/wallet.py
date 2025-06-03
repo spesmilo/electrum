@@ -1256,12 +1256,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         return transactions
 
-    def save_silent_payment_address(self, onchain_address: str, silent_payment_address: str):
+    def save_silent_payment_address(self, onchain_address: str, silent_payment_address: str, *, write_to_disk=True):
         """Saves the silent payment address by the derived onchain address."""
         assert is_address(onchain_address), 'tried to save silent payment address with invalid onchain address'
         assert is_silent_payment_address(silent_payment_address), 'tried to save invalid silent payment address'
         self.db.add_silent_payment_address(onchain_address, silent_payment_address)
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
         height = self.adb.get_local_height()
