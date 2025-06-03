@@ -1434,11 +1434,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.broadcast_transaction(tx, invoice=invoice)
 
     @protected
-    def prompt_and_get_pw(self, password):
-        # Note: the caller is responsible to distinguish between: user cancelled and pw is None (both return None)
-        return password
-
-    @protected
     def sign_tx(
         self,
         tx: PartialTransaction,

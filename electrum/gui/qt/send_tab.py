@@ -55,6 +55,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.format_amount = window.format_amount
         self.base_unit = window.base_unit
 
+        self.wallet_can_send_sp = self.wallet.can_send_silent_payment()
+
         self.pending_invoice = None
 
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -221,7 +223,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
         valid_amount = is_spk_script or bool(self.amount_e.get_amount())
         ready_to_finalize = not pi.need_resolve()
-        self.send_button.setEnabled(pi.is_valid() and not pi_error and valid_amount and ready_to_finalize)
+        sp_ok = self.wallet_can_send_sp if pi.involves_silent_payments() else True
+        self.send_button.setEnabled(pi.is_valid() and not pi_error and valid_amount and ready_to_finalize and sp_ok)
 
     def do_paste(self):
         self.logger.debug('do_paste')
@@ -312,6 +315,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if get_coins is None:
             get_coins = self.window.get_coins
 
+        password = None # silent payments need this, as calculating the shared secret requires private keys
+        if any(o.is_silent_payment() for o in outputs) and self.wallet.has_keystore_encryption():
+            password = self.window.get_password()
+            if password is None: return # user cancelled
+
         def make_tx(fee_policy, *, confirmed_only=False, base_tx=None):
             coins = get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only)
             return self.wallet.make_unsigned_transaction(
@@ -322,6 +330,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 is_sweep=is_sweep,
                 send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
                 merge_duplicate_outputs=self.config.WALLET_MERGE_DUPLICATE_OUTPUTS,
+                password=password,
+                mind_silent_payments=True # always mind silent payments to detect sending to a previous sp-onchain addr
             )
         output_values = [x.value for x in outputs]
         is_max = any(parse_max_spend(outval) for outval in output_values)
@@ -358,6 +368,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         def sign_done(success):
             if success:
                 self.window.broadcast_or_show(tx, invoice=invoice)
+        #TODO: sign_tx_with_password could be called directly if password is available due to silent payments.
+        #      otherwise the user gets prompted for pw twice.
         self.window.sign_tx(
             tx,
             callback=sign_done,
@@ -419,11 +431,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.clear_button.setEnabled(True)
 
+        involves_sp = pi.involves_silent_payments() # invoices involving silent payment are not persisted
+        sp_ok = self.wallet_can_send_sp if involves_sp else True
+
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
-            self.set_field_validated(self.payto_e, validated=pi.is_valid())  # TODO: validated used differently here than openalias
-            self.save_button.setEnabled(pi.is_valid())
-            self.send_button.setEnabled(pi.is_valid())
+            self.set_field_validated(self.payto_e, validated=pi.is_valid() and sp_ok)  # TODO: validated used differently here than openalias
+            self.save_button.setEnabled(pi.is_valid() and not involves_sp)
+            self.send_button.setEnabled(pi.is_valid() and sp_ok)
             self.payto_e.setToolTip(pi.get_error() if not pi.is_valid() else '')
             if pi.is_valid():
                 self.handle_multiline(pi.multiline_outputs)
@@ -473,14 +488,15 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         elif lock_max and self.amount_e.text() == '!':
             self.amount_e.clear()
 
-        pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
+        pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain()) or not sp_ok
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
 
         amount_valid = is_spk_script or bool(self.amount_e.get_amount())
 
         self.send_button.setEnabled(not pi_unusable and amount_valid and not pi.has_expired())
         self.save_button.setEnabled(not pi_unusable and not is_spk_script and not pi.has_expired() and \
-                                    pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
+                                    pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR] and \
+                                    not involves_sp)
 
         self.invoice_error.setText(_('Expired') if pi.has_expired() else '')
 
@@ -778,6 +794,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCAST)
+                    # Save silent payment addresses if any
+                    for output in tx.outputs():
+                        if output.is_silent_payment():
+                            self.wallet.save_silent_payment_address(output.address, output.sp_addr.encoded)
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
