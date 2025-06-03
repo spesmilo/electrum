@@ -145,11 +145,11 @@ info "preparing electrum-locale."
 ) || fail "failed generating locale"
 
 
-if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
+if ls "$DLL_TARGET_DIR"/libsecp256k1.*.dylib 1> /dev/null 2>&1; then
+    info "libsecp256k1 already built, skipping"
+else
     info "Building libsecp256k1 dylib..."
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-else
-    info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
 #cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 

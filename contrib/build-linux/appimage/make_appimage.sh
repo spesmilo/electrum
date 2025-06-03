@@ -78,7 +78,7 @@ info "installing python."
 )
 
 
-if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.2" ]; then
+if ls "$DLL_TARGET_DIR"/libsecp256k1.so.* 1> /dev/null 2>&1; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
