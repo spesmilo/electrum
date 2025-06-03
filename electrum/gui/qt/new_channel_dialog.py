@@ -93,7 +93,8 @@ class NewChannelDialog(WindowModalDialog):
         if not nodeid:
             self.remote_nodeid.setText("")
             self.remote_nodeid.setPlaceholderText(
-                "Please wait until the graph is synchronized to 30%, and then try again.")
+                _("Couldn't find suitable peer yet, try again later.")
+            )
         else:
             self.remote_nodeid.setText(nodeid)
         self.remote_nodeid.repaint()  # macOS hack for #6269
