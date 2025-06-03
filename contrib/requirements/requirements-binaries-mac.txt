@@ -1,2 +1,3 @@
-PyQt6
+# Qt 6.8 would require macOS 12+,  6.7 still supports macOS 11
+PyQt6<6.8
 cryptography>=2.6
