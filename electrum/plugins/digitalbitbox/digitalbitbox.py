@@ -424,7 +424,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             authenticated_msg = base64.b64encode(msg + hmac_digest)
             reply = self.hid_send_plain(authenticated_msg)
             if 'ciphertext' in reply:
-                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"])))
+                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"]), validate=True))
                 reply_hmac = b64_unencoded[-sha256_byte_len:]
                 hmac_calculated = hmac_oneshot(authentication_key, b64_unencoded[:-sha256_byte_len], hashlib.sha256)
                 if not hmac.compare_digest(reply_hmac, hmac_calculated):
@@ -702,7 +702,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def comserver_post_notification(self, payload, *, handler: 'HardwareHandlerBase'):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
-        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
+        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY], validate=True)
         ciphertext = EncodeAES_bytes(key_s, json.dumps(payload).encode('ascii'))
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config[CHANNEL_ID_KEY],

@@ -383,7 +383,7 @@ class QEDaemon(AuthMixin, QObject):
             return False
         try:
             # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.strip()))
+            sig = base64.b64decode(str(signature.strip()), validate=True)
             verified = verify_usermessage_with_address(address, sig, message)
         except Exception as e:
             verified = False

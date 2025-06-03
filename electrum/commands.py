@@ -29,6 +29,7 @@ import time
 import argparse
 import json
 import ast
+import binascii
 import base64
 import asyncio
 import inspect
@@ -906,9 +907,12 @@ class Commands(Logger):
 
         arg:str:address:Bitcoin address
         arg:str:message:Clear text message. Use quotes if it contains spaces.
-        arg:str:signature:The signature
+        arg:str:signature:The signature, base64-encoded.
         """
-        sig = base64.b64decode(signature)
+        try:
+            sig = base64.b64decode(signature, validate=True)
+        except binascii.Error:
+            return False
         message = util.to_bytes(message)
         return bitcoin.verify_usermessage_with_address(address, sig, message)
 

@@ -1,3 +1,4 @@
+import binascii
 import unittest
 from unittest import mock
 from decimal import Decimal
@@ -136,6 +137,28 @@ class TestCommands(ElectrumTestCase):
             await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'], wallet=wallet)
         self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], wallet=wallet))
+
+    async def test_verifymessage_enforces_strict_base64(self):
+        cmds = Commands(config=self.config)
+        msg = "hello there"
+        addr = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
+        sig = "HznHvCsY//Zr5JvPIR3rN/RbCkttvrUs8Yt+vw+e1c29BLMSlcrN4+Y4Pq8e/UJuh2bDrUboTfsFhBJap+fPmNY="
+        self.assertTrue(await cmds.verifymessage(addr, sig, msg))
+        self.assertFalse(await cmds.verifymessage(addr, sig+"trailinggarbage", msg))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_decrypt_enforces_strict_base64(self, mock_save_db):
+        cmds = Commands(config=self.config)
+        wallet = restore_wallet_from_text('9dk',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']  # type: Abstract_Wallet
+        plaintext = "hello there"
+        ciphertext = "QklFMQJEFgxfkXj+UNblbHR+4y6ZA2rGEeEhWo7h84lBFjlRY5JOPfV1zyC1fw5YmhIr7+3ceIV11lpf/Yv7gSqQCQ5Wuf1aGXceHZO0GjKVxBsuew=="
+        pubkey = "02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"
+        self.assertEqual(plaintext, await cmds.decrypt(pubkey, ciphertext, wallet=wallet))
+        with self.assertRaises(binascii.Error):  # perhaps it should raise some nice UserFacingException instead
+            await cmds.decrypt(pubkey, ciphertext+"trailinggarbage", wallet=wallet)
 
 
 class TestCommandsTestnet(ElectrumTestCase):

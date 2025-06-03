@@ -1515,7 +1515,7 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     # try base64
     if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
         try:
-            return base64.b64decode(raw).hex()
+            return base64.b64decode(raw, validate=True).hex()
         except Exception:
             pass
     # raw bytes (do not strip whitespaces in this case)
@@ -2226,7 +2226,7 @@ class PartialTransaction(Transaction):
         if raw[0:10].lower() in (b'70736274ff', '70736274ff'):  # hex
             raw = bytes.fromhex(raw)
         elif raw[0:6] in (b'cHNidP', 'cHNidP'):  # base64
-            raw = base64.b64decode(raw)
+            raw = base64.b64decode(raw, validate=True)
         if not isinstance(raw, (bytes, bytearray)) or raw[0:5] != b'psbt\xff':
             raise BadHeaderMagic("bad magic")
 
