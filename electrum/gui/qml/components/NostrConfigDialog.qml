@@ -54,7 +54,7 @@ ElDialog {
             TextHighlightPane {
                 Layout.fillWidth: true
                 Label {
-                    text: Config.shortDescFor('NOSTR_RELAYS') + '<br/><br/>' +
+                    text: qsTr('Enter the list of Nostr relays') + '<br/><br/>' +
                         qsTr('Nostr relays are used to send and receive submarine swap offers.') +
                         ' ' + qsTr('For multisig wallets, nostr is also used to relay transactions to your co-signers.') +
                         ' ' + qsTr('Connections to nostr are only made when required, and ephemerally.')
