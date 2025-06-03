@@ -1,3 +1,4 @@
+import asyncio
 import copy
 from enum import IntEnum
 import threading
@@ -11,7 +12,7 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
-from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException
+from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException, get_asyncio_loop
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
 from electrum.plugin import run_hook
@@ -389,7 +390,8 @@ class QETxFinalizer(TxFeeSlider):
                 coins=coins,
                 outputs=outputs,
                 fee_policy=self._fee_policy,
-                rbf=self._rbf)
+                rbf=self._rbf,
+                send_change_to_lightning=self._config.WALLET_SEND_CHANGE_TO_LIGHTNING)
 
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
 
@@ -467,7 +469,75 @@ class QETxFinalizer(TxFeeSlider):
             self.f_accept(self._tx)
             return
 
-        self._wallet.sign_and_broadcast(self._tx, on_success=partial(self.on_signed_tx, False), on_failure=self.on_sign_failed)
+        loop = get_asyncio_loop()
+
+        def prepare_swap_task():
+            tx = self._tx
+            try:
+                self.maybe_prepare_tx_for_swap(tx, loop)
+            except Exception as e:
+                self.warning = str(e)
+                self.on_sign_failed(_('Could not initiate swap'))
+                return
+
+            # TODO: port from desktop.
+            # scope of change-to-swap does not really fit TxFinalizer scope, so
+            # we have an issue here..
+            if hasattr(tx, 'swap_payment_hash'):
+                sm = self.wallet.lnworker.swap_manager
+                swap = sm.get_swap(tx.swap_payment_hash)
+                with sm.create_transport() as transport:
+                    coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
+                    try:
+                        funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
+                    except UserCancelled:
+                        sm.cancel_normal_swap(swap)
+                        return
+                    self.window.on_swap_result(funding_txid, is_reverse=False)
+
+            self._wallet.sign_and_broadcast(self._tx, on_success=partial(self.on_signed_tx, False),
+                                            on_failure=self.on_sign_failed)
+
+        threading.Thread(target=prepare_swap_task, daemon=True).start()
+
+    def maybe_prepare_tx_for_swap(self, tx, loop):
+        if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
+            assert self._wallet.wallet.lnworker
+            swap_manager = self._wallet.wallet.lnworker.swap_manager
+            with swap_manager.create_transport() as transport:
+                try:
+                    async def wait_initialized():
+                        try:
+                            await asyncio.wait_for(swap_manager.is_initialized.wait(), timeout=5)
+                            self._logger.debug('swapmanager initialized')
+                        except asyncio.TimeoutError:
+                            self._logger.debug('swapmanager init timeout')
+                            raise
+
+                    if not swap_manager.is_initialized.is_set():
+                        fut = asyncio.run_coroutine_threadsafe(wait_initialized(), loop)
+                        fut.result()
+                except Exception as e:
+                    try:  # finalizer might be destroyed at this point
+                        self._logger.exception(e)
+                        self.warning = str(e)
+                    except RuntimeError:
+                        pass
+
+                async def request_swap():
+                    return await swap_manager.request_swap_for_amount(transport, swap_dummy_output.value)
+
+                try:
+                    fut = asyncio.run_coroutine_threadsafe(request_swap(), loop)
+                    swap, invoice = fut.result()
+                except Exception as e:
+                    self._logger.exception(e)
+                    self.warning = str(e)
+
+                tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
+                assert tx.get_dummy_output(DummyAddress.SWAP) is None
+                tx.swap_invoice = invoice
+                tx.swap_payment_hash = swap.payment_hash
 
     @pyqtSlot()
     def sign(self):
