@@ -63,7 +63,8 @@ if sys.platform == "linux" and os.environ.get("APPIMAGE"):
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
-                           WalletFileException, get_new_wallet_name, InvalidPassword)
+                           WalletFileException, get_new_wallet_name, InvalidPassword,
+                           standardize_path)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
 from electrum.logging import Logger
@@ -428,7 +429,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         d = wizard.get_wizard_data()
 
         if d['wallet_is_open']:
-            wallet_path = self.daemon._wallet_key_from_path(d['wallet_name'])
+            wallet_path = standardize_path(d['wallet_name'])
             for window in self.windows:
                 if window.wallet.storage.path == wallet_path:
                     return window.wallet

@@ -451,13 +451,21 @@ class Daemon(Logger):
     @staticmethod
     def _wallet_key_from_path(path) -> str:
         """This does stricter path standardization than 'standardize_path'.
-        It is used for keying the _wallets dict, but not for the actual filesystem operations. (see #8495)
+        It is used for keying the _wallets dict,
+        but MUST NOT be used as a *path* for the actual filesystem operations. (see #8495)
         """
         path = standardize_path(path)
-        # also resolve symlinks and windows network mounts/etc:
+        # The extra normalisation makes it even harder to open the same wallet file multiple times simultaneously.
+        # - "realpath" resolves symlinks:
+        #   note: the path returned by realpath has been observed NOT to work for FS operations!
+        #         (e.g. for Cryptomator WinFSP/FUSE mounts, see #8495).
+        #         It is okay for us to use it for computing a canonical wallet *key*, but cannot be used as a path!
         path = os.path.realpath(path)
+        # - "normcase" does Windows-specific case and slash normalisation:
         path = os.path.normcase(path)
-        return str(path)
+        # - prepend header to break usage of wallet keys as fs paths
+        header = "WALLETKEY-"
+        return header + str(path)
 
     def with_wallet_lock(func):
         def func_wrapper(self: 'Daemon', *args, **kwargs):
@@ -481,7 +489,7 @@ class Daemon(Logger):
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
-        self.config.CURRENT_WALLET = wallet_key
+        self.config.CURRENT_WALLET = path
         self.update_recently_opened_wallets(path)
         return wallet
 
@@ -542,13 +550,16 @@ class Daemon(Logger):
     @with_wallet_lock
     async def _stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
+        path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         wallet = self._wallets.pop(wallet_key, None)
         if not wallet:
             return False
         await wallet.stop()
-        if self.config.CURRENT_WALLET == wallet_key and self._wallets:
-            self.config.CURRENT_WALLET = list(self._wallets.keys())[0]
+        wallet_paths = [w.db.storage.path for w in self._wallets.values()
+                        if w.db.storage and w.db.storage.path]
+        if self.config.CURRENT_WALLET == path and wallet_paths:
+            self.config.CURRENT_WALLET = wallet_paths[0]
         return True
 
     def run_daemon(self):
