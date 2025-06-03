@@ -66,6 +66,15 @@ class WalletInfoDialog(WindowModalDialog):
         grid.addWidget(WWLabel(_("Seed available") + ':'), cur_row, 0)
         grid.addWidget(WWLabel(str(seed_available)), cur_row, 1)
         cur_row += 1
+        # silent payment
+        grid.addWidget(WWLabel(_("Sending silent payment") + ':'), cur_row, 0)
+        if wallet.can_send_silent_payment():
+            grid.addWidget(WWLabel(_("Enabled")), cur_row, 1)
+        else:
+            grid.addWidget(WWLabel(_("Not available for this wallet.")), cur_row, 1)
+            grid.addWidget(HelpButton(_("Sending Silent Payments is only supported by standard wallets with a BIP32 keystore that is not watching-only.")),
+                           cur_row, 2)
+        cur_row += 1
         if len(keystore_types) <= 1:
             grid.addWidget(WWLabel(_("Keystore type") + ':'), cur_row, 0)
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
