@@ -95,7 +95,6 @@ sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
 from electrum.logging import get_logger, configure_logging  # import logging submodule first
 from electrum import util
 from electrum.payment_identifier import PaymentIdentifier
-from electrum import constants
 from electrum import SimpleConfig
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
@@ -105,7 +104,6 @@ from electrum.util import InvalidPassword
 from electrum.plugin import Plugins
 from electrum.commands import get_parser, get_simple_parser, known_commands, Commands, config_variables
 from electrum import daemon
-from electrum import keystore
 from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
 from electrum.i18n import set_language
 
@@ -268,12 +266,14 @@ loop = None  # type: Optional[asyncio.AbstractEventLoop]
 stop_loop = None  # type: Optional[asyncio.Future]
 loop_thread = None  # type: Optional[threading.Thread]
 
+
 def sys_exit(i):
     # stop event loop and exit
     if loop:
         loop.call_soon_threadsafe(stop_loop.set_result, 1)
         loop_thread.join(timeout=1)
     sys.exit(i)
+
 
 def read_config(config_options: dict) -> SimpleConfig:
     """
@@ -293,6 +293,7 @@ def read_config(config_options: dict) -> SimpleConfig:
             except Exception as e:
                 print_stderr(f"Error showing standalone gui dialog: {e}")
         raise
+
 
 def parse_command_line(simple_parser=False) -> Dict:
     # parse command line from sys.argv
@@ -333,6 +334,7 @@ def parse_command_line(simple_parser=False) -> Dict:
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)
     return config_options
+
 
 def main():
     global loop, stop_loop, loop_thread

@@ -33,8 +33,7 @@ import base64
 import asyncio
 import inspect
 from collections import defaultdict
-from functools import wraps, partial
-from itertools import repeat
+from functools import wraps
 from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Dict, List
 import os
@@ -46,27 +45,31 @@ from . import util
 from .lnmsg import OnionWireSerializer
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
-from .util import (bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes,
-                   parse_max_spend, to_decimal, UserFacingException, InvalidPassword)
-
+from .util import (
+    bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
+    UserFacingException, InvalidPassword
+)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
 from .i18n import _
-from .transaction import (Transaction, multisig_script, TxOutput, PartialTransaction, PartialTxOutput,
-                          tx_from_any, PartialTxInput, TxOutpoint)
+from .transaction import (
+    Transaction, multisig_script, PartialTransaction, PartialTxOutput, tx_from_any, PartialTxInput, TxOutpoint,
+    convert_raw_tx_to_hex
+)
 from . import transaction
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+from .invoices import Invoice, PR_PAID, PR_UNPAID, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy, Imported_Wallet
+from .wallet import (
+    Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy,
+    Imported_Wallet
+)
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
-from .lntransport import extract_nodeid
-from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_FOR_INVOICE
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .invoices import Invoice
 from .fee_policy import FeePolicy
 from . import GuiImportError
 from . import crypto
@@ -348,7 +351,7 @@ class Commands(Logger):
                 encrypt_file = wallet.storage.is_encrypted()
         wallet.update_password(password, new_password, encrypt_storage=encrypt_file)
         wallet.save_db()
-        return {'password':wallet.has_password()}
+        return {'password': wallet.has_password()}
 
     @command('w')
     async def get(self, key, wallet: Abstract_Wallet = None):
@@ -1365,7 +1368,7 @@ class Commands(Logger):
             expiry: int = 3600,
             min_final_cltv_expiry_delta: int = MIN_FINAL_CLTV_DELTA_FOR_INVOICE * 2,
             wallet: Abstract_Wallet = None
-        ) -> dict:
+    ) -> dict:
         """
         Create a lightning hold invoice for the given preimage. Hold invoices have to get settled manually later.
         HTLCs will get failed automatically if block_height + 144 > htlc.cltv_abs.
@@ -1650,9 +1653,9 @@ class Commands(Logger):
         """
         lnworker = self.network.lngossip if gossip else wallet.lnworker
         return [{
-            'node_id':p.pubkey.hex(),
-            'address':p.transport.name(),
-            'initialized':p.is_initialized(),
+            'node_id': p.pubkey.hex(),
+            'address': p.transport.name(),
+            'initialized': p.is_initialized(),
             'features': str(LnFeatures(p.features)),
             'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
         } for p in lnworker.peers.values()]
@@ -1738,7 +1741,7 @@ class Commands(Logger):
                 'remote_balance': chan.balance(REMOTE)//1000,
                 'local_ctn': chan.get_latest_ctn(LOCAL),
                 'remote_ctn': chan.get_latest_ctn(REMOTE),
-                'local_reserve': chan.config[REMOTE].reserve_sat, # their config has our reserve
+                'local_reserve': chan.config[REMOTE].reserve_sat,  # their config has our reserve
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
@@ -2055,6 +2058,7 @@ class Commands(Logger):
 
         return encoded_blinded_path.hex()
 
+
 def plugin_command(s, plugin_name):
     """Decorator to register a cli command inside a plugin. To be used within a commands.py file
     in the plugins root."""
@@ -2065,6 +2069,7 @@ def plugin_command(s, plugin_name):
         if name in known_commands or hasattr(Commands, name):
             raise Exception(f"Command name {name} already exists. Plugin commands should not overwrite other commands.")
         assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
+
         @command(s)
         @wraps(func)
         async def func_wrapper(*args, **kwargs):
@@ -2072,6 +2077,7 @@ def plugin_command(s, plugin_name):
             daemon = cmd_runner.daemon
             kwargs['plugin'] = daemon._plugins.get_plugin(plugin_name)
             return await func(*args, **kwargs)
+
         setattr(Commands, name, func_wrapper)
         return func_wrapper
     return decorator
@@ -2086,14 +2092,15 @@ def eval_bool(x: str) -> bool:
     return bool(ast.literal_eval(x))
 
 
-
 # don't use floats because of rounding errors
-from .transaction import convert_raw_tx_to_hex
 json_loads = lambda x: json.loads(x, parse_float=lambda x: str(to_decimal(x)))
+
+
 def check_txid(txid):
     if not is_hash256_str(txid):
         raise UserFacingException(f"{repr(txid)} is not a txid")
     return txid
+
 
 arg_types = {
     'int': int,
@@ -2113,7 +2120,7 @@ config_variables = {
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
         'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     },
-    'listrequests':{
+    'listrequests': {
         'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     }
 }
@@ -2234,18 +2241,19 @@ def add_global_options(parser, suppress=False):
         help=argparse.SUPPRESS if suppress else "Forget config on exit")
 
 
-
 def get_simple_parser():
     """ simple parser that figures out the path of the config file and ignore unknown args """
     from optparse import OptionParser, BadOptionError, AmbiguousOptionError
+
     class PassThroughOptionParser(OptionParser):
         # see https://stackoverflow.com/questions/1885161/how-can-i-get-optparses-optionparser-to-ignore-invalid-options
         def _process_args(self, largs, rargs, values):
             while rargs:
                 try:
-                    OptionParser._process_args(self,largs,rargs,values)
-                except (BadOptionError,AmbiguousOptionError) as e:
+                    OptionParser._process_args(self, largs, rargs, values)
+                except (BadOptionError, AmbiguousOptionError) as e:
                     largs.append(e.opt_str)
+
     parser = PassThroughOptionParser()
     parser.add_option("-D", "--dir", dest="electrum_path", help="electrum directory")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
