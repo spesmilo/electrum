@@ -526,7 +526,7 @@ ApplicationWindow
         }
 
         function continueWithServerConnection() {
-            if (!Config.autoConnectDefined) {
+            if (!Network.autoConnectDefined) {
                 var dialog = serverConnectWizard.createObject(app)
                 // without completed serverConnectWizard we can't start
                 dialog.rejected.connect(function() {

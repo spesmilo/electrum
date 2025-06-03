@@ -184,20 +184,39 @@ class QENetwork(QObject, QtEventListener):
     def serverHeight(self):
         return self._server_height
 
+    autoConnectChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=autoConnectChanged)
+    def autoConnect(self):
+        return self.network.config.NETWORK_AUTO_CONNECT
+
+    # auto_connect is actually a tri-state, expose the undefined case
+    @pyqtProperty(bool, notify=autoConnectChanged)
+    def autoConnectDefined(self):
+        return self.network.config.cv.NETWORK_AUTO_CONNECT.is_set()
+
     @pyqtProperty(str, notify=statusChanged)
     def server(self):
         return self._server
 
-    @server.setter
-    def server(self, server: str):
+    @pyqtSlot(str, bool, bool)
+    def setServerParameters(self, server: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
-        try:
-            server = ServerAddr.from_str_with_inference(server)
-            if not server:
-                raise Exception('failed to parse')
-        except Exception:
+        if server == net_params.server and auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
             return
-        net_params = net_params._replace(server=server, auto_connect=QEConfig.instance.autoConnect)
+        if server != str(net_params.server):
+            try:
+                server = ServerAddr.from_str_with_inference(server)
+                if not server:
+                    raise Exception('failed to parse')
+            except Exception:
+                if not auto_connect:
+                    return
+                server = net_params.server
+            self.statusChanged.emit()
+        if auto_connect != net_params.auto_connect:
+            self.network.config.NETWORK_AUTO_CONNECT = auto_connect
+            self.autoConnectChanged.emit()
+        net_params = net_params._replace(server=server, auto_connect=auto_connect, oneserver=one_server)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)
@@ -257,14 +276,6 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty(bool, notify=statusChanged)
     def oneServer(self):
         return self.network.oneserver
-
-    @oneServer.setter
-    def oneServer(self, one_server: bool):
-        if one_server != self.network.oneserver:
-            net_params = self.network.get_parameters()
-            net_params = net_params._replace(oneserver=one_server)
-            self.network.run_from_another_thread(self.network.set_parameters(net_params))
-            self.statusChanged.emit()
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):

@@ -82,21 +82,6 @@ class QEConfig(AuthMixin, QObject):
             self.config.TERMS_OF_USE_ACCEPTED = 0
         self.termsOfUseChanged.emit()
 
-    autoConnectChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=autoConnectChanged)
-    def autoConnect(self):
-        return self.config.NETWORK_AUTO_CONNECT
-
-    @autoConnect.setter
-    def autoConnect(self, auto_connect):
-        self.config.NETWORK_AUTO_CONNECT = auto_connect
-        self.autoConnectChanged.emit()
-
-    # auto_connect is actually a tri-state, expose the undefined case
-    @pyqtProperty(bool, notify=autoConnectChanged)
-    def autoConnectDefined(self):
-        return self.config.cv.NETWORK_AUTO_CONNECT.is_set()
-
     baseUnitChanged = pyqtSignal()
     @pyqtProperty(str, notify=baseUnitChanged)
     def baseUnit(self):
