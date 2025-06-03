@@ -78,7 +78,8 @@ from electrum import constants
 from electrum.gui.common_qt.i18n import ElectrumTranslator
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
 
-from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
+from .util import (read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel,
+                   set_windows_os_screenshot_protection_drm_flag)
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -102,6 +103,20 @@ class OpenFileEventFilter(QObject):
             if len(self.windows) >= 1:
                 self.windows[0].set_payment_identifier(event.url().toString())
                 return True
+        return False
+
+
+class ScreenshotProtectionEventFilter(QObject):
+    def __init__(self):
+        super().__init__()
+
+    def eventFilter(self, obj, event):
+        if (
+            event.type() == QtCore.QEvent.Type.Show
+            and isinstance(obj, QWidget)
+            and obj.isWindow()
+        ):
+            set_windows_os_screenshot_protection_drm_flag(obj)
         return False
 
 
@@ -136,9 +151,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         QGuiApplication.setApplicationName("Electrum")
         self.gui_thread = threading.current_thread()
         self.windows = []  # type: List[ElectrumWindow]
-        self.efilter = OpenFileEventFilter(self.windows)
+        self.open_file_efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
-        self.app.installEventFilter(self.efilter)
+        self.app.installEventFilter(self.open_file_efilter)
+        self.screenshot_protection_efilter = ScreenshotProtectionEventFilter()
+        if sys.platform in ['win32', 'windows'] and self.config.GUI_QT_SCREENSHOT_PROTECTION:
+            self.app.installEventFilter(self.screenshot_protection_efilter)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
@@ -247,8 +265,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
         self._cleaned_up = True
         self.app.new_window_signal.disconnect()
-        self.app.removeEventFilter(self.efilter)
-        self.efilter = None
+        self.app.removeEventFilter(self.open_file_efilter)
+        self.open_file_efilter = None
+        # it is save to remove the filter, even if it has not been installed
+        self.app.removeEventFilter(self.screenshot_protection_efilter)
+        self.screenshot_protection_efilter = None
         # If there are still some open windows, try to clean them up.
         for window in list(self.windows):
             window.close()

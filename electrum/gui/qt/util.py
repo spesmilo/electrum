@@ -6,6 +6,7 @@ import platform
 import queue
 import os
 import webbrowser
+import ctypes
 from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple, Union)
 
@@ -1530,6 +1531,21 @@ def insert_spaces(text: str, every_chars: int) -> str:
     '''Insert spaces at every Nth character to allow for WordWrap'''
     return ' '.join(text[i:i+every_chars] for i in range(0, len(text), every_chars))
 
+
+def set_windows_os_screenshot_protection_drm_flag(window: QWidget) -> None:
+    """
+    sets the windows WDA_MONITOR flag on the window so windows prevents capturing
+    screenshots and microsoft recall will not be able to record the window
+    https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity
+    """
+    if sys.platform not in ('win32', 'windows'):
+        return
+    try:
+        window_id = int(window.winId())
+        WDA_MONITOR = 0x01
+        ctypes.windll.user32.SetWindowDisplayAffinity(window_id, WDA_MONITOR)
+    except Exception:
+        _logger.exception(f"failed to set windows screenshot protection flag")
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass
