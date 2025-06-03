@@ -363,10 +363,14 @@ class CommandsServer(AuthenticatedServer):
         kwargs = {}
         for x in cmd.options:
             kwargs[x] = config_options.get(x)
-        if 'wallet_path' in cmd.options:
-            kwargs['wallet_path'] = config_options.get('wallet_path')
-        elif 'wallet' in cmd.options:
-            kwargs['wallet'] = config_options.get('wallet_path')
+        if 'wallet_path' in cmd.options or 'wallet' in cmd.options:
+            wallet_path = config_options.get('wallet_path')
+            if len(self.daemon._wallets) > 1 and wallet_path is None:
+                raise UserFacingException("error: wallet not specified")
+            if 'wallet_path' in cmd.options:
+                kwargs['wallet_path'] = wallet_path
+            else:
+                kwargs['wallet'] = wallet_path
         func = getattr(self.cmd_runner, cmd.name)
         # execute requested command now.  note: cmd can raise, the caller (self.handle) will wrap it.
         result = await func(*args, **kwargs)
@@ -477,14 +481,10 @@ class Daemon(Logger):
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
-        self.update_current_wallet()
+        self.config.CURRENT_WALLET = wallet_key
         self.update_recently_opened_wallets(path)
         return wallet
 
-    def update_current_wallet(self):
-        if not self._wallets:
-            return
-        self.config.CURRENT_WALLET = list(self._wallets.keys())[0] if len(self._wallets) == 1 else None
 
     @staticmethod
     @profiler
@@ -546,8 +546,9 @@ class Daemon(Logger):
         wallet = self._wallets.pop(wallet_key, None)
         if not wallet:
             return False
-        self.update_current_wallet()
         await wallet.stop()
+        if self.config.CURRENT_WALLET == wallet_key and self._wallets:
+            self.config.CURRENT_WALLET = list(self._wallets.keys())[0]
         return True
 
     def run_daemon(self):

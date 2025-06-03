@@ -458,7 +458,7 @@ class SimpleConfig(Logger):
         else:
             return self.WALLET_BACKUP_DIRECTORY
 
-    def get_wallet_path(self, *, use_fallback=True) -> Optional[str]:
+    def get_wallet_path(self) -> str:
         """Returns the wallet path."""
         # command line -w option
         if self.get('wallet_path'):
@@ -467,9 +467,7 @@ class SimpleConfig(Logger):
         path = self.CURRENT_WALLET
         if path and os.path.exists(path):
             return path
-        if use_fallback:
-            return self.get_fallback_wallet_path()
-        return
+        return self.get_fallback_wallet_path()
 
     def get_datadir_wallet_path(self):
         util.assert_datadir_available(self.path)

@@ -246,7 +246,6 @@ class Commands(Logger):
             'connected': self.network.is_connected(),
             'auto_connect': net_params.auto_connect,
             'version': ELECTRUM_VERSION,
-            'current_wallet': self.config.get_wallet_path(use_fallback=False),
             'fee_estimates': self.network.fee_estimates.get_data()
         }
         return response
