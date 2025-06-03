@@ -318,7 +318,7 @@ class QEConfig(AuthMixin, QObject):
     @nostrRelays.setter
     def nostrRelays(self, nostr_relays):
         if nostr_relays != self.config.NOSTR_RELAYS:
-            self.config.NOSTR_RELAYS = nostr_relays
+            self.config.NOSTR_RELAYS = nostr_relays if nostr_relays else None
             self.nostrRelaysChanged.emit()
 
     swapServerNPubChanged = pyqtSignal()
