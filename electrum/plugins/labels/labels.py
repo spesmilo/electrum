@@ -45,7 +45,7 @@ class LabelsPlugin(BasePlugin):
 
     def decode(self, wallet: 'Abstract_Wallet', message: str) -> str:
         password, iv, wallet_id = self.wallets[wallet]
-        decoded = base64.b64decode(message)
+        decoded = base64.b64decode(message, validate=True)
         decrypted = aes_decrypt_with_iv(password, iv, decoded)
         return decrypted.decode('utf8')
 

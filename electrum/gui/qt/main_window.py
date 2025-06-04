@@ -2154,7 +2154,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         try:
             # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.toPlainText()))
+            sig = base64.b64decode(str(signature.toPlainText()), validate=True)
             verified = bitcoin.verify_usermessage_with_address(address, sig, message)
         except Exception as e:
             verified = False

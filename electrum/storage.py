@@ -160,7 +160,7 @@ class WalletStorage(Logger):
 
     def _init_encryption_version(self):
         try:
-            magic = base64.b64decode(self.raw)[0:4]
+            magic = base64.b64decode(self.raw, validate=True)[0:4]
             if magic == b'BIE1':
                 return StorageEncryptionVersion.USER_PASSWORD
             elif magic == b'BIE2':

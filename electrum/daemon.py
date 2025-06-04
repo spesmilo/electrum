@@ -221,7 +221,7 @@ class AuthenticatedServer(Logger):
         if basic != 'Basic':
             raise AuthenticationInvalidOrMissing('UnsupportedType')
         encoded = to_bytes(encoded, 'utf8')
-        credentials = to_string(b64decode(encoded), 'utf8')
+        credentials = to_string(b64decode(encoded, validate=True), 'utf8')
         username, _, password = credentials.partition(':')
         if not (constant_time_compare(username, self.rpc_user)
                 and constant_time_compare(password, self.rpc_password)):

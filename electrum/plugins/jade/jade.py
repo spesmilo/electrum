@@ -192,7 +192,7 @@ class Jade_Client(HardwareClientBase):
 
         # Signature verification does not work with anti-exfil, so stick with default (rfc6979)
         sig = self.jade.sign_message(path, message)
-        return base64.b64decode(sig)
+        return base64.b64decode(sig, validate=True)
 
     @runs_in_hwd_thread
     def sign_psbt(self, psbt_bytes):

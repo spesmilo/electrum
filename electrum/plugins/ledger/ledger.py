@@ -1155,7 +1155,8 @@ class Ledger_Client_New(Ledger_Client):
 
         result = b''
         try:
-            result = base64.b64decode(self.client.sign_message(message, address_path))
+            sig_str = self.client.sign_message(message, address_path)
+            result = base64.b64decode(sig_str, validate=True)
         except DenyError:
             pass  # cancelled by user
         except BaseException as e:
