@@ -36,7 +36,7 @@ from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
 
-from .util import ColorScheme, HelpLabel, Buttons, CloseButton, QtEventListener
+from .util import ColorScheme, HelpLabel, Buttons, CloseButton, QtEventListener, is_system_dark_mode
 
 
 if TYPE_CHECKING:
@@ -236,15 +236,26 @@ class SettingsDialog(QDialog, QtEventListener):
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Light'), 'default')
+        colortheme_combo.addItem(_('Light'), 'light')
         colortheme_combo.addItem(_('Dark'), 'dark')
+        colortheme_combo.addItem(_('System'), 'default')
         index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
 
+        def theme_transition_requires_restart(prev_theme: str, new_theme: str) -> bool:
+            system = 'dark' if is_system_dark_mode() else 'light'
+            effective_prev = system if prev_theme == 'default' else prev_theme
+            effective_new = system if new_theme == 'default' else new_theme
+            return effective_prev != effective_new
+
         def on_colortheme(x):
+            prev_color = self.config.GUI_QT_COLOR_THEME
             self.config.GUI_QT_COLOR_THEME = colortheme_combo.itemData(x)
-            self.need_restart = True
+            self.need_restart = theme_transition_requires_restart(
+                prev_color,
+                self.config.GUI_QT_COLOR_THEME
+            )
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
         updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)

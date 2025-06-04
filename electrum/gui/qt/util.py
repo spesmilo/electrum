@@ -1360,6 +1360,17 @@ def font_height(widget: QWidget = None) -> int:
     return QFontMetrics(widget.font()).height()
 
 
+def is_system_dark_mode() -> bool:
+    """Returns True if the system theme is in dark mode, False otherwise."""
+    qapp: Optional[QApplication] = QApplication.instance()
+    if not qapp:
+        return False
+    palette: QPalette = qapp.palette()
+    window_color: QColor = palette.color(QPalette.ColorRole.Window)
+    text_color: QColor = palette.color(QPalette.ColorRole.WindowText)
+    return text_color.lightness() > window_color.lightness()
+
+
 def webopen(url: str):
     if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
         # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.

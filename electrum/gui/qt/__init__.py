@@ -78,7 +78,8 @@ from electrum import constants
 from electrum.gui.common_qt.i18n import ElectrumTranslator
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
 
-from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel
+from .util import (read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel,
+                   is_system_dark_mode)
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -178,7 +179,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
              - in Coins tab, the color for "frozen" UTXOs, or
              - in TxDialog, the receiving/change address colors
         """
-        use_dark_theme = self.config.GUI_QT_COLOR_THEME == 'dark'
+        use_dark_theme = self.config.GUI_QT_COLOR_THEME == 'dark' \
+                            or self.config.GUI_QT_COLOR_THEME == 'default' and is_system_dark_mode()
         if use_dark_theme:
             try:
                 import qdarkstyle
