@@ -367,10 +367,7 @@ class CommandsServer(AuthenticatedServer):
             wallet_path = config_options.get('wallet_path')
             if len(self.daemon._wallets) > 1 and wallet_path is None:
                 raise UserFacingException("error: wallet not specified")
-            if 'wallet_path' in cmd.options:
-                kwargs['wallet_path'] = wallet_path
-            else:
-                kwargs['wallet'] = wallet_path
+            kwargs['wallet_path'] = wallet_path
         func = getattr(self.cmd_runner, cmd.name)
         # execute requested command now.  note: cmd can raise, the caller (self.handle) will wrap it.
         result = await func(*args, **kwargs)
