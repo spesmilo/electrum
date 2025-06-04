@@ -1,3 +1,103 @@
+# Release 4.6.0 (not released yet)
+
+ * A 'Terms of Use' screen was added to the install wizard. While the
+   licence remains uchanged, we ask users to agree with the fact that
+   we are not a custodial service or a money transmitter. The Terms of
+   Use screen also makes it clear that all issues are to be resolved
+   in public, and that there is no user support via private channels.
+
+ * Nostr support: Electrum includes a built-in Nostr library named
+   electrum-aionostr. This library is used in the context of submarine
+   swaps, and by several plugins. Electrum will not connect to Nostr
+   by default, only if required.
+
+ * Submarine swaps over Nostr: The Electrum client will connect to
+   Nostr in order to discover submarine swap providers, and to perform
+   related RPCs. This means that:
+    - Anyone can become a swap provider (you need to run an Electrum
+      daemon with the 'swapserver' plugin). Submarine swap providers
+      advertise their fees and their liquidity on Nostr.
+    - Submarine swap providers do not need to provide an HTTP
+      endpoint, since PRCs are performed via Nostr. They also do not
+      need to have public lightning channels.
+    - Because a decentralized service needs to be trustless, the
+      option to perform zero-confirmation swaps has been removed from
+      Electrum.
+    Note that Electrum connections to Nostr relays are only initiated
+    when the user uses the swap service, and the nostr public key used
+    by the client is ephemeral (servers use a persisted identity).
+
+ * Third-party plugins:
+   - Electrum now support the installation of plugins distributed by
+     third parties as ZIP files. While it has long been possible to
+     install third-party plugins when running Electrum from python
+     sources, the same is now possible when using desktop binaries
+     (Windows, MacOS, Linux). Third-party plugins are installed as ZIP
+     files in the user's electrum directory.
+   - In order to prevent plugin installation by malware, third-party
+     plugins can only be enabled if the user enters a plugin
+     authorization password (distinct from the wallet password).
+     Setting up that plugin authorization password requires
+     administrator permissions on the local machine; a
+     password-derived public key must be written in the system.
+
+ * Lightning anchor channels (#9264): Since sweeping commitment
+   transaction outputs from anchor channels may require external
+   UTXOs, lightning can no longer be enabled in wallets that do not
+   have a software keystore (hardware wallets, watching-only wallets).
+   Existing wallets that are in that situation cannot create new
+   channels.
+
+ * Wallet unlocking (Qt):
+   - Wallets can be unlocked in the Qt GUI. When a password-protected
+     wallet is unlocked, its password is kept in memory, and signing
+     transactions will not require to enter the password. The unlocked
+     state is rendered by the 'open lock' icon in the status bar.
+   - If a wallet needs to sweep anchor channel outputs using extra
+     UTXOs, the operations will be performed without requiring the
+     user password if the wallet is unlocked. If the wallet is locked,
+     the status bar will show a 'password required' button.
+
+ * Transaction batching (Qt): When creating a new payment, if the
+   output can be added to an existing mempool transaction, the 'New
+   transaction' window will show a dropdown menu, proposing a list of
+   transactions that can be batched with the current payment. This
+   replaces the previous 'batch' option checkbox, and gives more
+   control to the user.
+
+ * Keystore enabling/disabling (Qt): It is now possible to add a seed
+   to an existing watching-only wallet, or to a keystore within a
+   multisig wallet. Similarly, it is possible to pair a watching-only
+   keystore with a hardware device. These operationa are performed
+   from the 'Wallet Information' dialog.
+
+ * Wallet file encryption:
+   - Non-multisig hardware wallet files can be encrypted with a
+     password, instead of the hardware device.
+   - The option to have a password-protected wallet without file
+     encryption has been removed from the Qt GUI. It is still possible to
+     create such a wallet using the command line
+
+ * New plugins:
+   - Nostr Wallet Connect: This plugin allows remote control of
+     Electrum lightning wallets via Nostr NIP-47.
+   - Nostr Cosigner: This plugin facilitates the exchange of
+     PSBTs between cosigners of a multisig wallet. It replaces the
+     former 'Cosigner pool' plugin. Instead of relying on a central
+     server, it uses Nostr to send/receive PSBTs.
+   - Timelock Recovery: A timelock based inheritance scheme.
+     See timelockrecovery.com
+
+ * CLI:
+   - The command line help has been improved; parameters are
+     documented in the same docstring as the command they belong to.
+   - Plugins may add extra commands to the CLI. Plugin commands must
+     be prefixed with the plugin's internal name
+   - support for hold invoices
+   - support for onion messages
+
+
+
 # Release 4.5.8 (Oct 23, 2024)
  * Qt Desktop GUI:
    - fix: regression: bump_fee and dscancel dialogs erroring (#9273)
