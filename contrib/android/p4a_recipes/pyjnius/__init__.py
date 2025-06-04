@@ -12,7 +12,8 @@ assert PyjniusRecipe.python_depends == []
 
 
 class PyjniusRecipePinned(util.InheritedRecipeMixin, PyjniusRecipe):
-    sha512sum = "e47ff08bdcda8fc9ef9617fc84515a85404d77cfce3ede3e190ae21221837a4275840e14976271f38eb5d514682d22eab5d83d8ca94dbf3a6b47d4effa109790"
+    version = "1.6.1"
+    sha512sum = "deb5ac566479111c6f4c6adb895821b263d72bf88414fb093bdfd5ad5d0b7aea56b53d5ef0967e28db360f4fb6fb1c2264123f15c747884799df55848191c424"
 
 
 recipe = PyjniusRecipePinned()
