@@ -102,6 +102,20 @@
    - support for hold invoices
    - support for onion messages
 
+ * Security:
+   - Mitigate against dust attacks; Add option to avoid spending from used addresses
+   - Restrict process memory access on Linux
+
+ * Networking:
+   - add single server option
+
+ * Android:
+   - Sweep key feature ported to mobile
+   - Estimate amount when Max is checked
+   - Properly ask for (notification) permission access
+
+ * Hardware wallets:
+   - Coldcard: add feature to upload multisig wallet configuration to Coldcard via USB
 
 
 # Release 4.5.8 (Oct 23, 2024)
