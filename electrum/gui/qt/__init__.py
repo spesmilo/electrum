@@ -344,6 +344,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
         Warning: the returned window might be for a completely different wallet
                  than the provided path, as we allow user interaction to change the path.
         """
+        if not self.has_accepted_terms_of_use():
+            self.logger.warning(f"terms of use not accepted, rejecting to start new window")
+            return None
+
         wallet = None
         # Try to open with daemon first. If this succeeds, there won't be a wizard at all
         # (the wallet main window will appear directly).
@@ -506,12 +510,17 @@ class ElectrumGui(BaseElectrumGui, Logger):
         for window in list(self.windows):
             self.reload_window(window)
 
+    def has_accepted_terms_of_use(self) -> bool:
+        if self.config.TERMS_OF_USE_ACCEPTED >= TERMS_OF_USE_LATEST_VERSION\
+                or constants.net.NET_NAME == "regtest":
+            return True
+        return False
+
     def ask_terms_of_use(self):
         """Ask the user to accept the terms of use.
         This is only shown if the user has not accepted them yet.
         """
-        if self.config.TERMS_OF_USE_ACCEPTED >= TERMS_OF_USE_LATEST_VERSION\
-                or constants.net.NET_NAME == "regtest":
+        if self.has_accepted_terms_of_use():
             return
         from electrum.gui.qt.wizard.terms_of_use import QETermsOfUseWizard
         dialog = QETermsOfUseWizard(self.config, self.app)
