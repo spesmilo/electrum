@@ -163,10 +163,8 @@ def command(s):
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
             if daemon:
-                if 'wallet_path' in cmd.options and kwargs.get('wallet_path') is None:
-                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
-                if cmd.requires_wallet and kwargs.get('wallet') is None:
-                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                if 'wallet_path' in cmd.options or cmd.requires_wallet:
+                    kwargs['wallet_path'] = daemon.config.maybe_complete_wallet_path(kwargs.get('wallet_path'))
                 if 'wallet' in cmd.options:
                     wallet_path = kwargs.pop('wallet_path', None) # unit tests may set wallet and not wallet_path
                     wallet = kwargs.get('wallet', None)           # run_offline_command sets both

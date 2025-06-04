@@ -458,11 +458,20 @@ class SimpleConfig(Logger):
         else:
             return self.WALLET_BACKUP_DIRECTORY
 
+    def maybe_complete_wallet_path(self, path: Optional[str]) -> str:
+        return self._complete_wallet_path(path) if path is not None else self.get_wallet_path()
+
+    def _complete_wallet_path(self, path: str) -> str:
+        """ add user wallets directory if needed """
+        if os.path.split(path)[0] == '':
+            path = os.path.join(self.get_datadir_wallet_path(), path)
+        return path
+
     def get_wallet_path(self) -> str:
         """Returns the wallet path."""
         # command line -w option
-        if self.get('wallet_path'):
-            return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
+        if path:= self.get('wallet_path'):
+            return self._complete_wallet_path(path)
         # current wallet
         path = self.CURRENT_WALLET
         if path and os.path.exists(path):
