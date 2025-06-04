@@ -325,20 +325,33 @@ class TxBatch(Logger):
             prev_txid, index = prevout.to_str().split(':')
             if not self.wallet.adb.db.get_transaction(prev_txid):
                 continue
+            spender_txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, index)
+            spender_is_local: Optional[bool] = self._tx_is_local_or_future(spender_txid)
             if v.is_anchor():
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
                 if prev_tx_mined_status.conf > 0:
-                    self.logger.info(f"anchor not needed {k}")
+                    self.logger.info(f"anchor not needed {k}, {spender_is_local=}")
                     self.batch_inputs.pop(k)
+                    if spender_is_local:
+                        # remove the local tx from the wallet history
+                        self.wallet.adb.remove_transaction(spender_txid)
+                        self.wallet.save_db()
+                        util.trigger_callback('wallet_updated', self.wallet)
                     continue
-            if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
-                tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
-                if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-                    continue
+            if spender_is_local is False:
+                continue
             if prevout in tx_prevouts:
                 continue
             result.append((k,v))
         return dict(result)
+
+    def _tx_is_local_or_future(self, txid: str) -> Optional[bool]:
+        if txid:
+            tx_mined_status = self.wallet.adb.get_tx_height(txid)
+            if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                return True
+            return False
+        return None
 
     def _should_bump_fee(self, base_tx) -> bool:
         if base_tx is None:
