@@ -21,30 +21,27 @@ from electrum_aionostr.util import to_nip19
 from collections import defaultdict
 
 
-from . import lnutil
-from .crypto import sha256, hash_160
-from .bitcoin import (script_to_p2wsh, opcodes,
-                      construct_witness)
-from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
-from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
-from .util import (log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, age, ca_path,
-                   gen_nostr_ann_pow, get_nostr_ann_pow_amount, make_aiohttp_proxy_connector,
-                   get_running_loop, get_asyncio_loop, wait_for2, run_sync_function_on_asyncio_thread)
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
-from .bitcoin import dust_threshold, DummyAddress
+from .i18n import _
 from .logging import Logger
-from .lnutil import hex_to_bytes
+from .crypto import sha256, ripemd
+from .bitcoin import script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness, construct_script
+from .transaction import (
+    PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint, script_GetOp,
+    match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
+)
+from .util import (
+    log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
+    get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
+    run_sync_function_on_asyncio_thread
+)
+from . import lnutil
+from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
-from .i18n import _
 from .fee_policy import FeePolicy
-
-from .bitcoin import construct_script
-from .crypto import ripemd
 from .invoices import Invoice
-from .network import TxBroadcastError
 from .lnonion import OnionRoutingFailure, OnionFailureCode
 from .lnsweep import SweepInfo
 
@@ -57,7 +54,6 @@ if TYPE_CHECKING:
     from .lnchannel import Channel
     from .simple_config import SimpleConfig
     from aiohttp_socks import ProxyConnector
-
 
 
 SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
@@ -134,8 +130,10 @@ class SwapServerError(Exception):
             return self.message
         return _("The swap server errored or is unreachable.")
 
+
 def now():
     return int(time.time())
+
 
 @attr.s(frozen=True)
 class SwapFees:
@@ -144,6 +142,7 @@ class SwapFees:
     min_amount = attr.ib(type=int)
     max_forward = attr.ib(type=int)
     max_reverse = attr.ib(type=int)
+
 
 @attr.frozen
 class SwapOffer:
@@ -156,6 +155,7 @@ class SwapOffer:
     @property
     def server_npub(self):
         return to_nip19('npub', self.server_pubkey)
+
 
 @stored_in('submarine_swaps')
 @attr.s
@@ -974,7 +974,7 @@ class SwapManager(Logger):
         self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
         new_mining_fee = self.get_fee_for_txbatcher()
         if self.mining_fee is None \
-            or abs(self.mining_fee - new_mining_fee) / self.mining_fee > 0.1:
+                or abs(self.mining_fee - new_mining_fee) / self.mining_fee > 0.1:
             self.mining_fee = new_mining_fee
 
     @staticmethod
@@ -1316,6 +1316,7 @@ class SwapManager(Logger):
                 pending_swaps.append(swap)
         return pending_swaps
 
+
 class SwapServerTransport(Logger):
 
     def __init__(self, *, config: 'SimpleConfig', sm: 'SwapManager'):
@@ -1551,7 +1552,7 @@ class NostrTransport(SwapServerTransport):
         await self.is_connected.wait()
         query = {
             "kinds": [self.USER_STATUS_NIP38],
-            "limit":10,
+            "limit": 10,
             "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
             "#r": [f"net:{constants.net.NET_NAME}"],
             "since": int(time.time()) - 60 * 60,
@@ -1568,8 +1569,8 @@ class NostrTransport(SwapServerTransport):
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
-            if (event.created_at > time.time() + 60 * 60
-                    or event.created_at < time.time() - 60 * 60):
+            if (event.created_at > int(time.time()) + 60 * 60
+                    or event.created_at < int(time.time()) - 60 * 60):
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey
