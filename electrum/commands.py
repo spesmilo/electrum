@@ -165,11 +165,12 @@ def command(s):
                 if 'wallet_path' in cmd.options and kwargs.get('wallet_path') is None:
                     kwargs['wallet_path'] = daemon.config.get_wallet_path()
                 if cmd.requires_wallet and kwargs.get('wallet') is None:
-                    kwargs['wallet'] = daemon.config.get_wallet_path()
+                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
                 if 'wallet' in cmd.options:
-                    wallet = kwargs.get('wallet', None)
-                    if isinstance(wallet, str):
-                        wallet = daemon.get_wallet(wallet)
+                    wallet_path = kwargs.pop('wallet_path', None) # unit tests may set wallet and not wallet_path
+                    wallet = kwargs.get('wallet', None)           # run_offline_command sets both
+                    if wallet is None:
+                        wallet = daemon.get_wallet(wallet_path)
                         if wallet is None:
                             raise UserFacingException('wallet not loaded')
                         kwargs['wallet'] = wallet

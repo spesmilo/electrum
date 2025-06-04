@@ -218,7 +218,7 @@ class TestCommandsWithDaemon(DaemonTestCase):
 
         # when using the CLI/RPC to run commands, the "wallet" param is a path:
         self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wpath, password="123456"))
+                         await cmds.getseed(wallet_path=wpath, password="123456"))
         # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
         self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
                          await cmds.getseed(wallet=wallet, password="123456"))
@@ -232,7 +232,7 @@ class TestCommandsWithDaemon(DaemonTestCase):
 
         # when using the CLI/RPC to run commands, the "wallet" param is a path:
         self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wpath))
+                         await cmds.getseed(wallet_path=wpath))
         # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
         self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
                          await cmds.getseed(wallet=wallet))
