@@ -1,7 +1,7 @@
 # Release 4.6.0 (not released yet)
 
  * A 'Terms of Use' screen was added to the install wizard. While the
-   licence remains uchanged, we ask users to agree with the fact that
+   licence remains unchanged, we ask users to agree with the fact that
    we are not a custodial service or a money transmitter. The Terms of
    Use screen also makes it clear that all issues are to be resolved
    in public, and that there is no user support via private channels.
@@ -17,6 +17,8 @@
     - Anyone can become a swap provider (you need to run an Electrum
       daemon with the 'swapserver' plugin). Submarine swap providers
       advertise their fees and their liquidity on Nostr.
+      See https://electrum.readthedocs.io/en/latest/swapserver.html
+      for set-up documentation.
     - Submarine swap providers do not need to provide an HTTP
       endpoint, since PRCs are performed via Nostr. They also do not
       need to have public lightning channels.
@@ -46,7 +48,7 @@
    UTXOs, lightning can no longer be enabled in wallets that do not
    have a software keystore (hardware wallets, watching-only wallets).
    Existing wallets that are in that situation cannot create new
-   channels.
+   channels. Anchor channels are the default for new channels.
 
  * Wallet unlocking (Qt):
    - Wallets can be unlocked in the Qt GUI. When a password-protected
@@ -68,7 +70,7 @@
  * Keystore enabling/disabling (Qt): It is now possible to add a seed
    to an existing watching-only wallet, or to a keystore within a
    multisig wallet. Similarly, it is possible to pair a watching-only
-   keystore with a hardware device. These operationa are performed
+   keystore with a hardware device. These operations are performed
    from the 'Wallet Information' dialog.
 
  * Wallet file encryption:
@@ -77,6 +79,10 @@
    - The option to have a password-protected wallet without file
      encryption has been removed from the Qt GUI. It is still possible to
      create such a wallet using the command line
+
+ * Lightning address contacts:
+   - It is now possible to create contacts with (lnurl type) lightning
+     addresses as payment identifier.
 
  * New plugins:
    - Nostr Wallet Connect: This plugin allows remote control of
