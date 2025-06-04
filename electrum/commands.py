@@ -264,11 +264,11 @@ class Commands(Logger):
         """List wallets open in daemon"""
         return [
             {
-                'path': path,
+                'path': w.db.storage.path,
                 'synchronized': w.is_up_to_date(),
                 'unlocked': not w.has_password() or (w.get_unlocked_password() is not None),
             }
-            for path, w in self.daemon.get_wallets().items()
+            for w in self.daemon.get_wallets().values()
         ]
 
     @command('n')
