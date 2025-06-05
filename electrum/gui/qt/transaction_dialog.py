@@ -132,6 +132,8 @@ class TxInOutWidget(QWidget):
             legend=_("Wallet Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receiving address"))
         self.txo_color_change = TxOutputColoring(
             legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
+        self.txo_color_accounting = TxOutputColoring(
+            legend=_("Accounting Address"), color=ColorScheme.ORANGE, tooltip=_("Address from which funds were swept to your wallet."))
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
         self.txo_color_swap = TxOutputColoring(
@@ -153,6 +155,7 @@ class TxInOutWidget(QWidget):
         outheader_hbox.addWidget(self.txo_color_change.legend_label)
         outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
         outheader_hbox.addWidget(self.txo_color_swap.legend_label)
+        outheader_hbox.addWidget(self.txo_color_accounting.legend_label)
 
         vbox = QVBoxLayout()
         vbox.addLayout(self.inheader_hbox)
@@ -179,9 +182,10 @@ class TxInOutWidget(QWidget):
         lnk.setAnchor(True)
         lnk.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap = False, False, False, False
+        tf_used_accounting = False
 
         def addr_text_format(addr: str) -> QTextCharFormat:
-            nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap
+            nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap, tf_used_accounting
             sm = self.wallet.lnworker.swap_manager if self.wallet.lnworker else None
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
@@ -201,6 +205,9 @@ class TxInOutWidget(QWidget):
             elif self.wallet.is_billing_address(addr):
                 tf_used_2fa = True
                 return self.txo_color_2fa.text_char_format
+            elif self.wallet.is_accounting_address(addr):
+                tf_used_accounting = True
+                return self.txo_color_accounting.text_char_format
             return ext
 
         def insert_tx_io(
@@ -302,6 +309,7 @@ class TxInOutWidget(QWidget):
         self.txo_color_change.legend_label.setVisible(tf_used_change)
         self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
         self.txo_color_swap.legend_label.setVisible(tf_used_swap)
+        self.txo_color_accounting.legend_label.setVisible(tf_used_accounting)
 
     def _open_internal_link(self, target):
         """Accepts either a str txid, str address, or a QUrl which should be

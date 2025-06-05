@@ -84,6 +84,14 @@
    - It is now possible to create contacts with (lnurl type) lightning
      addresses as payment identifier.
 
+ * Accounting rules: In order to properly handle on-chain transactions
+   created by lightning channel force closures, we consider that funds
+   successfully redeemed from a script with several possible
+   recipients have never left the final owner's wallet. This avoids
+   having to write balance changes that are to be cancelled later. The
+   corresponding addresses are rendered in the GUI as 'accounting
+   addresses' (in orange).
+
  * New plugins:
    - Nostr Wallet Connect: This plugin allows remote control of
      Electrum lightning wallets via Nostr NIP-47.
