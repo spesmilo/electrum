@@ -39,6 +39,9 @@ verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c0000
 
 download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+# TODO migrate to https://github.com/AppImage/appimagetool/releases
+#      note: we will also have to build AppImage/type2-runtime, as otherwise new appimagetool just downloads "latest" from the internet.
+#            see https://github.com/AppImage/appimagetool/blob/7cfafc45e5a8e64ad0755870b1001e5d7ffb4e85/README.md#L61
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "c30bb24b7f1e9a19b11b55a546434f74e739bb4c271a3e3a80ff4380d49f7adb"
