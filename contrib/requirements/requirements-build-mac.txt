@@ -3,9 +3,11 @@ setuptools
 wheel
 
 # needed by pyinstaller:
+# fixme: ugly to have to duplicate this here from upstream
 macholib>=1.8
 altgraph
-pyinstaller-hooks-contrib>=2020.6
+pyinstaller-hooks-contrib>=2025.2
+packaging>=22.0
 
 # Note: hidapi requires Cython at build-time (not needed at runtime).
 # For reproducible builds, the version of Cython must be pinned down.

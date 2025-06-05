@@ -1,2 +1,2 @@
-deb https://snapshot.debian.org/archive/debian/20230629T090352Z/ bookworm main
-deb-src https://snapshot.debian.org/archive/debian/20230629T090352Z/ bookworm main
+deb https://snapshot.debian.org/archive/debian/20250530T143637Z/ bookworm main
+deb-src https://snapshot.debian.org/archive/debian/20250530T143637Z/ bookworm main

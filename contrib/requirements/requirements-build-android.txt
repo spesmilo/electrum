@@ -1,11 +1,12 @@
 pip
 setuptools
 wheel
-cython
 
 # needed by buildozer:
 pexpect
 sh
+# some p4a recipes don't work with cython 3+
+cython<3.0
 
 # needed by python-for-android:
 appdirs

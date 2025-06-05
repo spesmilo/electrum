@@ -7,6 +7,8 @@ assert TomliRecipe.python_depends == []
 
 
 class TomliRecipePinned(TomliRecipe):
+    #version = "2.0.1"
+    # note: can't be easily updated as base recipe has version number hardcoded in custom "patch"-like setup.py
     sha512sum = "fd410039e255e2b3359e999d69a5a2d38b9b89b77e8557f734f2621dfbd5e1207e13aecc11589197ec22594c022f07f41b4cfe486a3a719281a595c95fd19ecf"
 
 
