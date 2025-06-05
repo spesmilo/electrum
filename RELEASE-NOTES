@@ -97,6 +97,9 @@
  * CLI:
    - The command line help has been improved; parameters are
      documented in the same docstring as the command they belong to.
+   - If the --wallet parameter passed to a command is a simple filename,
+     it is now interpreted as relative to the users wallets directory,
+     rather than to the current working directory
    - Plugins may add extra commands to the CLI. Plugin commands must
      be prefixed with the plugin's internal name
    - support for hold invoices
