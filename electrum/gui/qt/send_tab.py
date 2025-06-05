@@ -338,7 +338,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     return
                 coro = sm.request_swap_for_amount(transport, swap_dummy_output.value)
                 try:
-                    swap, invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+                    swap, swap_invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
                 except SwapServerError as e:
                     self.show_error(str(e))
                     return
@@ -346,7 +346,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     return
                 tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
                 assert tx.get_dummy_output(DummyAddress.SWAP) is None
-                tx.swap_invoice = invoice
+                tx.swap_invoice = swap_invoice
                 tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:

@@ -842,7 +842,7 @@ class SwapManager(Logger):
         if lightning_amount_sat is None:
             raise SwapServerError(_("Swap amount outside of providers limits") + ":\n"
                                   + _("min") + f": {self.get_min_amount()}\n"
-                                  + _("max") + f": {self.get_max_amount()}")
+                                  + _("max") + f": {self.get_provider_max_reverse_amount()}")
         swap, invoice = await self.request_normal_swap(
             transport,
             lightning_amount_sat=lightning_amount_sat,
