@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs, copy_metadata
 
 import sys, os
 
@@ -43,6 +43,10 @@ datas += collect_data_files('trezorlib')  # TODO is this needed? and same questi
 datas += collect_data_files('safetlib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
+
+# some deps rely on importlib metadata
+datas += copy_metadata('slip10')  # from trezor->slip10
+
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([f"{PROJECT_ROOT}/{MAIN_SCRIPT}",
