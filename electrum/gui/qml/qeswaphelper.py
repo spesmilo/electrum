@@ -66,9 +66,8 @@ class QESwapServerNPubListModel(QAbstractListModel):
         self._services = []
         self.endResetModel()
 
-    def initModel(self, items: Sequence['SwapOffer']):
-        self.beginInsertRows(QModelIndex(), len(items), len(items))
-        self._services = [{
+    def offer_to_model(self, x: 'SwapOffer'):
+        return {
             'npub': x.server_npub,
             'percentage_fee': x.pairs.percentage,
             'mining_fee': x.pairs.mining_fee,
@@ -76,9 +75,39 @@ class QESwapServerNPubListModel(QAbstractListModel):
             'max_forward_amount': x.pairs.max_forward,
             'max_reverse_amount': x.pairs.max_reverse,
             'timestamp': age(x.timestamp),
-        } for x in items]
-        self.endInsertRows()
-        self.countChanged.emit()
+        }
+
+    def updateModel(self, items: Sequence['SwapOffer']):
+        offers = items.copy()
+
+        remove = []
+
+        for i, x in enumerate(self._services):
+            if matches := list(filter(lambda offer: offer.server_npub == x['npub'], offers)):
+                # update
+                self._services[i] = self.offer_to_model(matches[0])
+                index = self.index(i, 0)
+                self.dataChanged.emit(index, index, self._ROLE_KEYS)
+                offers.remove(matches[0])
+            else:
+                # add offer to remove items
+                remove.append(i)
+
+        # # remove offers from model
+        for ri in reversed(remove):
+            self.beginRemoveRows(QModelIndex(), ri, ri)
+            self._services.pop(ri)
+            self.endRemoveRows()
+
+        # add new offers
+        if offers:
+            self.beginInsertRows(QModelIndex(), len(self._services), len(self._services) + len(offers) - 1)
+            for offer in offers:
+                self._services.append(self.offer_to_model(offer))
+            self.endInsertRows()
+
+        if offers or remove:
+            self.countChanged.emit()
 
     @pyqtSlot(str, result=int)
     def indexFor(self, npub: str):
@@ -337,7 +366,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         return self._available_swapservers
 
     def on_offers_updated(self):
-        self.availableSwapServers.initModel(self.recent_offers)
+        self.availableSwapServers.updateModel(self.recent_offers)
 
     @pyqtSlot(result=bool)
     def isNostr(self):
