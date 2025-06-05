@@ -51,6 +51,19 @@ ElDialog {
                     clip: true
                     model: swaphelper.availableSwapServers
 
+                    Connections {
+                        target: swaphelper
+                        function onOffersUpdated() {
+                            listview.model = null
+                            listview.model = swaphelper.availableSwapServers
+                            listview.forceLayout()
+                            if (dialog.selectedPubkey) {
+                                listview.currentIndex = swaphelper.availableSwapServers.indexFor(dialog.selectedPubkey)
+                            }
+                            console.log("swapserver list refreshed")
+                        }
+                    }
+
                     delegate: ItemDelegate {
                         width: ListView.view.width
                         height: itemLayout.height

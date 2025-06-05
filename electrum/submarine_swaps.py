@@ -1333,6 +1333,12 @@ class SwapServerTransport(Logger):
     def __exit__(self, ex_type, ex, tb):
         pass
 
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
     async def send_request_to_server(self, method: str, request_data: Optional[dict]) -> dict:
         pass
 
@@ -1356,6 +1362,13 @@ class HttpTransport(SwapServerTransport):
         return self
 
     def __exit__(self, ex_type, ex, tb):
+        pass
+
+    async def __aenter__(self):
+        asyncio.create_task(self.get_pairs())
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
     async def send_request_to_server(self, method, request_data):
@@ -1417,6 +1430,13 @@ class NostrTransport(SwapServerTransport):
     def __exit__(self, ex_type, ex, tb):
         fut = asyncio.run_coroutine_threadsafe(self.stop(), self.network.asyncio_loop)
         fut.result(timeout=5)
+
+    async def __aenter__(self):
+        asyncio.create_task(self.main_loop())
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await wait_for2(self.stop(), timeout=5)
 
     @log_exceptions
     async def main_loop(self):
