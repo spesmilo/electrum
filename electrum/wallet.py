@@ -405,7 +405,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._default_labels = {}
         self._accounting_addresses = set()  # addresses counted as ours after successful sweep
 
-        self.taskgroup = OldTaskGroup()
+        self.taskgroup = None
 
         # saved fields
         self.use_change            = db.get('use_change', True)
@@ -449,7 +449,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.lnworker = None
 
     async def main_loop(self):
-        self.logger.info("starting taskgroup.")
+        self.logger.info(f"starting taskgroup ({hex(id(self.taskgroup))}).")
         try:
             async with self.taskgroup as group:
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
@@ -547,8 +547,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     if self.lnworker:
                         await self.lnworker.stop()
                         self.lnworker = None
+                    self.network = None
+                    await self.taskgroup.cancel_remaining()
+                    self.taskgroup = None
                 await self.adb.stop()
-                await self.taskgroup.cancel_remaining()
         finally:  # even if we get cancelled
             if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
                 self.save_keystore()
@@ -556,7 +558,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
 
     def is_up_to_date(self) -> bool:
-        if self.taskgroup.joined:  # either stop() was called, or the taskgroup died
+        if self.taskgroup and self.taskgroup.joined:  # either stop() was called, or the taskgroup died
             return False
         return self._up_to_date
 
@@ -633,6 +635,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def start_network(self, network: 'Network'):
         assert self.network is None, "already started"
+        self.taskgroup = OldTaskGroup()
         self.network = network
         if network:
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)

@@ -218,6 +218,7 @@ class AddressSynchronizer(Logger, EventListener):
                 self.synchronizer = None
                 self.verifier = None
                 self.unregister_callbacks()
+                self.network = None
 
     def add_address(self, address):
         if address not in self.db.history:
