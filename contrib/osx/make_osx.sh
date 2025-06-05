@@ -128,6 +128,11 @@ pyinstaller --version
 
 rm -rf ./dist
 
+info "resetting git submodules."
+# note: --force is less critical in other build scripts, but as the mac build is not doing a fresh clone,
+#       it is very useful here for reproducibility
+git submodule update --init --force
+
 info "preparing electrum-locale."
 (
     if ! which msgfmt > /dev/null 2>&1; then
