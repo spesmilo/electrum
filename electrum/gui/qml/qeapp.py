@@ -261,7 +261,7 @@ class QEAppController(BaseCrashReporter, QObject):
         it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
         jpythonActivity.startActivity(it)
 
-    @pyqtSlot()
+    @pyqtSlot(result=bool)
     def isMaxBrightnessOnQrDisplayEnabled(self):
         return self.config.GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY
 
