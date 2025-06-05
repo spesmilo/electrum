@@ -2285,20 +2285,25 @@ class OnchainHistoryItem(NamedTuple):
     group_id: Optional[str]
     label: str
     monotonic_timestamp: int
-    group_id: Optional[str]
+
     def is_lightning(self):
         return False
+
     def date(self):
         return timestamp_to_datetime(self.tx_mined_status.timestamp)
+
     def ln_value(self):
         return 0
+
     def bc_value(self):
         return Satoshis(self.amount_sat)
+
     def sort_key(self):
         from .address_synchronizer import AddressSynchronizer
         ts = self.monotonic_timestamp or self.timestamp or float('inf')
         height = AddressSynchronizer.tx_height_to_sort_height(self.tx_mined_status.height)
         return ts, height
+
     def to_dict(self):
         return {
             'txid': self.txid,
@@ -2308,7 +2313,7 @@ class OnchainHistoryItem(NamedTuple):
             'confirmations': self.tx_mined_status.conf,
             'timestamp': self.tx_mined_status.timestamp,
             'monotonic_timestamp': self.monotonic_timestamp,
-            'incoming': True if self.amount_sat>0 else False,
+            'incoming': True if self.amount_sat > 0 else False,
             #'bc_value': Satoshis(self.amount_sat),
             #'bc_balance': Satoshis(self.balance_sat),
             'date': timestamp_to_datetime(self.tx_mined_status.timestamp),
@@ -2332,10 +2337,13 @@ class LightningHistoryItem(NamedTuple):
 
     def is_lightning(self):
         return True
+
     def ln_value(self):
         return Satoshis(Decimal(self.amount_msat) / 1000)
+
     def bc_value(self):
         return 0
+
     def sort_key(self):
         ts = self.timestamp or float('inf')
         return ts, 0
@@ -2356,23 +2364,24 @@ class LightningHistoryItem(NamedTuple):
         }
 
 
-@dataclass(kw_only=True, slots=True)
-class ChoiceItem:
-    key: Any
-    label: str  # user facing string
-    extra_data: Any = None
-
-
 class GroupHistoryItem(NamedTuple):
     children: Sequence[NamedTuple]
     group_id: str
     label: str
     timestamp: int
+
     def is_lightning(self):
         return not any([not x.is_lightning() for x in self.children])
+
     def ln_value(self):
         return sum(x.ln_value() for x in self.children)
+
     def bc_value(self):
         return sum(x.bc_value() for x in self.children)
 
 
+@dataclass(kw_only=True, slots=True)
+class ChoiceItem:
+    key: Any
+    label: str  # user facing string
+    extra_data: Any = None
