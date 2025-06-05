@@ -414,8 +414,8 @@ class TxInOutWidget(QWidget):
         if addr := out.address:
             if self.wallet.is_mine(addr):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
-            copy_list += [(_(f"Copy {'On Chain ' if out.is_silent_payment() else ''}Address"),
-                           lambda: self.main_window.do_copy(addr))]
+            label = _("Copy On-Chain Address") if out.is_silent_payment() else _("Copy Address")
+            copy_list += [(label, lambda: self.main_window.do_copy(addr))]
         if out.is_silent_payment():
             copy_list += [(_("Copy Silent Payment Address"), lambda: self.main_window.do_copy(out.sp_addr.encoded))]
         else:
