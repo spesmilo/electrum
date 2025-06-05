@@ -486,7 +486,8 @@ class Daemon(Logger):
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
-        self.config.CURRENT_WALLET = path
+        if self.config.get('wallet_path') is None:
+            self.config.CURRENT_WALLET = path
         self.update_recently_opened_wallets(path)
         return wallet
 
@@ -553,10 +554,11 @@ class Daemon(Logger):
         if not wallet:
             return False
         await wallet.stop()
-        wallet_paths = [w.db.storage.path for w in self._wallets.values()
-                        if w.db.storage and w.db.storage.path]
-        if self.config.CURRENT_WALLET == path and wallet_paths:
-            self.config.CURRENT_WALLET = wallet_paths[0]
+        if self.config.get('wallet_path') is None:
+            wallet_paths = [w.db.storage.path for w in self._wallets.values()
+                            if w.db.storage and w.db.storage.path]
+            if self.config.CURRENT_WALLET == path and wallet_paths:
+                self.config.CURRENT_WALLET = wallet_paths[0]
         return True
 
     def run_daemon(self):
