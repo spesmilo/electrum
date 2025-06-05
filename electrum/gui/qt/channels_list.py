@@ -112,7 +112,7 @@ class ChannelsList(MyTreeView):
         }
 
     def on_channel_closed(self, txid):
-        self.main_window.show_error('Channel closed' + '\n' + txid)
+        self.main_window.show_message('Channel closed' + '\n' + txid)
 
     def on_failure(self, exc_info):
         type_, e, tb = exc_info
