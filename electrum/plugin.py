@@ -46,12 +46,14 @@ from electrum_ecc import ECPrivkey, ECPubkey
 from ._vendor.distutils.version import StrictVersion
 from .version import ELECTRUM_VERSION
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem, make_dir)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem,
+                   make_dir, make_aiohttp_session)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
+from .network import Network
 
 if TYPE_CHECKING:
     from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
@@ -493,7 +495,9 @@ class Plugins(DaemonThread):
         path = os.path.join(pkg_path, filename)
         if os.path.exists(path):
             raise FileExistsError(f"Plugin {filename} already exists at {path}")
-        async with aiohttp.ClientSession() as session:
+        network = Network.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy=proxy) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     with open(path, 'wb') as fd:
