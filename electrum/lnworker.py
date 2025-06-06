@@ -1100,6 +1100,7 @@ class LNWallet(LNWorker):
                 direction=direction,
             )
             out[payment_hash.hex()] = item
+        now = int(time.time())
         for chan in itertools.chain(self.channels.values(), self.channel_backups.values()):  # type: AbstractChannel
             item = chan.get_funding_height()
             if item is None:
@@ -1112,7 +1113,7 @@ class LNWallet(LNWorker):
                 type='channel_opening',
                 label=label,
                 group_id=funding_txid,
-                timestamp=funding_timestamp,
+                timestamp=funding_timestamp or now,
                 amount_msat=chan.balance(LOCAL, ctn=0),
                 fee_msat=None,
                 payment_hash=None,
@@ -1131,7 +1132,7 @@ class LNWallet(LNWorker):
                 type='channel_closing',
                 label=label,
                 group_id=closing_txid,
-                timestamp=closing_timestamp,
+                timestamp=closing_timestamp or now,
                 amount_msat=-chan.balance(LOCAL),
                 fee_msat=None,
                 payment_hash=None,
