@@ -1897,6 +1897,10 @@ class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
 
+    # FIXME: There should be a way to prevent circular callbacks.
+    # At the very least, we need a distinction between callbacks that
+    # are for the GUI and callbacks between wallet components
+
     def __init__(self):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
