@@ -294,15 +294,6 @@ class TxBatch(Logger):
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
 
-    def _find_confirmed_base_tx(self) -> Optional[Transaction]:
-        for txid in self._batch_txids:
-            tx_mined_status = self.wallet.adb.get_tx_height(txid)
-            if tx_mined_status.conf > 0:
-                tx = self.wallet.adb.get_transaction(txid)
-                tx = PartialTransaction.from_tx(tx)
-                tx.add_info_from_wallet(self.wallet) # needed for txid
-                return tx
-
     @locked
     def _to_pay_after(self, tx) -> Sequence[PartialTxOutput]:
         if not tx:
@@ -357,34 +348,40 @@ class TxBatch(Logger):
         return len(self.batch_inputs) == 0 and len(self.batch_payments) == 0 and len(self._batch_txids) == 0
 
     def find_base_tx(self) -> Optional[PartialTransaction]:
-        if self._batch_txids:
-            last_txid = self._batch_txids[-1]
-            if self._prevout:
-                prev_txid, index = self._prevout.split(':')
-                spender_txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index))
-                tx = self.wallet.adb.get_transaction(spender_txid)
-                if tx:
-                    if spender_txid == last_txid:
-                        if self._base_tx is None:
-                            # log initialization
-                            self.logger.info(f'found base_tx {last_txid}')
-                        self._base_tx = tx
-                    else:
-                        self.logger.info(f'base tx was replaced by {spender_txid}')
-                        self._new_base_tx(tx)
+        if not self._prevout:
+            return
+        prev_txid, index = self._prevout.split(':')
+        txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index))
+        tx = self.wallet.adb.get_transaction(txid) if txid else None
+        if not tx:
+            return
+        tx = PartialTransaction.from_tx(tx)
+        tx.add_info_from_wallet(self.wallet)  # this sets is_change
+
+        if self.is_mine(txid):
+            if self._base_tx is None:
+                self.logger.info(f'found base_tx {txid}')
+            self._base_tx = tx
+        else:
+            self.logger.info(f'base tx was replaced by {tx.txid()}')
+            self._new_base_tx(tx)
+        # if tx is confirmed or local, we will start a new batch
+        tx_mined_status = self.wallet.adb.get_tx_height(txid)
+        if tx_mined_status.conf > 0:
+            self.logger.info(f'base tx confirmed {txid}')
+            self._clear_unconfirmed_sweeps(tx)
+            self._start_new_batch(tx)
+        elif tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            # fixme: adb may return TX_HEIGHT_LOCAL when not up to date
+            if self.wallet.adb.is_up_to_date():
+                self.logger.info(f'removing local base_tx {txid}')
+                self.wallet.adb.remove_transaction(txid)
+                self._start_new_batch(None)
+
         return self._base_tx
 
     async def run_iteration(self):
-        conf_tx = self._find_confirmed_base_tx()
-        if conf_tx:
-            self.logger.info(f'base tx confirmed {conf_tx.txid()}')
-            self._clear_unconfirmed_sweeps(conf_tx)
-            self._start_new_batch(conf_tx)
-
         base_tx = self.find_base_tx()
-        if base_tx:
-            base_tx = PartialTransaction.from_tx(base_tx)
-            base_tx.add_info_from_wallet(self.wallet)  # this sets is_change
         try:
             tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
@@ -413,9 +410,10 @@ class TxBatch(Logger):
             self.wallet.adb.remove_transaction(tx.txid())
             return
 
-        if await self.wallet.network.try_broadcasting(tx, 'batch'):
-            self._new_base_tx(tx)
-        else:
+        # save local base_tx
+        self._new_base_tx(tx)
+
+        if not await self.wallet.network.try_broadcasting(tx, 'batch'):
             # most likely reason is that base_tx is not replaceable
             # this may be the case if it has children (because we don't pay enough fees to replace them)
             # or if we are trying to sweep unconfirmed inputs (replacement-adds-unconfirmed error)
@@ -528,13 +526,12 @@ class TxBatch(Logger):
         self._batch_txids.clear()
         self._base_tx = None
         self._parent_tx = tx if use_change else None
+        self._prevout = None
 
     @locked
     def _new_base_tx(self, tx: Transaction):
         self._prevout = tx.inputs()[0].prevout.to_str()
         self.storage['prevout'] = self._prevout
-        tx = PartialTransaction.from_tx(tx)
-        tx.add_info_from_wallet(self.wallet)  # this sets is_change
         if tx.has_change():
             self._batch_txids.append(tx.txid())
             self._base_tx = tx
