@@ -13,10 +13,12 @@ TextHighlightPane {
     property bool allowClickAddress: true
     property int idx: -1
 
-    property string _suffix: model.is_mine || model.is_change
+    property string _suffix: model.is_mine || model.is_change || model.is_accounting
             ? model.is_reserve
                 ? qsTr('reserve')
-                : qsTr('mine')
+                : model.is_accounting
+                    ? qsTr('accounting')
+                    : qsTr('mine')
             : model.is_swap
                 ? qsTr('swap')
                 : model.is_billing
@@ -83,7 +85,9 @@ TextHighlightPane {
                             ? constants.colorAddressBilling
                             : model.is_swap
                                 ? constants.colorAddressSwap
-                                : Material.foreground
+                                : model.is_accounting
+                                    ? constants.colorAddressAccounting
+                                    : Material.foreground
                     TapHandler {
                         enabled: allowClickAddress && model.is_mine
                         onTapped: {

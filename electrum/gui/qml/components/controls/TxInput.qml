@@ -15,7 +15,9 @@ TextHighlightPane {
             ? qsTr('mine')
             : model.is_swap
                 ? qsTr('swap')
-                : ""
+                : model.is_accounting
+                    ? qsTr('accounting')
+                    : ""
 
     ColumnLayout {
         width: parent.width
@@ -74,7 +76,9 @@ TextHighlightPane {
                         : constants.colorAddressExternal
                     : model.is_swap
                         ? constants.colorAddressSwap
-                        : Material.foreground
+                        : model.is_accounting
+                            ? constants.colorAddressAccounting
+                            : Material.foreground
                 wrapMode: Text.WrapAnywhere
             }
         }

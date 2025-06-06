@@ -308,7 +308,8 @@ class QETxDetails(QObject, QtEventListener):
             'address': x.address,
             'is_mine': self._wallet.wallet.is_mine(x.address),
             'is_change': self._wallet.wallet.is_change(x.address),
-            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.address) or x.address == DummyAddress.SWAP
+            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.address) or x.address == DummyAddress.SWAP,
+            'is_accounting': self._wallet.wallet.is_accounting_address(x.address)
         }, self._tx.inputs()))
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
@@ -317,7 +318,8 @@ class QETxDetails(QObject, QtEventListener):
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
             'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
             'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str()),
-            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.get_ui_address_str()) or x.get_ui_address_str() == DummyAddress.SWAP
+            'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.get_ui_address_str()) or x.get_ui_address_str() == DummyAddress.SWAP,
+            'is_accounting': self._wallet.wallet.is_accounting_address(x.get_ui_address_str())
         }, self._tx.outputs()))
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
