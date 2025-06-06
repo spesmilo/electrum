@@ -587,6 +587,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
         # fire triggers
         if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
+            if self.lnworker:
+                await self.lnworker.lnwatcher.trigger_callbacks()
             util.trigger_callback('wallet_updated', self)
             util.trigger_callback('status')
             self.up_to_date_changed_event.set()
