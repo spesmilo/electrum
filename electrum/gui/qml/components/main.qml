@@ -500,7 +500,7 @@ ApplicationWindow
                     })
                     dialog.accepted.connect(function() {
                         Config.swapServerNPub = dialog.selectedPubkey
-                        _swaphelper.init_swap_manager()
+                        _swaphelper.setReadyState()
                     })
                     dialog.rejected.connect(function() {
                         _swaphelper.npubSelectionCancelled()

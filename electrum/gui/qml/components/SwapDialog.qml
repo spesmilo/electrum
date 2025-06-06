@@ -271,7 +271,7 @@ ElDialog {
                     dialog.accepted.connect(function() {
                         if (Config.swapServerNPub != dialog.selectedPubkey) {
                             Config.swapServerNPub = dialog.selectedPubkey
-                            _swaphelper.init_swap_manager()
+                            _swaphelper.setReadyState()
                         }
                     })
                     dialog.open()
