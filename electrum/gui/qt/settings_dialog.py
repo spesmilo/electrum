@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import ast
+import sys
 from typing import TYPE_CHECKING, Dict
 
 from PyQt6.QtCore import Qt
@@ -262,6 +263,20 @@ class SettingsDialog(QDialog, QtEventListener):
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
 
+        screenshot_protection_cb = checkbox_from_configvar(
+            self.config.cv.GUI_QT_SCREENSHOT_PROTECTION
+        )
+        screenshot_protection_cb.setChecked(self.config.GUI_QT_SCREENSHOT_PROTECTION)
+        if sys.platform not in ['windows', 'win32']:
+            screenshot_protection_cb.setChecked(False)
+            screenshot_protection_cb.setDisabled(True)
+            screenshot_protection_cb.setToolTip(_("This option is only available on Windows"))
+
+        def on_set_screenshot_protection(_x):
+            self.config.GUI_QT_SCREENSHOT_PROTECTION = screenshot_protection_cb.isChecked()
+            self.need_restart = True
+        screenshot_protection_cb.stateChanged.connect(on_set_screenshot_protection)
+
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
         if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
@@ -386,6 +401,7 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
+        misc_widgets.append((screenshot_protection_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 

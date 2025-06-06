@@ -800,6 +800,14 @@ Warning: setting this to too low will result in lots of payment failures."""),
     GUI_QT_SHOW_TAB_CONTACTS = ConfigVar('show_contacts_tab', default=False, type_=bool)
     GUI_QT_SHOW_TAB_CONSOLE = ConfigVar('show_console_tab', default=False, type_=bool)
     GUI_QT_SHOW_TAB_NOTES = ConfigVar('show_notes_tab', default=False, type_=bool)
+    GUI_QT_SCREENSHOT_PROTECTION = ConfigVar(
+        'screenshot_protection', default=True, type_=bool,
+        short_desc=lambda: _("Prevent screenshots"),
+        # currently this option is Windows only, so the description can be specific to Windows
+        long_desc=lambda: _(
+            'Signals Windows to disallow recordings and screenshots of the application window. '
+            'There is no guarantee Windows will respect this signal.'),
+    )
 
     GUI_QML_PREFERRED_REQUEST_TYPE = ConfigVar('preferred_request_type', default='bolt11', type_=str)
     GUI_QML_USER_KNOWS_PRESS_AND_HOLD = ConfigVar('user_knows_press_and_hold', default=False, type_=bool)
