@@ -1,6 +1,7 @@
 import os
 
 from electrum import SimpleConfig
+from electrum.bip21 import MissingFallbackAddress
 from electrum.invoices import Invoice
 from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
                                          PaymentIdentifierType, invoice_from_payment_identifier)
@@ -379,10 +380,30 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual('3!', pi.multiline_outputs[2].value)
 
     def test_silent_payment_bip21(self):
-        bip21 = 'bitcoin:sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj?message=sp_unit_test?amount=0.001'
+        # The PaymentIdentifier is considered valid if the BIP21 URI itself is valid,
+        # regardless of whether the wallet is silent payment-capable.
+
+        # test no fallback
+        bip21 = 'bitcoin:?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&message=sp_unit_test&amount=0.001'
         pi = PaymentIdentifier(None, bip21)
         self.assertTrue(pi.is_available())
-        self.assertFalse(pi.is_lightning())
         self.assertTrue(pi.is_onchain())
         self.assertIsNotNone(pi.bip21)
-        self.assertTrue(pi.involves_silent_payments())
+        self.assertTrue(pi.involves_silent_payments(True)) # wallet is sp-capable
+        self.assertTrue(pi.involves_silent_payments(False)) # wallet is not sp-capable, but there is no fallback -> involves
+        # Raise in get_onchain_outputs if fallback is requested but non is present
+        self.assertRaises(MissingFallbackAddress, pi.get_onchain_outputs, 0, bip21_use_fallback=True)
+
+        # test with fallback in context where wallet is silent payment capable
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&message=sp_unit_test&amount=0.001'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertTrue(pi.is_available())
+        self.assertTrue(pi.is_onchain())
+        self.assertIsNotNone(pi.bip21)
+        self.assertTrue(pi.involves_silent_payments(True)) # wallet is sp-capable, so fallback is ignored
+        self.assertFalse(pi.involves_silent_payments(False))  # wallet is not sp-capable, so fallback is taken -> no sp-involvement
+        # make sure fallback is taken from get_onchain_outputs if wallet can not send sp
+        self.assertEqual(
+            pi.get_onchain_outputs(0, bip21_use_fallback=True)[0].address,
+            '1RustyRX2oai4EYYDpQGWvEL62BBGqN9T'
+        )

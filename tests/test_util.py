@@ -187,6 +187,47 @@ class TestUtil(ElectrumTestCase):
         # bip21 uri that includes "lightning" key with garbage unparsable value
         self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin:tb1qu5ua3szskclyd48wlfdwfd32j65phxy9yf7ytl?amount=0.0008&message=test266&lightning=lntb700u1p3kqy26pp5l7rj7w0u5sdsj24umzdlhdasdasdasdasd')
 
+    def test_parse_URI_sp_with_no_fallback(self):
+        self._do_test_parse_URI(
+            'bitcoin:?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&amount=0.001',
+            { 'sp': 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj', 'amount': 100000}
+        )
+
+    def test_parse_URI_sp_with_fallback(self):
+        self._do_test_parse_URI(
+            'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&amount=0.001',
+            { 'address': '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', 'sp': 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj', 'amount': 100000}
+        )
+
+    def test_parse_URI_invalid_sp_addresses(self):
+        # hrp / network mismatch
+        self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin:?sp=tsp1qq0aut0j4rpngmjf55a6nr98h0kvlc2s83jwv8h9rmaqpgjqvc67wyqefkstjcfchzd9hpy84qara7dwu6jfpx2p9amjwg4j4hv3hsla8nvqa4ap0')
+        self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin:?tsp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj')
+        # invalid sp addr
+        self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin:?sp=sp_invalid_sp')
+
+
+    @as_testnet
+    def test_parse_URI_testnet_sp_with_no_fallback(self):
+        self._do_test_parse_URI(
+            'bitcoin:?tsp=tsp1qq0aut0j4rpngmjf55a6nr98h0kvlc2s83jwv8h9rmaqpgjqvc67wyqefkstjcfchzd9hpy84qara7dwu6jfpx2p9amjwg4j4hv3hsla8nvqa4ap0&amount=0.001',
+            {
+                'tsp': 'tsp1qq0aut0j4rpngmjf55a6nr98h0kvlc2s83jwv8h9rmaqpgjqvc67wyqefkstjcfchzd9hpy84qara7dwu6jfpx2p9amjwg4j4hv3hsla8nvqa4ap0',
+                'amount': 100000
+            }
+        )
+
+    @as_testnet
+    def test_parse_URI_testnet_sp_with_fallback(self):
+        self._do_test_parse_URI(
+            'bitcoin:tb1qesj6xuz9963tca9y8e09dpwu8a48t3nmvs26je?tsp=tsp1qq0aut0j4rpngmjf55a6nr98h0kvlc2s83jwv8h9rmaqpgjqvc67wyqefkstjcfchzd9hpy84qara7dwu6jfpx2p9amjwg4j4hv3hsla8nvqa4ap0&amount=0.001',
+            {
+                'address': 'tb1qesj6xuz9963tca9y8e09dpwu8a48t3nmvs26je',
+                'tsp': 'tsp1qq0aut0j4rpngmjf55a6nr98h0kvlc2s83jwv8h9rmaqpgjqvc67wyqefkstjcfchzd9hpy84qara7dwu6jfpx2p9amjwg4j4hv3hsla8nvqa4ap0',
+                'amount': 100000
+            }
+        )
+
     def test_is_hash256_str(self):
         self.assertTrue(is_hash256_str('09a4c03e3bdf83bbe3955f907ee52da4fc12f4813d459bc75228b64ad08617c7'))
         self.assertTrue(is_hash256_str('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
