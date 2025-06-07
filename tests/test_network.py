@@ -46,6 +46,9 @@ class MockInterface(Interface):
     async def run(self):
         return
 
+    async def _maybe_warm_headers_cache(self, *args, **kwargs):
+        return
+
 
 class TestNetwork(ElectrumTestCase):
 
