@@ -79,6 +79,8 @@ from .lnutil import MIN_FUNDING_SAT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
+from .silent_payment import SilentPaymentAddress, create_silent_payment_outputs, SilentPaymentException, \
+    SilentPaymentReuseException, SilentPaymentInputsNotOwnedException, SILENT_PAYMENT_DUMMY_SPK, is_silent_payment_address
 
 if TYPE_CHECKING:
     from .network import Network
@@ -500,6 +502,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def has_channels(self):
         return self.lnworker is not None and len(self.lnworker._channels) > 0
+
+    def can_send_silent_payment(self) -> bool:
+        """Whether this wallet type supports silent payments."""
+        return False
 
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
@@ -1219,6 +1225,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         return transactions
 
+    def save_silent_payment_address(self, onchain_address: str, silent_payment_address: str, *, write_to_disk=True):
+        """Saves the silent payment address by the derived onchain address."""
+        assert is_address(onchain_address), 'tried to save silent payment address with invalid onchain address'
+        assert is_silent_payment_address(silent_payment_address), 'tried to save invalid silent payment address'
+        self.db.add_silent_payment_address(onchain_address, silent_payment_address)
+        if write_to_disk:
+            self.save_db()
+
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
         height = self.adb.get_local_height()
         if pr:
@@ -1251,6 +1265,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return invoice
 
     def save_invoice(self, invoice: Invoice, *, write_to_disk: bool = True) -> None:
+        # ignore invoices with silent payment outputs
+        if any(o.is_silent_payment() for o in invoice.get_outputs()):
+            _logger.debug("Skipping invoice persistence: contains silent payment outputs")
+            return
         key = invoice.get_id()
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
@@ -1900,8 +1918,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             locktime: Optional[int] = None,
             tx_version: Optional[int] = None,
             is_anchor_channel_opening: bool = False,
+            password: str = None,  # used for silent payment, as private keys are needed for the shared secret
+            mind_silent_payments: bool = False  # whether to derive sp outputs (this avoids the need for
+        # a password for operations like fee estimates or max-spend)
     ) -> PartialTransaction:
-        """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
+        """Can raise NotEnoughFunds, NoDynamicFeeEstimates, SilentPaymentException or
+        InvalidPassword (only when dealing with Silent Payments)."""
 
         if coins is None:
             coins = self.get_spendable_coins()
@@ -2049,6 +2071,42 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.rbf_merge_txid = rbf_merge_txid
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
+
+        # Handle silent payment
+        if tx.contains_silent_payment() and mind_silent_payments:
+            if not self.can_send_silent_payment():
+                raise SilentPaymentException("This wallet cannot send silent payments")
+            # If we can, we don't let the user pay to a previously calculated address from a silent payment
+            for out in tx.outputs():
+                if self.db.get_silent_payment_address(out.address):
+                    raise SilentPaymentReuseException(out.address)
+            # Raise if password is not correct.
+            self.check_password(password)
+            # collect input privkeys
+            input_privkeys = []
+            for txin in tx.inputs():
+                der_index = self.get_address_index(txin.address)
+                if not der_index:
+                    raise SilentPaymentInputsNotOwnedException()
+                privkey, compressed = self.keystore.get_private_key(der_index, password=password)
+                if compressed: # will always be true with bip32 keystore.
+                    input_privkeys.append(ecc.ECPrivkey(privkey))
+
+            # collect prevouts
+            outpoints = [txin.prevout for txin in tx.inputs()]
+
+            # collect silent payment recipients
+            sp_recipients = [o.sp_addr for o in tx.outputs() if o.is_silent_payment()]
+            spks_by_sp_addr = create_silent_payment_outputs(input_privkeys, outpoints, sp_recipients)
+
+            # replace dummy spks with calculated taproot spks
+            sp_outputs = [o for o in tx.outputs() if o.is_silent_payment()]
+            for sp_output in sp_outputs:
+                tr_spk = spks_by_sp_addr.get(sp_output.sp_addr).pop()
+                sp_output.scriptpubkey = tr_spk
+            assert all(not lst for lst in spks_by_sp_addr.values()), "Found remaining sp_spks, but no more outputs left"
+            tx.set_rbf(False) # Transaction should be final
+
         return tx
 
     def is_frozen_address(self, addr: str) -> bool:
@@ -2650,8 +2708,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     return True
         return False
 
+    def add_silent_payment_output_info(self, txout: TxOutput) -> None:
+        address = txout.address
+        if sp_addr := self.db.get_silent_payment_address(address): # check if address is a previous silent payment
+            txout.sp_addr = SilentPaymentAddress(sp_addr)
+
     def add_output_info(self, txout: PartialTxOutput, *, only_der_suffix: bool = False) -> None:
         address = txout.address
+        self.add_silent_payment_output_info(txout)
         if not self.is_mine(address):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txout, address)
             if not is_mine:
@@ -2676,12 +2740,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
             raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
 
+        if any(o.scriptpubkey == SILENT_PAYMENT_DUMMY_SPK for o in tx.outputs()):
+            raise SilentPaymentException("tried to sign tx with silent payment dummy SPK!")
+
         # check if signing is dangerous
         sh_danger = self.check_sighash(tx)
         if sh_danger.needs_reject():
             raise TransactionDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
         if sh_danger.needs_confirm() and not ignore_warnings:
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
+
+        # transactions containing silent payments should have 'safe' sighash only
+        if tx.contains_silent_payment() and sh_danger.risk_level != TxSighashRiskLevel.SAFE:
+            raise TransactionDangerousException('Not signing transaction:\n'
+                                                'Transactions containing silent payments must use SIGHASH.ALL')
 
         # find out if we are replacing a txbatcher transaction
         prevout_str = tx.inputs()[0].prevout.to_str()
@@ -4009,6 +4081,9 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     def add_slip_19_ownership_proofs_to_tx(self, tx: PartialTransaction) -> None:
         tx.add_info_from_wallet(self)
         self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
+
+    def can_send_silent_payment(self) -> bool:
+        return self.keystore.type == 'bip32' and not self.is_watching_only()
 
     def _update_keystore(self, keystore):
         assert self.keystore.get_master_public_key() == keystore.get_master_public_key()
