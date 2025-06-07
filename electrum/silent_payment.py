@@ -14,39 +14,12 @@ SILENT_PAYMENT_DUMMY_SPK = bytes(2) + sha256("SilentPaymentDummySpk") # match le
 
 class SilentPaymentUnsupportedWalletException(Exception): pass
 
-class SilentPaymentAddress:
-    """
-        Takes a silent payment address and decodes into keys. Raises if address is invalid.
-    """
-    def __init__(self, address: str, *, net=None):
-        if net is None: net = constants.net
-        self._encoded = address
-        self._B_Scan, self._B_Spend = _decode_silent_payment_addr(net.BIP352_HRP, address)
-
-    @property
-    def encoded(self) -> str:
-        return self._encoded
-
-    @property
-    def B_Scan(self) -> ecc.ECPubkey:
-        return self._B_Scan
-
-    @property
-    def B_Spend(self) -> ecc.ECPubkey:
-        return self._B_Spend
-
-    def __eq__(self, other):
-        if not isinstance(other, SilentPaymentAddress):
-            return NotImplemented
-        return self.encoded == other.encoded
-
-    def __hash__(self):
-        return hash(self.encoded)
-
 class SilentPaymentException(Exception):
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
+class InvalidSilentPaymentAddress(SilentPaymentException): pass
 
 class SilentPaymentReuseException(SilentPaymentException):
     def __init__(self, reused_address: str):
@@ -74,6 +47,38 @@ class SilentPaymentInputsNotOwnedException(SilentPaymentException):
             f"To make Silent Payments, all transaction inputs must be owned by this wallet."
         )
         super().__init__(msg)
+
+class SilentPaymentAddress:
+    """
+        Takes a silent payment address and decodes into keys. Raises InvalidSilentPaymentAddress if address is invalid.
+    """
+    def __init__(self, address: str, *, net=None):
+        if net is None: net = constants.net
+        try:
+            self._B_Scan, self._B_Spend = _decode_silent_payment_addr(net.BIP352_HRP, address)
+        except Exception as e:
+            raise InvalidSilentPaymentAddress(address) from e
+        self._encoded = address
+
+    @property
+    def encoded(self) -> str:
+        return self._encoded
+
+    @property
+    def B_Scan(self) -> ecc.ECPubkey:
+        return self._B_Scan
+
+    @property
+    def B_Spend(self) -> ecc.ECPubkey:
+        return self._B_Spend
+
+    def __eq__(self, other):
+        if not isinstance(other, SilentPaymentAddress):
+            return NotImplemented
+        return self.encoded == other.encoded
+
+    def __hash__(self):
+        return hash(self.encoded)
 
 def create_silent_payment_outputs(input_privkeys: list[ECPrivkey],
                                   outpoints: list['TxOutpoint'],

@@ -223,7 +223,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
         valid_amount = is_spk_script or bool(self.amount_e.get_amount())
         ready_to_finalize = not pi.need_resolve()
-        sp_ok = self.wallet_can_send_sp if pi.involves_silent_payments() else True
+        sp_ok = self.wallet_can_send_sp if pi.involves_silent_payments(self.wallet_can_send_sp) else True
         self.send_button.setEnabled(pi.is_valid() and not pi_error and valid_amount and ready_to_finalize and sp_ok)
 
     def do_paste(self):
@@ -431,7 +431,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.clear_button.setEnabled(True)
 
-        involves_sp = pi.involves_silent_payments() # invoices involving silent payment are not persisted
+        involves_sp = pi.involves_silent_payments(self.wallet_can_send_sp) # invoices involving silent payment are not persisted
         sp_ok = self.wallet_can_send_sp if involves_sp else True
 
         if pi.is_multiline():
@@ -461,7 +461,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                          lock_max=lock_max,
                          lock_description=False)
         if lock_recipient:
-            fields = pi.get_fields_for_GUI()
+            fields = pi.get_fields_for_GUI(bip21_prefer_fallback=not self.wallet_can_send_sp)
             if fields.recipient:
                 self.payto_e.setText(fields.recipient)
             if fields.description:
