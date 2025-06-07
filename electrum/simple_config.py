@@ -632,14 +632,19 @@ class SimpleConfig(Logger):
     NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None, type_=str)
     NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None, type_=str)
     NETWORK_PROXY_ENABLED = ConfigVar('enable_proxy', default=lambda config: config.NETWORK_PROXY not in [None, "none"], type_=bool)
+
     NETWORK_SERVER = ConfigVar('server', default=None, type_=str)
+    def get_servers(self) -> Sequence[str]:
+        return self.NETWORK_SERVER.split(',') if self.NETWORK_SERVER else []
+    def set_servers(self, servers: Sequence[str]):
+        self.NETWORK_SERVER = ','.join(servers)
+
     NETWORK_NOONION = ConfigVar('noonion', default=False, type_=bool)
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
     NETWORK_SKIPMERKLECHECK = ConfigVar('skipmerklecheck', default=False, type_=bool)
     NETWORK_SERVERFINGERPRINT = ConfigVar('serverfingerprint', default=None, type_=str)
     NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=1_000_000, type_=int)  # in bytes
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
-    NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
     WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
         'wallet_merge_duplicate_outputs', default=False, type_=bool,
