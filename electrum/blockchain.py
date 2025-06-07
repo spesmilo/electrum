@@ -648,10 +648,9 @@ class Blockchain(Logger):
             return False
         return True
 
-    def connect_chunk(self, idx: int, hexdata: str) -> bool:
+    def connect_chunk(self, idx: int, data: bytes) -> bool:
         assert idx >= 0, idx
         try:
-            data = bfh(hexdata)
             self.verify_chunk(idx, data)
             self.save_chunk(idx, data)
             return True

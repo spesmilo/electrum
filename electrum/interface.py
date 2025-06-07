@@ -76,6 +76,9 @@ _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'
 assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
 
+MAX_NUM_HEADERS_PER_REQUEST = 2016
+assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
+
 
 class NetworkTimeout:
     # seconds
@@ -762,6 +765,42 @@ class Interface(Logger):
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
+    async def get_block_headers(self, *, start_height: int, count: int) -> Sequence[bytes]:
+        """Request a number of consecutive block headers, starting at `start_height`.
+        `count` is the num of requested headers, BUT note the server might return fewer than this
+        (if range would extend beyond its tip).
+        note: the returned headers are not verified or parsed at all.
+        """
+        if not is_non_negative_integer(start_height):
+            raise Exception(f"{repr(start_height)} is not a block height")
+        if not is_non_negative_integer(count) or not (0 < count <= MAX_NUM_HEADERS_PER_REQUEST):
+            raise Exception(f"{repr(count)} not an int in range ]0, {MAX_NUM_HEADERS_PER_REQUEST}]")
+        self.logger.info(f'requesting block headers: [{start_height}, {start_height+count-1}], {count=}')
+        res = await self.session.send_request('blockchain.block.headers', [start_height, count])
+        # check response
+        assert_dict_contains_field(res, field_name='count')
+        assert_dict_contains_field(res, field_name='hex')
+        assert_dict_contains_field(res, field_name='max')
+        assert_non_negative_integer(res['count'])
+        assert_non_negative_integer(res['max'])
+        assert_hex_str(res['hex'])
+        if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
+            raise RequestCorrupted('inconsistent chunk hex and count')
+        # we never request more than MAX_NUM_HEADERS_IN_REQUEST headers, but we enforce those fit in a single response
+        if res['max'] < MAX_NUM_HEADERS_PER_REQUEST:
+            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < {MAX_NUM_HEADERS_PER_REQUEST}")
+        if res['count'] > count:
+            raise RequestCorrupted(f"asked for {count} headers but got more: {res['count']}")
+        elif res['count'] < count:
+            # we only tolerate getting fewer headers if it is due to reaching the tip
+            end_height = start_height + res['count'] - 1
+            if end_height < self.tip:  # still below tip. why did server not send more?!
+                raise RequestCorrupted(
+                    f"asked for {count} headers but got fewer: {res['count']}. ({start_height=}, {self.tip=})")
+        # checks done.
+        headers = list(util.chunks(bfh(res['hex']), size=HEADER_SIZE))
+        return headers
+
     async def request_chunk(
         self,
         height: int,
@@ -774,33 +813,20 @@ class Interface(Logger):
         index = height // CHUNK_SIZE
         if can_return_early and index in self._requested_chunks:
             return None
-        self.logger.info(f"requesting chunk from height {height}")
+        #self.logger.debug(f"requesting chunk from height {height}")
         size = CHUNK_SIZE
         if tip is not None:
             size = min(size, tip - index * CHUNK_SIZE + 1)
             size = max(size, 0)
         try:
             self._requested_chunks.add(index)
-            res = await self.session.send_request('blockchain.block.headers', [index * CHUNK_SIZE, size])
+            headers = await self.get_block_headers(start_height=index * CHUNK_SIZE, count=size)
         finally:
             self._requested_chunks.discard(index)
-        assert_dict_contains_field(res, field_name='count')
-        assert_dict_contains_field(res, field_name='hex')
-        assert_dict_contains_field(res, field_name='max')
-        assert_non_negative_integer(res['count'])
-        assert_non_negative_integer(res['max'])
-        assert_hex_str(res['hex'])
-        if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
-            raise RequestCorrupted('inconsistent chunk hex and count')
-        # we never request more than CHUNK_SIZE headers, but we enforce those fit in a single response
-        if res['max'] < CHUNK_SIZE:
-            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < {CHUNK_SIZE}")
-        if res['count'] != size:
-            raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
-        conn = self.blockchain.connect_chunk(index, res['hex'])
+        conn = self.blockchain.connect_chunk(index, data=b"".join(headers))
         if not conn:
             return conn, 0
-        return conn, res['count']
+        return conn, len(headers)
 
     def is_main_server(self) -> bool:
         return (self.network.interface == self or
@@ -916,7 +942,8 @@ class Interface(Logger):
             self.tip_header = header
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
-                raise GracefulDisconnect('server tip below max checkpoint')
+                raise GracefulDisconnect(
+                    f"server tip below max checkpoint. ({self.tip} < {constants.net.max_checkpoint()})")
             self._mark_ready()
             blockchain_updated = await self._process_header_at_tip()
             # header processing done
