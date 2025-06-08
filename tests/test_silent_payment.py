@@ -2,9 +2,11 @@ import json
 import os
 
 from electrum_ecc import ECPrivkey
+
+from electrum.bitcoin import DummyAddress
 from electrum.segwit_addr import bech32_encode, convertbits, Encoding
 from electrum.silent_payment import SilentPaymentAddress, create_silent_payment_outputs, SilentPaymentDerivationFailure, \
-    _decode_silent_payment_addr, SILENT_PAYMENT_DUMMY_SPK
+    _decode_silent_payment_addr
 from electrum.transaction import TxOutpoint, PartialTxOutput, merge_duplicate_tx_outputs
 from electrum.util import bfh
 from . import ElectrumTestCase
@@ -119,10 +121,10 @@ class TestSilentPaymentTxCreation(ElectrumTestCase):
         addr1 = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
         addr2 = "3DYoBqQ5N6dADzyQjy9FT1Ls4amiYVaqTG"
 
-        sp_output1 = PartialTxOutput(value=1000, scriptpubkey=SILENT_PAYMENT_DUMMY_SPK)
+        sp_output1 = PartialTxOutput.from_address_and_value(DummyAddress.SILENT_PAYMENT, 1000)
         sp_output1.sp_addr = sp_addr1
 
-        sp_output2 = PartialTxOutput(value=2100, scriptpubkey=SILENT_PAYMENT_DUMMY_SPK)
+        sp_output2 = PartialTxOutput.from_address_and_value(DummyAddress.SILENT_PAYMENT, 2100)
         sp_output2.sp_addr = sp_addr2
 
         output1 = PartialTxOutput.from_address_and_value(addr1, 3200)

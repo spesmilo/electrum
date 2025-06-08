@@ -16,13 +16,13 @@ from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url,
                     try_resolve_lnurl)
-from .bitcoin import opcodes, construct_script
+from .bitcoin import opcodes, construct_script, DummyAddress
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME, \
     MissingFallbackAddress
 from . import paymentrequest
-from .silent_payment import is_silent_payment_address, SILENT_PAYMENT_DUMMY_SPK, SilentPaymentAddress
+from .silent_payment import is_silent_payment_address, SilentPaymentAddress
 from . import constants
 
 if TYPE_CHECKING:
@@ -272,7 +272,6 @@ class PaymentIdentifier(Logger):
                     except InvoiceError as e:
                         self.logger.debug(self._get_error_from_invoiceerror(e))
                 elif not self.bip21.get('address') and not self.bip21.get(constants.net.BIP352_HRP):
-                    print(self.bip21.get(constants.net.BIP352_HRP))
                     # no address, no bolt11 and no silent payment address, invalid
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
@@ -475,9 +474,9 @@ class PaymentIdentifier(Logger):
             return self.multiline_outputs
         elif self.spk:
             output = PartialTxOutput(scriptpubkey=self.spk, value=amount)
-            if self.spk == SILENT_PAYMENT_DUMMY_SPK:
-                addr = self.parse_address(self.text) # if e.g. a contact was entered
-                output.sp_addr = SilentPaymentAddress(addr)
+            if output.address == DummyAddress.SILENT_PAYMENT:
+                sp_addr = self.parse_address(self.text) # parse again if e.g. a contact was entered
+                output.sp_addr = SilentPaymentAddress(sp_addr)
             return [output]
         elif self.bip21:
             address = self.bip21.get('address') # fallback address if sp_address is present
@@ -494,7 +493,7 @@ class PaymentIdentifier(Logger):
             scriptpubkey, is_address = self.parse_output(address)
             assert is_address  # unlikely, but make sure it is an address, not a script
             output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
-            if scriptpubkey == SILENT_PAYMENT_DUMMY_SPK:
+            if output.address == DummyAddress.SILENT_PAYMENT:
                 output.sp_addr = SilentPaymentAddress(address)
             return [output]
         else:
@@ -535,15 +534,15 @@ class PaymentIdentifier(Logger):
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
         output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
-        if scriptpubkey == SILENT_PAYMENT_DUMMY_SPK:
-            output.sp_addr = SilentPaymentAddress(x)
+        if output.address == DummyAddress.SILENT_PAYMENT:
+            output.sp_addr = SilentPaymentAddress(self.parse_address(x)) # maybe parsing again isn't needed
         return output
 
     def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
         try:
             address = self.parse_address(x)
             if is_silent_payment_address(address):
-                return SILENT_PAYMENT_DUMMY_SPK, True  # Should be treated as address
+                address = DummyAddress.SILENT_PAYMENT
             return bitcoin.address_to_script(address), True
         except Exception as e:
             pass
