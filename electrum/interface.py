@@ -55,7 +55,7 @@ from . import x509
 from . import pem
 from . import version
 from . import blockchain
-from .blockchain import Blockchain, HEADER_SIZE
+from .blockchain import Blockchain, HEADER_SIZE, CHUNK_SIZE
 from . import bitcoin
 from . import constants
 from .i18n import _
@@ -771,17 +771,17 @@ class Interface(Logger):
     ) -> Optional[Tuple[bool, int]]:
         if not is_non_negative_integer(height):
             raise Exception(f"{repr(height)} is not a block height")
-        index = height // 2016
+        index = height // CHUNK_SIZE
         if can_return_early and index in self._requested_chunks:
             return None
         self.logger.info(f"requesting chunk from height {height}")
-        size = 2016
+        size = CHUNK_SIZE
         if tip is not None:
-            size = min(size, tip - index * 2016 + 1)
+            size = min(size, tip - index * CHUNK_SIZE + 1)
             size = max(size, 0)
         try:
             self._requested_chunks.add(index)
-            res = await self.session.send_request('blockchain.block.headers', [index * 2016, size])
+            res = await self.session.send_request('blockchain.block.headers', [index * CHUNK_SIZE, size])
         finally:
             self._requested_chunks.discard(index)
         assert_dict_contains_field(res, field_name='count')
@@ -792,9 +792,9 @@ class Interface(Logger):
         assert_hex_str(res['hex'])
         if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
             raise RequestCorrupted('inconsistent chunk hex and count')
-        # we never request more than 2016 headers, but we enforce those fit in a single response
-        if res['max'] < 2016:
-            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < 2016")
+        # we never request more than CHUNK_SIZE headers, but we enforce those fit in a single response
+        if res['max'] < CHUNK_SIZE:
+            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < {CHUNK_SIZE}")
         if res['count'] != size:
             raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
         conn = self.blockchain.connect_chunk(index, res['hex'])
@@ -965,7 +965,7 @@ class Interface(Logger):
                     continue
                 util.trigger_callback('blockchain_updated')
                 util.trigger_callback('network_updated')
-                height = (height // 2016 * 2016) + num_headers
+                height = (height // CHUNK_SIZE * CHUNK_SIZE) + num_headers
                 assert height <= next_height+1, (height, self.tip)
                 last = ChainResolutionMode.CATCHUP
             else:
