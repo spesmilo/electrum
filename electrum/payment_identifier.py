@@ -283,12 +283,13 @@ class PaymentIdentifier(Logger):
             self.spk_is_address = is_address
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.contacts and (contact := self.contacts.by_name(text)):
-            if contact['type'] == 'address':
+            if contact['type'] in ('address', 'sp_address'):
                 self._type = PaymentIdentifierType.BIP21
                 self.bip21 = {
-                    'address': contact['address'],
                     'label': contact['name']
                 }
+                key = 'address' if contact['type'] == 'address' else constants.net.BIP352_HRP
+                self.bip21[key] = contact['address']
                 self.set_state(PaymentIdentifierState.AVAILABLE)
             elif contact['type'] in ('openalias', 'lnaddress'):
                 self._type = PaymentIdentifierType.EMAILLIKE
