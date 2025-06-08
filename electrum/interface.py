@@ -1130,6 +1130,7 @@ class Interface(Logger):
         while await iterate():
             bad, bad_header = height, header
             delta = self.tip - height
+            assert delta > 0, delta
             height = self.tip - 2 * delta
 
         _assert_header_does_not_check_against_any_chain(bad_header)
