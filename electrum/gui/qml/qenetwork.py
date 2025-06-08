@@ -92,7 +92,7 @@ class QENetwork(QObject, QtEventListener):
         self.proxyTorChanged.emit()
 
     def _update_status(self):
-        server = str(self.network.get_parameters().server)
+        server = str(self.network.default_server)
         if self._server != server:
             self._server = server
             self.statusChanged.emit()
@@ -198,26 +198,28 @@ class QENetwork(QObject, QtEventListener):
     def server(self):
         return self._server
 
-    @pyqtSlot(str, bool, bool)
-    def setServerParameters(self, server: str, auto_connect: bool, one_server: bool):
+    @pyqtSlot(bool, bool)
+    def setParameters(self, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
-        if server == net_params.server and auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
+        if auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
             return
-        if server != str(net_params.server):
-            try:
-                server = ServerAddr.from_str_with_inference(server)
-                if not server:
-                    raise Exception('failed to parse')
-            except Exception:
-                if not auto_connect:
-                    return
-                server = net_params.server
-            self.statusChanged.emit()
         if auto_connect != net_params.auto_connect:
             self.network.config.NETWORK_AUTO_CONNECT = auto_connect
             self.autoConnectChanged.emit()
         net_params = net_params._replace(server=server, auto_connect=auto_connect, oneserver=one_server)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    @pyqtSlot(str, bool)
+    def setBookmark(self, server: str, add: bool):
+        try:
+            server = ServerAddr.from_str_with_inference(server)
+            if not server:
+                raise Exception('failed to parse')
+        except Exception:
+            print('failed to parse')
+            return
+        self.network.set_server_bookmark(server, add=add)
+        self.statusChanged.emit()
 
     @pyqtProperty(str, notify=statusChanged)
     def serverWithStatus(self):
