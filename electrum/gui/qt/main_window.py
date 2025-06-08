@@ -1624,7 +1624,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
-        address_type = 'address' if is_address(address) else 'lnaddress'
+
+        if is_address(address):
+            address_type = 'address'
+        elif is_silent_payment_address(address):
+            address_type = 'sp_address'
+        else:
+            address_type = 'lnaddress'
         self.contacts[address] = (address_type, label)
         self.contact_list.update()
         self.history_list.update()

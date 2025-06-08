@@ -87,7 +87,7 @@ class Contacts(dict, Logger):
         return None
 
     async def resolve(self, k) -> dict:
-        if bitcoin.is_address(k) or is_silent_payment_address(k):
+        if bitcoin.is_address(k):
             return {
                 'address': k,
                 'type': 'address'
