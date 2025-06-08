@@ -46,13 +46,13 @@ from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (
     TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
     TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
-    taproot_tweak_seckey
+    taproot_tweak_seckey, DummyAddress
 )
 from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
-from .silent_payment import SilentPaymentAddress, SILENT_PAYMENT_DUMMY_SPK
+from .silent_payment import SilentPaymentAddress
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -781,7 +781,7 @@ def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['Pa
     output_dict = {}
     for output in outputs:
         spk = output.scriptpubkey
-        key = output.sp_addr if output.is_silent_payment() and spk == SILENT_PAYMENT_DUMMY_SPK else spk
+        key = output.sp_addr if output.is_silent_payment() and output.address == DummyAddress.SILENT_PAYMENT else spk
         assert isinstance(output.value, int), "tx outputs with spend-max-like str cannot be merged"
         if key in output_dict:
             output_dict[key].value += output.value

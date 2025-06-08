@@ -10,8 +10,6 @@ if TYPE_CHECKING:
     from .transaction import TxOutpoint
 import electrum_ecc as ecc
 
-SILENT_PAYMENT_DUMMY_SPK = bytes(2) + sha256("SilentPaymentDummySpk") # match length of taproot output script
-
 class SilentPaymentUnsupportedWalletException(Exception): pass
 
 class SilentPaymentException(Exception):

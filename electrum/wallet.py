@@ -81,7 +81,7 @@ from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
 from .silent_payment import SilentPaymentAddress, create_silent_payment_outputs, SilentPaymentException, \
-    SilentPaymentReuseException, SilentPaymentInputsNotOwnedException, SILENT_PAYMENT_DUMMY_SPK, is_silent_payment_address
+    SilentPaymentReuseException, SilentPaymentInputsNotOwnedException, is_silent_payment_address
 
 if TYPE_CHECKING:
     from .network import Network
@@ -2810,9 +2810,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
             raise DummyAddressUsedInTxException("tried to sign tx with dummy address!")
-
-        if any(o.scriptpubkey == SILENT_PAYMENT_DUMMY_SPK for o in tx.outputs()):
-            raise SilentPaymentException("tried to sign tx with silent payment dummy SPK!")
 
         # check if signing is dangerous
         sh_danger = self.check_sighash(tx)
