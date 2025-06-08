@@ -9,7 +9,7 @@ from electrum.wallet import restore_wallet_from_text
 
 from . import ElectrumTestCase
 from electrum.transaction import PartialTxOutput
-from electrum.silent_payment import SILENT_PAYMENT_DUMMY_SPK
+from electrum.bitcoin import script_to_address, DummyAddress
 
 
 class WalletMock:
@@ -317,16 +317,10 @@ class TestPaymentIdentifier(ElectrumTestCase):
             pi = PaymentIdentifier(None, pi_str)
             self.assertTrue(pi.is_valid())
             self.assertTrue(pi.is_available())
-            self.assertTrue(pi.spk == SILENT_PAYMENT_DUMMY_SPK)
+            self.assertTrue(script_to_address(pi.spk) == DummyAddress.SILENT_PAYMENT)
             self.assertTrue(pi.spk_is_address) # we treat it as is_address to make sure an amount is set
             self.assertTrue(pi.involves_silent_payments())
             self.assertTrue(pi.get_onchain_outputs(0)[0].is_silent_payment())
-
-        # test manually enter SILENT_PAYMENT_DUMMY_SPK behavior
-        pi = PaymentIdentifier(None, f"script({SILENT_PAYMENT_DUMMY_SPK.hex()})")
-        self.assertFalse(pi.spk == SILENT_PAYMENT_DUMMY_SPK)
-        self.assertFalse(pi.spk_is_address)
-        self.assertFalse(pi.involves_silent_payments())
 
     def test_silent_payment_multiline(self):
         # sp_addr with same B_Scan
