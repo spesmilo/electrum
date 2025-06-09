@@ -93,12 +93,14 @@ ElDialog {
                                 source: Qt.resolvedUrl('../../icons/network.png')
                             }
                             Label {
-                                text: qsTr('Npub')
+                                text: qsTr('Pubkey')
                                 color: Material.accentColor
                             }
                             Label {
                                 Layout.fillWidth: true
-                                text: model.npub.substring(0,10)
+                                // only show the prefix of the pubkey for readability, but
+                                // keep it long enough so that collisions are hard to brute-force:
+                                text: model.server_pubkey.substring(0,32)
                                 wrapMode: Text.Wrap
                             }
                             Label {
