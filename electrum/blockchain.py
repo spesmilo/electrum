@@ -626,7 +626,7 @@ class Blockchain(Logger):
         work_in_last_partial_chunk = (height % CHUNK_SIZE + 1) * work_in_single_header
         return running_total + work_in_last_partial_chunk
 
-    def can_connect(self, header: dict, check_height: bool=True) -> bool:
+    def can_connect(self, header: dict, *, check_height: bool = True) -> bool:
         if header is None:
             return False
         height = header['block_height']

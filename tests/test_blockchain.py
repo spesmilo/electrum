@@ -224,7 +224,7 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(os.path.join(self.data_dir, "blockchain_headers"), chain_l.path())
         self.assertEqual(11 * 80, os.stat(chain_l.path()).st_size)
         for b in (chain_u, chain_l):
-            self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
+            self.assertTrue(all([b.can_connect(b.read_header(i), check_height=False) for i in range(b.height())]))
 
         self._append_header(chain_u, self.HEADERS['S'])
         self._append_header(chain_u, self.HEADERS['T'])
@@ -259,7 +259,7 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(os.path.join(self.data_dir, "forks", "fork2_6_5c400c7966145d56291080b6482716a16aa644eefe590f984c1da0ee46ed33b8_aff81830e28e01ef7d23277c56779a6b93f251a2d50dcc09d7c87d119e1e8ab"), chain_u.path())
         self.assertEqual(7 * 80, os.stat(chain_u.path()).st_size)
         for b in (chain_u, chain_l, chain_z):
-            self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
+            self.assertTrue(all([b.can_connect(b.read_header(i), check_height=False) for i in range(b.height())]))
 
         self.assertEqual(constants.net.GENESIS, chain_z.get_hash(0))
         self.assertEqual(hash_header(self.HEADERS['F']), chain_z.get_hash(5))
@@ -334,7 +334,7 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(hash_header(self.HEADERS['X']), chain_z.get_hash(11))
 
         for b in (chain_u, chain_l, chain_z):
-            self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
+            self.assertTrue(all([b.can_connect(b.read_header(i), check_height=False) for i in range(b.height())]))
 
     def get_chains_that_contain_header_helper(self, header: dict):
         height = header['block_height']
