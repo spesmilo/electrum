@@ -68,33 +68,33 @@ class TestNetwork(ElectrumTestCase):
         self.interface = MockInterface(self.config)
 
     async def test_fork(self):
+        ifa = self.interface
         blockchain.blockchains = {}
-        self.interface.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
+        ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         def mock_connect(height):
             return height == 6
-        self.interface.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1,'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
-        self.interface.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1,'check':lambda x: True, 'connect': lambda x: False}})
-        self.interface.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 5, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 6, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        ifa = self.interface
+        ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1,'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
+        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1,'check':lambda x: True, 'connect': lambda x: False}})
+        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
+        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
+        ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
         res = await ifa.sync_until(8, next_height=7)
         self.assertEqual((CRM.FORK, 8), res)
-        self.assertEqual(self.interface.q.qsize(), 0)
+        self.assertEqual(ifa.q.qsize(), 0)
 
     async def test_can_connect_during_backward(self):
+        ifa = self.interface
         blockchain.blockchains = {}
-        self.interface.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
+        ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         def mock_connect(height):
             return height == 2
-        self.interface.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
-        self.interface.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
-        self.interface.q.put_nowait({'block_height': 3, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 4, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
-        ifa = self.interface
+        ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
+        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
+        ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
+        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
         res = await ifa.sync_until(8, next_height=4)
         self.assertEqual((CRM.CATCHUP, 5), res)
-        self.assertEqual(self.interface.q.qsize(), 0)
+        self.assertEqual(ifa.q.qsize(), 0)
 
     def mock_fork(self, bad_header):
         forkpoint = bad_header['block_height']
@@ -103,19 +103,19 @@ class TestNetwork(ElectrumTestCase):
         return b
 
     async def test_chain_false_during_binary(self):
-        blockchain.blockchains = {}
-        self.interface.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
-        mock_connect = lambda height: height == 3
-        self.interface.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect}})
-        self.interface.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: True,  'connect': mock_connect}})
-        self.interface.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1, 'check': lambda x: False, 'fork': self.mock_fork, 'connect': mock_connect}})
-        self.interface.q.put_nowait({'block_height': 3, 'mock': {CRM.BINARY:1, 'check': lambda x: True, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 5, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 6, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
         ifa = self.interface
+        blockchain.blockchains = {}
+        ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
+        mock_connect = lambda height: height == 3
+        ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect}})
+        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: True,  'connect': mock_connect}})
+        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1, 'check': lambda x: False, 'fork': self.mock_fork, 'connect': mock_connect}})
+        ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.BINARY:1, 'check': lambda x: True, 'connect': lambda x: True}})
+        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
+        ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
         res = await ifa.sync_until(8, next_height=6)
         self.assertEqual((CRM.CATCHUP, 7), res)
-        self.assertEqual(self.interface.q.qsize(), 0)
+        self.assertEqual(ifa.q.qsize(), 0)
 
 
 if __name__ == "__main__":
