@@ -1172,11 +1172,11 @@ class Interface(Logger):
         await self._maybe_warm_headers_cache(
             from_height=max(0, height-10), to_height=height, mode=ChainResolutionMode.BACKWARD)
 
+        delta = 2
         while await iterate():
             bad, bad_header = height, header
-            delta = self.tip - height  # FIXME why compared to tip? would be easier to cache if delta started at 1
-            assert delta > 0, delta
-            height = self.tip - 2 * delta
+            height -= delta
+            delta *= 2
 
         _assert_header_does_not_check_against_any_chain(bad_header)
         self.logger.info(f"exiting backward mode at {height}")

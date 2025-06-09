@@ -110,14 +110,14 @@ class TestNetwork(ElectrumTestCase):
         server is on other side of chain split, the last common block is height 6.
         """
         ifa = self.interface
-        ifa.tip = 12  # FIXME how could the server tip be this high?
+        ifa.tip = 8
         ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
-        blockchain.blockchains = {"00a": ifa.blockchain}
+        blockchain.blockchains = {
+            "00a": ifa.blockchain,
+        }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
         ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'id': '07b', 'prev_id': '06a'}})
-        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'id': '02a', 'prev_id': '01a'}})
-        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1, 'id': '04a', 'prev_id': '03a'}})
-        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.BINARY:1, 'id': '05a', 'prev_id': '04a'}})
+        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.BACKWARD:1, 'id': '05a', 'prev_id': '04a'}})
         ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.BINARY:1, 'id': '06a', 'prev_id': '05a'}})
         res = await ifa.sync_until(8, next_height=7)
         self.assertEqual((CRM.FORK, 8), res)
@@ -125,24 +125,23 @@ class TestNetwork(ElectrumTestCase):
 
     # finds forkpoint during backwards, existing fork
     async def test_can_connect_during_backward(self):
-        """client starts on main chain. client already knows about another fork, which has local height 1.
+        """client starts on main chain. client already knows about another fork, which has local height 4.
         server is on that fork but has more blocks.
-        client happens to ask for header at height 2 during backward search (which directly builds on top the existing fork).
+        client happens to ask for header at height 5 during backward search (which directly builds on top the existing fork).
         """
         ifa = self.interface
-        ifa.tip = 12  # FIXME how could the server tip be this high?
+        ifa.tip = 8
         ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
         blockchain.blockchains = {
             "00a": ifa.blockchain,
-            "01b": MockBlockchain(["00a", "01b"]),
+            "03b": MockBlockchain(["00a", "01a", "02a", "03b", "04b"]),
         }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
         ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'id': '07b', 'prev_id': '06b'}})
-        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'id': '02b', 'prev_id': '01b'}})
-        ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.CATCHUP:1, 'id': '03b', 'prev_id': '02b'}})
-        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.CATCHUP:1, 'id': '04b', 'prev_id': '03b'}})
-        res = await ifa.sync_until(8, next_height=4)
-        self.assertEqual((CRM.CATCHUP, 5), res)
+        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.BACKWARD:1, 'id': '05b', 'prev_id': '04b'}})
+        ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.CATCHUP:1, 'id': '06b', 'prev_id': '05b'}})
+        res = await ifa.sync_until(8, next_height=6)
+        self.assertEqual((CRM.CATCHUP, 7), res)
         self.assertEqual(ifa.q.qsize(), 0)
 
     # finds forkpoint during binary, new fork
@@ -151,14 +150,17 @@ class TestNetwork(ElectrumTestCase):
         server is on other side of chain split, the last common block is height 3.
         """
         ifa = self.interface
-        ifa.tip = 12  # FIXME how could the server tip be this high?
+        ifa.tip = 8
         ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
-        blockchain.blockchains = {"00a": ifa.blockchain}
+        blockchain.blockchains = {
+            "00a": ifa.blockchain,
+        }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
         ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'id': '07b', 'prev_id': '06b'}})
-        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'id': '02a', 'prev_id': '01a'}})
-        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1, 'id': '04b', 'prev_id': '03a'}})
+        ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.BACKWARD:1, 'id': '05b', 'prev_id': '04b'}})
+        ifa.q.put_nowait({'block_height': 1, 'mock': {CRM.BACKWARD:1, 'id': '01a', 'prev_id': '00a'}})
         ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.BINARY:1, 'id': '03a', 'prev_id': '02a'}})
+        ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1, 'id': '04b', 'prev_id': '03a'}})
         ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.CATCHUP:1, 'id': '05b', 'prev_id': '04b'}})
         ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.CATCHUP:1, 'id': '06b', 'prev_id': '05b'}})
         res = await ifa.sync_until(8, next_height=6)
