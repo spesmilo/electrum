@@ -1100,7 +1100,7 @@ class Interface(Logger):
             header = await self.get_block_header(height, mode=ChainResolutionMode.BINARY)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
-                self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+                self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain  # for mocking
                 good = height
             else:
                 bad = height

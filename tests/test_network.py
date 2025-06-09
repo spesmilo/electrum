@@ -32,8 +32,7 @@ class MockInterface(Interface):
         self.q = asyncio.Queue()
         self.blockchain = blockchain.Blockchain(config=self.config, forkpoint=0,
                                                 parent=None, forkpoint_hash=constants.net.GENESIS, prev_hash=None)
-        self.tip = 12
-        self.blockchain._size = self.tip + 1
+        self.set_tip(0)
 
     async def get_block_header(self, height: int, *, mode: ChainResolutionMode) -> dict:
         assert self.q.qsize() > 0, (height, mode)
@@ -48,6 +47,10 @@ class MockInterface(Interface):
 
     async def _maybe_warm_headers_cache(self, *args, **kwargs):
         return
+
+    def set_tip(self, tip: int):
+        self.tip = tip
+        self.blockchain._size = self.tip + 1
 
 
 class TestNetwork(ElectrumTestCase):
@@ -67,8 +70,13 @@ class TestNetwork(ElectrumTestCase):
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.interface = MockInterface(self.config)
 
+    # finds forkpoint during binary, new fork
     async def test_fork(self):
+        """client starts on main chain, has no knowledge of any fork.
+        server is on other side of chain split, the last common block is height 6.
+        """
         ifa = self.interface
+        ifa.set_tip(12)  # FIXME how could the server tip be this high? for local chain, it's ok though.
         blockchain.blockchains = {}
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         def mock_connect(height):
@@ -82,14 +90,20 @@ class TestNetwork(ElectrumTestCase):
         self.assertEqual((CRM.FORK, 8), res)
         self.assertEqual(ifa.q.qsize(), 0)
 
+    # finds forkpoint during backwards, existing fork
     async def test_can_connect_during_backward(self):
+        """client starts on main chain. client already knows about another fork, which has local height 1.
+        server is on that fork but has more blocks.
+        client happens to ask for header at height 2 during backward search (which directly builds on top the existing fork).
+        """
         ifa = self.interface
+        ifa.set_tip(12)  # FIXME how could the server tip be this high? for local chain, it's ok though.
         blockchain.blockchains = {}
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         def mock_connect(height):
             return height == 2
-        ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
-        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
+        ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect}})
+        ifa.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1, 'check': lambda x: False, 'connect': mock_connect}})
         ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
         ifa.q.put_nowait({'block_height': 4, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: True}})
         res = await ifa.sync_until(8, next_height=4)
@@ -98,12 +112,18 @@ class TestNetwork(ElectrumTestCase):
 
     def mock_fork(self, bad_header):
         forkpoint = bad_header['block_height']
+        self.interface.logger.debug(f"mock_fork() called with {forkpoint=}")
         b = blockchain.Blockchain(config=self.config, forkpoint=forkpoint, parent=None,
                                   forkpoint_hash=sha256(str(forkpoint)).hex(), prev_hash=sha256(str(forkpoint-1)).hex())
         return b
 
+    # finds forkpoint during binary, new fork
     async def test_chain_false_during_binary(self):
+        """client starts on main chain, has no knowledge of any fork.
+        server is on other side of chain split, the last common block is height 3.
+        """
         ifa = self.interface
+        ifa.set_tip(12)  # FIXME how could the server tip be this high? for local chain, it's ok though.
         blockchain.blockchains = {}
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         mock_connect = lambda height: height == 3
