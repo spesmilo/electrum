@@ -67,23 +67,8 @@ class TestNetwork(ElectrumTestCase):
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.interface = MockInterface(self.config)
 
-    async def test_fork_noconflict(self):
+    async def test_fork(self):
         blockchain.blockchains = {}
-        self.interface.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
-        def mock_connect(height):
-            return height == 6
-        self.interface.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1,'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
-        self.interface.q.put_nowait({'block_height': 2, 'mock': {CRM.BACKWARD:1,'check':lambda x: True, 'connect': lambda x: False}})
-        self.interface.q.put_nowait({'block_height': 4, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 5, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 6, 'mock': {CRM.BINARY:1,'check':lambda x: True, 'connect': lambda x: True}})
-        ifa = self.interface
-        res = await ifa.sync_until(8, next_height=7)
-        self.assertEqual((CRM.FORK, 8), res)
-        self.assertEqual(self.interface.q.qsize(), 0)
-
-    async def test_fork_conflict(self):
-        blockchain.blockchains = {7: {'check': lambda bad_header: False}}
         self.interface.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'check': lambda x: False, 'connect': lambda x: False}})
         def mock_connect(height):
             return height == 6
