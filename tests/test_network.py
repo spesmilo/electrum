@@ -38,7 +38,7 @@ class MockInterface(Interface):
     async def get_block_header(self, height: int, *, mode: ChainResolutionMode) -> dict:
         assert self.q.qsize() > 0, (height, mode)
         item = await self.q.get()
-        print("step with height", height, item)
+        self.logger.debug(f"step with {height=}. {item=}")
         assert item['block_height'] == height, (item['block_height'], height)
         assert mode in item['mock'], (mode, item)
         return item
