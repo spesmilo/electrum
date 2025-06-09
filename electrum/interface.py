@@ -1111,7 +1111,7 @@ class Interface(Logger):
             raise Exception('unexpected bad header during binary: {}'.format(bad_header))
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.logger.info(f"binary search exited. good {good}, bad {bad}")
+        self.logger.info(f"binary search exited. good {good}, bad {bad}. {chain=}")
         return good, bad, bad_header
 
     async def _resolve_potential_chain_fork_given_forkpoint(
