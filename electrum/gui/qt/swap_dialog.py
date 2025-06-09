@@ -443,7 +443,7 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
             fee = f"{x.pairs.percentage}% + {x.pairs.mining_fee} sats"
             max_forward = self.window.format_amount(x.pairs.max_forward) + ' ' + self.window.base_unit()
             max_reverse = self.window.format_amount(x.pairs.max_reverse) + ' ' + self.window.base_unit()
-            item = QTreeWidgetItem([x.server_pubkey[0:10], fee, max_forward, max_reverse, last_seen])
+            item = QTreeWidgetItem([x.server_pubkey, fee, max_forward, max_reverse, last_seen])
             item.setData(0, ROLE_NPUB, x.server_npub)
             items.append(item)
         self.servers_list.insertTopLevelItems(0, items)

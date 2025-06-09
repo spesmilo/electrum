@@ -32,7 +32,8 @@ class QESwapServerNPubListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES= ('npub', 'timestamp', 'percentage_fee', 'mining_fee', 'min_amount', 'max_forward_amount', 'max_reverse_amount')
+    _ROLE_NAMES= ('npub', 'server_pubkey', 'timestamp', 'percentage_fee', 'mining_fee',
+                  'min_amount', 'max_forward_amount', 'max_reverse_amount')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -69,6 +70,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
     def offer_to_model(self, x: 'SwapOffer'):
         return {
             'npub': x.server_npub,
+            'server_pubkey': x.server_pubkey,
             'percentage_fee': x.pairs.percentage,
             'mining_fee': x.pairs.mining_fee,
             'min_amount': x.pairs.min_amount,
