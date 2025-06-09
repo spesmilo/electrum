@@ -543,7 +543,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             return
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         coins = self._wallet.wallet.get_spendable_coins(None)
-        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:2')
         try:
             self._tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
@@ -677,7 +677,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
-        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:2')
         try:
             tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
