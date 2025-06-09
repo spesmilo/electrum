@@ -1,8 +1,7 @@
 #!/usr/bin/python3
-import re
 import os
 import sys
-import importlib
+import importlib.util
 from collections import defaultdict
 
 
@@ -20,6 +19,10 @@ version_spec.loader.exec_module(version_module)
 
 ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
 print(f"version: {ELECTRUM_VERSION}", file=sys.stderr)
+
+if any(c in ELECTRUM_VERSION for c in ('a', 'b')):
+    print(f"not building new website for experimental release", file=sys.stderr)
+    sys.exit(0)
 
 dirname = sys.argv[1]
 
