@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence
 
 from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QIcon, QPixmap, QColor
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem, QHeaderView
 
@@ -9,6 +10,7 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.fee_policy import FeePolicy
+from electrum.crypto import sha256
 
 from electrum.gui import messages
 from . import util
@@ -445,5 +447,20 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
             max_reverse = self.window.format_amount(x.pairs.max_reverse) + ' ' + self.window.base_unit()
             item = QTreeWidgetItem([x.server_pubkey, fee, max_forward, max_reverse, last_seen])
             item.setData(0, ROLE_NPUB, x.server_npub)
+            item.setIcon(0, self._pubkey_to_q_icon(x.server_pubkey))
             items.append(item)
         self.servers_list.insertTopLevelItems(0, items)
+
+    @staticmethod
+    def _pubkey_to_q_icon(server_pubkey: str) -> QIcon:
+        def str_to_rgb(color_input: str) -> int:
+            input_hash = int.from_bytes(sha256(color_input), byteorder="big")
+            r = (input_hash & 0xFF0000) >> 16
+            g = (input_hash & 0x00FF00) >> 8
+            b = input_hash & 0x0000FF
+            return (r << 16) | (g << 8) | b
+
+        color = QColor(str_to_rgb(server_pubkey))
+        color_pixmap = QPixmap(100, 100)
+        color_pixmap.fill(color)
+        return QIcon(color_pixmap)
