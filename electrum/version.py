@@ -1,4 +1,6 @@
-ELECTRUM_VERSION = '4.6.0'       # version of the client package
+# version of the client package
+# examples: stable: '4.6.0' | alpha: '4.6.0a1' | beta: '4.6.0b1'
+ELECTRUM_VERSION = '4.6.0'
 
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
