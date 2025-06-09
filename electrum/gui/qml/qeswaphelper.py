@@ -581,7 +581,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         server_miningfee = swap_manager.mining_fee
         self.serverMiningfee = QEAmount(amount_sat=server_miningfee)
         if self.isReverse:
-            self.miningfee = QEAmount(amount_sat=swap_manager.get_swap_tx_fee())
+            self.miningfee = QEAmount(amount_sat=swap_manager.get_fee_for_txbatcher())
             self.check_valid(self._send_amount, self._receive_amount)
         else:
             # update tx only if slider isn't moved for a while
@@ -703,7 +703,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 txid = await swap_manager.reverse_swap(
                     self.swap_transport,
                     lightning_amount_sat=lightning_amount,
-                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_swap_tx_fee(),
+                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_fee_for_txbatcher(),
                 )
                 try:  # swaphelper might be destroyed at this point
                     if txid:

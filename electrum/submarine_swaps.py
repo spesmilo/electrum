@@ -476,9 +476,6 @@ class SwapManager(Logger):
                 self.logger.info('utxo value below dust threshold')
                 return
 
-    def get_swap_tx_fee(self):
-        return self._get_tx_fee(self.config.FEE_POLICY)
-
     def get_fee_for_txbatcher(self):
         return self._get_tx_fee(self.config.FEE_POLICY_SWAPS)
 
@@ -1094,13 +1091,13 @@ class SwapManager(Logger):
                                 f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_send_amount={inverted_send_amount}")
         # second, add on-chain claim tx fee
         if is_reverse and recv_amount is not None:
-            recv_amount -= self.get_swap_tx_fee()
+            recv_amount -= self.get_fee_for_txbatcher()
         return recv_amount
 
     def get_send_amount(self, recv_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
         # first, add on-chain claim tx fee
         if is_reverse and recv_amount is not None:
-            recv_amount += self.get_swap_tx_fee()
+            recv_amount += self.get_fee_for_txbatcher()
         # second, add percentage fee
         send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted

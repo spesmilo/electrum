@@ -78,9 +78,13 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.send_amount_e.setEnabled(recv_amount_sat is None)
         self.recv_amount_e.setEnabled(recv_amount_sat is None)
         self.max_button.setEnabled(recv_amount_sat is None)
+
         self.fee_policy = FeePolicy(self.config.FEE_POLICY)
-        fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
-        fee_combo = FeeComboBox(fee_slider)
+        self.fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
+        self.fee_combo = FeeComboBox(self.fee_slider)
+        self.fee_target_label = QLabel()
+        self._set_fee_slider_visibility(is_visible=not self.is_reverse)
+
         self.swap_limits_label = QLabel()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
@@ -100,8 +104,9 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         h.addWidget(self.server_fee_label, 5, 1, 1, 2)
         h.addWidget(QLabel(_('Mining fee')+':'), 6, 0)
         h.addWidget(self.fee_label, 6, 1, 1, 2)
-        h.addWidget(fee_slider, 7, 1)
-        h.addWidget(fee_combo, 7, 2)
+        h.addWidget(self.fee_slider, 7, 1)
+        h.addWidget(self.fee_combo, 7, 2)
+        h.addWidget(self.fee_target_label, 7, 0)
         vbox.addLayout(h)
         vbox.addStretch(1)
         self.ok_button = OkButton(self)
@@ -113,7 +118,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.update()
         self.needs_tx_update = True
         self.window.gui_object.timer.timeout.connect(self.timer_actions)
-        fee_slider.update()
+        self.fee_slider.update()
         self.register_callbacks()
 
     def closeEvent(self, event):
@@ -146,14 +151,28 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
     def fee_slider_callback(self, fee_rate):
         self.config.FEE_POLICY = self.fee_policy.get_descriptor()
+        if not self.is_reverse:
+            self.fee_target_label.setText(self.fee_policy.get_target_text())
         if self.send_follows:
             self.on_recv_edited()
         else:
             self.on_send_edited()
         self.update()
 
+    def _set_fee_slider_visibility(self, *, is_visible: bool):
+        if is_visible:
+            self.fee_slider.setEnabled(True)
+            self.fee_combo.setEnabled(True)
+            self.fee_target_label.setText(self.fee_policy.get_target_text())
+        else:
+            self.fee_slider.setEnabled(False)
+            self.fee_combo.setEnabled(False)
+            # show the eta of the swap claim
+            self.fee_target_label.setText(FeePolicy(self.config.FEE_POLICY_SWAPS).get_target_text())
+
     def toggle_direction(self):
         self.is_reverse = not self.is_reverse
+        self._set_fee_slider_visibility(is_visible=not self.is_reverse)
         self.send_amount_e.setAmount(None)
         self.recv_amount_e.setAmount(None)
         self.max_button.setChecked(False)
@@ -222,7 +241,6 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.needs_tx_update = True
 
     def update(self):
-        from .util import IconLabel
         sm = self.swap_manager
         w_base_unit = self.window.base_unit()
         send_icon = read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png")
@@ -266,10 +284,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         """Updates self.fee_label. No other side-effects."""
         if self.is_reverse:
             sm = self.swap_manager
-            fee = sm.get_swap_tx_fee()
+            fee = sm.get_fee_for_txbatcher()
         else:
             fee = tx.get_fee() if tx else None
-        fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
+        fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else _("no input")
         self.fee_label.setText(fee_text)
         self.fee_label.repaint()  # macOS hack for #6269
 
@@ -286,7 +304,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             coro = sm.reverse_swap(
                 transport,
                 lightning_amount_sat=lightning_amount,
-                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_swap_tx_fee(),
+                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_fee_for_txbatcher(),
             )
             try:
                 # we must not leave the context, so we use run_couroutine_dialog
