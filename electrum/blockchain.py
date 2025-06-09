@@ -445,7 +445,7 @@ class Blockchain(Logger):
             raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))
 
     @with_lock
-    def write(self, data: bytes, offset: int, truncate: bool=True) -> None:
+    def write(self, data: bytes, offset: int, truncate: bool = True, *, fsync: bool = True) -> None:
         filename = self.path()
         self.assert_headers_file_available(filename)
         with open(filename, 'rb+') as f:
@@ -454,8 +454,9 @@ class Blockchain(Logger):
                 f.truncate()
             f.seek(offset)
             f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
+            if fsync:
+                f.flush()
+                os.fsync(f.fileno())
         self.update_size()
 
     @with_lock
@@ -465,7 +466,8 @@ class Blockchain(Logger):
         # headers are only _appended_ to the end:
         assert delta == self.size(), (delta, self.size())
         assert len(data) == HEADER_SIZE
-        self.write(data, delta*HEADER_SIZE)
+        # note: we don't fsync, to improve perf. losing headers at end of file is ok.
+        self.write(data, delta*HEADER_SIZE, fsync=False)
         self.swap_with_parent()
 
     @with_lock
