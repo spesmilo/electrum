@@ -671,13 +671,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def plot_history_dialog(self):
         try:
             from electrum.plot import plot_history, NothingToPlotException
-        except Exception as e:
+        except ImportError as e:
             _logger.error(f"could not import electrum.plot. This feature needs matplotlib to be installed. exc={e!r}")
-            self.main_window.show_message(
-                _("Can't plot history.") + '\n' +
-                _("Perhaps some dependencies are missing...") + " (matplotlib?)" + '\n' +
-                f"Error: {e!r}"
-            )
+            self.main_window.show_message("\n\n".join([
+                _("This feature requires the 'matplotlib' Python library which is not "
+                  "included in Electrum by default."),
+                _("If you run Electrum from source you can install matplotlib to use this feature."),
+                _("It is not possible to install matplotlib inside the binary executables "
+                  "(e.g. AppImage or Windows installation).")
+            ]))
             return
         try:
             plt = plot_history(list(self.hm.transactions.values()))
