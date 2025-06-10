@@ -1052,27 +1052,26 @@ class Interface(Logger):
         )
         header = await self.get_block_header(height, mode=ChainResolutionMode.CATCHUP)
 
-        chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+        chain = blockchain.check_header(header)
         if chain:
-            self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+            self.blockchain = chain
             # note: there is an edge case here that is not handled.
             # we might know the blockhash (enough for check_header) but
             # not have the header itself. e.g. regtest chain with only genesis.
             # this situation resolves itself on the next block
             return ChainResolutionMode.CATCHUP, height+1
 
-        can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+        can_connect = blockchain.can_connect(header)
         if not can_connect:
             self.logger.info(f"can't connect new block: {height=}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header=header)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            chain = blockchain.check_header(header)
+            can_connect = blockchain.can_connect(header)
             assert chain or can_connect
         if can_connect:
             height += 1
-            if isinstance(can_connect, Blockchain):  # not when mocking
-                self.blockchain = can_connect
-                self.blockchain.save_header(header)
+            self.blockchain = can_connect
+            self.blockchain.save_header(header)
             return ChainResolutionMode.CATCHUP, height
 
         good, bad, bad_header = await self._search_headers_binary(height, bad, bad_header, chain)
@@ -1088,7 +1087,7 @@ class Interface(Logger):
         assert bad == bad_header['block_height']
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+        self.blockchain = chain
         good = height
         while True:
             assert 0 <= good < bad, (good, bad)
@@ -1098,9 +1097,9 @@ class Interface(Logger):
                 await self._maybe_warm_headers_cache(
                     from_height=good, to_height=bad, mode=ChainResolutionMode.BINARY)
             header = await self.get_block_header(height, mode=ChainResolutionMode.BINARY)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            chain = blockchain.check_header(header)
             if chain:
-                self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+                self.blockchain = chain
                 good = height
             else:
                 bad = height
@@ -1108,13 +1107,11 @@ class Interface(Logger):
             if good + 1 == bad:
                 break
 
-        mock = 'mock' in bad_header and bad_header['mock']['connect'](height)
-        real = not mock and self.blockchain.can_connect(bad_header, check_height=False)
-        if not real and not mock:
+        if not self.blockchain.can_connect(bad_header, check_height=False):
             raise Exception('unexpected bad header during binary: {}'.format(bad_header))
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.logger.info(f"binary search exited. good {good}, bad {bad}")
+        self.logger.info(f"binary search exited. good {good}, bad {bad}. {chain=}")
         return good, bad, bad_header
 
     async def _resolve_potential_chain_fork_given_forkpoint(
@@ -1139,8 +1136,7 @@ class Interface(Logger):
         # this is a new fork we don't yet have
         height = bad + 1
         self.logger.info(f"new fork at bad height {bad}")
-        forkfun = self.blockchain.fork if 'mock' not in bad_header else bad_header['mock']['fork']
-        b = forkfun(bad_header)  # type: Blockchain
+        b = self.blockchain.fork(bad_header)  # type: Blockchain
         self.blockchain = b
         assert b.forkpoint == bad
         return ChainResolutionMode.FORK, height
@@ -1158,8 +1154,8 @@ class Interface(Logger):
                 height = constants.net.max_checkpoint()
                 checkp = True
             header = await self.get_block_header(height, mode=ChainResolutionMode.BACKWARD)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            chain = blockchain.check_header(header)
+            can_connect = blockchain.can_connect(header)
             if chain or can_connect:
                 return False
             if checkp:
@@ -1169,18 +1165,18 @@ class Interface(Logger):
         bad, bad_header = height, header
         _assert_header_does_not_check_against_any_chain(bad_header)
         with blockchain.blockchains_lock: chains = list(blockchain.blockchains.values())
-        local_max = max([0] + [x.height() for x in chains]) if 'mock' not in header else float('inf')
+        local_max = max([0] + [x.height() for x in chains])
         height = min(local_max + 1, height - 1)
         assert height >= 0
 
         await self._maybe_warm_headers_cache(
             from_height=max(0, height-10), to_height=height, mode=ChainResolutionMode.BACKWARD)
 
+        delta = 2
         while await iterate():
             bad, bad_header = height, header
-            delta = self.tip - height  # FIXME why compared to tip? would be easier to cache if delta started at 1
-            assert delta > 0, delta
-            height = self.tip - 2 * delta
+            height -= delta
+            delta *= 2
 
         _assert_header_does_not_check_against_any_chain(bad_header)
         self.logger.info(f"exiting backward mode at {height}")
@@ -1420,7 +1416,7 @@ class Interface(Logger):
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
-    chain_bad = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+    chain_bad = blockchain.check_header(header)
     if chain_bad:
         raise Exception('bad_header must not check!')
 
