@@ -90,7 +90,6 @@ class CosignerWallet(Logger):
         self.config = self.wallet.config
 
         self.pending = asyncio.Event()
-        self.wallet_uptodate = asyncio.Event()
 
         self.known_events = db_storage.setdefault('cosigner_events', {})
 
@@ -121,12 +120,6 @@ class CosignerWallet(Logger):
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     @event_listener
-    def on_event_wallet_updated(self, wallet):
-        if self.wallet == wallet and wallet.is_up_to_date() and not self.wallet_uptodate.is_set():
-            self.logger.debug('starting handling of PSBTs')
-            self.wallet_uptodate.set()
-
-    @event_listener
     async def on_event_proxy_set(self, *args):
         if not (self.network and self.nostr_pubkey):
             return
@@ -138,7 +131,10 @@ class CosignerWallet(Logger):
     async def main_loop(self):
         self.logger.info("starting taskgroup.")
         try:
-            await self.wallet_uptodate.wait()  # start processing PSBTs only after wallet is_up_to_date
+            # start processing PSBTs only after wallet is_up_to_date
+            while not self.wallet.is_up_to_date():
+                await self.wallet.up_to_date_changed_event.wait()
+            self.logger.debug('starting handling of PSBTs')
             async with self.taskgroup as group:
                 await group.spawn(self.check_direct_messages())
         except Exception as e:
