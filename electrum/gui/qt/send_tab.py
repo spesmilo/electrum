@@ -246,7 +246,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi is None or pi.type == PaymentIdentifierType.UNKNOWN:
             return
         elif pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE,
-                           PaymentIdentifierType.BIP21, PaymentIdentifierType.OPENALIAS]:
+                             PaymentIdentifierType.SILENT_PAYMENT,
+                             PaymentIdentifierType.BIP21, PaymentIdentifierType.OPENALIAS]:
             # clear the amount field once it is clear this PI is not eligible for '!'
             self.amount_e.clear()
             return
@@ -454,14 +455,15 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                                      PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
                                      PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
-        lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
+        lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21,
+                                                  PaymentIdentifierType.SILENT_PAYMENT]
 
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=lock_amount,
                          lock_max=lock_max,
                          lock_description=False)
         if lock_recipient:
-            fields = pi.get_fields_for_GUI(bip21_prefer_fallback=not self.wallet_can_send_sp)
+            fields = pi.get_fields_for_GUI()
             if fields.recipient:
                 self.payto_e.setText(fields.recipient)
             if fields.description:
