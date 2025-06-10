@@ -4048,7 +4048,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return [k.derive_pubkey(c, i).hex() for k in self.get_keystores()]
 
     def load_keystore(self):
-        self.keystores = {}
+        self.keystores = {}  # type: Dict[str, KeyStore]
         for i in range(self.n):
             name = 'x%d' % (i+1)
             self.keystores[name] = load_keystore(self.db, name)

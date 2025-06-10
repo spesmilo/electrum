@@ -103,7 +103,9 @@ class CosignerWallet(Logger):
         self.cosigner_list = []  # type: List[Tuple[str, str]]
         self.nostr_pubkey = None
 
-        for key, keystore in wallet.keystores.items():
+        for keystore in wallet.get_keystores():
+            # note: there should be domain separation between testnet/mainnet.
+            #       Currently there is, due to the xpub str encoding it in its header.
             xpub = keystore.get_master_public_key()  # type: str
             privkey = sha256('nostr_psbt:' + xpub)
             pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes()[1:]
