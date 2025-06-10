@@ -687,8 +687,8 @@ class SwapManager(Logger):
 
     async def normal_swap(
             self,
-            transport: 'SwapServerTransport',
             *,
+            transport: 'SwapServerTransport',
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
             password,
@@ -726,7 +726,9 @@ class SwapManager(Logger):
         return await self.wait_for_htlcs_and_broadcast(transport=transport, swap=swap, invoice=invoice, tx=tx)
 
     async def request_normal_swap(
-            self, transport, *,
+            self,
+            *,
+            transport: 'SwapServerTransport',
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
             channels: Optional[Sequence['Channel']] = None,
@@ -782,7 +784,9 @@ class SwapManager(Logger):
         return swap, invoice
 
     async def wait_for_htlcs_and_broadcast(
-            self, transport, *,
+            self,
+            *,
+            transport: 'SwapServerTransport',
             swap: SwapData,
             invoice: str,
             tx: Transaction,
@@ -839,7 +843,12 @@ class SwapManager(Logger):
         return tx
 
     @log_exceptions
-    async def request_swap_for_amount(self, transport, onchain_amount) -> Optional[Tuple[SwapData, str]]:
+    async def request_swap_for_amount(
+        self,
+        *,
+        transport: 'SwapServerTransport',
+        onchain_amount: int,
+    ) -> Optional[Tuple[SwapData, str]]:
         await self.is_initialized.wait()
         lightning_amount_sat = self.get_recv_amount(onchain_amount, is_reverse=False)
         if lightning_amount_sat is None:
@@ -847,7 +856,7 @@ class SwapManager(Logger):
                                   + _("min") + f": {self.get_min_amount()}\n"
                                   + _("max") + f": {self.get_provider_max_reverse_amount()}")
         swap, invoice = await self.request_normal_swap(
-            transport,
+            transport=transport,
             lightning_amount_sat=lightning_amount_sat,
             expected_onchain_amount_sat=onchain_amount)
         return swap, invoice
@@ -858,8 +867,9 @@ class SwapManager(Logger):
         await self.network.broadcast_transaction(tx)
 
     async def reverse_swap(
-            self, transport,
+            self,
             *,
+            transport: 'SwapServerTransport',
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
             channels: Optional[Sequence['Channel']] = None,
@@ -1422,7 +1432,7 @@ class NostrTransport(SwapServerTransport):
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
         self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[str, asyncio.Future]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
-        self.relay_manager = None
+        self.relay_manager = None  # type: Optional[aionostr.Manager]
         self.taskgroup = OldTaskGroup()
         self._last_swapserver_relays = self._load_last_swapserver_relays()  # type: Optional[Sequence[str]]
 
@@ -1486,7 +1496,7 @@ class NostrTransport(SwapServerTransport):
         last_swapserver_relays = self._last_swapserver_relays or []
         return list(set(our_relays + last_swapserver_relays))
 
-    def get_relay_manager(self):
+    def get_relay_manager(self) -> aionostr.Manager:
         assert get_running_loop() == get_asyncio_loop(), f"this must be run on the asyncio thread!"
         if not self.relay_manager:
             if self.uses_proxy:

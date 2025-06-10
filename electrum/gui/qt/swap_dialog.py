@@ -304,7 +304,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 return
             sm = self.swap_manager
             coro = sm.reverse_swap(
-                transport,
+                transport=transport,
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_fee_for_txbatcher(),
             )

@@ -336,7 +336,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             with self.window.create_sm_transport() as transport:
                 if not self.window.initialize_swap_manager(transport):
                     return
-                coro = sm.request_swap_for_amount(transport, swap_dummy_output.value)
+                coro = sm.request_swap_for_amount(transport=transport, onchain_amount=swap_dummy_output.value)
                 try:
                     swap, swap_invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
                 except SwapServerError as e:
@@ -726,7 +726,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             sm = self.wallet.lnworker.swap_manager
             swap = sm.get_swap(tx.swap_payment_hash)
             with sm.create_transport() as transport:
-                coro = sm.wait_for_htlcs_and_broadcast(transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
+                coro = sm.wait_for_htlcs_and_broadcast(
+                    transport=transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
                 try:
                     funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
                 except UserCancelled:

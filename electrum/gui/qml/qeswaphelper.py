@@ -623,13 +623,14 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 self.userinfo = _('Performing swap...')
                 self.state = QESwapHelper.State.Started
                 self._swap, invoice = await self._wallet.wallet.lnworker.swap_manager.request_normal_swap(
-                    self.swap_transport,
+                    transport=self.swap_transport,
                     lightning_amount_sat=lightning_amount,
                     expected_onchain_amount_sat=onchain_amount,
                 )
 
                 tx = self._wallet.wallet.lnworker.swap_manager.create_funding_tx(self._swap, dummy_tx, password=self._wallet.password)
-                coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(self.swap_transport, swap=self._swap, invoice=invoice, tx=tx)
+                coro2 = self._wallet.wallet.lnworker.swap_manager.wait_for_htlcs_and_broadcast(
+                    transport=self.swap_transport, swap=self._swap, invoice=invoice, tx=tx)
                 self._fut_htlc_wait = fut = asyncio.create_task(coro2)
 
                 self.canCancel = True
@@ -703,7 +704,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 self.state = QESwapHelper.State.Started
                 await swap_manager.is_initialized.wait()
                 txid = await swap_manager.reverse_swap(
-                    self.swap_transport,
+                    transport=self.swap_transport,
                     lightning_amount_sat=lightning_amount,
                     expected_onchain_amount_sat=onchain_amount + swap_manager.get_fee_for_txbatcher(),
                 )
