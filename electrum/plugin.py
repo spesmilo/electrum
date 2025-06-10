@@ -712,7 +712,7 @@ class Plugins(DaemonThread):
     def is_plugin_enabler_config_key(cls, key: str) -> bool:
         return key.startswith('plugins.')
 
-    def is_available(self, name: str, wallet: 'Abstract_Wallet') -> bool:
+    def is_available(self, name: str) -> bool:
         d = self.descriptions.get(name)
         if not d:
             return False
@@ -723,8 +723,7 @@ class Plugins(DaemonThread):
             except ImportError as e:
                 self.logger.warning(f'Plugin {name} unavailable: {repr(e)}')
                 return False
-        requires = d.get('requires_wallet_type', [])
-        return not requires or wallet.wallet_type in requires
+        return True
 
     def get_hardware_support(self):
         out = []

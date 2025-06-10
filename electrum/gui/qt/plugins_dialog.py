@@ -340,6 +340,8 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             display_name = metadata.get('fullname')
             if not display_name:
                 continue
+            if not self.plugins.is_available(name):
+                continue
             label = IconLabel(text=display_name, reverse=True)
             icon_path = metadata.get('icon')
             if icon_path:
