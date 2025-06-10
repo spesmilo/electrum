@@ -193,7 +193,7 @@ class CosignerWallet(Logger):
                 if event.id in self.known_events:
                     self.logger.info(f'known event {event.id} {util.age(event.created_at)}')
                     continue
-                if not any(event.pubkey == pubkey for _, pubkey in self.cosigner_list):
+                if not any(event.pubkey == pubkey for _xpub, pubkey in self.cosigner_list):
                     self.logger.warning(f"got event from unknown author: {event.pubkey}")
                     continue
                 if event.created_at > now() + self.KEEP_DELAY:
