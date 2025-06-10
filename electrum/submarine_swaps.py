@@ -687,6 +687,7 @@ class SwapManager(Logger):
 
     async def normal_swap(
             self,
+            transport: 'SwapServerTransport',
             *,
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
@@ -716,12 +717,13 @@ class SwapManager(Logger):
         assert self.network
         assert self.lnwatcher
         swap, invoice = await self.request_normal_swap(
+            transport=transport,
             lightning_amount_sat=lightning_amount_sat,
             expected_onchain_amount_sat=expected_onchain_amount_sat,
             channels=channels,
         )
         tx = self.create_funding_tx(swap, tx, password=password)
-        return await self.wait_for_htlcs_and_broadcast(swap=swap, invoice=invoice, tx=tx)
+        return await self.wait_for_htlcs_and_broadcast(transport=transport, swap=swap, invoice=invoice, tx=tx)
 
     async def request_normal_swap(
             self, transport, *,
