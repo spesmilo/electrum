@@ -845,29 +845,52 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.main_window.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        hist = self.wallet.get_detailed_history(fx=self.main_window.fx)
-        txns = hist['transactions']
+        txns = self.wallet.get_full_history(fx=self.main_window.fx)
         lines = []
+
+        def get_all_fees_paid_sat(h_item: dict) -> int:
+            # gets all fees paid in an item (or group), as the outer group doesn't contain the
+            # transaction fees paid by the children
+            fees_sat = 0
+            for child in h_item.get('children', []):
+                fees_sat += child['fee_sat'] or 0 if 'fee_sat' in child \
+                                else (child.get('fee_msat', 0) or 0) // 1000
+
+            fees_sat += h_item['fee_sat'] or 0 if 'fee_sat' in h_item \
+                            else (h_item.get('fee_msat', 0) or 0) // 1000
+            return fees_sat
+
         if is_csv:
-            for item in txns:
-                lines.append([item['txid'],
-                              item.get('label', ''),
-                              item['confirmations'],
-                              item['bc_value'],
-                              item.get('fiat_value', ''),
-                              item.get('fee', ''),
-                              item.get('fiat_fee', ''),
-                              item['date']])
+            # sort by timestamp so the generated csv is more understandable on first sight
+            txns = dict(sorted(txns.items(), key=lambda h_item: h_item[1]['timestamp'] or 0))
+            for item in txns.values():
+                # tx groups will are shown as single element
+                line = [
+                    item.get('txid', ''),
+                    item.get('payment_hash', ''),
+                    item.get('label', ''),
+                    item.get('confirmations', ''),
+                    item['bc_value'],
+                    item['ln_value'],
+                    item.get('fiat_value', ''),
+                    get_all_fees_paid_sat(item),
+                    item.get('fiat_fee', ''),
+                    item['date']
+                ]
+                lines.append(line)
+
         with open(file_name, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash",
+                transaction.writerow(["oc_transaction_hash",
+                                      "ln_payment_hash",
                                       "label",
                                       "confirmations",
-                                      "value",
+                                      "amount_chain_bc",
+                                      "amount_lightning_bc",
                                       "fiat_value",
-                                      "fee",
+                                      "network_fee_satoshi",
                                       "fiat_fee",
                                       "timestamp"])
                 for line in lines:
