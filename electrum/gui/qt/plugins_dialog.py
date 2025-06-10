@@ -96,6 +96,14 @@ class PluginDialog(WindowModalDialog):
         vbox.addLayout(Buttons(*buttons))
 
     def do_toggle(self):
+        if not self.plugins.is_available(self.name):
+            msg = "\n".join([
+                _('This plugin requires installation of additional dependencies.'),
+                _('For Electrum to recognize external packages, you need to run it from source.')
+            ])
+            self.window.show_message(msg)
+            return
+
         self.close()
         self.window.do_toggle(self.name, self.status_button)
 
@@ -346,13 +354,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
                 icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
                 label.setIcon(icon)
             label.status_button = PluginStatusButton(self, name)
-            if not self.plugins.is_available(name):
-                label.status_button.setDisabled(True)
-                label.status_button.setToolTip("".join([
-                    _('Plugin {} requires installation of additional dependencies.').format(name),
-                    '\n',
-                    _('For Electrum to recognize external packages, you need to run it from source.')
-                ]))
             grid.addWidget(label, i, 0)
             grid.addWidget(label.status_button, i, 1)
         # add stretch
