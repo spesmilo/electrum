@@ -5,7 +5,7 @@ from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loo
     LightningHistoryItem, event_listener, EventListener, make_aiohttp_proxy_connector, \
     get_running_loop
 from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
-from electrum.constants import net
+from electrum import constants
 import electrum_aionostr as aionostr
 from electrum_aionostr.event import Event as nEvent
 from electrum_aionostr.key import PrivateKey
@@ -568,7 +568,7 @@ class NWCServer(Logger, EventListener):
                 "alias": self.config.LIGHTNING_NODE_ALIAS,
                 "color": self.config.LIGHTNING_NODE_COLOR_RGB,
                 "pubkey": self.wallet.lnworker.node_keypair.pubkey.hex(),
-                "network": net.NET_NAME,
+                "network": constants.net.NET_NAME,
                 "block_height": height,
                 "block_hash": blockhash,
                 "methods": list(supported_methods),
