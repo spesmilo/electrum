@@ -320,7 +320,7 @@ class TxBatch(Logger):
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
                 if prev_tx_mined_status.conf > 0:
                     self.logger.info(f"anchor not needed {k}")
-                    self.batch_inputs.pop(k)
+                    self.batch_inputs.pop(k)  # note: if the input is already in a batch tx, this will trigger assert error
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
