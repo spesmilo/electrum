@@ -1,3 +1,15 @@
+import asyncio
+import json
+import time
+import ssl
+import logging
+import urllib.parse
+from typing import TYPE_CHECKING, Optional, List, Tuple, Awaitable
+
+import electrum_aionostr as aionostr
+from electrum_aionostr.event import Event as nEvent
+from electrum_aionostr.key import PrivateKey
+
 from electrum.lnworker import PaymentDirection
 from electrum.plugin import BasePlugin, hook
 from electrum.logging import Logger
@@ -6,23 +18,12 @@ from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loo
     get_running_loop
 from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
 from electrum import constants
-import electrum_aionostr as aionostr
-from electrum_aionostr.event import Event as nEvent
-from electrum_aionostr.key import PrivateKey
-
-import asyncio
-import json
-import time
-import ssl
-import logging
-import urllib.parse
-
-from typing import TYPE_CHECKING, Optional, List, Tuple, Awaitable
 
 if TYPE_CHECKING:
+    from aiohttp_socks import ProxyConnector
+
     from electrum.simple_config import SimpleConfig
     from electrum.wallet import Abstract_Wallet
-    from aiohttp_socks import ProxyConnector
 
 
 class NWCServerPlugin(BasePlugin):

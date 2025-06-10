@@ -1,5 +1,6 @@
-from electrum.commands import plugin_command
 from typing import TYPE_CHECKING
+
+from electrum.commands import plugin_command
 from electrum.simple_config import SimpleConfig, ConfigVar
 
 if TYPE_CHECKING:

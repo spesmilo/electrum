@@ -1,7 +1,9 @@
-from .nwcserver import NWCServerPlugin
+from typing import TYPE_CHECKING
+
 from electrum.plugin import hook
 
-from typing import TYPE_CHECKING
+from .nwcserver import NWCServerPlugin
+
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.wallet import Abstract_Wallet

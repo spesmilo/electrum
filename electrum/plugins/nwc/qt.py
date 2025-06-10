@@ -1,17 +1,22 @@
-from electrum.i18n import _
-from .nwcserver import NWCServerPlugin
-from electrum.gui.qt.util import WindowModalDialog, Buttons, OkButton, CancelButton, \
-    CloseButton
-from electrum.gui.common_qt.util import paintQR
-from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
-from electrum.plugin import hook
 from functools import partial
 from datetime import datetime
 
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem, \
-    QTextEdit, QApplication, QSpinBox, QSizePolicy, QComboBox, QLineEdit
+from PyQt6.QtWidgets import (
+    QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem,
+    QTextEdit, QApplication, QSpinBox, QSizePolicy, QComboBox, QLineEdit,
+)
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt
+
+from electrum.gui.qt.util import (
+    WindowModalDialog, Buttons, OkButton, CancelButton, CloseButton,
+    read_QIcon_from_bytes, read_QPixmap_from_bytes,
+)
+from electrum.gui.common_qt.util import paintQR
+from electrum.i18n import _
+from electrum.plugin import hook
+
+from .nwcserver import NWCServerPlugin
 
 from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
