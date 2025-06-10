@@ -270,7 +270,7 @@ class NWCServer(Logger, EventListener):
         query = {
             "authors": list(self.connections.keys()),  # the pubkeys of the client connections
             "kinds": [self.REQUEST_EVENT_KIND],
-            "limit": 0,
+            "limit": 0,  # requests only new events after creating this subscription
             "since": int(time.time())
         }
         async for event in self.manager.get_events(query, single_event=False, only_stored=False):
@@ -291,8 +291,16 @@ class NWCServer(Logger, EventListener):
                 await self.send_error(event, "NOT_IMPLEMENTED")
                 continue
 
-            if event.created_at < int(time.time()) - 15:
+            # if the request has an explicitly set expiration tag, ignore it if it is expired
+            # otherwise ignore requests older than 30 sec to not handle requests the user may
+            # already expect to have timed out
+            if event.expires_at() is not None:
+                if event.is_expired():
+                    self.logger.debug(f"expired nwc request event: {event.content}")
+                    continue
+            elif event.created_at < int(time.time()) - 30:
                 self.logger.debug(f"old nwc request event: {event.content}")
+                await self.send_error(event, "OTHER", f"not handling too old request")
                 continue
 
             # decrypt the requests content
