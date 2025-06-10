@@ -340,14 +340,19 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             display_name = metadata.get('fullname')
             if not display_name:
                 continue
-            if not self.plugins.is_available(name):
-                continue
             label = IconLabel(text=display_name, reverse=True)
             icon_path = metadata.get('icon')
             if icon_path:
                 icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
                 label.setIcon(icon)
             label.status_button = PluginStatusButton(self, name)
+            if not self.plugins.is_available(name):
+                label.status_button.setDisabled(True)
+                label.status_button.setToolTip("".join([
+                    _('Plugin {} requires installation of additional dependencies.').format(name),
+                    '\n',
+                    _('For Electrum to recognize external packages, you need to run it from source.')
+                ]))
             grid.addWidget(label, i, 0)
             grid.addWidget(label.status_button, i, 1)
         # add stretch
