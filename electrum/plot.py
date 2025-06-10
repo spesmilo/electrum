@@ -5,7 +5,7 @@ from decimal import Decimal
 from collections import defaultdict
 
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('QtAgg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
 
