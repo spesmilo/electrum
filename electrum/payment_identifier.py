@@ -85,6 +85,7 @@ class PaymentIdentifierType(IntEnum):
     OPENALIAS = 8
     LNADDR = 9
     DOMAINLIKE = 10
+    SILENT_PAYMENT = 11
 
 
 class FieldsForGUI(NamedTuple):
@@ -138,6 +139,8 @@ class PaymentIdentifier(Logger):
         #
         self.lnurl = None
         self.lnurl_data = None
+        #
+        self.sp_address = None # used when a single silent payment is identified
 
         self.parse(text)
 
@@ -173,7 +176,7 @@ class PaymentIdentifier(Logger):
 
     def is_onchain(self):
         if self._type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE, PaymentIdentifierType.BIP70,
-                          PaymentIdentifierType.OPENALIAS]:
+                          PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.SILENT_PAYMENT]:
             return True
         if self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNADDR]:
             return bool(self.bolt11) and bool(self.bolt11.get_address())
@@ -275,12 +278,23 @@ class PaymentIdentifier(Logger):
                     # no address, no bolt11 and no silent payment address, invalid
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
+                elif self.bip21.get('address') == DummyAddress.SILENT_PAYMENT:
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return # user manually entered DummyAddress.SILENT_PAYMENT
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.parse_output(text)[0]:
             scriptpubkey, is_address = self.parse_output(text)
-            self._type = PaymentIdentifierType.SPK
-            self.spk = scriptpubkey
-            self.spk_is_address = is_address
+            if bitcoin.script_to_address(scriptpubkey) == DummyAddress.SILENT_PAYMENT:
+                sp_address = self.parse_address(text)
+                if sp_address == DummyAddress.SILENT_PAYMENT:
+                    self.set_state(PaymentIdentifierState.INVALID) # user manually entered DummyAddress.SILENT_PAYMENT
+                    return
+                self.sp_address = sp_address
+                self._type = PaymentIdentifierType.SILENT_PAYMENT
+            else:
+                self._type = PaymentIdentifierType.SPK
+                self.spk = scriptpubkey
+                self.spk_is_address = is_address
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.contacts and (contact := self.contacts.by_name(text)):
             if contact['type'] in ('address', 'sp_address'):
@@ -468,23 +482,18 @@ class PaymentIdentifier(Logger):
             if on_finished:
                 on_finished(self)
 
-    def get_onchain_outputs(self, amount, bip21_use_fallback=False):
+    def get_onchain_outputs(self, amount, allow_silent_payment=True):
         if self.bip70:
             return self.bip70_data.get_outputs()
         elif self.multiline_outputs:
             return self.multiline_outputs
         elif self.spk:
-            output = PartialTxOutput(scriptpubkey=self.spk, value=amount)
-            if output.address == DummyAddress.SILENT_PAYMENT:
-                sp_addr = self.parse_address(self.text) # parse again if e.g. a contact was entered
-                output.sp_addr = SilentPaymentAddress(sp_addr)
-            return [output]
+            return [PartialTxOutput(scriptpubkey=self.spk, value=amount)]
         elif self.bip21:
             address = self.bip21.get('address') # fallback address if sp_address is present
-            sp_address = self.bip21.get(constants.net.BIP352_HRP)
 
-            if sp_address:
-                if bip21_use_fallback:
+            if sp_address := self.bip21.get(constants.net.BIP352_HRP):
+                if not allow_silent_payment:
                     if not address:
                         raise MissingFallbackAddress('requested BIP21 fallback address but none was provided.')
                     # fallback is requested and present, keep using `address`
@@ -496,6 +505,10 @@ class PaymentIdentifier(Logger):
             output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
             if output.address == DummyAddress.SILENT_PAYMENT:
                 output.sp_addr = SilentPaymentAddress(address)
+            return [output]
+        elif self.sp_address:
+            output = PartialTxOutput.from_address_and_value(address=DummyAddress.SILENT_PAYMENT, value=amount)
+            output.sp_addr = SilentPaymentAddress(self.sp_address)
             return [output]
         else:
             raise Exception('not onchain')
@@ -595,7 +608,7 @@ class PaymentIdentifier(Logger):
                 error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"
         return error
 
-    def get_fields_for_GUI(self, *, bip21_prefer_fallback=False) -> FieldsForGUI:
+    def get_fields_for_GUI(self) -> FieldsForGUI:
         recipient = None
         amount = None
         description = None
@@ -647,8 +660,7 @@ class PaymentIdentifier(Logger):
         elif self.bip21:
             label = self.bip21.get('label')
             address = self.bip21.get('address')
-            sp_address = self.bip21.get(constants.net.BIP352_HRP)
-            if sp_address and not (address and bip21_prefer_fallback): # return fallback address if provided and needed
+            if sp_address := self.bip21.get(constants.net.BIP352_HRP):
                 address = sp_address
             recipient = f'{label} <{address}>' if label else address
             amount = self.bip21.get('amount')
@@ -700,7 +712,7 @@ class PaymentIdentifier(Logger):
     def involves_silent_payments(self, wallet_can_send_sp=True) -> bool:
         try:
             return any(o.is_silent_payment() for o
-                       in self.get_onchain_outputs(0, bip21_use_fallback=not wallet_can_send_sp))
+                       in self.get_onchain_outputs(0, allow_silent_payment=wallet_can_send_sp))
         except MissingFallbackAddress:
             # BIP21 URI contained only a silent payment address, and the wallet cannot send to it.
             # Since no fallback address was provided, we treat this as involving silent payments.
@@ -726,7 +738,7 @@ def invoice_from_payment_identifier(
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
-        outputs = pi.get_onchain_outputs(amount_sat, bip21_use_fallback=not wallet.can_send_silent_payment())
+        outputs = pi.get_onchain_outputs(amount_sat, allow_silent_payment=wallet.can_send_silent_payment())
         message = pi.bip21.get('message') if pi.bip21 else message
         bip70_data = pi.bip70_data if pi.bip70 else None
         return wallet.create_invoice(
