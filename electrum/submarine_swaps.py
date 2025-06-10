@@ -361,7 +361,8 @@ class SwapManager(Logger):
         self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
             with self.swaps_lock:
-                self._swaps.pop(swap.payment_hash.hex())
+                if self._swaps.pop(swap.payment_hash.hex(), None) is None:
+                    self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
                 # TODO clean-up other swaps dicts, i.e. undo _add_or_reindex_swap()
 
     @classmethod
