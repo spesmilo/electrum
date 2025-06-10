@@ -545,7 +545,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             return
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
         coins = self._wallet.wallet.get_spendable_coins(None)
-        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:2')
         try:
             self._tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
@@ -583,7 +583,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         server_miningfee = swap_manager.mining_fee
         self.serverMiningfee = QEAmount(amount_sat=server_miningfee)
         if self.isReverse:
-            self.miningfee = QEAmount(amount_sat=swap_manager.get_swap_tx_fee())
+            self.miningfee = QEAmount(amount_sat=swap_manager.get_fee_for_txbatcher())
             self.check_valid(self._send_amount, self._receive_amount)
         else:
             # update tx only if slider isn't moved for a while
@@ -679,7 +679,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
-        fee_policy = FeePolicy(self._wallet.wallet.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:2')
         try:
             tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
@@ -705,7 +705,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 txid = await swap_manager.reverse_swap(
                     self.swap_transport,
                     lightning_amount_sat=lightning_amount,
-                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_swap_tx_fee(),
+                    expected_onchain_amount_sat=onchain_amount + swap_manager.get_fee_for_txbatcher(),
                 )
                 try:  # swaphelper might be destroyed at this point
                     if txid:
