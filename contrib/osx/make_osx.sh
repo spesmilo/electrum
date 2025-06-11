@@ -20,8 +20,9 @@ CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
 CACHEDIR="$CONTRIB_OSX/.cache"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
+PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
-mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
+mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
 
 cd "$PROJECT_ROOT"
 
@@ -77,10 +78,10 @@ info "Installing build dependencies"
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
 #         "requirements-build-base-base.txt" with just wheel in it...)
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-build-base.txt \
+    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-base.txt \
     || fail "Could not install build dependencies (base)"
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
+    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
@@ -118,7 +119,8 @@ PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
+python3 -m pip install --no-build-isolation --no-dependencies \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location "$CACHEDIR/pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -178,25 +180,25 @@ export ELECTRUM_ECC_DONT_COMPILE=1
 
 info "Installing requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary cryptography \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
-    --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 # pyinstaller needs to be able to "import electrum_ecc", for which we need libsecp256k1:
 # (or could try "pip install -e" instead)
 cp "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum_ecc/"
