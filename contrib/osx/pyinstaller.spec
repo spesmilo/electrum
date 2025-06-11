@@ -1,8 +1,13 @@
 # -*- mode: python -*-
+import sys
+import os
+from typing import TYPE_CHECKING
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs, copy_metadata
 
-import sys, os
+if TYPE_CHECKING:
+    from PyInstaller.building.build_main import Analysis, PYZ, EXE, BUNDLE
+
 
 PACKAGE_NAME='Electrum.app'
 PYPKG='electrum'
