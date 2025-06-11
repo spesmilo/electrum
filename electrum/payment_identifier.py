@@ -278,20 +278,23 @@ class PaymentIdentifier(Logger):
                     # no address, no bolt11 and no silent payment address, invalid
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
-                elif self.bip21.get('address') == DummyAddress.SILENT_PAYMENT:
+                elif DummyAddress.is_dummy_address(self.bip21.get('address')):
                     self.set_state(PaymentIdentifierState.INVALID)
-                    return # user manually entered DummyAddress.SILENT_PAYMENT
+                    return # user manually entered DummyAddress
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.parse_output(text)[0]:
-            scriptpubkey, is_address = self.parse_output(text)
-            if bitcoin.script_to_address(scriptpubkey) == DummyAddress.SILENT_PAYMENT:
-                sp_address = self.parse_address(text)
-                if sp_address == DummyAddress.SILENT_PAYMENT:
+            scriptpubkey, is_address, sp_addr = self.parse_output(text)
+            addr = bitcoin.script_to_address(scriptpubkey) if is_address else None
+            if addr == DummyAddress.SILENT_PAYMENT:
+                if sp_addr is None:
                     self.set_state(PaymentIdentifierState.INVALID) # user manually entered DummyAddress.SILENT_PAYMENT
                     return
-                self.sp_address = sp_address
+                self.sp_address = sp_addr
                 self._type = PaymentIdentifierType.SILENT_PAYMENT
             else:
+                if DummyAddress.is_dummy_address(addr):
+                    self.set_state(PaymentIdentifierState.INVALID) # user manually entered dummy lighting address
+                    return
                 self._type = PaymentIdentifierType.SPK
                 self.spk = scriptpubkey
                 self.spk_is_address = is_address
@@ -500,7 +503,7 @@ class PaymentIdentifier(Logger):
                 else:
                     address = sp_address  # use silent payment address
 
-            scriptpubkey, is_address = self.parse_output(address)
+            scriptpubkey, is_address, _ = self.parse_output(address)
             assert is_address  # unlikely, but make sure it is an address, not a script
             output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
             if output.address == DummyAddress.SILENT_PAYMENT:
@@ -543,30 +546,34 @@ class PaymentIdentifier(Logger):
             x, y = line.split(',')
         except ValueError:
             raise Exception("expected two comma-separated values: (address, amount)") from None
-        scriptpubkey, is_address = self.parse_output(x)
+        scriptpubkey, is_address, sp_addr = self.parse_output(x)
         if not scriptpubkey:
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
         output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
         if output.address == DummyAddress.SILENT_PAYMENT:
-            output.sp_addr = SilentPaymentAddress(self.parse_address(x)) # maybe parsing again isn't needed
+            output.sp_addr = SilentPaymentAddress(sp_addr) # raises if user entered manually silent-dummy-addr -> invalid
+        elif DummyAddress.is_dummy_address(output.address):
+            raise Exception('user manually entered dummy address')
         return output
 
-    def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
+    def parse_output(self, x: str) -> Tuple[Optional[bytes], bool, Optional[str]]:
         try:
             address = self.parse_address(x)
+            sp_addr = None
             if is_silent_payment_address(address):
+                sp_addr = address
                 address = DummyAddress.SILENT_PAYMENT
-            return bitcoin.address_to_script(address), True
+            return bitcoin.address_to_script(address), True, sp_addr
         except Exception as e:
             pass
         try:
             m = re.match('^' + RE_SCRIPT_FN + '$', x)
             script = self.parse_script(str(m.group(1)))
-            return script, False
+            return script, False, None
         except Exception as e:
             pass
-        return None, False
+        return None, False, None
 
     def parse_script(self, x: str) -> bytes:
         script = bytearray()

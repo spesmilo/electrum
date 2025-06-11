@@ -4,12 +4,12 @@ from electrum import SimpleConfig
 from electrum.bip21 import MissingFallbackAddress
 from electrum.invoices import Invoice
 from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
-                                         PaymentIdentifierType, invoice_from_payment_identifier)
+                                         PaymentIdentifierType, invoice_from_payment_identifier, PaymentIdentifierState)
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
 from electrum.transaction import PartialTxOutput
-from electrum.bitcoin import script_to_address, DummyAddress
+from electrum.bitcoin import DummyAddress
 
 class WalletMock:
     def __init__(self, electrum_path):
@@ -402,3 +402,15 @@ class TestPaymentIdentifier(ElectrumTestCase):
             pi.get_onchain_outputs(0, allow_silent_payment=False)[0].address,
             '1RustyRX2oai4EYYDpQGWvEL62BBGqN9T'
         )
+
+    def test_dummy_address_abuse(self):
+        for dummy_addr in [DummyAddress.SILENT_PAYMENT, DummyAddress.SWAP, DummyAddress.CHANNEL]:
+            for pi_str in [
+                dummy_addr,  # spk/silent payment
+                f"1RustyRX2oai4EYYDpQGWvEL62BBGqN9T,2\n{dummy_addr}, 5",  # multiline
+                f"bitcoin:{dummy_addr}",  # bip21
+            ]:
+                pi = PaymentIdentifier(self.wallet, pi_str)
+                self.assertEqual(pi.state, PaymentIdentifierState.INVALID)
+
+
