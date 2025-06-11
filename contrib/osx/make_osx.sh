@@ -172,6 +172,7 @@ cp -f "$DLL_TARGET_DIR/libusb-1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Coul
 
 # opt out of compiling C extensions
 export YARL_NO_EXTENSIONS=1
+export PROPCACHE_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 
