@@ -208,7 +208,8 @@ find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -pr
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=$(git describe --tags --dirty --always)
+# note: no --dirty, as we have dirtied electrum/locale/ ourselves.
+VERSION=$(git describe --tags --always)
 
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"

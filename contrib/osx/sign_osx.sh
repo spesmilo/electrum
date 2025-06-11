@@ -59,7 +59,8 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
     codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
 }
 
-VERSION=$(git describe --tags --dirty --always)
+# note: no --dirty, as we have dirtied electrum/locale/ ourselves.
+VERSION=$(git describe --tags --always)
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
 
