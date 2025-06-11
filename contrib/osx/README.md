@@ -51,6 +51,10 @@ We currently build the release binaries on macOS 11.7.10, and these seem to run 
 
   Sanity checks:
     ```
+    $ sw_vers
+    ProductName:	macOS
+    ProductVersion:	11.7.10
+    BuildVersion:	20G1427
     $ xcode-select -p
     /Library/Developer/CommandLineTools
     $ xcrun --show-sdk-path
