@@ -1,16 +1,13 @@
-# Release 4.6.0 (not released yet)
-
+# Release 4.6.0 (in beta/rc, June 2025)
  * A 'Terms of Use' screen was added to the install wizard. While the
    licence remains unchanged, we ask users to agree with the fact that
    we are not a custodial service or a money transmitter. The Terms of
    Use screen also makes it clear that all issues are to be resolved
    in public, and that there is no user support via private channels.
-
- * Nostr support: Electrum includes a built-in Nostr library named
-   electrum-aionostr. This library is used in the context of submarine
-   swaps, and by several plugins. Electrum will not connect to Nostr
+ * Nostr support: (using new dependency: electrum-aionostr)
+   Electrum now uses Nostr in the context of submarine swaps,
+   and in several plugins. Electrum will not connect to Nostr
    by default, only if required.
-
  * Submarine swaps over Nostr: The Electrum client will connect to
    Nostr in order to discover submarine swap providers, and to perform
    related RPCs. This means that:
@@ -29,62 +26,68 @@
     when the user uses the swap service, and the nostr public key used
     by the client is ephemeral. In contrast, swap providers use a
     persisted identity.
-
  * Third-party plugins:
-   - Electrum support the installation of plugins distributed by
+   - Electrum supports the installation of plugins distributed by
      third-parties as ZIP files. While it has long been possible to
      install third-party plugins when running Electrum from python
      sources, the same is now possible when using desktop binaries
      (Windows, MacOS, Linux). Third-party plugins are installed as ZIP
-     files in the user's electrum directory.
+     files in the user's electrum data directory.
    - In order to prevent plugin installation by malware, third-party
      plugins can only be enabled if the user enters a plugin
      authorization password (distinct from the wallet password).
      Setting up that plugin authorization password requires
      administrator permissions on the local machine; a
      password-derived public key must be written in the system.
-
- * Lightning anchor channels (#9264): Newly created channels use
-   anchor commitments by default. Since sweeping outputs from anchor
-   channels may require external UTXOs, lightning can no longer be
-   enabled in wallets that do not have a software keystore (hardware
-   wallets, watching-only wallets).  Existing wallets that are in that
-   situation cannot create new channels.
-
- * Wallet unlocking (Qt):
-   - Wallets can be unlocked in the Qt GUI. When a password-protected
-     wallet is unlocked, its password is kept in memory, and signing
-     transactions will not require to enter the password. The unlocked
-     state is rendered by the 'open lock' icon in the status bar.
-   - If a wallet needs to sweep anchor channel outputs using extra
-     UTXOs, the operations will be performed without requiring the
-     user password if the wallet is unlocked. If the wallet is locked,
-     the status bar will show a 'password required' button.
-
- * Transaction batching (Qt): When creating a new payment, if the
-   output can be added to an existing mempool transaction, the 'New
-   transaction' window will show a drop-down menu, proposing a list of
-   transactions that can be batched with the current payment. This
-   replaces the previous 'batch' option checkbox, and gives more
-   control to the user.
-
- * Keystore enabling/disabling (Qt): It is now possible to add a seed
-   to an existing watching-only wallet, or to a keystore within a
-   multisig wallet. Similarly, it is possible to pair a watching-only
-   keystore with a hardware device. These operations are performed
-   from the 'Wallet Information' dialog.
-
- * Wallet file encryption:
-   - Non-multisig hardware wallet files can be encrypted with a
-     password, instead of the hardware device.
-   - The option to have a password-protected wallet without file
-     encryption has been removed from the Qt GUI. It is still possible
-     to create such a wallet using the command line.
-
- * Lightning address contacts:
-   - It is now possible to create contacts with (lnurl type) lightning
-     addresses as payment identifier.
-
+ * Lightning:
+   - Anchor channels (#9264): Newly created channels use
+       anchor commitments by default. Since sweeping outputs from anchor
+       channels may require external UTXOs, lightning can no longer be
+       enabled in wallets that do not have a software keystore (hardware
+       wallets, watching-only wallets).  Existing wallets that are in that
+       situation cannot create new channels.
+   - wallets with anchor channels must always have utxos available (#9536)
+   - support added for onion messages (only CLI for now) (#9039)
+   - lots of fixes and improvements (#8857, #8547, #9700, #9083, ...)
+ * Qt Desktop GUI:
+   - migrate from Qt5 to Qt6 (#9189)
+   - new: screenshot "protection" on Windows (#9898). Inspired by Windows
+     Recall, by default screenshots will contain black rectangles in
+     place of the Electrum windows, to try to avoid leaking secret keys.
+     This is opt-out using a config variable.
+   - exposed option to connect to only a single server (--oneserver)
+   - Wallet file encryption:
+     - Non-multisig hardware wallet files can now be encrypted with
+       either using the hardware device or (new) a password. (#5561)
+     - The option to have a password-protected wallet without file
+       encryption has been removed from the Qt GUI. It is still possible
+       to create such a wallet using the command line.
+   - Wallet unlocking:
+     - Wallets can be unlocked in the Qt GUI. When a password-protected
+       wallet is unlocked, its password is kept in memory, and signing
+       transactions will not require to enter the password. The unlocked
+       state is rendered by the 'open lock' icon in the status bar.
+     - If a wallet needs to sweep anchor channel outputs using extra
+       UTXOs, the operations will be performed without requiring the
+       user password if the wallet is unlocked. If the wallet is locked,
+       the status bar will show a 'password required' button.
+   - Transaction batching: When creating a new payment, if the
+     output can be added to an existing mempool transaction, the 'New
+     transaction' window will show a drop-down menu, proposing a list of
+     transactions that can be batched with the current payment. This
+     replaces the previous 'batch' option checkbox, and gives more
+     control to the user.
+   - Keystore enabling/disabling (Qt):
+     - It is now possible to add a seed
+       to an existing watching-only wallet, or to a keystore within a
+       multisig wallet. Similarly, it is possible to pair a watching-only
+       keystore with a hardware device. These operations are performed
+       from the 'Wallet Information' dialog.
+   - Lightning address contacts:
+     - It is now possible to create contacts with (lnurl type) lightning
+       addresses as payment identifier.
+   - show warnings on wallet close if there are sensitive pending operations,
+     e.g. when in the middle of doing a swap (#9715)
  * Accounting rules: In order to properly handle on-chain transactions
    created by lightning channel force closures, we consider that funds
    successfully redeemed from a script with several possible
@@ -92,17 +95,15 @@
    avoids having to write balance changes that are cancelled
    later. The corresponding addresses are rendered in the GUI as
    'accounting addresses' (in orange).
-
  * New plugins:
    - Nostr Wallet Connect: This plugin allows remote control of
-     Electrum lightning wallets via Nostr NIP-47.
+     Electrum lightning wallets via Nostr NIP-47. (#9675)
    - Nostr Cosigner: This plugin facilitates the exchange of
      PSBTs between cosigners of a multisig wallet. It replaces the
      former 'Cosigner pool' plugin. Instead of relying on a central
-     server, it uses Nostr to send/receive PSBTs.
+     server, it uses Nostr to send/receive PSBTs. (#9261)
    - Timelock Recovery: A timelock based inheritance scheme.
-     See timelockrecovery.com
-
+     See timelockrecovery.com (#9589)
  * CLI:
    - The command line help has been improved; parameters are
      documented in the same docstring as the command they belong to.
@@ -112,22 +113,45 @@
    - Plugins may add extra commands to the CLI. Plugin commands must
      be prefixed with the plugin's internal name.
    - Support for hold invoices.
-
+   - new commands:
+     - listconfig, helpconfig, unsetconfig
+     - onchain_capital_gains (was previously a field of onchain_history)
+     - {add,settle,cancel,check}_hold_invoice
+     - send_onion_message, get_blinded_path_via
+     - wait_for_sync
  * Security:
    - Mitigate against dust attacks; Add option to avoid spending from
-     used addresses.
-   - Restrict process memory access on Linux.
-
- * Networking:
-   - The option to connect to a single server has been added to the GUI.
-
- * Android:
-   - Sweep key feature ported to mobile
+     used addresses. (#9636)
+   - Restrict process memory access on Linux. (#9749)
+ * QML GUI (Android):
+   - "Sweep key" feature ported to mobile
    - Estimate amount when Max is checked
-   - Properly ask for (notification) permission access.
-
+   - exposed option to connect to only a single server (--oneserver)
+ * Android:
+   - properly ask for (notification) OS permission access. (#9682)
+   - add option to prevent the app touching the screen brightness (#9321)
+ * Electrum protocol: add padding and some noise to messages (#9875)
  * Hardware wallets:
    - Coldcard: add feature to upload multisig wallet configuration to Coldcard via USB.
+   - KeepKey: we now vendor our fork of keepkeylib,
+       instead of using the unmaintained upstream as an external dependency (#9650)
+   - Ledger:
+     - rm support for "HW.1" and "Nano" (non-S) devices (#9652)
+     - rm dependency: btchip-python (#9370)
+ * Builds/binaries:
+   - new minimum OS requirements:
+     - Windows: x86_64, Windows 10 (1809)
+         note: 32-bit Windows is no longer supported.
+     - macOS: 11 "Big Sur"
+     - Linux AppImage: x86_64, glibc 2.31 ("debian 11"-equivalent)
+   - known issue: the Windows binaries are not codesigned atm (but there are GPG sigs!)
+ * Dependencies:
+   - the minimum required python version was increased: 3.8->3.10 (#9418)
+   - new first-party dep: electrum-aionostr
+     - forked the seemingly unmaintained davestgermain/aionostr library
+   - new first-party dep: electrum-ecc
+     - split out our existing libsecp256k1 python bindings into
+       this separate package
 
 
 # Release 4.5.8 (Oct 23, 2024)
