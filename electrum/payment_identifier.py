@@ -140,7 +140,7 @@ class PaymentIdentifier(Logger):
         self.lnurl = None
         self.lnurl_data = None
         #
-        self.sp_address = None # used when a single silent payment is identified
+        self.sp_address = None # used when a single silent payment is identified or openalias resolves to sp_address
 
         self.parse(text)
 
@@ -353,11 +353,17 @@ class PaymentIdentifier(Logger):
                             'WARNING: the alias "{}" could not be validated via an additional '
                             'security check, DNSSEC, and thus may not be correct.').format(openalias_key)
                     try:
+                        sp_addr = None
+                        if is_silent_payment_address(address):
+                            sp_addr = address
                         # this assertion error message is shown in the GUI
-                        assert bitcoin.is_address(address), f"{_('Openalias address invalid')}: {address[:100]}"
-                        scriptpubkey = bitcoin.address_to_script(address)
+                        assert bitcoin.is_address(address) or sp_addr, f"{_('Openalias address invalid')}: {address[:100]}"
+                        if sp_addr:
+                            self.sp_address = sp_addr
+                        else:
+                            scriptpubkey = bitcoin.address_to_script(address)
+                            self.spk = scriptpubkey
                         self._type = PaymentIdentifierType.OPENALIAS
-                        self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)
                     except Exception as e:
                         self.error = str(e)
@@ -693,7 +699,7 @@ class PaymentIdentifier(Logger):
 
     async def resolve_openalias(self, key: str) -> Optional[dict]:
         parts = key.split(sep=',')  # assuming single line
-        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
+        if parts and len(parts) > 0 and (bitcoin.is_address(parts[0]) or is_silent_payment_address(parts[0])):
             return None
         try:
             data = await self.contacts.resolve(key)  # TODO: don't use contacts as delegate to resolve openalias, separate.
