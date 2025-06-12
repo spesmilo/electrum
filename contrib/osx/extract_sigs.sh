@@ -44,6 +44,7 @@ echo "${MAYBE_SIGNED_FILES}" | while read i; do
     dd if="$i" of="${SIGNFILE}" bs=1 skip=${OFFSET} count=${SIZE} 2>/dev/null
 done
 
+# note: "$BUNDLE/Contents/CodeResources" is the "notarization staple id"
 FILES_TO_COPY=$(cat << EOF
 $BUNDLE/Contents/_CodeSignature/CodeResources
 $BUNDLE/Contents/CodeResources
