@@ -1,4 +1,4 @@
-ELECTRUM_VERSION = '4.5.8'       # version of the client package
+ELECTRUM_VERSION = '4.6.0b0'       # version of the client package
 
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
