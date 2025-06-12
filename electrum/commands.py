@@ -408,7 +408,7 @@ class Commands(Logger):
         self._setconfig(key, value)
 
     @command('')
-    async def clearconfig(self, key):
+    async def unsetconfig(self, key):
         """
         Clear a configuration variable.
         The variable will be reset to its default value.
