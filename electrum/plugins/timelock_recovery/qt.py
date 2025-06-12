@@ -405,12 +405,8 @@ class Plugin(TimelockRecoveryPlugin):
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
                 return False
-            scriptpubkey, is_address = pi.parse_output(pi.text.strip())
-            if not is_address:
-                payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Must be a valid address, not a script.")
-                return False
-            context.outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
+            assert pi.spk and pi.spk_is_address
+            context.outputs = [PartialTxOutput(scriptpubkey=pi.spk, value='!')]
         return True
 
     def start_plan(self, context: TimelockRecoveryContext):
