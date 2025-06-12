@@ -27,7 +27,11 @@ BUNDLE_BASENAME=$(basename "$BUNDLE")
 rm -rf ${TEMPDIR}
 mkdir -p ${TEMPDIR}
 
-MAYBE_SIGNED_FILES=$(find "$BUNDLE/Contents/MacOS/" -type f)
+MAYBE_SIGNED_FILES=$(
+    find "$BUNDLE/Contents/MacOS/" -type f;
+    find "$BUNDLE/Contents/Frameworks/" -type f;
+    find "$BUNDLE/Contents/Resources/" -type f
+)
 
 echo "${MAYBE_SIGNED_FILES}" | while read i; do
     # skip files where pagestuff errors; these probably do not need signing:
