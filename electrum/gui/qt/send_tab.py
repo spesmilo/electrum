@@ -242,9 +242,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         if pi is None or pi.type == PaymentIdentifierType.UNKNOWN:
             return
-
-        assert pi.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE,
-                           PaymentIdentifierType.BIP21, PaymentIdentifierType.OPENALIAS]
+        elif pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE,
+                           PaymentIdentifierType.BIP21, PaymentIdentifierType.OPENALIAS]:
+            # clear the amount field once it is clear this PI is not eligible for '!'
+            self.amount_e.clear()
+            return
 
         if pi.type == PaymentIdentifierType.BIP21:
             assert 'amount' not in pi.bip21
@@ -406,6 +408,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.amount_e.setFrozen(lock_amount)
         if lock_max is not None:
             self.max_button.setEnabled(not lock_max)
+            if lock_max is True:
+                self.max_button.setChecked(False)
         if lock_description is not None:
             self.message_e.setFrozen(lock_description)
 
@@ -466,6 +470,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # resolve '!' in amount editor if it was set before PI
         if not lock_max and self.amount_e.text() == '!':
             self.spend_max()
+        elif lock_max and self.amount_e.text() == '!':
+            self.amount_e.clear()
 
         pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
