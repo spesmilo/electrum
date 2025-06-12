@@ -1,3 +1,28 @@
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2025 The Electrum Developers
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+from typing import TYPE_CHECKING, Optional
 from functools import partial
 from datetime import datetime
 
@@ -8,17 +33,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt
 
+from electrum.i18n import _
+from electrum.plugin import hook
 from electrum.gui.qt.util import (
     WindowModalDialog, Buttons, OkButton, CancelButton, CloseButton,
     read_QIcon_from_bytes, read_QPixmap_from_bytes,
 )
 from electrum.gui.common_qt.util import paintQR
-from electrum.i18n import _
-from electrum.plugin import hook
 
 from .nwcserver import NWCServerPlugin
 
-from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
     from electrum.gui.qt.main_window import ElectrumWindow

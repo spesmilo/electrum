@@ -20,24 +20,25 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import binascii
 import concurrent.futures
 from dataclasses import dataclass
 import logging
-import os, sys, re
+import os
+import sys
+import re
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
-from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
+from typing import (
+    NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
+    Set, Awaitable
+)
 from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
-from urllib.parse import urlparse
 import threading
 import hmac
 import hashlib
 import stat
-import locale
 import asyncio
 import builtins
 import json
@@ -50,12 +51,10 @@ import secrets
 import functools
 from functools import partial
 from abc import abstractmethod, ABC
-import socket
 import enum
 from contextlib import nullcontext
 import traceback
 
-import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
@@ -69,7 +68,6 @@ if TYPE_CHECKING:
     from .network import Network, ProxySettings
     from .interface import Interface
     from .simple_config import SimpleConfig
-    from .paymentrequest import PaymentRequest
 
 
 _logger = get_logger(__name__)
@@ -441,11 +439,13 @@ def print_stderr(*args):
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
+
 def print_msg(*args):
     # Stringify args
     args = [str(item) for item in args]
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
+
 
 def json_encode(obj):
     try:
@@ -454,11 +454,13 @@ def json_encode(obj):
         s = repr(obj)
     return s
 
+
 def json_decode(x):
     try:
         return json.loads(x, parse_float=Decimal)
     except Exception:
         return x
+
 
 def json_normalize(x):
     # note: The return value of commands, when going through the JSON-RPC interface,
@@ -475,6 +477,8 @@ def constant_time_compare(val1, val2):
 
 
 _profiler_logger = _logger.getChild('profiler')
+
+
 def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     """Function decorator that logs execution time.
 
@@ -483,13 +487,16 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
     t0 = None  # type: Optional[float]
+
     def timer_start():
         nonlocal t0
         t0 = time.time()
+
     def timer_done():
         t = time.time() - t0
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
+
     if asyncio.iscoroutinefunction(func):
         async def do_profile(*args, **kw_args):
             timer_start()
@@ -538,6 +545,7 @@ def android_ext_dir():
     from android.storage import primary_external_storage_path
     return primary_external_storage_path()
 
+
 def android_backup_dir():
     pkgname = get_android_package_name()
     d = os.path.join(android_ext_dir(), pkgname)
@@ -545,10 +553,12 @@ def android_backup_dir():
         os.mkdir(d)
     return d
 
+
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
@@ -708,6 +718,7 @@ def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None
 
+
 def is_valid_websocket_url(url: str) -> bool:
     """
     uses this django url validation regex:
@@ -729,6 +740,7 @@ def is_valid_websocket_url(url: str) -> bool:
         return re.match(is_valid_websocket_url.regex, url) is not None
     except Exception:
         return False
+
 
 def is_hash256_str(text: Any) -> bool:
     if not isinstance(text, str): return False
@@ -941,6 +953,7 @@ def delta_time_str(distance_in_time: timedelta, *, include_seconds: bool = False
     else:
         return _("over {} years").format(round(distance_in_minutes / 525600))
 
+
 mainnet_block_explorers = {
     '3xpl.com': ('https://3xpl.com/bitcoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
@@ -1072,9 +1085,6 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     return ''.join(url_parts)
 
 
-
-
-
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3
@@ -1083,6 +1093,7 @@ def raw_input(prompt=None):
         sys.stdout.write(prompt)
     return builtin_raw_input()
 
+
 builtin_raw_input = builtins.input
 builtins.input = raw_input
 
@@ -1090,7 +1101,7 @@ builtins.input = raw_input
 def parse_json(message):
     # TODO: check \r\n pattern
     n = message.find(b'\n')
-    if n==-1:
+    if n == -1:
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
@@ -1199,6 +1210,7 @@ def is_subpath(long_path: str, short_path: str) -> bool:
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         self = args[0] if len(args) > 0 else None
@@ -1219,6 +1231,7 @@ def log_exceptions(func):
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -1391,6 +1404,7 @@ class OldTaskGroup(aiorpcx.TaskGroup):
             if self.completed:
                 self.completed.result()
 
+
 # We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
 # to fix a timing issue present in asyncio as a whole re timing out tasks.
 # To see the issue we are trying to fix, consider example:
@@ -1412,10 +1426,12 @@ def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
     def timeout_task():
         task._orig_cancel()
         task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
+
     def mycancel(*args, **kwargs):
         task._orig_cancel(*args, **kwargs)
         task._externally_cancelled = True
         task._timed_out = None
+
     if not hasattr(task, "_orig_cancel"):
         task._orig_cancel = task.cancel
         task.cancel = mycancel
@@ -1505,6 +1521,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         self.interface = interface
 
         taskgroup = self.taskgroup
+
         async def run_tasks_wrapper():
             self.logger.debug(f"starting taskgroup ({hex(id(taskgroup))}).")
             try:
@@ -1566,6 +1583,7 @@ async def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
     ]
 
     proxy_addr = None
+
     async def test_net_addr(net_addr):
         is_tor = await is_tor_socks_port(*net_addr)
         # set result, and cancel remaining probes
@@ -1607,6 +1625,8 @@ async def is_tor_socks_port(host: str, port: int) -> bool:
 AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = False  # used by unit tests
 
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
+
+
 def get_asyncio_loop() -> asyncio.AbstractEventLoop:
     """Returns the global asyncio event loop we use."""
     if loop := _asyncio_event_loop:
@@ -1682,6 +1702,8 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
 
 
 _running_asyncio_tasks = set()  # type: Set[asyncio.Future]
+
+
 def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
     """Wrap task creation to track pending and running tasks.
     When tasks are created, asyncio only maintains a weak reference to them.
@@ -1739,6 +1761,7 @@ def run_sync_function_on_asyncio_thread(func: Callable, *, block: bool) -> None:
             # add explicit logging of exceptions, otherwise they might get lost
             tb1 = traceback.format_stack()[:-1]
             tb1_str = "".join(tb1)
+
             def on_done(fut_: concurrent.futures.Future):
                 assert fut_.done()
                 if fut_.cancelled():
@@ -1815,8 +1838,8 @@ class OrderedDictWithIndex(OrderedDict):
 
 
 def multisig_type(wallet_type):
-    '''If wallet_type is mofn multi-sig, return [m, n],
-    otherwise return None.'''
+    """If wallet_type is mofn multi-sig, return [m, n],
+    otherwise return None."""
     if not wallet_type:
         return None
     match = re.match(r'(\d+)of(\d+)', wallet_type)
@@ -1929,6 +1952,7 @@ class CallbackManager(Logger):
         for callback in callbacks:
             if asyncio.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
+
                 def on_done(fut_: concurrent.futures.Future):
                     assert fut_.done()
                     if fut_.cancelled():
@@ -1986,6 +2010,7 @@ def event_listener(func):
 _NetAddrType = TypeVar("_NetAddrType")
 # requirements for _NetAddrType:
 # - reasonable __hash__() implementation (e.g. based on host/port of remote endpoint)
+
 
 class NetworkRetryManager(Generic[_NetAddrType]):
     """Truncated Exponential Backoff for network connections."""
@@ -2134,6 +2159,7 @@ class JsonRPCClient:
 
 
 T = TypeVar('T')
+
 
 def random_shuffled_copy(x: Iterable[T]) -> List[T]:
     """Returns a shuffled copy of the input."""
@@ -2287,7 +2313,7 @@ class OnchainHistoryItem(NamedTuple):
     balance_sat: int
     tx_mined_status: TxMinedInfo
     group_id: Optional[str]
-    label: str
+    label: Optional[str]
     monotonic_timestamp: int
     group_id: Optional[str]
     def to_dict(self):
@@ -2318,7 +2344,7 @@ class LightningHistoryItem(NamedTuple):
     type: str
     group_id: Optional[str]
     timestamp: int
-    label: str
+    label: Optional[str]
     direction: Optional[int]
     def to_dict(self):
         return {

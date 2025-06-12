@@ -1,3 +1,27 @@
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2025 The Electrum Developers
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 import asyncio
 import json
 import time
@@ -32,8 +56,8 @@ class NWCServerPlugin(BasePlugin):
     def __init__(self, parent, config: 'SimpleConfig', name):
         BasePlugin.__init__(self, parent, config, name)
         self.config = config
-        self.connections = None # type: Optional[dict[str, dict]]  # pubkey_hex -> connection data
-        self.nwc_server = None  # type: Optional[NWCServer]
+        self.connections = None  # type: Optional[dict[str, dict]]  # pubkey_hex -> connection data
+        self.nwc_server = None   # type: Optional[NWCServer]
         self.taskgroup = OldTaskGroup()
         self.initialized = False
         if not self.config.NWC_RELAY:  # type: ignore  # defined in __init__
@@ -156,7 +180,7 @@ class NWCServer(Logger, EventListener):
     NOTIFICATION_EVENT_KIND: int = 23196
     SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice', 'multi_pay_invoice'}
     SUPPORTED_METHODS: set[str] = {'make_invoice', 'lookup_invoice', 'get_balance', 'get_info',
-                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
+                                   'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
 
     def __init__(

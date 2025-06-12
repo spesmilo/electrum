@@ -26,24 +26,24 @@
 
 import threading
 from functools import partial
-from typing import TYPE_CHECKING, Union, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Union, Optional, Sequence
 
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel, QMenu
 
-from electrum.gui.common_qt.util import TaskThread
-from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
-from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
-                                  Buttons, CancelButton, char_width_in_lineedit,
-                                  PasswordLineEdit)
-from electrum.gui.qt.main_window import StatusBarButton
-from electrum.gui.qt.util import read_QIcon_from_bytes
-
 from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.util import UserCancelled, UserFacingException, ChoiceItem
-from electrum.plugin import hook, DeviceUnpairableError
-from electrum.wallet import Standard_Wallet
+from electrum.plugin import hook
+
+from electrum.gui.common_qt.util import TaskThread
+from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
+from electrum.gui.qt.util import (
+    read_QIcon, WWLabel, OkButton, WindowModalDialog, Buttons, CancelButton, char_width_in_lineedit, PasswordLineEdit,
+    read_QIcon_from_bytes
+)
+from electrum.gui.qt.main_window import StatusBarButton
+
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
 
@@ -57,8 +57,8 @@ if TYPE_CHECKING:
 # The trickiest thing about this handler was getting windows properly
 # parented on macOS.
 class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
-    '''An interface between the GUI (here, QT) and the device handling
-    logic for handling I/O.'''
+    """An interface between the GUI (here, QT) and the device handling
+    logic for handling I/O."""
 
     passphrase_signal = pyqtSignal(object, object)
     message_signal = pyqtSignal(object, object)
@@ -257,10 +257,12 @@ class QtPluginBase(object):
                 self.set_ignore_outdated_fw()
                 # will need to re-pair
                 devmgr = self.device_manager()
+
                 def re_pair_device():
                     device_id = self.choose_device(window, keystore)
                     devmgr.unpair_id(device_id)
                     self.get_client(keystore)
+
                 keystore.thread.add(re_pair_device)
             return
         else:
@@ -268,8 +270,8 @@ class QtPluginBase(object):
 
     def choose_device(self: Union['QtPluginBase', HW_PluginBase], window: 'ElectrumWindow',
                       keystore: 'Hardware_KeyStore') -> Optional[str]:
-        '''This dialog box should be usable even if the user has
-        forgotten their PIN or it is in bootloader mode.'''
+        """This dialog box should be usable even if the user has
+        forgotten their PIN or it is in bootloader mode."""
         assert window.gui_thread != threading.current_thread(), 'must not be called from GUI thread'
         device_id = self.device_manager().id_by_pairing_code(keystore.pairing_code())
         if not device_id:
@@ -284,17 +286,22 @@ class QtPluginBase(object):
         # default implementation (if no dialog): just try to connect to device
         def connect():
             device_id = self.choose_device(window, keystore)
+
         keystore.thread.add(connect)
 
-    def add_show_address_on_hw_device_button_for_receive_addr(self, wallet: 'Abstract_Wallet',
-                                                              keystore: 'Hardware_KeyStore',
-                                                              main_window: 'ElectrumWindow'):
+    def add_show_address_on_hw_device_button_for_receive_addr(
+            self,
+            wallet: 'Abstract_Wallet',
+            keystore: 'Hardware_KeyStore',
+            main_window: 'ElectrumWindow'
+    ):
         plugin = keystore.plugin
         receive_tab = main_window.receive_tab
 
         def show_address():
             addr = str(receive_tab.addr)
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
+
         dev_name = f"{plugin.device} ({keystore.label})"
         receive_tab.toolbar_menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(dev_name), show_address)
 
@@ -306,7 +313,9 @@ class QtPluginBase(object):
             return
         for keystore in wallet.get_keystores():
             if type(keystore) == self.keystore_class:
+
                 def show_address(keystore=keystore):
                     keystore.thread.add(partial(self.show_address, wallet, address, keystore=keystore))
+
                 device_name = "{} ({})".format(self.device, keystore.label)
                 menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(device_name), show_address)
