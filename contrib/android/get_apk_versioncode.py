@@ -27,8 +27,19 @@ def get_android_versioncode(*, arch_name: str) -> int:
     version_code = 0
     # add ELECTRUM_VERSION
     app_version = get_electrum_version()
+    # if alpha/beta, and not stable: strip out alpha/beta part from last component.
+    # NOTE: we REUSE the version_code int between alphas/betas and the final stable.
+    #       This is not allowed on Google Play or F-Droid.
+    #       This means we MUST NOT upload alphas/betas there.
+    if any(c in app_version for c in ("a", "b")):
+        c_pos = app_version.find("a")
+        if c_pos == -1:
+            c_pos = app_version.find("b")
+        app_version = app_version[:c_pos]
+    # now the app_version str must contain exactly three dot-delimited components
     app_version_components = app_version.split('.')
     assert len(app_version_components) == 3, f"version str expected to have 3 components, but got {app_version!r}"
+    # convert to int
     for i in app_version_components:
         version_code *= 100
         version_code += int(i)
