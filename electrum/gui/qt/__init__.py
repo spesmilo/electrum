@@ -44,13 +44,19 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
 
 import PyQt6.QtCore as QtCore
 
+from electrum.logging import Logger, get_logger
+_logger = get_logger(__name__)
+
 try:
     # Preload QtMultimedia at app start, if available.
     # We use QtMultimedia on some platforms for camera-handling, and
     # lazy-loading it later led to some crashes. Maybe due to bugs in PyQt. (see #7725)
     from PyQt6.QtMultimedia import QMediaDevices; del QMediaDevices
-except ImportError as e:
+except (ImportError, RuntimeError) as e:
+    _logger.debug(f"failed to import optional dependency: PyQt6.QtMultimedia. exc={repr(e)}")
     pass  # failure is ok; it is an optional dependency.
+else:
+    _logger.debug(f"successfully preloaded optional dependency: PyQt6.QtMultimedia")
 
 if sys.platform == "linux" and os.environ.get("APPIMAGE"):
     # For AppImage, we default to xcb qt backend, for better support of older system.
@@ -67,7 +73,6 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
                            standardize_path)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
-from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
 from electrum.wizard import WizardViewState

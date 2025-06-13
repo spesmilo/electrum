@@ -94,7 +94,8 @@ def find_system_cameras() -> Mapping[str, str]:
     if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
         try:
             from .qtmultimedia import find_system_cameras
-        except ImportError as e:
+        except (ImportError, RuntimeError) as e:
+            _logger.exception('error importing .qtmultimedia')
             return {}
         else:
             return find_system_cameras()
@@ -143,7 +144,7 @@ def _scan_qrcode_using_qtmultimedia(
 ) -> None:
     try:
         from .qtmultimedia import QrReaderCameraDialog, CameraError
-    except ImportError as e:
+    except (ImportError, RuntimeError) as e:
         icon = QMessageBox.Icon.Warning
         title = _("QR Reader Error")
         message = _("QR reader failed to load. This may happen if "
