@@ -1,3 +1,7 @@
 # Qt 6.8 would require macOS 12+,  6.7 still supports macOS 11
-PyQt6<6.8
+# Qt 6.7 has issue "No QtMultimedia backends found." (i.e. camera does not work)
+# PyQt6-Qt6==6.6.3 segfaults with "illegal hardware instruction"
+PyQt6<6.7
+PyQt6-Qt6<6.7,!=6.6.3
+
 cryptography>=2.6
