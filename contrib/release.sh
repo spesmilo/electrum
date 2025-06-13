@@ -283,6 +283,7 @@ else
 
 fi
 
+set +x
 
 info "release.sh finished successfully."
 info "After two people ran release.sh, the binaries will be publicly available on uploadserver."
