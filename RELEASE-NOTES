@@ -17,7 +17,7 @@
       See https://electrum.readthedocs.io/en/latest/swapserver.html
       for set-up documentation.
     - Submarine swap providers do not need to provide an HTTP
-      endpoint, since PRCs are performed via Nostr. They also do not
+      endpoint, since RPCs are performed via Nostr. They also do not
       need to have public lightning channels.
     - Because a decentralized service needs to be trustless, the
       option to perform zero-confirmation swaps has been removed from
