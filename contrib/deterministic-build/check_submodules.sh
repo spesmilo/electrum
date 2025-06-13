@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-here=$(dirname "$0")
-test -n "$here" -a -d "$here" || exit
+set -e
 
-cd ${here}/../..
+PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
+LOCALE="$PROJECT_ROOT/electrum/locale/"
+
+cd "$PROJECT_ROOT"
 
 git submodule init
 git submodule update
@@ -19,7 +21,7 @@ function get_git_mtime {
 fail=0
 
 
-if [ $(date +%s -d "2 weeks ago") -gt $(get_git_mtime "contrib/deterministic-build/electrum-locale/") ]; then
+if [ $(date +%s -d "2 weeks ago") -gt $(get_git_mtime "$LOCALE") ]; then
     echo "Last update from electrum-locale is older than 2 weeks."\
          "Please update it to incorporate the latest translations from crowdin."
     fail=1
