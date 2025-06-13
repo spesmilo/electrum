@@ -89,7 +89,7 @@ class NodesListWidget(QTreeWidget):
 
     followServer = pyqtSignal([ServerAddr], arguments=['server'])
     followChain = pyqtSignal([str], arguments=['chain_id'])
-    setServer = pyqtSignal([str], arguments=['server'])
+    setBookmark = pyqtSignal([ServerAddr, bool], arguments=['server', 'add'])
 
     def __init__(self, *, network: Network):
         QTreeWidget.__init__(self)
@@ -106,19 +106,12 @@ class NodesListWidget(QTreeWidget):
         menu = QMenu()
         if item_type in [self.ItemType.CONNECTED_SERVER, self.ItemType.DISCONNECTED_SERVER]:
             server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
-            if item_type == self.ItemType.CONNECTED_SERVER:
+            if self.network.auto_connect or self.network.is_server_bookmarked(server):
                 def do_follow_server():
                     self.followServer.emit(server)
                 menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_follow_server)
-            elif item_type == self.ItemType.DISCONNECTED_SERVER:
-                def do_set_server():
-                    self.setServer.emit(str(server))
-                menu.addAction(read_QIcon("chevron-right.png"), _("Use as server"), do_set_server)
-
             def set_bookmark(*, add: bool):
-                self.network.set_server_bookmark(server, add=add)
-                self.update()
-
+                self.setBookmark.emit(server, add)
             if self.network.is_server_bookmarked(server):
                 menu.addAction(read_QIcon("bookmark_remove.png"), _("Remove from bookmarks"), lambda: set_bookmark(add=False))
             else:
@@ -404,7 +397,7 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(self.connect_combo, 0, 1, 1, 3)
 
         self.server_e = QLineEdit()
-        self.server_e.editingFinished.connect(self.on_server_settings_changed)
+        self.server_e.editingFinished.connect(self.on_server_edited)
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
         grid.addWidget(self.server_e, 1, 1, 1, 3)
         grid.addWidget(HelpButton(messages.MSG_CONNECTMODE_SERVER_HELP), 1, 4)
@@ -432,11 +425,7 @@ class ServerWidget(QWidget, QtEventListener):
         self.nodes_list_widget = NodesListWidget(network=self.network)
         self.nodes_list_widget.followServer.connect(self.follow_server)
         self.nodes_list_widget.followChain.connect(self.follow_branch)
-
-        def do_set_server(server):
-            self.server_e.setText(server)
-            self.set_server()
-        self.nodes_list_widget.setServer.connect(do_set_server)
+        self.nodes_list_widget.setBookmark.connect(self.set_bookmark)
 
         self.layout().addWidget(self.nodes_list_widget)
         self.nodes_list_widget.update()
@@ -462,10 +451,9 @@ class ServerWidget(QWidget, QtEventListener):
         if not self.network._was_started:
             self.update()
             return
-        server = self.server_e.text().strip()
         net_params = self.network.get_parameters()
-        if server != net_params.server or self.is_auto_connect() != net_params.auto_connect or self.is_one_server() != net_params.oneserver:
-            self.set_server()
+        if self.is_auto_connect() != net_params.auto_connect or self.is_one_server() != net_params.oneserver:
+            self.set_params()
 
     def update(self):
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not self.is_auto_connect())
@@ -493,15 +481,19 @@ class ServerWidget(QWidget, QtEventListener):
                     msg += _('Your server is on branch {0} ({1} blocks)').format(name, chain.get_branch_size())
         self.split_label.setText(msg)
 
+    def update_server_edit(self):
+        self.server_e.setText(str(self.network.default_server) if self.network.default_server else '')
+
+    @qt_event_listener
+    def on_event_default_server_changed(self):
+        self.update_server_edit()
+
     def update_from_config(self):
         auto_connect = self.config.NETWORK_AUTO_CONNECT
         one_server = self.config.NETWORK_ONESERVER
         v = ConnectMode.AUTOCONNECT if auto_connect else ConnectMode.ONESERVER if one_server else ConnectMode.MANUAL
         self.connect_combo.setCurrentIndex(v)
-
-        server = self.config.NETWORK_SERVER
-        self.server_e.setText(server)
-
+        self.update_server_edit()
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
         self.nodes_list_widget.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable())
 
@@ -514,16 +506,33 @@ class ServerWidget(QWidget, QtEventListener):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
 
-    def set_server(self):
-        net_params = self.network.get_parameters()
+    def on_server_edited(self):
         try:
             server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
             if not server:
                 raise Exception("failed to parse server")
         except Exception:
+            self.server_e.setText('')
             return
+        self.set_bookmark(server, add=True)
+        self.follow_server(server)
+
+    def set_bookmark(self, server: ServerAddr, add: bool):
+        self.network.set_server_bookmark(server, add=add)
+        if not add and server == self.network.default_server:
+            self.set_params()
+        else:
+            self.nodes_list_widget.update()
+            self.update()
+
+    def follow_server(self, server: ServerAddr):
+        self.server_e.setText(str(server))
+        self.network.run_from_another_thread(self.network.switch_to_interface(server))
+        self.update()
+
+    def set_params(self):
+        net_params = self.network.get_parameters()
         net_params = net_params._replace(
-            server=server,
             auto_connect=self.is_auto_connect(),
             oneserver=self.is_one_server(),
         )

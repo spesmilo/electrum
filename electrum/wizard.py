@@ -814,7 +814,7 @@ class ServerConnectWizard(AbstractWizard):
                     raise Exception('failed to parse server %s' % wizard_data['server'])
             except Exception:
                 return
-        net_params = net_params._replace(server=server, auto_connect=wizard_data['autoconnect'], oneserver=oneserver)
+        net_params = net_params._replace(servers=[server], auto_connect=wizard_data['autoconnect'], oneserver=oneserver)
         self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
 
     def do_configure_autoconnect(self, wizard_data: dict):
