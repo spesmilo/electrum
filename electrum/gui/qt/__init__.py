@@ -157,6 +157,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.screenshot_protection_efilter = ScreenshotProtectionEventFilter()
         if sys.platform in ['win32', 'windows'] and self.config.GUI_QT_SCREENSHOT_PROTECTION:
             self.app.installEventFilter(self.screenshot_protection_efilter)
+        # explicitly set 'AA_DontShowIconsInMenus' False so menu icons are shown on MacOS
+        self.app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, on=False)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
