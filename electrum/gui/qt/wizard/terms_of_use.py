@@ -52,32 +52,7 @@ class WCTermsOfUseScreen(WizardComponent):
         self.tos_label = WWLabel()
         self.tos_label.setText(messages.MSG_TERMS_OF_USE)
         self.layout().addWidget(self.tos_label)
-        self._valid = False
-
-        # Find the scroll area and connect to its scrollbar
-        QTimer.singleShot(100, self.check_scroll_position)
-        self.window().installEventFilter(self)
-
-    def eventFilter(self, obj, event):
-        if obj == self.window() and event.type() == QEvent.Type.Resize:
-            # catch window resize events to check if the scrollbar is visible
-            QTimer.singleShot(100, self.check_scroll_position)
-        return super().eventFilter(obj, event)
-
-    def check_scroll_position(self):
-        scroll_area = self.window().findChild(QScrollArea)
-        if scroll_area and scroll_area.verticalScrollBar() \
-                and scroll_area.verticalScrollBar().isVisible():
-            scrollbar = scroll_area.verticalScrollBar()
-            def on_scroll_change(value):
-                if value >= scrollbar.maximum() - 5:  # Allow 5 pixel margin
-                    self._valid = True
-                    self.on_updated()
-            scrollbar.valueChanged.connect(on_scroll_change)
-        else:
-            # scrollbar is not visible or not found
-            self._valid = True
-            self.on_updated()
+        self._valid = True
 
     def apply(self):
         pass
