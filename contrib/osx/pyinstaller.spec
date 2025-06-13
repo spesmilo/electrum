@@ -59,7 +59,6 @@ datas += copy_metadata('slip10')  # from trezor->slip10
 excludes = [
     "PyQt6.QtBluetooth",
     "PyQt6.QtDesigner",
-    "PyQt6.QtNetwork",
     "PyQt6.QtNfc",
     "PyQt6.QtPositioning",
     "PyQt6.QtQml",
@@ -76,6 +75,7 @@ excludes = [
     "PyQt6.QtWebChannel",
     "PyQt6.QtWebSockets",
     "PyQt6.QtXml",
+    # "PyQt6.QtNetwork",  # needed by QtMultimedia. kinda weird but ok.
 ]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
