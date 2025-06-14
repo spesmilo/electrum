@@ -193,3 +193,38 @@ $ spctl -a -vvv -t install $HOME/Desktop/Electrum-4.5.8.app
 source=Notarized Developer ID
 origin=Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)
 ```
+
+### How to simulate the signing procedure?
+
+It is possible to run `sign_osx.sh` using a self-signed certificate to test the
+signing procedure without using a production certificate.
+
+Note that the notarization process will be skipped as it is not possible to notarize
+an executable with Apple using a self-signed certificate.
+
+#### To generate a self-signed certificate, inside your **MacOS VM**:
+1. Open the `Keychain Access` application.
+2. In the menubar go to `Keychain Access` > `Certificate Assistant` > `Create a Certificate...`
+3. Set a name (e.g. `signing_dummy`)
+4. Change `Certificate Type` to *'Code Signing'*
+5. Click `Create` and `Continue`.
+
+You now have a self-signed certificate `signing_dummy` added to your `login` keychain.
+
+#### To sign the executables with the self-signed certificate:
+
+Assuming you have the two unsigned outputs of `make_osx.sh` inside `~/electrum/dist`
+(e.g. `Electrum.app` and `electrum-4.5.4-1368-gc8db684cc-unsigned.dmg`).
+
+In `~/electrum` run:
+
+`$ CODESIGN_CERT="signing_dummy" ./contrib/osx/sign_osx.sh`
+
+After `sign_osx.sh` finished, you will have a new `*.dmg` inside `electrum/dist`
+(without the `-unsigned` postfix) which is signed with your certificate.
+
+#### To compare the unsigned executable with the self-signed executable:
+
+Running `compare_dmg` with `IS_NOTARIZED=false` should succeed:
+
+`$ IS_NOTARIZED=false ./electrum/contrib/osx/compare_dmg <unsigned executable> <self-signed executable>`
