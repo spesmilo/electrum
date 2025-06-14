@@ -26,7 +26,8 @@ from typing import Callable, Optional, TYPE_CHECKING, Mapping, Sequence
 
 from PyQt6.QtWidgets import QMessageBox, QWidget
 from PyQt6.QtGui import QImage, QPainter, QColor
-from PyQt6.QtCore import QRect
+from PyQt6.QtCore import QRect, QCoreApplication
+from PyQt6 import QtCore
 
 from electrum.i18n import _
 from electrum.util import UserFacingException
@@ -43,18 +44,24 @@ if TYPE_CHECKING:
 _logger = get_logger(__name__)
 
 
-def scan_qrcode(
+def scan_qrcode_from_camera(
         *,
         parent: Optional[QWidget],
         config: 'SimpleConfig',
         callback: Callable[[bool, str, Optional[str]], None],
 ) -> None:
-    """Scans QR code using camera."""
+    """Scans QR code using camera. It handles requesting camera access permission from the OS if needed."""
     assert parent is None or isinstance(parent, QWidget), f"parent should be a QWidget, not {parent!r}"
-    if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
-        _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
-    else:  # desktop Linux and similar
-        _scan_qrcode_using_zbar(parent=parent, config=config, callback=callback)
+    def do_scan():
+        _scan_qrcode_from_camera(parent=parent, config=config, callback=callback)
+
+    if _has_camera_permission():
+        do_scan()
+    else:
+        # Request permission now. This is only a thing on macOS atm.
+        # Note: this assumes we are running on the main thread. Permissions can only be requested from the main thread.
+        app = QCoreApplication.instance()
+        app.requestPermission(QtCore.QCameraPermission(), lambda _x: do_scan())
 
 
 def scan_qr_from_image(image: QImage) -> Sequence[QrCodeResult]:
@@ -180,4 +187,30 @@ def _scan_qrcode_using_qtmultimedia(
         _logger.exception('camera error')
         _qr_dialog = None
         callback(False, repr(e), None)
+
+
+def _scan_qrcode_from_camera(
+        *,
+        parent: Optional[QWidget],
+        config: 'SimpleConfig',
+        callback: Callable[[bool, str, Optional[str]], None],
+) -> None:
+    """Scans QR code using camera."""
+    assert parent is None or isinstance(parent, QWidget), f"parent should be a QWidget, not {parent!r}"
+    if not _has_camera_permission():
+        callback(False, _("Missing camera permission."), None)
+        return
+    if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
+        _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
+    else:  # desktop Linux and similar
+        _scan_qrcode_using_zbar(parent=parent, config=config, callback=callback)
+
+
+def _has_camera_permission() -> bool:
+    if not hasattr(QtCore, "QCameraPermission"):  # requires Qt 6.5+
+        _logger.info(f"QtCore does not support QCameraPermission. This requires Qt 6.5+")
+        return True  # hope for the best
+    app = QCoreApplication.instance()
+    permission_status = app.checkPermission(QtCore.QCameraPermission())
+    return permission_status == QtCore.Qt.PermissionStatus.Granted
 
