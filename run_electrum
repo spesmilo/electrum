@@ -73,8 +73,13 @@ def check_imports():
         import qrcode
         import google.protobuf
         import aiorpcx
+        import aiohttp
+        import aiohttp_socks
+        import electrum_ecc
+        import jsonpatch
+        import electrum_aionostr
     except ImportError as e:
-        sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+        sys.exit(f"Error: {str(e)}. Some dependencies are missing. Have you read the README? Or just try '$ python3 -m pip install -r contrib/requirements/requirements.txt'")
     if not ((0, 25, 0) <= aiorpcx._version < (0, 26)):
         raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.25.0<=ver<0.26')
     # the following imports are for pyinstaller
