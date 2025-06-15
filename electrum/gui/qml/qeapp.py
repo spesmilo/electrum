@@ -171,7 +171,7 @@ class QEAppController(BaseCrashReporter, QObject):
             )
             notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
         except ImportError:
-            self.logger.warning('Notification: needs plyer; `sudo python3 -m pip install plyer`')
+            self.logger.warning('Notification: needs plyer; `python3 -m pip install plyer`')
         except Exception as e:
             self.logger.error(repr(e))
 

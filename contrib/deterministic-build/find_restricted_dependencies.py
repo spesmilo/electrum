@@ -4,7 +4,7 @@ import sys
 try:
     import requests
 except ImportError as e:
-    sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+    sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install <module-name>'")
 
 def is_dependency_edge_blacklisted(*, parent_pkg: str, dep: str) -> bool:
     """Sometimes a package declares a hard dependency
