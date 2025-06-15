@@ -65,6 +65,11 @@ if is_pyinstaller:
     _file = open(sys.executable, 'rb')
 
 
+# when running from source, on Windows, also search for DLLs in inner 'electrum' folder
+if is_local and os.name == 'nt':  # fixme: duplicated between main script and __init__.py :(
+    os.add_dll_directory(os.path.join(os.path.dirname(__file__), 'electrum'))
+
+
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
