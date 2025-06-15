@@ -1243,6 +1243,7 @@ def ignore_exceptions(func):
 
 def with_lock(func):
     """Decorator to enforce a lock on a function call."""
+    @functools.wraps(func)
     def func_wrapper(self, *args, **kwargs):
         with self.lock:
             return func(self, *args, **kwargs)
