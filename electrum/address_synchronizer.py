@@ -99,8 +99,14 @@ class AddressSynchronizer(Logger, EventListener):
         self.threadlocal_cache = threading.local()
 
         self._get_balance_cache = {}
+        self._get_utxos_cache = {}
 
         self.load_and_cleanup()
+
+    @with_lock
+    def invalidate_cache(self):
+        self._get_balance_cache.clear()
+        self._get_utxos_cache.clear()
 
     def diagnostic_name(self):
         return self.name or ""
@@ -203,7 +209,7 @@ class AddressSynchronizer(Logger, EventListener):
     @with_lock
     @event_listener
     def on_event_blockchain_updated(self, *args):
-        self._get_balance_cache = {}  # invalidate cache
+        self.invalidate_cache()
         self.db.put('stored_height', self.get_local_height())
 
     async def stop(self):
@@ -335,7 +341,7 @@ class AddressSynchronizer(Logger, EventListener):
                         pass
                     else:
                         self.db.add_txi_addr(tx_hash, addr, ser, v)
-                        self._get_balance_cache.clear()  # invalidate cache
+                        self.invalidate_cache()
             for txi in tx.inputs():
                 if txi.is_coinbase_input():
                     continue
@@ -353,7 +359,7 @@ class AddressSynchronizer(Logger, EventListener):
                 addr = txo.address
                 if addr and self.is_mine(addr):
                     self.db.add_txo_addr(tx_hash, addr, n, v, is_coinbase)
-                    self._get_balance_cache.clear()  # invalidate cache
+                    self.invalidate_cache()
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
@@ -405,7 +411,7 @@ class AddressSynchronizer(Logger, EventListener):
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
             for addr in itertools.chain(self.db.get_txi_addresses(tx_hash), self.db.get_txo_addresses(tx_hash)):
-                self._get_balance_cache.clear()  # invalidate cache
+                self.invalidate_cache()
             self.db.remove_txi(tx_hash)
             self.db.remove_txo(tx_hash)
             self.db.remove_tx_fee(tx_hash)
@@ -503,7 +509,7 @@ class AddressSynchronizer(Logger, EventListener):
     def clear_history(self):
         self.db.clear_history()
         self._history_local.clear()
-        self._get_balance_cache.clear()  # invalidate cache
+        self.invalidate_cache()
 
     @with_lock
     def _get_tx_sort_key(self, tx_hash: str) -> Tuple[int, int]:
@@ -970,6 +976,10 @@ class AddressSynchronizer(Logger, EventListener):
         if excluded_addresses:
             domain = set(domain) - set(excluded_addresses)
         mempool_height = block_height + 1  # height of next block
+        cache_key = ''.join(domain) + f"{mature_only}{confirmed_funding_only}{confirmed_spending_only}{nonlocal_only}{block_height}"
+        cached = self._get_utxos_cache.get(cache_key)
+        if cached is not None:
+            return cached
         for addr in domain:
             txos = self.get_addr_outputs(addr)
             for txo in txos.values():
@@ -987,6 +997,7 @@ class AddressSynchronizer(Logger, EventListener):
                     continue
                 coins.append(txo)
                 continue
+        self._get_utxos_cache[cache_key] = coins
         return coins
 
     def is_used(self, address: str) -> bool:
