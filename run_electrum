@@ -65,6 +65,11 @@ if is_pyinstaller:
     _file = open(sys.executable, 'rb')
 
 
+# when running from source, on Windows, also search for DLLs in inner 'electrum' folder
+if is_local and os.name == 'nt':  # fixme: duplicated between main script and __init__.py :(
+    os.add_dll_directory(os.path.join(os.path.dirname(__file__), 'electrum'))
+
+
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
@@ -73,8 +78,13 @@ def check_imports():
         import qrcode
         import google.protobuf
         import aiorpcx
+        import aiohttp
+        import aiohttp_socks
+        import electrum_ecc
+        import jsonpatch
+        import electrum_aionostr
     except ImportError as e:
-        sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+        sys.exit(f"Error: {str(e)}. Some dependencies are missing. Have you read the README? Or just try '$ python3 -m pip install -r contrib/requirements/requirements.txt'")
     if not ((0, 25, 0) <= aiorpcx._version < (0, 26)):
         raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.25.0<=ver<0.26')
     # the following imports are for pyinstaller
