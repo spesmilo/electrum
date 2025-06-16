@@ -115,7 +115,6 @@ class HistoryNode(CustomNode):
             # and the group does not have an onchain tx
             is_lightning = True
         timestamp = tx_item['timestamp']
-        short_id = None
         if is_lightning:
             status = 0
             if timestamp is None:
@@ -124,10 +123,6 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
-            if col == HistoryColumns.SHORT_ID:
-                txpos_in_block = tx_item.get('txpos_in_block', -1)
-                if txpos_in_block >= 0:
-                    short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             status, status_str = self.model.tx_status_cache[tx_hash]
 
@@ -222,8 +217,6 @@ class HistoryNode(CustomNode):
             return QVariant(window.fx.format_fiat(cg, add_thousands_sep=add_thousands_sep))
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
-        elif col == HistoryColumns.SHORT_ID:
-            return QVariant(short_id or "")
         return QVariant()
 
 
@@ -351,7 +344,6 @@ class HistoryModel(CustomModel, Logger):
 
         # txid
         set_visible(HistoryColumns.TXID, False)
-        set_visible(HistoryColumns.SHORT_ID, False)
         # fiat
         history = self.should_show_fiat()
         cap_gains = self.should_show_capital_gains()
@@ -417,7 +409,6 @@ class HistoryModel(CustomModel, Logger):
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
             HistoryColumns.TXID: 'TXID',
-            HistoryColumns.SHORT_ID: 'Short ID',
         }[section]
 
     def flags(self, idx: QModelIndex) -> Qt.ItemFlag:
@@ -449,14 +440,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         FIAT_ACQ_PRICE = enum.auto()
         FIAT_CAP_GAINS = enum.auto()
         TXID = enum.auto()
-        SHORT_ID = enum.auto()  # ~SCID
 
     filter_columns = [
         Columns.STATUS,
         Columns.DESCRIPTION,
         Columns.AMOUNT,
         Columns.TXID,
-        Columns.SHORT_ID,
     ]
 
     def tx_item_from_proxy_row(self, proxy_row):
