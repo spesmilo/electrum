@@ -124,9 +124,10 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
-            txpos_in_block = tx_item.get('txpos_in_block')
-            if txpos_in_block is not None and txpos_in_block >= 0:
-                short_id = f"{tx_item['height']}x{txpos_in_block}"
+            if col == HistoryColumns.SHORT_ID:
+                txpos_in_block = tx_item.get('txpos_in_block', -1)
+                if txpos_in_block >= 0:
+                    short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
