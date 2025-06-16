@@ -302,8 +302,6 @@ class HistoryModel(CustomModel, Logger):
             include_lightning=self.should_include_lightning_payments(),
             include_fiat=self.should_show_fiat(),
         )
-        if transactions == self.transactions:
-            return
         old_length = self._root.childCount()
         if old_length != 0:
             self.beginRemoveRows(QModelIndex(), 0, old_length)
