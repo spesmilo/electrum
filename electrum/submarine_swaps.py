@@ -245,6 +245,11 @@ class SwapManager(Logger):
     @log_exceptions
     async def run_nostr_server(self):
         await self.set_nostr_proof_of_work()
+
+        while self.wallet.has_password() and self.wallet.get_unlocked_password() is None:
+            self.logger.info("This wallet is password-protected. Please unlock it to start the swapserver plugin")
+            await asyncio.sleep(10)
+
         with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
