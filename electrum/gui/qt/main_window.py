@@ -874,13 +874,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def show_bitcoin_paper(self):
         filename = os.path.join(self.config.path, 'bitcoin.pdf')
         if not os.path.exists(filename):
-            s = self._fetch_tx_from_network("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713")
-            if not s:
-                return
-            s = s.split("0100000000000000")[1:-1]
-            out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
-            with open(filename, 'wb') as f:
-                f.write(bytes.fromhex(out))
+            def fetch_bitcoin_paper():
+                s = self._fetch_tx_from_network("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713")
+                if not s:
+                    return
+                s = s.split("0100000000000000")[1:-1]
+                out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
+                with open(filename, 'wb') as f:
+                    f.write(bytes.fromhex(out))
+            WaitingDialog(
+                self,
+                _("Fetching Bitcoin Paper..."),
+                fetch_bitcoin_paper,
+                on_success=lambda _: webopen('file:///' + filename),
+                on_error=self.on_error,
+            )
+            return
         webopen('file:///' + filename)
 
     def show_update_check(self, version=None):
