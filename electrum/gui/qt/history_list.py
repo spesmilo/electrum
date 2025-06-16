@@ -129,11 +129,7 @@ class HistoryNode(CustomNode):
                 if txpos_in_block >= 0:
                     short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
-            try:
-                status, status_str = self.model.tx_status_cache[tx_hash]
-            except KeyError:
-                tx_mined_info = self.model._tx_mined_info_from_tx_item(tx_item)
-                status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
+            status, status_str = self.model.tx_status_cache[tx_hash]
 
         if role == ROLE_SORT_ORDER:
             d = {
