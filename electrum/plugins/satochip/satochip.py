@@ -17,7 +17,7 @@ from electrum.crypto import hash_160, sha256d
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase
+from electrum.hw_wallet  import HW_PluginBase, HardwareClientBase
 
 # pysatochip
 from pysatochip.CardConnector import CardConnector, UninitializedSeedError

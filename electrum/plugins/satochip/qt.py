@@ -18,7 +18,7 @@ from electrum.gui.qt.qrcodewidget import QRDialog
 from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
                                            WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
 from electrum.plugin import hook
-from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 # satochip
 from .satochip import SatochipPlugin
@@ -985,7 +985,7 @@ class WCSatochipImportSeed(WalletWizardComponent):
     def on_ready(self):
         current_cosigner = self.wizard.current_cosigner(self.wizard_data)
 
-        settings = current_cosigner['seed_type'], current_cosigner['seed'], current_cosigner['seed_extra_words']
+        settings = current_cosigner['seed_type'], current_cosigner['seed'], current_cosigner['seed_extra_words'] if current_cosigner['seed_extend'] else ''
 
         _name, _info = current_cosigner['hardware_device']
         device_id = _info.device.id_
