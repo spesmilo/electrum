@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import QVBoxLayout, QLabel
 
 from electrum.i18n import _
 
-from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, ColorScheme, Buttons, CloseButton
+from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 

@@ -19,8 +19,8 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.11.9
-PY_VER_MAJOR="3.11"  # as it appears in fs paths
+PYTHON_VERSION=3.12.11
+PY_VER_MAJOR="3.12"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
@@ -39,9 +39,12 @@ verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c0000
 
 download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+# TODO migrate to https://github.com/AppImage/appimagetool/releases
+#      note: we will also have to build AppImage/type2-runtime, as otherwise new appimagetool just downloads "latest" from the internet.
+#            see https://github.com/AppImage/appimagetool/blob/7cfafc45e5a8e64ad0755870b1001e5d7ffb4e85/README.md#L61
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "9b1e896523fc510691126c864406d9360a3d1e986acbda59cda57b5abda45b87"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "c30bb24b7f1e9a19b11b55a546434f74e739bb4c271a3e3a80ff4380d49f7adb"
 
 
 
@@ -78,7 +81,7 @@ info "installing python."
 )
 
 
-if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.2" ]; then
+if ls "$DLL_TARGET_DIR"/libsecp256k1.so.* 1> /dev/null 2>&1; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
@@ -93,29 +96,6 @@ else
     "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
 cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
-
-
-# note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
-#       This pkg is needed on some distros for Qt to launch. (see #8011)
-download_if_not_exist "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "http://deb.debian.org/debian/pool/main/x/xcb-util/xcb-util_0.4.0.orig.tar.gz"
-verify_hash "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" "0ed0934e2ef4ddff53fcc70fc64fb16fe766cd41ee00330312e20a985fd927a7"
-info "building libxcb-util1."
-(
-    if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
-        info "libxcb-util1 already built, skipping"
-        exit 0
-    fi
-    cd "$CACHEDIR"
-    mkdir "libxcb-util1"
-    cd "libxcb-util1"
-    tar xf "$CACHEDIR/xcb-util_0.4.0.orig.tar.gz" -C .
-    mv "xcb-util-0.4.0" util
-    cd util
-    ./autogen.sh
-    ./configure --enable-shared
-    make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
-) || fail "Could build libxcb-util1"
-cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
 
 
 appdir_python() {
@@ -136,13 +116,9 @@ break_legacy_easy_install
 
 info "preparing electrum-locale."
 (
-    cd "$PROJECT_ROOT"
-    git submodule update --init
-
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$LOCALE"
-    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 )
 
 
@@ -160,8 +136,14 @@ info "Installing build dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
-info "installing electrum and its dependencies."
+
+# opt out of compiling C extensions
+export YARL_NO_EXTENSIONS=1
+export FROZENLIST_NO_EXTENSIONS=1
+
 export ELECTRUM_ECC_DONT_COMPILE=1
+
+info "installing electrum and its dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography --no-warn-script-location \
@@ -262,9 +244,11 @@ rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
 # although note that *.dist-info might be needed by certain packages...
-# e.g. importlib-metadata, see https://gitlab.com/python-devs/importlib_metadata/issues/71
+# e.g. slip10 uses importlib that needs it
+for f in "$PYDIR"/site-packages/slip10-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
+for f in "$PYDIR"/site-packages/slip10-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +

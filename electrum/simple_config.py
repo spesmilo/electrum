@@ -1,49 +1,22 @@
 import json
 import threading
-import time
 import os
 import stat
-from decimal import Decimal
-from typing import Union, Optional, Dict, Sequence, Tuple, Any, Set, Callable
-from numbers import Real
+from typing import Union, Optional, Dict, Sequence, Any, Set, Callable, AbstractSet, Type
 from functools import cached_property
 
 from copy import deepcopy
 
-from . import util
 from . import constants
+from . import util
 from . import invoices
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
 from .util import format_satoshis, format_fee_satoshis, os_chmod
-from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
+from .util import user_dir, make_dir
+from .util import is_valid_websocket_url
 from .lnutil import LN_MAX_FUNDING_SAT_LEGACY
 from .i18n import _
 from .logging import get_logger, Logger
-
-
-FEE_ETA_TARGETS = [25, 10, 5, 2]
-FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
-                     800_000, 600_000, 400_000, 250_000, 100_000]
-FEE_LN_ETA_TARGET = 2       # note: make sure the network is asking for estimates for this target
-FEE_LN_LOW_ETA_TARGET = 25  # note: make sure the network is asking for estimates for this target
-
-# satoshi per kbyte
-FEERATE_MAX_DYNAMIC = 1500000
-FEERATE_WARNING_HIGH_FEE = 600000
-FEERATE_FALLBACK_STATIC_FEE = 150000
-FEERATE_DEFAULT_RELAY = 1000
-FEERATE_MAX_RELAY = 50000
-FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
-                         50000, 70000, 100000, 150000, 200000, 300000]
-
-# The min feerate_per_kw that can be used in lightning so that
-# the resulting onchain tx pays the min relay fee.
-# This would be FEERATE_DEFAULT_RELAY / 4 if not for rounding errors,
-# see https://github.com/ElementsProject/lightning/commit/2e687b9b352c9092b5e8bd4a688916ac50b44af0
-FEERATE_PER_KW_MIN_RELAY_LIGHTNING = 253
-
-FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
-
 
 
 _logger = get_logger(__name__)
@@ -66,6 +39,7 @@ class ConfigVar(property):
         convert_getter: Callable[[Any], Any] = None,
         short_desc: Callable[[], str] = None,
         long_desc: Callable[[], str] = None,
+        plugin: Optional[str] = None,
     ):
         self._key = key
         self._default = default
@@ -77,6 +51,13 @@ class ConfigVar(property):
         assert long_desc is None or callable(long_desc)
         self._short_desc = short_desc
         self._long_desc = long_desc
+        if plugin:  # enforce "key" starts with 'plugins.<name of plugin>.'
+            pkg_prefix = "electrum.plugins."  # for internal plugins
+            if plugin.startswith(pkg_prefix):
+                plugin = plugin[len(pkg_prefix):]
+            assert "." not in plugin, plugin
+            key_prefix = f'plugins.{plugin}.'
+            assert key.startswith(key_prefix), f"ConfigVar {key=} must be prefixed with ({key_prefix})"
         property.__init__(self, self._get_config_value, self._set_config_value)
         assert key not in _config_var_from_key, f"duplicate config key str: {key!r}"
         _config_var_from_key[key] = self
@@ -186,16 +167,14 @@ class SimpleConfig(Logger):
                  read_user_dir_function=None):
         if options is None:
             options = {}
+        for config_key in options:
+            assert isinstance(config_key, str), f"{config_key=!r} has type={type(config_key)}, expected str"
 
         Logger.__init__(self)
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
-
-        self.mempool_fees = None  # type: Optional[Sequence[Tuple[Union[float, int], int]]]
-        self.fee_estimates = {}  # type: Dict[int, int]
-        self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -242,6 +221,8 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+        self._init_done = True
+
     def list_config_vars(self) -> Sequence[str]:
         return list(sorted(_config_var_from_key.keys()))
 
@@ -252,25 +233,23 @@ class SimpleConfig(Logger):
         make_dir(path, allow_symlink=False)
         return path
 
+    def get_selected_chain(self) -> Type[constants.AbstractNet]:
+        selected_chains = [
+            chain for chain in constants.NETS_LIST
+            if self.get(chain.config_key())]
+        if selected_chains:
+            # note: if multiple are selected, we just pick one deterministically random
+            return selected_chains[0]
+        return constants.BitcoinMainnet
+
     def electrum_path(self):
         path = self.electrum_path_root()
-        if self.get('testnet'):
-            path = os.path.join(path, 'testnet')
-            make_dir(path, allow_symlink=False)
-        elif self.get('testnet4'):
-            path = os.path.join(path, 'testnet4')
-            make_dir(path, allow_symlink=False)
-        elif self.get('regtest'):
-            path = os.path.join(path, 'regtest')
-            make_dir(path, allow_symlink=False)
-        elif self.get('simnet'):
-            path = os.path.join(path, 'simnet')
-            make_dir(path, allow_symlink=False)
-        elif self.get('signet'):
-            path = os.path.join(path, 'signet')
+        chain = self.get_selected_chain()
+        if subdir := chain.datadir_subdir():
+            path = os.path.join(path, subdir)
             make_dir(path, allow_symlink=False)
 
-        self.logger.info(f"electrum directory {path}")
+        self.logger.info(f"electrum directory {path} (chain={chain.NET_NAME})")
         return path
 
     def rename_config_keys(self, config, keypairs, deprecation_warning=False):
@@ -311,9 +290,26 @@ class SimpleConfig(Logger):
         assert isinstance(key, str), key
         with self.lock:
             if value is not None:
-                self.user_config[key] = value
+                keypath = key.split('.')
+                d = self.user_config
+                for x in keypath[0:-1]:
+                    d2 = d.get(x)
+                    if not isinstance(d2, dict):
+                        d2 = d[x] = {}
+                    d = d2
+                d[keypath[-1]] = value
             else:
-                self.user_config.pop(key, None)
+                def delete_key(d, key):
+                    if '.' not in key:
+                        d.pop(key, None)
+                    else:
+                        prefix, suffix = key.split('.', 1)
+                        d2 = d.get(prefix)
+                        empty = delete_key(d2, suffix)
+                        if empty:
+                            d.pop(prefix)
+                    return len(d) == 0
+                delete_key(self.user_config, key)
             if save:
                 self.save_user_config()
 
@@ -327,7 +323,13 @@ class SimpleConfig(Logger):
         with self.lock:
             out = self.cmdline_options.get(key)
             if out is None:
-                out = self.user_config.get(key, default)
+                d = self.user_config
+                path = key.split('.')
+                for key in path[0:-1]:
+                    d = d.get(key, {})
+                if not isinstance(d, dict):
+                    d = {}
+                out = d.get(path[-1], default)
         return out
 
     def is_set(self, key: Union[str, ConfigVar, ConfigVarWithConfig]) -> bool:
@@ -336,6 +338,19 @@ class SimpleConfig(Logger):
             key = key.key()
         assert isinstance(key, str), key
         return self.get(key, default=...) is not ...
+
+    def is_plugin_enabled(self, name: str) -> bool:
+        return bool(self.get(f'plugins.{name}.enabled'))
+
+    def get_installed_plugins(self) -> AbstractSet[str]:
+        """Returns all plugin names registered in the config."""
+        return self.get('plugins', {}).keys()
+
+    def enable_plugin(self, name: str):
+        self.set_key(f'plugins.{name}.enabled', True, save=True)
+
+    def disable_plugin(self, name: str):
+        self.set_key(f'plugins.{name}.enabled', False, save=True)
 
     def _check_dependent_keys(self) -> None:
         if self.NETWORK_SERVERFINGERPRINT:
@@ -379,14 +394,12 @@ class SimpleConfig(Logger):
     def convert_version_3(self):
         if not self._is_upgrade_method_needed(2, 2):
             return
-
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
+            map_ = {'btc': 8, 'mbtc': 5, 'ubtc': 2, 'bits': 2, 'sat': 0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
-
         self.set_key('config_version', 3)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
@@ -445,27 +458,25 @@ class SimpleConfig(Logger):
         else:
             return self.WALLET_BACKUP_DIRECTORY
 
-    def get_wallet_path(self, *, use_gui_last_wallet=False):
-        """Set the path of the wallet."""
+    def maybe_complete_wallet_path(self, path: Optional[str]) -> str:
+        return self._complete_wallet_path(path) if path is not None else self.get_wallet_path()
 
+    def _complete_wallet_path(self, path: str) -> str:
+        """ add user wallets directory if needed """
+        if os.path.split(path)[0] == '':
+            path = os.path.join(self.get_datadir_wallet_path(), path)
+        return path
+
+    def get_wallet_path(self) -> str:
+        """Returns the wallet path."""
         # command line -w option
-        if self.get('wallet_path'):
-            return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
-
-        if use_gui_last_wallet:
-            path = self.GUI_LAST_WALLET
-            if path and os.path.exists(path):
-                return path
-
-        new_path = self.get_fallback_wallet_path()
-
-        # TODO: this can be removed by now
-        # default path in pre 1.9 versions
-        old_path = os.path.join(self.path, "electrum.dat")
-        if os.path.exists(old_path) and not os.path.exists(new_path):
-            os.rename(old_path, new_path)
-
-        return new_path
+        if path:= self.get('wallet_path'):
+            return self._complete_wallet_path(path)
+        # current wallet
+        path = self.CURRENT_WALLET
+        if path and os.path.exists(path):
+            return path
+        return self.get_fallback_wallet_path()
 
     def get_datadir_wallet_path(self):
         util.assert_datadir_available(self.path)
@@ -482,371 +493,6 @@ class SimpleConfig(Logger):
 
     def get_session_timeout(self):
         return self.HWD_SESSION_TIMEOUT
-
-    def save_last_wallet(self, wallet):
-        if self.get('wallet_path') is None:
-            path = wallet.storage.path
-            self.GUI_LAST_WALLET = path
-
-    def impose_hard_limits_on_fee(func):
-        def get_fee_within_limits(self, *args, **kwargs):
-            fee = func(self, *args, **kwargs)
-            if fee is None:
-                return fee
-            fee = min(FEERATE_MAX_DYNAMIC, fee)
-            fee = max(FEERATE_DEFAULT_RELAY, fee)
-            return fee
-        return get_fee_within_limits
-
-    def eta_to_fee(self, slider_pos) -> Optional[int]:
-        """Returns fee in sat/kbyte."""
-        slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
-        if slider_pos < len(FEE_ETA_TARGETS):
-            num_blocks = FEE_ETA_TARGETS[int(slider_pos)]
-            fee = self.eta_target_to_fee(num_blocks)
-        else:
-            fee = self.eta_target_to_fee(1)
-        return fee
-
-    @impose_hard_limits_on_fee
-    def eta_target_to_fee(self, num_blocks: int) -> Optional[int]:
-        """Returns fee in sat/kbyte."""
-        if num_blocks == 1:
-            fee = self.fee_estimates.get(2)
-            if fee is not None:
-                fee += fee / 2
-                fee = int(fee)
-        else:
-            fee = self.fee_estimates.get(num_blocks)
-            if fee is not None:
-                fee = int(fee)
-        return fee
-
-    def fee_to_depth(self, target_fee: Real) -> Optional[int]:
-        """For a given sat/vbyte fee, returns an estimate of how deep
-        it would be in the current mempool in vbytes.
-        Pessimistic == overestimates the depth.
-        """
-        if self.mempool_fees is None:
-            return None
-        depth = 0
-        for fee, s in self.mempool_fees:
-            depth += s
-            if fee <= target_fee:
-                break
-        return depth
-
-    def depth_to_fee(self, slider_pos) -> Optional[int]:
-        """Returns fee in sat/kbyte."""
-        target = self.depth_target(slider_pos)
-        return self.depth_target_to_fee(target)
-
-    @impose_hard_limits_on_fee
-    def depth_target_to_fee(self, target: int) -> Optional[int]:
-        """Returns fee in sat/kbyte.
-        target: desired mempool depth in vbytes
-        """
-        if self.mempool_fees is None:
-            return None
-        depth = 0
-        for fee, s in self.mempool_fees:
-            depth += s
-            if depth > target:
-                break
-        else:
-            return 0
-        # add one sat/byte as currently that is the max precision of the histogram
-        # note: precision depends on server.
-        #       old ElectrumX <1.16 has 1 s/b prec, >=1.16 has 0.1 s/b prec.
-        #       electrs seems to use untruncated double-precision floating points.
-        #       # TODO decrease this to 0.1 s/b next time we bump the required protocol version
-        fee += 1
-        # convert to sat/kbyte
-        return int(fee * 1000)
-
-    def depth_target(self, slider_pos: int) -> int:
-        """Returns mempool depth target in bytes for a fee slider position."""
-        slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_DEPTH_TARGETS)-1)
-        return FEE_DEPTH_TARGETS[slider_pos]
-
-    def eta_target(self, slider_pos: int) -> int:
-        """Returns 'num blocks' ETA target for a fee slider position."""
-        if slider_pos == len(FEE_ETA_TARGETS):
-            return 1
-        return FEE_ETA_TARGETS[slider_pos]
-
-    def fee_to_eta(self, fee_per_kb: Optional[int]) -> int:
-        """Returns 'num blocks' ETA estimate for given fee rate,
-        or -1 for low fee.
-        """
-        import operator
-        lst = list(self.fee_estimates.items())
-        next_block_fee = self.eta_target_to_fee(1)
-        if next_block_fee is not None:
-            lst += [(1, next_block_fee)]
-        if not lst or fee_per_kb is None:
-            return -1
-        dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), lst)
-        min_target, min_value = min(dist, key=operator.itemgetter(1))
-        if fee_per_kb < self.fee_estimates.get(FEE_ETA_TARGETS[0])/2:
-            min_target = -1
-        return min_target
-
-    def get_depth_mb_str(self, depth: int) -> str:
-        # e.g. 500_000 -> "0.50 MB"
-        depth_mb = "{:.2f}".format(depth / 1_000_000)  # maybe .rstrip("0") ?
-        return f"{depth_mb} {util.UI_UNIT_NAME_MEMPOOL_MB}"
-
-    def depth_tooltip(self, depth: Optional[int]) -> str:
-        """Returns text tooltip for given mempool depth (in vbytes)."""
-        if depth is None:
-            return "unknown from tip"
-        depth_mb = self.get_depth_mb_str(depth)
-        return _("{} from tip").format(depth_mb)
-
-    def eta_tooltip(self, x):
-        if x < 0:
-            return _('Low fee')
-        elif x == 1:
-            return _('In the next block')
-        else:
-            return _('Within {} blocks').format(x)
-
-    def get_fee_target(self):
-        dyn = self.is_dynfee()
-        mempool = self.use_mempool_fees()
-        pos = self.get_depth_level() if mempool else self.get_fee_level()
-        fee_rate = self.fee_per_kb()
-        target, tooltip = self.get_fee_text(pos, dyn, mempool, fee_rate)
-        return target, tooltip, dyn
-
-    def get_fee_status(self):
-        target, tooltip, dyn = self.get_fee_target()
-        return tooltip + '  [%s]'%target if dyn else target + '  [Static]'
-
-    def get_fee_text(
-            self,
-            slider_pos: int,
-            dyn: bool,
-            mempool: bool,
-            fee_per_kb: Optional[int],
-    ):
-        """Returns (text, tooltip) where
-        text is what we target: static fee / num blocks to confirm in / mempool depth
-        tooltip is the corresponding estimate (e.g. num blocks for a static fee)
-
-        fee_rate is in sat/kbyte
-        """
-        if fee_per_kb is None:
-            rate_str = 'unknown'
-            fee_per_byte = None
-        else:
-            fee_per_byte = fee_per_kb/1000
-            rate_str = format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
-
-        if dyn:
-            if mempool:
-                depth = self.depth_target(slider_pos)
-                text = self.depth_tooltip(depth)
-            else:
-                eta = self.eta_target(slider_pos)
-                text = self.eta_tooltip(eta)
-            tooltip = rate_str
-        else:  # using static fees
-            assert fee_per_kb is not None
-            assert fee_per_byte is not None
-            text = rate_str
-            if mempool and self.has_fee_mempool():
-                depth = self.fee_to_depth(fee_per_byte)
-                tooltip = self.depth_tooltip(depth)
-            elif not mempool and self.has_fee_etas():
-                eta = self.fee_to_eta(fee_per_kb)
-                tooltip = self.eta_tooltip(eta)
-            else:
-                tooltip = ''
-        return text, tooltip
-
-    def get_depth_level(self) -> int:
-        maxp = len(FEE_DEPTH_TARGETS) - 1
-        return min(maxp, self.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS)
-
-    def get_fee_level(self) -> int:
-        maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
-        return min(maxp, self.FEE_EST_DYNAMIC_ETA_SLIDERPOS)
-
-    def get_fee_slider(self, dyn, mempool) -> Tuple[int, int, Optional[int]]:
-        if dyn:
-            if mempool:
-                pos = self.get_depth_level()
-                maxp = len(FEE_DEPTH_TARGETS) - 1
-                fee_rate = self.depth_to_fee(pos)
-            else:
-                pos = self.get_fee_level()
-                maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
-                fee_rate = self.eta_to_fee(pos)
-        else:
-            fee_rate = self.fee_per_kb(dyn=False)
-            pos = self.static_fee_index(fee_rate)
-            maxp = len(FEERATE_STATIC_VALUES) - 1
-        return maxp, pos, fee_rate
-
-    def static_fee(self, i):
-        return FEERATE_STATIC_VALUES[i]
-
-    def static_fee_index(self, fee_per_kb: Optional[int]) -> int:
-        if fee_per_kb is None:
-            raise TypeError('static fee cannot be None')
-        dist = list(map(lambda x: abs(x - fee_per_kb), FEERATE_STATIC_VALUES))
-        return min(range(len(dist)), key=dist.__getitem__)
-
-    def has_fee_etas(self):
-        return len(self.fee_estimates) == 4
-
-    def has_fee_mempool(self) -> bool:
-        return self.mempool_fees is not None
-
-    def has_dynamic_fees_ready(self):
-        if self.use_mempool_fees():
-            return self.has_fee_mempool()
-        else:
-            return self.has_fee_etas()
-
-    def is_dynfee(self) -> bool:
-        return self.FEE_EST_DYNAMIC
-
-    def use_mempool_fees(self) -> bool:
-        return self.FEE_EST_USE_MEMPOOL
-
-    def _feerate_from_fractional_slider_position(self, fee_level: float, dyn: bool,
-                                                 mempool: bool) -> Union[int, None]:
-        fee_level = max(fee_level, 0)
-        fee_level = min(fee_level, 1)
-        if dyn:
-            max_pos = (len(FEE_DEPTH_TARGETS) - 1) if mempool else len(FEE_ETA_TARGETS)
-            slider_pos = round(fee_level * max_pos)
-            fee_rate = self.depth_to_fee(slider_pos) if mempool else self.eta_to_fee(slider_pos)
-        else:
-            max_pos = len(FEERATE_STATIC_VALUES) - 1
-            slider_pos = round(fee_level * max_pos)
-            fee_rate = FEERATE_STATIC_VALUES[slider_pos]
-        return fee_rate
-
-    def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Optional[int]:
-        """Returns sat/kvB fee to pay for a txn.
-        Note: might return None.
-
-        fee_level: float between 0.0 and 1.0, representing fee slider position
-        """
-        if constants.net is constants.BitcoinRegtest:
-            return self.FEE_EST_STATIC_FEERATE
-        if dyn is None:
-            dyn = self.is_dynfee()
-        if mempool is None:
-            mempool = self.use_mempool_fees()
-        if fee_level is not None:
-            return self._feerate_from_fractional_slider_position(fee_level, dyn, mempool)
-        # there is no fee_level specified; will use config.
-        # note: 'depth_level' and 'fee_level' in config are integer slider positions,
-        # unlike fee_level here, which (when given) is a float in [0.0, 1.0]
-        if dyn:
-            if mempool:
-                fee_rate = self.depth_to_fee(self.get_depth_level())
-            else:
-                fee_rate = self.eta_to_fee(self.get_fee_level())
-        else:
-            fee_rate = self.FEE_EST_STATIC_FEERATE
-        if fee_rate is not None:
-            fee_rate = int(fee_rate)
-        return fee_rate
-
-    def getfeerate(self) -> Tuple[str, int, Optional[int], str]:
-        dyn = self.is_dynfee()
-        mempool = self.use_mempool_fees()
-        if dyn:
-            if mempool:
-                method = 'mempool'
-                fee_level = self.get_depth_level()
-                value = self.depth_target(fee_level)
-                fee_rate = self.depth_to_fee(fee_level)
-                tooltip = self.depth_tooltip(value)
-            else:
-                method = 'ETA'
-                fee_level = self.get_fee_level()
-                value = self.eta_target(fee_level)
-                fee_rate = self.eta_to_fee(fee_level)
-                tooltip = self.eta_tooltip(value)
-        else:
-            method = 'static'
-            value = self.FEE_EST_STATIC_FEERATE
-            fee_rate = value
-            tooltip = 'static feerate'
-
-        return method, value, fee_rate, tooltip
-
-    def setfeerate(self, fee_method: str, value: int):
-        if fee_method == 'mempool':
-            if value not in FEE_DEPTH_TARGETS:
-                raise Exception(f"Error: fee_level must be in {FEE_DEPTH_TARGETS}")
-            self.FEE_EST_USE_MEMPOOL = True
-            self.FEE_EST_DYNAMIC = True
-            self.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = FEE_DEPTH_TARGETS.index(value)
-        elif fee_method == 'ETA':
-            if value not in FEE_ETA_TARGETS:
-                raise Exception(f"Error: fee_level must be in {FEE_ETA_TARGETS}")
-            self.FEE_EST_USE_MEMPOOL = False
-            self.FEE_EST_DYNAMIC = True
-            self.FEE_EST_DYNAMIC_ETA_SLIDERPOS = FEE_ETA_TARGETS.index(value)
-        elif fee_method == 'static':
-            self.FEE_EST_DYNAMIC = False
-            self.FEE_EST_STATIC_FEERATE = value
-        else:
-            raise Exception(f"Invalid parameter: {fee_method}. Valid methods are: ETA, mempool, static.")
-
-    def fee_per_byte(self):
-        """Returns sat/vB fee to pay for a txn.
-        Note: might return None.
-        """
-        fee_per_kb = self.fee_per_kb()
-        return fee_per_kb / 1000 if fee_per_kb is not None else None
-
-    def estimate_fee(self, size: Union[int, float, Decimal], *,
-                     allow_fallback_to_static_rates: bool = False) -> int:
-        fee_per_kb = self.fee_per_kb()
-        if fee_per_kb is None:
-            if allow_fallback_to_static_rates:
-                fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
-            else:
-                raise NoDynamicFeeEstimates()
-        return self.estimate_fee_for_feerate(fee_per_kb, size)
-
-    @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
-                                 size: Union[int, float, Decimal]) -> int:
-        # note: 'size' is in vbytes
-        size = Decimal(size)
-        fee_per_kb = Decimal(fee_per_kb)
-        fee_per_byte = fee_per_kb / 1000
-        # to be consistent with what is displayed in the GUI,
-        # the calculation needs to use the same precision:
-        fee_per_byte = quantize_feerate(fee_per_byte)
-        return round(fee_per_byte * size)
-
-    def update_fee_estimates(self, nblock_target: int, fee_per_kb: int):
-        assert isinstance(nblock_target, int), f"expected int, got {nblock_target!r}"
-        assert isinstance(fee_per_kb, int), f"expected int, got {fee_per_kb!r}"
-        self.fee_estimates[nblock_target] = fee_per_kb
-
-    def is_fee_estimates_update_required(self):
-        """Checks time since last requested and updated fee estimates.
-        Returns True if an update should be requested.
-        """
-        now = time.time()
-        return now - self.last_time_fee_estimates_requested > 60
-
-    def requested_fee_estimates(self):
-        self.last_time_fee_estimates_requested = time.time()
 
     def get_video_device(self):
         device = self.VIDEO_DEVICE_PATH
@@ -895,6 +541,41 @@ class SimpleConfig(Logger):
     def get_decimal_point(self):
         return self.decimal_point
 
+    def get_nostr_relays(self) -> Sequence[str]:
+        relays = []
+        for url in self.NOSTR_RELAYS.split(','):
+            url = url.strip()
+            if url and is_valid_websocket_url(url):
+                relays.append(url)
+        return relays
+
+    def add_nostr_relay(self, relay: str):
+        l = self.get_nostr_relays()
+        if is_valid_websocket_url(relay) and relay not in l:
+            l.append(relay)
+            self.NOSTR_RELAYS = ','.join(l)
+
+    def remove_nostr_relay(self, relay: str):
+        l = self.get_nostr_relays()
+        if relay in l:
+            l.remove(relay)
+            self.NOSTR_RELAYS = ','.join(l)
+
+    def __setattr__(self, name, value):
+        """Disallows setting instance attributes outside __init__.
+
+        The point is to make the following code raise:
+        >>> config.NETORK_AUTO_CONNECTT = False
+        (i.e. catch mistyped or non-existent ConfigVars)
+        """
+        # If __init__ not finished yet, or this field already exists, set it:
+        if not getattr(self, "_init_done", False) or hasattr(self, name):
+            return super().__setattr__(name, value)
+        raise AttributeError(
+            f"Tried to define new instance attribute for config: {name=!r}. "
+            "Did you perhaps mistype a ConfigVar?"
+        )
+
     @cached_property
     def cv(config):
         """Allows getting a reference to a config variable without dereferencing it.
@@ -926,11 +607,31 @@ class SimpleConfig(Logger):
         return CVLookupHelper()
 
     # config variables ----->
-    NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
-    NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
+    NETWORK_AUTO_CONNECT = ConfigVar(
+        'auto_connect', default=True, type_=bool,
+        short_desc=lambda: _('Select server automatically'),
+        long_desc=lambda: _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain. "
+                            "If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging."),
+    )
+    NETWORK_ONESERVER = ConfigVar(
+        'oneserver', default=False, type_=bool,
+        short_desc=lambda: _('Only connect to one server (full trust)'),
+        long_desc=lambda: _(
+            "This is only intended for connecting to your own fully trusted server. "
+            "Using this option on a public server is a security risk and is discouraged."
+            "\n\n"
+            "By default, Electrum tries to maintain connections to ~10 servers. "
+            "One of these nodes gets selected to be the history server and will learn the wallet addresses. "
+            "All the other nodes are *only* used for block header notifications. "
+            "\n\n"
+            "Getting block headers from multiple sources is useful to detect lagging servers, chain splits, and forks. "
+            "Chain split detection is security-critical for determining number of confirmations."
+        )
+    )
     NETWORK_PROXY = ConfigVar('proxy', default=None, type_=str, convert_getter=lambda v: "none" if v is None else v)
     NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None, type_=str)
     NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None, type_=str)
+    NETWORK_PROXY_ENABLED = ConfigVar('enable_proxy', default=lambda config: config.NETWORK_PROXY not in [None, "none"], type_=bool)
     NETWORK_SERVER = ConfigVar('server', default=None, type_=str)
     NETWORK_NOONION = ConfigVar('noonion', default=False, type_=bool)
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
@@ -940,13 +641,6 @@ class SimpleConfig(Logger):
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
     NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
-    WALLET_BATCH_RBF = ConfigVar(
-        'batch_rbf', default=False, type_=bool,
-        short_desc=lambda: _('Batch unconfirmed transactions'),
-        long_desc=lambda: (
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' +
-            _('This will save fees, but might have unwanted effects in terms of privacy')),
-    )
     WALLET_MERGE_DUPLICATE_OUTPUTS = ConfigVar(
         'wallet_merge_duplicate_outputs', default=False, type_=bool,
         short_desc=lambda: _('Merge duplicate outputs'),
@@ -968,15 +662,6 @@ class SimpleConfig(Logger):
             _('If enabled, at most 100 satoshis might be lost due to this, per transaction.')),
     )
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
-    WALLET_BIP21_LIGHTNING = ConfigVar(
-        'bip21_lightning', default=False, type_=bool,
-        short_desc=lambda: _('Add lightning requests to bitcoin URIs'),
-        long_desc=lambda: _('This may result in large QR codes'),
-    )
-    WALLET_BOLT11_FALLBACK = ConfigVar(
-        'bolt11_fallback', default=True, type_=bool,
-        short_desc=lambda: _('Add on-chain fallback to lightning requests'),
-    )
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
@@ -984,6 +669,13 @@ class SimpleConfig(Logger):
         'send_change_to_lightning', default=False, type_=bool,
         short_desc=lambda: _('Send change to Lightning'),
         long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
+    )
+    WALLET_FREEZE_REUSED_ADDRESS_UTXOS = ConfigVar(
+        'wallet_freeze_reused_address_utxos', default=False, type_=bool,
+        short_desc=lambda: _('Avoid spending from used addresses'),
+        long_desc=lambda: _("""Automatically freeze coins received to already used addresses.
+This can eliminate a serious privacy issue where a malicious user can track your spends by sending small payments
+to a previously-paid address of yours that would then be included with unrelated inputs in your future payments."""),
     )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
@@ -1022,13 +714,7 @@ If this is enabled, other nodes cannot open a channel to you. Channel recovery d
     )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
-    LIGHTNING_LEGACY_ADD_TRAMPOLINE = ConfigVar(
-        'lightning_legacy_add_trampoline', default=False, type_=bool,
-        short_desc=lambda: _("Add extra trampoline to legacy payments"),
-        long_desc=lambda: _("""When paying a non-trampoline invoice, add an extra trampoline to the route, in order to improve your privacy.
-
-This will result in longer routes; it might increase your fees and decrease the success rate of your payments."""),
-    )
+    LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT = ConfigVar('lightning_max_htlc_value_in_flight_msat', default=None, type_=int)
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)
     LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = ConfigVar(
         'lightning_payment_fee_max_millionths', default=10_000,  # 1%
@@ -1045,6 +731,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     )
 
     LIGHTNING_NODE_ALIAS = ConfigVar('lightning_node_alias', default='', type_=str)
+    LIGHTNING_NODE_COLOR_RGB = ConfigVar('lightning_node_color_rgb', default='000000', type_=str)
     EXPERIMENTAL_LN_FORWARD_PAYMENTS = ConfigVar('lightning_forward_payments', default=False, type_=bool)
     EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = ConfigVar('lightning_forward_trampoline_payments', default=False, type_=bool)
     TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = ConfigVar('test_fail_htlcs_with_temp_node_failure', default=False, type_=bool)
@@ -1055,11 +742,10 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
 
-    FEE_EST_DYNAMIC = ConfigVar('dynamic_fees', default=True, type_=bool)
-    FEE_EST_USE_MEMPOOL = ConfigVar('mempool_fees', default=False, type_=bool)
-    FEE_EST_STATIC_FEERATE = ConfigVar('fee_per_kb', default=FEERATE_FALLBACK_STATIC_FEE, type_=int)
-    FEE_EST_DYNAMIC_ETA_SLIDERPOS = ConfigVar('fee_level', default=2, type_=int)
-    FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = ConfigVar('depth_level', default=2, type_=int)
+    # fee_policy is a dict: fee_policy_name -> fee_policy_descriptor
+    FEE_POLICY = ConfigVar('fee_policy.default', default='eta:2', type_=str)  # exposed to GUI
+    FEE_POLICY_LIGHTNING = ConfigVar('fee_policy.lnwatcher', default='eta:2', type_=str)  # for txbatcher (sweeping)
+    FEE_POLICY_SWAPS = ConfigVar('fee_policy.swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)
@@ -1069,7 +755,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RPC_SOCKET_FILEPATH = ConfigVar('rpcsockpath', default=None, type_=str)
 
     GUI_NAME = ConfigVar('gui', default='qt', type_=str)
-    GUI_LAST_WALLET = ConfigVar('gui_last_wallet', default=None, type_=str)
+    CURRENT_WALLET = ConfigVar('current_wallet', default=None, type_=str)
 
     GUI_QT_COLOR_THEME = ConfigVar(
         'qt_gui_color_theme', default='default', type_=str,
@@ -1095,7 +781,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
         'gui_qt_tx_dialog_export_include_global_xpubs', default=False, type_=bool,
         short_desc=lambda: _('For hardware device; include xpubs'),
     )
-    GUI_QT_RECEIVE_TABS_INDEX = ConfigVar('receive_tabs_index', default=0, type_=int)
     GUI_QT_RECEIVE_TAB_QR_VISIBLE = ConfigVar('receive_qr_visible', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_IO = ConfigVar(
         'show_tx_io', default=False, type_=bool,
@@ -1115,12 +800,21 @@ Warning: setting this to too low will result in lots of payment failures."""),
     GUI_QT_SHOW_TAB_CONTACTS = ConfigVar('show_contacts_tab', default=False, type_=bool)
     GUI_QT_SHOW_TAB_CONSOLE = ConfigVar('show_console_tab', default=False, type_=bool)
     GUI_QT_SHOW_TAB_NOTES = ConfigVar('show_notes_tab', default=False, type_=bool)
+    GUI_QT_SCREENSHOT_PROTECTION = ConfigVar(
+        'screenshot_protection', default=True, type_=bool,
+        short_desc=lambda: _("Prevent screenshots"),
+        # currently this option is Windows only, so the description can be specific to Windows
+        long_desc=lambda: _(
+            'Signals Windows to disallow recordings and screenshots of the application window. '
+            'There is no guarantee Windows will respect this signal.'),
+    )
 
     GUI_QML_PREFERRED_REQUEST_TYPE = ConfigVar('preferred_request_type', default='bolt11', type_=str)
     GUI_QML_USER_KNOWS_PRESS_AND_HOLD = ConfigVar('user_knows_press_and_hold', default=False, type_=bool)
     GUI_QML_ADDRESS_LIST_SHOW_TYPE = ConfigVar('address_list_show_type', default=1, type_=int)
     GUI_QML_ADDRESS_LIST_SHOW_USED = ConfigVar('address_list_show_used', default=False, type_=bool)
     GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = ConfigVar('android_always_allow_screenshots', default=False, type_=bool)
+    GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = ConfigVar('android_set_max_brightness_on_qr_display', default=True, type_=bool)
 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)
     BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = ConfigVar(
@@ -1186,55 +880,44 @@ Warning: setting this to too low will result in lots of payment failures."""),
     QR_READER_FLIP_X = ConfigVar('qrreader_flip_x', default=True, type_=bool)
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
+    TERMS_OF_USE_ACCEPTED = ConfigVar('terms_of_use_accepted', default=0, type_=int)
 
     # connect to remote submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
-    # run submarine swap server locally
-    SWAPSERVER_PORT = ConfigVar('swapserver_port', default=None, type_=int)
-    SWAPSERVER_FEE_MILLIONTHS = ConfigVar('swapserver_fee_millionths', default=5000, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
     SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
+    SWAPSERVER_POW_TARGET = ConfigVar('swapserver_pow_target', default=30, type_=int)
 
     # nostr
     NOSTR_RELAYS = ConfigVar(
         'nostr_relays',
-        default='wss://nos.lol,wss://relay.damus.io,wss://brb.io,wss://nostr.mom',
+        default='wss://relay.getalby.com/v1,wss://nos.lol,wss://relay.damus.io,wss://brb.io,'
+                'wss://relay.primal.net,wss://ftp.halifax.rwth-aachen.de/nostr,'
+                'wss://eu.purplerelay.com,wss://nostr.einundzwanzig.space,wss://nostr.mom',
         type_=str,
         short_desc=lambda: _("Nostr relays"),
         long_desc=lambda: ' '.join([
-            _('Nostr relays are used to send and receive submarine swap offers'),
-            _('If this list is empty, Electrum will use http instead'),
+            _('Nostr relays are used to send and receive submarine swap offers.'),
+            _('These relays are also used for some plugins, e.g. Nostr Wallet Connect or Nostr Cosigner'),
         ]),
     )
 
     # anchor outputs channels
-    ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=False, type_=bool)
+    ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=True, type_=bool)
     # zeroconf channels
     ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    LN_UTXO_RESERVE = ConfigVar(
+        'ln_utxo_reserve',
+        default=10000,
+        type_=int,
+        short_desc=lambda: _("Amount that must be kept on-chain in order to sweep anchor output channels"),
+        long_desc=lambda: _("Do not set this below dust limit"),
+    )
 
     # connect to remote WT
-    WATCHTOWER_CLIENT_ENABLED = ConfigVar(
-        'use_watchtower', default=False, type_=bool,
-        short_desc=lambda: _("Use a remote watchtower"),
-        long_desc=lambda: ' '.join([
-            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
-            _("If you have private a watchtower, enter its URL here."),
-            _("Check our online documentation if you want to configure Electrum as a watchtower."),
-        ]),
-    )
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
-
-    # run WT locally
-    WATCHTOWER_SERVER_ENABLED = ConfigVar('run_watchtower', default=False, type_=bool)
-    WATCHTOWER_SERVER_PORT = ConfigVar('watchtower_port', default=None, type_=int)
-    WATCHTOWER_SERVER_USER = ConfigVar('watchtower_user', default=None, type_=str)
-    WATCHTOWER_SERVER_PASSWORD = ConfigVar('watchtower_password', default=None, type_=str)
-
-    PAYSERVER_PORT = ConfigVar('payserver_port', default=8080, type_=int)
-    PAYSERVER_ROOT = ConfigVar('payserver_root', default='/r', type_=str)
-    PAYSERVER_ALLOW_CREATE_INVOICE = ConfigVar('payserver_allow_create_invoice', default=False, type_=bool)
 
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 
@@ -1250,9 +933,7 @@ def read_user_config(path: Optional[str]) -> Dict[str, Any]:
         with open(config_path, "r", encoding='utf-8') as f:
             data = f.read()
         result = json.loads(data)
-    except Exception as exc:
-        _logger.warning(f"Cannot read config file at {config_path}: {exc}")
-        return {}
-    if not type(result) is dict:
-        return {}
+        assert isinstance(result, dict), "config file is not a dict"
+    except Exception as e:
+        raise ValueError(f"Invalid config file at {config_path}: {str(e)}")
     return result

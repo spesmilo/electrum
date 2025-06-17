@@ -189,50 +189,43 @@ class TestUnifiedPassword(DaemonTestCase):
 
 class TestCommandsWithDaemon(DaemonTestCase):
     TESTNET = True
+    SEED = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
 
     async def test_wp_command_with_inmemory_wallet_has_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+        wallet = restore_wallet_from_text(self.SEED,
                                           gap_limit=2,
                                           path=None,
                                           password="123456",
                                           config=self.config)['wallet']
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wallet, password="123456"))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet, password="123456"))
 
     async def test_wp_command_with_inmemory_wallet_no_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+        wallet = restore_wallet_from_text(self.SEED,
                                           gap_limit=2,
                                           path=None,
                                           config=self.config)['wallet']
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wallet))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet))
 
     async def test_wp_command_with_diskfile_wallet_has_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password="123456", encrypt_file=True)
+        wpath = self._restore_wallet_from_text(self.SEED, password="123456", encrypt_file=True)
+        basename = os.path.basename(wpath)
         await cmds.load_wallet(wallet_path=wpath, password="123456")
         wallet = self.daemon.get_wallet(wpath)
         self.assertIsInstance(wallet, Abstract_Wallet)
-
-        # when using the CLI/RPC to run commands, the "wallet" param is a path:
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wpath, password="123456"))
-        # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wallet, password="123456"))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet_path=wpath, password="123456"))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet_path=basename, password='123456'))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet, password="123456"))
 
     async def test_wp_command_with_diskfile_wallet_no_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wpath = self._restore_wallet_from_text("bitter grass shiver impose acquire brush forget axis eager alone wine silver", password=None)
+        wpath = self._restore_wallet_from_text(self.SEED, password=None)
+        basename = os.path.basename(wpath)
         await cmds.load_wallet(wallet_path=wpath, password=None)
         wallet = self.daemon.get_wallet(wpath)
         self.assertIsInstance(wallet, Abstract_Wallet)
-
-        # when using the CLI/RPC to run commands, the "wallet" param is a path:
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wpath))
-        # in unit tests or custom code, the "wallet" param is often an Abstract_Wallet:
-        self.assertEqual("bitter grass shiver impose acquire brush forget axis eager alone wine silver",
-                         await cmds.getseed(wallet=wallet))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet_path=wpath))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet_path=basename))
+        self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet))

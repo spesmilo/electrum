@@ -25,7 +25,8 @@ import sys
 from typing import Callable, Optional, TYPE_CHECKING, Mapping, Sequence
 
 from PyQt6.QtWidgets import QMessageBox, QWidget
-from PyQt6.QtGui import QImage
+from PyQt6.QtGui import QImage, QPainter, QColor
+from PyQt6.QtCore import QRect
 
 from electrum.i18n import _
 from electrum.util import UserFacingException
@@ -59,23 +60,42 @@ def scan_qrcode(
 def scan_qr_from_image(image: QImage) -> Sequence[QrCodeResult]:
     """Might raise exception: MissingQrDetectionLib."""
     qr_reader = get_qr_reader()
-    image_y800 = image.convertToFormat(QImage.Format.Format_Grayscale8)
-    res = qr_reader.read_qr_code(
-        image_y800.constBits().__int__(),
-        image_y800.sizeInBytes(),
-        image_y800.bytesPerLine(),
-        image_y800.width(),
-        image_y800.height(),
-    )
+
+    for attempt in range(4):
+        image_y800 = image.convertToFormat(QImage.Format.Format_Grayscale8)
+        res = qr_reader.read_qr_code(
+            image_y800.constBits().__int__(),
+            image_y800.sizeInBytes(),
+            image_y800.bytesPerLine(),
+            image_y800.width(),
+            image_y800.height(),
+        )
+        if res:
+            break
+        # zbar doesn't like qr codes that are too large in relation to the whole image
+        image = _reduce_qr_code_density(image)
     return res
 
+def _reduce_qr_code_density(image: QImage) -> QImage:
+    """ Reduces the size of the qr code relative to the whole image. """
+    new_image = QImage(image.width(), image.height(), QImage.Format.Format_RGB32)
+    new_image.fill(QColor(255, 255, 255))  # Fill white
+
+    painter = QPainter(new_image)
+    source_rect = QRect(0, 0, image.width(), image.height())
+    target_rect = QRect(0, 0, int(image.width() * 0.75), int(image.height() * 0.75))
+    painter.drawImage(target_rect, image, source_rect)
+    painter.end()
+
+    return new_image
 
 def find_system_cameras() -> Mapping[str, str]:
     """Returns a camera_description -> camera_path map."""
     if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
         try:
             from .qtmultimedia import find_system_cameras
-        except ImportError as e:
+        except (ImportError, RuntimeError) as e:
+            _logger.exception('error importing .qtmultimedia')
             return {}
         else:
             return find_system_cameras()
@@ -124,7 +144,7 @@ def _scan_qrcode_using_qtmultimedia(
 ) -> None:
     try:
         from .qtmultimedia import QrReaderCameraDialog, CameraError
-    except ImportError as e:
+    except (ImportError, RuntimeError) as e:
         icon = QMessageBox.Icon.Warning
         title = _("QR Reader Error")
         message = _("QR reader failed to load. This may happen if "

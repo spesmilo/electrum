@@ -1,17 +1,18 @@
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject, pyqtSlot
 
 from electrum.logging import get_logger
 from electrum import constants
+from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
-from electrum.simple_config import FEERATE_DEFAULT_RELAY
+from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
+from .qeconfig import QEConfig
 from .qeserverlistmodel import QEServerListModel
 
 if TYPE_CHECKING:
-    from .qeconfig import QEConfig
     from electrum.network import Network
 
 
@@ -24,6 +25,7 @@ class QENetwork(QObject, QtEventListener):
     serverHeightChanged = pyqtSignal([int], arguments=['height'])
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
+    torProbeFinished = pyqtSignal([str, int], arguments=['host', 'port'])
     statusChanged = pyqtSignal()
     feeHistogramUpdated = pyqtSignal()
     chaintipsChanged = pyqtSignal()
@@ -47,18 +49,17 @@ class QENetwork(QObject, QtEventListener):
     _gossipDbChannels = 0
     _gossipDbPolicies = 0
 
-    def __init__(self, network: 'Network', qeconfig: 'QEConfig', parent=None):
+    def __init__(self, network: 'Network', parent=None):
         super().__init__(parent)
         assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
-        self._qeconfig = qeconfig
         self._serverListModel = None
         self._height = network.get_local_height()  # init here, update event can take a while
         self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-        self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
+        QEConfig.instance.useGossipChanged.connect(self.on_gossip_setting_changed)
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -135,23 +136,7 @@ class QENetwork(QObject, QtEventListener):
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
-        if not histogram:
-            histogram = [[FEERATE_DEFAULT_RELAY/1000,1]]
-        # cap the histogram to a limited number of megabytes
-        bytes_limit = 10*1000*1000
-        bytes_current = 0
-        capped_histogram = []
-        for item in sorted(histogram, key=lambda x: x[0], reverse=True):
-            if bytes_current >= bytes_limit:
-                break
-            slot = min(item[1], bytes_limit-bytes_current)
-            bytes_current += slot
-            capped_histogram.append([
-                max(FEERATE_DEFAULT_RELAY/1000, item[0]),  # clamped to [FEERATE_DEFAULT_RELAY/1000,inf[
-                slot,  # width of bucket
-                bytes_current,  # cumulative depth at far end of bucket
-            ])
-
+        capped_histogram, bytes_current = histogram.get_capped_data()
         # add clamping attributes for the GUI
         self._fee_histogram = {
             'histogram': capped_histogram,
@@ -186,7 +171,7 @@ class QENetwork(QObject, QtEventListener):
     def on_gossip_setting_changed(self):
         if not self.network:
             return
-        if self._qeconfig.useGossip:
+        if QEConfig.instance.useGossip:
             self.network.start_gossip()
         else:
             self.network.run_from_another_thread(self.network.stop_gossip())
@@ -199,20 +184,39 @@ class QENetwork(QObject, QtEventListener):
     def serverHeight(self):
         return self._server_height
 
+    autoConnectChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=autoConnectChanged)
+    def autoConnect(self):
+        return self.network.config.NETWORK_AUTO_CONNECT
+
+    # auto_connect is actually a tri-state, expose the undefined case
+    @pyqtProperty(bool, notify=autoConnectChanged)
+    def autoConnectDefined(self):
+        return self.network.config.cv.NETWORK_AUTO_CONNECT.is_set()
+
     @pyqtProperty(str, notify=statusChanged)
     def server(self):
         return self._server
 
-    @server.setter
-    def server(self, server: str):
+    @pyqtSlot(str, bool, bool)
+    def setServerParameters(self, server: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
-        try:
-            server = ServerAddr.from_str_with_inference(server)
-            if not server:
-                raise Exception('failed to parse')
-        except Exception:
+        if server == net_params.server and auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
             return
-        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect)
+        if server != str(net_params.server):
+            try:
+                server = ServerAddr.from_str_with_inference(server)
+                if not server:
+                    raise Exception('failed to parse')
+            except Exception:
+                if not auto_connect:
+                    return
+                server = net_params.server
+            self.statusChanged.emit()
+        if auto_connect != net_params.auto_connect:
+            self.network.config.NETWORK_AUTO_CONNECT = auto_connect
+            self.autoConnectChanged.emit()
+        net_params = net_params._replace(server=server, auto_connect=auto_connect, oneserver=one_server)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)
@@ -253,14 +257,14 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
         net_params = self.network.get_parameters()
-        return net_params.proxy if net_params.proxy else {}
+        proxy = net_params.proxy
+        return proxy.to_dict()
 
     @proxy.setter
-    def proxy(self, proxy_settings):
+    def proxy(self, proxy_dict):
         net_params = self.network.get_parameters()
-        if not proxy_settings['enabled']:
-            proxy_settings = None
-        net_params = net_params._replace(proxy=proxy_settings)
+        proxy = ProxySettings.from_dict(proxy_dict)
+        net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
 
@@ -268,6 +272,10 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty(bool, notify=proxyTorChanged)
     def isProxyTor(self):
         return bool(self.network.is_proxy_tor)
+
+    @pyqtProperty(bool, notify=statusChanged)
+    def oneServer(self):
+        return self.network.oneserver
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):
@@ -289,3 +297,7 @@ class QENetwork(QObject, QtEventListener):
         if self._serverListModel is None:
             self._serverListModel = QEServerListModel(self.network)
         return self._serverListModel
+
+    @pyqtSlot()
+    def probeTor(self):
+        ProxySettings.probe_tor(self.torProbeFinished.emit)  # via signal

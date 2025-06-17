@@ -189,6 +189,11 @@ class StoredDict(dict):
             self.db.add_patch({'op': 'remove', 'path': key_path(self.path, key)})
         return r
 
+    def setdefault(self, key, default = None, /):
+        if key not in self:
+            self.__setitem__(key, default)
+        return self[key]
+
 
 class StoredList(list):
 

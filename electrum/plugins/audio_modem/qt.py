@@ -12,6 +12,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
 from electrum.i18n import _
 from electrum.logging import get_logger
+from electrum.gui.qt.util import read_QIcon_from_bytes
 
 if TYPE_CHECKING:
     from electrum.gui.qt.transaction_dialog import TxDialog
@@ -48,10 +49,7 @@ class Plugin(BasePlugin):
     def requires_settings(self):
         return True
 
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
-
-    def settings_dialog(self, window):
+    def settings_dialog(self, window, wallet):
         d = WindowModalDialog(window, _("Audio Modem Settings"))
 
         layout = QGridLayout(d)
@@ -77,8 +75,8 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog(self, dialog: 'TxDialog'):
         b = QPushButton()
-        b.setIcon(read_QIcon("speaker.png"))
-
+        icon = read_QIcon_from_bytes(self.read_file("speaker.png"))
+        b.setIcon(icon)
         def handler():
             blob = dialog.tx.serialize()
             self._send(parent=dialog, blob=blob)
@@ -87,15 +85,16 @@ class Plugin(BasePlugin):
 
     @hook
     def scan_text_edit(self, parent):
-        parent.addButton('microphone.png', partial(self._recv, parent),
-                         _("Read from microphone"))
+        icon = read_QIcon_from_bytes(self.read_file("microphone.png"))
+        parent.addButton(icon, partial(self._recv, parent), _("Read from microphone"))
 
     @hook
     def show_text_edit(self, parent):
         def handler():
             blob = str(parent.toPlainText())
             self._send(parent=parent, blob=blob)
-        parent.addButton('speaker.png', handler, _("Send to speaker"))
+        icon = read_QIcon_from_bytes(self.read_file("speaker.png"))
+        parent.addButton(icon, handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)

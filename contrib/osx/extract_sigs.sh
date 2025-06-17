@@ -27,7 +27,11 @@ BUNDLE_BASENAME=$(basename "$BUNDLE")
 rm -rf ${TEMPDIR}
 mkdir -p ${TEMPDIR}
 
-MAYBE_SIGNED_FILES=$(find "$BUNDLE/Contents/MacOS/" -type f)
+MAYBE_SIGNED_FILES=$(
+    find "$BUNDLE/Contents/MacOS/" -type f;
+    find "$BUNDLE/Contents/Frameworks/" -type f;
+    find "$BUNDLE/Contents/Resources/" -type f
+)
 
 echo "${MAYBE_SIGNED_FILES}" | while read i; do
     # skip files where pagestuff errors; these probably do not need signing:
@@ -44,6 +48,7 @@ echo "${MAYBE_SIGNED_FILES}" | while read i; do
     dd if="$i" of="${SIGNFILE}" bs=1 skip=${OFFSET} count=${SIZE} 2>/dev/null
 done
 
+# note: "$BUNDLE/Contents/CodeResources" is the "notarization staple id"
 FILES_TO_COPY=$(cat << EOF
 $BUNDLE/Contents/_CodeSignature/CodeResources
 $BUNDLE/Contents/CodeResources

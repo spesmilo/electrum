@@ -1,0 +1,9 @@
+{
+  "name": "trezor",
+  "fullname": "Trezor Wallet",
+  "description": "Provides support for Trezor hardware wallet",
+  "requires": [["trezorlib","pypi.org/project/trezor/"]],
+  "registers_keystore": ["hardware", "trezor", "Trezor wallet"],
+  "icon":"trezor.png",
+  "available_for": ["qt", "cmdline"]
+}

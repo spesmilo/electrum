@@ -33,10 +33,13 @@ ApplicationWindow
 
     property alias stack: mainStackView
     property alias keyboardFreeZone: _keyboardFreeZone
+    property alias infobanner: _infobanner
 
     property variant activeDialogs: []
 
     property var _exceptionDialog
+
+    property var pluginobjects: ({})
 
     property QtObject appMenu: Menu {
         id: menu
@@ -244,22 +247,34 @@ ApplicationWindow
         }
     }
 
-    StackView {
-        id: mainStackView
+    ColumnLayout {
         width: parent.width
         height: _keyboardFreeZone.height - header.height
-        initialItem: Component {
-            WalletMainView {}
+        spacing: 0
+
+        InfoBanner {
+            id: _infobanner
+            Layout.fillWidth: true
         }
 
-        function getRoot() {
-            return mainStackView.get(0)
-        }
-        function pushOnRoot(item) {
-            if (mainStackView.depth > 1) {
-                mainStackView.replace(mainStackView.get(1), item)
-            } else {
-                mainStackView.push(item)
+        StackView {
+            id: mainStackView
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+
+            initialItem: Component {
+                WalletMainView {}
+            }
+
+            function getRoot() {
+                return mainStackView.get(0)
+            }
+            function pushOnRoot(item) {
+                if (mainStackView.depth > 1) {
+                    mainStackView.replace(mainStackView.get(1), item)
+                } else {
+                    mainStackView.push(item)
+                }
             }
         }
     }
@@ -345,6 +360,14 @@ ApplicationWindow
         }
     }
 
+    property alias termsOfUseWizard: _termsOfUseWizard
+    Component {
+        id: _termsOfUseWizard
+        TermsOfUseWizard {
+            onClosed: destroy()
+        }
+    }
+
     property alias serverConnectWizard: _serverConnectWizard
     Component {
         id: _serverConnectWizard
@@ -423,6 +446,13 @@ ApplicationWindow
         }
     }
 
+    Component {
+        id: crashDialog
+        ExceptionDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
@@ -436,9 +466,18 @@ ApplicationWindow
         }
     }
 
+    property alias nostrSwapServersDialog: _nostrSwapServersDialog
+    Component {
+        id: _nostrSwapServersDialog
+        NostrSwapServersDialog {
+            onClosed: destroy()
+        }
+    }
+
     Component {
         id: swapDialog
         SwapDialog {
+            id: _swapdialog
             onClosed: destroy()
             swaphelper: SwapHelper {
                 id: _swaphelper
@@ -454,6 +493,20 @@ ApplicationWindow
                     })
                     dialog.open()
                 }
+                onUndefinedNPub: {
+                    var dialog = app.nostrSwapServersDialog.createObject(app, {
+                        swaphelper: _swaphelper,
+                        selectedPubkey: Config.swapServerNPub
+                    })
+                    dialog.accepted.connect(function() {
+                        Config.swapServerNPub = dialog.selectedPubkey
+                        _swaphelper.setReadyState()
+                    })
+                    dialog.rejected.connect(function() {
+                        _swaphelper.npubSelectionCancelled()
+                    })
+                    dialog.open()
+                }
             }
         }
     }
@@ -461,13 +514,6 @@ ApplicationWindow
     NotificationPopup {
         id: notificationPopup
         width: parent.width
-    }
-
-    Component {
-        id: crashDialog
-        ExceptionDialog {
-            z: 1000
-        }
     }
 
     Component.onCompleted: {
@@ -479,38 +525,57 @@ ApplicationWindow
             app.scanDialog = _qtScanDialog
         }
 
-        if (!Config.autoConnectDefined) {
-            var dialog = serverConnectWizard.createObject(app)
-            // without completed serverConnectWizard we can't start
+        function continueWithServerConnection() {
+            if (!Network.autoConnectDefined) {
+                var dialog = serverConnectWizard.createObject(app)
+                // without completed serverConnectWizard we can't start
+                dialog.rejected.connect(function() {
+                    app.visible = false
+                    AppController.wantClose = true
+                    Qt.callLater(Qt.quit)
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.startNetwork()
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.loadWallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                })
+                dialog.open()
+            } else {
+                Daemon.startNetwork()
+                if (Daemon.availableWallets.rowCount() > 0) {
+                    Daemon.loadWallet()
+                } else {
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.loadWallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                }
+            }
+        }
+
+        if (!Config.termsOfUseAccepted) {
+            var dialog = termsOfUseWizard.createObject(app)
+
             dialog.rejected.connect(function() {
                 app.visible = false
                 AppController.wantClose = true
                 Qt.callLater(Qt.quit)
             })
             dialog.accepted.connect(function() {
-                Daemon.startNetwork()
-                var newww = app.newWalletWizard.createObject(app)
-                newww.walletCreated.connect(function() {
-                    Daemon.availableWallets.reload()
-                    // and load the new wallet
-                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
-                })
-                newww.open()
+                Config.termsOfUseAccepted = true
+                continueWithServerConnection()
             })
             dialog.open()
         } else {
-            Daemon.startNetwork()
-            if (Daemon.availableWallets.rowCount() > 0) {
-                Daemon.loadWallet()
-            } else {
-                var newww = app.newWalletWizard.createObject(app)
-                newww.walletCreated.connect(function() {
-                    Daemon.availableWallets.reload()
-                    // and load the new wallet
-                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
-                })
-                newww.open()
-            }
+            continueWithServerConnection()
         }
     }
 
@@ -604,6 +669,43 @@ ApplicationWindow
             })
             app._exceptionDialog.open()
         }
+        function onPluginLoaded(name) {
+            console.log('plugin ' + name + ' loaded')
+            var loader = AppController.plugin(name).loader
+            if (loader == undefined)
+                return
+            var url = Qt.resolvedUrl('../../../plugins/' + name + '/qml/' + loader)
+            var comp = Qt.createComponent(url)
+            if (comp.status == Component.Error) {
+                console.log('Could not find/parse PluginLoader for plugin ' + name)
+                console.log(comp.errorString())
+                return
+            }
+            var obj = comp.createObject(app)
+            if (obj != null)
+                app.pluginobjects[name] = obj
+        }
+    }
+
+    function pluginsComponentsByName(comp_name) {
+        // return named QML components from plugins
+        var plugins = AppController.plugins
+        var result = []
+        for (var i=0; i < plugins.length; i++) {
+            if (!plugins[i].enabled)
+                continue
+            var pluginobject = app.pluginobjects[plugins[i].name]
+            if (!pluginobject)
+                continue
+            if (!(comp_name in pluginobject))
+                continue
+            var comp = pluginobject[comp_name]
+            if (!comp)
+                continue
+
+            result.push(comp)
+        }
+        return result
     }
 
     Connections {

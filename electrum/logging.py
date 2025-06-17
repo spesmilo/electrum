@@ -43,8 +43,6 @@ class LogFormatterForConsole(logging.Formatter):
     def format(self, record):
         record = copy.copy(record)  # avoid mutating arg
         record = _shorten_name_of_logrecord(record)
-        if shortcut := getattr(record, 'custom_shortcut', None):
-            record.name = f"{shortcut}/{record.name}"
         text = super().format(record)
         return text
 
@@ -152,7 +150,7 @@ def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int)
 
 
 console_stderr_handler = None
-def _configure_stderr_logging(*, verbosity=None, verbosity_shortcuts=None):
+def _configure_stderr_logging(*, verbosity=None):
     # log to stderr; by default only WARNING and higher
     global console_stderr_handler
     if console_stderr_handler is not None:
@@ -160,14 +158,13 @@ def _configure_stderr_logging(*, verbosity=None, verbosity_shortcuts=None):
         return
     console_stderr_handler = logging.StreamHandler(sys.stderr)
     console_stderr_handler.setFormatter(console_formatter)
-    if not verbosity and not verbosity_shortcuts:
+    if not verbosity:
         console_stderr_handler.setLevel(logging.WARNING)
         root_logger.addHandler(console_stderr_handler)
     else:
         console_stderr_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(console_stderr_handler)
         _process_verbosity_log_levels(verbosity)
-        _process_verbosity_filter_shortcuts(verbosity_shortcuts, handler=console_stderr_handler)
     if _inmemory_startup_logs:
         _inmemory_startup_logs.dump_to_target(console_stderr_handler)
 
@@ -191,65 +188,6 @@ def _process_verbosity_log_levels(verbosity):
             logger.setLevel(level.upper())
         else:
             raise Exception(f"invalid log filter: {filt}")
-
-
-def _process_verbosity_filter_shortcuts(verbosity_shortcuts, *, handler: 'logging.Handler'):
-    if not isinstance(verbosity_shortcuts, str):
-        return
-    if len(verbosity_shortcuts) < 1:
-        return
-    # depending on first character being '^', either blacklist or whitelist
-    is_blacklist = verbosity_shortcuts[0] == '^'
-    if is_blacklist:
-        filters = verbosity_shortcuts[1:]
-    else:  # whitelist
-        filters = verbosity_shortcuts[0:]
-    filt = ShortcutFilteringFilter(is_blacklist=is_blacklist, filters=filters)
-    # apply filter directly (and only!) on stderr handler
-    # note that applying on one of the root loggers directly would not work,
-    # see https://docs.python.org/3/howto/logging.html#logging-flow
-    handler.addFilter(filt)
-
-
-class ShortcutInjectingFilter(logging.Filter):
-
-    def __init__(self, *, shortcut: Optional[str]):
-        super().__init__()
-        self.__shortcut = shortcut
-
-    def filter(self, record):
-        record.custom_shortcut = self.__shortcut
-        return True
-
-
-class ShortcutFilteringFilter(logging.Filter):
-
-    def __init__(self, *, is_blacklist: bool, filters: str):
-        super().__init__()
-        self.__is_blacklist = is_blacklist
-        self.__filters = filters
-
-    def filter(self, record):
-        # all errors are let through
-        if record.levelno >= logging.ERROR:
-            return True
-        # the logging module itself is let through
-        if record.name == __name__:
-            return True
-        # do filtering
-        shortcut = getattr(record, 'custom_shortcut', None)
-        if self.__is_blacklist:
-            if shortcut is None:
-                return True
-            if shortcut in self.__filters:
-                return False
-            return True
-        else:  # whitelist
-            if shortcut is None:
-                return False
-            if shortcut in self.__filters:
-                return True
-            return False
 
 
 # enable logs universally (including for other libraries)
@@ -290,10 +228,6 @@ _logger.setLevel(logging.INFO)
 
 class Logger:
 
-    # Single character short "name" for this class.
-    # Can be used for filtering log lines. Does not need to be unique.
-    LOGGING_SHORTCUT = None  # type: Optional[str]
-
     def __init__(self):
         self.logger = self.__get_logger_for_obj()
 
@@ -310,8 +244,6 @@ class Logger:
         if diag_name:
             name += f".[{diag_name}]"
         logger = get_logger(name)
-        if self.LOGGING_SHORTCUT:
-            logger.addFilter(ShortcutInjectingFilter(shortcut=self.LOGGING_SHORTCUT))
         return logger
 
     def diagnostic_name(self):
@@ -322,10 +254,9 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
     from .util import is_android_debug_apk
 
     verbosity = config.get('verbosity')
-    verbosity_shortcuts = config.get('verbosity_shortcuts')
     if not verbosity and config.GUI_ENABLE_DEBUG_LOGS:
         verbosity = '*'
-    _configure_stderr_logging(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
+    _configure_stderr_logging(verbosity=verbosity)
 
     if log_to_file is None:
         log_to_file = config.WRITE_LOGS_TO_DISK
@@ -351,7 +282,7 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
     _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - {GIT_REPO_URL}")
     _logger.info(f"Python version: {sys.version}. On platform: {describe_os_version()}")
     _logger.info(f"Logging to file: {str(_logfile_path)}")
-    _logger.info(f"Log filters: verbosity {repr(verbosity)}, verbosity_shortcuts {repr(verbosity_shortcuts)}")
+    _logger.info(f"Log filters: verbosity {repr(verbosity)}")
 
 
 def get_logfile_path() -> Optional[pathlib.Path]:

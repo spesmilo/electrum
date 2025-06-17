@@ -22,19 +22,16 @@
 # SOFTWARE.
 import asyncio
 import time
-import queue
 import os
 import random
 import re
 from collections import defaultdict
 import threading
-import socket
 import json
-import sys
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar
-import traceback
-import concurrent
-from concurrent import futures
+from typing import (
+    NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar,
+    Callable
+)
 import copy
 import functools
 from enum import IntEnum
@@ -45,31 +42,31 @@ from aiorpcx import ignore_after, NetAddress
 from aiohttp import ClientResponse
 
 from . import util
-from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
-                   bfh, make_aiohttp_session, send_exception_to_crash_reporter,
-                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
-                   error_text_str_to_safe_str)
-from .bitcoin import COIN, DummyAddress, DummyAddressUsedInTxException
+from .util import (
+    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter, MyEncoder,
+    NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
+)
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain
-from . import bitcoin
 from . import dns_hacks
 from .transaction import Transaction
-from .blockchain import Blockchain, HEADER_SIZE
-from .interface import (Interface, PREFERRED_NETWORK_PROTOCOL,
-                        RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-                        NetworkException, RequestCorrupted, ServerAddr)
+from .blockchain import Blockchain
+from .interface import (
+    Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
+    NetworkException, RequestCorrupted, ServerAddr
+)
 from .version import PROTOCOL_VERSION
 from .i18n import _
 from .logging import get_logger, Logger
+from .fee_policy import FeeHistogram, FeeTimeEstimates, FEE_ETA_TARGETS
+
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
-
     from .channel_db import ChannelDB
     from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
-    #from .lnwatcher import WatchTower
     from .daemon import Daemon
     from .simple_config import SimpleConfig
 
@@ -156,65 +153,135 @@ def pick_random_server(hostmap=None, *, allowed_protocols: Iterable[str],
     return random.choice(eligible) if eligible else None
 
 
-class NetworkParameters(NamedTuple):
-    server: ServerAddr
-    proxy: Optional[dict]
-    auto_connect: bool
-    oneserver: bool = False
+def is_valid_port(ps: str):
+    try:
+        return 0 < int(ps) < 65535
+    except ValueError:
+        return False
 
 
-proxy_modes = ['socks4', 'socks5']
+def is_valid_host(ph: str):
+    try:
+        NetAddress(ph, '1')
+    except ValueError:
+        return False
+    return True
 
 
-def serialize_proxy(p):
-    if not isinstance(p, dict):
-        return None
-    return ':'.join([p.get('mode'), p.get('host'), p.get('port')])
+class ProxySettings:
+    MODES = ['socks4', 'socks5']
 
+    probe_fut = None
 
-def deserialize_proxy(s: Optional[str], user: str = None, password: str = None) -> Optional[dict]:
-    if not isinstance(s, str):
-        return None
-    if s.lower() == 'none':
-        return None
-    proxy = {"mode": "socks5", "host": "localhost"}
+    def __init__(self):
+        self.enabled = False
+        self.mode = 'socks5'
+        self.host = ''
+        self.port = ''
+        self.user = None
+        self.password = None
 
-    args = s.split(':')
-    if args[0] in proxy_modes:
-        proxy['mode'] = args[0]
-        args = args[1:]
+    def set_defaults(self):
+        self.__init__()  # call __init__ for default values
 
-    def is_valid_port(ps: str):
-        try:
-            return 0 < int(ps) < 65535
-        except ValueError:
-            return False
+    def serialize_proxy_cfgstr(self):
+        return ':'.join([self.mode, self.host, self.port])
 
-    def is_valid_host(ph: str):
-        try:
-            NetAddress(ph, '1')
-        except ValueError:
-            return False
-        return True
+    def deserialize_proxy_cfgstr(self, s: Optional[str], user: str = None, password: str = None) -> None:
+        if s is None or (isinstance(s, str) and s.lower() == 'none'):
+            self.set_defaults()
+            self.user = user
+            self.password = password
+            return
 
-    # detect migrate from old settings
-    if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
-        proxy['host'] = args[0]
-        proxy['port'] = args[1]
-        proxy['user'] = args[2]
-        proxy['password'] = args[3]
+        if not isinstance(s, str):
+            raise ValueError('proxy config not a string')
+
+        args = s.split(':')
+        if args[0] in ProxySettings.MODES:
+            self.mode = args[0]
+            args = args[1:]
+
+        # detect migrate from old settings
+        if len(args) == 4 and is_valid_host(args[0]) and is_valid_port(args[1]):  # host:port:user:pass,
+            self.host = args[0]
+            self.port = args[1]
+            self.user = args[2]
+            self.password = args[3]
+        else:
+            self.host = ':'.join(args[:-1])
+            self.port = args[-1]
+            self.user = user
+            self.password = password
+
+        if not is_valid_host(self.host) or not is_valid_port(self.port):
+            self.enabled = False
+
+    def to_dict(self):
+        return {
+            'enabled': self.enabled,
+            'mode': self.mode,
+            'host': self.host,
+            'port': self.port,
+            'user': self.user,
+            'password': self.password
+        }
+
+    @classmethod
+    def from_config(cls, config: 'SimpleConfig') -> 'ProxySettings':
+        proxy = ProxySettings()
+        proxy.deserialize_proxy_cfgstr(
+            config.NETWORK_PROXY, config.NETWORK_PROXY_USER, config.NETWORK_PROXY_PASSWORD
+        )
+        proxy.enabled = config.NETWORK_PROXY_ENABLED
         return proxy
 
-    proxy['host'] = ':'.join(args[:-1])
-    proxy['port'] = args[-1]
+    @classmethod
+    def from_dict(cls, d: dict) -> 'ProxySettings':
+        proxy = ProxySettings()
+        proxy.enabled = d.get('enabled', proxy.enabled)
+        proxy.mode = d.get('mode', proxy.mode)
+        proxy.host = d.get('host', proxy.host)
+        proxy.port = d.get('port', proxy.port)
+        proxy.user = d.get('user', proxy.user)
+        proxy.password = d.get('password', proxy.password)
+        return proxy
 
-    if not is_valid_host(proxy['host']) or not is_valid_port(proxy['port']):
-        return None
+    @classmethod
+    def probe_tor(cls, on_finished: Callable[[str | None, int | None], None]):
+        async def detect_task(finished: Callable[[str | None, int | None], None]):
+            try:
+                net_addr = await detect_tor_socks_proxy()
+                if net_addr is None:
+                    finished('', -1)
+                else:
+                    host = net_addr[0]
+                    port = net_addr[1]
+                    finished(host, port)
+            finally:
+                cls.probe_fut = None
 
-    proxy['user'] = user
-    proxy['password'] = password
+        if cls.probe_fut:  # one probe at a time
+            return
+        cls.probe_fut = asyncio.run_coroutine_threadsafe(detect_task(on_finished), util.get_asyncio_loop())
 
-    return proxy
+    def __eq__(self, other):
+        return self.enabled == other.enabled \
+            and self.mode == other.mode \
+            and self.host == other.host \
+            and self.port == other.port \
+            and self.user == other.user \
+            and self.password == other.password
+
+    def __str__(self):
+        return f'{self.enabled=} {self.mode=} {self.host=} {self.port=} {self.user=}'
+
+
+class NetworkParameters(NamedTuple):
+    server: ServerAddr
+    proxy: ProxySettings
+    auto_connect: bool
+    oneserver: bool = False
 
 
 class BestEffortRequestFailed(NetworkException): pass
@@ -279,8 +346,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     servers, each connected socket is handled by an Interface() object.
     """
 
-    LOGGING_SHORTCUT = 'n'
-
     taskgroup: Optional[OldTaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]
@@ -323,8 +388,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
-        self.proxy = None  # type: Optional[dict]
-        self.is_proxy_tor = None
+        self.proxy = ProxySettings()
+        self.is_proxy_tor = None  # type: Optional[bool]  # tri-state. None means unknown.
         self._init_parameters_from_config()
 
         self.taskgroup = None
@@ -364,6 +429,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
         self._was_started = False
 
+        self.mempool_fees = FeeHistogram()
+        self.fee_estimates = FeeTimeEstimates()
+        self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""
@@ -476,8 +544,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_banner():
             self.banner = await interface.get_server_banner()
             util.trigger_callback('banner', self.banner)
+
         async def get_donation_address():
             self.donation_address = await interface.get_donation_address()
+
         async def get_server_peers():
             server_peers = await session.send_request('server.peers.subscribe')
             random.shuffle(server_peers)
@@ -486,6 +556,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             # note that 'parse_servers' also validates the data (which is untrusted input!)
             self.server_peers = parse_servers(server_peers)
             util.trigger_callback('servers', self.get_servers())
+
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 
@@ -497,11 +568,27 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             await group.spawn(self._request_fee_estimates(interface))
 
     async def _request_fee_estimates(self, interface):
-        self.config.requested_fee_estimates()
+        self.requested_fee_estimates()
         histogram = await interface.get_fee_histogram()
-        self.config.mempool_fees = histogram
+        self.mempool_fees.set_data(histogram)
         self.logger.info(f'fee_histogram {len(histogram)}')
-        util.trigger_callback('fee_histogram', self.config.mempool_fees)
+        util.trigger_callback('fee_histogram', self.mempool_fees)
+
+    def is_fee_estimates_update_required(self):
+        """Checks time since last requested and updated fee estimates.
+        Returns True if an update should be requested.
+        """
+        now = time.time()
+        return now - self.last_time_fee_estimates_requested > 60
+
+    def has_fee_etas(self):
+        return self.fee_estimates.has_data()
+
+    def has_fee_mempool(self) -> bool:
+        return self.mempool_fees.has_data()
+
+    def requested_fee_estimates(self):
+        self.last_time_fee_estimates_requested = time.time()
 
     def get_parameters(self) -> NetworkParameters:
         return NetworkParameters(server=self.default_server,
@@ -512,9 +599,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _init_parameters_from_config(self) -> None:
         dns_hacks.configure_dns_resolver()
         self.auto_connect = self.config.NETWORK_AUTO_CONNECT
+        if self.auto_connect and self.config.NETWORK_ONESERVER:
+            # enabling both oneserver and auto_connect doesn't really make sense
+            # assume oneserver is enabled for privacy reasons, disable auto_connect and assume server is unpredictable
+            self.logger.warning(f'both "oneserver" and "auto_connect" options enabled, disabling "auto_connect" and resetting "server".')
+            self.config.NETWORK_SERVER = ""  # let _set_default_server set harmless default (localhost)
+            self.auto_connect = False
+
         self._set_default_server()
-        self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY, self.config.NETWORK_PROXY_USER,
-                                          self.config.NETWORK_PROXY_PASSWORD))
+        self._set_proxy(ProxySettings.from_config(self.config))
         self._maybe_set_oneserver()
 
     def get_donation_address(self):
@@ -532,11 +625,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def get_fee_estimates(self):
         from statistics import median
-        from .simple_config import FEE_ETA_TARGETS
         if self.auto_connect:
             with self.interfaces_lock:
                 out = {}
-                for n in FEE_ETA_TARGETS:
+                for n in FEE_ETA_TARGETS[0:-1]:
                     try:
                         out[n] = int(median(filter(None, [i.fee_estimates_eta.get(n) for i in self.interfaces.values()])))
                     except Exception:
@@ -551,11 +643,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if fee_est is None:
             fee_est = self.get_fee_estimates()
         for nblock_target, fee in fee_est.items():
-            self.config.update_fee_estimates(nblock_target, fee)
+            self.fee_estimates.set_data(nblock_target, fee)
         if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != fee_est:
             self._prev_fee_est = copy.copy(fee_est)
             self.logger.info(f'fee_estimates {fee_est}')
-        util.trigger_callback('fee', self.config.fee_estimates)
+        util.trigger_callback('fee', self.fee_estimates)
+
 
     @with_recent_servers_lock
     def get_servers(self):
@@ -634,10 +727,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 self.logger.warning(f'failed to parse server-string ({server!r}); falling back to localhost:1:s.')
                 self.default_server = ServerAddr.from_str("localhost:1:s")
         else:
-            self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
+            # if oneserver is enabled but no server specified then don't pick a random server
+            if self.config.NETWORK_ONESERVER:
+                self.logger.warning(f'"oneserver" option enabled, but no "server" defined; falling back to localhost:1:s.')
+                self.default_server = ServerAddr.from_str("localhost:1:s")
+            else:
+                self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
-    def _set_proxy(self, proxy: Optional[dict]):
+    def _set_proxy(self, proxy: ProxySettings):
         if self.proxy == proxy:
             return
 
@@ -651,9 +749,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('proxy_set', self.proxy)
 
     def _detect_if_proxy_is_tor(self) -> None:
-        def tor_probe_task(p):
+        async def tor_probe_task(p):
             assert p is not None
-            is_tor = util.is_tor_socks_port(p['host'], int(p['port']))
+            is_tor = await util.is_tor_socks_port(p.host, int(p.port))
             if self.proxy == p:  # is this the proxy we probed?
                 if self.is_proxy_tor != is_tor:
                     self.logger.info(f'Proxy is {"" if is_tor else "not "}TOR')
@@ -661,32 +759,37 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 util.trigger_callback('tor_probed', is_tor)
 
         proxy = self.proxy
-        if proxy and proxy['mode'] == 'socks5':
-            t = threading.Thread(target=tor_probe_task, args=(proxy,), daemon=True)
-            t.start()
+        if proxy and proxy.enabled and proxy.mode == 'socks5':
+            asyncio.run_coroutine_threadsafe(tor_probe_task(proxy), self.asyncio_loop)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
-        proxy_str = serialize_proxy(proxy)
-        proxy_user = proxy['user'] if proxy else None
-        proxy_pass = proxy['password'] if proxy else None
+        proxy_str = proxy.serialize_proxy_cfgstr()
+        proxy_enabled = proxy.enabled
+        proxy_user = proxy.user
+        proxy_pass = proxy.password
         server = net_params.server
         # sanitize parameters
         try:
             if proxy:
-                proxy_modes.index(proxy['mode']) + 1
-                int(proxy['port'])
+                # proxy_modes.index(proxy['mode']) + 1
+                ProxySettings.MODES.index(proxy.mode) + 1
+                # int(proxy['port'])
+                int(proxy.port)
         except Exception:
-            return
+            proxy.enabled = False
+            # return
         self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
         self.config.NETWORK_ONESERVER = net_params.oneserver
+        self.config.NETWORK_PROXY_ENABLED = proxy_enabled
         self.config.NETWORK_PROXY = proxy_str
         self.config.NETWORK_PROXY_USER = proxy_user
         self.config.NETWORK_PROXY_PASSWORD = proxy_pass
         self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
         if self.config.NETWORK_SERVER != str(server) \
+                or self.config.NETWORK_PROXY_ENABLED != proxy_enabled \
                 or self.config.NETWORK_PROXY != proxy_str \
                 or self.config.NETWORK_PROXY_USER != proxy_user \
                 or self.config.NETWORK_PROXY_PASSWORD != proxy_pass \
@@ -863,7 +966,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             return self.config.NETWORK_TIMEOUT
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
-        if self.proxy:
+        if self.proxy and self.proxy.enabled:
             return request_type.RELAXED
         return request_type.NORMAL
 
@@ -1001,15 +1104,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through
         except aiorpcx.jsonrpc.CodeMessageError as e:
-            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}")
+            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}. tx={str(tx)}")
             raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
         except BaseException as e:  # intentional BaseException for sanity!
-            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}")
+            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}. tx={str(tx)}")
             send_exception_to_crash_reporter(e)
             raise TxBroadcastUnknownError() from e
         if out != tx.txid():
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: "
-                             f"{error_text_str_to_safe_str(out)} != {tx.txid()}")
+                             f"{error_text_str_to_safe_str(out)} != {tx.txid()}. tx={str(tx)}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
     async def try_broadcasting(self, tx, name) -> bool:
@@ -1129,18 +1232,25 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return msg if msg else substring
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/rpc/rawtransaction.cpp
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/util/error.cpp
+        # https://github.com/bitcoin/bitcoin/blob/3f83c744ac28b700090e15b5dda2260724a56f49/src/common/messages.cpp#L126
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
+        # grep "TransactionError"
         rawtransaction_error_messages = {
             r"Missing inputs": None,
             r"Inputs missing or spent": None,
             r"transaction already in block chain": None,
             r"Transaction already in block chain": None,
+            r"Transaction outputs already in utxo set": None,
             r"TX decode failed": None,
             r"Peer-to-peer functionality missing or disabled": None,
             r"Transaction rejected by AcceptToMemoryPool": None,
             r"AcceptToMemoryPool failed": None,
+            r"Transaction rejected by mempool": None,
+            r"Mempool internal error": None,
             r"Fee exceeds maximum configured by user": None,
+            r"Unspendable output exceeds maximum configured by user": None,
+            r"Transaction rejected due to invalid package": None,
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
@@ -1201,7 +1311,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
+    async def request_chunk(
+        self,
+        height: int,
+        *,
+        tip: Optional[int] = None,
+        can_return_early: bool = False,
+    ) -> Optional[Tuple[bool, int]]:
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
@@ -1404,7 +1520,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
-                if self.config.is_fee_estimates_update_required():
+                if self.is_fee_estimates_update_required():
                     await self.interface.taskgroup.spawn(self._request_fee_estimates, self.interface)
 
         while True:

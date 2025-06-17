@@ -4,8 +4,10 @@ from typing import Optional
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
 
 from electrum.logging import get_logger
-from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
-                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
+from electrum.invoices import (
+    PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER
+)
+from electrum.lnutil import MIN_FUNDING_SAT
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -27,7 +29,7 @@ class QERequestDetails(QObject, QtEventListener):
 
     _logger = get_logger(__name__)
 
-    detailsChanged = pyqtSignal() # generic request properties changed signal
+    detailsChanged = pyqtSignal()  # generic request properties changed signal
     statusChanged = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -93,7 +95,7 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=detailsChanged)
     def isLightning(self):
-        return self._req.is_lightning()
+        return self._req.is_lightning() if self._req else False
 
     @pyqtProperty(str, notify=detailsChanged)
     def address(self):
@@ -116,11 +118,27 @@ class QERequestDetails(QObject, QtEventListener):
     def expiration(self):
         return self._req.get_expiration_date()
 
+    @pyqtProperty(str, notify=statusChanged)
+    def paidTxid(self):
+        """only used when Request status is PR_PAID"""
+        if not self._req:
+            return ''
+        is_paid, conf_needed, txids = self._wallet.wallet._is_onchain_invoice_paid(self._req)
+        if len(txids) > 0:
+            return txids[0]
+        return ''
+
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
-        can_receive = self._wallet.wallet.lnworker.num_sats_can_receive() if  self._wallet.wallet.lnworker else 0
-        if self._req and can_receive > 0 and (self._req.get_amount_sat() or 0) <= can_receive:
-            bolt11 = self._wallet.wallet.get_bolt11_invoice(self._req)
+        wallet = self._wallet.wallet
+        if not wallet.lnworker:
+            return ''
+        amount_sat = self._req.get_amount_sat() or 0 if self._req else 0
+        can_receive = wallet.lnworker.num_sats_can_receive()
+        will_req_zeroconf = wallet.lnworker.receive_requires_jit_channel(amount_msat=amount_sat*1000)
+        if self._req and ((can_receive > 0 and amount_sat <= can_receive)
+                          or (will_req_zeroconf and amount_sat >= MIN_FUNDING_SAT)):
+            bolt11 = wallet.get_bolt11_invoice(self._req)
         else:
             return ''
         # encode lightning invoices as uppercase so QR encoding can use

@@ -473,7 +473,7 @@ def ecies_decrypt_message(
     *,
     magic: bytes = b'BIE1',
 ) -> bytes:
-    encrypted = base64.b64decode(encrypted)  # type: bytes
+    encrypted = base64.b64decode(encrypted, validate=True)  # type: bytes
     if len(encrypted) < 85:
         raise Exception('invalid ciphertext: length')
     magic_found = encrypted[:4]

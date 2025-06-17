@@ -7,8 +7,7 @@ import base64
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
-                             QHBoxLayout, QPushButton, QDialog)
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QProgressBar, QHBoxLayout, QPushButton, QDialog
 
 from electrum import version
 from electrum import constants
@@ -123,7 +122,7 @@ class UpdateCheckThread(QThread, Logger):
                 for address, sig in sigs.items():
                     if address not in UpdateCheck.VERSION_ANNOUNCEMENT_SIGNING_KEYS:
                         continue
-                    sig = base64.b64decode(sig)
+                    sig = base64.b64decode(sig, validate=True)
                     msg = version_num.encode('utf-8')
                     if verify_usermessage_with_address(
                         address=address, sig65=sig, message=msg,

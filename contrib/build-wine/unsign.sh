@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# exit if command fails
+set -e
+
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
 CONTRIB="$PROJECT_ROOT/contrib"
 here=$(dirname "$0")
@@ -8,11 +11,8 @@ cd $here
 
 if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
-    exit
+    exit 1
 fi
-
-# exit if command fails
-set -e
 
 rm -rf signed/stripped
 mkdir -p signed >/dev/null 2>&1

@@ -54,14 +54,13 @@ from .plugin import run_hook
 from .logging import Logger
 
 if TYPE_CHECKING:
-    from .gui.qt.util import TaskThread
-    from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+    from .gui.common_qt.util import TaskThread
+    from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .wallet_db import WalletDB
     from .plugin import Device
 
 
 class CannotDerivePubkey(Exception): pass
-
 class ScriptTypeNotSupported(Exception): pass
 
 
@@ -640,6 +639,9 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         self.xpub = d.get('xpub')
         self.xprv = d.get('xprv')
 
+    def watching_only_keystore(self):
+        return BIP32_KeyStore({'xpub':self.xpub})
+
     def format_seed(self, seed):
         return ' '.join(seed.split())
 
@@ -731,6 +733,9 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
         self._root_fingerprint = None
+
+    def watching_only_keystore(self):
+        return Old_KeyStore({'mpk': self.mpk})
 
     def get_hex_seed(self, password):
         return pw_decode(self.seed, password, version=self.pw_hash_version).encode('utf8')

@@ -18,9 +18,9 @@ from .logging import Logger
 from .util import profiler, get_running_loop
 from .lnrouter import fee_for_edge_msat
 from .lnutil import LnFeatures, ln_compare_features, IncompatibleLightningFeatures
+from .network import Network
 
 if TYPE_CHECKING:
-    from .network import Network
     from .channel_db import Policy, NodeInfo
     from .lnchannel import ShortChannelID
     from .lnworker import LNWallet
@@ -86,16 +86,12 @@ class LNRater(Logger):
         self._last_progress_percent = 0
 
     def maybe_analyze_graph(self):
-        loop = self.network.asyncio_loop
-        fut = asyncio.run_coroutine_threadsafe(self._maybe_analyze_graph(), loop)
-        fut.result()
+        Network.run_from_another_thread(self._maybe_analyze_graph())
 
     def analyze_graph(self):
         """Forces a graph analysis, e.g., due to external triggers like
         the graph info reaching 50%."""
-        loop = self.network.asyncio_loop
-        fut = asyncio.run_coroutine_threadsafe(self._analyze_graph(), loop)
-        fut.result()
+        Network.run_from_another_thread(self._analyze_graph())
 
     async def _maybe_analyze_graph(self):
         """Analyzes the graph when in early sync stage (>30%) or when caching
@@ -197,7 +193,7 @@ class LNRater(Logger):
                 self.logger.debug(pformat(channel_policies))
                 continue
 
-        self.logger.info(f"node statistics done, calculated statistics"
+        self.logger.info(f"node statistics done, calculated statistics "
                          f"for {len(self._node_stats)} nodes")
 
     def _rate_nodes(self):
@@ -234,15 +230,18 @@ class LNRater(Logger):
 
             self._node_ratings[n] = weighted_sum(heuristics, heuristics_weights)
 
-    def suggest_node_channel_open(self) -> Tuple[bytes, NodeStats]:
-        node_keys = list(self._node_stats.keys())
-        node_ratings = list(self._node_ratings.values())
+    @profiler
+    def suggest_node_channel_open(self) -> Optional[bytes]:
+        node_stats = self._node_stats.copy()
+        node_ratings = self._node_ratings.copy()
         channel_peers = self.lnworker.channel_peers()
         node_info: Optional["NodeInfo"] = None
 
-        while True:
+        while node_stats:
             # randomly pick nodes weighted by node_rating
-            pk = choices(node_keys, weights=node_ratings, k=1)[0]
+            pk = choices(list(node_stats.keys()), weights=list(node_ratings.values()), k=1)[0]
+            # remove the pk so it doesn't get tried again
+            node_stats.pop(pk); node_ratings.pop(pk)
             # node should have compatible features
             node_info = self.network.channel_db.get_node_infos().get(pk, None)
             peer_features = LnFeatures(node_info.features)
@@ -258,14 +257,23 @@ class LNRater(Logger):
             # don't want to connect to nodes we already have a channel with on another device
             if self.lnworker.has_conflicting_backup_with(pk):
                 continue
+            # node should be on clearnet and have an address saved
+            for (hostname, _, _) in self.lnworker.channel_db.get_node_addresses(node_id=pk):
+                if not hostname.endswith(".onion"):
+                    break
+            else:
+                continue
             break
+        else:
+            self.logger.info(f"no suitable channel peer found")
+            return None
 
         alias = node_info.alias if node_info else 'unknown node alias'
         self.logger.info(
             f"node rating for {alias}:\n"
             f"{pformat(self._node_stats[pk])} (score {self._node_ratings[pk]})")
 
-        return pk, self._node_stats[pk]
+        return pk
 
     def suggest_peer(self) -> Optional[bytes]:
         """Suggests a LN node to open a channel with.
@@ -273,6 +281,6 @@ class LNRater(Logger):
         """
         self.maybe_analyze_graph()
         if self._node_ratings:
-            return self.suggest_node_channel_open()[0]
+            return self.suggest_node_channel_open()
         else:
             return None

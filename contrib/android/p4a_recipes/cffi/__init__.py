@@ -12,7 +12,8 @@ assert CffiRecipe.python_depends == []
 
 
 class CffiRecipePinned(util.InheritedRecipeMixin, CffiRecipe):
-    sha512sum = "e99cafcb029076abc29e435b490fa0573ee2856f4051b7ca8a5b38cd125d56dd9dae8b189f59ceb3d728a675da8ee83239e09e19f8b0feeddea4b186ab5173a5"
+    version = "1.17.1"
+    sha512sum = "907129891d56351ca5cb885aae62334ad432321826d6eddfaa32195b4c7b7689a80333e6d14d0aab479a646aba148b9852c0815b80344dfffa4f183a5e74372c"
 
 
 recipe = CffiRecipePinned()

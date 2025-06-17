@@ -20,7 +20,7 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.13
        - name: "unittests: Tox Python 3 debug mode"
          env:
-           ELECTRUM_PYTHON_VERSION: 3.11
+           ELECTRUM_PYTHON_VERSION: 3.13
            # enable additional checks:
            PYTHONASYNCIODEBUG: "1"
            PYTHONDEVMODE: "1"
@@ -77,11 +77,13 @@ task:
     fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI
   install_script:
     - apt-get update
-    - apt-get -y install gettext qttools5-dev-tools
+    - apt-get -y install gettext qt6-l10n-tools
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
+  submodules_script:
+    - git submodule update --init
   locale_script:
-    - contrib/push_locale
+    - contrib/locale/push_locale.py
   env:
     ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
@@ -107,11 +109,12 @@ task:
   install_script:
     - apt-get update
     - apt-get -y install curl jq bc
+    - python3 -m pip install --user --upgrade pip
     # install electrum
     - export ELECTRUM_ECC_DONT_COMPILE=1  # we build manually to make caching it easier
-    - pip3 install .[tests]
-    # install e-x some commits after 1.16.0 tag
-    - pip3 install git+https://github.com/spesmilo/electrumx.git@4e66804dc0d668cd6bd4602b547e2f5b2e227e97
+    - python3 -m pip install .[tests]
+    # install e-x some commits after 1.18.0 tag
+    - python3 -m pip install git+https://github.com/spesmilo/electrumx.git@0b260d4345242cc41e316e97d7de10ae472fd172
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
     - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
     - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
@@ -150,7 +153,7 @@ task:
     folder: ~/.cache/pip
     fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
   install_script:
-    - pip install "flake8==7.0.0" "flake8-bugbear==24.1.16"
+    - pip install "flake8==7.2.0" "flake8-bugbear==24.12.12"
   flake8_script:
     - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "*_pb2.py,electrum/_vendor/"
   env:
@@ -163,14 +166,22 @@ task:
         # - https://flake8.pycqa.org/en/latest/user/error-codes.html
         # - https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
         # - https://github.com/PyCQA/flake8-bugbear/tree/8c0e7eb04217494d48d0ab093bf5b31db0921989#list-of-warnings
-        ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,E722,F63,F7,F82,W191,W29,B
-        ELECTRUM_LINTERS_IGNORE: B007,B009,B010,B019,B036
+        ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,E722,F5,F6,F7,F8,W191,W29,B
+        ELECTRUM_LINTERS_IGNORE: B007,B009,B010,B019,B036,F541,F841
     - name: "linter: Flake8 Non-Mandatory"
       env:
         ELECTRUM_LINTERS: E,F,W,C90,B
         ELECTRUM_LINTERS_IGNORE: ""
       allow_failures: true
 
+task:
+  name: "linter: ban unicode"
+  container:
+    image: python:3.10
+    cpu: 1
+    memory: 1G
+  main_script:
+    - contrib/ban_unicode.py
 
 # Cron jobs configured in https://cirrus-ci.com/settings/...
 # - job "nightly" on branch "master" at "0 30 2 * * ?"  (every day at 02:30Z)

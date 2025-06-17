@@ -26,14 +26,14 @@
 import enum
 from typing import Sequence, TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QItemSelectionModel
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QAbstractItemView
 from PyQt6.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
 
 from electrum.i18n import _
 from electrum.util import format_time
-from electrum.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
+from electrum.invoices import PR_UNPAID, PR_INFLIGHT, PR_FAILED
 from electrum.lnutil import HtlcLog
 
 from .util import read_QIcon, pr_icons
@@ -43,7 +43,6 @@ from .util import WindowModalDialog
 from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
     from .send_tab import SendTab
 
 
@@ -157,7 +156,7 @@ class InvoiceList(MyTreeView):
     def create_menu(self, position):
         wallet = self.wallet
         items = self.selected_in_column(0)
-        if len(items)>1:
+        if len(items) > 1:
             keys = [item.data(ROLE_REQUEST_ID) for item in items]
             invoices = [wallet.get_invoice(key) for key in keys]
             can_batch_pay = all([not i.is_lightning() and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])

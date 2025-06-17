@@ -88,7 +88,7 @@ class SPV(NetworkJobOnDefaultServer):
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
                     # FIXME these requests are not counted (self._requests_sent += 1)
-                    await self.taskgroup.spawn(self.interface.request_chunk(tx_height, None, can_return_early=True))
+                    await self.taskgroup.spawn(self.interface.request_chunk(tx_height, can_return_early=True))
                 continue
             # request now
             self.logger.info(f'requested merkle {tx_hash}')
@@ -151,7 +151,7 @@ class SPV(NetworkJobOnDefaultServer):
         index = leaf_pos_in_tree
         for item in merkle_branch_bytes:
             if len(item) != 32:
-                raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
+                raise MerkleVerificationFailure('all merkle branch items have to be 32 bytes long')
             inner_node = (item + h) if (index & 1) else (h + item)
             cls._raise_if_valid_tx(inner_node.hex())
             h = sha256d(inner_node)

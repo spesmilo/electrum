@@ -1,87 +1,84 @@
 import threading
+from typing import Callable, Optional
 
 from PyQt6.QtGui import QCursor
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox
+from PyQt6.QtWidgets import QSlider, QToolTip, QComboBox, QWidget
 
 from electrum.i18n import _
+from electrum.fee_policy import FeeMethod, FeePolicy
+from electrum.network import Network
+
 
 class FeeComboBox(QComboBox):
 
-    def __init__(self, fee_slider):
+    def __init__(self, fee_slider: 'FeeSlider'):
         QComboBox.__init__(self)
-        self.config = fee_slider.config
         self.fee_slider = fee_slider
-        self.addItems([_('Static'), _('ETA'), _('Mempool')])
-        self.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
+        self.addItems([x.name_for_GUI() for x in FeeMethod.slider_values()])
+        index = FeeMethod.slider_index_of_method(self.fee_slider.fee_policy.method)
+        self.setCurrentIndex(index)
         self.currentIndexChanged.connect(self.on_fee_type)
         self.help_msg = '\n'.join([
-            _('Static: the fee slider uses static values'),
+            _('Feerate: the fee slider uses static feerate values'),
             _('ETA: fee rate is based on average confirmation time estimates'),
             _('Mempool based: fee rate is targeting a depth in the memory pool')
             ]
         )
 
     def on_fee_type(self, x):
-        self.config.FEE_EST_USE_MEMPOOL = (x == 2)
-        self.config.FEE_EST_DYNAMIC = (x > 0)
-        self.fee_slider.update()
+        method = FeeMethod.slider_values()[x]
+        self.fee_slider.fee_policy.set_method(method)
+        self.fee_slider.update(is_initialized=True)
 
 
 class FeeSlider(QSlider):
 
-    def __init__(self, window, config, callback):
-        QSlider.__init__(self, Qt.Orientation.Horizontal)
-        self.config = config
-        self.window = window
+    def __init__(
+        self,
+        *,
+        parent: Optional[QWidget],
+        network: Network,
+        fee_policy: FeePolicy,
+        callback: Callable[[Optional[int]], None],
+    ):
+        QSlider.__init__(self, Qt.Orientation.Horizontal, parent=parent)
+        self.network = network
         self.callback = callback
-        self.dyn = False
+        self.fee_policy = fee_policy
         self.lock = threading.RLock()
-        self.update()
+        self.update(is_initialized=False)
         self.valueChanged.connect(self.moved)
         self._active = True
 
-    def get_fee_rate(self, pos):
-        if self.dyn:
-            fee_rate = self.config.depth_to_fee(pos) if self.config.use_mempool_fees() else self.config.eta_to_fee(pos)
-        else:
-            fee_rate = self.config.static_fee(pos)
-        return fee_rate
+    @property
+    def dyn(self) -> bool:
+        return self.fee_policy.use_dynamic_estimates
+
+    def get_policy(self) -> FeePolicy:
+        return self.fee_policy
 
     def moved(self, pos):
         with self.lock:
-            fee_rate = self.get_fee_rate(pos)
-            tooltip = self.get_tooltip(pos, fee_rate)
+            if self.fee_policy.method == FeeMethod.FIXED:
+                return
+            self.fee_policy.set_value_from_slider_pos(pos)
+            fee_rate = self.fee_policy.fee_per_kb(self.network)
+            tooltip = self.fee_policy.get_tooltip(self.network)
             QToolTip.showText(QCursor.pos(), tooltip, self)
             self.setToolTip(tooltip)
-            self.callback(self.dyn, pos, fee_rate)
+            self.callback(fee_rate)
 
-    def get_tooltip(self, pos, fee_rate):
-        mempool = self.config.use_mempool_fees()
-        target, estimate = self.config.get_fee_text(pos, self.dyn, mempool, fee_rate)
-        if self.dyn:
-            return _('Target') + ': ' + target + '\n' + _('Current rate') + ': ' + estimate
-        else:
-            return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
-
-    def get_dynfee_target(self):
-        if not self.dyn:
-            return ''
-        pos = self.value()
-        fee_rate = self.get_fee_rate(pos)
-        mempool = self.config.use_mempool_fees()
-        target, estimate = self.config.get_fee_text(pos, True, mempool, fee_rate)
-        return target
-
-    def update(self):
+    def update(self, *, is_initialized: bool = True):
         with self.lock:
-            self.dyn = self.config.is_dynfee()
-            mempool = self.config.use_mempool_fees()
-            maxp, pos, fee_rate = self.config.get_fee_slider(self.dyn, mempool)
+            if self.fee_policy.method == FeeMethod.FIXED:
+                return
+            pos = self.fee_policy.get_slider_pos()
+            maxp = self.fee_policy.get_slider_max()
             self.setRange(0, maxp)
             self.setValue(pos)
-            tooltip = self.get_tooltip(pos, fee_rate)
-            self.setToolTip(tooltip)
+            if is_initialized:
+                self.moved(pos)
 
     def activate(self):
         self._active = True

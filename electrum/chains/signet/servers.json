@@ -1,0 +1,18 @@
+{
+    "signet-electrumx.wakiyamap.dev": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.emzy.de": {
+        "pruning": "-",
+        "s": "53002",
+        "version": "1.4"
+    },
+    "mempool.space": {
+        "pruning": "-",
+        "s": "60602",
+        "version": "1.4"
+    }
+}

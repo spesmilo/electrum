@@ -20,28 +20,29 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import binascii
 import concurrent.futures
+from dataclasses import dataclass
 import logging
-import os, sys, re, json
+import os
+import sys
+import re
 from collections import defaultdict, OrderedDict
-from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set, Awaitable)
-from datetime import datetime, timezone
+from concurrent.futures.process import ProcessPoolExecutor
+from typing import (
+    NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
+    Set, Awaitable
+)
+from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
-import traceback
-import urllib
 import threading
 import hmac
+import hashlib
 import stat
-import locale
 import asyncio
-import urllib.request, urllib.parse, urllib.error
 import builtins
 import json
 import time
-from typing import NamedTuple, Optional
 import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
@@ -50,25 +51,23 @@ import secrets
 import functools
 from functools import partial
 from abc import abstractmethod, ABC
-import socket
 import enum
 from contextlib import nullcontext
+import traceback
 
-import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
 import certifi
-import dns.resolver
+import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
-    from .network import Network
+    from .network import Network, ProxySettings
     from .interface import Interface
     from .simple_config import SimpleConfig
-    from .paymentrequest import PaymentRequest
 
 
 _logger = get_logger(__name__)
@@ -377,8 +376,6 @@ class DebugMem(ThreadJob):
 class DaemonThread(threading.Thread, Logger):
     """ daemon thread that terminates cleanly """
 
-    LOGGING_SHORTCUT = 'd'
-
     def __init__(self):
         threading.Thread.__init__(self)
         Logger.__init__(self)
@@ -442,11 +439,13 @@ def print_stderr(*args):
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
+
 def print_msg(*args):
     # Stringify args
     args = [str(item) for item in args]
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
+
 
 def json_encode(obj):
     try:
@@ -455,11 +454,13 @@ def json_encode(obj):
         s = repr(obj)
     return s
 
+
 def json_decode(x):
     try:
         return json.loads(x, parse_float=Decimal)
     except Exception:
         return x
+
 
 def json_normalize(x):
     # note: The return value of commands, when going through the JSON-RPC interface,
@@ -476,22 +477,38 @@ def constant_time_compare(val1, val2):
 
 
 _profiler_logger = _logger.getChild('profiler')
+
+
 def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     """Function decorator that logs execution time.
 
     min_threshold: if set, only log if time taken is higher than threshold
-    NOTE: does not work with async methods.
     """
     if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
-    def do_profile(*args, **kw_args):
-        name = func.__qualname__
+    t0 = None  # type: Optional[float]
+
+    def timer_start():
+        nonlocal t0
         t0 = time.time()
-        o = func(*args, **kw_args)
+
+    def timer_done():
         t = time.time() - t0
         if min_threshold is None or t > min_threshold:
-            _profiler_logger.debug(f"{name} {t:,.4f} sec")
-        return o
+            _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
+
+    if asyncio.iscoroutinefunction(func):
+        async def do_profile(*args, **kw_args):
+            timer_start()
+            o = await func(*args, **kw_args)
+            timer_done()
+            return o
+    else:
+        def do_profile(*args, **kw_args):
+            timer_start()
+            o = func(*args, **kw_args)
+            timer_done()
+            return o
     return do_profile
 
 
@@ -528,6 +545,7 @@ def android_ext_dir():
     from android.storage import primary_external_storage_path
     return primary_external_storage_path()
 
+
 def android_backup_dir():
     pkgname = get_android_package_name()
     d = os.path.join(android_ext_dir(), pkgname)
@@ -535,10 +553,12 @@ def android_backup_dir():
         os.mkdir(d)
     return d
 
+
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
@@ -697,6 +717,29 @@ pkg_dir = os.path.split(os.path.realpath(__file__))[0]
 def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None
+
+
+def is_valid_websocket_url(url: str) -> bool:
+    """
+    uses this django url validation regex:
+    https://github.com/django/django/blob/2c6906a0c4673a7685817156576724aba13ad893/django/core/validators.py#L45C1-L52C43
+    Note: this is not perfect, urls and their parsing can get very complex (see recent django code).
+    however its sufficient for catching weird user input in the gui dialog
+    """
+    # stores the compiled regex in the function object itself to avoid recompiling it every call
+    if not hasattr(is_valid_websocket_url, "regex"):
+        is_valid_websocket_url.regex = re.compile(
+            r'^(?:ws|wss)://'  # ws:// or wss://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+            r'localhost|'  # localhost...
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
+            r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    try:
+        return re.match(is_valid_websocket_url.regex, url) is not None
+    except Exception:
+        return False
 
 
 def is_hash256_str(text: Any) -> bool:
@@ -874,72 +917,42 @@ def age(
     """Takes a timestamp and returns a string with the approximation of the age"""
     if from_date is None:
         return _("Unknown")
-
     from_date = datetime.fromtimestamp(from_date)
     if since_date is None:
         since_date = datetime.now(target_tz)
-
     distance_in_time = from_date - since_date
     is_in_past = from_date < since_date
+    s = delta_time_str(distance_in_time, include_seconds=include_seconds)
+    return _("{} ago").format(s) if is_in_past else _("in {}").format(s)
+
+
+def delta_time_str(distance_in_time: timedelta, *, include_seconds: bool = False) -> str:
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds / 60))
-
     if distance_in_minutes == 0:
         if include_seconds:
-            if is_in_past:
-                return _("{} seconds ago").format(distance_in_seconds)
-            else:
-                return _("in {} seconds").format(distance_in_seconds)
+            return _("{} seconds").format(distance_in_seconds)
         else:
-            if is_in_past:
-                return _("less than a minute ago")
-            else:
-                return _("in less than a minute")
+            return _("less than a minute")
     elif distance_in_minutes < 45:
-        if is_in_past:
-            return _("about {} minutes ago").format(distance_in_minutes)
-        else:
-            return _("in about {} minutes").format(distance_in_minutes)
+        return _("about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        if is_in_past:
-            return _("about 1 hour ago")
-        else:
-            return _("in about 1 hour")
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        if is_in_past:
-            return _("about {} hours ago").format(round(distance_in_minutes / 60.0))
-        else:
-            return _("in about {} hours").format(round(distance_in_minutes / 60.0))
+        return _("about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        if is_in_past:
-            return _("about 1 day ago")
-        else:
-            return _("in about 1 day")
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        if is_in_past:
-            return _("about {} days ago").format(round(distance_in_minutes / 1440))
-        else:
-            return _("in about {} days").format(round(distance_in_minutes / 1440))
+        return _("about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        if is_in_past:
-            return _("about 1 month ago")
-        else:
-            return _("in about 1 month")
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        if is_in_past:
-            return _("about {} months ago").format(round(distance_in_minutes / 43200))
-        else:
-            return _("in about {} months").format(round(distance_in_minutes / 43200))
+        return _("about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        if is_in_past:
-            return _("about 1 year ago")
-        else:
-            return _("in about 1 year")
+        return _("about 1 year")
     else:
-        if is_in_past:
-            return _("over {} years ago").format(round(distance_in_minutes / 525600))
-        else:
-            return _("in over {} years").format(round(distance_in_minutes / 525600))
+        return _("over {} years").format(round(distance_in_minutes / 525600))
+
 
 mainnet_block_explorers = {
     '3xpl.com': ('https://3xpl.com/bitcoin/',
@@ -1072,9 +1085,6 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     return ''.join(url_parts)
 
 
-
-
-
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3
@@ -1083,6 +1093,7 @@ def raw_input(prompt=None):
         sys.stdout.write(prompt)
     return builtin_raw_input()
 
+
 builtin_raw_input = builtins.input
 builtins.input = raw_input
 
@@ -1090,7 +1101,7 @@ builtins.input = raw_input
 def parse_json(message):
     # TODO: check \r\n pattern
     n = message.find(b'\n')
-    if n==-1:
+    if n == -1:
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
@@ -1168,13 +1179,21 @@ def os_chmod(path, mode):
             raise
 
 
-def make_dir(path, allow_symlink=True):
-    """Make directory if it does not yet exist."""
+def make_dir(path, *, allow_symlink=True):
+    """Makes directory if it does not yet exist.
+    Also sets sane 0700 permissions on the dir.
+    """
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
-        os.mkdir(path)
+        try:
+            os.mkdir(path)
+        except FileExistsError:
+            # this can happen in a multiprocess race, e.g. when an electrum daemon
+            # and an electrum cli command are launched in rapid fire
+            pass
         os_chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        assert os.path.exists(path)
 
 
 def is_subpath(long_path: str, short_path: str) -> bool:
@@ -1191,6 +1210,7 @@ def is_subpath(long_path: str, short_path: str) -> bool:
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         self = args[0] if len(args) > 0 else None
@@ -1211,6 +1231,7 @@ def log_exceptions(func):
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -1222,6 +1243,7 @@ def ignore_exceptions(func):
 
 def with_lock(func):
     """Decorator to enforce a lock on a function call."""
+    @functools.wraps(func)
     def func_wrapper(self, *args, **kwargs):
         with self.lock:
             return func(self, *args, **kwargs)
@@ -1311,7 +1333,19 @@ def format_short_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
-def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
+def make_aiohttp_proxy_connector(proxy: 'ProxySettings', ssl_context: Optional[ssl.SSLContext] = None) -> ProxyConnector:
+    return ProxyConnector(
+        proxy_type=ProxyType.SOCKS5 if proxy.mode == 'socks5' else ProxyType.SOCKS4,
+        host=proxy.host,
+        port=int(proxy.port),
+        username=proxy.user,
+        password=proxy.password,
+        rdns=True,  # needed to prevent DNS leaks over proxy
+        ssl=ssl_context,
+    )
+
+
+def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
@@ -1322,16 +1356,8 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
         timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
-    if proxy:
-        connector = ProxyConnector(
-            proxy_type=ProxyType.SOCKS5 if proxy['mode'] == 'socks5' else ProxyType.SOCKS4,
-            host=proxy['host'],
-            port=int(proxy['port']),
-            username=proxy.get('user', None),
-            password=proxy.get('password', None),
-            rdns=True,  # needed to prevent DNS leaks over proxy
-            ssl=ssl_context,
-        )
+    if proxy and proxy.enabled:
+        connector = make_aiohttp_proxy_connector(proxy, ssl_context)
     else:
         connector = aiohttp.TCPConnector(ssl=ssl_context)
 
@@ -1379,6 +1405,7 @@ class OldTaskGroup(aiorpcx.TaskGroup):
             if self.completed:
                 self.completed.result()
 
+
 # We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
 # to fix a timing issue present in asyncio as a whole re timing out tasks.
 # To see the issue we are trying to fix, consider example:
@@ -1400,10 +1427,12 @@ def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
     def timeout_task():
         task._orig_cancel()
         task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
+
     def mycancel(*args, **kwargs):
         task._orig_cancel(*args, **kwargs)
         task._externally_cancelled = True
         task._timed_out = None
+
     if not hasattr(task, "_orig_cancel"):
         task._orig_cancel = task.cancel
         task.cancel = mycancel
@@ -1447,9 +1476,9 @@ if hasattr(asyncio, 'timeout'):  # python 3.11+
     async_timeout = asyncio.timeout
 else:
     class TimeoutAfterAsynciolike(aiorpcx.curio.TimeoutAfter):
-        async def __aexit__(self, exc_type, exc_value, traceback):
+        async def __aexit__(self, exc_type, exc_value, tb):
             try:
-                await super().__aexit__(exc_type, exc_value, traceback)
+                await super().__aexit__(exc_type, exc_value, tb)
             except (aiorpcx.TaskTimeout, aiorpcx.UncaughtTimeoutError):
                 raise asyncio.TimeoutError from None
             except aiorpcx.TimeoutCancellationError:
@@ -1493,6 +1522,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         self.interface = interface
 
         taskgroup = self.taskgroup
+
         async def run_tasks_wrapper():
             self.logger.debug(f"starting taskgroup ({hex(id(taskgroup))}).")
             try:
@@ -1545,37 +1575,59 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         return s
 
 
-def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
+async def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
     # Probable ports for Tor to listen at
     candidates = [
         ("127.0.0.1", 9050),
+        ("127.0.0.1", 9051),
         ("127.0.0.1", 9150),
     ]
-    for net_addr in candidates:
-        if is_tor_socks_port(*net_addr):
-            return net_addr
-    return None
+
+    proxy_addr = None
+
+    async def test_net_addr(net_addr):
+        is_tor = await is_tor_socks_port(*net_addr)
+        # set result, and cancel remaining probes
+        if is_tor:
+            nonlocal proxy_addr
+            proxy_addr = net_addr
+            await group.cancel_remaining()
+
+    async with OldTaskGroup() as group:
+        for net_addr in candidates:
+            await group.spawn(test_net_addr(net_addr))
+    return proxy_addr
 
 
-def is_tor_socks_port(host: str, port: int) -> bool:
+@log_exceptions
+async def is_tor_socks_port(host: str, port: int) -> bool:
+    # mimic "tor-resolve 0.0.0.0".
+    # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
+    # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in
+    # > [tor's socks extension spec](https://github.com/torproject/torspec/blob/7116c9cdaba248aae07a3f1d0e15d9dd102f62c5/socks-extensions.txt#L63),
+    # > resolving 0.0.0.0, which being an IP, tor resolves itself without needing to ask a relay.
+    writer = None
     try:
-        with socket.create_connection((host, port), timeout=10) as s:
-            # mimic "tor-resolve 0.0.0.0".
-            # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
-            # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in
-            # > [tor's socks extension spec](https://github.com/torproject/torspec/blob/7116c9cdaba248aae07a3f1d0e15d9dd102f62c5/socks-extensions.txt#L63),
-            # > resolving 0.0.0.0, which being an IP, tor resolves itself without needing to ask a relay.
-            s.send(b'\x05\x01\x00\x05\xf0\x00\x03\x070.0.0.0\x00\x00')
-            if s.recv(1024) == b'\x05\x00\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00':
+        async with async_timeout(10):
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.write(b'\x05\x01\x00\x05\xf0\x00\x03\x070.0.0.0\x00\x00')
+            await writer.drain()
+            data = await reader.read(1024)
+            if data == b'\x05\x00\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00':
                 return True
-    except socket.error:
-        pass
-    return False
+            return False
+    except (OSError, asyncio.TimeoutError):
+        return False
+    finally:
+        if writer:
+            writer.close()
 
 
 AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = False  # used by unit tests
 
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
+
+
 def get_asyncio_loop() -> asyncio.AbstractEventLoop:
     """Returns the global asyncio event loop we use."""
     if loop := _asyncio_event_loop:
@@ -1631,6 +1683,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             _asyncio_event_loop = None
 
     loop.set_exception_handler(on_exception)
+    _set_custom_task_factory(loop)
     # loop.set_debug(True)
     stopping_fut = loop.create_future()
     loop_thread = threading.Thread(
@@ -1647,6 +1700,80 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
         if time.monotonic() - t0 > 5:
             raise Exception("been waiting for 5 seconds but asyncio loop would not start!")
     return loop, stopping_fut, loop_thread
+
+
+_running_asyncio_tasks = set()  # type: Set[asyncio.Future]
+
+
+def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
+    """Wrap task creation to track pending and running tasks.
+    When tasks are created, asyncio only maintains a weak reference to them.
+    Hence, the garbage collector might destroy the task mid-execution.
+    To avoid this, we store a strong reference for the task until it completes.
+
+    Without this, a lot of APIs are basically Heisenbug-generators... e.g.:
+    - "asyncio.create_task"
+    - "loop.create_task"
+    - "asyncio.ensure_future"
+    - "asyncio.run_coroutine_threadsafe"
+
+    related:
+        - https://bugs.python.org/issue44665
+        - https://github.com/python/cpython/issues/88831
+        - https://github.com/python/cpython/issues/91887
+        - https://textual.textualize.io/blog/2023/02/11/the-heisenbug-lurking-in-your-async-code/
+        - https://github.com/python/cpython/issues/91887#issuecomment-1434816045
+        - "Task was destroyed but it is pending!"
+    """
+
+    platform_task_factory = loop.get_task_factory()
+
+    def factory(loop_, coro, **kwargs):
+        if platform_task_factory is not None:
+            task = platform_task_factory(loop_, coro, **kwargs)
+        else:
+            task = asyncio.Task(coro, loop=loop_, **kwargs)
+        _running_asyncio_tasks.add(task)
+        task.add_done_callback(_running_asyncio_tasks.discard)
+        return task
+
+    loop.set_task_factory(factory)
+
+
+def run_sync_function_on_asyncio_thread(func: Callable, *, block: bool) -> None:
+    """Run a non-async fn on the asyncio thread. Can be called from any thread.
+
+    If the current thread is already the asyncio thread, func is guaranteed
+    to have been completed when this method returns.
+
+    For any other thread, we only wait for completion if `block` is True.
+    """
+    assert not asyncio.iscoroutinefunction(func), "func must be a non-async function"
+    asyncio_loop = get_asyncio_loop()
+    if get_running_loop() == asyncio_loop:  # we are running on the asyncio thread
+        func()
+    else:  # non-asyncio thread
+        async def wrapper():
+            return func()
+        fut = asyncio.run_coroutine_threadsafe(wrapper(), loop=asyncio_loop)
+        if block:
+            fut.result()
+        else:
+            # add explicit logging of exceptions, otherwise they might get lost
+            tb1 = traceback.format_stack()[:-1]
+            tb1_str = "".join(tb1)
+
+            def on_done(fut_: concurrent.futures.Future):
+                assert fut_.done()
+                if fut_.cancelled():
+                    _logger.debug(f"func cancelled. {func=}.")
+                elif exc := fut_.exception():
+                    # note: We explicitly log the first part of the traceback, tb1_str.
+                    #       The second part gets logged by setting "exc_info".
+                    _logger.error(
+                        f"func errored. {func=}. {exc=}"
+                        f"\n{tb1_str}", exc_info=exc)
+            fut.add_done_callback(on_done)
 
 
 class OrderedDictWithIndex(OrderedDict):
@@ -1712,8 +1839,8 @@ class OrderedDictWithIndex(OrderedDict):
 
 
 def multisig_type(wallet_type):
-    '''If wallet_type is mofn multi-sig, return [m, n],
-    otherwise return None.'''
+    """If wallet_type is mofn multi-sig, return [m, n],
+    otherwise return None."""
     if not wallet_type:
         return None
     match = re.match(r'(\d+)of(\d+)', wallet_type)
@@ -1765,9 +1892,9 @@ def list_enabled_bits(x: int) -> Sequence[int]:
     return tuple(i for i, b in enumerate(rev_bin) if b == '1')
 
 
-def resolve_dns_srv(host: str):
+async def resolve_dns_srv(host: str):
     # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
-    srv_records = dns.resolver.resolve(host, 'SRV')
+    srv_records = await dns.asyncresolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))
@@ -1794,11 +1921,14 @@ class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
 
+    # FIXME: There should be a way to prevent circular callbacks.
+    # At the very least, we need a distinction between callbacks that
+    # are for the GUI and callbacks between wallet components
+
     def __init__(self):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
-        self._running_cb_futs = set()
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1823,25 +1953,16 @@ class CallbackManager(Logger):
         for callback in callbacks:
             if asyncio.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
-                # keep strong references around to avoid GC issues:
-                self._running_cb_futs.add(fut)
+
                 def on_done(fut_: concurrent.futures.Future):
                     assert fut_.done()
-                    self._running_cb_futs.remove(fut_)
                     if fut_.cancelled():
                         self.logger.debug(f"cb cancelled. {event=}.")
                     elif exc := fut_.exception():
                         self.logger.error(f"cb errored. {event=}. {exc=}", exc_info=exc)
                 fut.add_done_callback(on_done)
             else:  # non-async cb
-                # note: the cb needs to run in the asyncio thread
-                if get_running_loop() == loop:
-                    # run callback immediately, so that it is guaranteed
-                    # to have been executed when this method returns
-                    callback(*args)
-                else:
-                    # note: if cb raises, asyncio will log the exception
-                    loop.call_soon_threadsafe(callback, *args)
+                run_sync_function_on_asyncio_thread(partial(callback, *args), block=False)
 
 
 callback_mgr = CallbackManager()
@@ -1890,6 +2011,7 @@ def event_listener(func):
 _NetAddrType = TypeVar("_NetAddrType")
 # requirements for _NetAddrType:
 # - reasonable __hash__() implementation (e.g. based on host/port of remote endpoint)
+
 
 class NetworkRetryManager(Generic[_NetAddrType]):
     """Truncated Exponential Backoff for network connections."""
@@ -1967,10 +2089,10 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
 
     @classmethod
     def from_network_settings(cls, network: Optional['Network']) -> Optional['ESocksProxy']:
-        if not network or not network.proxy:
+        if not network or not network.proxy or not network.proxy.enabled:
             return None
         proxy = network.proxy
-        username, pw = proxy.get('user'), proxy.get('password')
+        username, pw = proxy.user, proxy.password
         if not username or not pw:
             # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
             if network.is_proxy_tor:
@@ -1979,10 +2101,10 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
                 auth = None
         else:
             auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
-        addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
-        if proxy['mode'] == "socks4":
+        addr = aiorpcx.NetAddress(proxy.host, proxy.port)
+        if proxy.mode == "socks4":
             ret = cls(addr, aiorpcx.socks.SOCKS4a, auth)
-        elif proxy['mode'] == "socks5":
+        elif proxy.mode == "socks5":
             ret = cls(addr, aiorpcx.socks.SOCKS5, auth)
         else:
             raise NotImplementedError  # http proxy not available with aiorpcx
@@ -2038,6 +2160,7 @@ class JsonRPCClient:
 
 
 T = TypeVar('T')
+
 
 def random_shuffled_copy(x: Iterable[T]) -> List[T]:
     """Returns a shuffled copy of the input."""
@@ -2116,3 +2239,132 @@ def truncate_text(text: str, *, max_len: Optional[int]) -> str:
         return text
     else:
         return text[:max_len] + f"... (truncated. orig_len={len(text)})"
+
+
+def nostr_pow_worker(nonce, nostr_pubk, target_bits, hash_function, hash_len_bits, shutdown):
+    """Function to generate PoW for Nostr, to be spawned in a ProcessPoolExecutor."""
+    hash_preimage = b'electrum-' + nostr_pubk
+    while True:
+        # we cannot check is_set on each iteration as it has a lot of overhead, this way we can check
+        # it with low overhead (just the additional range counter)
+        for i in range(1000000):
+            digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
+            if int.from_bytes(digest, 'big') < (1 << (hash_len_bits - target_bits)):
+                shutdown.set()
+                return hash, nonce
+            nonce += 1
+        if shutdown.is_set():
+            return None, None
+
+
+async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, int]:
+    """Generate a PoW for a Nostr announcement. The PoW is hash[b'electrum-'+pubk+nonce]"""
+    import multiprocessing  # not available on Android, so we import it here
+    hash_function = hashlib.sha256
+    hash_len_bits = 256
+    max_nonce: int = (1 << (32 * 8)) - 1  # 32-byte nonce
+    start_nonce = 0
+
+    max_workers = max(multiprocessing.cpu_count() - 1, 1)  # use all but one CPU
+    manager = multiprocessing.Manager()
+    shutdown = manager.Event()
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        tasks = []
+        loop = asyncio.get_running_loop()
+        for task in range(0, max_workers):
+            task = loop.run_in_executor(
+                executor,
+                nostr_pow_worker,
+                start_nonce,
+                nostr_pubk,
+                target_bits,
+                hash_function,
+                hash_len_bits,
+                shutdown
+            )
+            tasks.append(task)
+            start_nonce += max_nonce // max_workers  # split the nonce range between the processes
+            if start_nonce > max_nonce:  # make sure we don't go over the max_nonce
+                start_nonce = random.randint(0, int(max_nonce * 0.75))
+
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        hash_res, nonce_res = done.pop().result()
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    return nonce_res, get_nostr_ann_pow_amount(nostr_pubk, nonce_res)
+
+
+def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
+    """Return the amount of leading zero bits for a nostr announcement PoW."""
+    if not nonce:
+        return 0
+    hash_function = hashlib.sha256
+    hash_len_bits = 256
+    hash_preimage = b'electrum-' + nostr_pubk
+
+    digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
+    digest = int.from_bytes(digest, 'big')
+    return hash_len_bits - digest.bit_length()
+
+
+class OnchainHistoryItem(NamedTuple):
+    txid: str
+    amount_sat: int
+    fee_sat: int
+    balance_sat: int
+    tx_mined_status: TxMinedInfo
+    group_id: Optional[str]
+    label: Optional[str]
+    monotonic_timestamp: int
+    group_id: Optional[str]
+    def to_dict(self):
+        return {
+            'txid': self.txid,
+            'amount_sat': self.amount_sat,
+            'fee_sat': self.fee_sat,
+            'height': self.tx_mined_status.height,
+            'confirmations': self.tx_mined_status.conf,
+            'timestamp': self.tx_mined_status.timestamp,
+            'monotonic_timestamp': self.monotonic_timestamp,
+            'incoming': True if self.amount_sat>0 else False,
+            'bc_value': Satoshis(self.amount_sat),
+            'bc_balance': Satoshis(self.balance_sat),
+            'date': timestamp_to_datetime(self.tx_mined_status.timestamp),
+            'txpos_in_block': self.tx_mined_status.txpos,
+            'wanted_height': self.tx_mined_status.wanted_height,
+            'label': self.label,
+            'group_id': self.group_id,
+        }
+
+
+class LightningHistoryItem(NamedTuple):
+    payment_hash: Optional[str]
+    preimage: Optional[str]
+    amount_msat: int
+    fee_msat: Optional[int]
+    type: str
+    group_id: Optional[str]
+    timestamp: int
+    label: Optional[str]
+    direction: Optional[int]
+    def to_dict(self):
+        return {
+            'type': self.type,
+            'label': self.label,
+            'timestamp': self.timestamp or 0,
+            'date': timestamp_to_datetime(self.timestamp),
+            'amount_msat': self.amount_msat,
+            'fee_msat': self.fee_msat,
+            'payment_hash': self.payment_hash,
+            'preimage': self.preimage,
+            'group_id': self.group_id,
+            'ln_value': Satoshis(Decimal(self.amount_msat) / 1000),
+            'direction': self.direction,
+        }
+
+
+@dataclass(kw_only=True, slots=True)
+class ChoiceItem:
+    key: Any
+    label: str  # user facing string
+    extra_data: Any = None

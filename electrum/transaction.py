@@ -23,17 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
-
 # Note: The deserialization code originally comes from ABE.
 
 import struct
-import traceback
-import sys
 import io
 import base64
-from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
-                    Callable, List, Dict, Set, TYPE_CHECKING, Mapping)
+from typing import (
+    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping
+)
 from collections import defaultdict
 from enum import IntEnum
 import itertools
@@ -41,23 +38,20 @@ import binascii
 import copy
 
 import electrum_ecc as ecc
+from electrum_ecc.util import bip340_tagged_hash
 
-from . import bitcoin, constants, segwit_addr, bip32
+from . import bitcoin, bip32
 from .bip32 import BIP32Node
-from .i18n import _
-from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend
-from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
-                      hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
-                      var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      opcodes, base_decode,
-                      base_encode, construct_witness, construct_script,
-                      taproot_tweak_seckey)
+from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
+from .bitcoin import (
+    TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
+    TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
+    taproot_tweak_seckey
+)
 from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
-from .bitcoin import DummyAddress
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
-from .json_db import stored_in
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -224,7 +218,7 @@ class BIP143SharedTxDigestFields(NamedTuple):  # witness v0
     hashOutputs: bytes
 
     @classmethod
-    def from_tx(cls, tx: 'PartialTransaction') -> 'BIP143SharedTxDigestFields':
+    def from_tx(cls, tx: 'Transaction') -> 'BIP143SharedTxDigestFields':
         inputs = tx.inputs()
         outputs = tx.outputs()
         hashPrevouts = sha256d(b''.join(txin.prevout.serialize_to_network() for txin in inputs))
@@ -247,7 +241,7 @@ class BIP341SharedTxDigestFields(NamedTuple):  # witness v1
     sha_outputs: bytes
 
     @classmethod
-    def from_tx(cls, tx: 'PartialTransaction') -> 'BIP341SharedTxDigestFields':
+    def from_tx(cls, tx: 'Transaction') -> 'BIP341SharedTxDigestFields':
         inputs = tx.inputs()
         outputs = tx.outputs()
         sha_prevouts = sha256(b''.join(txin.prevout.serialize_to_network() for txin in inputs))
@@ -276,12 +270,12 @@ class SighashCache:
         self._witver0 = None  # type: Optional[BIP143SharedTxDigestFields]
         self._witver1 = None  # type: Optional[BIP341SharedTxDigestFields]
 
-    def get_witver0_data_for_tx(self, tx: 'PartialTransaction') -> BIP143SharedTxDigestFields:
+    def get_witver0_data_for_tx(self, tx: 'Transaction') -> BIP143SharedTxDigestFields:
         if self._witver0 is None:
             self._witver0 = BIP143SharedTxDigestFields.from_tx(tx)
         return self._witver0
 
-    def get_witver1_data_for_tx(self, tx: 'PartialTransaction') -> BIP341SharedTxDigestFields:
+    def get_witver1_data_for_tx(self, tx: 'Transaction') -> BIP341SharedTxDigestFields:
         if self._witver1 is None:
             self._witver1 = BIP341SharedTxDigestFields.from_tx(tx)
         return self._witver1
@@ -347,6 +341,21 @@ class TxInput:
         self.__scriptpubkey = None  # type: Optional[bytes]
         self.__address = None  # type: Optional[str]
         self.__value_sats = None  # type: Optional[int]
+
+        self._is_taproot = None  # type: Optional[bool]  # None means unknown
+
+    def get_time_based_relative_locktime(self) -> Optional[int]:
+        # see bip 68
+        if self.nsequence & (1<<31):
+            return
+        if self.nsequence & (1<<22):
+            return self.nsequence & 0xffff
+
+    def get_block_based_relative_locktime(self) -> Optional[int]:
+        if self.nsequence & (1<<31):
+            return
+        if not self.nsequence & (1<<22):
+            return self.nsequence & 0xffff
 
     @property
     def short_id(self):
@@ -444,6 +453,12 @@ class TxInput:
             return True
         return False
 
+    def is_taproot(self) -> Optional[bool]:
+        if self._is_taproot is None:
+            if self.address:
+                self._is_taproot = bitcoin.is_taproot_address(self.address)
+        return self._is_taproot
+
     async def add_info_from_network(
             self,
             network: Optional['Network'],
@@ -472,6 +487,67 @@ class TxInput:
         if self.utxo is None:
             self.utxo = await fetch_from_network(txid=self.prevout.txid.hex())
         return self.utxo is not None
+
+    def get_scriptcode_for_sighash(self) -> bytes:
+        """Reconstructs the scriptcode part of the preimage for OP_CHECKSIG,
+        for an already complete txin, in order to *verify the signature*.
+        """
+        scriptpubkey = self.scriptpubkey
+        if scriptpubkey is None:
+            raise Exception("missing scriptpubkey. 'utxo' not set?")
+        script_type = get_script_type_from_output_script(scriptpubkey)
+        if script_type == "p2wsh":
+            wit_elems = self.witness_elements()
+            if not wit_elems:
+                raise Exception(f"missing witness for {script_type=}")
+            witness_script = wit_elems[-1]
+            if self.address != bitcoin.script_to_p2wsh(witness_script):
+                raise Exception("witness_script from witness does not match address")
+            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(witness_script)]:
+                raise Exception('OP_CODESEPARATOR black magic is not supported')
+            return witness_script
+        elif script_type == "p2wpkh":
+            pkh = scriptpubkey[-20:]
+            assert len(pkh) == 20
+            p2pkh_script = bitcoin.pubkeyhash_to_p2pkh_script(pkh)
+            return p2pkh_script
+        elif script_type == "p2sh":
+            if not self.script_sig:
+                raise Exception(f"missing script_sig for {script_type=}")
+            parsed_ss = list(script_GetOp(self.script_sig))
+            redeem_script = parsed_ss[-1][1]
+            if self.address != bitcoin.hash160_to_p2sh(hash_160(redeem_script)):
+                raise Exception("redeem_script from script_sig does not match address")
+            if self.is_segwit():  # p2sh-wrapped-segwit
+                inner_script_type = get_script_type_from_output_script(redeem_script)
+                if inner_script_type == "p2wsh":
+                    wit_elems = self.witness_elements()
+                    witness_script = wit_elems[-1]
+                    if redeem_script != bitcoin.p2wsh_nested_script(witness_script):
+                        raise Exception("witness_script from witness does not match redeem_script")
+                    if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(witness_script)]:
+                        raise Exception('OP_CODESEPARATOR black magic is not supported')
+                    return witness_script
+                elif inner_script_type == "p2wpkh":
+                    pkh = self.script_sig[-20:]
+                    assert len(pkh) == 20
+                    p2pkh_script = bitcoin.pubkeyhash_to_p2pkh_script(pkh)
+                    return p2pkh_script
+                else:
+                    raise Exception(f"unexpected {inner_script_type=} wrapped in p2sh. script_sig={self.script_sig.hex()}")
+            else:
+                if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(redeem_script)]:
+                    raise Exception('OP_CODESEPARATOR black magic is not supported')
+                return redeem_script
+        elif script_type in ("p2pkh", "p2pk"):
+            # For "raw scriptpubkey" case, it is usually the scriptPubKey that is signed.
+            # Complications for the general case:
+            # - signatures should be removed ("FindAndDelete")
+            # - OP_CODESEPARATOR black magic
+            return scriptpubkey
+        else:
+            raise Exception(f"cannot handle {script_type=} ({scriptpubkey.hex()=})")
+        raise Exception("should not get here")
 
 
 class BCDataStream(object):
@@ -645,7 +721,7 @@ class OPPushDataGeneric:
 
 
 class OPGeneric:
-    def __init__(self, matcher: Callable=None):
+    def __init__(self, matcher: Callable = None):
         if matcher is not None:
             self.matcher = matcher
 
@@ -659,9 +735,11 @@ class OPGeneric:
         return isinstance(item, cls) \
                or (isinstance(item, type) and issubclass(item, cls))
 
+
 OPPushDataPubkey = OPPushDataGeneric(lambda x: x in (33, 65))
 OP_ANYSEGWIT_VERSION = OPGeneric(lambda x: x in list(range(opcodes.OP_1, opcodes.OP_16 + 1)))
 
+SCRIPTPUBKEY_TEMPLATE_P2PK = [OPPushDataGeneric(lambda x: x in (33, 65)), opcodes.OP_CHECKSIG]
 SCRIPTPUBKEY_TEMPLATE_P2PKH = [opcodes.OP_DUP, opcodes.OP_HASH160,
                                OPPushDataGeneric(lambda x: x == 20),
                                opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]
@@ -669,6 +747,7 @@ SCRIPTPUBKEY_TEMPLATE_P2SH = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x 
 SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [opcodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
 SCRIPTPUBKEY_TEMPLATE_P2WPKH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 20)]
 SCRIPTPUBKEY_TEMPLATE_P2WSH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 32)]
+SCRIPTPUBKEY_TEMPLATE_P2TR = [opcodes.OP_1, OPPushDataGeneric(lambda x: x == 32)]
 SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT = [OP_ANYSEGWIT_VERSION, OPPushDataGeneric(lambda x: x in list(range(2, 40 + 1)))]
 
 
@@ -688,6 +767,7 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
     if amount < dust_limit:
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
+
 def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['PartialTxOutput']:
     """Merges outputs that are paying to the same address by replacing them with a single larger output."""
     output_dict = {}
@@ -698,6 +778,7 @@ def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['Pa
         else:
             output_dict[output.scriptpubkey] = copy.copy(output)
     return list(output_dict.values())
+
 
 def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""
@@ -730,13 +811,16 @@ def match_script_against_template(script, template, debug=False) -> bool:
             return False
     return True
 
-def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
-    if _bytes is None:
+
+def get_script_type_from_output_script(scriptpubkey: bytes) -> Optional[str]:
+    if scriptpubkey is None:
         return None
     try:
-        decoded = [x for x in script_GetOp(_bytes)]
+        decoded = [x for x in script_GetOp(scriptpubkey)]
     except MalformedBitcoinScript:
         return None
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2PK):
+        return 'p2pk'
     if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2PKH):
         return 'p2pkh'
     if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2SH):
@@ -745,7 +829,10 @@ def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
         return 'p2wpkh'
     if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2WSH):
         return 'p2wsh'
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2TR):
+        return 'p2tr'
     return None
+
 
 def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     try:
@@ -806,8 +893,6 @@ def multisig_script(public_keys: Sequence[str], m: int) -> bytes:
     n = len(public_keys)
     assert 1 <= m <= n <= 15, f'm {m}, n {n}'
     return construct_script([m, *public_keys, n, opcodes.OP_CHECKMULTISIG])
-
-
 
 
 class Transaction:
@@ -934,7 +1019,7 @@ class Transaction:
         raise UnknownTxinType("cannot construct witness")
 
     @classmethod
-    def input_script(self, txin: TxInput, *, estimate_size=False) -> bytes:
+    def input_script(cls, txin: TxInput, *, estimate_size=False) -> bytes:
         if txin.script_sig is not None:
             return txin.script_sig
         if txin.is_coinbase_input():
@@ -960,23 +1045,122 @@ class Transaction:
             return b""
         raise UnknownTxinType("cannot construct scriptSig")
 
-    @classmethod
-    def get_preimage_script(cls, txin: 'PartialTxInput') -> bytes:
-        if txin.witness_script:
-            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(txin.witness_script)]:
-                raise Exception('OP_CODESEPARATOR black magic is not supported')
-            return txin.witness_script
-        if not txin.is_segwit() and txin.redeem_script:
-            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(txin.redeem_script)]:
-                raise Exception('OP_CODESEPARATOR black magic is not supported')
-            return txin.redeem_script
+    def serialize_preimage(
+        self,
+        txin_index: int,
+        *,
+        sighash: Optional[int] = None,
+        sighash_cache: SighashCache = None,
+    ) -> bytes:
+        nVersion = int.to_bytes(self.version, length=4, byteorder="little", signed=True)
+        nLocktime = int.to_bytes(self.locktime, length=4, byteorder="little", signed=False)
+        inputs = self.inputs()
+        outputs = self.outputs()
+        txin = inputs[txin_index]
+        if isinstance(txin, PartialTxInput):
+            if sighash is None:
+                sighash = txin.sighash
+            if sighash is None:
+                sighash = Sighash.DEFAULT if txin.is_taproot() else Sighash.ALL
+        assert sighash is not None
+        if not Sighash.is_valid(sighash, is_taproot=txin.is_taproot()):
+            raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
+        if sighash_cache is None:
+            sighash_cache = SighashCache()
+        if txin.is_segwit():
+            if txin.is_taproot():
+                scache = sighash_cache.get_witver1_data_for_tx(self)
+                sighash_epoch = b"\x00"
+                hash_type = int.to_bytes(sighash, length=1, byteorder="little", signed=False)
+                # txdata
+                preimage_txdata = bytearray()
+                preimage_txdata += nVersion
+                preimage_txdata += nLocktime
+                if sighash & 0x80 != Sighash.ANYONECANPAY:
+                    preimage_txdata += scache.sha_prevouts
+                    preimage_txdata += scache.sha_amounts
+                    preimage_txdata += scache.sha_scriptpubkeys
+                    preimage_txdata += scache.sha_sequences
+                if sighash & 3 not in (Sighash.NONE, Sighash.SINGLE):
+                    preimage_txdata += scache.sha_outputs
+                # inputdata
+                preimage_inputdata = bytearray()
+                spend_type = bytes([0])  # (ext_flag * 2) + annex_present
+                preimage_inputdata += spend_type
+                if sighash & 0x80 == Sighash.ANYONECANPAY:
+                    preimage_inputdata += txin.prevout.serialize_to_network()
+                    preimage_inputdata += int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
+                    preimage_inputdata += var_int(len(txin.scriptpubkey)) + txin.scriptpubkey
+                    preimage_inputdata += int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+                else:
+                    preimage_inputdata += int.to_bytes(txin_index, length=4, byteorder="little", signed=False)
+                # TODO sha_annex
+                # outputdata
+                preimage_outputdata = bytearray()
+                if sighash & 3 == Sighash.SINGLE:
+                    try:
+                        txout = outputs[txin_index]
+                    except IndexError:
+                        raise Exception("Using SIGHASH_SINGLE without a corresponding output") from None
+                    # note: we could cache this to avoid some potential DOS vectors:
+                    preimage_outputdata += sha256(txout.serialize_to_network())
+                return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata + preimage_outputdata)
+            else:  # segwit (witness v0)
+                scache = sighash_cache.get_witver0_data_for_tx(self)
+                if not (sighash & Sighash.ANYONECANPAY):
+                    hashPrevouts = scache.hashPrevouts
+                else:
+                    hashPrevouts = bytes(32)
+                if not (sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
+                    hashSequence = scache.hashSequence
+                else:
+                    hashSequence = bytes(32)
+                if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
+                    hashOutputs = scache.hashOutputs
+                elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
+                    # note: we could cache this to avoid some potential DOS vectors:
+                    hashOutputs = sha256d(outputs[txin_index].serialize_to_network())
+                else:
+                    hashOutputs = bytes(32)
+                outpoint = txin.prevout.serialize_to_network()
+                preimage_script = txin.get_scriptcode_for_sighash()
+                scriptCode = var_int(len(preimage_script)) + preimage_script
+                amount = int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
+                nSequence = int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
+                nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
+                preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+                return preimage
+        else:  # legacy sighash (pre-segwit)
+            if sighash != Sighash.ALL:
+                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
+            preimage_script = txin.get_scriptcode_for_sighash()
+            txins = var_int(len(inputs)) + b"".join(
+                txin.serialize_to_network(script_sig=preimage_script if txin_index==k else b"")
+                for k, txin in enumerate(inputs))
+            txouts = var_int(len(outputs)) + b"".join(o.serialize_to_network() for o in outputs)
+            nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
+            preimage = nVersion + txins + txouts + nLocktime + nHashType
+            return preimage
+        raise Exception("should not reach this")
 
-        if desc := txin.script_descriptor:
-            sc = desc.expand()
-            if script := sc.scriptcode_for_sighash:
-                return script
-            raise Exception(f"don't know scriptcode for descriptor: {desc.to_string()}")
-        raise UnknownTxinType(f'cannot construct preimage_script')
+    def verify_sig_for_txin(
+        self,
+        *,
+        txin_index: int,
+        pubkey_bytes: bytes,
+        sig: bytes,
+        sighash_cache: SighashCache = None,
+    ) -> bool:
+        txin = self.inputs()[txin_index]
+        if txin.is_taproot():
+            raise Exception("not implemented")  # TODO
+        else:
+            der_sig, sighash = sig[:-1], sig[-1]
+            pre_hash = self.serialize_preimage(txin_index, sighash=sighash, sighash_cache=sighash_cache)
+            pubkey = ecc.ECPubkey(pubkey_bytes)
+            msg_hash = sha256d(pre_hash)
+            sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
+            return pubkey.ecdsa_verify(sig64, msg_hash)
 
     def is_segwit(self, *, guess_for_address=False):
         return any(txin.is_segwit(guess_for_address=guess_for_address)
@@ -1088,6 +1272,7 @@ class Transaction:
         num_tasks_total = 0
         has_errored = False
         has_finished = False
+
         async def add_info_to_txin(txin: TxInput):
             nonlocal num_tasks_done, has_errored
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
@@ -1101,6 +1286,7 @@ class Transaction:
             else:
                 has_errored = True
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+
         # schedule a network task for each txin
         try:
             async with OldTaskGroup() as group:
@@ -1137,6 +1323,18 @@ class Transaction:
             return False
         return True
 
+    def get_time_based_relative_locktime(self) -> Optional[int]:
+        if self.version < 2:
+            return
+        locktimes = list(filter(None, [txin.get_time_based_relative_locktime() for txin in self.inputs()]))
+        return max(locktimes) if locktimes else None
+
+    def get_block_based_relative_locktime(self) -> Optional[int]:
+        if self.version < 2:
+            return
+        locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
+        return max(locktimes) if locktimes else None
+
     def is_rbf_enabled(self) -> bool:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
         return any([txin.nsequence < 0xffffffff - 1 for txin in self.inputs()])
@@ -1153,7 +1351,7 @@ class Transaction:
 
     @classmethod
     def estimated_input_weight(cls, txin: TxInput, is_segwit_tx: bool) -> int:
-        '''Return an estimate of serialized input weight in weight units.'''
+        """Return an estimate of serialized input weight in weight units."""
         script_sig = cls.input_script(txin, estimate_size=True)
         input_size = len(txin.serialize_to_network(script_sig=script_sig))
 
@@ -1248,8 +1446,16 @@ class Transaction:
     def get_change_outputs(self):
         return  [o for o in self._outputs if o.is_change]
 
-    def has_dummy_output(self, dummy_addr: str) -> bool:
-        return len(self.get_output_idxs_from_address(dummy_addr)) == 1
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
+    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
+        idxs = self.get_output_idxs_from_address(dummy_addr)
+        if not idxs:
+            return
+        assert len(idxs) == 1
+        for i in idxs:
+            return self.outputs()[i]
 
     def output_value_for_address(self, addr):
         # assumes exactly one output has that address
@@ -1309,7 +1515,7 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     # try base64
     if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
         try:
-            return base64.b64decode(raw).hex()
+            return base64.b64decode(raw, validate=True).hex()
         except Exception:
             pass
     # raw bytes (do not strip whitespaces in this case)
@@ -1454,7 +1660,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self._witness_utxo = None  # type: Optional[TxOutput]
         self.sigs_ecdsa = {}  # type: Dict[bytes, bytes]  # pubkey -> sig
         self.tap_key_sig = None  # type: Optional[bytes]  # sig for taproot key-path-spending
-        self.sighash = None  # type: Optional[int]
+        self.sighash = None  # type: Optional[int]  # note: wrong abstraction level. should be per-signature
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
         self.redeem_script = None  # type: Optional[bytes]
         self.witness_script = None  # type: Optional[bytes]
@@ -1468,7 +1674,6 @@ class PartialTxInput(TxInput, PSBTSection):
         self._trusted_address = None  # type: Optional[str]
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
-        self._is_taproot = None  # type: Optional[bool]  # None means unknown
         self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
 
     @property
@@ -1841,13 +2046,12 @@ class PartialTxInput(TxInput, PSBTSection):
             return dummy_desc.is_segwit()
         return False  # can be false-negative
 
-    def is_taproot(self) -> bool:
-        if self._is_taproot is None:
-            if self.address:
-                self._is_taproot = bitcoin.is_taproot_address(self.address)
+    def is_taproot(self) -> Optional[bool]:
+        if (is_taproot := super().is_taproot()) is not None:
+            return is_taproot
         if desc := self.script_descriptor:
             return desc.is_taproot()
-        return self._is_taproot
+        return None
 
     def already_has_some_signatures(self) -> bool:
         """Returns whether progress has been made towards completing this input."""
@@ -1855,6 +2059,33 @@ class PartialTxInput(TxInput, PSBTSection):
                 or self.tap_key_sig is not None
                 or self.script_sig is not None
                 or self.witness is not None)
+
+    def get_scriptcode_for_sighash(self) -> bytes:
+        """Constructs the scriptcode part of the preimage for OP_CHECKSIG,
+        for a partial txin, to create a new signature.
+
+        Note: the base impl works by mimicking a consensus-verifier and extracting
+              the required fields from the already complete witness/scriptSig
+              and the scriptpubkey of the funding utxo.
+              In contrast, here we are the one constructing a spending txin,
+              and can have knowledge beyond what will be revealed onchain.
+        """
+        if self.witness_script:
+            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(self.witness_script)]:
+                raise Exception('OP_CODESEPARATOR black magic is not supported')
+            return self.witness_script
+        if not self.is_segwit() and self.redeem_script:
+            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(self.redeem_script)]:
+                raise Exception('OP_CODESEPARATOR black magic is not supported')
+            return self.redeem_script
+
+        if desc := self.script_descriptor:
+            sc = desc.expand()
+            if script := sc.scriptcode_for_sighash:
+                return script
+            raise Exception(f"don't know scriptcode for descriptor: {desc.to_string()}")
+
+        raise UnknownTxinType(f'cannot construct preimage_script')
 
 
 class PartialTxOutput(TxOutput, PSBTSection):
@@ -1868,6 +2099,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self._script_descriptor = None  # type: Optional[Descriptor]
         self.is_mine = False  # type: bool  # whether the wallet considers the output to be ismine
         self.is_change = False  # type: bool  # whether the wallet considers the output to be change
+        self.is_utxo_reserve = False  # type: bool  # whether this is a change output added to satisfy anchor channel requirements
 
     @property
     def pubkeys(self) -> Set[bytes]:
@@ -1978,10 +2210,10 @@ class PartialTransaction(Transaction):
         return d
 
     @classmethod
-    def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
+    def from_tx(cls, tx: Transaction, *, strip_witness: bool = True) -> 'PartialTransaction':
         assert tx
         res = cls()
-        res._inputs = [PartialTxInput.from_txin(txin, strip_witness=True)
+        res._inputs = [PartialTxInput.from_txin(txin, strip_witness=strip_witness)
                        for txin in tx.inputs()]
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
@@ -1994,7 +2226,7 @@ class PartialTransaction(Transaction):
         if raw[0:10].lower() in (b'70736274ff', '70736274ff'):  # hex
             raw = bytes.fromhex(raw)
         elif raw[0:6] in (b'cHNidP', 'cHNidP'):  # base64
-            raw = base64.b64decode(raw)
+            raw = base64.b64decode(raw, validate=True)
         if not isinstance(raw, (bytes, bytearray)) or raw[0:5] != b'psbt\xff':
             raise BadHeaderMagic("bad magic")
 
@@ -2016,7 +2248,8 @@ class PartialTransaction(Transaction):
                 if kt == PSBTGlobalType.UNSIGNED_TX:
                     if tx is not None:
                         raise SerializationError(f"duplicate key: {repr(kt)}")
-                    if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+                    if key:
+                        raise SerializationError(f"key for {repr(kt)} must be empty")
                     unsigned_tx = Transaction(val.hex())
                     for txin in unsigned_tx.inputs():
                         if txin.script_sig or txin.witness:
@@ -2059,7 +2292,8 @@ class PartialTransaction(Transaction):
                     psbt_version = int.from_bytes(val, byteorder='little', signed=False)
                     if psbt_version > 0:
                         raise SerializationError(f"Only PSBTs with version 0 are supported. Found version: {psbt_version}")
-                    if key: raise SerializationError(f"key for {repr(kt)} must be empty")
+                    if key:
+                        raise SerializationError(f"key for {repr(kt)} must be empty")
                 else:
                     full_key = PSBTSection.get_fullkey_from_keytype_and_key(kt, key)
                     if full_key in tx._unknown:
@@ -2085,9 +2319,23 @@ class PartialTransaction(Transaction):
 
         return tx
 
+    def requires_keystore(self):
+        """
+        Returns True if signing will require private keys from the keystore
+        Called by txbatcher in order to know if a password is needed
+        """
+        return not all(hasattr(txin, 'make_witness') for txin in self.inputs())
+
     @classmethod
-    def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None, BIP69_sort: bool = True):
+    def from_io(
+            cls,
+            inputs: Sequence[PartialTxInput],
+            outputs: Sequence[PartialTxOutput],
+            *,
+            locktime: int = None,
+            version: int = None,
+            BIP69_sort: bool = True
+    ) -> 'PartialTransaction':
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -2197,98 +2445,6 @@ class PartialTransaction(Transaction):
             self._outputs.sort(key = lambda o: (o.value, o.scriptpubkey))
         self.invalidate_ser_cache()
 
-    def serialize_preimage(
-        self,
-        txin_index: int,
-        *,
-        sighash_cache: SighashCache = None,
-    ) -> bytes:
-        nVersion = int.to_bytes(self.version, length=4, byteorder="little", signed=True)
-        nLocktime = int.to_bytes(self.locktime, length=4, byteorder="little", signed=False)
-        inputs = self.inputs()
-        outputs = self.outputs()
-        txin = inputs[txin_index]
-        sighash = txin.sighash
-        if sighash is None:
-            sighash = Sighash.DEFAULT if txin.is_taproot() else Sighash.ALL
-        if not Sighash.is_valid(sighash, is_taproot=txin.is_taproot()):
-            raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
-        if sighash_cache is None:
-            sighash_cache = SighashCache()
-        if txin.is_segwit():
-            if txin.is_taproot():
-                scache = sighash_cache.get_witver1_data_for_tx(self)
-                sighash_epoch = b"\x00"
-                hash_type = int.to_bytes(sighash, length=1, byteorder="little", signed=False)
-                # txdata
-                preimage_txdata = bytearray()
-                preimage_txdata += nVersion
-                preimage_txdata += nLocktime
-                if sighash & 0x80 != Sighash.ANYONECANPAY:
-                    preimage_txdata += scache.sha_prevouts
-                    preimage_txdata += scache.sha_amounts
-                    preimage_txdata += scache.sha_scriptpubkeys
-                    preimage_txdata += scache.sha_sequences
-                if sighash & 3 not in (Sighash.NONE, Sighash.SINGLE):
-                    preimage_txdata += scache.sha_outputs
-                # inputdata
-                preimage_inputdata = bytearray()
-                spend_type = bytes([0])  # (ext_flag * 2) + annex_present
-                preimage_inputdata += spend_type
-                if sighash & 0x80 == Sighash.ANYONECANPAY:
-                    preimage_inputdata += txin.prevout.serialize_to_network()
-                    preimage_inputdata += int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
-                    preimage_inputdata += var_int(len(txin.scriptpubkey)) + txin.scriptpubkey
-                    preimage_inputdata += int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
-                else:
-                    preimage_inputdata += int.to_bytes(txin_index, length=4, byteorder="little", signed=False)
-                # TODO sha_annex
-                # outputdata
-                preimage_outputdata = bytearray()
-                if sighash & 3 == Sighash.SINGLE:
-                    try:
-                        txout = outputs[txin_index]
-                    except IndexError:
-                        raise Exception("Using SIGHASH_SINGLE without a corresponding output") from None
-                    preimage_outputdata += sha256(txout.serialize_to_network())
-                return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata + preimage_outputdata)
-            else:  # segwit (witness v0)
-                scache = sighash_cache.get_witver0_data_for_tx(self)
-                if not (sighash & Sighash.ANYONECANPAY):
-                    hashPrevouts = scache.hashPrevouts
-                else:
-                    hashPrevouts = bytes(32)
-                if not (sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
-                    hashSequence = scache.hashSequence
-                else:
-                    hashSequence = bytes(32)
-                if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
-                    hashOutputs = scache.hashOutputs
-                elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
-                    hashOutputs = sha256d(outputs[txin_index].serialize_to_network())
-                else:
-                    hashOutputs = bytes(32)
-                outpoint = txin.prevout.serialize_to_network()
-                preimage_script = self.get_preimage_script(txin)
-                scriptCode = var_int(len(preimage_script)) + preimage_script
-                amount = int.to_bytes(txin.value_sats(), length=8, byteorder="little", signed=False)
-                nSequence = int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
-                nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
-                preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
-                return preimage
-        else:  # legacy sighash (pre-segwit)
-            if sighash != Sighash.ALL:
-                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
-            preimage_script = self.get_preimage_script(txin)
-            txins = var_int(len(inputs)) + b"".join(
-                txin.serialize_to_network(script_sig=preimage_script if txin_index==k else b"")
-                for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + b"".join(o.serialize_to_network() for o in outputs)
-            nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
-            return preimage
-        raise Exception("should not reach this")
-
     def sign(self, keypairs: Mapping[bytes, bytes]) -> None:
         # keypairs:  pubkey_bytes -> secret_bytes
         sighash_cache = SighashCache()
@@ -2321,7 +2477,7 @@ class PartialTransaction(Transaction):
             merkle_root = txin.tap_merkle_root or bytes()
             output_privkey_bytes = taproot_tweak_seckey(privkey_bytes, merkle_root)
             output_privkey = ecc.ECPrivkey(output_privkey_bytes)
-            msg_hash = bitcoin.bip340_tagged_hash(b"TapSighash", pre_hash)
+            msg_hash = bip340_tagged_hash(b"TapSighash", pre_hash)
             sig = output_privkey.schnorr_sign(msg_hash)
             sighash = txin.sighash if txin.sighash is not None else Sighash.DEFAULT
         else:
@@ -2344,14 +2500,14 @@ class PartialTransaction(Transaction):
 
     def serialize(self) -> str:
         """Returns PSBT as base64 text, or raw hex of network tx (if complete)."""
-        self.finalize_psbt()
+        self.finalize_psbt()  # FIXME this side-effects self
         if self.is_complete():
             return Transaction.serialize(self)
         return self._serialize_as_base64()
 
     def serialize_as_bytes(self, *, force_psbt: bool = False) -> bytes:
         """Returns PSBT as raw bytes, or raw bytes of network tx (if complete)."""
-        self.finalize_psbt()
+        self.finalize_psbt()  # FIXME this side-effects self
         if force_psbt or not self.is_complete():
             with io.BytesIO() as fd:
                 self._serialize_psbt(fd)
@@ -2466,9 +2622,11 @@ class PartialTransaction(Transaction):
         await self.add_info_from_network(wallet.network)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
         from .keystore import Xpub
+
         def is_ks_missing_info(ks):
             return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
                                               or ks.get_derivation_prefix() is None))
+
         if any([is_ks_missing_info(ks) for ks in wallet.get_keystores()]):
             _logger.warning('PSBT was requested to be filled with full bip32 paths but '
                             'some keystores lacked either the derivation prefix or the root fingerprint')

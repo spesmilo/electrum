@@ -3,7 +3,7 @@ import base64
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Optional, Any
+from typing import TYPE_CHECKING, Callable, Optional, Any, Tuple
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -13,10 +13,13 @@ from electrum.invoices import InvoiceError, PR_PAID, PR_BROADCASTING, PR_BROADCA
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTransaction, Transaction
-from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop
+from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, \
+    NoDynamicFeeEstimates
+from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
+from electrum.fee_policy import FeePolicy, FixedFeePolicy
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressCoinListModel
@@ -28,7 +31,7 @@ from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
-    from .qeinvoice import QEInvoice
+    from electrum.invoices import Invoice
 
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
@@ -99,6 +102,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._frozenbalance = QEAmount()
         self._totalbalance = QEAmount()
         self._lightningcanreceive = QEAmount()
+        self._minchannelfunding = QEAmount(amount_sat=int(MIN_FUNDING_SAT))
         self._lightningcansend = QEAmount()
         self._lightningbalancefrozen = QEAmount()
 
@@ -220,6 +224,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug('wallet_updated')
             self.balanceChanged.emit()
+            self.historyModel.setDirty()
             self.synchronizing = not wallet.is_up_to_date()
             if not self.synchronizing:
                 self.historyModel.initModel()  # refresh if dirty
@@ -457,6 +462,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canSignMessage(self):
         return not isinstance(self.wallet, Multisig_Wallet) and not self.wallet.is_watching_only()
 
+    canGetZeroconfChannelChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canGetZeroconfChannelChanged)
+    def canGetZeroconfChannel(self) -> bool:
+        return self.wallet.lnworker and self.wallet.lnworker.can_get_zeroconf_channel()
+
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
@@ -503,6 +513,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self.isLightning:
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
+
+    @pyqtProperty(bool, notify=balanceChanged)
+    def isLowReserve(self):
+        return self.wallet.is_low_reserve()
+
+    @pyqtProperty(QEAmount, notify=dataChanged)
+    def minChannelFunding(self):
+        return self._minchannelfunding
 
     @pyqtProperty(int, notify=peersUpdated)
     def lightningNumPeers(self):
@@ -639,12 +657,27 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.paymentAuthRejected.emit()
 
     @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice: 'QEInvoice'):
-        amount_msat = invoice.get_amount_msat()
+    def pay_lightning_invoice(self, invoice: 'Invoice', amount_msat: int = None):
+        # at this point, the user confirmed the payment, potentially with an override amount.
+        # we save the invoice with the override amount if there was no amount defined in the invoice.
+        # (this is similar to what the desktop client does)
+        #
+        # Note: amount_msat can be greater than the invoice-specified amount. This is validated and handled
+        # in lnworker.pay_invoice()
+        if amount_msat is not None:
+            assert type(amount_msat) is int
+            if invoice.get_amount_msat() is None:
+                invoice.set_amount_msat(amount_msat)
+        else:
+            amount_msat = invoice.get_amount_msat()
+
+        self.wallet.save_invoice(invoice)
+        if self._invoiceModel:
+            self._invoiceModel.initModel()
 
         def pay_thread():
             try:
-                coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
+                coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat)
                 fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 fut.result()
             except Exception as e:
@@ -663,24 +696,25 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
-    def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning: bool = False, reuse_address: bool = False):
         self.deleteExpiredRequests()
         try:
             amount = amount.satsInt
-            addr = self.wallet.get_unused_address()
-            if addr is None:
-                if reuse_address:
-                    addr = self.wallet.get_receiving_address()
-                elif lightning_only:
-                    addr = None
-                else:
-                    msg = [
-                        _('No address available.'),
-                        _('All your addresses are used in pending requests.'),
-                        _('To see the list, press and hold the Receive button.'),
-                    ]
-                    self.requestCreateError.emit(' '.join(msg))
-                    return
+            if not lightning:
+                addr = self.wallet.get_unused_address()
+                if addr is None:
+                    if reuse_address:
+                        addr = self.wallet.get_receiving_address()
+                    else:
+                        msg = [
+                            _('No address available.'),
+                            _('All your addresses are used in pending requests.'),
+                            _('To see the list, press and hold the Receive button.'),
+                        ]
+                        self.requestCreateError.emit(' '.join(msg))
+                        return
+            else:
+                addr = None
 
             key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
@@ -817,3 +851,22 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def signMessage(self, address, message):
         sig = self.wallet.sign_message(address, message, self.password)
         return base64.b64encode(sig).decode('ascii')
+
+    def determine_max(self, *, mktx: Callable[[FeePolicy], PartialTransaction]) -> Tuple[Optional[int], Optional[str]]:
+        # TODO: merge with SendTab.spend_max() and move to backend wallet
+        amount = message = None
+        try:
+            try:
+                fee_policy = FeePolicy(self.wallet.config.FEE_POLICY)
+                tx = mktx(fee_policy)
+            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+                # Check if we had enough funds excluding fees,
+                # if so, still provide opportunity to set lower fees.
+                fee_policy = FixedFeePolicy(0)
+                tx = mktx(fee_policy)
+            amount = tx.output_value()
+        except NotEnoughFunds as e:
+            self._logger.debug(str(e))
+            message = self.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount='!')
+
+        return amount, message

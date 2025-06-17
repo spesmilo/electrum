@@ -1,0 +1,9 @@
+{
+  "name": "audio_modem",
+  "fullname": "Audio MODEM",
+  "description": "Provides support for air-gapped transaction signing.",
+  "requires": [["amodem", "http://github.com/romanz/amodem/"]],
+  "author":"Roman Zeyde",
+  "icon":"speaker.png",
+  "available_for": ["qt"]
+}

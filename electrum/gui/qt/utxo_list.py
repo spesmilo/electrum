@@ -29,7 +29,7 @@ import copy
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt6.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
+from PyQt6.QtWidgets import QAbstractItemView, QMenu
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -37,7 +37,7 @@ from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
 
-from .util import ColorScheme, MONOSPACE_FONT, EnterButton
+from .util import ColorScheme, MONOSPACE_FONT
 from .my_treeview import MyTreeView, MySortModel
 from .new_channel_dialog import NewChannelDialog
 from ..messages import MSG_FREEZE_ADDRESS, MSG_FREEZE_COIN
@@ -90,6 +90,11 @@ class UTXOList(MyTreeView):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_coins_label = toolbar.itemAt(0).widget()
         menu.addAction(_('Coin control'), lambda: self.add_selection_to_coincontrol())
+
+        def cb():
+            self.main_window.utxo_list.refresh_all()  # for coin frozen status
+            self.main_window.update_status()  # frozen balance
+        menu.addConfig(config.cv.WALLET_FREEZE_REUSED_ADDRESS_UTXOS, callback=cb)
         return toolbar
 
     @profiler(min_threshold=0.05)
@@ -237,7 +242,7 @@ class UTXOList(MyTreeView):
             return False
         value = sum(x.value_sats() for x in coins)
         min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
-        max_amount = self.wallet.lnworker.swap_manager.max_amount_forward_swap()
+        max_amount = self.wallet.lnworker.swap_manager.client_max_amount_forward_swap()
         if min_amount is None or max_amount is None:
             # we need to fetch data from swap server
             return True

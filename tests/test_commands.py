@@ -1,6 +1,8 @@
+import binascii
 import unittest
 from unittest import mock
 from decimal import Decimal
+from os import urandom
 
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
@@ -9,6 +11,8 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
+from electrum.crypto import sha256
+from electrum.lnaddr import lndecode
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper
@@ -46,6 +50,14 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual("['file:///var/www/','https://electrum.org']",
             Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.org']"))
 
+    def test_setconfig_none(self):
+        self.assertEqual(None, Commands._setconfig_normalize_value("somekey", "None"))
+        self.assertEqual(None, Commands._setconfig_normalize_value("somekey", "null"))
+        # but lowercase none does not work:  (maybe it should though...)
+        self.assertEqual("none", Commands._setconfig_normalize_value("somekey", "none"))
+        self.assertEqual("", Commands._setconfig_normalize_value("somekey", ""))
+        self.assertEqual("empty", Commands._setconfig_normalize_value("somekey", "empty"))
+
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))
         self.assertFalse(eval_bool("false"))
@@ -53,6 +65,8 @@ class TestCommands(ElectrumTestCase):
         self.assertTrue(eval_bool("True"))
         self.assertTrue(eval_bool("true"))
         self.assertTrue(eval_bool("1"))
+        with self.assertRaises(ValueError):
+            eval_bool("Falsee")
 
     async def test_convert_xkey(self):
         cmds = Commands(config=self.config)
@@ -123,6 +137,28 @@ class TestCommands(ElectrumTestCase):
             await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'], wallet=wallet)
         self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], wallet=wallet))
+
+    async def test_verifymessage_enforces_strict_base64(self):
+        cmds = Commands(config=self.config)
+        msg = "hello there"
+        addr = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
+        sig = "HznHvCsY//Zr5JvPIR3rN/RbCkttvrUs8Yt+vw+e1c29BLMSlcrN4+Y4Pq8e/UJuh2bDrUboTfsFhBJap+fPmNY="
+        self.assertTrue(await cmds.verifymessage(addr, sig, msg))
+        self.assertFalse(await cmds.verifymessage(addr, sig+"trailinggarbage", msg))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_decrypt_enforces_strict_base64(self, mock_save_db):
+        cmds = Commands(config=self.config)
+        wallet = restore_wallet_from_text('9dk',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']  # type: Abstract_Wallet
+        plaintext = "hello there"
+        ciphertext = "QklFMQJEFgxfkXj+UNblbHR+4y6ZA2rGEeEhWo7h84lBFjlRY5JOPfV1zyC1fw5YmhIr7+3ceIV11lpf/Yv7gSqQCQ5Wuf1aGXceHZO0GjKVxBsuew=="
+        pubkey = "02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"
+        self.assertEqual(plaintext, await cmds.decrypt(pubkey, ciphertext, wallet=wallet))
+        with self.assertRaises(binascii.Error):  # perhaps it should raise some nice UserFacingException instead
+            await cmds.decrypt(pubkey, ciphertext+"trailinggarbage", wallet=wallet)
 
 
 class TestCommandsTestnet(ElectrumTestCase):
@@ -219,7 +255,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
         funding_txid = funding_tx.txid()
         self.assertEqual('ede61d39e501d65ccf34e6300da439419c43393f793bb9a8a4b06b2d0d80a8a0', funding_txid)
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         cmds = Commands(config=self.config)
         tx_str = await cmds.payto(
@@ -247,7 +283,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
         funding_txid = funding_tx.txid()
         self.assertEqual('ede61d39e501d65ccf34e6300da439419c43393f793bb9a8a4b06b2d0d80a8a0', funding_txid)
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         cmds = Commands(config=self.config)
 
@@ -281,7 +317,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         funding_tx = Transaction('02000000000101f59876b1c65bbe3e182ccc7ea7224fe397bb9b70aadcbbf4f4074c75c8a074840000000000fdffffff021f351f00000000001600144eec851dd980cc36af1f629a32325f511604d6af56732d000000000016001439267bc7f3e3fabeae3bc3f73880de22d8b01ba50247304402207eac5f639806a00878488d58ca651d690292145bca5511531845ae21fab309d102207162708bd344840cc1bacff1092e426eb8484f83f5c068ba4ca579813de324540121020e0798c267ff06ee8b838cd465f3cfa6c843a122a04917364ce000c29ca205cae5f31f00')
         funding_txid = funding_tx.txid()
         self.assertEqual('e8e977bd9c857d84ec1b8f154ae2ee5dfa49fffb7688942a586196c1ad15de15', funding_txid)
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         cmds = Commands(config=self.config)
         tx_str = await cmds.paytomany(
@@ -318,7 +354,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         funding_txid = funding_tx.txid()
         funding_output_value = 1000000
         self.assertEqual('add2535aedcbb5ba79cc2260868bb9e57f328738ca192937f2c92e0e94c19203', funding_txid)
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         cmds = Commands(config=self.config)
 
@@ -336,7 +372,7 @@ class TestCommandsTestnet(ElectrumTestCase):
 
         funding_tx = Transaction("02000000000102789e8aa8caa79d87241ff9df0e3fd757a07c85a30195d76e8efced1d57c56b670000000000fdffffff7ee2b6abd52b332f797718ae582f8d3b979b83b1799e0a3bfb2c90c6e070c29e0100000000fdffffff020820000000000000160014c0eb720c93a61615d2d66542d381be8943ca553950c3000000000000160014d7dbd0196a2cbd76420f14a19377096cf6cddb75024730440220485b491ad8d3ce3b4da034a851882da84a06ec9800edff0d3fd6aa42eeba3b440220359ea85d32a05932ac417125e133fa54e54e7e9cd20ebc54b883576b8603fd65012103860f1fbf8a482b9d35d7d4d04be8fb33d856a514117cd8b73e372d36895feec60247304402206c2ca56cc030853fa59b4b3cb293f69a3378ead0f10cb76f640f8c2888773461022079b7055d0f6af6952a48e5b97218015b0723462d667765c142b41bd35e3d9c0a01210359e303f57647094a668d69e8ff0bd46c356d00aa7da6dc533c438e71c057f0793e721f00")
         funding_txid = funding_tx.txid()
-        wallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         cmds = Commands(config=self.config)
         orig_rawtx = "02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff02a00f00000000000016001429e1fd187f0cac845946ae1b11dc136c536bfc0fe8b2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa02473044022063c05e2347f16251922830ccc757231247b3c2970c225f988e9204844a1ab7b802204652d2c4816707e3d3bea2609b83b079001a435bad2a99cc2e730f276d07070c012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee050721f00"
@@ -395,3 +431,78 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertEqual({"good_keys": 1, "bad_keys": 2},
                          await cmds.importprivkey(privkeys2_str, wallet=wallet))
         self.assertEqual(10, len(wallet.get_addresses()))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_hold_invoice_commands(self, mock_save_db):
+        wallet: Abstract_Wallet = restore_wallet_from_text(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            gap_limit=2,
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+
+        cmds = Commands(config=self.config)
+        preimage: str = sha256(urandom(32)).hex()
+        payment_hash: str = sha256(bytes.fromhex(preimage)).hex()
+        with (mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000)):
+            result = await cmds.add_hold_invoice(
+                preimage=preimage,
+                amount=Decimal(0.0001),
+                memo="test",
+                expiry=3500,
+                wallet=wallet,
+            )
+        invoice = lndecode(invoice=result['invoice'])
+        assert invoice.paymenthash.hex() == payment_hash
+        assert payment_hash in wallet.lnworker._preimages
+        assert payment_hash in wallet.lnworker.payment_info
+        assert payment_hash in wallet.lnworker.dont_settle_htlcs
+        assert invoice.get_amount_sat() == 10000
+
+        cancel_result = await cmds.cancel_hold_invoice(
+            payment_hash=payment_hash,
+            wallet=wallet,
+        )
+        assert payment_hash not in wallet.lnworker.payment_info
+        assert payment_hash not in wallet.lnworker.dont_settle_htlcs
+        assert payment_hash not in wallet.lnworker._preimages
+        assert cancel_result['cancelled'] == payment_hash
+
+        with self.assertRaises(AssertionError):
+            # settling a cancelled invoice should raise
+            await cmds.settle_hold_invoice(
+                payment_hash=payment_hash,
+                wallet=wallet,
+            )
+            # cancelling an unknown invoice should raise
+            await cmds.cancel_hold_invoice(
+                payment_hash=sha256(urandom(32)).hex(),
+                wallet=wallet,
+            )
+
+        # add another hold invoice
+        preimage: bytes = sha256(urandom(32))
+        payment_hash: str = sha256(preimage).hex()
+        with mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000):
+            await cmds.add_hold_invoice(
+                preimage=preimage.hex(),
+                amount=Decimal(0.0001),
+                wallet=wallet,
+            )
+
+        with mock.patch.object(wallet.lnworker, 'is_accepted_mpp', return_value=True), \
+                mock.patch.object(wallet.lnworker, 'get_payment_mpp_amount_msat', return_value=10_000 * 1000):
+            status: dict = await cmds.check_hold_invoice(payment_hash=payment_hash, wallet=wallet)
+            assert status['status'] == 'paid'
+            assert status['amount_sat'] == 10000
+
+            settle_result = await cmds.settle_hold_invoice(
+                payment_hash=payment_hash,
+                wallet=wallet,
+            )
+        assert settle_result['settled'] == payment_hash
+        assert wallet.lnworker._preimages[payment_hash] == preimage.hex()
+        assert payment_hash not in wallet.lnworker.dont_settle_htlcs
+
+        with self.assertRaises(AssertionError):
+            # cancelling a settled invoice should raise
+            await cmds.cancel_hold_invoice(payment_hash=payment_hash, wallet=wallet)

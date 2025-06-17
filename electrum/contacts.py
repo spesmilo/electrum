@@ -22,16 +22,15 @@
 # SOFTWARE.
 import re
 from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
-
+import asyncio
 import dns
-import threading
 from dns.exception import DNSException
 
 from . import bitcoin
 from . import dnssec
-from .util import read_json_file, write_json_file, to_string
+from .util import read_json_file, write_json_file, to_string, is_valid_email
 from .logging import Logger, get_logger
-from .util import trigger_callback
+from .util import trigger_callback, get_asyncio_loop
 
 if TYPE_CHECKING:
     from .wallet_db import WalletDB
@@ -64,6 +63,7 @@ class Contacts(dict, Logger):
 
     def save(self):
         self.db.put('contacts', dict(self))
+        trigger_callback('contacts_updated')
 
     def import_file(self, path):
         data = read_json_file(path)
@@ -83,27 +83,29 @@ class Contacts(dict, Logger):
             res = dict.pop(self, key)
             self.save()
             return res
+        return None
 
-    def resolve(self, k):
+    async def resolve(self, k) -> dict:
         if bitcoin.is_address(k):
             return {
                 'address': k,
                 'type': 'address'
             }
-        if k in self.keys():
-            _type, addr = self[k]
-            if _type == 'address':
+        for address, (_type, label) in self.items():
+            if k.casefold() != label.casefold():
+                continue
+            if _type in ('address', 'lnaddress'):
                 return {
-                    'address': addr,
+                    'address': address,
                     'type': 'contact'
                 }
-        if openalias := self.resolve_openalias(k):
+        if openalias := await self.resolve_openalias(k):
             return openalias
         raise AliasNotFoundException("Invalid Bitcoin address or alias", k)
 
     @classmethod
-    def resolve_openalias(cls, url: str) -> Dict[str, Any]:
-        out = cls._resolve_openalias(url)
+    async def resolve_openalias(cls, url: str) -> Dict[str, Any]:
+        out = await cls._resolve_openalias(url)
         if out:
             address, name, validated = out
             return {
@@ -130,19 +132,17 @@ class Contacts(dict, Logger):
         alias = config.OPENALIAS_ID
         if alias:
             alias = str(alias)
-            def f():
-                self.alias_info = self._resolve_openalias(alias)
+            async def f():
+                self.alias_info = await self._resolve_openalias(alias)
                 trigger_callback('alias_received')
-            t = threading.Thread(target=f)
-            t.daemon = True
-            t.start()
+            asyncio.run_coroutine_threadsafe(f(), get_asyncio_loop())
 
     @classmethod
-    def _resolve_openalias(cls, url: str) -> Optional[Tuple[str, str, bool]]:
+    async def _resolve_openalias(cls, url: str) -> Optional[Tuple[str, str, bool]]:
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
         try:
-            records, validated = dnssec.query(url, dns.rdatatype.TXT)
+            records, validated = await dnssec.query(url, dns.rdatatype.TXT)
         except DNSException as e:
             _logger.info(f'Error resolving openalias: {repr(e)}')
             return None
@@ -159,6 +159,7 @@ class Contacts(dict, Logger):
                 if not address:
                     continue
                 return address, name, validated
+        return None
 
     @staticmethod
     def find_regex(haystack, needle):
@@ -172,11 +173,11 @@ class Contacts(dict, Logger):
         for k, v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
-            if not bitcoin.is_address(k):
+            if not (bitcoin.is_address(k) or is_valid_email(k)):
                 data.pop(k)
             else:
                 _type, _ = v
-                if _type != 'address':
+                if _type not in ('address', 'lnaddress'):
                     data.pop(k)
         return data
 

@@ -3,16 +3,21 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import get_logger
 from electrum.i18n import _
 
-# container for satoshi amounts that can be passed around more
-# easily between python, QML-property and QML-javascript contexts
-# QML 'int' is 32 bit signed, so overflows on satoshi amounts
-# QML 'quint64' and 'qint64' can be used, but this breaks
-# down when passing through property bindings
-# should also capture millisats amounts and MAX/'!' indicators
-# and (unformatted) string representations
-
 
 class QEAmount(QObject):
+    """Container for bitcoin amounts that can be passed around more
+       easily between python, QML-property and QML-javascript contexts.
+       Note: millisat and sat amounts are not synchronized!
+
+       QML type 'int' in property definitions is 32 bit signed, so will overflow easily
+       on (milli)satoshi amounts! 'int' in QML-javascript seems to be larger than 32 bit, and
+       can be used to store q(u)int64 types.
+
+       QML 'quint64' and 'qint64' can be used, but be aware these will in some cases be downcast
+       by QML to 'int' (e.g. when using the property in a property binding, _even_ when a binding
+       is done between two q(u)int64 properties (at least up until Qt6.4))
+    """
+
     _logger = get_logger(__name__)
 
     def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, from_invoice=None, parent=None):

@@ -11,6 +11,14 @@ TextHighlightPane {
     property variant model
     property int idx: -1
 
+    property string _suffix: model.is_mine || model.is_change
+            ? qsTr('mine')
+            : model.is_swap
+                ? qsTr('swap')
+                : model.is_accounting
+                    ? qsTr('accounting')
+                    : ""
+
     ColumnLayout {
         width: parent.width
 
@@ -55,16 +63,23 @@ TextHighlightPane {
             Label {
                 Layout.fillWidth: true
                 text: model.address
-                    ? model.address
+                    ? model.address + (_suffix
+                        ? ' <span style="font-size:' + constants.fontSizeXSmall + 'px">(' + _suffix + ')</span>'
+                        : "")
                     : '&lt;' + qsTr('address unknown') + '&gt;'
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeMedium
+                textFormat: Text.RichText
                 color: model.is_mine
                     ? model.is_change
                         ? constants.colorAddressInternal
                         : constants.colorAddressExternal
-                    : Material.foreground
-                elide: Text.ElideMiddle
+                    : model.is_swap
+                        ? constants.colorAddressSwap
+                        : model.is_accounting
+                            ? constants.colorAddressAccounting
+                            : Material.foreground
+                wrapMode: Text.WrapAnywhere
             }
         }
 

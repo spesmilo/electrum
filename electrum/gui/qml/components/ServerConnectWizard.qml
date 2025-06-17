@@ -21,10 +21,7 @@ Wizard {
         } else {
             Network.proxy = {'enabled': false}
         }
-        Config.autoConnect = wizard_data['autoconnect']
-        if (!wizard_data['autoconnect']) {
-            Network.server = wizard_data['server']
-        }
+        Network.setServerParameters(wizard_data['server'], wizard_data['autoconnect'], wizard_data['one_server'])
     }
 
     Component.onCompleted: {

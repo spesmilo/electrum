@@ -7,10 +7,10 @@ from PyQt6.QtWidgets import QInputDialog, QLineEdit
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available
 
 from .ledger import LedgerPlugin, Ledger_Client
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUninitialized, WCHWUnlock, WCHWXPub
 
 if TYPE_CHECKING:
@@ -27,13 +27,18 @@ class Plugin(LedgerPlugin, QtPluginBase):
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
+        if len(addrs) != 1:
+            return
         if type(wallet) is not Standard_Wallet:
             return
-        keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
-            menu.addAction(_("Show on Ledger"), show_address)
+        self._add_menu_action(menu, addrs[0], wallet)
+
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        if type(wallet) is not Standard_Wallet:
+            return
+        self._add_menu_action(menu, addr, wallet)
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
@@ -52,46 +57,9 @@ class Plugin(LedgerPlugin, QtPluginBase):
 
 
 class Ledger_Handler(QtHandlerBase):
-    setup_signal = pyqtSignal()
-    auth_signal = pyqtSignal(object, object)
 
     MESSAGE_DIALOG_TITLE = _("Ledger Status")
 
     def __init__(self, win):
         super(Ledger_Handler, self).__init__(win, 'Ledger')
-        self.setup_signal.connect(self.setup_dialog)
-        self.auth_signal.connect(self.auth_dialog)
 
-    def word_dialog(self, msg):
-        response = QInputDialog.getText(self.top_level_window(), "Ledger Wallet Authentication", msg, QLineEdit.EchoMode.Password)
-        if not response[1]:
-            self.word = None
-        else:
-            self.word = str(response[0])
-        self.done.set()
-
-    def auth_dialog(self, data, client: 'Ledger_Client'):
-        try:
-            from .auth2fa import LedgerAuthDialog
-        except ImportError as e:
-            self.message_dialog(repr(e))
-            return
-        dialog = LedgerAuthDialog(self, data, client=client)
-        dialog.exec()
-        self.word = dialog.pin
-        self.done.set()
-
-    def get_auth(self, data, *, client: 'Ledger_Client'):
-        self.done.clear()
-        self.auth_signal.emit(data, client)
-        self.done.wait()
-        return self.word
-
-    def get_setup(self):
-        self.done.clear()
-        self.setup_signal.emit()
-        self.done.wait()
-        return
-
-    def setup_dialog(self):
-        self.show_error(_('Initialization of Ledger HW devices is currently disabled.'))

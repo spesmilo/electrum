@@ -116,6 +116,7 @@ class CompletionTextEdit(ButtonsTextEdit):
             return True
         return False
 
+
 if __name__ == "__main__":
     app = QApplication([])
     completer = QCompleter(["alabama", "arkansas", "avocado", "breakfast", "sausage"])

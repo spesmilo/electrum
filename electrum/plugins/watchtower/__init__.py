@@ -1,17 +1,5 @@
-from electrum.i18n import _
+from electrum.simple_config import ConfigVar, SimpleConfig
 
-fullname = _('Watchtower')
-description = """
-Watchtower for Electrum.
-
-Example setup:
-
-  electrum -o setconfig enable_plugin_watchtower True
-  electrum -o setconfig watchtower_user wtuser
-  electrum -o setconfig watchtower_password wtpassword
-  electrum -o setconfig watchtower_port 12345
-  electrum daemon -v
-
-"""
-
-available_for = ['cmdline']
+SimpleConfig.WATCHTOWER_SERVER_PORT = ConfigVar('plugins.watchtower.server_port', default=None, type_=int, plugin=__name__)
+SimpleConfig.WATCHTOWER_SERVER_USER = ConfigVar('plugins.watchtower.server_user', default=None, type_=str, plugin=__name__)
+SimpleConfig.WATCHTOWER_SERVER_PASSWORD = ConfigVar('plugins.watchtower.server_password', default=None, type_=str, plugin=__name__)

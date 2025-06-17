@@ -3,6 +3,7 @@
 Revealer
 Do you have something to hide?
 Secret backup plug-in for the electrum wallet.
+https://web.archive.org/web/20181204193709/https://revealer.cc/how-it-works/
 
 Copyright:
     2017 Tiago Romagnani Silveira
@@ -15,13 +16,10 @@ file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
 import random
-import traceback
 from decimal import Decimal
 from functools import partial
-import sys
 from typing import TYPE_CHECKING
 
-import qrcode
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtCore import Qt, QRectF, QRect, QSizeF, QUrl, QPoint, QSize, QMarginsF
 from PyQt6.QtGui import (QPixmap, QImage, QBitmap, QPainter, QFontDatabase, QPen, QFont,
@@ -32,11 +30,13 @@ from PyQt6.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.util import make_dir, InvalidPassword, UserCancelled
-from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path, internal_plugin_icon_path,
-                                  WindowModalDialog, Buttons, CloseButton, OkButton)
+from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path,
+                                  internal_plugin_icon_path, WindowModalDialog, Buttons,
+                                  CloseButton, OkButton, HelpButton)
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes
+from electrum.gui.common_qt.util import paintQR
 
 from .revealer import RevealerPlugin
 
@@ -48,6 +48,22 @@ if TYPE_CHECKING:
 class Plugin(RevealerPlugin):
 
     MAX_PLAINTEXT_LEN = 189  # chars
+    HELP_TEXT = "\n".join([
+        _("Revealer is a tool to encrypt your secrets visually."),
+        _("Revealer is based on the scheme 'Visual Cryptography' by Moni Naor and Adi Shamir."),
+        "",
+        _("Each Revealer has a unique code. It starts with a version number, "
+          "then 128 bits of entropy encoded in hex format, and the last three "
+          "digits as a checksum."),
+        _("This code is visible in the bottom right corner of the Revealer."),
+        _("With the 128bits of entropy as a random seed, the software generates a noise image."),
+        _("In the following step your secret is encrypted into a second image."),
+        _("Then you can print those two images on transparent film."),
+        _("To decrypt the secret, you need to overlay the two films, "
+          "then your secret will become visible."),
+        "",
+        _("You can calibrate your printer in the plugin settings to achieve better print quality."),
+    ])
 
     def __init__(self, parent, config, name):
         RevealerPlugin.__init__(self, parent, config, name)
@@ -73,7 +89,7 @@ class Plugin(RevealerPlugin):
         self.icon_bytes = self.read_file("revealer.png")
 
     @hook
-    def init_qt(self, gui: 'ElectrumGui'):
+    def load_wallet(self, wallet, window):
         if self._init_qt_received:  # only need/want the first signal
             return
         self._init_qt_received = True
@@ -82,18 +98,16 @@ class Plugin(RevealerPlugin):
         QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
 
     @hook
-    def create_status_bar(self, sb):
-        b = StatusBarButton(
-            read_QIcon_from_bytes(self.icon_bytes),
-            "Revealer "+_("Visual Cryptography Plugin"),
-            partial(self.setup_dialog, sb), sb.height())
-        sb.addPermanentWidget(b)
+    def init_menubar(self, window):
+        ma = window.wallet_menu.addAction('Revealer', partial(self.setup_dialog, window))
+        icon = read_QIcon_from_bytes(self.icon_bytes)
+        ma.setIcon(icon)
 
     def requires_settings(self):
         return True
 
-    def settings_widget(self, window):
-        return EnterButton(_('Printer Calibration'), partial(self.calibration_dialog, window))
+    def settings_dialog(self, window, wallet):
+        return self.calibration_dialog(window)
 
     def password_dialog(self, msg=None, parent=None):
         from electrum.gui.qt.password_dialog import PasswordDialog
@@ -115,7 +129,7 @@ class Plugin(RevealerPlugin):
         return keystore.get_seed(password)
 
     def setup_dialog(self, window):
-        self.wallet = window.parent().wallet
+        self.wallet = window.wallet
         self.update_wallet_name(self.wallet)
         self.user_input = False
 
@@ -134,8 +148,14 @@ class Plugin(RevealerPlugin):
         # Align the logo label to the top left.
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
+        # help text button
+        help_button = HelpButton(self.HELP_TEXT)
+
         # Create a VBox layout for the main contents of the dialog.
         vbox_layout = QVBoxLayout()
+
+        # create a HBox for the first line to show help button and label side by side
+        first_line_hbox = QHBoxLayout()
 
         # Populate the HBox layout with spacing between the two columns.
         hbox_layout.addWidget(logo_label)
@@ -145,6 +165,9 @@ class Plugin(RevealerPlugin):
         # Create the labels.
         create_or_load_noise_file_label = QLabel(_("To encrypt a secret, you must first create or load a noise file."))
         instructions_label = QLabel(_("Click the button above or type an existing revealer code in the box below."))
+
+        first_line_hbox.addWidget(create_or_load_noise_file_label)
+        first_line_hbox.addWidget(help_button)
 
         # Allow users to select text in the labels.
         create_or_load_noise_file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -190,7 +213,7 @@ class Plugin(RevealerPlugin):
         self.noise_scan_qr_textedit.textChanged.connect(self.on_edit)
 
         # Populate the VBox layout.
-        vbox_layout.addWidget(create_or_load_noise_file_label)
+        vbox_layout.addLayout(first_line_hbox)
         vbox_layout.addWidget(create_button, alignment=Qt.AlignmentFlag.AlignCenter)
         vbox_layout.addWidget(instructions_label)
         vbox_layout.addWidget(self.noise_scan_qr_textedit)
@@ -741,7 +764,7 @@ class Plugin(RevealerPlugin):
                                        base_img.height()-total_distance_h - border_thick), Qt.AlignmentFlag.AlignRight, self.versioned_seed.checksum)
 
                 # draw qr code
-                qr_qt = self.paintQR(self.versioned_seed.get_ui_string_version_plus_seed()
+                qr_qt = paintQR(self.versioned_seed.get_ui_string_version_plus_seed()
                                      + self.versioned_seed.checksum)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
@@ -813,32 +836,6 @@ class Plugin(RevealerPlugin):
             cal_painter.end()
             base_img = cal_img
 
-        return base_img
-
-    def paintQR(self, data):
-        if not data:
-            return
-        qr = qrcode.QRCode()
-        qr.add_data(data)
-        matrix = qr.get_matrix()
-        k = len(matrix)
-        border_color = Qt.GlobalColor.white
-        base_img = QImage(k * 5, k * 5, QImage.Format.Format_ARGB32)
-        base_img.fill(border_color)
-        qrpainter = QPainter()
-        qrpainter.begin(base_img)
-        boxsize = 5
-        size = k * boxsize
-        left = (base_img.width() - size)//2
-        top = (base_img.height() - size)//2
-        qrpainter.setBrush(Qt.GlobalColor.black)
-        qrpainter.setPen(Qt.GlobalColor.black)
-
-        for r in range(k):
-            for c in range(k):
-                if matrix[r][c]:
-                    qrpainter.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
-        qrpainter.end()
         return base_img
 
     def calibration_dialog(self, window):

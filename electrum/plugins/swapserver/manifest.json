@@ -1,0 +1,6 @@
+{
+  "name": "swapserver",
+  "fullname": "SwapServer",
+  "description": "Submarine swap server for an Electrum daemon.\n\nExample setup:\n\n  electrum -o setconfig plugins.swapserver.enabled True\n  electrum -o setconfig plugins.swapserver.port 5455\n  electrum daemon -v\n\n",
+  "available_for": ["cmdline"]
+}

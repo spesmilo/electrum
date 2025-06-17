@@ -13,6 +13,7 @@ from electrum.util import format_satoshis, EventListener, event_listener
 from electrum.bitcoin import is_address, COIN
 from electrum.transaction import PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
+from electrum.fee_policy import FixedFeePolicy
 
 _ = lambda x:x  # i18n
 
@@ -25,7 +26,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
@@ -33,7 +34,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
 
-        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
 
         self.done = 0
         self.last_balance = ""
@@ -211,11 +212,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if c == "n": return
 
         try:
-            tx = self.wallet.create_transaction(
+            tx = self.wallet.make_unsigned_transaction(
                 outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
-                password=password,
-                fee=fee,
+                fee_policy=FixedFeePolicy(fee),
             )
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             print(repr(e))
             return

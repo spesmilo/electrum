@@ -34,7 +34,6 @@ ElDialog {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
-
         }
 
         FlatButton {
@@ -42,8 +41,10 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             onClicked: {
-                Config.autoConnect = serverconfig.auto_connect
-                Network.server = serverconfig.address
+                let auto_connect = serverconfig.serverConnectMode == ServerConnectModeComboBox.Mode.Autoconnect
+                let server = serverconfig.address
+                let one_server = serverconfig.serverConnectMode == ServerConnectModeComboBox.Mode.Single
+                Network.setServerParameters(server, auto_connect, one_server)
                 rootItem.close()
             }
         }

@@ -18,7 +18,7 @@ if source_dir.endswith('/'):
     source_dir = source_dir[:-1]
 
 plugin_name = os.path.basename(source_dir)
-dest_dir = os.path.dirname(source_dir)
+dest_dir = os.getcwd()
 zip_path = os.path.join(dest_dir, plugin_name + '.zip')
 
 # remove old zipfile
@@ -35,15 +35,18 @@ with zipfile.ZipFile(zip_path, 'w') as zip_object:
             print('added', dest_path)
 
 # read version
-zip_file = zipimport.zipimporter(zip_path)
-module = zip_file.load_module(plugin_name)
-if not module.version:
-    raise Exception('version not set')
+try:
+    with open(os.path.join(source_dir, 'manifest.json'), 'r') as f:
+        manifest = json.load(f)
+        version = manifest.get('version')
+except FileNotFoundError:
+    raise Exception(f"plugin doesn't contain manifest.json")
 
-versioned_plugin_name = plugin_name + '-' + module.version + '.zip'
-zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
-# rename zip file
-os.rename(zip_path, zip_path_with_version)
-
-print(f'Created {zip_path_with_version}')
-
+if version:
+    versioned_plugin_name = plugin_name + '-' + version + '.zip'
+    zip_path_with_version = os.path.join(dest_dir, versioned_plugin_name)
+    # rename zip file
+    os.rename(zip_path, zip_path_with_version)
+    print(f'Created {zip_path_with_version}')
+else:
+    print(f'Created {zip_path}')

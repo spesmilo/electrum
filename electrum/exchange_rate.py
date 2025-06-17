@@ -8,17 +8,18 @@ import time
 import csv
 import decimal
 from decimal import Decimal
-from typing import Sequence, Optional, Mapping, Dict, Union, Any, Tuple
+from typing import Sequence, Optional, Mapping, Dict, Union, Tuple
 
-from aiorpcx.curio import timeout_after, TaskTimeout, ignore_after
+from aiorpcx.curio import timeout_after, ignore_after
 import aiohttp
 
 from . import util
 from .bitcoin import COIN
 from .i18n import _
-from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal,
-                   timestamp_to_datetime)
+from .util import (
+    ThreadJob, make_dir, log_exceptions, OldTaskGroup, make_aiohttp_session, resource_path, EventListener,
+    event_listener, to_decimal, timestamp_to_datetime
+)
 from .util import NetworkRetryManager
 from .network import Network
 from .simple_config import SimpleConfig
@@ -45,7 +46,7 @@ class ExchangeBase(Logger):
 
     def __init__(self, on_quotes, on_history):
         Logger.__init__(self)
-        self._history = {}  # type: Dict[str, Dict[str, str]]
+        self._history = {}  # type: Dict[str, Dict[str, str | float]]
         self._quotes = {}  # type: Dict[str, Optional[Decimal]]
         self._quotes_timestamp = 0  # type: Union[int, float]
         self.on_quotes = on_quotes
@@ -93,14 +94,14 @@ class ExchangeBase(Logger):
             self.logger.exception(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
         else:
-            self.logger.info("received fx quotes")
+            self.logger.debug("received fx quotes")
             self._quotes_timestamp = time.time()
             self.on_quotes(received_new_data=True)
 
     @staticmethod
     def _read_historical_rates_from_file(
         *, exchange_name: str, ccy: str, cache_dir: str,
-    ) -> Tuple[Optional[dict], Optional[float]]:
+    ) -> Tuple[Optional[Dict[str, str]], Optional[float]]:
         filename = os.path.join(cache_dir, f"{exchange_name}_{ccy}")
         if not os.path.exists(filename):
             return None, None
@@ -124,6 +125,7 @@ class ExchangeBase(Logger):
         )
         if not h:
             return None
+        assert timestamp is not None
         h['timestamp'] = timestamp
         self._history[ccy] = h
         self.on_history()
@@ -133,16 +135,22 @@ class ExchangeBase(Logger):
     def _write_historical_rates_to_file(
         *, exchange_name: str, ccy: str, cache_dir: str, history: Dict[str, str],
     ) -> None:
+        # sanity check types of history dict
+        assert 'timestamp' not in history
+        for key, rate in history.items():
+            assert isinstance(key, str), f"{exchange_name=}. {ccy=}. {key=!r}. {rate=!r}"
+            assert isinstance(rate, str), f"{exchange_name=}. {ccy=}. {key=!r}. {rate=!r}"
+        # write to file
         filename = os.path.join(cache_dir, f"{exchange_name}_{ccy}")
         with open(filename, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(history))
+            f.write(json.dumps(history, sort_keys=True))
 
     @log_exceptions
     async def get_historical_rates_safe(self, ccy: str, cache_dir: str) -> None:
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
-            self.logger.info(f"received fx history for {ccy}")
+            self.logger.debug(f"received fx history for {ccy}")
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
@@ -150,7 +158,7 @@ class ExchangeBase(Logger):
             self.logger.exception(f"failed fx history: {repr(e)}")
             return
         # cast rates to str
-        h_new = {date_str: str(rate) for (date_str, rate) in h_new.items()}
+        h_new = {date_str: str(rate) for (date_str, rate) in h_new.items()}  # type: Dict[str, str]
         # merge old history and new history. resolve duplicate dates using new data.
         h_old, _timestamp = self._read_historical_rates_from_file(
             exchange_name=self.name(), ccy=ccy, cache_dir=cache_dir,
@@ -161,7 +169,7 @@ class ExchangeBase(Logger):
         self._write_historical_rates_to_file(
             exchange_name=self.name(), ccy=ccy, cache_dir=cache_dir, history=h,
         )
-        h['timestamp'] = time.time()
+        h['timestamp'] = time.time()  # note: this is the only item in h that has a float value
         self._history[ccy] = h
         self.on_history()
 
@@ -208,6 +216,7 @@ class ExchangeBase(Logger):
             return Decimal('NaN')
         return Decimal(rate)
 
+
 class Yadio(ExchangeBase):
 
     async def get_currencies(self):
@@ -217,6 +226,7 @@ class Yadio(ExchangeBase):
     async def get_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
         json = await self.get_json('api.yadio.io', '/rate/%s/BTC' % ccy)
         return {ccy: to_decimal(json['rate'])}
+
 
 class BitcoinAverage(ExchangeBase):
     # note: historical rates used to be freely available
@@ -247,9 +257,8 @@ class BitcoinVenezuela(ExchangeBase):
         return ['ARS', 'EUR', 'USD', 'VEF']
 
     async def request_history(self, ccy):
-        json = await self.get_json('api.bitcoinvenezuela.com',
-                             "/historical/index.php?coin=BTC")
-        return json[ccy +'_BTC']
+        json = await self.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")
+        return json[ccy + '_BTC']
 
 
 class Bitbank(ExchangeBase):

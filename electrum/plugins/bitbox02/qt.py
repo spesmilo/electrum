@@ -10,11 +10,11 @@ from electrum.plugin import hook
 from electrum.util import UserCancelled, UserFacingException
 
 from .bitbox02 import BitBox02Plugin
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWUnlock, WCHWUninitialized, WCHWXPub
-from electrum.gui.qt.util import WindowModalDialog, OkButton, ButtonsTextEdit
+from electrum.gui.qt.util import WindowModalDialog, OkButton, ButtonsTextEdit, read_QIcon
 
 if TYPE_CHECKING:
     from electrum.gui.qt.wizard.wallet import QENewWalletWizard
@@ -30,19 +30,13 @@ class Plugin(BitBox02Plugin, QtPluginBase):
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        # Context menu on each address in the Addresses Tab, right click...
-        if len(addrs) != 1:
-            return
-        for keystore in wallet.get_keystores():
-            if type(keystore) == self.keystore_class:
+        if len(addrs) == 1:
+            self._add_menu_action(menu, addrs[0], wallet)
 
-                def show_address(keystore=keystore):
-                    keystore.thread.add(
-                        partial(self.show_address, wallet, addrs[0], keystore=keystore)
-                    )
-
-                device_name = "{} ({})".format(self.device, keystore.label)
-                menu.addAction(_("Show on {}").format(device_name), show_address)
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        self._add_menu_action(menu, addr, wallet)
 
     @only_hook_if_libraries_available
     @hook
@@ -58,7 +52,7 @@ class Plugin(BitBox02Plugin, QtPluginBase):
             )
 
         device_name = "{} ({})".format(self.device, keystore.label)
-        mpk_text.addButton("eye1.png", on_button_click, _("Show on {}").format(device_name))
+        mpk_text.addButton(read_QIcon("eye1.png"), on_button_click, _("Show on {}").format(device_name))
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):

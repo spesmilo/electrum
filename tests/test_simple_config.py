@@ -6,7 +6,6 @@ import shutil
 from io import StringIO
 
 from electrum.simple_config import SimpleConfig, read_user_config
-from electrum import constants
 
 from . import ElectrumTestCase
 
@@ -136,6 +135,12 @@ class Test_SimpleConfig(ElectrumTestCase):
             # revert:
             config.NETWORK_SERVER = None
 
+    def test_configvars_setter_catches_typo(self):
+        config = SimpleConfig(self.options)
+        assert not hasattr(config, "NETORK_AUTO_CONNECTT")
+        with self.assertRaises(AttributeError):
+            config.NETORK_AUTO_CONNECTT = False
+
     def test_configvars_get_default_value(self):
         config = SimpleConfig(self.options)
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.get_default_value())
@@ -197,46 +202,17 @@ class Test_SimpleConfig(ElectrumTestCase):
         with self.assertRaises(KeyError):
             config.cv.from_key("server333")
 
-    def test_depth_target_to_fee(self):
+    def test_recursive_config(self):
         config = SimpleConfig(self.options)
-        config.mempool_fees = [[49, 100110], [10, 121301], [6, 153731], [5, 125872], [1, 36488810]]
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(1000000))
-        self.assertEqual( 6 * 1000, config.depth_target_to_fee( 500000))
-        self.assertEqual( 7 * 1000, config.depth_target_to_fee( 250000))
-        self.assertEqual(11 * 1000, config.depth_target_to_fee( 200000))
-        self.assertEqual(50 * 1000, config.depth_target_to_fee( 100000))
-        config.mempool_fees = []
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 7))
-        config.mempool_fees = [[1, 36488810]]
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 7))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 8))
-        config.mempool_fees = [[5, 125872], [1, 36488810]]
-        self.assertEqual( 6 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 7))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 8))
-        config.mempool_fees = []
-        self.assertEqual(1 * 1000, config.depth_target_to_fee(10 ** 5))
-        config.mempool_fees = None
-        self.assertEqual(None, config.depth_target_to_fee(10 ** 5))
-
-    def test_fee_to_depth(self):
-        config = SimpleConfig(self.options)
-        config.mempool_fees = [[49, 100000], [10, 120000], [6, 150000], [5, 125000], [1, 36000000]]
-        self.assertEqual(100000, config.fee_to_depth(500))
-        self.assertEqual(100000, config.fee_to_depth(50))
-        self.assertEqual(100000, config.fee_to_depth(49))
-        self.assertEqual(220000, config.fee_to_depth(48))
-        self.assertEqual(220000, config.fee_to_depth(10))
-        self.assertEqual(370000, config.fee_to_depth(9))
-        self.assertEqual(370000, config.fee_to_depth(6.5))
-        self.assertEqual(370000, config.fee_to_depth(6))
-        self.assertEqual(495000, config.fee_to_depth(5.5))
-        self.assertEqual(36495000, config.fee_to_depth(0.5))
+        n = len(config.user_config)
+        config.set_key('x.y.z', 1)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.w', 1)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.z', None)
+        self.assertEqual(len(config.user_config), n + 1)
+        config.set_key('x.y.w', None)
+        self.assertEqual(len(config.user_config), n)
 
 
 class TestUserConfig(ElectrumTestCase):
@@ -273,5 +249,5 @@ class TestUserConfig(ElectrumTestCase):
         with open(thefile, "w") as f:
             f.write(repr(payload))
 
-        result = read_user_config(self.user_dir)
-        self.assertEqual({}, result)
+        with self.assertRaises(ValueError):
+            read_user_config(self.user_dir)

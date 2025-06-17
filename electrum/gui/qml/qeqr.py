@@ -5,8 +5,6 @@ from qrcode.exceptions import DataOverflowError
 import math
 import urllib
 
-from PIL import ImageQt
-
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtQuick import QQuickImageProvider
@@ -22,6 +20,7 @@ from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
 from electrum.util import profiler, get_asyncio_loop
+from electrum.gui.common_qt.util import draw_qr
 
 
 class QEQRParser(QObject):
@@ -125,6 +124,11 @@ class QEQRParser(QObject):
 
 
 class QEQRImageProvider(QQuickImageProvider):
+    MAX_QR_PIXELSIZE = 400
+    ERROR_CORRECT_LEVEL = qrcode.constants.ERROR_CORRECT_M
+    # ^ note: this is higher than for desktop. but on desktop we don't put a logo in the middle.
+    QR_BORDER = 2
+
     def __init__(self, max_size, parent=None):
         super().__init__(QQuickImageProvider.ImageType.Image)
         self._max_size = max_size
@@ -147,20 +151,18 @@ class QEQRImageProvider(QQuickImageProvider):
             uri = uri._replace(query=query)
             qstr = urllib.parse.urlunparse(uri)
 
-        qr = qrcode.QRCode(version=1, border=2)
-        qr.add_data(qstr)
+        qr = qrcode.main.QRCode(border=self.QR_BORDER, error_correction=self.ERROR_CORRECT_LEVEL)
 
         # calculate best box_size
-        pixelsize = min(self._max_size, 400)
+        pixelsize = min(self._max_size, self.MAX_QR_PIXELSIZE)
         try:
-            modules = 17 + 4 * qr.best_fit() + qr.border * 2
+            qr.add_data(qstr)
+            modules = len(qr.get_matrix())
             qr.box_size = math.floor(pixelsize/modules)
-
             qr.make(fit=True)
-
-            pimg = qr.make_image(fill_color='black', back_color='white')
-            self.qimg = ImageQt.ImageQt(pimg)
-        except DataOverflowError:
+            self.qimg = QImage(modules * qr.box_size, modules * qr.box_size, QImage.Format.Format_RGB32)
+            draw_qr(qr=qr, paint_device=self.qimg)
+        except (ValueError, qrcode.exceptions.DataOverflowError):
             # fake it
             modules = 17 + qr.border * 2
             box_size = math.floor(pixelsize/modules)
@@ -179,15 +181,18 @@ class QEQRImageProviderHelper(QObject):
 
     @pyqtSlot(str, result='QVariantMap')
     def getDimensions(self, qstr):
-        qr = qrcode.QRCode(version=1, border=2)
-        qr.add_data(qstr)
+        qr = qrcode.QRCode(
+            border=QEQRImageProvider.QR_BORDER,
+            error_correction=QEQRImageProvider.ERROR_CORRECT_LEVEL,
+        )
 
         # calculate best box_size
-        pixelsize = min(self._max_size, 400)
+        pixelsize = min(self._max_size, QEQRImageProvider.MAX_QR_PIXELSIZE)
         try:
-            modules = 17 + 4 * qr.best_fit() + qr.border * 2
+            qr.add_data(qstr)
+            modules = len(qr.get_matrix())
             valid = True
-        except DataOverflowError:
+        except (ValueError, qrcode.exceptions.DataOverflowError):
             # fake it
             modules = 17 + qr.border * 2
             valid = False
@@ -198,8 +203,7 @@ class QEQRImageProviderHelper(QObject):
         icon_modules += (icon_modules+1) % 2  # force odd
 
         return {
-            'modules': modules,
-            'box_size': qr.box_size,
-            'icon_modules': icon_modules,
+            'qr_pixelsize': modules * qr.box_size,
+            'icon_pixelsize': icon_modules * qr.box_size,
             'valid': valid
         }

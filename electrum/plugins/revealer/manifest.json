@@ -1,0 +1,7 @@
+{
+    "name": "revealer",
+    "fullname": "Revealer Backup Utility",
+    "description": "This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets.",
+    "icon": "revealer.png",
+    "available_for": ["qt"]
+}

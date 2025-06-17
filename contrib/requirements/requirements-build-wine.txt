@@ -3,7 +3,9 @@ setuptools
 wheel
 
 # needed by pyinstaller:
-pefile>=2017.8.1
+# fixme: ugly to have to duplicate this here from upstream
+pefile>=2022.5.30,!=2024.8.26
 altgraph
-pywin32-ctypes>=0.2.0
-pyinstaller-hooks-contrib>=2020.11
+pywin32-ctypes>=0.2.1
+pyinstaller-hooks-contrib>=2025.2
+packaging>=22.0

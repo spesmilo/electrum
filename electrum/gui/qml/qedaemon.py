@@ -18,7 +18,7 @@ from electrum.storage import StorageReadWriteError
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
-from .qewizard import QENewWalletWizard, QEServerConnectWizard
+from .qewizard import QENewWalletWizard, QEServerConnectWizard, QETermsOfUseWizard
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -121,11 +121,14 @@ class QEWalletListModel(QAbstractListModel):
 
 
 class QEDaemon(AuthMixin, QObject):
+    instance = None  # type: Optional[QEDaemon]
+
     _logger = get_logger(__name__)
 
     _available_wallets = None
     _current_wallet = None
     _new_wallet_wizard = None
+    _terms_of_use_wizard = None
     _server_connect_wizard = None
     _path = None
     _name = None
@@ -138,6 +141,7 @@ class QEDaemon(AuthMixin, QObject):
     availableWalletsChanged = pyqtSignal()
     fxChanged = pyqtSignal()
     newWalletWizardChanged = pyqtSignal()
+    termsOfUseWizardChanged = pyqtSignal()
     serverConnectWizardChanged = pyqtSignal()
     loadingChanged = pyqtSignal()
     requestNewPassword = pyqtSignal()
@@ -149,6 +153,9 @@ class QEDaemon(AuthMixin, QObject):
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
+        if QEDaemon.instance:
+            raise RuntimeError('There should only be one QEDaemon instance')
+        QEDaemon.instance = self
         self.daemon = daemon
         self.plugins = plugins
         self.qefx = QEFX(daemon.fx, daemon.config)
@@ -171,7 +178,7 @@ class QEDaemon(AuthMixin, QObject):
         if path is None:
             self._path = self.daemon.config.get('wallet_path')  # command line -w option
             if self._path is None:
-                self._path = self.daemon.config.GUI_LAST_WALLET
+                self._path = self.daemon.config.CURRENT_WALLET
         else:
             self._path = path
         if self._path is None:
@@ -229,8 +236,6 @@ class QEDaemon(AuthMixin, QObject):
                     self._logger.info(f'use single password: {self._use_single_password}')
                 else:
                     self._logger.info('use single password disabled by config')
-
-                self.daemon.config.save_last_wallet(wallet)
 
                 run_hook('load_wallet', wallet)
 
@@ -360,6 +365,12 @@ class QEDaemon(AuthMixin, QObject):
 
         return self._server_connect_wizard
 
+    @pyqtProperty(QETermsOfUseWizard, notify=termsOfUseWizardChanged)
+    def termsOfUseWizard(self):
+        if not self._terms_of_use_wizard:
+            self._terms_of_use_wizard = QETermsOfUseWizard(self)
+        return self._terms_of_use_wizard
+
     @pyqtSlot()
     def startNetwork(self):
         self.daemon.start_network()
@@ -372,7 +383,7 @@ class QEDaemon(AuthMixin, QObject):
             return False
         try:
             # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.strip()))
+            sig = base64.b64decode(str(signature.strip()), validate=True)
             verified = verify_usermessage_with_address(address, sig, message)
         except Exception as e:
             verified = False

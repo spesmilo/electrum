@@ -25,16 +25,14 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
-                             QLabel, QCompleter, QDialog, QStyledItemDelegate,
-                             QScrollArea, QWidget, QPushButton, QGridLayout, QToolButton)
-from PyQt6.QtCore import QRect, QEventLoop, Qt, pyqtSignal
-from PyQt6.QtGui import QPalette, QPen, QPainter, QPixmap
-
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QGridLayout, QToolButton, QPushButton
+from PyQt6.QtCore import QRect, Qt
+from PyQt6.QtGui import QPen, QPainter, QPixmap
 
 from electrum.i18n import _
+from electrum.gui.messages import MSG_LN_UTXO_RESERVE
 
-from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height, AmountLabel
+from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height, AmountLabel, icon_path
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -51,6 +49,7 @@ COLOR_UNMATURED = Qt.GlobalColor.magenta
 COLOR_FROZEN = ColorScheme.BLUE.as_color(True)
 COLOR_LIGHTNING = Qt.GlobalColor.yellow
 COLOR_FROZEN_LIGHTNING = Qt.GlobalColor.cyan
+
 
 class PieChartObject:
 
@@ -78,6 +77,7 @@ class PieChartObject:
                 alpha += delta
         qp.end()
 
+
 class PieChartWidget(QWidget, PieChartObject):
 
     def __init__(self, size, l):
@@ -103,8 +103,10 @@ class BalanceToolButton(QToolButton, PieChartObject):
         QToolButton.__init__(self)
         self._list = []
         self._update_size()
+        self._warning = False
 
-    def update_list(self, l):
+    def update_list(self, l, warning: bool):
+        self._warning = warning
         self._list = l
         self.update()
 
@@ -114,7 +116,14 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def paintEvent(self, event):
         QToolButton.paintEvent(self, event)
-        PieChartObject.paintEvent(self, event)
+        if not self._warning:
+            PieChartObject.paintEvent(self, event)
+        else:
+            pixmap = QPixmap(icon_path("warning.png"))
+            qp = QPainter()
+            qp.begin(self)
+            qp.drawPixmap(self.R, pixmap)
+            qp.end()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -155,6 +164,7 @@ class BalanceDialog(WindowModalDialog):
 
         WindowModalDialog.__init__(self, parent, _("Wallet Balance"))
         self.wallet = wallet
+        self.window = parent
         self.config = parent.config
         self.fx = parent.fx
 
@@ -187,6 +197,22 @@ class BalanceDialog(WindowModalDialog):
         )
 
         vbox = QVBoxLayout()
+        if self.wallet.is_low_reserve():
+            reserve_str = self.config.format_amount_and_units(self.config.LN_UTXO_RESERVE)
+            hbox = QHBoxLayout()
+            msg = _('Warning') + ': ' + MSG_LN_UTXO_RESERVE.format(reserve_str)
+            label = QLabel(msg)
+            label.setWordWrap(True)
+            logo = QLabel('')
+            logo.setPixmap(
+                QPixmap(icon_path("warning.png")).scaledToWidth(
+                    25, mode=Qt.TransformationMode.SmoothTransformation)
+            )
+            logo.setMaximumWidth(28)
+            hbox.addWidget(logo)
+            hbox.addWidget(label)
+            vbox.addLayout(hbox)
+
         vbox.addWidget(piechart)
         grid = QGridLayout()
         #grid.addWidget(QLabel(_("Onchain") + ':'), 0, 1)
@@ -226,9 +252,13 @@ class BalanceDialog(WindowModalDialog):
 
         vbox.addLayout(grid)
         vbox.addStretch(1)
-        btn_close = CloseButton(self)
-        btns = Buttons(btn_close)
-        vbox.addLayout(btns)
+        buttons = [CloseButton(self)]
+        if self.window.wallet.has_lightning():
+            swap_button = QPushButton(_('Swap'))
+            swap_button.clicked.connect(lambda: self.window.run_swap_dialog())
+            buttons.insert(0, swap_button)
+
+        vbox.addLayout(Buttons(*buttons))
         self.setLayout(vbox)
 
     def run(self):

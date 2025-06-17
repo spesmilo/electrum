@@ -14,10 +14,11 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.logging import Logger
+from electrum.util import ChoiceItem
 
-from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
-from electrum.plugins.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
-from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.trezor_qt_pinmatrix import PinMatrixWidget
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available
 
 from .keepkey import KeepKeyPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY
 
@@ -206,12 +207,12 @@ class QtPlugin(QtPluginBase):
     def receive_menu(self, menu, addrs, wallet):
         if len(addrs) != 1:
             return
-        for keystore in wallet.get_keystores():
-            if type(keystore) == self.keystore_class:
-                def show_address(keystore=keystore):
-                    keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore))
-                device_name = "{} ({})".format(self.device, keystore.label)
-                menu.addAction(_("Show on {}").format(device_name), show_address)
+        self._add_menu_action(menu, addrs[0], wallet)
+
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        self._add_menu_action(menu, addr, wallet)
 
     def show_settings_dialog(self, window, keystore):
         def connect():
@@ -619,10 +620,10 @@ class WCKeepkeyInitMethod(WalletWizardComponent):
                 ).format(_info.model_name, _info.model_name)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
-            (TIM_NEW, _("Let the device generate a completely new seed randomly")),
-            (TIM_RECOVER, _("Recover from a seed you have previously written down")),
-            (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
-            (TIM_PRIVKEY, _("Upload a master private key"))
+            ChoiceItem(key=TIM_NEW, label=_("Let the device generate a completely new seed randomly")),
+            ChoiceItem(key=TIM_RECOVER, label=_("Recover from a seed you have previously written down")),
+            ChoiceItem(key=TIM_MNEMONIC, label=_("Upload a BIP39 mnemonic to generate the seed")),
+            ChoiceItem(key=TIM_PRIVKEY, label=_("Upload a master private key")),
         ]
         self.choice_w = ChoiceWidget(message=msg, choices=choices)
         self.layout().addWidget(self.choice_w)

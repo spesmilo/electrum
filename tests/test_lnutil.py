@@ -1,21 +1,17 @@
 import os
-import unittest
 import json
 from typing import Dict, List
 
-import electrum_ecc as ecc
-
 from electrum import bitcoin
 from electrum.json_db import StoredDict
-from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
-                             make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
-                             make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
-                             derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
-                             get_compressed_pubkey_from_bech32,
-                             ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
-                             ln_compare_features, IncompatibleLightningFeatures, ChannelType,
-                             offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-                             ImportedChannelBackupStorage)
+from electrum.lnutil import (
+    RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment,
+    make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
+    derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
+    ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
+    IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits
+)
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
@@ -88,6 +84,7 @@ TEST_HTLCS = [
         'preimage': "0404040404040404040404040404040404040404040404040404040404040404",
     }
 ]
+
 
 class TestLNUtil(ElectrumTestCase):
     def test_shachain_store(self):
@@ -803,6 +800,7 @@ class TestLNUtil(ElectrumTestCase):
         # therefore we patch the effective htlc tx weight to result in a finite weight
         from electrum import lnutil
         effective_htlc_tx_weight_original = lnutil.effective_htlc_tx_weight
+
         def effective_htlc_tx_weight_patched(success: bool, has_anchors: bool):
             return lnutil.HTLC_SUCCESS_WEIGHT_ANCHORS if success else lnutil.HTLC_TIMEOUT_WEIGHT_ANCHORS
         lnutil.effective_htlc_tx_weight = effective_htlc_tx_weight_patched
@@ -853,7 +851,7 @@ class TestLNUtil(ElectrumTestCase):
                             cltv_abs=test_htlc['expiry'],
                             htlc_id=None,
                             timestamp=0)
-                        # only add htlcs whose spending transaction creates above-dust ouputs
+                        # only add htlcs whose spending transaction creates above-dust outputs
                         # TODO: should we include this check in make_commitment?
                         if test_htlc['amount'] // 1000 >= (threshold_sat_received if test_htlc['incoming'] else threshold_sat_offered):
                             test_htlcs[test_index] = ScriptHtlc(htlc_script, update_add_htlc)
@@ -1007,6 +1005,10 @@ class TestLNUtil(ElectrumTestCase):
                          LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |
                          LnFeatures.VAR_ONION_OPT,
                          ln_compare_features(f2, f1))
+
+    def test_list_enabled_ln_feature_bits(self):
+        self.assertEqual((0, 2, 6), list_enabled_ln_feature_bits(77))
+        self.assertEqual((), list_enabled_ln_feature_bits(0))
 
     def test_ln_features_supports(self):
         f_null = LnFeatures(0)

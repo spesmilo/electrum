@@ -2,7 +2,7 @@ import os
 
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
-from electrum.network import NetworkParameters
+from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins
 from electrum.wizard import ServerConnectWizard, NewWalletWizard
 from tests import ElectrumTestCase
@@ -43,7 +43,7 @@ class WizardTestCase(ElectrumTestCase):
         })
         self.wallet_path = os.path.join(self.electrum_path, "somewallet")
         self.plugins = Plugins(self.config, gui_name='cmdline')
-        self.plugins.load_internal_plugin('trustedcoin')
+        self.plugins.load_plugin_by_name('trustedcoin')
 
     def tearDown(self):
         self.plugins.stop()
@@ -88,7 +88,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertTrue(w.is_last_view(v.view, d))
 
         self.assertTrue(w._daemon.network.run_called)
-        self.assertEqual(NetworkParameters(server=None, proxy=d_proxy, auto_connect=True, oneserver=None), w._daemon.network.parameters)
+        self.assertEqual(NetworkParameters(server=None, proxy=ProxySettings.from_dict(d_proxy), auto_connect=True, oneserver=None), w._daemon.network.parameters)
 
     async def test_proxy_and_server(self):
         w = ServerConnectWizard(DaemonMock(self.config))
@@ -112,7 +112,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
         serverobj = ServerAddr.from_str_with_inference('localhost:1:t')
         self.assertTrue(w._daemon.network.run_called)
-        self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=None), w._daemon.network.parameters)
+        self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
 
 
 class WalletWizardTestCase(WizardTestCase):

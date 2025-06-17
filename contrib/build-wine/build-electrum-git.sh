@@ -1,6 +1,7 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
+PROJECT_ROOT="$WINEPREFIX/drive_c/electrum"
 
 export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
 
@@ -10,18 +11,17 @@ set -e
 
 . "$CONTRIB"/build_tools_util.sh
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd "$PROJECT_ROOT"
 
 VERSION=$(git describe --tags --dirty --always)
 info "Last commit: $VERSION"
 
-# Load electrum-locale for this release
-git submodule update --init
-
-LOCALE="$WINEPREFIX/drive_c/electrum/electrum/locale/"
-# we want the binary to have only compiled (.mo) locale files; not source (.po) files
-rm -rf "$LOCALE"
-"$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+info "preparing electrum-locale."
+(
+    "$CONTRIB/locale/build_cleanlocale.sh"
+    # we want the binary to have only compiled (.mo) locale files; not source (.po) files
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
+)
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
@@ -32,6 +32,7 @@ export AIOHTTP_NO_EXTENSIONS=1
 export YARL_NO_EXTENSIONS=1
 export MULTIDICT_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
+export PROPCACHE_NO_EXTENSIONS=1
 export ELECTRUM_ECC_DONT_COMPILE=1
 
 info "Installing requirements..."
@@ -47,7 +48,7 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-scr
     --no-binary :all: --only-binary cffi,cryptography,hidapi,pyscard \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd "$PROJECT_ROOT"
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location .
@@ -61,7 +62,7 @@ rm -rf dist/
 
 # build standalone and portable versions
 info "Running pyinstaller..."
-ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSION" wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --clean deterministic.spec
+ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSION" wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --clean pyinstaller.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist

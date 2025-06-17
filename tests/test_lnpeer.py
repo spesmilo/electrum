@@ -9,7 +9,7 @@ from collections import defaultdict
 import logging
 import concurrent
 from concurrent import futures
-import unittest
+from unittest import mock
 from typing import Iterable, NamedTuple, Tuple, List, Dict
 
 from aiorpcx import timeout_after, TaskTimeout
@@ -41,11 +41,11 @@ from electrum.lnworker import PaymentInfo, RECEIVED
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure
 from electrum.lnutil import UpdateAddHtlc
 from electrum.lnutil import LOCAL, REMOTE
-from electrum.invoices import PR_PAID, PR_UNPAID
+from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
-
-
+from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
+from electrum.mpp_split import split_amount_normal
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -68,6 +68,8 @@ class MockNetwork:
         self.callbacks = defaultdict(list)
         self.lnwatcher = None
         self.interface = None
+        self.fee_estimates = FeeTimeEstimates()
+        self.populate_fee_estimates()
         self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
@@ -94,6 +96,10 @@ class MockNetwork:
     async def try_broadcasting(self, tx, name):
         await self.broadcast_transaction(tx)
 
+    def populate_fee_estimates(self):
+        for target in FEE_ETA_TARGETS[:-1]:
+            self.fee_estimates.set_data(target, 50000 // target)
+
 
 class MockBlockchain:
 
@@ -107,12 +113,19 @@ class MockBlockchain:
 
 
 class MockADB:
+    def __init__(self):
+        self._blockchain = MockBlockchain()
     def add_transaction(self, tx):
         pass
+    def get_local_height(self):
+        return self._blockchain.height()
 
 class MockWallet:
     receive_requests = {}
     adb = MockADB()
+
+    def get_invoice(self, key):
+        pass
 
     def get_request(self, key):
         pass
@@ -139,6 +152,9 @@ class MockWallet:
         # note: sweep is not tested here, only in regtest
         return "tb1qqu5newtapamjchgxf0nty6geuykhvwas45q4q4"
 
+    def is_up_to_date(self):
+        return True
+
 
 class MockLNGossip:
     def get_sync_progress_estimate(self):
@@ -164,6 +180,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.taskgroup = OldTaskGroup()
         self.lnwatcher = None
         self.swap_manager = None
+        self.onion_message_manager = None
         self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
         self.payment_info = {}
@@ -193,9 +210,10 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.active_forwardings = {}
         self.forwarding_failures = {}
         self.inflight_payments = set()
-        self.preimages = {}
+        self._preimages = {}
         self.stopping_soon = False
         self.downstream_to_upstream_htlc = {}
+        self.dont_settle_htlcs = {}
         self.hold_invoice_callbacks = {}
         self.payment_bundles = [] # lists of hashes. todo:persist
         self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
@@ -288,7 +306,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     get_preimage = LNWallet.get_preimage
     create_route_for_single_htlc = LNWallet.create_route_for_single_htlc
     create_routes_for_payment = LNWallet.create_routes_for_payment
-    _check_invoice = LNWallet._check_invoice
+    _check_bolt11_invoice = LNWallet._check_bolt11_invoice
     pay_to_route = LNWallet.pay_to_route
     pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice
@@ -309,7 +327,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     is_forwarded_htlc = LNWallet.is_forwarded_htlc
     notify_upstream_peer = LNWallet.notify_upstream_peer
     _force_close_channel = LNWallet._force_close_channel
-    suggest_splits = LNWallet.suggest_splits
+    suggest_payment_splits = LNWallet.suggest_payment_splits
     register_hold_invoice = LNWallet.register_hold_invoice
     unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
@@ -317,6 +335,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
     set_mpp_resolution = LNWallet.set_mpp_resolution
     is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
+    get_mpp_amounts = LNWallet.get_mpp_amounts
     get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
@@ -325,7 +344,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     get_forwarding_failure = LNWallet.get_forwarding_failure
     maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
     current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
-    current_low_feerate_per_kw = LNWallet.current_low_feerate_per_kw
+    current_low_feerate_per_kw_srk_channel = LNWallet.current_low_feerate_per_kw_srk_channel
     maybe_cleanup_mpp = LNWallet.maybe_cleanup_mpp
 
 
@@ -533,7 +552,7 @@ class TestPeer(ElectrumTestCase):
             payment_hash: bytes = None,
             invoice_features: LnFeatures = None,
             min_final_cltv_delta: int = None,
-    ) -> Tuple[LnAddr, str]:
+    ) -> Tuple[LnAddr, Invoice]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
             payment_preimage = os.urandom(32)
@@ -568,7 +587,7 @@ class TestPeer(ElectrumTestCase):
         )
         invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
         lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
-        return lnaddr2, invoice
+        return lnaddr2, Invoice.from_bech32(invoice)
 
     async def _activate_trampoline(self, w: MockLNWallet):
         if w.network.channel_db:
@@ -579,7 +598,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_recipient(self, w2, payment_hash, test_hold_invoice, test_failure):
         if not test_hold_invoice and not test_failure:
             return
-        preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
+        preimage = bytes.fromhex(w2._preimages.pop(payment_hash.hex()))
         if test_hold_invoice:
             async def cb(payment_hash):
                 if not test_failure:
@@ -1246,7 +1265,7 @@ class TestPeerDirect(TestPeer):
         async def action():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
-            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+            p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(GracefulDisconnect):
             await gath
@@ -1258,7 +1277,7 @@ class TestPeerDirect(TestPeer):
         async def action():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
-            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
             assert alice_channel.is_closed()
             gath.cancel()
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -1281,10 +1300,8 @@ class TestPeerDirect(TestPeer):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = b''
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.FEE_EST_DYNAMIC = False
-        w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
+        w1.network.config.FEE_POLICY = 'feerate:5000'
+        w2.network.config.FEE_POLICY = 'feerate:1000'
 
         async def test():
             async def close():
@@ -1315,10 +1332,8 @@ class TestPeerDirect(TestPeer):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.FEE_EST_DYNAMIC = False
-        w2.network.config.FEE_EST_DYNAMIC = False
-        w1.network.config.FEE_EST_STATIC_FEERATE = 5000
-        w2.network.config.FEE_EST_STATIC_FEERATE = 1000
+        w1.network.config.FEE_POLICY = 'feerate:5000'
+        w2.network.config.FEE_POLICY = 'feerate:1000'
 
         async def test():
             async def close():
@@ -1350,7 +1365,7 @@ class TestPeerDirect(TestPeer):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         lnaddr, pay_req = self.prepare_invoice(w2)
 
-        lnaddr = w1._check_invoice(pay_req)
+        lnaddr = w1._check_bolt11_invoice(pay_req.lightning_invoice)
         shi = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0]
         route, amount_msat = shi.route, shi.amount_msat
         assert amount_msat == lnaddr.get_amount_msat()
@@ -1545,6 +1560,55 @@ class TestPeerForwarding(TestPeer):
             print(f"{a:5s}: {keys[a].pubkey}")
             print(f"       {keys[a].pubkey.hex()}")
         return graph
+
+    async def test_payment_in_graph_with_direct_channel(self):
+        """Test payment over a direct channel where sender has multiple available channels."""
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
+        peers = graph.peers.values()
+        # use same MPP_SPLIT_PART_FRACTION as in regular LNWallet
+        graph.workers['bob'].MPP_SPLIT_PART_FRACTION = LNWallet.MPP_SPLIT_PART_FRACTION
+
+        # mock split_amount_normal so it's possible to test both cases, the amount getting sorted
+        # out because one part is below the min size and the other case of both parts being just
+        # above the min size, so no part is getting sorted out
+        def mocked_split_amount_normal(total_amount: int, num_parts: int) -> List[int]:
+            if num_parts == 2 and total_amount == 21_000_000:  # test amount 21k sat
+                # this will not get sorted out by suggest_splits
+                return [10_500_000, 10_500_000]
+            elif num_parts == 2 and total_amount == 21_000_001:  # 2nd test case
+                # this will get sorted out by suggest_splits
+                return [11_000_002, 9_999_999]
+            else:
+                return split_amount_normal(total_amount, num_parts)
+
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+            with mock.patch('electrum.mpp_split.split_amount_normal',
+                                side_effect=mocked_split_amount_normal):
+                result, log = await graph.workers['bob'].pay_invoice(pay_req)
+            self.assertTrue(result)
+            self.assertEqual(PR_PAID, graph.workers['alice'].get_payment_status(lnaddr.paymenthash))
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                for test in [21_000_000, 21_000_001]:
+                    lnaddr, pay_req = self.prepare_invoice(
+                        graph.workers['alice'],
+                        amount_msat=test,
+                        include_routing_hints=True,
+                        invoice_features=LnFeatures.BASIC_MPP_OPT
+                                         | LnFeatures.PAYMENT_SECRET_REQ
+                                         | LnFeatures.VAR_ONION_REQ
+                    )
+                    await pay(lnaddr, pay_req)
+                raise PaymentDone()
+        with self.assertRaises(PaymentDone):
+            await f()
 
     async def test_payment_multihop(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])

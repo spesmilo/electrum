@@ -109,8 +109,8 @@ $ python3 -m pip install --user -e .
 
 Create translations (optional):
 ```
-$ sudo apt-get install python3-requests gettext qttools5-dev-tools
-$ ./contrib/pull_locale
+$ sudo apt-get install gettext
+$ ./contrib/locale/build_locale.sh electrum/locale/locale electrum/locale/locale
 ```
 
 Finally, to start Electrum:
@@ -151,3 +151,5 @@ Besides [GitHub](https://github.com/spesmilo/electrum),
 most communication about Electrum development happens on IRC, in the
 `#electrum` channel on Libera Chat. The easiest way to participate on IRC is
 with the web client, [web.libera.chat](https://web.libera.chat/#electrum).
+
+Please improve translations on [Crowdin](https://crowdin.com/project/electrum).

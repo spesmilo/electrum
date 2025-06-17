@@ -7,7 +7,8 @@ assert SixRecipe.python_depends == []
 
 
 class SixRecipePinned(SixRecipe):
-    sha512sum = "eb840ac17f433f1fc4af56de75cfbfe0b54e6a737bb23c453bf09a4a13d768d153e46064880dc763f4c5cc2785b78ea6d3d3b4a41fed181cb9064837e3f699a9"
+    version = "1.17.0"
+    sha512sum = "fcfa58b03877ac3ac00a4f85b5fea4fecb2a010244451aa95013637a0aa21529f3dcfe25c0a07c72da46da1fa12bc0c16b6c641c40c6ab2133e5b5cbb5a71e4b"
 
 
 recipe = SixRecipePinned()

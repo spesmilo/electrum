@@ -18,9 +18,14 @@ Pane {
     property alias label: txdetails.label
 
     signal detailsChanged
+    signal closed
 
     function close() {
         app.stack.pop()
+    }
+
+    StackView.onRemoved: {
+        closed()
     }
 
     ColumnLayout {
@@ -60,16 +65,17 @@ Pane {
                     }
 
                     InfoTextArea {
-                        id: bumpfeeinfo
+                        id: txinfo
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: txdetails.isUnrelated || !txdetails.isMined
+                        visible: (txdetails.isUnrelated || !txdetails.isMined) && !broadcastinfo.visible
                         text: txdetails.isUnrelated
                             ? qsTr('Transaction is unrelated to this wallet.')
+                            : txdetails.isRemoved ? qsTr('This transaction has been replaced or removed and is no longer valid')
                             : txdetails.inMempool
                                 ? qsTr('This transaction is still unconfirmed.') +
-                                    (txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
+                                    (txdetails.canBump || txdetails.canCancel
                                         ? txdetails.canCancel
                                             ? '\n' + qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction.')
                                             : '\n' + qsTr('You can bump its fee to speed up its confirmation.')
@@ -84,9 +90,17 @@ Pane {
                                               (txdetails.wallet.isWatchOnly
                                                   ? qsTr('Present this transaction to the signing wallet.')
                                                   : qsTr('Present this transaction to the next cosigner.'))
-                        iconStyle: txdetails.isUnrelated
+                        iconStyle: txdetails.isUnrelated || txdetails.isRemoved
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
+                    }
+
+                    InfoTextArea {
+                        id: broadcastinfo
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: text
                     }
 
                     Label {
@@ -357,7 +371,7 @@ Pane {
                 Layout.preferredWidth: 1
                 id: feebumpButton
                 icon.source: '../../icons/add.png'
-                text: qsTr('Bump fee')
+                text: qsTr('Bump fee...')
                 visible: txdetails.canBump || txdetails.canCpfp
                 onClicked: {
                     if (txdetails.canBump) {
@@ -373,7 +387,7 @@ Pane {
                 Layout.preferredWidth: 1
                 id: cancelButton
                 icon.source: '../../icons/closebutton.png'
-                text: qsTr('Cancel Tx')
+                text: qsTr('Cancel Tx...')
                 visible: txdetails.canCancel
                 onClicked: {
                     var dialog = rbfCancelDialog.createObject(root, { txid: txdetails.txid })
@@ -384,7 +398,9 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/key.png'
-                text: qsTr('Sign')
+                text: txdetails.shouldConfirm
+                    ? qsTr('Sign...')
+                    : qsTr('Sign')
                 visible: txdetails.canSign
                 onClicked: {
                     if (txdetails.shouldConfirm) {
@@ -405,7 +421,7 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                icon.source: '../../icons/microphone.png'
+                icon.source: '../../icons/tab_send.png'
                 text: qsTr('Broadcast')
                 visible: txdetails.canBroadcast
                 enabled: !txdetails.lockDelay
@@ -416,8 +432,8 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
-                text: qsTr('Share')
-                enabled: !txdetails.isUnrelated
+                text: qsTr('Share...')
+                enabled: !txdetails.isUnrelated && !txdetails.isRemoved
                 onClicked: {
                     var msg = ''
                     if (txdetails.isComplete) {
@@ -456,7 +472,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/delete.png'
-                text: qsTr('Remove')
+                text: qsTr('Remove...')
                 visible: txdetails.canRemove
                 onClicked: txdetails.removeLocalTx()
             }
@@ -476,9 +492,6 @@ Pane {
                 root.enabled = false
             })
             dialog.open()
-        }
-        onTxRemoved: {
-            root.close()
         }
         Component.onCompleted: {
             if (root.txid) {
@@ -512,7 +525,12 @@ Pane {
             dialog.open()
         }
         function onBroadcastSucceeded() {
-            bumpfeeinfo.text = qsTr('Transaction was broadcast successfully')
+            broadcastinfo.text = qsTr('Transaction was broadcast successfully')
+            broadcastinfo.iconStyle = InfoTextArea.IconStyle.Info
+        }
+        function onBroadcastFailed(txid, code, message) {
+            broadcastinfo.text = qsTr('Broadcast of transaction failed')
+            broadcastinfo.iconStyle = InfoTextArea.IconStyle.Warn
         }
     }
 

@@ -23,32 +23,40 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import json
 import os
 import pkgutil
 import importlib.util
 import time
 import threading
-import traceback
 import sys
 import aiohttp
+import zipfile as zipfile_lib
+from urllib.parse import urlparse
 
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
 import zipimport
-from concurrent import futures
 from functools import wraps, partial
+from itertools import chain
 
+from electrum_ecc import ECPrivkey, ECPubkey
+
+from ._vendor.distutils.version import StrictVersion
+from .version import ELECTRUM_VERSION
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem,
+                   make_dir, make_aiohttp_session)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
+from .network import Network
 
 if TYPE_CHECKING:
-    from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+    from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .keystore import Hardware_KeyStore, KeyStore
     from .wallet import Abstract_Wallet
 
@@ -57,26 +65,37 @@ _logger = get_logger(__name__)
 plugin_loaders = {}
 hook_names = set()
 hooks = {}
+_exec_module_failure = {}  # type: Dict[str, Exception]
+
+PLUGIN_PASSWORD_VERSION = 1
 
 
 class Plugins(DaemonThread):
 
-    LOGGING_SHORTCUT = 'p'
     pkgpath = os.path.dirname(plugins.__file__)
+    # TODO: use XDG Base Directory Specification instead of hardcoding /etc
+    keyfile_posix = '/etc/electrum/plugins_key'
+    keyfile_windows = r'HKEY_LOCAL_MACHINE\SOFTWARE\Electrum\PluginsKey'
 
     @profiler
-    def __init__(self, config: SimpleConfig, gui_name):
-        DaemonThread.__init__(self)
-        self.name = 'Plugins'  # set name of thread
+    def __init__(self, config: SimpleConfig, gui_name: str = None, cmd_only: bool = False):
         self.config = config
-        self.hw_wallets = {}
-        self.plugins = {}  # type: Dict[str, BasePlugin]
+        self.cmd_only = cmd_only  # type: bool
         self.internal_plugin_metadata = {}
         self.external_plugin_metadata = {}
-        self.gui_name = gui_name
+        if cmd_only:
+            # only import the command modules of plugins
+            Logger.__init__(self)
+            self.find_plugins()
+            self.load_plugins()
+            return
+        DaemonThread.__init__(self)
         self.device_manager = DeviceMgr(config)
-        self.find_internal_plugins()
-        self.find_external_plugins()
+        self.name = 'Plugins'  # set name of thread
+        self.hw_wallets = {}
+        self.plugins = {}  # type: Dict[str, BasePlugin]
+        self.gui_name = gui_name
+        self.find_plugins()
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
@@ -85,43 +104,50 @@ class Plugins(DaemonThread):
     def descriptions(self):
         return dict(list(self.internal_plugin_metadata.items()) + list(self.external_plugin_metadata.items()))
 
-    def find_internal_plugins(self):
-        """Populates self.internal_plugin_metadata
-        """
-        iter_modules = list(pkgutil.iter_modules([self.pkgpath]))
+    def find_directory_plugins(self, pkg_path: str, external: bool):
+        """Finds plugins in directory form from the given pkg_path and populates the metadata dicts"""
+        iter_modules = list(pkgutil.iter_modules([pkg_path]))
         for loader, name, ispkg in iter_modules:
             # FIXME pyinstaller binaries are packaging each built-in plugin twice:
             #       once as data and once as code. To honor the "no duplicates" rule below,
             #       we exclude the ones packaged as *code*, here:
             if loader.__class__.__qualname__ == "PyiFrozenImporter":
                 continue
-            full_name = f'electrum.plugins.{name}'
-            spec = importlib.util.find_spec(full_name)
-            if spec is None:  # pkgutil found it but importlib can't ?!
-                raise Exception(f"Error pre-loading {full_name}: no spec")
-            module = self.exec_module_from_spec(spec, full_name)
-            d = module.__dict__
+            module_path = os.path.join(pkg_path, name)
+            if self.cmd_only and not self.config.get(f'plugins.{name}.enabled') is True:
+                continue
+            try:
+                with open(os.path.join(module_path, 'manifest.json'), 'r') as f:
+                    d = json.load(f)
+            except FileNotFoundError:
+                self.logger.info(f"could not find manifest.json of plugin {name}, skipping...")
+                continue
             if 'fullname' not in d:
                 continue
-            d['display_name'] = d['fullname']
-            gui_good = self.gui_name in d.get('available_for', [])
-            if not gui_good:
-                continue
-            details = d.get('registers_wallet_type')
-            if details:
-                self.register_wallet_type(name, gui_good, details)
-            details = d.get('registers_keystore')
-            if details:
-                self.register_keystore(name, gui_good, details)
-            if d.get('requires_wallet_type'):
-                # trustedcoin will not be added to list
-                continue
-            if name in self.internal_plugin_metadata:
+            d['path'] = module_path
+            if not self.cmd_only:
+                gui_good = self.gui_name in d.get('available_for', [])
+                if not gui_good:
+                    continue
+                details = d.get('registers_wallet_type')
+                if details:
+                    self.register_wallet_type(name, gui_good, details)
+                details = d.get('registers_keystore')
+                if details:
+                    self.register_keystore(name, gui_good, details)
+            if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
                 _logger.info(f"Found the following plugin modules: {iter_modules=}")
-                raise Exception(f"duplicate plugins? for {name=}")
-            self.internal_plugin_metadata[name] = d
+                _logger.info(f"duplicate plugins? for {name=}")
+                continue
+            if not external:
+                self.internal_plugin_metadata[name] = d
+            else:
+                self.external_plugin_metadata[name] = d
 
-    def exec_module_from_spec(self, spec, path):
+    @staticmethod
+    def exec_module_from_spec(spec, path: str):
+        if prev_fail := _exec_module_failure.get(path):
+            raise Exception(f"exec_module already failed once before, with: {prev_fail!r}")
         try:
             module = importlib.util.module_from_spec(spec)
             # sys.modules needs to be modified for relative imports to work
@@ -129,104 +155,422 @@ class Plugins(DaemonThread):
             sys.modules[path] = module
             spec.loader.exec_module(module)
         except Exception as e:
+            # We can't undo all side-effects, but we at least rm the module from sys.modules,
+            # so the import system knows it failed. If called again for the same plugin, we do not
+            # retry due to potential interactions with not-undone side-effects (e.g. plugin
+            # might have defined commands).
+            _exec_module_failure[path] = e
+            if path in sys.modules:
+                sys.modules.pop(path, None)
             raise Exception(f"Error pre-loading {path}: {repr(e)}") from e
         return module
 
-    def load_plugins(self):
-        self.load_internal_plugins()
-        self.load_external_plugins()
+    def find_plugins(self):
+        internal_plugins_path = (self.pkgpath, False)
+        external_plugins_path = (self.get_external_plugin_dir(), True)
+        for pkg_path, external in (internal_plugins_path, external_plugins_path):
+            if pkg_path and os.path.exists(pkg_path):
+                if not external:
+                    self.find_directory_plugins(pkg_path=pkg_path, external=external)
+                else:
+                    self.find_zip_plugins(pkg_path=pkg_path, external=external)
 
-    def load_internal_plugins(self):
-        for name, d in self.internal_plugin_metadata.items():
-            if not d.get('requires_wallet_type') and self.config.get('enable_plugin_' + name):
+    def load_plugins(self):
+        for name, d in chain(self.internal_plugin_metadata.items(), self.external_plugin_metadata.items()):
+            if not d.get('requires_wallet_type') and self.config.get(f'plugins.{name}.enabled'):
                 try:
-                    self.load_internal_plugin(name)
+                    if self.cmd_only:  # only load init method to register commands
+                        self.maybe_load_plugin_init_method(name)
+                    else:
+                        self.load_plugin_by_name(name)
                 except BaseException as e:
                     self.logger.exception(f"cannot initialize plugin {name}: {e}")
-
-    def load_external_plugin(self, name):
-        if name in self.plugins:
-            return self.plugins[name]
-        # If we do not have the metadata, it was not detected by `load_external_plugins`
-        # on startup, or added by manual user installation after that point.
-        metadata = self.external_plugin_metadata.get(name)
-        if metadata is None:
-            self.logger.exception(f"attempted to load unknown external plugin {name}")
-            return
-        full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
-        spec = importlib.util.find_spec(full_name)
-        if spec is None:
-            raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
-        module = self.exec_module_from_spec(spec, full_name)
-        plugin = module.Plugin(self, self.config, name)
-        self.add_jobs(plugin.thread_jobs())
-        self.plugins[name] = plugin
-        self.logger.info(f"loaded external plugin {name}")
-        return plugin
 
     def _has_root_permissions(self, path):
         return os.stat(path).st_uid == 0 and not os.access(path, os.W_OK)
 
-    def get_external_plugin_dir(self):
-        if sys.platform not in ['linux', 'darwin'] and not sys.platform.startswith('freebsd'):
+    def get_keyfile_path(self, key_hex: Optional[str]) -> Tuple[str, str]:
+        if sys.platform in ['windows', 'win32']:
+            keyfile_path = self.keyfile_windows
+            keyfile_help = _('This file can be edited with Regdit')
+        elif 'ANDROID_DATA' in os.environ:
+            raise Exception('platform not supported')
+        else:
+            # treat unknown platforms and macOS as linux-like
+            keyfile_path = self.keyfile_posix
+            keyfile_help = "" if not key_hex else "".join([
+                                         _('The file must have root permissions'),
+                                         ".\n\n",
+                                         _("To set it you can also use the Auto-Setup or run "
+                                           "the following terminal command"),
+                                         ":\n\n",
+                                         f"sudo sh -c \"{self._posix_plugin_key_creation_command(key_hex)}\"",
+            ])
+        return keyfile_path, keyfile_help
+
+    def try_auto_key_setup(self, pubkey_hex: str) -> bool:
+        """Can be called from the GUI to store the plugin pubkey as root/admin user"""
+        try:
+            if sys.platform in ['windows', 'win32']:
+                self._write_key_to_regedit_windows(pubkey_hex)
+            elif 'ANDROID_DATA' in os.environ:
+                raise Exception('platform not supported')
+            elif sys.platform.startswith('darwin'):  # macOS
+                self._write_key_to_root_file_macos(pubkey_hex)
+            else:
+                self._write_key_to_root_file_linux(pubkey_hex)
+        except Exception:
+            self.logger.exception(f"auto-key setup for {pubkey_hex} failed")
+            return False
+        return True
+
+    def try_auto_key_reset(self) -> bool:
+        try:
+            if sys.platform in ['windows', 'win32']:
+                self._delete_plugin_key_from_windows_registry()
+            elif 'ANDROID_DATA' in os.environ:
+                raise Exception('platform not supported')
+            elif sys.platform.startswith('darwin'):  # macOS
+                self._delete_macos_plugin_keyfile()
+            else:
+                self._delete_linux_plugin_keyfile()
+        except Exception:
+            self.logger.exception(f'auto-reset of plugin key failed')
+            return False
+        return True
+
+    def _posix_plugin_key_creation_command(self, pubkey_hex: str) -> str:
+        """creates the dir (dir_path), writes the key in file, and sets permissions to 644"""
+        dir_path: str = os.path.dirname(self.keyfile_posix)
+        sh_command = (
+                     f"mkdir -p {dir_path} "  # create the /etc/electrum dir
+                     f"&& printf '%s' '{pubkey_hex}' > {self.keyfile_posix} "  # write the key to the file
+                     f"&& chmod 644 {self.keyfile_posix} "  # set read permissions for the file
+                     f"&& chmod 755 {dir_path}"  # set read permissions for the dir
+        )
+        return sh_command
+
+    @staticmethod
+    def _get_macos_osascript_command(commands: List[str]) -> List[str]:
+        """
+        Inspired by
+        https://github.com/barneygale/elevate/blob/01263b690288f022bf6fa702711ac96816bc0e74/elevate/posix.py
+        Wraps the given commands in a macOS osascript command to prompt for root permissions.
+        """
+        from shlex import quote
+
+        def quote_shell(args):
+            return " ".join(quote(arg) for arg in args)
+
+        def quote_applescript(string):
+            charmap = {
+                "\n": "\\n",
+                "\r": "\\r",
+                "\t": "\\t",
+                "\"": "\\\"",
+                "\\": "\\\\",
+            }
+            return '"%s"' % "".join(charmap.get(char, char) for char in string)
+
+        commands = [
+            "osascript",
+            "-e",
+            "do shell script %s "
+            "with administrator privileges "
+            "without altering line endings"
+            % quote_applescript(quote_shell(commands))
+        ]
+        return commands
+
+    @staticmethod
+    def _run_win_regedit_as_admin(reg_exe_command: str) -> None:
+        """
+        Runs reg.exe reg_exe_command and requests admin privileges through UAC prompt.
+        """
+        # has to use ShellExecuteEx as ShellExecuteW (the simpler api) doesn't allow to wait
+        # for the result of the process (returns no process handle)
+        from ctypes import byref, sizeof, windll, Structure, c_ulong
+        from ctypes.wintypes import HANDLE, DWORD, HWND, HINSTANCE, HKEY, LPCWSTR
+
+        # https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfoa
+        class SHELLEXECUTEINFO(Structure):
+            _fields_ = [
+                ('cbSize', DWORD),
+                ('fMask', c_ulong),
+                ('hwnd', HWND),
+                ('lpVerb', LPCWSTR),
+                ('lpFile', LPCWSTR),
+                ('lpParameters', LPCWSTR),
+                ('lpDirectory', LPCWSTR),
+                ('nShow', c_ulong),
+                ('hInstApp', HINSTANCE),
+                ('lpIDList', c_ulong),
+                ('lpClass', LPCWSTR),
+                ('hkeyClass', HKEY),
+                ('dwHotKey', DWORD),
+                ('hIcon', HANDLE),
+                ('hProcess', HANDLE)
+            ]
+
+        info = SHELLEXECUTEINFO()
+        info.cbSize = sizeof(SHELLEXECUTEINFO)
+        info.fMask = 0x00000040 # SEE_MASK_NOCLOSEPROCESS (so we can check the result of the process)
+        info.hwnd = None
+        info.lpVerb = 'runas'  # run as administrator
+        info.lpFile = 'reg.exe'  # the executable to run
+        info.lpParameters = reg_exe_command  # the registry edit command
+        info.lpDirectory = None
+        info.nShow = 1
+
+        # Execute and wait
+        if not windll.shell32.ShellExecuteExW(byref(info)):
+            error = windll.kernel32.GetLastError()
+            raise Exception(f'Error executing registry command: {error}')
+
+        # block until the process is done or 5 sec timeout
+        windll.kernel32.WaitForSingleObject(info.hProcess, 0x1338)
+
+        # Close handle
+        windll.kernel32.CloseHandle(info.hProcess)
+
+    @staticmethod
+    def _execute_commands_in_subprocess(commands: List[str]) -> None:
+        """
+        Executes the given commands in a subprocess and asserts that it was successful.
+        """
+        import subprocess
+        with subprocess.Popen(
+            commands,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ) as process:
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                raise Exception(f'error executing command ({process.returncode}): {stderr}')
+
+    def _write_key_to_root_file_linux(self, key_hex: str) -> None:
+        """
+        Spawns a pkexec subprocess to write the key to a file with root permissions.
+        This will open an OS dialog asking for the root password. Can only succeed if
+        the system has polkit installed.
+        """
+        assert os.path.exists("/etc"), "System does not have /etc directory"
+
+        sh_command: str = self._posix_plugin_key_creation_command(key_hex)
+        commands = ['pkexec', 'sh', '-c', sh_command]
+        self._execute_commands_in_subprocess(commands)
+
+        # check if the key was written correctly
+        with open(self.keyfile_posix, 'r') as f:
+            assert f.read() == key_hex, f'file content mismatch: {f.read()} != {key_hex}'
+        self.logger.debug(f'file saved successfully to {self.keyfile_posix}')
+
+    def _delete_linux_plugin_keyfile(self) -> None:
+        """
+        Deletes the root owned key file at self.keyfile_posix.
+        """
+        if not os.path.exists(self.keyfile_posix):
+            self.logger.debug(f'file {self.keyfile_posix} does not exist')
             return
-        pkg_path = '/opt/electrum_plugins'
-        if not os.path.exists(pkg_path):
-            self.logger.info(f'direcctory {pkg_path} does not exist')
+        if not self._has_root_permissions(self.keyfile_posix):
+            os.unlink(self.keyfile_posix)
             return
-        if not self._has_root_permissions(pkg_path):
-            self.logger.info(f'not loading {pkg_path}: directory has user write permissions')
+
+        # use pkexec to delete the file as root user
+        commands = ['pkexec', 'rm', self.keyfile_posix]
+        self._execute_commands_in_subprocess(commands)
+        assert not os.path.exists(self.keyfile_posix), f'file {self.keyfile_posix} still exists'
+
+    def _write_key_to_root_file_macos(self, key_hex: str) -> None:
+        assert os.path.exists("/etc"), "System does not have /etc directory"
+
+        sh_command: str = self._posix_plugin_key_creation_command(key_hex)
+        macos_commands = self._get_macos_osascript_command(["sh", "-c", sh_command])
+
+        self._execute_commands_in_subprocess(macos_commands)
+        with open(self.keyfile_posix, 'r') as f:
+            assert f.read() == key_hex, f'file content mismatch: {f.read()} != {key_hex}'
+        self.logger.debug(f'file saved successfully to {self.keyfile_posix}')
+
+    def _delete_macos_plugin_keyfile(self) -> None:
+        if not os.path.exists(self.keyfile_posix):
+            self.logger.debug(f'file {self.keyfile_posix} does not exist')
             return
+        if not self._has_root_permissions(self.keyfile_posix):
+            os.unlink(self.keyfile_posix)
+            return
+        # use osascript to delete the file as root user
+        macos_commands = self._get_macos_osascript_command(["rm", self.keyfile_posix])
+        self._execute_commands_in_subprocess(macos_commands)
+        assert not os.path.exists(self.keyfile_posix), f'file {self.keyfile_posix} still exists'
+
+    def _write_key_to_regedit_windows(self, key_hex: str) -> None:
+        """
+        Writes the key to the Windows registry with windows UAC prompt.
+        """
+        from winreg import ConnectRegistry, OpenKey, QueryValue, HKEY_LOCAL_MACHINE
+
+        value_type = 'REG_SZ'
+        command = f'add "{self.keyfile_windows}" /ve /t {value_type} /d "{key_hex}" /f'
+
+        self._run_win_regedit_as_admin(command)
+
+        # check if the key was written correctly
+        with ConnectRegistry(None, HKEY_LOCAL_MACHINE) as hkey:
+            with OpenKey(hkey, r'SOFTWARE\Electrum') as key:
+                assert key_hex == QueryValue(key, 'PluginsKey'), "incorrect registry key value"
+        self.logger.debug(f'key saved successfully to {self.keyfile_windows}')
+
+    def _delete_plugin_key_from_windows_registry(self) -> None:
+        """
+        Deletes the PluginsKey dir in the Windows registry.
+        """
+        from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE
+
+        command = f'delete "{self.keyfile_windows}" /f'
+        self._run_win_regedit_as_admin(command)
+
+        try:
+            # do a sanity check to see if the key has been deleted
+            with ConnectRegistry(None, HKEY_LOCAL_MACHINE) as hkey:
+                with OpenKey(hkey, r'SOFTWARE\Electrum\PluginsKey'):
+                    raise Exception(f'Key {self.keyfile_windows} still exists, deletion failed')
+        except FileNotFoundError:
+            pass
+
+    def create_new_key(self, password:str) -> str:
+        salt = os.urandom(32)
+        privkey = self.derive_privkey(password, salt)
+        pubkey = privkey.get_public_key_bytes()
+        key = bytes([PLUGIN_PASSWORD_VERSION]) + salt + pubkey
+        return key.hex()
+
+    def get_pubkey_bytes(self) -> Tuple[Optional[bytes], bytes]:
+        """
+        returns pubkey, salt
+        returns None, None if the pubkey has not been set
+        """
+        if sys.platform in ['windows', 'win32']:
+            import winreg
+            with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hkey:
+                try:
+                    with winreg.OpenKey(hkey, r"SOFTWARE\\Electrum") as key:
+                        key_hex = winreg.QueryValue(key, "PluginsKey")
+                except Exception as e:
+                    self.logger.info(f'winreg error: {e}')
+                    return None, None
+        elif 'ANDROID_DATA' in os.environ:
+            return None, None
+        else:
+            # treat unknown platforms as linux-like
+            if not os.path.exists(self.keyfile_posix):
+                return None, None
+            if not self._has_root_permissions(self.keyfile_posix):
+                return
+            with open(self.keyfile_posix) as f:
+                key_hex = f.read()
+        try:
+            key = bytes.fromhex(key_hex)
+            version = key[0]
+        except Exception:
+            self.logger.exception(f'{key_hex=} invalid')
+            return None, None
+        if version != PLUGIN_PASSWORD_VERSION:
+            self.logger.info(f'unknown plugin password version: {version}')
+            return None, None
+        # all good
+        salt = key[1:1+32]
+        pubkey = key[1+32:]
+        return pubkey, salt
+
+    def get_external_plugin_dir(self) -> str:
+        pkg_path = os.path.join(self.config.electrum_path(), 'plugins')
+        make_dir(pkg_path)
         return pkg_path
 
-    def external_plugin_path(self, name):
-        metadata = self.external_plugin_metadata[name]
-        filename = metadata['filename']
-        return os.path.join(self.get_external_plugin_dir(), filename)
-
-    def find_external_plugins(self):
+    async def download_external_plugin(self, url: str) -> str:
+        filename = os.path.basename(urlparse(url).path)
         pkg_path = self.get_external_plugin_dir()
+        path = os.path.join(pkg_path, filename)
+        if os.path.exists(path):
+            raise FileExistsError(f"Plugin {filename} already exists at {path}")
+        network = Network.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy=proxy) as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    with open(path, 'wb') as fd:
+                        async for chunk in resp.content.iter_chunked(10):
+                            fd.write(chunk)
+        return path
+
+    def read_manifest(self, path) -> dict:
+        """ return json dict """
+        with zipfile_lib.ZipFile(path) as file:
+            for filename in file.namelist():
+                if filename.endswith('manifest.json'):
+                    break
+            else:
+                raise Exception('could not find manifest.json in zip archive')
+            with file.open(filename, 'r') as f:
+                manifest = json.load(f)
+                manifest['path'] = path  # external, path of the zipfile
+                manifest['dirname'] = os.path.dirname(filename)  # internal
+                manifest['is_zip'] = True
+                manifest['zip_hash_sha256'] = get_file_hash256(path).hex()
+                return manifest
+
+    def zip_plugin_path(self, name) -> str:
+        path = self.get_metadata(name)['path']
+        filename = os.path.basename(path)
+        if name in self.internal_plugin_metadata:
+            pkg_path = self.pkgpath
+        else:
+            pkg_path = self.get_external_plugin_dir()
+        return os.path.join(pkg_path, filename)
+
+    def find_zip_plugins(self, pkg_path: str, external: bool):
+        """Finds plugins in zip form in the given pkg_path and populates the metadata dicts"""
         if pkg_path is None:
             return
         for filename in os.listdir(pkg_path):
             path = os.path.join(pkg_path, filename)
-            if not self._has_root_permissions(path):
-                self.logger.info(f'not loading {path}: file has user write permissions')
+            if not filename.endswith('.zip'):
                 continue
             try:
-                zipfile = zipimport.zipimporter(path)
-            except zipimport.ZipImportError:
-                self.logger.exception(f"unable to load zip plugin '{filename}'")
+                d = self.read_manifest(path)
+                name = d['name']
+            except Exception:
+                self.logger.info(f"could not load manifest.json from zip plugin {filename}", exc_info=True)
                 continue
-            for name, b in pkgutil.iter_zipimport_modules(zipfile):
-                if b is False:
-                    continue
-                if name in self.internal_plugin_metadata:
-                    raise Exception(f"duplicate plugins for name={name}")
-                if name in self.external_plugin_metadata:
-                    raise Exception(f"duplicate plugins for name={name}")
-                module_path = f'electrum_external_plugins.{name}'
-                spec = zipfile.find_spec(name)
-                module = self.exec_module_from_spec(spec, module_path)
-                d = module.__dict__
+            if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
+                self.logger.info(f"duplicate plugins for {name=}")
+                continue
+            if self.cmd_only and not self.config.get(f'plugins.{name}.enabled'):
+                continue
+            min_version = d.get('min_electrum_version')
+            if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
+                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
+                continue
+            max_version = d.get('max_electrum_version')
+            if max_version and StrictVersion(max_version) < StrictVersion(ELECTRUM_VERSION):
+                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
+                continue
+
+            if not self.cmd_only:
                 gui_good = self.gui_name in d.get('available_for', [])
                 if not gui_good:
                     continue
-                d['filename'] = filename
                 if 'fullname' not in d:
                     continue
-                d['display_name'] = d['fullname']
-                d['zip_hash_sha256'] = get_file_hash256(path)
+                details = d.get('registers_keystore')
+                if details:
+                    self.register_keystore(name, gui_good, details)
+            if external:
                 self.external_plugin_metadata[name] = d
-
-    def load_external_plugins(self):
-        for name, d in self.external_plugin_metadata.items():
-            if self.config.get('enable_plugin_' + name):
-                try:
-                    self.load_external_plugin(name)
-                except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)  # shouldn't this be... suppressed unless -v?
-                    self.logger.exception(f"cannot initialize plugin {name} {e!r}")
+            else:
+                self.internal_plugin_metadata[name] = d
 
     def get(self, name):
         return self.plugins.get(name)
@@ -238,23 +582,51 @@ class Plugins(DaemonThread):
         """Imports the code of the given plugin.
         note: can be called from any thread.
         """
-        if name in self.internal_plugin_metadata:
-            return self.load_internal_plugin(name)
-        elif name in self.external_plugin_metadata:
-            return self.load_external_plugin(name)
+        if self.get_metadata(name):
+            return self.load_plugin_by_name(name)
         else:
             raise Exception(f"could not find plugin {name!r}")
 
-    def load_internal_plugin(self, name) -> 'BasePlugin':
+    def maybe_load_plugin_init_method(self, name: str) -> None:
+        """Loads the __init__.py module of the plugin if it is not already loaded."""
+        base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+        if base_name not in sys.modules:
+            metadata = self.get_metadata(name)
+            is_zip = metadata.get('is_zip', False)
+            # if the plugin was not enabled on startup the init module hasn't been loaded yet
+            if not is_zip:
+                if self.is_external(name):
+                    # this branch is deprecated: external plugins are always zip files
+                    path = os.path.join(metadata['path'], '__init__.py')
+                    init_spec = importlib.util.spec_from_file_location(base_name, path)
+                else:
+                    init_spec = importlib.util.find_spec(base_name)
+            else:
+                zipfile = zipimport.zipimporter(metadata['path'])
+                dirname = metadata['dirname']
+                init_spec = zipfile.find_spec(dirname)
+
+            self.exec_module_from_spec(init_spec, base_name)
+
+    def load_plugin_by_name(self, name: str) -> 'BasePlugin':
         if name in self.plugins:
             return self.plugins[name]
-        full_name = f'electrum.plugins.{name}.{self.gui_name}'
+        # if the plugin was not enabled on startup the init module hasn't been loaded yet
+        self.maybe_load_plugin_init_method(name)
+        is_external = self.is_external(name)
+        if is_external and not self.is_authorized(name):
+            self.logger.info(f'plugin not authorized {name}')
+            return
+        if not is_external:
+            full_name = f'electrum.plugins.{name}.{self.gui_name}'
+        else:
+            full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
+
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
         try:
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            module = self.exec_module_from_spec(spec, full_name)
             plugin = module.Plugin(self, self.config, name)
         except Exception as e:
             raise Exception(f"Error loading {name} plugin: {repr(e)}") from e
@@ -266,15 +638,69 @@ class Plugins(DaemonThread):
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
+    def derive_privkey(self, pw: str, salt:bytes) -> ECPrivkey:
+        from hashlib import pbkdf2_hmac
+        secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
+        return ECPrivkey(secret)
+
+    def uninstall(self, name: str):
+        if self.config.get(f'plugins.{name}'):
+            self.config.set_key(f'plugins.{name}', None)
+        if name in self.external_plugin_metadata:
+            zipfile = self.zip_plugin_path(name)
+            os.unlink(zipfile)
+            self.external_plugin_metadata.pop(name)
+
+    def is_internal(self, name) -> bool:
+        return name in self.internal_plugin_metadata
+
+    def is_external(self, name) -> bool:
+        return name in self.external_plugin_metadata
+
+    def is_auto_loaded(self, name):
+        metadata = self.external_plugin_metadata.get(name) or self.internal_plugin_metadata.get(name)
+        return metadata and (metadata.get('registers_keystore') or metadata.get('registers_wallet_type'))
+
+    def is_installed(self, name) -> bool:
+        """an external plugin may be installed but not authorized """
+        return (name in self.internal_plugin_metadata or name in self.external_plugin_metadata)
+
+    def is_authorized(self, name) -> bool:
+        if name in self.internal_plugin_metadata:
+            return True
+        if name not in self.external_plugin_metadata:
+            return False
+        pubkey_bytes, salt = self.get_pubkey_bytes()
+        if not pubkey_bytes:
+            return False
+        if not self.is_plugin_zip(name):
+            return False
+        filename = self.zip_plugin_path(name)
+        plugin_hash = get_file_hash256(filename)
+        sig = self.config.get(f'plugins.{name}.authorized')
+        if not sig:
+            return False
+        pubkey = ECPubkey(pubkey_bytes)
+        return pubkey.ecdsa_verify(bytes.fromhex(sig), plugin_hash)
+
+    def authorize_plugin(self, name: str, filename, privkey: ECPrivkey):
+        pubkey_bytes, salt = self.get_pubkey_bytes()
+        assert pubkey_bytes == privkey.get_public_key_bytes()
+        plugin_hash = get_file_hash256(filename)
+        sig = privkey.ecdsa_sign(plugin_hash)
+        value = sig.hex()
+        self.config.set_key(f'plugins.{name}.authorized', value)
+        self.config.set_key(f'plugins.{name}.enabled', True)
+
     def enable(self, name: str) -> 'BasePlugin':
-        self.config.set_key('enable_plugin_' + name, True, save=True)
+        self.config.enable_plugin(name)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
     def disable(self, name: str) -> None:
-        self.config.set_key('enable_plugin_' + name, False, save=True)
+        self.config.disable_plugin(name)
         p = self.get(name)
         if not p:
             return
@@ -284,13 +710,9 @@ class Plugins(DaemonThread):
 
     @classmethod
     def is_plugin_enabler_config_key(cls, key: str) -> bool:
-        return key.startswith('enable_plugin_')
+        return key.startswith('plugins.')
 
-    def toggle(self, name: str) -> Optional['BasePlugin']:
-        p = self.get(name)
-        return self.disable(name) if p else self.enable(name)
-
-    def is_available(self, name: str, wallet: 'Abstract_Wallet') -> bool:
+    def is_available(self, name: str) -> bool:
         d = self.descriptions.get(name)
         if not d:
             return False
@@ -301,8 +723,7 @@ class Plugins(DaemonThread):
             except ImportError as e:
                 self.logger.warning(f'Plugin {name} unavailable: {repr(e)}')
                 return False
-        requires = d.get('requires_wallet_type', [])
-        return not requires or wallet.wallet_type in requires
+        return True
 
     def get_hardware_support(self):
         out = []
@@ -348,16 +769,46 @@ class Plugins(DaemonThread):
             self.load_plugin(name)
         return self.plugins[name]
 
+    def is_plugin_zip(self, name: str) -> bool:
+        """Returns True if the plugin is a zip file"""
+        if (metadata := self.get_metadata(name)) is None:
+            return False
+        return metadata.get('is_zip', False)
+
+    def get_metadata(self, name: str) -> Optional[dict]:
+        """Returns the metadata of the plugin"""
+        metadata = self.internal_plugin_metadata.get(name) or self.external_plugin_metadata.get(name)
+        if not metadata:
+            return None
+        return metadata
+
     def run(self):
         while self.is_running():
             self.wake_up_event.wait(0.1)  # time.sleep(0.1) OR event
             self.run_jobs()
         self.on_stop()
 
-def get_file_hash256(path: str) -> str:
-    '''Get the sha256 hash of a file in hex, similar to `sha256sum`.'''
+    def read_file(self, name: str, filename: str) -> bytes:
+        if self.is_plugin_zip(name):
+            plugin_filename = self.zip_plugin_path(name)
+            metadata = self.external_plugin_metadata[name]
+            dirname = metadata['dirname']
+            with zipfile_lib.ZipFile(plugin_filename) as myzip:
+                with myzip.open(os.path.join(dirname, filename)) as myfile:
+                    return myfile.read()
+        elif name in self.internal_plugin_metadata:
+            path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
+            with open(path, 'rb') as myfile:
+                return myfile.read()
+        else:
+            # no icon
+            return None
+
+def get_file_hash256(path: str) -> bytes:
+    '''Get the sha256 hash of a file, similar to `sha256sum`.'''
     with open(path, 'rb') as f:
-        return sha256(f.read()).hex()
+        return sha256(f.read())
+
 
 def hook(func):
     hook_names.add(func.__name__)
@@ -388,7 +839,6 @@ class BasePlugin(Logger):
         self.parent = parent  # type: Plugins  # The plugins object
         self.name = name
         self.config = config
-        self.wallet = None  # fixme: this field should not exist
         Logger.__init__(self)
         # add self to hooks
         for k in dir(self):
@@ -425,7 +875,11 @@ class BasePlugin(Logger):
         return []
 
     def is_enabled(self):
-        return self.is_available() and self.config.get('enable_plugin_' + self.name) is True
+        if not self.is_available():
+            return False
+        if not self.parent.is_authorized(self.name):
+            return False
+        return self.config.is_plugin_enabled(self.name)
 
     def is_available(self):
         return True
@@ -440,17 +894,12 @@ class BasePlugin(Logger):
         raise NotImplementedError()
 
     def read_file(self, filename: str) -> bytes:
-        import zipfile
-        if self.name in self.parent.external_plugin_metadata:
-            plugin_filename = self.parent.external_plugin_path(self.name)
-            with zipfile.ZipFile(plugin_filename) as myzip:
-                with myzip.open(os.path.join(self.name, filename)) as myfile:
-                    return myfile.read()
-        else:
-            path = os.path.join(os.path.dirname(__file__), 'plugins', self.name, filename)
-            with open(path, 'rb') as myfile:
-                return myfile.read()
+        return self.parent.read_file(self.name, filename)
 
+    def get_storage(self, wallet: 'Abstract_Wallet') -> dict:
+        """Returns a dict which is persisted in the per-wallet database."""
+        plugin_storage = wallet.db.get_plugin_storage()
+        return plugin_storage.setdefault(self.name, {})
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
@@ -474,6 +923,17 @@ class DeviceInfo(NamedTuple):
     plugin_name: Optional[str] = None  # manufacturer, e.g. "trezor"
     soft_device_id: Optional[str] = None  # if available, used to distinguish same-type hw devices
     model_name: Optional[str] = None  # e.g. "Ledger Nano S"
+
+    def label_for_device_select(self) -> str:
+        return (
+            "{label} ({maybe_model}{init}, {transport})"
+            .format(
+                label=self.label or _("An unnamed {}").format(self.plugin_name),
+                init=(_("initialized") if self.initialized else _("wiped")),
+                transport=self.device.transport_ui_string,
+                maybe_model=f"{self.model_name}, " if self.model_name else ""
+            )
+        )
 
 
 class HardwarePluginToScan(NamedTuple):
@@ -861,15 +1321,11 @@ class DeviceMgr(ThreadJob):
                 + f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r})\n\n")
         msg += _("Please select which {} device to use:").format(plugin.device)
         msg += "\n(" + _("Or click cancel to skip this keystore instead.") + ")"
-        descriptions = ["{label} ({maybe_model}{init}, {transport})"
-                        .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
-                                init=(_("initialized") if info.initialized else _("wiped")),
-                                transport=info.device.transport_ui_string,
-                                maybe_model=f"{info.model_name}, " if info.model_name else "")
-                        for info in infos]
+        choices = [ChoiceItem(key=idx, label=info.label_for_device_select())
+                   for (idx, info) in enumerate(infos)]
         self.logger.debug(f"select_device. prompting user for manual selection of {plugin.device}. "
                           f"num options: {len(infos)}. options: {infos}")
-        c = handler.query_choice(msg, descriptions)
+        c = handler.query_choice(msg, choices)
         if c is None:
             raise UserCancelled()
         info = infos[c]
@@ -880,7 +1336,7 @@ class DeviceMgr(ThreadJob):
     @runs_in_hwd_thread
     def _scan_devices_with_hid(self) -> List['Device']:
         try:
-            import hid
+            import hid  # noqa: F811
         except ImportError:
             return []
 
@@ -954,7 +1410,7 @@ class DeviceMgr(ThreadJob):
                 ret["libusb.path"] = None
         # add hidapi
         try:
-            import hid
+            import hid  # noqa: F811
             ret["hidapi.version"] = hid.__version__  # available starting with 0.12.0.post2
         except Exception as e:
             from importlib.metadata import version

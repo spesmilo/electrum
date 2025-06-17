@@ -7,17 +7,16 @@ import socket
 import concurrent
 from concurrent import futures
 import ipaddress
-from typing import Optional
+import asyncio
 
 import dns
-import dns.resolver
+import dns.asyncresolver
 
 from .logging import get_logger
-
+from .util import get_asyncio_loop
+from . import util
 
 _logger = get_logger(__name__)
-
-_dns_threads_executor = None  # type: Optional[concurrent.futures.Executor]
 
 
 def configure_dns_resolver() -> None:
@@ -38,16 +37,11 @@ def configure_dns_resolver() -> None:
 
 def _prepare_windows_dns_hack():
     # enable dns cache
-    resolver = dns.resolver.get_default_resolver()
+    resolver = dns.asyncresolver.get_default_resolver()
     if resolver.cache is None:
         resolver.cache = dns.resolver.Cache()
     # ensure overall timeout for requests is long enough
     resolver.lifetime = max(resolver.lifetime or 1, 30.0)
-    # prepare threads
-    global _dns_threads_executor
-    if _dns_threads_executor is None:
-        _dns_threads_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20,
-                                                                      thread_name_prefix='dns_resolver')
 
 
 def _is_force_system_dns_for_host(host: str) -> bool:
@@ -69,8 +63,16 @@ def _fast_getaddrinfo(host, *args, **kwargs):
         addrs = []
         expected_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
                            concurrent.futures.CancelledError, concurrent.futures.TimeoutError)
-        ipv6_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.AAAA)
-        ipv4_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.A)
+        loop = get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
+        ipv6_fut = asyncio.run_coroutine_threadsafe(
+            dns.asyncresolver.resolve(host, dns.rdatatype.AAAA),
+            loop,
+        )
+        ipv4_fut = asyncio.run_coroutine_threadsafe(
+            dns.asyncresolver.resolve(host, dns.rdatatype.A),
+            loop,
+        )
         # try IPv6
         try:
             answers = ipv6_fut.result()

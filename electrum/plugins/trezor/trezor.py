@@ -10,8 +10,8 @@ from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
 from electrum.keystore import Hardware_KeyStore
 from electrum.logging import get_logger
 
-from electrum.plugins.hw_wallet import HW_PluginBase
-from electrum.plugins.hw_wallet.plugin import is_any_tx_output_on_change_branch, \
+from electrum.hw_wallet import HW_PluginBase
+from electrum.hw_wallet.plugin import is_any_tx_output_on_change_branch, \
     trezor_validate_op_return_output_and_get_data, LibraryFoundButUnusable, OutdatedHwFirmwareException
 
 if TYPE_CHECKING:

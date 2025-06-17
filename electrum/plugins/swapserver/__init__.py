@@ -1,15 +1,5 @@
-from electrum.i18n import _
+from electrum.simple_config import ConfigVar, SimpleConfig
 
-fullname = _('SwapServer')
-description = """
-Submarine swap server for an Electrum daemon.
-
-Example setup:
-
-  electrum -o setconfig enable_plugin_swapserver True
-  electrum -o setconfig swapserver_port 5455
-  electrum daemon -v
-
-"""
-
-available_for = ['cmdline']
+SimpleConfig.SWAPSERVER_PORT = ConfigVar('plugins.swapserver.port', default=None, type_=int, plugin=__name__)
+SimpleConfig.SWAPSERVER_FEE_MILLIONTHS = ConfigVar('plugins.swapserver.fee_millionths', default=5000, type_=int, plugin=__name__)
+SimpleConfig.SWAPSERVER_ANN_POW_NONCE = ConfigVar('plugins.swapserver.ann_pow_nonce', default=0, type_=int, plugin=__name__)

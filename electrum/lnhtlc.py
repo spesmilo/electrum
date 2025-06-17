@@ -1,6 +1,5 @@
 from copy import deepcopy
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, Set
-import threading
+from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
@@ -11,7 +10,7 @@ if TYPE_CHECKING:
 
 class HTLCManager:
 
-    def __init__(self, log:'StoredDict', *, initial_feerate=None):
+    def __init__(self, log: 'StoredDict', *, initial_feerate=None):
 
         if len(log) == 0:
             initial = {
@@ -490,8 +489,7 @@ class HTLCManager:
         return d
 
     @with_lock
-    def all_settled_htlcs_ever(self, subject: HTLCOwner, ctn: int = None) \
-            -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+    def all_settled_htlcs_ever(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         """Return the list of all HTLCs that have been ever settled in subject's
         ctx up to ctn.
         """
@@ -527,14 +525,16 @@ class HTLCManager:
         # sent htlcs
         for htlc_id in considered_sent_htlc_ids:
             ctns = self.log[whose]['settles'].get(htlc_id, None)
-            if ctns is None: continue
+            if ctns is None:
+                continue
             if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
                 htlc = self.log[whose]['adds'][htlc_id]
                 balance -= htlc.amount_msat
         # recv htlcs
         for htlc_id in considered_recv_htlc_ids:
             ctns = self.log[-whose]['settles'].get(htlc_id, None)
-            if ctns is None: continue
+            if ctns is None:
+                continue
             if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
                 htlc = self.log[-whose]['adds'][htlc_id]
                 balance += htlc.amount_msat
@@ -551,7 +551,8 @@ class HTLCManager:
         htlcs = []
         for htlc_id in considered_htlc_ids:
             ctns = self.log[htlc_proposer][log_action].get(htlc_id, None)
-            if ctns is None: continue
+            if ctns is None:
+                continue
             if ctns[ctx_owner] == ctn:
                 htlcs.append(self.log[htlc_proposer]['adds'][htlc_id])
         return htlcs
@@ -603,7 +604,7 @@ class HTLCManager:
         right = len(fee_log)
         while True:
             i = (left + right) // 2
-            ctn_at_i = fee_log[i].ctn_local if subject==LOCAL else fee_log[i].ctn_remote
+            ctn_at_i = fee_log[i].ctn_local if subject == LOCAL else fee_log[i].ctn_remote
             if right - left <= 1:
                 break
             if ctn_at_i is None:  # Nones can only be on the right end

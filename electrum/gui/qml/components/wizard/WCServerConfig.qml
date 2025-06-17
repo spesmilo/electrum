@@ -10,8 +10,9 @@ WizardComponent {
     title: qsTr('Server')
 
     function apply() {
-        wizard_data['autoconnect'] = sc.address.trim() == ""
         wizard_data['server'] = sc.address
+        wizard_data['autoconnect'] = sc.serverConnectMode == ServerConnectModeComboBox.Mode.Autoconnect
+        wizard_data['one_server'] = sc.serverConnectMode == ServerConnectModeComboBox.Mode.Single
     }
 
     ColumnLayout {
@@ -20,7 +21,6 @@ WizardComponent {
 
         ServerConfig {
             id: sc
-            showAutoselectServer: false
             Layout.fillWidth: true
             Layout.fillHeight: true
         }

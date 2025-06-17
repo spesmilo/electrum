@@ -33,13 +33,11 @@ from PyQt6.QtCore import Qt, QItemSelectionModel, QModelIndex
 from electrum.i18n import _
 from electrum.util import format_time
 from electrum.plugin import run_hook
-from electrum.invoices import Invoice
 
-from .util import pr_icons, read_QIcon, webopen
+from .util import pr_icons, read_QIcon
 from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
     from .receive_tab import ReceiveTab
 
 
@@ -86,6 +84,7 @@ class RequestList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
+        self.selectionModel().selectionChanged.connect(self.selection_changed)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     def set_current_key(self, key):
@@ -100,14 +99,16 @@ class RequestList(MyTreeView):
     def get_current_key(self):
         return self.get_role_data_for_current_item(col=self.Columns.DATE, role=ROLE_KEY)
 
+    def selection_changed(self, selected, deselected):
+        self.receive_tab.update_current_request()
+
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
             self.receive_tab.update_current_request()
             return
         if not idx.isValid():
             return
-        # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.siblingAtColumn(self.Columns.DATE))
         key = item.data(ROLE_KEY)
         req = self.wallet.get_request(key)
         if req is None:
@@ -159,6 +160,7 @@ class RequestList(MyTreeView):
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
             items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
+            items[self.Columns.DATE].setIcon(read_QIcon("lightning" if req.is_lightning() else "bitcoin"))
             items[self.Columns.AMOUNT].setData(amount_str_nots.strip(), self.ROLE_CLIPBOARD_DATA)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.std_model.insertRow(self.std_model.rowCount(), items)
@@ -180,15 +182,14 @@ class RequestList(MyTreeView):
 
     def create_menu(self, position):
         items = self.selected_in_column(0)
-        if len(items)>1:
-            keys = [item.data(ROLE_KEY)  for item in items]
+        if len(items) > 1:
+            keys = [item.data(ROLE_KEY) for item in items]
             menu = QMenu(self)
             menu.addAction(_("Delete requests"), lambda: self.delete_requests(keys))
             menu.exec(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
-        # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.siblingAtColumn(self.Columns.DATE))
         if not item:
             return
         key = item.data(ROLE_KEY)

@@ -31,11 +31,17 @@ from .logging import get_logger
 
 
 _logger = get_logger(__name__)
-LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
+LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale', 'locale')
+
+
+def _get_null_translations():
+    """Returns a gettext Translations obj with translations explicitly disabled."""
+    return gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
+
 
 # Set initial default language to None. i.e. translations explicitly disabled.
 # The main script or GUIs can call set_language to enable translations.
-language = gettext.translation('electrum', fallback=True, class_=gettext.NullTranslations)
+_language = _get_null_translations()
 
 
 # note: do not use old-style (%) formatting inside translations,
@@ -49,7 +55,6 @@ language = gettext.translation('electrum', fallback=True, class_=gettext.NullTra
 def _(msg: str, *, context=None) -> str:
     if msg == "":
         return ""  # empty string must not be translated. see #7158
-    global language
     if context:
         contexts = [context]
         if context[-1] != "|":  # try with both "|" suffix and without
@@ -57,18 +62,24 @@ def _(msg: str, *, context=None) -> str:
         else:
             contexts.append(context[:-1])
         for ctx in contexts:
-            out = language.pgettext(ctx, msg)
+            out = _language.pgettext(ctx, msg)
             if out != msg:  # found non-trivial translation
                 return out
         # else try without context
-    return language.gettext(msg)
+    return _language.gettext(msg)
 
 
 def set_language(x: Optional[str]) -> None:
     _logger.info(f"setting language to {x!r}")
-    global language
-    if x:
-        language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
+    global _language
+    if not x:
+        return
+    if x.startswith("en_"):
+        # Setting the language to "English" is a protected special-case:
+        # we disable all translations and use the source strings.
+        _language = _get_null_translations()
+    else:
+        _language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
 
 
 languages = {
@@ -80,7 +91,7 @@ languages = {
     'de_DE': _('German'),
     'el_GR': _('Greek'),
     'eo_UY': _('Esperanto'),
-    'en_UK': _('English'),
+    'en_UK': _('English'),  # selecting this guarantees seeing the untranslated source strings
     'es_ES': _('Spanish'),
     'fa_IR': _('Persian'),
     'fr_FR': _('French'),

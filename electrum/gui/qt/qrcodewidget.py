@@ -3,16 +3,13 @@ from typing import Optional
 import qrcode
 import qrcode.exceptions
 
-from PyQt6.QtGui import QColor, QPen
 import PyQt6.QtGui as QtGui
-from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtWidgets import (
-    QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
-    QFileDialog,
-)
+from PyQt6.QtCore import QRect
+from PyQt6.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
 
 from electrum.i18n import _
 from electrum.simple_config import SimpleConfig
+from electrum.gui.common_qt.util import draw_qr
 
 from .util import WindowModalDialog, WWLabel, getSaveFileName
 
@@ -22,6 +19,8 @@ class QrCodeDataOverflow(qrcode.exceptions.DataOverflowError):
 
 
 class QRCodeWidget(QWidget):
+
+    MIN_BOXSIZE = 2  # min size in pixels of single black/white unit box of the qr code
 
     def __init__(self, data=None, *, manual_size: bool = False):
         QWidget.__init__(self)
@@ -35,8 +34,7 @@ class QRCodeWidget(QWidget):
         if data:
             qr = qrcode.QRCode(
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=0,
+                border=1,
             )
             try:
                 qr.add_data(data)
@@ -47,64 +45,23 @@ class QRCodeWidget(QWidget):
             self.data = data
             if not self._manual_size:
                 k = len(qr_matrix)
-                self.setMinimumSize(k * 5, k * 5)
+                size = min(k * 5, 150 + k * self.MIN_BOXSIZE)
+                self.setMinimumSize(size, size)
         else:
             self.qr = None
             self.data = None
 
         self.update()
 
-
     def paintEvent(self, e):
         if not self.data:
             return
-
-        black = QColor(0, 0, 0, 255)
-        grey  = QColor(196, 196, 196, 255)
-        white = QColor(255, 255, 255, 255)
-        black_pen = QPen(black) if self.isEnabled() else QPen(grey)
-        black_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-
-        if not self.qr:
-            qp = QtGui.QPainter()
-            qp.begin(self)
-            qp.setBrush(white)
-            qp.setPen(white)
-            r = qp.viewport()
-            qp.drawRect(0, 0, r.width(), r.height())
-            qp.end()
-            return
-
-        matrix = self.qr.get_matrix()
-        k = len(matrix)
-        qp = QtGui.QPainter()
-        qp.begin(self)
-        r = qp.viewport()
-        framesize = min(r.width(), r.height())
-        self._framesize = framesize
-        boxsize = int(framesize/(k + 2))
-        if boxsize < 2:
-            qp.drawText(0, 20, 'Cannot draw QR code:')
-            qp.drawText(0, 40, 'Boxsize too small')
-            qp.end()
-            return
-        size = k*boxsize
-        left = (framesize - size)/2
-        top = (framesize - size)/2
-        # Draw white background with margin
-        qp.setBrush(white)
-        qp.setPen(white)
-        qp.drawRect(0, 0, framesize, framesize)
-        # Draw qr code
-        qp.setBrush(black if self.isEnabled() else grey)
-        qp.setPen(black_pen)
-        for r in range(k):
-            for c in range(k):
-                if matrix[r][c]:
-                    qp.drawRect(
-                        int(left+c*boxsize), int(top+r*boxsize),
-                        boxsize - 1, boxsize - 1)
-        qp.end()
+        draw_qr(
+            qr=self.qr,
+            paint_device=self,
+            is_enabled=self.isEnabled(),
+            min_boxsize=self.MIN_BOXSIZE,
+        )
 
     def grab(self) -> QtGui.QPixmap:
         """Overrides QWidget.grab to only include the QR code itself,
@@ -136,8 +93,7 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
 
-        qrw = QRCodeWidget(data, manual_size=True)
-        qrw.setMinimumSize(250, 250)
+        qrw = QRCodeWidget(data, manual_size=False)
         vbox.addWidget(qrw, 1)
 
         help_text = data if show_text else help_text

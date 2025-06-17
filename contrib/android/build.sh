@@ -20,7 +20,7 @@ if [[ -n "$3" \
 	  && ( "$1" == "qml" ) \
 	  && ( "$2" == "all"  || "$2" == "armeabi-v7a" || "$2" == "arm64-v8a" || "$2" == "x86" || "$2" == "x86_64" ) \
 	  && ( "$3" == "debug"  || "$3" == "release" || "$3" == "release-unsigned" ) ]] ; then
-    info "arguments $*"
+    info "arguments $1 $2 $3"
 else
     fail "usage: build.sh <qml|...> <arm64-v8a|armeabi-v7a|x86|x86_64|all> <debug|release|release-unsigned>"
     exit 1

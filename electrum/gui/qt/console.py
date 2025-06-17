@@ -6,10 +6,8 @@ import os
 import re
 import traceback
 
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt
-from PyQt6 import QtGui
-from PyQt6 import QtWidgets
 
 from electrum import util
 from electrum.i18n import _
@@ -230,7 +228,7 @@ class Console(QtWidgets.QPlainTextEdit):
     def exec_command(self, command):
         tmp_stdout = sys.stdout
 
-        class stdoutProxy():
+        class StdoutProxy:
             def __init__(self, write_func):
                 self.write_func = write_func
                 self.skip = False
@@ -245,12 +243,12 @@ class Console(QtWidgets.QPlainTextEdit):
                     QtCore.QCoreApplication.processEvents()
                 self.skip = not self.skip
 
-        if type(self.namespace.get(command)) == type(lambda:None):
+        if type(self.namespace.get(command)) == type(lambda: None):
             self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
                                  .format(command, command))
             return
 
-        sys.stdout = stdoutProxy(self.appendPlainText)
+        sys.stdout = StdoutProxy(self.appendPlainText)
         try:
             try:
                 # eval is generally considered bad practice. use it wisely!

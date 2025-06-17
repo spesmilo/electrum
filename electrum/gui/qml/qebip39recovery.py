@@ -11,7 +11,7 @@ from electrum.bip39_recovery import account_discovery
 from electrum.logging import get_logger
 from electrum.util import get_asyncio_loop
 
-from .util import TaskThread
+from electrum.gui.common_qt.util import TaskThread
 
 
 class QEBip39RecoveryListModel(QAbstractListModel):

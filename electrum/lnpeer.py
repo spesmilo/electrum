@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable, List
 from datetime import datetime
 import functools
 
@@ -23,15 +23,15 @@ from .crypto import sha256, sha256d, privkey_to_pubkey
 from . import bitcoin, util
 from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
-                   UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector)
-from .util import event_listener, EventListener
+                   UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
+                   NoDynamicFeeEstimates, event_listener, EventListener)
 from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
 from .lnrouter import RouteEdge
-from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
-                      process_onion_packet, OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
+from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
+                      OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
@@ -44,7 +44,9 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     ChannelType, LNProtocolWarning, validate_features, IncompatibleOrInsaneFeatures)
+                     ChannelType, LNProtocolWarning, validate_features,
+                     IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
+                     GossipForwardingMessage, GossipTimestampFilter)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
 from .lnutil import serialize_htlc_key, Keypair
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
@@ -53,7 +55,7 @@ from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
-from .simple_config import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .fee_policy import FEE_LN_ETA_TARGET, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
@@ -68,12 +70,12 @@ LN_P2P_NETWORK_TIMEOUT = 20
 class Peer(Logger, EventListener):
     # note: in general this class is NOT thread-safe. Most methods are assumed to be running on asyncio thread.
 
-    LOGGING_SHORTCUT = 'P'
-
     ORDERED_MESSAGES = (
         'accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'closing_signed')
     SPAMMY_MESSAGES = (
-        'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',)
+        'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',
+        'gossip_timestamp_filter', 'reply_channel_range', 'query_channel_range',
+        'query_short_channel_ids', 'reply_short_channel_ids', 'reply_short_channel_ids_end')
 
     DELAY_INC_MSG_PROCESSING_SLEEP = 0.01
 
@@ -105,6 +107,8 @@ class Peer(Logger, EventListener):
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
         self.gossip_queue = asyncio.Queue()
+        self.gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
+        self.outgoing_gossip_reply = False # type: bool
         self.ordered_message_queues = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue] # for messages that are ordered
         self.temp_id_to_id = {}  # type: Dict[bytes, Optional[bytes]]   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
@@ -124,6 +128,7 @@ class Peer(Logger, EventListener):
         self.received_commitsig_event = asyncio.Event()
         self.downstream_htlc_resolved_event = asyncio.Event()
         self.register_callbacks()
+        self._num_gossip_messages_forwarded = 0
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -167,8 +172,7 @@ class Peer(Logger, EventListener):
             await self.transport.handshake()
         self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
         features = self.features.for_init_message()
-        b = int.bit_length(features)
-        flen = b // 8 + int(bool(b % 8))
+        flen = features.min_len()
         self.send_message(
             "init", gflen=0, flen=flen,
             features=features,
@@ -239,6 +243,7 @@ class Peer(Logger, EventListener):
             # raw message is needed to check signature
             if message_type in ['node_announcement', 'channel_announcement', 'channel_update']:
                 payload['raw'] = message
+                payload['sender_node_id'] = self.pubkey
             # note: the message handler might be async or non-async. In either case, by default,
             #       we wait for it to complete before we return, i.e. before the next message is processed.
             if asyncio.iscoroutinefunction(f):
@@ -275,9 +280,10 @@ class Peer(Logger, EventListener):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: "
                          f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
-        if chan_id in self.channels:
+        if chan := self.channels.get(chan_id):
             self.schedule_force_closing(chan_id)
             self.ordered_message_queues[chan_id].put_nowait((None, {'error': err_bytes}))
+            chan.save_remote_peer_sent_error(err_bytes)
         elif chan_id in self.temp_id_to_id:
             chan_id = self.temp_id_to_id[chan_id] or chan_id
             self.ordered_message_queues[chan_id].put_nowait((None, {'error': err_bytes}))
@@ -293,7 +299,7 @@ class Peer(Logger, EventListener):
             return
         raise GracefulDisconnect
 
-    async def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=False):
+    def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=False):
         """Sends a warning and disconnects if close_connection.
 
         Note:
@@ -312,7 +318,7 @@ class Peer(Logger, EventListener):
         if close_connection:
             raise GracefulDisconnect
 
-    async def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
+    def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
         """Sends an error message and force closes the channel.
 
         Note:
@@ -378,6 +384,9 @@ class Peer(Logger, EventListener):
         except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
             raise GracefulDisconnect(f"{str(e)}")
+        self.logger.info(
+            f"received INIT with features={str(self.their_features.get_names())}. "
+            f"negotiated={str(self.features)}")
         # check that they are on the same chain as us, if provided
         their_networks = payload["init_tlvs"].get("networks")
         if their_networks:
@@ -402,6 +411,42 @@ class Peer(Logger, EventListener):
         if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_update', payload))
 
+    def on_query_channel_range(self, payload):
+        if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
+            return
+        if not self._is_valid_channel_range_query(payload):
+            return self.send_warning(bytes(32), "received invalid query_channel_range")
+        if self.outgoing_gossip_reply:
+            return self.send_warning(bytes(32), "received multiple queries at the same time")
+        self.outgoing_gossip_reply = True
+        self.gossip_queue.put_nowait(('query_channel_range', payload))
+
+    def on_query_short_channel_ids(self, payload):
+        if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
+            return
+        if self.outgoing_gossip_reply:
+            return self.send_warning(bytes(32), "received multiple queries at the same time")
+        if not self._is_valid_short_channel_id_query(payload):
+            return self.send_warning(bytes(32), "invalid query_short_channel_ids")
+        self.outgoing_gossip_reply = True
+        self.gossip_queue.put_nowait(('query_short_channel_ids', payload))
+
+    def on_gossip_timestamp_filter(self, payload):
+        if self._should_forward_gossip():
+            self.set_gossip_timestamp_filter(payload)
+
+    def set_gossip_timestamp_filter(self, payload: dict) -> None:
+        """Set the gossip_timestamp_filter for this peer. If the peer requested historical gossip,
+        the request is put on the queue, otherwise only the forwarding loop will check the filter"""
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return
+        filter = GossipTimestampFilter.from_payload(payload)
+        self.gossip_timestamp_filter = filter
+        self.logger.debug(f"got gossip_ts_filter from peer {self.pubkey.hex()}: "
+                          f"{str(self.gossip_timestamp_filter)}")
+        if filter and not filter.only_forwarding:
+            self.gossip_queue.put_nowait(('gossip_timestamp_filter', None))
+
     def maybe_save_remote_update(self, payload):
         if not self.channels:
             return
@@ -415,13 +460,15 @@ class Peer(Logger, EventListener):
             # as it might be for our own direct channel with this peer
             # (and we might not yet know the short channel id for that)
             # Background: this code is here to deal with a bug in LND,
-            # see https://github.com/lightningnetwork/lnd/issues/3651
+            # see https://github.com/lightningnetwork/lnd/issues/3651 (closed 2022-08-13, lnd-v0.15.1)
             # and https://github.com/lightningnetwork/lightning-rfc/pull/657
             # This code assumes gossip_queries is set. BOLT7: "if the
             # gossip_queries feature is negotiated, [a node] MUST NOT
             # send gossip it did not generate itself"
+            # NOTE: The definition of gossip_queries changed
+            # https://github.com/lightning/bolts/commit/fce8bab931674a81a9ea895c9e9162e559e48a65
             short_channel_id = ShortChannelID(payload['short_channel_id'])
-            self.logger.info(f'received orphan channel update {short_channel_id}')
+            self.logger.debug(f'received orphan channel update {short_channel_id}')
             self.orphan_channel_updates[short_channel_id] = payload
             while len(self.orphan_channel_updates) > 25:
                 self.orphan_channel_updates.popitem(last=False)
@@ -458,13 +505,14 @@ class Peer(Logger, EventListener):
     @handle_disconnect
     async def main_loop(self):
         async with self.taskgroup as group:
-            await group.spawn(self._message_loop())
             await group.spawn(self.htlc_switch())
-            await group.spawn(self.query_gossip())
-            await group.spawn(self.process_gossip())
-            await group.spawn(self.send_own_gossip())
+            await group.spawn(self._message_loop())
+            await group.spawn(self._query_gossip())
+            await group.spawn(self._process_gossip())
+            await group.spawn(self._send_own_gossip())
+            await group.spawn(self._forward_gossip())
 
-    async def process_gossip(self):
+    async def _process_gossip(self):
         while True:
             await asyncio.sleep(5)
             if not self.network.lngossip:
@@ -480,6 +528,12 @@ class Peer(Logger, EventListener):
                     chan_upds.append(payload)
                 elif name == 'node_announcement':
                     node_anns.append(payload)
+                elif name == 'query_channel_range':
+                    await self.taskgroup.spawn(self._send_reply_channel_range(payload))
+                elif name == 'query_short_channel_ids':
+                    await self.taskgroup.spawn(self._send_reply_short_channel_ids(payload))
+                elif name == 'gossip_timestamp_filter':
+                    await self.taskgroup.spawn(self._handle_historical_gossip_request())
                 else:
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
@@ -487,7 +541,7 @@ class Peer(Logger, EventListener):
             if self.network.lngossip:
                 await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
 
-    async def send_own_gossip(self):
+    async def _send_own_gossip(self):
         if self.lnworker == self.lnworker.network.lngossip:
             return
         await asyncio.sleep(10)
@@ -495,30 +549,152 @@ class Peer(Logger, EventListener):
             public_channels = [chan for chan in self.lnworker.channels.values() if chan.is_public()]
             if public_channels:
                 alias = self.lnworker.config.LIGHTNING_NODE_ALIAS
-                self.send_node_announcement(alias)
+                color = self.lnworker.config.LIGHTNING_NODE_COLOR_RGB
+                self.send_node_announcement(alias, color)
                 for chan in public_channels:
                     if chan.is_open() and chan.peer_state == PeerState.GOOD:
                         self.maybe_send_channel_announcement(chan)
             await asyncio.sleep(600)
 
-    async def query_gossip(self):
+    def _should_forward_gossip(self) -> bool:
+        if (self.network.lngossip != self.lnworker
+                and not self.lnworker.uses_trampoline()
+                and self.features.supports(LnFeatures.GOSSIP_QUERIES_REQ)):
+            return True
+        return False
+
+    async def _forward_gossip(self):
+        if not self._should_forward_gossip():
+            return
+
+        async def send_new_gossip_with_semaphore(gossip: List[GossipForwardingMessage]):
+            async with self.network.lngossip.gossip_request_semaphore:
+                sent = await self._send_gossip_messages(gossip)
+            if sent > 0:
+                self.logger.debug(f"forwarded {sent} gossip messages to {self.pubkey.hex()}")
+
+        lngossip = self.network.lngossip
+        last_gossip_batch_ts = 0
+        while True:
+            await asyncio.sleep(10)
+            if not self.gossip_timestamp_filter:
+                continue  # peer didn't request gossip
+
+            new_gossip, last_lngossip_refresh_ts = await lngossip.get_forwarding_gossip()
+            if not last_lngossip_refresh_ts > last_gossip_batch_ts:
+                continue  # no new batch available
+            last_gossip_batch_ts = last_lngossip_refresh_ts
+
+            await self.taskgroup.spawn(send_new_gossip_with_semaphore(new_gossip))
+
+    async def _handle_historical_gossip_request(self):
+        """Called when a peer requests historical gossip with a gossip_timestamp_filter query."""
+        filter = self.gossip_timestamp_filter
+        if not self._should_forward_gossip() or not filter or filter.only_forwarding:
+            return
+        async with self.network.lngossip.gossip_request_semaphore:
+            requested_gossip = self.lnworker.channel_db.get_gossip_in_timespan(filter)
+            filter.only_forwarding = True
+            sent = await self._send_gossip_messages(requested_gossip)
+            if sent > 0:
+                self._num_gossip_messages_forwarded += sent
+                #self.logger.debug(f"forwarded {sent} historical gossip messages to {self.pubkey.hex()}")
+
+    async def _send_gossip_messages(self, messages: List[GossipForwardingMessage]) -> int:
+        amount_sent = 0
+        for msg in messages:
+            if self.gossip_timestamp_filter.in_range(msg.timestamp) \
+                and self.pubkey != msg.sender_node_id:
+                await self.transport.send_bytes_and_drain(msg.msg)
+                amount_sent += 1
+                if amount_sent % 250 == 0:
+                    # this can be a lot of messages, completely blocking the event loop
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+        return amount_sent
+
+    async def _query_gossip(self):
         try:
             await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except Exception as e:
             raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
         if self.lnworker == self.lnworker.network.lngossip:
+            if not self.their_features.supports(LnFeatures.GOSSIP_QUERIES_OPT):
+                raise GracefulDisconnect("remote does not support gossip_queries, which we need")
             try:
                 ids, complete = await util.wait_for2(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
             await self.lnworker.add_new_ids(ids)
+            self.request_gossip(int(time.time()))
             while True:
                 todo = self.lnworker.get_ids_to_query()
                 if not todo:
                     await asyncio.sleep(1)
                     continue
                 await self.get_short_channel_ids(todo)
+
+    @staticmethod
+    def _is_valid_channel_range_query(payload: dict) -> bool:
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return False
+        if payload.get('first_blocknum', -1) < constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS:
+            return False
+        if payload.get('number_of_blocks', 0) < 1:
+            return False
+        return True
+
+    def _is_valid_short_channel_id_query(self, payload: dict) -> bool:
+        if payload.get('chain_hash') != constants.net.rev_genesis_bytes():
+            return False
+        enc_short_ids = payload['encoded_short_ids']
+        if enc_short_ids[0] != 0:
+            self.logger.debug(f"got query_short_channel_ids with invalid encoding: {repr(enc_short_ids[0])}")
+            return False
+        if (len(enc_short_ids) - 1) % 8 != 0:
+            self.logger.debug(f"got query_short_channel_ids with invalid length")
+            return False
+        return True
+
+    async def _send_reply_channel_range(self, payload: dict):
+        """https://github.com/lightning/bolts/blob/acd383145dd8c3fecd69ce94e4a789767b984ac0/07-routing-gossip.md#requirements-5"""
+        first_blockheight: int = payload['first_blocknum']
+
+        async with self.network.lngossip.gossip_request_semaphore:
+            sorted_scids: List[ShortChannelID] = self.lnworker.channel_db.get_channels_in_range(
+                first_blockheight,
+                payload['number_of_blocks']
+            )
+            self.logger.debug(f"reply_channel_range to request "
+                              f"first_height={first_blockheight}, "
+                              f"num_blocks={payload['number_of_blocks']}, "
+                              f"sending {len(sorted_scids)} scids")
+
+            complete: bool = False
+            while not complete:
+                # create a 64800 byte chunk of skids, split the remaining scids
+                encoded_scids, sorted_scids = b''.join(sorted_scids[:8100]), sorted_scids[8100:]
+                complete = len(sorted_scids) == 0  # if there are no scids remaining we are done
+                # number of blocks covered by the scids in this chunk
+                if complete:
+                    # LAST MESSAGE MUST have first_blocknum plus number_of_blocks equal or greater than
+                    # the query_channel_range first_blocknum plus number_of_blocks.
+                    number_of_blocks = ((payload['first_blocknum'] + payload['number_of_blocks'])
+                                        - first_blockheight)
+                else:
+                    # we cover the range until the height of the first scid in the next chunk
+                    number_of_blocks = sorted_scids[0].block_height - first_blockheight
+                self.send_message('reply_channel_range',
+                    chain_hash=constants.net.rev_genesis_bytes(),
+                    first_blocknum=first_blockheight,
+                    number_of_blocks=number_of_blocks,
+                    sync_complete=complete,
+                    len=1+len(encoded_scids),
+                    encoded_short_ids=b'\x00' + encoded_scids)
+                if not complete:
+                    first_blockheight = sorted_scids[0].block_height
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+            self.outgoing_gossip_reply = False
 
     async def get_channel_range(self):
         first_block = constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS
@@ -540,6 +716,7 @@ class Peer(Logger, EventListener):
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
         #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 5344, complete True
+        # ADDENDUM (01/2025): now it's 'MUST set sync_complete to false if this is not the final reply_channel_range.'
         while True:
             index, num, complete, _ids = await self.reply_channel_range.get()
             ids.update(_ids)
@@ -564,7 +741,7 @@ class Peer(Logger, EventListener):
         if timestamp == 0:
             self.logger.info('requesting whole channel graph')
         else:
-            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).ctime()}')
+            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).isoformat()}')
         self.send_message(
             'gossip_timestamp_filter',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -595,26 +772,52 @@ class Peer(Logger, EventListener):
         complete = bool(int.from_bytes(payload['sync_complete'], 'big'))
         encoded = payload['encoded_short_ids']
         ids = self.decode_short_ids(encoded)
-        #self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, num_ids {len(ids)}, complete {repr(payload['complete'])}")
+        # self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, "
+        #                  f"num_ids {len(ids)}, complete {complete}")
         self.reply_channel_range.put_nowait((first, num, complete, ids))
 
+    async def _send_reply_short_channel_ids(self, payload: dict):
+        async with self.network.lngossip.gossip_request_semaphore:
+            requested_scids = payload['encoded_short_ids']
+            decoded_scids = [ShortChannelID.normalize(scid)
+                             for scid in self.decode_short_ids(requested_scids)]
+            self.logger.debug(f"serving query_short_channel_ids request: "
+                              f"requested {len(decoded_scids)} scids")
+            chan_db = self.lnworker.channel_db
+            response: Set[bytes] = set()
+            for scid in decoded_scids:
+                requested_msgs = chan_db.get_gossip_for_scid_request(scid)
+                response.update(requested_msgs)
+            self.logger.debug(f"found {len(response)} gossip messages to serve scid request")
+            for index, msg in enumerate(response):
+                await self.transport.send_bytes_and_drain(msg)
+                if index % 250 == 0:
+                    await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+            self.send_message(
+                'reply_short_channel_ids_end',
+                chain_hash=constants.net.rev_genesis_bytes(),
+                full_information=self.network.lngossip.is_synced()
+            )
+            self.outgoing_gossip_reply = False
+
     async def get_short_channel_ids(self, ids):
-        self.logger.info(f'Querying {len(ids)} short_channel_ids')
+        #self.logger.info(f'Querying {len(ids)} short_channel_ids')
         assert not self.querying.is_set()
         self.query_short_channel_ids(ids)
         await self.querying.wait()
         self.querying.clear()
 
-    def query_short_channel_ids(self, ids, compressed=True):
+    def query_short_channel_ids(self, ids):
+        # compression MUST NOT be used according to updated bolt
+        # (https://github.com/lightning/bolts/pull/981)
         ids = sorted(ids)
         s = b''.join(ids)
-        encoded = zlib.compress(s) if compressed else s
-        prefix = b'\x01' if compressed else b'\x00'
+        prefix = b'\x00'  # uncompressed
         self.send_message(
             'query_short_channel_ids',
             chain_hash=constants.net.rev_genesis_bytes(),
-            len=1+len(encoded),
-            encoded_short_ids=prefix+encoded)
+            len=1+len(s),
+            encoded_short_ids=prefix+s)
 
     async def _message_loop(self):
         try:
@@ -714,6 +917,7 @@ class Peer(Logger, EventListener):
         # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
         # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
         # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
+        max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
@@ -722,7 +926,7 @@ class Peer(Logger, EventListener):
             upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
             dust_limit_sat=dust_limit_sat,
-            max_htlc_value_in_flight_msat=funding_sat * 1000,
+            max_htlc_value_in_flight_msat=max_htlc_value_in_flight_msat,
             max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
@@ -775,17 +979,26 @@ class Peer(Logger, EventListener):
 
         Channel configurations are initialized in this method.
         """
+
+        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            raise Exception('Cannot create public channels')
+
+        if not self.lnworker.wallet.can_have_lightning():
+            # old wallet that cannot have lightning anymore
+            raise Exception('This wallet cannot create new channels')
+
         # will raise if init fails
         await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
         if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
-        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
-            raise Exception('Cannot create public channels')
-
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
-        feerate = self.lnworker.current_target_feerate_per_kw()
+        feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw(
+            has_anchors=self.use_anchors()
+        )
+        if feerate is None:
+            raise NoDynamicFeeEstimates()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
@@ -958,6 +1171,7 @@ class Peer(Logger, EventListener):
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
         chan.storage['has_onchain_backup'] = has_onchain_backup
+        chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
@@ -977,7 +1191,7 @@ class Peer(Logger, EventListener):
         try:
             chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
-            await self.send_warning(channel_id, message=str(e), close_connection=True)
+            self.send_warning(channel_id, message=str(e), close_connection=True)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_state(ChannelState.OPENING)
         if zeroconf:
@@ -1018,27 +1232,13 @@ class Peer(Logger, EventListener):
 
         Channel configurations are initialized in this method.
         """
-        if self.lnworker.has_recoverable_channels():
-            # FIXME: we might want to keep the connection open
-            raise Exception('not accepting channels')
+
         # <- open_channel
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
-        funding_sat = payload['funding_satoshis']
-        push_msat = payload['push_msat']
-        feerate = payload['feerate_per_kw']  # note: we are not validating this
-        temp_chan_id = payload['temporary_channel_id']
-        # store the temp id now, so that it is recognized for e.g. 'error' messages
-        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
-        self.temp_id_to_id[temp_chan_id] = None
 
         open_channel_tlvs = payload.get('open_channel_tlvs')
         channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
-
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
-            pass
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
         if self.is_channel_type() and channel_type is None:
@@ -1049,6 +1249,33 @@ class Peer(Logger, EventListener):
             channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
+
+        if self.is_channel_type():
+            is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
+            if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+                raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        else:
+            is_zeroconf = False
+
+        if self.lnworker.has_recoverable_channels() and not is_zeroconf:
+            # FIXME: we might want to keep the connection open
+            raise Exception('not accepting channels')
+
+        if not self.lnworker.wallet.can_have_lightning():
+            # old wallet that cannot have lightning anymore
+            raise Exception('This wallet does not accept new channels')
+
+        funding_sat = payload['funding_satoshis']
+        push_msat = payload['push_msat']
+        feerate = payload['feerate_per_kw']  # note: we are not validating this
+        temp_chan_id = payload['temporary_channel_id']
+        # store the temp id now, so that it is recognized for e.g. 'error' messages
+        # TODO: this is never cleaned up; the dict grows unbounded until disconnect
+        self.temp_id_to_id[temp_chan_id] = None
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        if channel_opening_fee:
+            # todo check that the fee is reasonable
+            pass
 
         if self.use_anchors():
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
@@ -1110,9 +1337,6 @@ class Peer(Logger, EventListener):
         per_commitment_point_first = secret_to_pubkey(
             int.from_bytes(per_commitment_secret_first, 'big'))
 
-        is_zeroconf = channel_type & channel_type.OPTION_ZEROCONF
-        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
@@ -1174,7 +1398,7 @@ class Peer(Logger, EventListener):
         try:
             chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
-            await self.send_warning(channel_id, message=str(e), close_connection=True)
+            self.send_warning(channel_id, message=str(e), close_connection=True)
         sig_64, _ = chan.sign_next_commitment()
         self.send_message('funding_signed',
             channel_id=channel_id,
@@ -1239,6 +1463,11 @@ class Peer(Logger, EventListener):
             f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
             f'(their_next_local_ctn={their_next_local_ctn}, '
             f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
+        if chan.get_state() >= ChannelState.CLOSED:
+            self.logger.warning(
+                f"on_channel_reestablish. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         # sanity checks of received values
         if their_next_local_ctn < 0:
             raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
@@ -1379,6 +1608,12 @@ class Peer(Logger, EventListener):
             # We should let them know:
             self._send_channel_reestablish(chan)
             return
+        if self.network.blockchain().is_tip_stale() \
+                or not self.lnworker.wallet.is_up_to_date() \
+                or self.lnworker.current_target_feerate_per_kw(has_anchors=chan.has_anchors()) \
+            is None:
+            # don't try to reestablish until we can do fee estimation and are up-to-date
+            return
         # if we get here, we will try to do a proper reestablish
         if not (ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING):
             raise Exception(f"unexpected {chan.get_state()=} for reestablish")
@@ -1488,6 +1723,11 @@ class Peer(Logger, EventListener):
         self.logger.info(f"on_channel_ready. channel: {chan.channel_id.hex()}")
         if chan.peer_state != PeerState.GOOD:  # should never happen
             raise Exception(f"received channel_ready in unexpected {chan.peer_state=!r}")
+        if chan.is_closed():
+            self.logger.warning(
+                f"on_channel_ready. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         # save remote alias for use in invoices
         scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
         if scid_alias:
@@ -1499,21 +1739,27 @@ class Peer(Logger, EventListener):
             self.lnworker.save_channel(chan)
         self.maybe_mark_open(chan)
 
-    def send_node_announcement(self, alias:str):
+    def send_node_announcement(self, alias:str, color_hex:str):
         from .channel_db import NodeInfo
         timestamp = int(time.time())
         node_id = privkey_to_pubkey(self.privkey)
         features = self.features.for_node_announcement()
-        b = int.bit_length(features)
-        flen = b // 8 + int(bool(b % 8))
-        rgb_color = bytes.fromhex('000000')
+        flen = features.min_len()
+        rgb_color = bytes.fromhex(color_hex)
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
-        addr = self.lnworker.config.LIGHTNING_LISTEN
-        hostname, port = addr.split(':')
-        if port is None:  # use default port if not specified
-            port = 9735
-        addresses = NodeInfo.to_addresses_field(hostname, int(port))
+        if self.lnworker.config.LIGHTNING_LISTEN is not None:
+            addr = self.lnworker.config.LIGHTNING_LISTEN
+            try:
+                hostname, port = addr.split(':')
+                if port is None:  # use default port if not specified
+                    port = 9735
+                addresses = NodeInfo.to_addresses_field(hostname, int(port))
+            except Exception:
+                self.logger.exception(f"Invalid lightning_listen address: {addr}")
+                return
+        else:
+            addresses = b''
         raw_msg = encode_msg(
             "node_announcement",
             flen=flen,
@@ -1606,14 +1852,17 @@ class Peer(Logger, EventListener):
         htlc_id = payload["id"]
         reason = payload["reason"]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received update_fail_htlc in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_update_fail_htlc. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         chan.receive_fail_htlc(htlc_id, error_bytes=reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
         self.maybe_send_commitment(chan)
 
     def maybe_send_commitment(self, chan: Channel) -> bool:
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
-        if chan.is_closed():
+        if not chan.can_update_ctx(proposer=LOCAL):
             return False
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
@@ -1687,6 +1936,7 @@ class Peer(Logger, EventListener):
         onion: OnionPacket,
         session_key: Optional[bytes] = None,
     ) -> UpdateAddHtlc:
+        assert chan.can_send_update_add_htlc(), f"cannot send updates: {chan.short_channel_id}"
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_abs=cltv_abs, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         if session_key:
@@ -1737,8 +1987,8 @@ class Peer(Logger, EventListener):
         )
         return htlc
 
-    def send_revoke_and_ack(self, chan: Channel):
-        if chan.is_closed():
+    def send_revoke_and_ack(self, chan: Channel) -> None:
+        if not chan.can_update_ctx(proposer=LOCAL):
             return
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev = chan.revoke_current_commitment()
@@ -1749,12 +1999,13 @@ class Peer(Logger, EventListener):
             next_per_commitment_point=rev.next_per_commitment_point)
         self.maybe_send_commitment(chan)
 
-    def on_commitment_signed(self, chan: Channel, payload):
-        if chan.peer_state == PeerState.BAD:
-            return
+    def on_commitment_signed(self, chan: Channel, payload) -> None:
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}.')
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received commitment_signed in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_commitment_signed. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         if not chan.has_pending_changes(LOCAL):
             # TODO if feerate changed A->B->A; so there were updates but the value is identical,
@@ -1776,8 +2027,11 @@ class Peer(Logger, EventListener):
         payment_hash = sha256(preimage)
         htlc_id = payload["id"]
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received update_fulfill_htlc in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_update_fulfill_htlc. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         chan.receive_htlc_settle(preimage, htlc_id)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
         self.maybe_send_commitment(chan)
@@ -1787,8 +2041,11 @@ class Peer(Logger, EventListener):
         failure_code = payload["failure_code"]
         self.logger.info(f"on_update_fail_malformed_htlc. chan {chan.get_id_for_log()}. "
                          f"htlc_id {htlc_id}. failure_code={failure_code}")
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received update_fail_malformed_htlc in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_update_fail_malformed_htlc. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         if failure_code & OnionFailureCodeMetaFlag.BADONION == 0:
             self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
@@ -1811,8 +2068,11 @@ class Peer(Logger, EventListener):
         self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc={str(htlc)}")
         if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received update_add_htlc in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_update_add_htlc. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         if cltv_abs > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_add_htlc with {cltv_abs=} > BLOCKHEIGHT_MAX")
@@ -1865,7 +2125,7 @@ class Peer(Logger, EventListener):
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
 
         if self.lnworker.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-            next_peer = self.lnworker.get_peer_by_scid_alias(next_chan_scid)
+            next_peer = self.lnworker.get_peer_by_static_jit_scid_alias(next_chan_scid)
         else:
             next_peer = None
 
@@ -1938,6 +2198,7 @@ class Peer(Logger, EventListener):
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), next_htlc.htlc_id)
         return htlc_key
 
@@ -2062,11 +2323,12 @@ class Peer(Logger, EventListener):
             )
         except OnionRoutingFailure as e:
             raise
+        except FeeBudgetExceeded:
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
         except PaymentFailure as e:
             self.logger.debug(
                 f"maybe_forward_trampoline. PaymentFailure for {payment_hash.hex()=}, {payment_secret.hex()=}: {e!r}")
-            # FIXME: adapt the error code
-            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+            raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
 
     def _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self, payment_hash: bytes) -> bool:
         """Returns True if the HTLC should be failed.
@@ -2291,13 +2553,16 @@ class Peer(Logger, EventListener):
             else:
                 return None, None
 
+        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
+            return None, None
+
         chan.opening_fee = None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         return preimage, None
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
         self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.settle_htlc(preimage, htlc_id)
@@ -2309,7 +2574,7 @@ class Peer(Logger, EventListener):
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
-        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.fail_htlc(htlc_id)
         self.send_message(
@@ -2321,7 +2586,7 @@ class Peer(Logger, EventListener):
 
     def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionRoutingFailure):
         self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
-        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
             raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
         self.received_htlcs_pending_removal.add((chan, htlc_id))
@@ -2333,12 +2598,13 @@ class Peer(Logger, EventListener):
             sha256_of_onion=reason.data,
             failure_code=reason.code)
 
-    def on_revoke_and_ack(self, chan: Channel, payload):
-        if chan.peer_state == PeerState.BAD:
-            return
+    def on_revoke_and_ack(self, chan: Channel, payload) -> None:
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received revoke_and_ack in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_revoke_and_ack. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)
         self.lnworker.save_channel(chan)
@@ -2354,8 +2620,11 @@ class Peer(Logger, EventListener):
         await self.taskgroup.spawn(async_wrapper)
 
     def on_update_fee(self, chan: Channel, payload):
-        if chan.peer_state != PeerState.GOOD:  # should never happen
-            raise Exception(f"received update_fee in unexpected {chan.peer_state=!r}")
+        if not chan.can_update_ctx(proposer=REMOTE):
+            self.logger.warning(
+                f"on_update_fee. dropping message. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            return
         feerate = payload["feerate_per_kw"]
         chan.update_fee(feerate, False)
 
@@ -2363,51 +2632,70 @@ class Peer(Logger, EventListener):
         """
         called when our fee estimates change
         """
-        if not chan.can_send_ctx_updates():
+        if not chan.can_update_ctx(proposer=LOCAL):
             return
         if chan.get_state() != ChannelState.OPEN:
             return
-        feerate_per_kw = self.lnworker.current_target_feerate_per_kw()
-        def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> bool:
-            # We raise fees more aggressively than we lower them. Overpaying is not too bad,
-            # but lowballing can be fatal if we can't even get into the mempool...
-            high_fee = 2 * feerate_per_kw  # type: Union[float, int]
-            low_fee = self.lnworker.current_low_feerate_per_kw()  # type: Union[float, int]
-            low_fee = max(low_fee, 0.75 * feerate_per_kw)
-            # make sure low_feerate and target_feerate are not too close to each other:
-            low_fee = min(low_fee, feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
-            assert low_fee < high_fee, (low_fee, high_fee)
-            return not (low_fee < chan_feerate < high_fee)
+        current_feerate_per_kw: Optional[int] = self.lnworker.current_target_feerate_per_kw(
+            has_anchors=chan.has_anchors()
+        )
+        if current_feerate_per_kw is None:
+            return
+        # add some buffer to anchor chan fees as we always act at the lower end and don't
+        # want to get kicked out of the mempool immediately if it grows
+        fee_buffer = current_feerate_per_kw * 0.5 if chan.has_anchors() else 0
+        update_feerate_per_kw = int(current_feerate_per_kw + fee_buffer)
+        def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> Optional[bool]:
+            if chan.has_anchors():
+                # TODO: once package relay and electrum servers with submitpackage are more common,
+                # TODO: we should reconsider this logic and move towards 0 fee ctx
+                # update if we used up half of the buffer or the fee decreased a lot again
+                fee_increased = current_feerate_per_kw + (fee_buffer / 2) > chan_feerate
+                changed_significantly = abs((chan_feerate - update_feerate_per_kw) / chan_feerate) > 0.2
+                return fee_increased or changed_significantly
+            else:
+                # We raise fees more aggressively than we lower them. Overpaying is not too bad,
+                # but lowballing can be fatal if we can't even get into the mempool...
+                high_fee = 2 * current_feerate_per_kw  # type: # Union[float, int]
+                low_fee = self.lnworker.current_low_feerate_per_kw_srk_channel()  # type: Optional[Union[float, int]]
+                if low_fee is None:
+                    return None
+                low_fee = max(low_fee, 0.75 * current_feerate_per_kw)
+                # make sure low_feerate and target_feerate are not too close to each other:
+                low_fee = min(low_fee, current_feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
+                assert low_fee < high_fee, (low_fee, high_fee)
+                return not (low_fee < chan_feerate < high_fee)
         if not chan.constraints.is_initiator:
             if constants.net is not constants.BitcoinRegtest:
                 chan_feerate = chan.get_latest_feerate(LOCAL)
-                ratio = chan_feerate / feerate_per_kw
+                ratio = chan_feerate / update_feerate_per_kw
                 if ratio < 0.5:
                     # Note that we trust the Electrum server about fee rates
                     # Thus, automated force-closing might not be a good idea
                     # Maybe we should display something in the GUI instead
                     self.logger.warning(
                         f"({chan.get_id_for_log()}) feerate is {chan_feerate} sat/kw, "
-                        f"current recommended feerate is {feerate_per_kw} sat/kw, consider force closing!")
+                        f"current recommended feerate is {update_feerate_per_kw} sat/kw, consider force closing!")
             return
         # it is our responsibility to update the fee
         chan_fee = chan.get_next_feerate(REMOTE)
         if does_chan_fee_need_update(chan_fee):
             self.logger.info(f"({chan.get_id_for_log()}) onchain fees have changed considerably. updating fee.")
         elif chan.get_latest_ctn(REMOTE) == 0:
-            # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730
+            # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730 (fixed in 2022)
             self.logger.info(f"({chan.get_id_for_log()}) updating fee to bump remote ctn")
-            if feerate_per_kw == chan_fee:
-                feerate_per_kw += 1
+            if current_feerate_per_kw == chan_fee:
+                update_feerate_per_kw += 1
         else:
             return
-        self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
-                         f"new feerate {feerate_per_kw}")
-        chan.update_fee(feerate_per_kw, True)
+        self.logger.info(f"({chan.get_id_for_log()}) current pending feerate {chan_fee}. "
+                         f"new feerate {update_feerate_per_kw}")
+        assert update_feerate_per_kw >= FEERATE_PER_KW_MIN_RELAY_LIGHTNING, f"fee below minimum: {update_feerate_per_kw}"
+        chan.update_fee(update_feerate_per_kw, True)
         self.send_message(
             "update_fee",
             channel_id=chan.channel_id,
-            feerate_per_kw=feerate_per_kw)
+            feerate_per_kw=update_feerate_per_kw)
         self.maybe_send_commitment(chan)
 
     @log_exceptions
@@ -2421,24 +2709,26 @@ class Peer(Logger, EventListener):
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         except asyncio.TimeoutError:
             txid = chan.unconfirmed_closing_txid
-            self.logger.info(f'({chan.get_id_for_log()}) did not send closing_signed, {txid}')
+            self.logger.warning(f'({chan.get_id_for_log()}) did not send closing_signed, {txid}')
             if txid is None:
                 raise Exception('The remote peer did not send their final signature. The channel may not have been be closed')
         return txid
 
     @non_blocking_msg_handler
     async def on_shutdown(self, chan: Channel, payload):
-        # TODO: A receiving node: if it hasn't received a funding_signed (if it is a
-        #  funder) or a funding_created (if it is a fundee):
-        #  SHOULD send an error and fail the channel.
         if chan.peer_state != PeerState.GOOD:  # should never happen
             raise Exception(f"received shutdown in unexpected {chan.peer_state=!r}")
+        if not self.can_send_shutdown(chan, proposer=REMOTE):
+            self.logger.warning(
+                f"on_shutdown. illegal action. "
+                f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
+            self.send_error(chan.channel_id, message="cannot process 'shutdown' in current channel state.")
         their_scriptpubkey = payload['scriptpubkey']
         their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
         # BOLT-02 check if they use the upfront shutdown script they advertised
         if self.is_upfront_shutdown_script() and their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
-                await self.send_warning(
+                self.send_warning(
                     chan.channel_id,
                     "remote didn't use upfront shutdown script it committed to in channel opening",
                     close_connection=True)
@@ -2449,7 +2739,7 @@ class Peer(Logger, EventListener):
             elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
                 pass
             else:
-                await self.send_warning(
+                self.send_warning(
                     chan.channel_id,
                     f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}',
                     close_connection=True)
@@ -2458,23 +2748,32 @@ class Peer(Logger, EventListener):
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
         else:
-            chan = self.channels[chan_id]
             await self.send_shutdown(chan)
             txid = await self._shutdown(chan, payload, is_local=False)
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
-    def can_send_shutdown(self, chan: Channel):
+    def can_send_shutdown(self, chan: Channel, *, proposer: HTLCOwner) -> bool:
+        if chan.get_state() >= ChannelState.CLOSED:
+            return False
         if chan.get_state() >= ChannelState.OPENING:
             return True
-        if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
-            return True
-        if not chan.constraints.is_initiator and chan.channel_id in self.funding_signed_sent:
-            return True
+        if proposer == LOCAL:
+            if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
+                return True
+            if not chan.constraints.is_initiator and chan.channel_id in self.funding_signed_sent:
+                return True
+        else:  # proposer == REMOTE
+            # (from BOLT-02)
+            #   A receiving node:
+            #       - if it hasn't received a funding_signed (if it is a funder) or a funding_created (if it is a fundee):
+            #           - SHOULD send an error and fail the channel.
+            # ^ that check is equivalent to `chan.get_state() < ChannelState.OPENING`, which is already checked.
+            pass
         return False
 
     async def send_shutdown(self, chan: Channel):
-        if not self.can_send_shutdown(chan):
-            raise Exception('cannot send shutdown')
+        if not self.can_send_shutdown(chan, proposer=LOCAL):
+            raise Exception(f"cannot send shutdown. chan={chan.get_id_for_log()}. {chan.get_state()=!r}")
         if chan.config[LOCAL].upfront_shutdown_script:
             scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
         else:
@@ -2496,9 +2795,10 @@ class Peer(Logger, EventListener):
         if config.TEST_SHUTDOWN_FEE:
             our_fee = config.TEST_SHUTDOWN_FEE
         else:
-            fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            fee_rate_per_kb = self.network.fee_estimates.eta_target_to_fee(FEE_LN_ETA_TARGET)
             if fee_rate_per_kb is None:  # fallback
-                fee_rate_per_kb = self.network.config.fee_per_kb()
+                from .fee_policy import FeePolicy
+                fee_rate_per_kb = FeePolicy(config.FEE_POLICY).fee_per_kb(self.network)
             if fee_rate_per_kb is not None:
                 our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
             # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
@@ -2721,7 +3021,7 @@ class Peer(Logger, EventListener):
             self._htlc_switch_iterstart_event.clear()
             self._maybe_cleanup_received_htlcs_pending_removal()
             for chan_id, chan in self.channels.items():
-                if not chan.can_send_ctx_updates():
+                if not chan.can_update_ctx(proposer=LOCAL):
                     continue
                 self.maybe_send_commitment(chan)
                 done = set()
@@ -2899,8 +3199,8 @@ class Peer(Logger, EventListener):
         try:
             processed_onion = process_onion_packet(
                 onion_packet,
-                associated_data=payment_hash,
                 our_onion_private_key=self.privkey,
+                associated_data=payment_hash,
                 is_trampoline=is_trampoline)
         except UnsupportedOnionPacketVersion:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
@@ -2916,3 +3216,7 @@ class Peer(Logger, EventListener):
         if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion
+
+    def on_onion_message(self, payload):
+        if hasattr(self.lnworker, 'onion_message_manager'):  # only on LNWallet
+            self.lnworker.onion_message_manager.on_onion_message(payload)

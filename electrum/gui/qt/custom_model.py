@@ -1,7 +1,7 @@
 # loosely based on
 # http://trevorius.com/scrapbook/uncategorized/pyqt-custom-abstractitemmodel/
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore
 
 
 class CustomNode:
@@ -37,7 +37,6 @@ class CustomNode:
         child._parent = self
         child._row = len(self._children)
         self._children.append(child)
-
 
 
 class CustomModel(QtCore.QAbstractItemModel):

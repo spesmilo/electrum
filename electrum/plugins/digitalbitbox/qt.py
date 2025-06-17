@@ -9,8 +9,8 @@ from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet, Abstract_Wallet
 from electrum.util import UserCancelled, UserFacingException
 
-from electrum.plugins.hw_wallet.qt import QtHandlerBase, QtPluginBase
-from electrum.plugins.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
+from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
+from electrum.hw_wallet.plugin import only_hook_if_libraries_available, OperationCancelled
 
 from electrum.gui.qt.wizard.wallet import WCScriptAndDerivation, WCHWXPub, WCHWUnlock
 
@@ -29,26 +29,23 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
 
     @only_hook_if_libraries_available
     @hook
-    def receive_menu(self, menu, addrs, wallet: Abstract_Wallet):
-        if type(wallet) is not Standard_Wallet:
-            return
-
-        keystore = wallet.get_keystore()
-        if type(keystore) is not self.keystore_class:
-            return
-
+    def receive_menu(self, menu, addrs, wallet):
         if not self.is_mobile_paired():
             return
+        if len(addrs) != 1:
+            return
+        if wallet.get_txin_type(addrs[0]) != 'p2pkh':
+            return
+        self._add_menu_action(menu, addrs[0], wallet)
 
-        if len(addrs) == 1:
-            addr = addrs[0]
-            if wallet.get_txin_type(addr) != 'p2pkh':
-                return
-
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addr, keystore))
-
-            menu.addAction(_("Show on {}").format(self.device), show_address)
+    @only_hook_if_libraries_available
+    @hook
+    def transaction_dialog_address_menu(self, menu, addr, wallet):
+        if not self.is_mobile_paired():
+            return
+        if wallet.get_txin_type(addr) != 'p2pkh':
+            return
+        self._add_menu_action(menu, addr, wallet)
 
     @hook
     def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
@@ -68,10 +65,6 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
 class DigitalBitbox_Handler(QtHandlerBase):
     def __init__(self, win):
         super(DigitalBitbox_Handler, self).__init__(win, 'Digital Bitbox')
-
-    def query_choice(self, msg, labels):
-        choices = [(i, v) for i, v in enumerate(labels)]
-        return QtHandlerBase.query_choice(self, msg, choices)
 
 
 class WCDigitalBitboxScriptAndDerivation(WCScriptAndDerivation):

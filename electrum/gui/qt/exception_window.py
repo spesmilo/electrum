@@ -99,6 +99,9 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         main_box.addLayout(buttons)
 
+        # prioritizes the window input over all other windows
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+
         self.setLayout(main_box)
         self.show()
 
@@ -112,6 +115,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
                               msg=text,
                               rich_text=True)
             self.close()
+
         def on_failure(exc_info):
             e = exc_info[1]
             self.logger.error('There was a problem with the automatic reporting', exc_info=exc_info)

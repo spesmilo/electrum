@@ -1,17 +1,20 @@
 import threading
 from concurrent.futures import CancelledError
 from asyncio.exceptions import TimeoutError
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
+import electrum_ecc as ecc
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.gui import messages
 from electrum.util import bfh
+from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
+from electrum.fee_policy import FeePolicy
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
@@ -41,10 +44,14 @@ class QEChannelOpener(QObject, AuthMixin):
         self._valid = False
         self._opentx = None
         self._txdetails = None
+        self._warning = ''
+        self._determine_max_message = None
 
         self._finalizer = None
         self._node_pubkey = None
         self._connect_str_resolved = None
+
+        self._updating_max = False
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -87,6 +94,21 @@ class QEChannelOpener(QObject, AuthMixin):
     def valid(self):
         return self._valid
 
+    def setValid(self, is_valid):
+        if self._valid != is_valid:
+            self._valid = is_valid
+            self.validChanged.emit()
+
+    warningChanged = pyqtSignal()
+    @pyqtProperty(str, notify=warningChanged)
+    def warning(self):
+        return self._warning
+
+    def setWarning(self, warning):
+        if self._warning != warning:
+            self._warning = warning
+            self.warningChanged.emit()
+
     finalizerChanged = pyqtSignal()
     @pyqtProperty(QETxFinalizer, notify=finalizerChanged)
     def finalizer(self):
@@ -101,10 +123,9 @@ class QEChannelOpener(QObject, AuthMixin):
     def trampolineNodeNames(self):
         return list(hardcoded_trampoline_nodes().keys())
 
-    # FIXME min channel funding amount
     # FIXME have requested funding amount
     def validate(self):
-        """side-effects: sets self._valid, self._node_pubkey, self._connect_str_resolved"""
+        """side-effects: sets self._node_pubkey, self._connect_str_resolved"""
         connect_str_valid = False
         if self._connect_str:
             self._logger.debug(f'checking if {self._connect_str=!r} is valid')
@@ -124,19 +145,36 @@ class QEChannelOpener(QObject, AuthMixin):
                     self._connect_str_resolved = self._connect_str
                     connect_str_valid = True
 
+        self.setWarning('')
+
         if not connect_str_valid:
-            self._valid = False
-            self.validChanged.emit()
+            self.setValid(False)
             return
 
         self._logger.debug(f'amount={self._amount}')
         if not self._amount or not (self._amount.satsInt > 0 or self._amount.isMax):
-            self._valid = False
-            self.validChanged.emit()
+            self.setValid(False)
             return
 
-        self._valid = True
-        self.validChanged.emit()
+        # for MAX, estimate is assumed to be calculated and set in self._amount.satsInt
+        if self._amount.satsInt < MIN_FUNDING_SAT:
+            message = _('Minimum required amount: {}').format(
+                self._wallet.wallet.config.format_amount_and_units(MIN_FUNDING_SAT)
+            )
+            if self._amount.isMax and self._determine_max_message:
+                message += '\n' + self._determine_max_message
+            self.setWarning(message)
+            self.setValid(False)
+            return
+
+        if self._amount.satsInt > self._wallet.wallet.config.LIGHTNING_MAX_FUNDING_SAT:
+            self.setWarning(_('Amount is above maximum channel size: {}').format(
+                self._wallet.wallet.config.format_amount_and_units(self._wallet.wallet.config.LIGHTNING_MAX_FUNDING_SAT)
+            ))
+            self.setValid(False)
+            return
+
+        self.setValid(True)
 
     @pyqtSlot(str, result=bool)
     def validateConnectString(self, connect_str):
@@ -158,7 +196,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
         lnworker = self._wallet.wallet.lnworker
         if lnworker.has_conflicting_backup_with(self._node_pubkey) and not confirm_backup_conflict:
-            self.conflictingBackup.emit(messages.MGS_CONFLICTING_BACKUP_INSTANCE)
+            self.conflictingBackup.emit(messages.MSG_CONFLICTING_BACKUP_INSTANCE)
             return
 
         amount = '!' if self._amount.isMax else self._amount.satsInt
@@ -166,11 +204,11 @@ class QEChannelOpener(QObject, AuthMixin):
 
         coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
 
-        mktx = lambda amt: lnworker.mktx_for_open_channel(
+        mktx = lambda amt, fee_policy: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amt,
             node_id=self._node_pubkey,
-            fee_est=None)
+            fee_policy=fee_policy)
 
         acpt = lambda tx: self.do_open_channel(tx, self._connect_str_resolved, self._wallet.password)
 
@@ -228,3 +266,28 @@ class QEChannelOpener(QObject, AuthMixin):
     @pyqtSlot(str, result=str)
     def channelBackup(self, cid):
         return self._wallet.wallet.lnworker.export_channel_backup(bfh(cid))
+
+    @pyqtSlot()
+    def updateMaxAmount(self):
+        if self._updating_max:
+            return
+
+        self._updating_max = True
+
+        def calc_max():
+            try:
+                coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
+                dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
+                make_tx = lambda fee_policy: self._wallet.wallet.lnworker.mktx_for_open_channel(
+                    coins=coins,
+                    funding_sat='!',
+                    node_id=dummy_nodeid,
+                    fee_policy=fee_policy)
+
+                amount, self._determine_max_message = self._wallet.determine_max(mktx=make_tx)
+                self._amount.satsInt = amount if amount else 0
+            finally:
+                self._updating_max = False
+                self.validate()
+
+        threading.Thread(target=calc_max, daemon=True).start()

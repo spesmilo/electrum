@@ -14,8 +14,8 @@ from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, Device
 from electrum.network import Network
 
-from electrum.plugins.hw_wallet import HW_PluginBase, HardwareClientBase
-from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum.hw_wallet import HW_PluginBase, HardwareClientBase
+from electrum.hw_wallet.plugin import OutdatedHwFirmwareException
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo
@@ -33,6 +33,7 @@ _logger = get_logger(__name__)
 
 try:
     # Do imports
+    from .jadepy import jade
     from .jadepy.jade import JadeAPI
     from .jadepy.jade_serial import JadeSerialImpl
     from serial.tools import list_ports
@@ -191,7 +192,7 @@ class Jade_Client(HardwareClientBase):
 
         # Signature verification does not work with anti-exfil, so stick with default (rfc6979)
         sig = self.jade.sign_message(path, message)
-        return base64.b64decode(sig)
+        return base64.b64decode(sig, validate=True)
 
     @runs_in_hwd_thread
     def sign_psbt(self, psbt_bytes):

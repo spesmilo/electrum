@@ -10,7 +10,7 @@ Image {
     property bool lagging: connected && Network.isLagging
     property bool fork: connected && Network.chaintips > 1
     property bool syncing: connected && Daemon.currentWallet && Daemon.currentWallet.synchronizing
-    property bool proxy: connected && 'mode' in Network.proxy && Network.proxy.mode
+    property bool proxy: connected && Network.proxy.enabled
 
     // ?: in order to keep this a binding..
     source: Qt.resolvedUrl(!connected

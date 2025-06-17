@@ -9,7 +9,6 @@ import re
 import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from typing import Optional, TYPE_CHECKING
 from functools import cached_property
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 
@@ -45,11 +44,13 @@ class HandshakeState(object):
         self.h = sha256(self.h + data)
         return self.h
 
+
 def get_nonce_bytes(n):
     """BOLT 8 requires the nonce to be 12 bytes, 4 bytes leading
     zeroes and 8 bytes little endian encoded 64 bit integer.
     """
     return b"\x00"*4 + n.to_bytes(8, 'little')
+
 
 def aead_encrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
@@ -58,12 +59,14 @@ def aead_encrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) ->
                                      associated_data=associated_data,
                                      data=data)
 
+
 def aead_decrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
     return chacha20_poly1305_decrypt(key=key,
                                      nonce=nonce_bytes,
                                      associated_data=associated_data,
                                      data=data)
+
 
 def get_bolt8_hkdf(salt, ikm):
     """RFC5869 HKDF instantiated in the specific form
@@ -82,6 +85,7 @@ def get_bolt8_hkdf(salt, ikm):
     T2 = hmac_oneshot(prk, T1 + info + b"\x02", digest=hashlib.sha256)
     assert len(T1 + T2) == 64
     return T1, T2
+
 
 def act1_initiator_message(hs, epriv, epub):
     ss = get_ecdh(epriv, hs.responder_pub)
@@ -119,6 +123,7 @@ def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as strin
         raise ConnStringFormatError('Port number must be decimal')
     return host, port
 
+
 def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
     """Takes a connection-string-like str, and returns a tuple (node_id, rest),
     where rest is typically a host (with maybe port). Examples:
@@ -143,6 +148,7 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
     except Exception:
         raise ConnStringFormatError('Invalid node ID, must be 33 bytes and hexadecimal')
     return node_id, rest
+
 
 class LNPeerAddr:
     # note: while not programmatically enforced, this class is meant to be *immutable*
@@ -193,11 +199,15 @@ class LNPeerAddr:
     def __hash__(self):
         return hash((self.host, self.port, self.pubkey))
 
+
 class LNTransportBase:
     reader: StreamReader
     writer: StreamWriter
     privkey: bytes
     peer_addr: Optional[LNPeerAddr] = None
+
+    def __init__(self):
+        self.drain_write_lock = asyncio.Lock()
 
     def name(self) -> str:
         pubkey = self.remote_pubkey()
@@ -217,6 +227,12 @@ class LNTransportBase:
         assert len(lc) == 18
         assert len(c) == len(msg) + 16
         self.writer.write(lc+c)
+
+    async def send_bytes_and_drain(self, msg: bytes) -> None:
+        """Should be used when possible (in async scope), to avoid memory exhaustion."""
+        async with self.drain_write_lock:
+            self.send_bytes(msg)
+            await self.writer.drain()
 
     async def read_messages(self):
         buffer = bytearray()

@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 import os
-import sys
 import time
 import datetime
 from datetime import date
@@ -34,18 +33,17 @@ import enum
 from decimal import Decimal
 
 from PyQt6.QtGui import QFont, QBrush, QColor
-from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
-from PyQt6.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
-                             QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
+from PyQt6.QtWidgets import (QMenu, QHeaderView, QLabel, QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
 from electrum.gui import messages
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
-                           Satoshis, Fiat, format_time)
+                           Satoshis, format_time)
 from electrum.logging import get_logger, Logger
 from electrum.simple_config import SimpleConfig
 
@@ -94,6 +92,7 @@ class HistorySortModel(QSortFilterProxyModel):
             return v1 < v2
         except Exception:
             return False
+
 
 def get_item_key(tx_item):
     return tx_item.get('txid') or tx_item['payment_hash']
@@ -256,7 +255,7 @@ class HistoryModel(CustomModel, Logger):
 
     def get_domain(self):
         """Overridden in address_dialog.py"""
-        return self.window.wallet.get_addresses()
+        return None
 
     def should_include_lightning_payments(self) -> bool:
         """Overridden in address_dialog.py"""
@@ -285,7 +284,8 @@ class HistoryModel(CustomModel, Logger):
         if selected:
             selected_row = selected.row()
         fx = self.window.fx
-        if fx: fx.history_used_spot = False
+        if fx:
+            fx.history_used_spot = False
         wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
@@ -350,6 +350,7 @@ class HistoryModel(CustomModel, Logger):
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.view.showColumn(col) if b else self.view.hideColumn(col)
+
         # txid
         set_visible(HistoryColumns.TXID, False)
         set_visible(HistoryColumns.SHORT_ID, False)
@@ -397,7 +398,7 @@ class HistoryModel(CustomModel, Logger):
                 continue
             self.update_tx_mined_status(tx_hash, tx_mined_info)
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):
         assert orientation == Qt.Orientation.Horizontal
         if role != Qt.ItemDataRole.DisplayRole:
             return None
@@ -406,9 +407,9 @@ class HistoryModel(CustomModel, Logger):
         fiat_acq_title = 'n/a fiat acquisition price'
         fiat_cg_title = 'n/a fiat capital gains'
         if self.should_show_fiat():
-            fiat_title = '%s '%fx.ccy + _('Value')
-            fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
-            fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
+            fiat_title = '%s ' % fx.ccy + _('Value')
+            fiat_acq_title = '%s ' % fx.ccy + _('Acquisition price')
+            fiat_cg_title = '%s ' % fx.ccy + _('Capital Gains')
         return {
             HistoryColumns.STATUS: _('Date'),
             HistoryColumns.DESCRIPTION: _('Description'),
@@ -578,8 +579,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d.setMinimumSize(600, 150)
         d.date = None
         vbox = QVBoxLayout()
+
         def on_date(date):
             d.date = date
+
         cal = QCalendarWidget()
         cal.setGridVisible(True)
         cal.clicked[QDate].connect(on_date)
@@ -598,11 +601,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.main_window.show_message(_("Enable fiat exchange rate with history."))
             return
         fx = self.main_window.fx
-        h = self.wallet.get_detailed_history(
-            from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
-            to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,
+        summary = self.wallet.get_onchain_capital_gains(
+            from_timestamp=time.mktime(self.start_date.timetuple()) if self.start_date else None,
+            to_timestamp=time.mktime(self.end_date.timetuple()) if self.end_date else None,
             fx=fx)
-        summary = h['summary']
         if not summary:
             self.main_window.show_message(_("Nothing to summarize."))
             return
@@ -669,13 +671,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def plot_history_dialog(self):
         try:
             from electrum.plot import plot_history, NothingToPlotException
-        except Exception as e:
+        except ImportError as e:
             _logger.error(f"could not import electrum.plot. This feature needs matplotlib to be installed. exc={e!r}")
-            self.main_window.show_message(
-                _("Can't plot history.") + '\n' +
-                _("Perhaps some dependencies are missing...") + " (matplotlib?)" + '\n' +
-                f"Error: {e!r}"
-            )
+            self.main_window.show_message("\n\n".join([
+                _("This feature requires the 'matplotlib' Python library which is not "
+                  "included in Electrum by default."),
+                _("If you run Electrum from source you can install matplotlib to use this feature."),
+                _("It is not possible to install matplotlib inside the binary executables "
+                  "(e.g. AppImage or Windows installation).")
+            ]))
             return
         try:
             plt = plot_history(list(self.hm.transactions.values()))
@@ -689,7 +693,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         column = index.column()
         key = get_item_key(tx_item)
         if column == HistoryColumns.DESCRIPTION:
-            if self.wallet.set_label(key, text): #changed
+            if self.wallet.set_label(key, text):  # changed
                 self.hm.update_label(index)
                 self.main_window.update_completions()
         elif column == HistoryColumns.FIAT_VALUE:
@@ -735,7 +739,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # can happen e.g. before list is populated for the first time
             return
         tx_item = idx.internalPointer().get_data()
-        if tx_item.get('lightning') and tx_item['type'] == 'payment':
+        if tx_item.get('lightning'):
             menu = QMenu()
             menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)
@@ -762,7 +766,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         copy_menu.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
-            if self.isColumnHidden(c): continue
+            if self.isColumnHidden(c):
+                continue
             label = self.hm.headerData(c, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
@@ -795,8 +800,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
                         .format(num_child_txs))
-        if not self.main_window.question(msg=question,
-                                    title=_("Please confirm")):
+        if not self.main_window.question(msg=question, title=_("Please confirm")):
             return
         self.wallet.adb.remove_transaction(tx_hash)
         self.wallet.save_db()
@@ -841,29 +845,52 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.main_window.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        hist = self.wallet.get_detailed_history(fx=self.main_window.fx)
-        txns = hist['transactions']
+        txns = self.wallet.get_full_history(fx=self.main_window.fx)
         lines = []
+
+        def get_all_fees_paid_sat(h_item: dict) -> int:
+            # gets all fees paid in an item (or group), as the outer group doesn't contain the
+            # transaction fees paid by the children
+            fees_sat = 0
+            for child in h_item.get('children', []):
+                fees_sat += child['fee_sat'] or 0 if 'fee_sat' in child \
+                                else (child.get('fee_msat', 0) or 0) // 1000
+
+            fees_sat += h_item['fee_sat'] or 0 if 'fee_sat' in h_item \
+                            else (h_item.get('fee_msat', 0) or 0) // 1000
+            return fees_sat
+
         if is_csv:
-            for item in txns:
-                lines.append([item['txid'],
-                              item.get('label', ''),
-                              item['confirmations'],
-                              item['bc_value'],
-                              item.get('fiat_value', ''),
-                              item.get('fee', ''),
-                              item.get('fiat_fee', ''),
-                              item['date']])
+            # sort by timestamp so the generated csv is more understandable on first sight
+            txns = dict(sorted(txns.items(), key=lambda h_item: h_item[1]['timestamp'] or 0))
+            for item in txns.values():
+                # tx groups will are shown as single element
+                line = [
+                    item.get('txid', ''),
+                    item.get('payment_hash', ''),
+                    item.get('label', ''),
+                    item.get('confirmations', ''),
+                    item['bc_value'],
+                    item['ln_value'],
+                    item.get('fiat_value', ''),
+                    get_all_fees_paid_sat(item),
+                    item.get('fiat_fee', ''),
+                    item['date']
+                ]
+                lines.append(line)
+
         with open(file_name, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash",
+                transaction.writerow(["oc_transaction_hash",
+                                      "ln_payment_hash",
                                       "label",
                                       "confirmations",
-                                      "value",
+                                      "amount_chain_bc",
+                                      "amount_lightning_bc",
                                       "fiat_value",
-                                      "fee",
+                                      "network_fee_satoshi",
                                       "fiat_fee",
                                       "timestamp"])
                 for line in lines:

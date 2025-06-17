@@ -24,22 +24,20 @@
 # SOFTWARE.
 
 import ast
-from typing import Optional, TYPE_CHECKING
+import sys
+from typing import TYPE_CHECKING, Dict
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog,
-                             QSpinBox,  QFileDialog, QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QWidget, QHBoxLayout, QSlider)
+from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog, QSpinBox,  QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit, QWidget, QHBoxLayout, QSlider)
 
 from electrum.i18n import _, languages
-from electrum import util, paymentrequest
+from electrum import util
 from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
 
-from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
-                   CloseButton, QtEventListener)
+from .util import ColorScheme, HelpLabel, Buttons, CloseButton, QtEventListener
 
 
 if TYPE_CHECKING:
@@ -88,6 +86,7 @@ class SettingsDialog(QDialog, QtEventListener):
         lang_combo.setCurrentIndex(index)
         if not self.config.cv.LOCALIZATION_LANGUAGE.is_modifiable():
             for w in [lang_combo, lang_label]: w.setEnabled(False)
+
         def on_lang(x):
             lang_request = list(languages.keys())[lang_combo.currentIndex()]
             if lang_request != self.config.LOCALIZATION_LANGUAGE:
@@ -102,6 +101,7 @@ class SettingsDialog(QDialog, QtEventListener):
         nz.setValue(self.config.num_zeros)
         if not self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT.is_modifiable():
             for w in [nz, nz_label]: w.setEnabled(False)
+
         def on_nz():
             value = nz.value()
             if self.config.num_zeros != value:
@@ -114,6 +114,7 @@ class SettingsDialog(QDialog, QtEventListener):
         # lightning
         trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_USE_GOSSIP)
         trampoline_cb.setChecked(not self.config.LIGHTNING_USE_GOSSIP)
+
         def on_trampoline_checked(_x):
             use_trampoline = trampoline_cb.isChecked()
             if not use_trampoline:
@@ -121,7 +122,7 @@ class SettingsDialog(QDialog, QtEventListener):
                         _("Are you sure you want to disable trampoline?"),
                         _("Without this option, Electrum will need to sync with the Lightning network on every start."),
                         _("This may impact the reliability of your payments."),
-                ])):
+                ]), parent=self):
                     trampoline_cb.setCheckState(Qt.CheckState.Checked)
                     return
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
@@ -130,45 +131,27 @@ class SettingsDialog(QDialog, QtEventListener):
             else:
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
-            legacy_add_trampoline_cb.setEnabled(use_trampoline)
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
-        legacy_add_trampoline_cb = checkbox_from_configvar(self.config.cv.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
-        legacy_add_trampoline_cb.setChecked(self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE)
-        legacy_add_trampoline_cb.setEnabled(trampoline_cb.isChecked())
-        def on_legacy_add_trampoline_checked(_x):
-            self.config.LIGHTNING_LEGACY_ADD_TRAMPOLINE = legacy_add_trampoline_cb.isChecked()
-        legacy_add_trampoline_cb.stateChanged.connect(on_legacy_add_trampoline_checked)
-
-        remote_wt_cb = checkbox_from_configvar(self.config.cv.WATCHTOWER_CLIENT_ENABLED)
-        remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
-        def on_remote_wt_checked(_x):
-            self.config.WATCHTOWER_CLIENT_ENABLED = remote_wt_cb.isChecked()
-            self.watchtower_url_e.setEnabled(remote_wt_cb.isChecked())
-        remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
-        watchtower_url = self.config.WATCHTOWER_CLIENT_URL
-        self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.WATCHTOWER_CLIENT_ENABLED)
-        def on_wt_url():
-            url = self.watchtower_url_e.text() or None
-            self.config.WATCHTOWER_CLIENT_URL = url
-        self.watchtower_url_e.editingFinished.connect(on_wt_url)
-
         lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+
         def lnfee_update_vlabel(fee_val: int):
             lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+
         def lnfee_slider_moved():
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             lnfee_update_vlabel(fee_val)
+
         def lnfee_slider_released():
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+
         lnfee_slider = QSlider(Qt.Orientation.Horizontal)
         lnfee_slider.setRange(0, len(lnfee_map)-1)
         lnfee_slider.setTracking(True)
@@ -194,21 +177,17 @@ class SettingsDialog(QDialog, QtEventListener):
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
-        nostr_relays_label = HelpLabel.from_configvar(self.config.cv.NOSTR_RELAYS)
-        nostr_relays = self.config.NOSTR_RELAYS
-        self.nostr_relays_e = QLineEdit(nostr_relays)
-        def on_nostr_edit():
-            self.config.NOSTR_RELAYS = str(self.nostr_relays_e.text())
-        self.nostr_relays_e.editingFinished.connect(on_nostr_edit)
 
         msat_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_PREC_POST_SAT)
         msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
+
         def on_msat_checked(_x):
             prec = 3 if msat_cb.isChecked() else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.BTC_AMOUNTS_PREC_POST_SAT = prec
                 self.app.refresh_tabs_signal.emit()
+
         msat_cb.stateChanged.connect(on_msat_checked)
 
         # units
@@ -220,6 +199,7 @@ class SettingsDialog(QDialog, QtEventListener):
         unit_combo = QComboBox()
         unit_combo.addItems(units)
         unit_combo.setCurrentIndex(units.index(self.config.get_base_unit()))
+
         def on_unit(x, nz):
             unit_result = units[unit_combo.currentIndex()]
             if self.config.get_base_unit() == unit_result:
@@ -233,6 +213,7 @@ class SettingsDialog(QDialog, QtEventListener):
 
         thousandsep_cb = checkbox_from_configvar(self.config.cv.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
+
         def on_set_thousandsep(_x):
             checked = thousandsep_cb.isChecked()
             if self.config.amt_add_thousands_sep != checked:
@@ -250,6 +231,7 @@ class SettingsDialog(QDialog, QtEventListener):
             qr_combo.addItem(cam_desc, cam_path)
         index = qr_combo.findData(self.config.VIDEO_DEVICE_PATH)
         qr_combo.setCurrentIndex(index)
+
         def on_video_device(x):
             self.config.VIDEO_DEVICE_PATH = qr_combo.itemData(x)
         qr_combo.currentIndexChanged.connect(on_video_device)
@@ -260,6 +242,7 @@ class SettingsDialog(QDialog, QtEventListener):
         index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
+
         def on_colortheme(x):
             self.config.GUI_QT_COLOR_THEME = colortheme_combo.itemData(x)
             self.need_restart = True
@@ -267,16 +250,32 @@ class SettingsDialog(QDialog, QtEventListener):
 
         updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
+
         def on_set_updatecheck(_x):
             self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = updatecheck_cb.isChecked()
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
         filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
         filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
+
         def on_set_filelogging(_x):
             self.config.WRITE_LOGS_TO_DISK = filelogging_cb.isChecked()
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
+
+        screenshot_protection_cb = checkbox_from_configvar(
+            self.config.cv.GUI_QT_SCREENSHOT_PROTECTION
+        )
+        screenshot_protection_cb.setChecked(self.config.GUI_QT_SCREENSHOT_PROTECTION)
+        if sys.platform not in ['windows', 'win32']:
+            screenshot_protection_cb.setChecked(False)
+            screenshot_protection_cb.setDisabled(True)
+            screenshot_protection_cb.setToolTip(_("This option is only available on Windows"))
+
+        def on_set_screenshot_protection(_x):
+            self.config.GUI_QT_SCREENSHOT_PROTECTION = screenshot_protection_cb.isChecked()
+            self.need_restart = True
+        screenshot_protection_cb.stateChanged.connect(on_set_screenshot_protection)
 
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
@@ -289,9 +288,11 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(
             block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
+
         def showhide_block_ex_custom_e():
             block_ex_custom_e.setVisible(block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM)
         showhide_block_ex_custom_e()
+
         def on_be_combo(x):
             if block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM:
                 on_be_edit()
@@ -300,7 +301,9 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.config.BLOCK_EXPLORER_CUSTOM = None
                 self.config.BLOCK_EXPLORER = be_result
             showhide_block_ex_custom_e()
+
         block_ex_combo.currentIndexChanged.connect(on_be_combo)
+
         def on_be_edit():
             val = block_ex_custom_e.text()
             try:
@@ -308,6 +311,7 @@ class SettingsDialog(QDialog, QtEventListener):
             except Exception:
                 pass
             self.config.BLOCK_EXPLORER_CUSTOM = val
+
         block_ex_custom_e.editingFinished.connect(on_be_edit)
         block_ex_hbox = QHBoxLayout()
         block_ex_hbox.setContentsMargins(0, 0, 0, 0)
@@ -389,8 +393,6 @@ class SettingsDialog(QDialog, QtEventListener):
         units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
-        lightning_widgets.append((legacy_add_trampoline_cb, None))
-        lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
         lightning_widgets.append((lnfee_hlabel, lnfee_hbox_w))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
@@ -399,7 +401,7 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
-        misc_widgets.append((nostr_relays_label, self.nostr_relays_e))
+        misc_widgets.append((screenshot_protection_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
 

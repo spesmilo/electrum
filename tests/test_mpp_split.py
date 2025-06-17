@@ -15,10 +15,10 @@ class TestMppSplit(ElectrumTestCase):
         random.seed(0)
         # key tuple denotes (channel_id, node_id)
         self.channels_with_funds = {
-            (b"0", b"0"): 1_000_000_000,
-            (b"1", b"1"): 500_000_000,
-            (b"2", b"0"): 302_000_000,
-            (b"3", b"2"): 101_000_000,
+            (b"0", b"0"): (1_000_000_000, 3),
+            (b"1", b"1"): (500_000_000, 2),
+            (b"2", b"0"): (302_000_000, 2),
+            (b"3", b"2"): (101_000_000, 1),
         }
 
     def tearDown(self):
@@ -51,7 +51,7 @@ class TestMppSplit(ElectrumTestCase):
 
         with self.subTest(msg="do a payment with the maximal amount spendable over all channels"):
             splits = mpp_split.suggest_splits(
-                sum(self.channels_with_funds.values()), self.channels_with_funds, exclude_single_part_payments=True)
+                sum([x[0] for x in self.channels_with_funds.values()]), self.channels_with_funds, exclude_single_part_payments=True)
             self.assertEqual({
                 (b"0", b"0"): [1_000_000_000],
                 (b"1", b"1"): [500_000_000],
@@ -68,6 +68,31 @@ class TestMppSplit(ElectrumTestCase):
             # a splitting of the parts into two
             self.assertEqual(2, splits[4].config.number_parts())
 
+        with self.subTest(msg="no htlc slots available"):
+            channels = self.channels_with_funds.copy()
+            # set all available slots to 0
+            for chan, (amount, _slots) in channels.items():
+                channels[chan] = (amount, 0)
+            with self.assertRaises(NoPathFound):
+                mpp_split.suggest_splits(20_000_000, channels, exclude_single_part_payments=False)
+
+        with self.subTest(msg="only one channel can add htlcs"):
+            channels = self.channels_with_funds.copy()
+            # set all available slots to 0 except for the first channel
+            for chan, (amount, _slots) in channels.items():
+                if chan != (b"0", b"0"):
+                    channels[chan] = (amount, 0)
+            splits = mpp_split.suggest_splits(1_000_000_000, channels, exclude_single_part_payments=True)
+            for split in splits:
+                # check that the whole amount has been split on this channel
+                self.assertEqual(sum(split.config[(b"0", b"0")]), 1_000_000_000)
+
+        with self.subTest(msg="test exclude single channel splits"):
+            splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_channel_splits=True)
+            for split in splits:
+                for channel_split in split.config.values():
+                    assert len(channel_split) <= 1, split
+
     def test_send_to_single_node(self):
         splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_part_payments=False, exclude_multinode_payments=True)
         for split in splits:
@@ -75,7 +100,10 @@ class TestMppSplit(ElectrumTestCase):
 
     def test_saturation(self):
         """Split configurations which spend the full amount in a channel should be avoided."""
-        channels_with_funds = {(b"0", b"0"): 159_799_733_076, (b"1", b"1"): 499_986_152_000}
+        channels_with_funds = {
+            (b"0", b"0"): (159_799_733_076, 1),
+            (b"1", b"1"): (499_986_152_000, 1)
+        }
         splits = mpp_split.suggest_splits(600_000_000_000, channels_with_funds, exclude_single_part_payments=True)
 
         uses_full_amount = False
@@ -114,18 +142,21 @@ class TestMppSplit(ElectrumTestCase):
 
     def test_suggest_splits_single_channel(self):
         channels_with_funds = {
-            (b"0", b"0"): 1_000_000_000,
+            (b"0", b"0"): (1_000_000_000, 3),
         }
-
         with self.subTest(msg="do a payment with the maximal amount spendable on a single channel"):
             splits = mpp_split.suggest_splits(1_000_000_000, channels_with_funds, exclude_single_part_payments=False)
+            self.assertEqual(1, len(splits[0].config[(b"0", b"0")]))
             self.assertEqual({(b"0", b"0"): [1_000_000_000]}, splits[0].config)
+
         with self.subTest(msg="test sending an amount greater than what we have available"):
             self.assertRaises(NoPathFound, mpp_split.suggest_splits, *(1_100_000_000, channels_with_funds))
+
         with self.subTest(msg="test sending a large amount over a single channel in chunks"):
             mpp_split.PART_PENALTY = 0.5
             splits = mpp_split.suggest_splits(1_000_000_000, channels_with_funds, exclude_single_part_payments=False)
             self.assertEqual(2, len(splits[0].config[(b"0", b"0")]))
+
         with self.subTest(msg="test sending a large amount over a single channel in chunks"):
             mpp_split.PART_PENALTY = 0.3
             splits = mpp_split.suggest_splits(1_000_000_000, channels_with_funds, exclude_single_part_payments=False)

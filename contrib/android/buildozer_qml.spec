@@ -35,14 +35,17 @@ source.exclude_dirs =
     electrum/plugins/bitbox02,
     electrum/plugins/coldcard,
     electrum/plugins/digitalbitbox,
-    electrum/plugins/hw_wallet,
     electrum/plugins/jade,
     electrum/plugins/keepkey,
     electrum/plugins/ledger,
-    electrum/plugins/trezor,
+    electrum/plugins/nwc,
     electrum/plugins/payserver,
     electrum/plugins/revealer,
     electrum/plugins/safe_t,
+    electrum/plugins/swapserver,
+    electrum/plugins/timelock_recovery,
+    electrum/plugins/trezor,
+    electrum/plugins/watchtower,
     packages/qdarkstyle,
     packages/qtpy,
     packages/bin,
@@ -76,7 +79,6 @@ requirements =
     cryptography,
     pyqt6sip,
     pyqt6,
-    pillow,
     libzbar
 
 # (str) Presplash of the application
@@ -99,7 +101,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS
 
 # (int) Android API to use  (compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools

@@ -26,6 +26,7 @@ import os
 import re
 import ssl
 import sys
+import time
 import traceback
 import asyncio
 import socket
@@ -36,12 +37,14 @@ import itertools
 import logging
 import hashlib
 import functools
+import random
+import enum
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
-from aiorpcx.rawsocket import RSClient
+from aiorpcx.rawsocket import RSClient, RSTransport
 import certifi
 
 from .util import (ignore_exceptions, log_exceptions, bfh, ESocksProxy,
@@ -52,12 +55,13 @@ from . import x509
 from . import pem
 from . import version
 from . import blockchain
-from .blockchain import Blockchain, HEADER_SIZE
+from .blockchain import Blockchain, HEADER_SIZE, CHUNK_SIZE
 from . import bitcoin
 from . import constants
 from .i18n import _
 from .logging import Logger
 from .transaction import Transaction
+from .fee_policy import FEE_ETA_TARGETS
 
 if TYPE_CHECKING:
     from .network import Network
@@ -71,6 +75,9 @@ BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'
 assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
+
+MAX_NUM_HEADERS_PER_REQUEST = 2016
+assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
 
 
 class NetworkTimeout:
@@ -129,6 +136,14 @@ def assert_list_or_tuple(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a list or tuple')
 
 
+class ChainResolutionMode(enum.Enum):
+    CATCHUP = enum.auto()
+    BACKWARD = enum.auto()
+    BINARY = enum.auto()
+    FORK = enum.auto()
+    NO_FORK = enum.auto()
+
+
 class NotificationSession(RPCSession):
 
     def __init__(self, *args, interface: 'Interface', **kwargs):
@@ -137,6 +152,7 @@ class NotificationSession(RPCSession):
         self.cache = {}
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
+        self.taskgroup = interface.taskgroup
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
 
     async def handle_request(self, request):
@@ -272,6 +288,112 @@ class _RSClient(RSClient):
             raise ConnectError(e) from e
 
 
+class PaddedRSTransport(RSTransport):
+    """A raw socket transport that provides basic countermeasures against traffic analysis
+    by padding the jsonrpc payload with whitespaces to have ~uniform-size TCP packets.
+    (it is assumed that a network observer does not see plaintext transport contents,
+    due to it being wrapped e.g. in TLS)
+    """
+
+    MIN_PACKET_SIZE = 1024
+    WAIT_FOR_BUFFER_GROWTH_SECONDS = 1.0
+
+    session: Optional['RPCSession']
+
+    def __init__(self, *args, **kwargs):
+        RSTransport.__init__(self, *args, **kwargs)
+        self._sbuffer = bytearray()  # "send buffer"
+        self._sbuffer_task = None  # type: Optional[asyncio.Task]
+        self._sbuffer_has_data_evt = asyncio.Event()
+        self._last_send = time.monotonic()
+        self._force_send = False  # type: bool
+
+    # note: this does not call super().write() but is a complete reimplementation
+    async def write(self, message):
+        await self._can_send.wait()
+        if self.is_closing():
+            return
+        framed_message = self._framer.frame(message)
+        self._sbuffer += framed_message
+        self._sbuffer_has_data_evt.set()
+        self._maybe_consume_sbuffer()
+
+    def _maybe_consume_sbuffer(self) -> None:
+        """Maybe take some data from sbuffer and send it on the wire."""
+        if not self._can_send.is_set() or self.is_closing():
+            return
+        buf = self._sbuffer
+        if not buf:
+            return
+        # if there is enough data in the buffer, or if we haven't sent in a while, send now:
+        if not (
+            self._force_send
+            or len(buf) >= self.MIN_PACKET_SIZE
+            or self._last_send + self.WAIT_FOR_BUFFER_GROWTH_SECONDS < time.monotonic()
+        ):
+            return
+        assert buf[-2:] in (b"}\n", b"]\n"), f"unexpected json-rpc terminator: {buf[-2:]=!r}"
+        # either (1) pad length to next power of two, to create "lsize" packet:
+        payload_lsize = len(buf)
+        total_lsize = max(self.MIN_PACKET_SIZE, 2 ** (payload_lsize.bit_length()))
+        npad_lsize = total_lsize - payload_lsize
+        # or if that wasted a lot of bandwidth with padding, (2) defer sending some messages
+        # and create a packet with half that size ("ssize", s for small)
+        total_ssize = max(self.MIN_PACKET_SIZE, total_lsize // 2)
+        payload_ssize = buf.rfind(b"\n", 0, total_ssize)
+        if payload_ssize != -1:
+            payload_ssize += 1  # for "\n" char
+            npad_ssize = total_ssize - payload_ssize
+        else:
+            npad_ssize = float("inf")
+        # decide between (1) and (2):
+        if self._force_send or npad_lsize <= npad_ssize:
+            # (1) create "lsize" packet: consume full buffer
+            npad = npad_lsize
+            p_idx = payload_lsize
+        else:
+            # (2) create "ssize" packet: consume some, but defer some for later
+            npad = npad_ssize
+            p_idx = payload_ssize
+        # pad by adding spaces near end
+        # self.session.maybe_log(
+        #     f"PaddedRSTransport. calling low-level write(). "
+        #     f"chose between (lsize:{payload_lsize}+{npad_lsize}, ssize:{payload_ssize}+{npad_ssize}). "
+        #     f"won: {'tie' if npad_lsize == npad_ssize else 'lsize' if npad_lsize < npad_ssize else 'ssize'}."
+        # )
+        json_rpc_terminator = buf[p_idx-2:p_idx]
+        assert json_rpc_terminator in (b"}\n", b"]\n"), f"unexpected {json_rpc_terminator=!r}"
+        buf2 = buf[:p_idx-2] + (npad * b" ") + json_rpc_terminator
+        self._asyncio_transport.write(buf2)
+        self._last_send = time.monotonic()
+        del self._sbuffer[:p_idx]
+        if not self._sbuffer:
+            self._sbuffer_has_data_evt.clear()
+
+    async def _poll_sbuffer(self):
+        while not self.is_closing():
+            await self._can_send.wait()
+            await self._sbuffer_has_data_evt.wait()  # to avoid busy-waiting
+            self._maybe_consume_sbuffer()
+            # If there is still data in the buffer, sleep until it would time out.
+            # note: If the transport is ~idle, when we wake up, we will send the current buf data,
+            #       but if busy, we might wake up to completely new buffer contents. Either is fine.
+            if len(self._sbuffer) > 0:
+                timeout_abs = self._last_send + self.WAIT_FOR_BUFFER_GROWTH_SECONDS
+                timeout_rel = max(0.0, timeout_abs - time.monotonic())
+                await asyncio.sleep(timeout_rel)
+
+    def connection_made(self, transport: asyncio.BaseTransport):
+        super().connection_made(transport)
+        if isinstance(self.session, NotificationSession):
+            coro = self.session.taskgroup.spawn(self._poll_sbuffer())
+            self._sbuffer_task = self.loop.create_task(coro)
+        else:
+            # This a short-lived "fetch_certificate"-type session.
+            # No polling here, we always force-empty the buffer.
+            self._force_send = True
+
+
 class ServerAddr:
 
     def __init__(self, host: str, port: Union[int, str], *, protocol: str = None):
@@ -373,8 +495,6 @@ def _get_cert_path_for_host(*, config: 'SimpleConfig', host: str) -> str:
 
 class Interface(Logger):
 
-    LOGGING_SHORTCUT = 'i'
-
     def __init__(self, *, network: 'Network', server: ServerAddr):
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
@@ -402,8 +522,10 @@ class Interface(Logger):
         # Note that these values are updated before they are verified.
         # Especially during initial header sync, verification can take a long time.
         # Failing verification will get the interface closed.
-        self.tip_header = None
+        self.tip_header = None  # type: Optional[dict]
         self.tip = 0
+
+        self._headers_cache = {}  # type: Dict[int, bytes]
 
         self.fee_estimates_eta = {}  # type: Dict[int, int]
 
@@ -435,13 +557,13 @@ class Interface(Logger):
     def __str__(self):
         return f"<Interface {self.diagnostic_name()}>"
 
-    async def is_server_ca_signed(self, ca_ssl_context):
+    async def is_server_ca_signed(self, ca_ssl_context: ssl.SSLContext) -> bool:
         """Given a CA enforcing SSL context, returns True if the connection
         can be established. Returns False if the server has a self-signed
         certificate but otherwise is okay. Any other failures raise.
         """
         try:
-            await self.open_session(ca_ssl_context, exit_early=True)
+            await self.open_session(ssl_context=ca_ssl_context, exit_early=True)
         except ConnectError as e:
             cause = e.__cause__
             if (isinstance(cause, ssl.SSLCertVerificationError)
@@ -454,7 +576,7 @@ class Interface(Logger):
         # Good. We will use this server as CA-signed.
         return True
 
-    async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
+    async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context: ssl.SSLContext) -> None:
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
             if self._get_expected_fingerprint():
@@ -491,10 +613,10 @@ class Interface(Logger):
             self.logger.info(f"certificate has expired: {e}")
             os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
-        self._verify_certificate_fingerprint(bytearray(b))
+        self._verify_certificate_fingerprint(bytes(b))
         return True
 
-    async def _get_ssl_context(self):
+    async def _get_ssl_context(self) -> Optional[ssl.SSLContext]:
         if self.protocol != 's':
             # using plaintext TCP
             return None
@@ -532,6 +654,9 @@ class Interface(Logger):
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
                 self.got_disconnected.set()
+                # Make sure taskgroup gets cleaned-up. This explicit clean-up is needed here
+                # in case the "with taskgroup" ctx mgr never got a chance to run:
+                await self.taskgroup.cancel_remaining()
                 await self.network.connection_down(self)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
@@ -547,7 +672,7 @@ class Interface(Logger):
             self.logger.info(f'disconnecting due to: {repr(e)}')
             return
         try:
-            await self.open_session(ssl_context)
+            await self.open_session(ssl_context=ssl_context)
         except (asyncio.CancelledError, ConnectError, aiorpcx.socks.SOCKSError) as e:
             # make SSL errors for main interface more visible (to help servers ops debug cert pinning issues)
             if (isinstance(e, ConnectError) and isinstance(e.__cause__, ssl.SSLError)
@@ -606,9 +731,13 @@ class Interface(Logger):
         sslc = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
         sslc.check_hostname = False
         sslc.verify_mode = ssl.CERT_NONE
-        async with _RSClient(session_factory=RPCSession,
-                             host=self.host, port=self.port,
-                             ssl=sslc, proxy=self.proxy) as session:
+        async with _RSClient(
+            session_factory=RPCSession,
+            host=self.host, port=self.port,
+            ssl=sslc,
+            proxy=self.proxy,
+            transport=PaddedRSTransport,
+        ) as session:
             asyncio_transport = session.transport._asyncio_transport  # type: asyncio.BaseTransport
             ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
             return ssl_object.getpeercert(binary_form=True)
@@ -616,8 +745,9 @@ class Interface(Logger):
     def _get_expected_fingerprint(self) -> Optional[str]:
         if self.is_main_server():
             return self.network.config.NETWORK_SERVERFINGERPRINT
+        return None
 
-    def _verify_certificate_fingerprint(self, certificate):
+    def _verify_certificate_fingerprint(self, certificate: bytes) -> None:
         expected_fingerprint = self._get_expected_fingerprint()
         if not expected_fingerprint:
             return
@@ -628,31 +758,56 @@ class Interface(Logger):
             raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to cert fingerprint mismatch')
         self.logger.info("cert fingerprint verification passed")
 
-    async def get_block_header(self, height, assert_mode):
-        if not is_non_negative_integer(height):
-            raise Exception(f"{repr(height)} is not a block height")
-        self.logger.info(f'requesting block header {height} in mode {assert_mode}')
+    async def _maybe_warm_headers_cache(self, *, from_height: int, to_height: int, mode: ChainResolutionMode) -> None:
+        """Populate header cache for block heights in range [from_height, to_height]."""
+        assert from_height <= to_height, (from_height, to_height)
+        assert to_height - from_height < MAX_NUM_HEADERS_PER_REQUEST
+        if all(height in self._headers_cache for height in range(from_height, to_height+1)):
+            # cache already has all requested headers
+            return
         # use lower timeout as we usually have network.bhi_lock here
         timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        count = to_height - from_height + 1
+        headers = await self.get_block_headers(start_height=from_height, count=count, timeout=timeout, mode=mode)
+        for idx, raw_header in enumerate(headers):
+            header_height = from_height + idx
+            self._headers_cache[header_height] = raw_header
+
+    async def get_block_header(self, height: int, *, mode: ChainResolutionMode) -> dict:
+        if not is_non_negative_integer(height):
+            raise Exception(f"{repr(height)} is not a block height")
+        #self.logger.debug(f'get_block_header() {height} in {mode=}')
+        # use lower timeout as we usually have network.bhi_lock here
+        timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        if raw_header := self._headers_cache.get(height):
+            return blockchain.deserialize_header(raw_header, height)
+        self.logger.info(f'requesting block header {height} in {mode=}')
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
-    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
-        if not is_non_negative_integer(height):
-            raise Exception(f"{repr(height)} is not a block height")
-        index = height // 2016
-        if can_return_early and index in self._requested_chunks:
-            return
-        self.logger.info(f"requesting chunk from height {height}")
-        size = 2016
-        if tip is not None:
-            size = min(size, tip - index * 2016 + 1)
-            size = max(size, 0)
-        try:
-            self._requested_chunks.add(index)
-            res = await self.session.send_request('blockchain.block.headers', [index * 2016, size])
-        finally:
-            self._requested_chunks.discard(index)
+    async def get_block_headers(
+        self,
+        *,
+        start_height: int,
+        count: int,
+        timeout=None,
+        mode: Optional[ChainResolutionMode] = None,
+    ) -> Sequence[bytes]:
+        """Request a number of consecutive block headers, starting at `start_height`.
+        `count` is the num of requested headers, BUT note the server might return fewer than this
+        (if range would extend beyond its tip).
+        note: the returned headers are not verified or parsed at all.
+        """
+        if not is_non_negative_integer(start_height):
+            raise Exception(f"{repr(start_height)} is not a block height")
+        if not is_non_negative_integer(count) or not (0 < count <= MAX_NUM_HEADERS_PER_REQUEST):
+            raise Exception(f"{repr(count)} not an int in range ]0, {MAX_NUM_HEADERS_PER_REQUEST}]")
+        self.logger.info(
+            f"requesting block headers: [{start_height}, {start_height+count-1}], {count=}"
+            + (f" (in {mode=})" if mode is not None else "")
+        )
+        res = await self.session.send_request('blockchain.block.headers', [start_height, count], timeout=timeout)
+        # check response
         assert_dict_contains_field(res, field_name='count')
         assert_dict_contains_field(res, field_name='hex')
         assert_dict_contains_field(res, field_name='max')
@@ -661,25 +816,66 @@ class Interface(Logger):
         assert_hex_str(res['hex'])
         if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
             raise RequestCorrupted('inconsistent chunk hex and count')
-        # we never request more than 2016 headers, but we enforce those fit in a single response
-        if res['max'] < 2016:
-            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < 2016")
-        if res['count'] != size:
-            raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
-        conn = self.blockchain.connect_chunk(index, res['hex'])
+        # we never request more than MAX_NUM_HEADERS_IN_REQUEST headers, but we enforce those fit in a single response
+        if res['max'] < MAX_NUM_HEADERS_PER_REQUEST:
+            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < {MAX_NUM_HEADERS_PER_REQUEST}")
+        if res['count'] > count:
+            raise RequestCorrupted(f"asked for {count} headers but got more: {res['count']}")
+        elif res['count'] < count:
+            # we only tolerate getting fewer headers if it is due to reaching the tip
+            end_height = start_height + res['count'] - 1
+            if end_height < self.tip:  # still below tip. why did server not send more?!
+                raise RequestCorrupted(
+                    f"asked for {count} headers but got fewer: {res['count']}. ({start_height=}, {self.tip=})")
+        # checks done.
+        headers = list(util.chunks(bfh(res['hex']), size=HEADER_SIZE))
+        return headers
+
+    async def request_chunk(
+        self,
+        height: int,
+        *,
+        tip: Optional[int] = None,
+        can_return_early: bool = False,
+    ) -> Optional[Tuple[bool, int]]:
+        if not is_non_negative_integer(height):
+            raise Exception(f"{repr(height)} is not a block height")
+        index = height // CHUNK_SIZE
+        if can_return_early and index in self._requested_chunks:
+            return None
+        #self.logger.debug(f"requesting chunk from height {height}")
+        size = CHUNK_SIZE
+        if tip is not None:
+            size = min(size, tip - index * CHUNK_SIZE + 1)
+            size = max(size, 0)
+        try:
+            self._requested_chunks.add(index)
+            headers = await self.get_block_headers(start_height=index * CHUNK_SIZE, count=size)
+        finally:
+            self._requested_chunks.discard(index)
+        conn = self.blockchain.connect_chunk(index, data=b"".join(headers))
         if not conn:
             return conn, 0
-        return conn, res['count']
+        return conn, len(headers)
 
     def is_main_server(self) -> bool:
         return (self.network.interface == self or
                 self.network.interface is None and self.network.default_server == self.server)
 
-    async def open_session(self, sslc, exit_early=False):
+    async def open_session(
+        self,
+        *,
+        ssl_context: Optional[ssl.SSLContext],
+        exit_early: bool = False,
+    ):
         session_factory = lambda *args, iface=self, **kwargs: NotificationSession(*args, **kwargs, interface=iface)
-        async with _RSClient(session_factory=session_factory,
-                             host=self.host, port=self.port,
-                             ssl=sslc, proxy=self.proxy) as session:
+        async with _RSClient(
+            session_factory=session_factory,
+            host=self.host, port=self.port,
+            ssl=ssl_context,
+            proxy=self.proxy,
+            transport=PaddedRSTransport,
+        ) as session:
             self.session = session  # type: NotificationSession
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
@@ -731,16 +927,23 @@ class Interface(Logger):
                 raise GracefulDisconnect('session was closed')
 
     async def ping(self):
+        # We periodically send a "ping" msg to make sure the server knows we are still here.
+        # Adding a bit of randomness generates some noise against traffic analysis.
         while True:
-            await asyncio.sleep(300)
+            await asyncio.sleep(random.random() * 300)
+            await self.session.send_request('server.ping')
+            await self._maybe_send_noise()
+
+    async def _maybe_send_noise(self):
+        while random.random() < 0.2:
+            await asyncio.sleep(random.random())
             await self.session.send_request('server.ping')
 
     async def request_fee_estimates(self):
-        from .simple_config import FEE_ETA_TARGETS
         while True:
             async with OldTaskGroup() as group:
                 fee_tasks = []
-                for i in FEE_ETA_TARGETS:
+                for i in FEE_ETA_TARGETS[0:-1]:
                     fee_tasks.append((i, await group.spawn(self.get_estimatefee(i))))
             for nblock_target, task in fee_tasks:
                 fee = task.result()
@@ -765,19 +968,29 @@ class Interface(Logger):
             item = await header_queue.get()
             raw_header = item[0]
             height = raw_header['height']
-            header = blockchain.deserialize_header(bfh(raw_header['hex']), height)
-            self.tip_header = header
+            header_bytes = bfh(raw_header['hex'])
+            header_dict = blockchain.deserialize_header(header_bytes, height)
+            self.tip_header = header_dict
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
-                raise GracefulDisconnect('server tip below max checkpoint')
+                raise GracefulDisconnect(
+                    f"server tip below max checkpoint. ({self.tip} < {constants.net.max_checkpoint()})")
             self._mark_ready()
-            blockchain_updated = await self._process_header_at_tip()
+            self._headers_cache.clear()  # tip changed, so assume anything could have happened with chain
+            self._headers_cache[height] = header_bytes
+            try:
+                blockchain_updated = await self._process_header_at_tip()
+            finally:
+                self._headers_cache.clear()  # to reduce memory usage
             # header processing done
+            if self.is_main_server() or blockchain_updated:
+                self.logger.info(f"new chain tip. {height=}")
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
             util.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
+            await self.taskgroup.spawn(self._maybe_send_noise())
 
     async def _process_header_at_tip(self) -> bool:
         """Returns:
@@ -789,81 +1002,104 @@ class Interface(Logger):
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
                 return False
-            _, height = await self.step(height, header)
-            # in the simple case, height == self.tip+1
-            if height <= self.tip:
-                await self.sync_until(height)
+            await self.sync_until(height)
             return True
 
-    async def sync_until(self, height, next_height=None):
+    async def sync_until(
+        self,
+        height: int,
+        *,
+        next_height: Optional[int] = None,  # sync target. typically the tip, except in unit tests
+    ) -> Tuple[ChainResolutionMode, int]:
         if next_height is None:
             next_height = self.tip
-        last = None
+        last = None  # type: Optional[ChainResolutionMode]
         while last is None or height <= next_height:
             prev_last, prev_height = last, height
-            if next_height > height + 10:
-                could_connect, num_headers = await self.request_chunk(height, next_height)
+            if next_height > height + 144:
+                # We are far from the tip.
+                # It is more efficient to process headers in large batches (CPU/disk_usage/logging).
+                # (but this wastes a little bandwidth, if we are not on a chunk boundary)
+                # TODO we should request (some) chunks concurrently. would help when we are many chunks behind
+                could_connect, num_headers = await self.request_chunk(height, tip=next_height)
                 if not could_connect:
                     if height <= constants.net.max_checkpoint():
                         raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
+                # report progress to gui/etc
                 util.trigger_callback('blockchain_updated')
                 util.trigger_callback('network_updated')
-                height = (height // 2016 * 2016) + num_headers
+                height = (height // CHUNK_SIZE * CHUNK_SIZE) + num_headers
                 assert height <= next_height+1, (height, self.tip)
-                last = 'catchup'
+                last = ChainResolutionMode.CATCHUP
             else:
+                # We are close to the tip, so process headers one-by-one.
+                # (note: due to headers_cache, to save network latency, this can still batch-request headers)
                 last, height = await self.step(height)
             assert (prev_last, prev_height) != (last, height), 'had to prevent infinite loop in interface.sync_until'
         return last, height
 
-    async def step(self, height, header=None):
+    async def step(
+        self,
+        height: int,
+    ) -> Tuple[ChainResolutionMode, int]:
         assert 0 <= height <= self.tip, (height, self.tip)
-        if header is None:
-            header = await self.get_block_header(height, 'catchup')
+        await self._maybe_warm_headers_cache(
+            from_height=height,
+            to_height=min(self.tip, height+MAX_NUM_HEADERS_PER_REQUEST-1),
+            mode=ChainResolutionMode.CATCHUP,
+        )
+        header = await self.get_block_header(height, mode=ChainResolutionMode.CATCHUP)
 
-        chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+        chain = blockchain.check_header(header)
         if chain:
-            self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+            self.blockchain = chain
             # note: there is an edge case here that is not handled.
             # we might know the blockhash (enough for check_header) but
             # not have the header itself. e.g. regtest chain with only genesis.
             # this situation resolves itself on the next block
-            return 'catchup', height+1
+            return ChainResolutionMode.CATCHUP, height+1
 
-        can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+        can_connect = blockchain.can_connect(header)
         if not can_connect:
             self.logger.info(f"can't connect new block: {height=}")
-            height, header, bad, bad_header = await self._search_headers_backwards(height, header)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            height, header, bad, bad_header = await self._search_headers_backwards(height, header=header)
+            chain = blockchain.check_header(header)
+            can_connect = blockchain.can_connect(header)
             assert chain or can_connect
         if can_connect:
-            self.logger.info(f"new block: {height=}")
             height += 1
-            if isinstance(can_connect, Blockchain):  # not when mocking
-                self.blockchain = can_connect
-                self.blockchain.save_header(header)
-            return 'catchup', height
+            self.blockchain = can_connect
+            self.blockchain.save_header(header)
+            return ChainResolutionMode.CATCHUP, height
 
         good, bad, bad_header = await self._search_headers_binary(height, bad, bad_header, chain)
         return await self._resolve_potential_chain_fork_given_forkpoint(good, bad, bad_header)
 
-    async def _search_headers_binary(self, height, bad, bad_header, chain):
+    async def _search_headers_binary(
+        self,
+        height: int,
+        bad: int,
+        bad_header: dict,
+        chain: Optional[Blockchain],
+    ) -> Tuple[int, int, dict]:
         assert bad == bad_header['block_height']
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+        self.blockchain = chain
         good = height
         while True:
-            assert good < bad, (good, bad)
+            assert 0 <= good < bad, (good, bad)
             height = (good + bad) // 2
             self.logger.info(f"binary step. good {good}, bad {bad}, height {height}")
-            header = await self.get_block_header(height, 'binary')
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            if bad - good + 1 <= MAX_NUM_HEADERS_PER_REQUEST:  # if interval is small, trade some bandwidth for lower latency
+                await self._maybe_warm_headers_cache(
+                    from_height=good, to_height=bad, mode=ChainResolutionMode.BINARY)
+            header = await self.get_block_header(height, mode=ChainResolutionMode.BINARY)
+            chain = blockchain.check_header(header)
             if chain:
-                self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+                self.blockchain = chain
                 good = height
             else:
                 bad = height
@@ -871,16 +1107,19 @@ class Interface(Logger):
             if good + 1 == bad:
                 break
 
-        mock = 'mock' in bad_header and bad_header['mock']['connect'](height)
-        real = not mock and self.blockchain.can_connect(bad_header, check_height=False)
-        if not real and not mock:
+        if not self.blockchain.can_connect(bad_header, check_height=False):
             raise Exception('unexpected bad header during binary: {}'.format(bad_header))
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.logger.info(f"binary search exited. good {good}, bad {bad}")
+        self.logger.info(f"binary search exited. good {good}, bad {bad}. {chain=}")
         return good, bad, bad_header
 
-    async def _resolve_potential_chain_fork_given_forkpoint(self, good, bad, bad_header):
+    async def _resolve_potential_chain_fork_given_forkpoint(
+        self,
+        good: int,
+        bad: int,
+        bad_header: dict,
+    ) -> Tuple[ChainResolutionMode, int]:
         assert good + 1 == bad
         assert bad == bad_header['block_height']
         _assert_header_does_not_check_against_any_chain(bad_header)
@@ -892,27 +1131,31 @@ class Interface(Logger):
         if bh == good:
             height = good + 1
             self.logger.info(f"catching up from {height}")
-            return 'no_fork', height
+            return ChainResolutionMode.NO_FORK, height
 
         # this is a new fork we don't yet have
         height = bad + 1
         self.logger.info(f"new fork at bad height {bad}")
-        forkfun = self.blockchain.fork if 'mock' not in bad_header else bad_header['mock']['fork']
-        b = forkfun(bad_header)  # type: Blockchain
+        b = self.blockchain.fork(bad_header)  # type: Blockchain
         self.blockchain = b
         assert b.forkpoint == bad
-        return 'fork', height
+        return ChainResolutionMode.FORK, height
 
-    async def _search_headers_backwards(self, height, header):
+    async def _search_headers_backwards(
+        self,
+        height: int,
+        *,
+        header: dict,
+    ) -> Tuple[int, dict, int, dict]:
         async def iterate():
             nonlocal height, header
             checkp = False
             if height <= constants.net.max_checkpoint():
                 height = constants.net.max_checkpoint()
                 checkp = True
-            header = await self.get_block_header(height, 'backward')
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            header = await self.get_block_header(height, mode=ChainResolutionMode.BACKWARD)
+            chain = blockchain.check_header(header)
+            can_connect = blockchain.can_connect(header)
             if chain or can_connect:
                 return False
             if checkp:
@@ -922,12 +1165,18 @@ class Interface(Logger):
         bad, bad_header = height, header
         _assert_header_does_not_check_against_any_chain(bad_header)
         with blockchain.blockchains_lock: chains = list(blockchain.blockchains.values())
-        local_max = max([0] + [x.height() for x in chains]) if 'mock' not in header else float('inf')
+        local_max = max([0] + [x.height() for x in chains])
         height = min(local_max + 1, height - 1)
+        assert height >= 0
+
+        await self._maybe_warm_headers_cache(
+            from_height=max(0, height-10), to_height=height, mode=ChainResolutionMode.BACKWARD)
+
+        delta = 2
         while await iterate():
             bad, bad_header = height, header
-            delta = self.tip - height
-            height = self.tip - 2 * delta
+            height -= delta
+            delta *= 2
 
         _assert_header_does_not_check_against_any_chain(bad_header)
         self.logger.info(f"exiting backward mode at {height}")
@@ -1167,7 +1416,7 @@ class Interface(Logger):
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
-    chain_bad = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+    chain_bad = blockchain.check_header(header)
     if chain_bad:
         raise Exception('bad_header must not check!')
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Union
 
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
-from PyQt6.QtGui import QPalette, QPainter
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 
 from .util import char_width_in_lineedit, ColorScheme
@@ -26,6 +26,7 @@ class FreezableLineEdit(QLineEdit):
 
     def isFrozen(self):
         return self.isReadOnly()
+
 
 class SizedFreezableLineEdit(FreezableLineEdit):
 

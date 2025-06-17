@@ -23,43 +23,20 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import asyncio
-import contextlib
 import enum
-import os.path
-import time
-import sys
-import platform
-import queue
-import traceback
-import os
-import webbrowser
 from decimal import Decimal
-from functools import partial, lru_cache, wraps
-from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple, Type)
+from typing import (Optional, TYPE_CHECKING, Union, List, Dict, Any,
+                    Sequence, Iterable, Type, Callable)
 
-from PyQt6 import QtWidgets, QtCore
-from PyQt6.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage, QStandardItemModel,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent, QAction)
-from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
-                          QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
-                          QEvent, QRect, QPoint, QObject)
-from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
-                             QAbstractItemView, QVBoxLayout, QLineEdit,
-                             QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
-                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
+from PyQt6.QtGui import (QStandardItem, QStandardItemModel,
+                         QShowEvent, QPainter, QHelpEvent, QMouseEvent, QAction)
+from PyQt6.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QItemSelectionModel,
+                          QSortFilterProxyModel, QSize, QAbstractItemModel, QEvent, QPoint)
+from PyQt6.QtWidgets import (QLabel, QHBoxLayout, QAbstractItemView, QLineEdit,
+                             QWidget, QToolButton, QTreeView, QHeaderView, QStyledItemDelegate,
+                             QMenu, QStyleOptionViewItem)
 
-from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum.util import EventListener, event_listener
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
-from electrum.logging import Logger
-from electrum.qrreader import MissingQrDetectionLib
+from electrum.i18n import _
 from electrum.simple_config import ConfigVarWithConfig
 
 from electrum.gui import messages
@@ -78,9 +55,18 @@ class QMenuWithConfig(QMenu):
         self.setToolTipsVisible(True)
         self.config = config
 
-    def addToggle(self, text: str, callback, *, tooltip='') -> QAction:
+    def addToggle(
+        self,
+        text: str,
+        callback: Callable[[], None],
+        *,
+        tooltip: Optional[str] = None,
+        default_state: bool = False,
+    ) -> QAction:
         m = self.addAction(text, callback)
         m.setCheckable(True)
+        m.setChecked(default_state)
+        tooltip = tooltip or ""
         m.setToolTip(tooltip)
         return m
 
@@ -88,7 +74,7 @@ class QMenuWithConfig(QMenu):
         self,
         configvar: 'ConfigVarWithConfig',
         *,
-        callback=None,
+        callback: Optional[Callable[[], None]] = None,
         checked: Optional[bool] = None,  # to override initial state of checkbox
         short_desc: Optional[str] = None,
     ) -> QAction:
@@ -98,16 +84,25 @@ class QMenuWithConfig(QMenu):
             assert short_desc is not None, f"short_desc missing for {configvar}"
         if checked is None:
             checked = bool(configvar.get())
-        m = self.addAction(short_desc, lambda: self._do_toggle_config(configvar, callback=callback))
-        m.setCheckable(True)
-        m.setChecked(checked)
+        tooltip = None
         if (long_desc := configvar.get_long_desc()) is not None:
-            m.setToolTip(messages.to_rtf(long_desc))
-        return m
+            tooltip = messages.to_rtf(long_desc)
+        return self.addToggle(
+            short_desc,
+            lambda: self._do_toggle_config(configvar, callback=callback),
+            tooltip=tooltip,
+            default_state=checked,
+        )
 
-    def _do_toggle_config(self, configvar: 'ConfigVarWithConfig', *, callback):
+    def _do_toggle_config(
+        self,
+        configvar: 'ConfigVarWithConfig',
+        *,
+        callback: Optional[Callable[[], None]] = None,
+    ):
         b = configvar.get()
         configvar.set(not b)
+        # call cb after configvar state is updated:
         if callback:
             callback()
 
@@ -124,7 +119,6 @@ def create_toolbar_with_menu(config: 'SimpleConfig', title):
     toolbar.addStretch()
     toolbar.addWidget(toolbar_button)
     return toolbar, menu
-
 
 
 class MySortModel(QSortFilterProxyModel):
@@ -147,16 +141,19 @@ class MySortModel(QSortFilterProxyModel):
         except Exception:
             return v1 < v2
 
+
 class ElectrumItemDelegate(QStyledItemDelegate):
     def __init__(self, tv: 'MyTreeView'):
         super().__init__(tv)
         self.tv = tv
         self.opened = None
+
         def on_closeEditor(editor: QLineEdit, hint):
             self.opened = None
             self.tv.is_editor_open = False
             if self.tv._pending_update:
                 self.tv.update()
+
         def on_commitData(editor: QLineEdit):
             new_text = editor.text()
             idx = QModelIndex(self.opened)
@@ -164,6 +161,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
             edit_key = self.tv.get_edit_key_from_coordinate(row, col)
             assert edit_key is not None, (idx.row(), idx.column())
             self.tv.on_edited(idx, edit_key=edit_key, text=new_text)
+
         self.closeEditor.connect(on_closeEditor)
         self.commitData.connect(on_commitData)
 
@@ -199,6 +197,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         else:
             default_size = super().sizeHint(option, idx)
             return custom_data.sizeHint(default_size)
+
 
 class MyTreeView(QTreeView):
 

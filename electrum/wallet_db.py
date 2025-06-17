@@ -29,7 +29,8 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, TYPE_CHECKING, Union
+from typing import (Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, TYPE_CHECKING,
+                    Union, AbstractSet)
 import binascii
 import time
 from functools import partial
@@ -43,7 +44,7 @@ from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
 from .logging import Logger
 
-from .lnutil import LOCAL, REMOTE, HTLCOwner, ChannelType
+from .lnutil import HTLCOwner, ChannelType
 from . import json_db
 from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders
@@ -1724,6 +1725,17 @@ class WalletDB(JsonDB):
         wallet_type = self.get('wallet_type')
         if wallet_type in plugin_loaders:
             plugin_loaders[wallet_type]()
+
+    def get_plugin_storage(self) -> dict:
+        return self.get_dict('plugin_data')
+
+    def prune_uninstalled_plugin_data(self, installed_plugins: AbstractSet[str]) -> None:
+        """Remove plugin data for plugins that are not installed anymore."""
+        plugin_storage = self.get_plugin_storage()
+        for name in list(plugin_storage.keys()):
+            if name not in installed_plugins:
+                plugin_storage.pop(name)
+                self.logger.info(f"deleting plugin data: {name=}")
 
     def set_keystore_encryption(self, enable):
         self.put('use_encryption', enable)

@@ -8,6 +8,7 @@ from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.i18n import set_language, languages
 from electrum.logging import get_logger
 from electrum.util import base_unit_name_to_decimal_point
+from electrum.gui import messages
 
 from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
@@ -17,10 +18,14 @@ if TYPE_CHECKING:
 
 
 class QEConfig(AuthMixin, QObject):
+    instance = None  # type: Optional[QEConfig]
     _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', parent=None):
         super().__init__(parent)
+        if QEConfig.instance:
+            raise RuntimeError('There should only be one QEConfig instance')
+        QEConfig.instance = self
         self.config = config
 
     @pyqtSlot(str, result=str)
@@ -31,7 +36,14 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot(str, result=str)
     def longDescFor(self, key) -> str:
         cv = getattr(self.config.cv, key)
-        return cv.get_long_desc() if cv else ''
+        if not cv:
+            return ""
+        desc = cv.get_long_desc()
+        return messages.to_rtf(desc)
+
+    @pyqtSlot(str, result=str)
+    def getTranslatedMessage(self, key) -> str:
+        return getattr(messages, key)
 
     languageChanged = pyqtSignal()
     @pyqtProperty(str, notify=languageChanged)
@@ -57,20 +69,18 @@ class QEConfig(AuthMixin, QObject):
         langs_sorted.insert(0, {'value': '', 'text': default})
         return langs_sorted
 
-    autoConnectChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=autoConnectChanged)
-    def autoConnect(self):
-        return self.config.NETWORK_AUTO_CONNECT
+    termsOfUseChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=termsOfUseChanged)
+    def termsOfUseAccepted(self) -> bool:
+        return self.config.TERMS_OF_USE_ACCEPTED >= messages.TERMS_OF_USE_LATEST_VERSION
 
-    @autoConnect.setter
-    def autoConnect(self, auto_connect):
-        self.config.NETWORK_AUTO_CONNECT = auto_connect
-        self.autoConnectChanged.emit()
-
-    # auto_connect is actually a tri-state, expose the undefined case
-    @pyqtProperty(bool, notify=autoConnectChanged)
-    def autoConnectDefined(self):
-        return self.config.cv.NETWORK_AUTO_CONNECT.is_set()
+    @termsOfUseAccepted.setter
+    def termsOfUseAccepted(self, accepted: bool) -> None:
+        if accepted:
+            self.config.TERMS_OF_USE_ACCEPTED = messages.TERMS_OF_USE_LATEST_VERSION
+        else:
+            self.config.TERMS_OF_USE_ACCEPTED = 0
+        self.termsOfUseChanged.emit()
 
     baseUnitChanged = pyqtSignal()
     @pyqtProperty(str, notify=baseUnitChanged)
@@ -115,6 +125,16 @@ class QEConfig(AuthMixin, QObject):
         self.config.WALLET_SPEND_CONFIRMED_ONLY = not checked
         self.spendUnconfirmedChanged.emit()
 
+    freezeReusedAddressUtxosChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=freezeReusedAddressUtxosChanged)
+    def freezeReusedAddressUtxos(self):
+        return self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS
+
+    @freezeReusedAddressUtxos.setter
+    def freezeReusedAddressUtxos(self, checked):
+        self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS = checked
+        self.freezeReusedAddressUtxosChanged.emit()
+
     requestExpiryChanged = pyqtSignal()
     @pyqtProperty(int, notify=requestExpiryChanged)
     def requestExpiry(self):
@@ -153,16 +173,6 @@ class QEConfig(AuthMixin, QObject):
         self.config.LIGHTNING_USE_GOSSIP = gossip
         self.useGossipChanged.emit()
 
-    useFallbackAddressChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=useFallbackAddressChanged)
-    def useFallbackAddress(self):
-        return self.config.WALLET_BOLT11_FALLBACK
-
-    @useFallbackAddress.setter
-    def useFallbackAddress(self, use_fallback):
-        self.config.WALLET_BOLT11_FALLBACK = use_fallback
-        self.useFallbackAddressChanged.emit()
-
     enableDebugLogsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=enableDebugLogsChanged)
     def enableDebugLogs(self):
@@ -188,6 +198,15 @@ class QEConfig(AuthMixin, QObject):
     def alwaysAllowScreenshots(self, enable):
         self.config.GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = enable
         self.alwaysAllowScreenshotsChanged.emit()
+
+    setMaxBrightnessOnQrDisplayChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=setMaxBrightnessOnQrDisplayChanged)
+    def setMaxBrightnessOnQrDisplay(self):
+        return self.config.GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY
+
+    @setMaxBrightnessOnQrDisplay.setter
+    def setMaxBrightnessOnQrDisplay(self, enable):
+        self.config.GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = enable
 
     useRecoverableChannelsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useRecoverableChannelsChanged)
@@ -275,6 +294,34 @@ class QEConfig(AuthMixin, QObject):
         if lightningPaymentFeeMaxMillionths != self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS:
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = lightningPaymentFeeMaxMillionths
             self.lightningPaymentFeeMaxMillionthsChanged.emit()
+
+    nostrRelaysChanged = pyqtSignal()
+    @pyqtProperty(str, notify=nostrRelaysChanged)
+    def nostrRelays(self):
+        return self.config.NOSTR_RELAYS
+
+    @nostrRelays.setter
+    def nostrRelays(self, nostr_relays):
+        if nostr_relays != self.config.NOSTR_RELAYS:
+            self.config.NOSTR_RELAYS = nostr_relays if nostr_relays else None
+            self.nostrRelaysChanged.emit()
+
+    swapServerNPubChanged = pyqtSignal()
+    @pyqtProperty(str, notify=swapServerNPubChanged)
+    def swapServerNPub(self):
+        return self.config.SWAPSERVER_NPUB
+
+    @swapServerNPub.setter
+    def swapServerNPub(self, swapserver_npub):
+        if swapserver_npub != self.config.SWAPSERVER_NPUB:
+            self.config.SWAPSERVER_NPUB = swapserver_npub
+            self.swapServerNPubChanged.emit()
+
+    lnUtxoReserveChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=lnUtxoReserveChanged)
+    def lnUtxoReserve(self):
+        self._lnutxoreserve = QEAmount(amount_sat=self.config.LN_UTXO_RESERVE)
+        return self._lnutxoreserve
 
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)

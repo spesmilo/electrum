@@ -11,6 +11,8 @@ RELEASE_DMG="$2"
 CONTRIB_OSX="$(dirname "$(grealpath "$0")")"
 PROJECT_ROOT="$CONTRIB_OSX/../.."
 WORKSPACE="/tmp/electrum_compare_dmg"
+WS_VOL1="$WORKSPACE/vol1"
+WS_VOL2="$WORKSPACE/vol2"
 
 if [ -z "$UNSIGNED_DMG" ]; then
     echo "usage: $0 <unsigned dmg> <release dmg>"
@@ -26,18 +28,19 @@ UNSIGNED_DMG=$(grealpath "$UNSIGNED_DMG")
 RELEASE_DMG=$(grealpath "$RELEASE_DMG")
 
 cd "$PROJECT_ROOT"
-rm -rf "$WORKSPACE" && mkdir -p "$WORKSPACE"
+rm -rf "$WORKSPACE"
+mkdir -p "$WORKSPACE" "$WS_VOL1" "$WS_VOL2"
 
 DMG_UNSIGNED_UNPACKED="$WORKSPACE/dmg1"
 DMG_RELEASE_UNPACKED="$WORKSPACE/dmg2"
 
-hdiutil attach "$UNSIGNED_DMG"
-cp -r /Volumes/Electrum "$DMG_UNSIGNED_UNPACKED"
-hdiutil detach /Volumes/Electrum
+hdiutil attach -mountroot "$WS_VOL1" "$UNSIGNED_DMG"
+cp -r "$WS_VOL1"/Electrum "$DMG_UNSIGNED_UNPACKED"
+hdiutil detach "$WS_VOL1"/Electrum
 
-hdiutil attach "$RELEASE_DMG"
-cp -r /Volumes/Electrum "$DMG_RELEASE_UNPACKED"
-hdiutil detach /Volumes/Electrum
+hdiutil attach -mountroot "$WS_VOL2" "$RELEASE_DMG"
+cp -r "$WS_VOL2"/Electrum "$DMG_RELEASE_UNPACKED"
+hdiutil detach "$WS_VOL2"/Electrum
 
 # copy signatures from RELEASE_DMG to UNSIGNED_DMG
 echo "Extracting signatures from release app..."

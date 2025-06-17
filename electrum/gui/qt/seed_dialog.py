@@ -29,15 +29,18 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
-                             QScrollArea, QWidget, QPushButton)
+                             QWidget, QPushButton)
 
 from electrum.i18n import _
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum import old_mnemonic
 from electrum import slip39
+from electrum.util import ChoiceItem
 
-from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
-                   EnterButton, CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget)
+from .util import (
+    Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path, EnterButton,
+    CloseButton, WindowModalDialog, ColorScheme, font_height, ChoiceWidget,
+)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -98,15 +101,15 @@ class SeedWidget(QWidget):
 
         if options:
             self.seed_types = [
-                (value, title) for value, title in (
+                ChoiceItem(key=stype, label=label) for stype, label in (
                     ('electrum', _('Electrum')),
                     ('bip39', _('BIP39 seed')),
                     ('slip39', _('SLIP39 seed')),
                 )
-                if value in self.options
+                if stype in self.options
             ]
             assert len(self.seed_types)
-            self.seed_type = self.seed_types[0][0]
+            self.seed_type = self.seed_types[0].key
         else:
             self.seed_type = 'electrum'
 
@@ -119,6 +122,7 @@ class SeedWidget(QWidget):
                 self.seed_e = ButtonsTextEdit()
             else:  # e.g. xpub
                 self.seed_e = ShowQRTextEdit(config=self.config)
+                self.seed_e.addCopyButton()
             self.seed_e.setReadOnly(True)
             self.seed_e.setText(seed)
         else:  # we expect user to enter text
@@ -205,7 +209,7 @@ class SeedWidget(QWidget):
             self.initialize_completer()
 
         if len(self.seed_types) > 1:
-            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=self.seed_types, selected=self.seed_type)
+            seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=self.seed_types, default_key=self.seed_type)
             seed_type_choice.itemSelected.connect(on_selected)
             vbox.addWidget(seed_type_choice)
 

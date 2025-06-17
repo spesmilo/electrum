@@ -84,18 +84,6 @@ Pane {
                             columns: 2
                             rowSpacing: constants.paddingSmall
 
-                            InfoTextArea {
-                                Layout.columnSpan: 2
-                                Layout.fillWidth: true
-                                Layout.bottomMargin: constants.paddingMedium
-                                visible: channeldetails.canSend.msatsInt < 0.5 * channeldetails.localCapacity.msatsInt
-                                    && channeldetails.localCapacity.msatsInt > 0.2 * channeldetails.capacity.msatsInt
-                                iconStyle: InfoTextArea.IconStyle.Warn
-                                compact: true
-                                text: [qsTr('The amount available for sending is considerably lower than the local balance.'),
-                                    qsTr('This can occur when mempool fees are high.')].join(' ')
-                            }
-
                             ChannelBar {
                                 Layout.columnSpan: 2
                                 Layout.fillWidth: true
@@ -120,6 +108,21 @@ Pane {
 
                             FormattedAmount {
                                 amount: channeldetails.capacity
+                            }
+
+                            Label {
+                                text: qsTr('Local balance')
+                                color: Material.accentColor
+                            }
+
+                            FormattedAmount {
+                                visible: channeldetails.isOpen
+                                amount: channeldetails.localCapacity
+                            }
+
+                            Label {
+                                visible: !channeldetails.isOpen
+                                text: qsTr('n/a (channel not open)')
                             }
 
                             Label {

@@ -30,26 +30,24 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping, TYPE_CHECKING
+from typing import Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, TYPE_CHECKING
 from base64 import b64decode, b64encode
-from collections import defaultdict
 import json
 import socket
-from enum import IntEnum
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import timeout_after, TaskTimeout, ignore_after
+from aiorpcx import ignore_after
 
 from . import util
 from .network import Network
-from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword)
-from .invoices import PR_PAID, PR_EXPIRED
-from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
-from .util import EventListener, event_listener
+from .util import (
+    json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
+    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
+)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
-from .wallet_db import WalletDB, WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
+from .wallet_db import WalletDB, WalletUnfinished
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -67,8 +65,10 @@ _logger = get_logger(__name__)
 class DaemonNotRunning(Exception):
     pass
 
+
 def get_rpcsock_defaultpath(config: SimpleConfig):
     return os.path.join(config.path, 'daemon_rpc_socket')
+
 
 def get_rpcsock_default_type(config: SimpleConfig):
     if config.RPC_PORT:
@@ -80,8 +80,10 @@ def get_rpcsock_default_type(config: SimpleConfig):
         return 'unix'
     return 'tcp'
 
+
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
+
 
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
@@ -107,7 +109,6 @@ def get_file_descriptor(config: SimpleConfig):
             remove_lockfile(lockfile)
 
 
-
 def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] = 60):
     lockfile = get_lockfile(config)
     while True:
@@ -130,6 +131,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = util.get_asyncio_loop()
+
         async def request_coroutine(
             *, socktype=socktype, path=path, auth=auth, server_url=server_url, endpoint=endpoint,
         ):
@@ -142,6 +144,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] 
             async with aiohttp.ClientSession(auth=auth, connector=connector) as session:
                 c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
+
         try:
             fut = asyncio.run_coroutine_threadsafe(request_coroutine(), loop)
             return fut.result(timeout=timeout)
@@ -185,11 +188,14 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
 class AuthenticationError(Exception):
     pass
 
+
 class AuthenticationInvalidOrMissing(AuthenticationError):
     pass
 
+
 class AuthenticationCredentialsInvalid(AuthenticationError):
     pass
+
 
 class AuthenticatedServer(Logger):
 
@@ -215,7 +221,7 @@ class AuthenticatedServer(Logger):
         if basic != 'Basic':
             raise AuthenticationInvalidOrMissing('UnsupportedType')
         encoded = to_bytes(encoded, 'utf8')
-        credentials = to_string(b64decode(encoded), 'utf8')
+        credentials = to_string(b64decode(encoded, validate=True), 'utf8')
         username, _, password = credentials.partition(':')
         if not (constant_time_compare(username, self.rpc_user)
                 and constant_time_compare(password, self.rpc_password)):
@@ -333,7 +339,10 @@ class CommandsServer(AuthenticatedServer):
         #       "config_options" should have priority.
         if self.daemon.gui_object:
             if hasattr(self.daemon.gui_object, 'new_window'):
-                path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
+                if config_options.get(SimpleConfig.NETWORK_OFFLINE.key()) and not self.config.NETWORK_OFFLINE:
+                    raise UserFacingException(
+                        "error: current GUI is running online, so it cannot open a new wallet offline.")
+                path = config_options.get('wallet_path') or self.config.get_wallet_path()
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
                 return True
             else:
@@ -343,7 +352,9 @@ class CommandsServer(AuthenticatedServer):
 
     async def run_cmdline(self, config_options):
         cmdname = config_options['cmd']
-        cmd = known_commands[cmdname]
+        cmd = known_commands.get(cmdname)
+        if not cmd:
+            return f"unknown command: {cmdname}"
         # arguments passed to function
         args = [config_options.get(x) for x in cmd.params]
         # decode json arguments
@@ -352,17 +363,15 @@ class CommandsServer(AuthenticatedServer):
         kwargs = {}
         for x in cmd.options:
             kwargs[x] = config_options.get(x)
-        if 'wallet_path' in cmd.options:
-            kwargs['wallet_path'] = config_options.get('wallet_path')
-        elif 'wallet' in cmd.options:
-            kwargs['wallet'] = config_options.get('wallet_path')
+        if 'wallet_path' in cmd.options or 'wallet' in cmd.options:
+            wallet_path = config_options.get('wallet_path')
+            if len(self.daemon._wallets) > 1 and wallet_path is None:
+                raise UserFacingException("error: wallet not specified")
+            kwargs['wallet_path'] = wallet_path
         func = getattr(self.cmd_runner, cmd.name)
         # execute requested command now.  note: cmd can raise, the caller (self.handle) will wrap it.
         result = await func(*args, **kwargs)
         return result
-
-
-
 
 
 class Daemon(Logger):
@@ -439,13 +448,21 @@ class Daemon(Logger):
     @staticmethod
     def _wallet_key_from_path(path) -> str:
         """This does stricter path standardization than 'standardize_path'.
-        It is used for keying the _wallets dict, but not for the actual filesystem operations. (see #8495)
+        It is used for keying the _wallets dict,
+        but MUST NOT be used as a *path* for the actual filesystem operations. (see #8495)
         """
         path = standardize_path(path)
-        # also resolve symlinks and windows network mounts/etc:
+        # The extra normalisation makes it even harder to open the same wallet file multiple times simultaneously.
+        # - "realpath" resolves symlinks:
+        #   note: the path returned by realpath has been observed NOT to work for FS operations!
+        #         (e.g. for Cryptomator WinFSP/FUSE mounts, see #8495).
+        #         It is okay for us to use it for computing a canonical wallet *key*, but cannot be used as a path!
         path = os.path.realpath(path)
+        # - "normcase" does Windows-specific case and slash normalisation:
         path = os.path.normcase(path)
-        return str(path)
+        # - prepend header to break usage of wallet keys as fs paths
+        header = "WALLETKEY-"
+        return header + str(path)
 
     def with_wallet_lock(func):
         def func_wrapper(self: 'Daemon', *args, **kwargs):
@@ -455,18 +472,25 @@ class Daemon(Logger):
 
     @with_wallet_lock
     def load_wallet(self, path, password, *, upgrade=False) -> Optional[Abstract_Wallet]:
+        assert password != ''
         path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
         if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, upgrade=upgrade, config=self.config)
-        if wallet.requires_unlock():
-            wallet.unlock(password)
-        wallet.start_network(self.network)
+        if self.network:
+            wallet.start_network(self.network)
+        elif wallet.lnworker:
+            # in offline mode, we need to trigger callbacks
+            coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
+            asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
+        if self.config.get('wallet_path') is None:
+            self.config.CURRENT_WALLET = path
         self.update_recently_opened_wallets(path)
         return wallet
+
 
     @staticmethod
     @profiler
@@ -524,11 +548,17 @@ class Daemon(Logger):
     @with_wallet_lock
     async def _stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
+        path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         wallet = self._wallets.pop(wallet_key, None)
         if not wallet:
             return False
         await wallet.stop()
+        if self.config.get('wallet_path') is None:
+            wallet_paths = [w.db.storage.path for w in self._wallets.values()
+                            if w.db.storage and w.db.storage.path]
+            if self.config.CURRENT_WALLET == path and wallet_paths:
+                self.config.CURRENT_WALLET = wallet_paths[0]
         return True
 
     def run_daemon(self):

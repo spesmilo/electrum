@@ -65,7 +65,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if hasattr(Qt, "AA_ShareOpenGLContexts"):
             QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
-            QGuiApplication.setDesktopFileName('electrum.desktop')
+            QGuiApplication.setDesktopFileName('electrum')
 
         if "QT_QUICK_CONTROLS_STYLE" not in os.environ:
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
@@ -82,7 +82,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.timer.timeout.connect(lambda: None)  # periodically enter python scope
 
         # hook for crash reporter
-        Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
+        Exception_Hook.maybe_setup(slot=self.app.appController.crash)
 
         # Initialize any QML plugins
         run_hook('init_qml', self.app)

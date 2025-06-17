@@ -29,13 +29,13 @@ from electrum import constants
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.util import to_string, UserCancelled, UserFacingException, bfh
+from electrum.util import to_string, UserCancelled, UserFacingException, bfh, ChoiceItem
 from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
-from ..hw_wallet.plugin import OperationCancelled
+from electrum.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
+from electrum.hw_wallet.plugin import OperationCancelled
 
 if TYPE_CHECKING:
     from electrum.plugin import DeviceInfo
@@ -239,13 +239,13 @@ class DigitalBitbox_Client(HardwareClientBase):
     def recover_or_erase_dialog(self):
         msg = _("The Digital Bitbox is already seeded. Choose an option:") + "\n"
         choices = [
-            (_("Create a wallet using the current seed")),
-            (_("Erase the Digital Bitbox"))
+            ChoiceItem(key="create", label=_("Create a wallet using the current seed")),
+            ChoiceItem(key="erase", label=_("Erase the Digital Bitbox")),
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
             raise UserCancelled()
-        if reply == 1:
+        if reply == "erase":
             self.dbb_erase()
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
@@ -256,13 +256,13 @@ class DigitalBitbox_Client(HardwareClientBase):
     def seed_device_dialog(self):
         msg = _("Choose how to initialize your Digital Bitbox:") + "\n"
         choices = [
-            (_("Generate a new random wallet")),
-            (_("Load a wallet from the micro SD card"))
+            ChoiceItem(key="generate", label=_("Generate a new random wallet")),
+            ChoiceItem(key="load", label=_("Load a wallet from the micro SD card")),
         ]
         reply = self.handler.query_choice(msg, choices)
         if reply is None:
             raise UserCancelled()
-        if reply == 0:
+        if reply == "generate":
             self.dbb_generate_wallet()
         else:
             if not self.dbb_load_backup(show_msg=False):
@@ -291,8 +291,8 @@ class DigitalBitbox_Client(HardwareClientBase):
             return
 
         choices = [
-            _('Do not pair'),
-            _('Import pairing from the Digital Bitbox desktop app'),
+            ChoiceItem(key=0, label=_('Do not pair')),
+            ChoiceItem(key=1, label=_('Import pairing from the Digital Bitbox desktop app')),
         ]
         reply = self.handler.query_choice(_('Mobile pairing options'), choices)
         if reply is None:
@@ -334,7 +334,8 @@ class DigitalBitbox_Client(HardwareClientBase):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
             raise UserFacingException(backups['error']['message'])
-        f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
+        backup_choices = [ChoiceItem(key=idx, label=v) for (idx, v) in enumerate(backups['backup'])]
+        f = self.handler.query_choice(_("Choose a backup file:"), backup_choices)
         if f is None:
             raise UserCancelled()
         key = self.backup_password_dialog()
@@ -423,7 +424,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             authenticated_msg = base64.b64encode(msg + hmac_digest)
             reply = self.hid_send_plain(authenticated_msg)
             if 'ciphertext' in reply:
-                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"])))
+                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"]), validate=True))
                 reply_hmac = b64_unencoded[-sha256_byte_len:]
                 hmac_calculated = hmac_oneshot(authentication_key, b64_unencoded[:-sha256_byte_len], hashlib.sha256)
                 if not hmac.compare_digest(reply_hmac, hmac_calculated):
@@ -564,10 +565,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             if p2pkhTransaction:
                 tx_copy = copy.deepcopy(tx)
                 # monkey-patch method of tx_copy instance to change serialization
-                def input_script(self, txin: PartialTxInput, *, estimate_size=False):
+                def input_script(self, txin: PartialTxInput, *, estimate_size=False) -> bytes:
                     desc = txin.script_descriptor
                     if isinstance(desc, descriptor.PKHDescriptor):
-                        return Transaction.get_preimage_script(txin)
+                        return txin.get_scriptcode_for_sighash()
                     raise Exception(f"unsupported txin type. only p2pkh is supported. got: {desc.to_string()[:10]}")
                 tx_copy.input_script = input_script.__get__(tx_copy, PartialTransaction)
                 tx_dbb_serialized = tx_copy.serialize_to_network()
@@ -701,7 +702,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def comserver_post_notification(self, payload, *, handler: 'HardwareHandlerBase'):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
-        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
+        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY], validate=True)
         ciphertext = EncodeAES_bytes(key_s, json.dumps(payload).encode('ascii'))
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config[CHANNEL_ID_KEY],

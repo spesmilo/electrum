@@ -3,8 +3,8 @@
 set -e
 
 # Parameterize
-PYTHON_VERSION=3.11.9
-PY_VER_MAJOR="3.11"  # as it appears in fs paths
+PYTHON_VERSION=3.12.10
+PY_VER_MAJOR="3.12"  # as it appears in fs paths
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 
@@ -20,8 +20,9 @@ CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
 CACHEDIR="$CONTRIB_OSX/.cache"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
+PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
-mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
+mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
 
 cd "$PROJECT_ROOT"
 
@@ -37,7 +38,7 @@ PKG_FILE="python-${PYTHON_VERSION}-macos11.pkg"
 if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
     curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
-echo "b6cfdee2571ca56ee895043ca1e7110fb78a878cee3eb0c21accb2de34d24b55  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+echo "8373e58da4ea146b3eb1c1f9834f19a319440b6b679b06050b1f9ee3237aa8e4  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
     || fail "python pkg checksum mismatched"
 sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"
@@ -77,10 +78,10 @@ info "Installing build dependencies"
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
 #         "requirements-build-base-base.txt" with just wheel in it...)
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-build-base.txt \
+    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-base.txt \
     || fail "Could not install build dependencies (base)"
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
+    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
@@ -88,8 +89,8 @@ brew install autoconf automake libtool gettext coreutils pkgconfig swig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="5d7a0449ecea400eccbbb30d5fcef27d72f8f75d"
-# ^ tag "v6.6.0"
+PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
+# ^ tag "v6.13.0"
 (
     if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ]; then
         info "pyinstaller already built, skipping"
@@ -118,7 +119,8 @@ PYINSTALLER_COMMIT="5d7a0449ecea400eccbbb30d5fcef27d72f8f75d"
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
+python3 -m pip install --no-build-isolation --no-dependencies \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location "$CACHEDIR/pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -128,28 +130,30 @@ pyinstaller --version
 
 rm -rf ./dist
 
-git submodule update --init
+info "resetting git submodules."
+# note: --force is less critical in other build scripts, but as the mac build is not doing a fresh clone,
+#       it is very useful here for reproducibility
+git submodule update --init --force
 
-info "generating locale"
+info "preparing electrum-locale."
 (
     if ! which msgfmt > /dev/null 2>&1; then
         brew install gettext
         brew link --force gettext
     fi
-    LOCALE="$PROJECT_ROOT/electrum/locale/"
+    "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$LOCALE"
-    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+    rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 ) || fail "failed generating locale"
 
 
-if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
+if ls "$DLL_TARGET_DIR"/libsecp256k1.*.dylib 1> /dev/null 2>&1; then
+    info "libsecp256k1 already built, skipping"
+else
     info "Building libsecp256k1 dylib..."
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-else
-    info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
-#cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
+cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."
@@ -168,28 +172,33 @@ fi
 cp -f "$DLL_TARGET_DIR/libusb-1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libusb dylib"
 
 
-info "Installing requirements..."
+# opt out of compiling C extensions
+export YARL_NO_EXTENSIONS=1
+export PROPCACHE_NO_EXTENSIONS=1
+
 export ELECTRUM_ECC_DONT_COMPILE=1
+
+info "Installing requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary cryptography \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography \
-    --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
-    --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
+    --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 # pyinstaller needs to be able to "import electrum_ecc", for which we need libsecp256k1:
 # (or could try "pip install -e" instead)
 cp "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/electrum_ecc/"
@@ -202,10 +211,11 @@ find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -pr
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=$(git describe --tags --dirty --always)
+# note: no --dirty, as we have dirtied electrum/locale/ ourselves.
+VERSION=$(git describe --tags --always)
 
 info "Building binary"
-ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/osx.spec || fail "Could not build binary"
+ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"
 
 info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256

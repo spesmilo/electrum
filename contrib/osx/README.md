@@ -51,6 +51,10 @@ We currently build the release binaries on macOS 11.7.10, and these seem to run 
 
   Sanity checks:
     ```
+    $ sw_vers
+    ProductName:	macOS
+    ProductVersion:	11.7.10
+    BuildVersion:	20G1427
     $ xcode-select -p
     /Library/Developer/CommandLineTools
     $ xcrun --show-sdk-path
@@ -120,3 +124,72 @@ repository.
    (Note that we are using `hdutil` to create the `.dmg`, and its output is not
    deterministic, but we cannot compare the `.dmg` files directly anyway as they contain
    codesigned files)
+
+
+## FAQ
+
+### What is macOS "codesigning" and "notarization"?
+
+Codesigning is the macOS OS-native signing of executables/shared-libs,
+that needs to be done using an ~x509-like certificate that chains back to Apple's root CA.
+Once a developer certificate is obtained from Apple, it can be used to codesign locally
+on a dev machine.
+
+Notarization is a further step usually done after, which entails uploading a distributable
+over the network to the Apple mothership central server, which runs some arbitrary checks on it,
+and if it finds the file ok, the central server gives the dev a notarization staple.
+This staple can then be optionally "attached" to the distributable, mutating it, which we do.
+(If the staple is not attached, enduser machines request it from the mothership at runtime.)
+
+Both these steps should be done during the build process.
+
+### What is "codesigned" and/or "notarized", re the official release?
+
+- `make_osx.sh` builds a `.app`, which is unsigned/unnotarized
+  - at this point, this `.app` is ~"byte-for-byte" reproducible
+    - this is the sanity-check hash printed at the end of `make_osx.sh`
+  - `make_osx.sh` creates a `.dmg` from the `.app`
+    - this `.dmg` is not used for the official release at all, but used as the basis of
+      testing reproducibility using the `compare_dmg` script
+- `sign_osx.sh` codesigns the `.app` (mutating it)
+- `sign_osx.sh` -> `notarize_app.sh` notarizes the `.app` (mutating it)
+- `sign_osx.sh` creates a `.dmg` from the `.app`
+- `sign_osx.sh` codesigns the `.dmg` (mutating it)
+  - this `.dmg` becomes the official release distributable
+
+That is, the official release `.dmg` is codesigned but NOT notarized.
+It contains a `.app`, which is codesigned AND notarized.
+
+### How to check if a file is codesigned?
+
+Both the `.dmg` and the contained `.app` are codesigned:
+```
+$ codesign --verify --deep --strict --verbose=2 $HOME/Desktop/electrum-4.5.8.dmg && echo "signed"
+/Users/vagrant/Desktop/electrum-4.5.8.dmg: valid on disk
+/Users/vagrant/Desktop/electrum-4.5.8.dmg: satisfies its Designated Requirement
+signed
+```
+```
+$ codesign --verify --deep --strict --verbose=1 $HOME/Desktop/Electrum-4.5.8.app && echo "signed"
+/Users/vagrant/Desktop/Electrum-4.5.8.app: valid on disk
+/Users/vagrant/Desktop/Electrum-4.5.8.app: satisfies its Designated Requirement
+signed
+```
+
+Also see `$ codesign -dvvv $HOME/Desktop/electrum-4.5.8.dmg`
+
+### How to check if a file is notarized?
+
+The outer `.dmg` is NOT notarized, but the inner `.app` is notarized:
+```
+$ spctl -a -vvv -t install $HOME/Desktop/electrum-4.5.8.dmg
+/Users/vagrant/Desktop/electrum-4.5.8.dmg: rejected
+source=Unnotarized Developer ID
+origin=Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)
+```
+```
+$ spctl -a -vvv -t install $HOME/Desktop/Electrum-4.5.8.app
+/Users/vagrant/Desktop/Electrum-4.5.8.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)
+```

@@ -30,10 +30,17 @@ ElDialog {
     padding: 0
 
     function updateAmountText() {
-        btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
-        fiatValue.text = Daemon.fx.enabled
-            ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
-            : ''
+        if (finalizer.valid) {
+            btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
+            fiatValue.text = Daemon.fx.enabled
+                ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
+                : ''
+        } else {
+            btcValue.text = Config.formatSats(finalizer.amount, false)
+            fiatValue.text = Daemon.fx.enabled
+                ? Daemon.fx.fiatValue(finalizer.amount, false)
+                : ''
+        }
     }
 
     ColumnLayout {
@@ -173,12 +180,13 @@ ElDialog {
 
                         HelpButton {
                             heading: qsTr('Use multiple change addresses')
-                            helptext: qsTr('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.')
+                            helptext: [qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.'),
+                                       qsTr('This may result in higher transactions fees.')].join(' ')
                         }
 
                         ElCheckBox {
                             Layout.fillWidth: true
-                            text: qsTr('Enable output value rounding')
+                            text: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                             onCheckedChanged: {
                                 if (activeFocus) {
                                     Config.outputValueRounding = checked
@@ -191,9 +199,8 @@ ElDialog {
                         }
 
                         HelpButton {
-                            heading: qsTr('Enable output value rounding')
-                            helptext: qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.')
-                                    + ' ' + qsTr('This may result in higher transactions fees.')
+                            heading: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
+                            helptext: Config.longDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                         }
 
                     }
@@ -213,6 +220,7 @@ ElDialog {
                     id: inputs_label
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingMedium
+                    visible: finalizer.valid
 
                     labelText: qsTr('Inputs (%1)').arg(finalizer.inputs.length)
                     color: Material.accentColor
@@ -225,6 +233,7 @@ ElDialog {
                     delegate: TxInput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: finalizer.valid
 
                         idx: index
                         model: modelData
@@ -235,6 +244,7 @@ ElDialog {
                     id: outputs_label
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingMedium
+                    visible: finalizer.valid
 
                     labelText: qsTr('Outputs (%1)').arg(finalizer.outputs.length)
                     color: Material.accentColor
@@ -247,6 +257,7 @@ ElDialog {
                     delegate: TxOutput {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: finalizer.valid
 
                         allowShare: false
                         allowClickAddress: false
@@ -263,7 +274,7 @@ ElDialog {
             id: sendButton
             Layout.fillWidth: true
             text: (Daemon.currentWallet.isWatchOnly || !Daemon.currentWallet.canSignWithoutCosigner)
-                    ? qsTr('Finalize')
+                    ? qsTr('Finalize...')
                     : qsTr('Pay...')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid

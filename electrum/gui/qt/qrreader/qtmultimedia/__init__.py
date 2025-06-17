@@ -22,6 +22,11 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+#
+# -----
+#
+# Note: This module is risky to import. At the very least, ImportError and
+#       RuntimeError needs to be handled at import time!
 
 from typing import Mapping
 

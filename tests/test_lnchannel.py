@@ -49,7 +49,7 @@ one_bitcoin_in_msat = bitcoin.COIN * 1000
 def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                          local_amount, remote_amount, privkeys, other_pubkeys,
                          seed, cur, nex, other_node_id, l_dust, r_dust, l_csv,
-                         r_csv, anchor_outputs):
+                         r_csv, anchor_outputs, local_max_inflight, remote_max_inflight):
     #assert local_amount > 0
     #assert remote_amount > 0
 
@@ -69,7 +69,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 revocation_basepoint=other_pubkeys[4],
                 to_self_delay=r_csv,
                 dust_limit_sat=r_dust,
-                max_htlc_value_in_flight_msat=one_bitcoin_in_msat * 5,
+                max_htlc_value_in_flight_msat=remote_max_inflight,
                 max_accepted_htlcs=5,
                 initial_msat=remote_amount,
                 reserve_sat=0,
@@ -89,7 +89,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 revocation_basepoint=privkeys[4],
                 to_self_delay=l_csv,
                 dust_limit_sat=l_dust,
-                max_htlc_value_in_flight_msat=one_bitcoin_in_msat * 5,
+                max_htlc_value_in_flight_msat=local_max_inflight,
                 max_accepted_htlcs=5,
                 initial_msat=local_amount,
                 reserve_sat=0,
@@ -119,6 +119,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     }
     return StoredDict(state, None, [])
 
+
 def bip32(sequence):
     node = bip32_utils.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
     k = node.eckey.get_secret_bytes()
@@ -126,10 +127,12 @@ def bip32(sequence):
     assert type(k) is bytes
     return k
 
+
 def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                          alice_name="alice", bob_name="bob",
                          alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None,
-                         anchor_outputs=False):
+                         anchor_outputs=False,
+                         local_max_inflight=None, remote_max_inflight=None):
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)
@@ -138,6 +141,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
     funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
     local_amount = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
     remote_amount = remote_msat if remote_msat is not None else (funding_sat * 1000 // 2)
+    local_max_inflight = funding_sat * 1000 if local_max_inflight is None else local_max_inflight
+    remote_max_inflight = funding_sat * 1000 if remote_max_inflight is None else remote_max_inflight
     alice_raw = [bip32("m/" + str(i)) for i in range(5)]
     bob_raw = [bip32("m/" + str(i)) for i in range(5,11)]
     alice_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in alice_raw]
@@ -161,7 +166,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 funding_txid, funding_index, funding_sat, True, local_amount,
                 remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None,
                 bob_first, other_node_id=bob_pubkey, l_dust=200, r_dust=1300,
-                l_csv=5, r_csv=4, anchor_outputs=anchor_outputs
+                l_csv=5, r_csv=4, anchor_outputs=anchor_outputs,
+                local_max_inflight=local_max_inflight, remote_max_inflight=remote_max_inflight
             ),
             name=f"{alice_name}->{bob_name}",
             initial_feerate=feerate),
@@ -170,7 +176,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 funding_txid, funding_index, funding_sat, False, remote_amount,
                 local_amount, bob_privkeys, alice_pubkeys, bob_seed, None,
                 alice_first, other_node_id=alice_pubkey, l_dust=1300, r_dust=200,
-                l_csv=4, r_csv=5, anchor_outputs=anchor_outputs
+                l_csv=4, r_csv=5, anchor_outputs=anchor_outputs,
+                local_max_inflight=remote_max_inflight, remote_max_inflight=local_max_inflight
             ),
             name=f"{bob_name}->{alice_name}",
             initial_feerate=feerate)
@@ -207,6 +214,7 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
 
     return alice, bob
 
+
 class TestFee(ElectrumTestCase):
     """
     test
@@ -220,6 +228,7 @@ class TestFee(ElectrumTestCase):
             anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         expected_value = 9999056 if self.TEST_ANCHOR_CHANNELS else 9999817
         self.assertIn(expected_value, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
+
 
 class TestChannel(ElectrumTestCase):
     maxDiff = 999
@@ -720,6 +729,62 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(499986152000 if not alice_channel.has_anchors() else 499980692000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc)
+
+    def test_single_payment(self):
+        alice_channel, bob_channel = create_test_channels(
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS,
+            local_msat=4000000000,
+            remote_msat=4000000000,
+            local_max_inflight=1000000000,
+            remote_max_inflight=2000000000)
+
+        # alice can send 20 but bob can only receive 10, because of stricter receiving rules
+        self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, bob_channel.available_to_spend(REMOTE))
+
+        # bob can send 10, alice can receive 10
+        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+
+        paymentPreimage1 = b"\x01" * 32
+        htlc = UpdateAddHtlc(
+            payment_hash=bitcoin.sha256(paymentPreimage1),
+            amount_msat=1000000000,
+            cltv_abs=5,
+            timestamp=0,
+        )
+        # put 10mBTC inflight a->b
+        alice_idx1 = alice_channel.add_htlc(htlc).htlc_id
+        bob_idx1 = bob_channel.receive_htlc(htlc).htlc_id
+        force_state_transition(alice_channel, bob_channel)
+
+        self.assertEqual(1000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(0, bob_channel.available_to_spend(REMOTE))
+
+        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+
+        paymentPreimage2 = b"\x02" * 32
+        htlc2 = UpdateAddHtlc(
+            payment_hash=bitcoin.sha256(paymentPreimage2),
+            amount_msat=1500000000,
+            cltv_abs=5,
+            timestamp=0,
+        )
+        # try to add another 15mBTC HTLC while 15mBTC already inflight
+        with self.assertRaises(lnutil.PaymentFailure):
+            alice_idx2 = alice_channel.add_htlc(htlc2).htlc_id
+
+        # settle htlc 1 to clear inflight
+        bob_channel.settle_htlc(paymentPreimage1, bob_idx1)
+        alice_channel.receive_htlc_settle(paymentPreimage1, alice_idx1)
+        force_state_transition(alice_channel, bob_channel)
+
+        self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+
+        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
 
 class TestAvailableToSpendAnchors(TestAvailableToSpend):

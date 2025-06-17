@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Any
 
 from PyQt6.QtCore import Qt, QDateTime, pyqtSignal
-from PyQt6.QtGui import QPalette, QPainter
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
                              QHBoxLayout, QDateTimeEdit)
 
