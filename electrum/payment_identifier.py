@@ -12,7 +12,7 @@ from .i18n import _
 from .invoices import Invoice
 from .logging import Logger
 from .onion_message import Timeout
-from .util import parse_max_spend, InvoiceError
+from .util import parse_max_spend, InvoiceError, json_repr
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url,
@@ -452,7 +452,7 @@ class PaymentIdentifier(Logger):
                     # see Invoice.from_bolt12_invoice_tlv for more information
                     self.bolt12_invoice_tlv = invoice_tlv
                     self.set_state(PaymentIdentifierState.AVAILABLE)
-                    self.logger.debug(f'BOLT12 invoice_request reply: {invoice!r}')
+                    self.logger.debug(f'BOLT12 invoice_request reply: {json_repr(invoice)}')
                 except Timeout:
                     self.error = _('Timeout requesting invoice')
                     self.set_state(PaymentIdentifierState.NOT_FOUND)

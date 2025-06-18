@@ -2368,3 +2368,15 @@ class ChoiceItem:
     key: Any
     label: str  # user facing string
     extra_data: Any = None
+
+
+class JsonReprEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            return 'hex:' + o.hex()
+        else:
+            return super().default(o)
+
+
+def json_repr(d: Any) -> str:
+    return json.dumps(d, cls=JsonReprEncoder, indent=2, allow_nan=True)

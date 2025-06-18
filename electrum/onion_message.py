@@ -24,6 +24,7 @@
 import asyncio
 import copy
 import io
+import json
 import os
 import threading
 import time
@@ -42,6 +43,27 @@ from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_p
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data)
 from electrum.lnutil import LnFeatures
 from electrum.util import OldTaskGroup, log_exceptions
+
+
+class JsonReprEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            return 'hex:' + o.hex()
+        elif isinstance(o, OnionHopsDataSingle):
+            return {"OnionHopDataSingle": {
+                        "payload": o.payload,
+                        "hmac": o.hmac}}
+        elif isinstance(o, OnionPacket):
+            return {"OnionPacket": {
+                        "public_key": o.public_key,
+                        "hops_data": o.hops_data,
+                        "hmac": o.hmac}}
+        else:
+            return super().default(o)
+
+
+def json_repr(d) -> str:
+    return json.dumps(d, cls=JsonReprEncoder, indent=2, allow_nan=True)
 
 
 def now():
@@ -543,7 +565,7 @@ class OnionMessageManager(Logger):
             key = os.urandom(8)
         assert type(key) is bytes and len(key) >= 8
 
-        self.logger.debug(f'submit_send {key=} {payload=} {node_id_or_blinded_path=}')
+        self.logger.debug(f'submit_send {key=} {node_id_or_blinded_path=} payload={json_repr(payload)} ')
 
         req = OnionMessageManager.Request(
             future=asyncio.Future(),
@@ -634,7 +656,7 @@ class OnionMessageManager(Logger):
 
     def on_onion_message_received_unsolicited(self, recipient_data: dict, payload: dict) -> None:
         self.logger.debug('unsolicited onion_message received')
-        self.logger.debug(f'payload: {payload!r}')
+        self.logger.debug(f'payload: {json_repr(payload)}')
 
         # This func currently only accepts simple text 'message' payload, a.k.a 'unknown_tag_1'
         # in the bolt-4 test vectors.
@@ -727,7 +749,7 @@ class OnionMessageManager(Logger):
         processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
 
-        self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
+        self.logger.debug(f'onion peeled: {json_repr(processed_onion_packet)}')
 
         if not processed_onion_packet.are_we_final:
             if any([x not in ['encrypted_recipient_data'] for x in payload.keys()]):
@@ -741,7 +763,7 @@ class OnionMessageManager(Logger):
             encrypted_recipient_data=payload['encrypted_recipient_data']['encrypted_recipient_data']
         )
 
-        self.logger.debug(f'parsed recipient_data: {recipient_data!r}')
+        self.logger.debug(f'parsed recipient_data: {json_repr(recipient_data)}')
 
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)

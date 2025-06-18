@@ -38,6 +38,9 @@ from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
 from .onion_message import Timeout
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits
+from .util import json_repr
+
+repr = json_repr
 
 
 def is_offer(data: str) -> bool:
@@ -206,7 +209,7 @@ async def request_invoice(
         rcpt_data, payload = await lnwallet.onion_message_manager.submit_send(
             payload=req_payload, node_id_or_blinded_path=node_id
         )
-        lnwallet.logger.debug(f'{rcpt_data=} {payload=}')
+        lnwallet.logger.debug(f'rcpt_data: {json_repr(rcpt_data)},\npayload={json_repr(payload)}')
         if 'invoice_error' in payload:
             return _raise_invoice_error(payload)
         if 'invoice' not in payload:
@@ -217,7 +220,7 @@ async def request_invoice(
                 fd=fd, tlv_stream_name='invoice', signing_key_path=('invoice_node_id', 'node_id')
             )
         lnwallet.logger.info('received bolt12 invoice')
-        lnwallet.logger.debug(f'invoice_data: {invoice_data!r}')
+        lnwallet.logger.debug(f'invoice_data: {repr(invoice_data)}')
     except Timeout:
         lnwallet.logger.info('timeout waiting for bolt12 invoice')
         raise
