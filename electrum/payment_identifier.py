@@ -698,9 +698,6 @@ class PaymentIdentifier(Logger):
         return pubkey, amount, description
 
     async def resolve_openalias(self, key: str) -> Optional[dict]:
-        parts = key.split(sep=',')  # assuming single line
-        if parts and len(parts) > 0 and (bitcoin.is_address(parts[0]) or is_silent_payment_address(parts[0])):
-            return None
         try:
             data = await self.contacts.resolve(key)  # TODO: don't use contacts as delegate to resolve openalias, separate.
             self.logger.debug(f'OA: {data!r}')
