@@ -563,10 +563,9 @@ class WCKeepDisable(WalletWizardComponent):
             'or do you want to disable it, and have two master private keys in your wallet?'
         ])
         choices = [
-            ('keep',    _('Keep')),
-            ('disable', _('Disable')),
+            ChoiceItem(key='keep', label=_('Keep')),
+            ChoiceItem(key='disable', label=_('Disable')),
         ]
-
         self.choice_w = ChoiceWidget(message=message, choices=choices)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
