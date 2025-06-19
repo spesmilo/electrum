@@ -119,6 +119,9 @@ class PluginDialog(WindowModalDialog):
         filename = self.plugins.zip_plugin_path(self.name)
         self.window.plugins.authorize_plugin(self.name, filename, privkey)
         self.window.plugins.enable(self.name)
+        d = self.plugins.get_metadata(self.name)
+        if details := d.get('registers_keystore'):
+            self.plugins.register_keystore(self.name, details)
         if self.status_button:
             self.status_button.update()
         self.accept()

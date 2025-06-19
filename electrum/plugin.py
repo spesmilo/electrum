@@ -92,7 +92,7 @@ class Plugins(DaemonThread):
         DaemonThread.__init__(self)
         self.device_manager = DeviceMgr(config)
         self.name = 'Plugins'  # set name of thread
-        self.hw_wallets = {}
+        self._hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
         self.gui_name = gui_name
         self.find_plugins()
@@ -134,7 +134,7 @@ class Plugins(DaemonThread):
                     self.register_wallet_type(name, gui_good, details)
                 details = d.get('registers_keystore')
                 if details:
-                    self.register_keystore(name, gui_good, details)
+                    self.register_keystore(name, details)
             if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
                 _logger.info(f"Found the following plugin modules: {iter_modules=}")
                 _logger.info(f"duplicate plugins? for {name=}")
@@ -566,7 +566,7 @@ class Plugins(DaemonThread):
                     continue
                 details = d.get('registers_keystore')
                 if details:
-                    self.register_keystore(name, gui_good, details)
+                    self.register_keystore(name, details)
             if external:
                 self.external_plugin_metadata[name] = d
             else:
@@ -727,21 +727,22 @@ class Plugins(DaemonThread):
 
     def get_hardware_support(self):
         out = []
-        for name, (gui_good, details) in self.hw_wallets.items():
-            if gui_good:
-                try:
-                    p = self.get_plugin(name)
-                    if p.is_available():
-                        out.append(HardwarePluginToScan(name=name,
-                                                        description=details[2],
-                                                        plugin=p,
-                                                        exception=None))
-                except Exception as e:
-                    self.logger.exception(f"cannot load plugin for: {name}")
-                    out.append(HardwarePluginToScan(name=name,
-                                                    description=details[2],
-                                                    plugin=None,
-                                                    exception=e))
+        for name, details in self._hw_wallets.items():
+            try:
+                p = self.get_plugin(name)
+                if p.is_available():
+                    out.append(HardwarePluginToScan(
+                        name=name,
+                        description=details[2],
+                        plugin=p,
+                        exception=None))
+            except Exception as e:
+                self.logger.exception(f"cannot load plugin for: {name}")
+                out.append(HardwarePluginToScan(
+                    name=name,
+                    description=details[2],
+                    plugin=None,
+                    exception=e))
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -754,13 +755,13 @@ class Plugins(DaemonThread):
         register_wallet_type(wallet_type)
         plugin_loaders[wallet_type] = loader
 
-    def register_keystore(self, name, gui_good, details):
+    def register_keystore(self, name, details):
         from .keystore import register_keystore
 
         def dynamic_constructor(d):
             return self.get_plugin(name).keystore_class(d)
         if details[0] == 'hardware':
-            self.hw_wallets[name] = (gui_good, details)
+            self._hw_wallets[name] = details
             self.logger.info(f"registering hardware {name}: {details}")
             register_keystore(details[1], dynamic_constructor)
 
