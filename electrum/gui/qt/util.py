@@ -792,10 +792,10 @@ class GenericInputHandler:
             except Exception as e:
                 show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
-        from .qrreader import scan_qrcode
+        from .qrreader import scan_qrcode_from_camera
         if parent is None:
             parent = self if isinstance(self, QWidget) else None
-        scan_qrcode(parent=parent, config=config, callback=cb)
+        scan_qrcode_from_camera(parent=parent, config=config, callback=cb)
 
     def input_qr_from_screenshot(
             self,
