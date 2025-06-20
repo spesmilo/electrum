@@ -278,7 +278,7 @@ class ProxySettings:
 
 
 class NetworkParameters(NamedTuple):
-    server: ServerAddr
+    servers: List[ServerAddr]
     proxy: ProxySettings
     auto_connect: bool
     oneserver: bool = False
@@ -590,11 +590,26 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def requested_fee_estimates(self):
         self.last_time_fee_estimates_requested = time.time()
 
+    def sanitize_servers(self, server_str_list):
+        servers = []
+        for server_str in server_str_list:
+            try:
+                server = ServerAddr.from_str_with_inference(server_str)
+                if not server:
+                    raise Exception(f"failed to parse server {server_str}")
+            except Exception:
+                continue
+            servers.append(server)
+        return servers
+
     def get_parameters(self) -> NetworkParameters:
-        return NetworkParameters(server=self.default_server,
-                                 proxy=self.proxy,
-                                 auto_connect=self.auto_connect,
-                                 oneserver=self.oneserver)
+        servers_str_list = self.config.get_servers()
+        servers = self.sanitize_servers(servers_str_list)
+        return NetworkParameters(
+            servers=servers,
+            proxy=self.proxy,
+            auto_connect=self.auto_connect,
+            oneserver=self.oneserver)
 
     def _init_parameters_from_config(self) -> None:
         dns_hacks.configure_dns_resolver()
@@ -651,7 +666,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
 
     @with_recent_servers_lock
-    def get_servers(self):
+    def get_servers(self, bookmarks_only=False) -> dict:
         # note: order of sources when adding servers here is crucial!
         # don't let "server_peers" overwrite anything,
         # otherwise main server can eclipse the client
@@ -669,8 +684,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 out[server.host].update({server.protocol: port})
             else:
                 out[server.host] = {server.protocol: port}
+        if bookmarks_only:
+            out = dict()
         # add bookmarks
-        bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+        bookmarks = self.config.get_servers()
         for server_str in bookmarks:
             try:
                 server = ServerAddr.from_str(server_str)
@@ -696,18 +713,20 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # Note: with sticky servers, it is more difficult for an attacker to eclipse the client,
         #       however if they succeed, the eclipsing would persist. To try to balance this,
         #       we only give priority to recent_servers up to NUM_STICKY_SERVERS.
-        with self.recent_servers_lock:
-            recent_servers = list(self._recent_servers)
-        recent_servers = [s for s in recent_servers if s.protocol in self._allowed_protocols]
-        if len(connected_servers & set(recent_servers)) < NUM_STICKY_SERVERS:
-            for server in recent_servers:
-                if server in connected_servers:
-                    continue
-                if not self._can_retry_addr(server, now=now):
-                    continue
-                return server
+
+        if not self.oneserver:
+            with self.recent_servers_lock:
+                recent_servers = list(self._recent_servers)
+            recent_servers = [s for s in recent_servers if s.protocol in self._allowed_protocols]
+            if len(connected_servers & set(recent_servers)) < NUM_STICKY_SERVERS:
+                for server in recent_servers:
+                    if server in connected_servers:
+                        continue
+                    if not self._can_retry_addr(server, now=now):
+                        continue
+                    return server
         # try all servers we know about, pick one at random
-        hostmap = self.get_servers()
+        hostmap = self.get_servers(bookmarks_only=self.oneserver)
         servers = list(set(filter_protocol(hostmap, allowed_protocols=self._allowed_protocols)) - connected_servers)
         random.shuffle(servers)
         for server in servers:
@@ -718,22 +737,24 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def _set_default_server(self) -> None:
         # Server for addresses and transactions
-        server = self.config.NETWORK_SERVER
+        servers = self.config.get_servers()
         # Sanitize default server
-        if server:
+        if servers:
+            server = servers[0]
             try:
                 self.default_server = ServerAddr.from_str(server)
             except Exception:
                 self.logger.warning(f'failed to parse server-string ({server!r}); falling back to localhost:1:s.')
-                self.default_server = ServerAddr.from_str("localhost:1:s")
+                self.default_server = None #ServerAddr.from_str("localhost:1:s")
         else:
             # if oneserver is enabled but no server specified then don't pick a random server
-            if self.config.NETWORK_ONESERVER:
-                self.logger.warning(f'"oneserver" option enabled, but no "server" defined; falling back to localhost:1:s.')
-                self.default_server = ServerAddr.from_str("localhost:1:s")
+            if not self.config.NETWORK_AUTO_CONNECT:
+                self.logger.warning(f'"no "server" defined; falling back to localhost:1:s.')
+                self.default_server = None #ServerAddr.from_str("localhost:1:s")
             else:
                 self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
-        assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
+
+        #assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
     def _set_proxy(self, proxy: ProxySettings):
         if self.proxy == proxy:
@@ -769,7 +790,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         proxy_enabled = proxy.enabled
         proxy_user = proxy.user
         proxy_pass = proxy.password
-        server = net_params.server
+        servers = net_params.servers
         # sanitize parameters
         try:
             if proxy:
@@ -786,9 +807,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.NETWORK_PROXY = proxy_str
         self.config.NETWORK_PROXY_USER = proxy_user
         self.config.NETWORK_PROXY_PASSWORD = proxy_pass
-        self.config.NETWORK_SERVER = str(server)
+        servers_as_str = [str(server) for server in servers]
+        self.config.set_servers(servers_as_str)
         # abort if changes were not allowed by config
-        if self.config.NETWORK_SERVER != str(server) \
+        if self.config.get_servers() != servers_as_str \
                 or self.config.NETWORK_PROXY_ENABLED != proxy_enabled \
                 or self.config.NETWORK_PROXY != proxy_str \
                 or self.config.NETWORK_PROXY_USER != proxy_user \
@@ -798,7 +820,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         proxy_changed = self.proxy != proxy
         oneserver_changed = self.oneserver != net_params.oneserver
-        default_server_changed = self.default_server != server
+        default_server_changed = servers and self.default_server != servers[0]
         self._init_parameters_from_config()
         if not self._was_started:
             return
@@ -809,7 +831,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 await self.stop(full_shutdown=False)
                 await self._start()
             elif default_server_changed:
-                await self.switch_to_interface(server)
+                await self.switch_to_interface(servers[0])
+            elif not servers:
+                await self.switch_to_interface(self.default_server)
             else:
                 await self.switch_lagging_interface()
         util.trigger_callback('network_updated')
@@ -817,23 +841,23 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _maybe_set_oneserver(self) -> None:
         oneserver = self.config.NETWORK_ONESERVER
         self.oneserver = oneserver
-        self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
+        self.num_server = NUM_TARGET_CONNECTED_SERVERS
 
     def is_server_bookmarked(self, server: ServerAddr) -> bool:
-        bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+        bookmarks = self.config.get_servers()
         return str(server) in bookmarks
 
     def set_server_bookmark(self, server: ServerAddr, *, add: bool) -> None:
         server_str = str(server)
         with self.config.lock:
-            bookmarks = self.config.NETWORK_BOOKMARKED_SERVERS or []
+            bookmarks = self.config.get_servers()
             if add:
                 if server_str not in bookmarks:
                     bookmarks.append(server_str)
             else:  # remove
                 if server_str in bookmarks:
                     bookmarks.remove(server_str)
-            self.config.NETWORK_BOOKMARKED_SERVERS = bookmarks
+            self.config.set_servers(bookmarks)
 
     async def _switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
@@ -845,18 +869,20 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def switch_lagging_interface(self):
         """If auto_connect and lagging, switch interface (only within fork)."""
-        if self.auto_connect and await self._server_is_lagging():
+        if await self._server_is_lagging():
             # switch to one that has the correct header (not height)
             best_header = self.blockchain().header_at_tip()
             with self.interfaces_lock: interfaces = list(self.interfaces.values())
             filtered = list(filter(lambda iface: iface.tip_header == best_header, interfaces))
+            if not self.auto_connect:
+                filtered = [i for i in filtered if i.server in self.config.get_servers()]
             if filtered:
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
 
     async def switch_unwanted_fork_interface(self) -> None:
         """If auto_connect, maybe switch to another fork/chain."""
-        if not self.auto_connect or not self.interface:
+        if not self.interface:
             return
         with self.interfaces_lock: interfaces = list(self.interfaces.values())
         pref_height = self._blockchain_preferred_block['height']
@@ -874,6 +900,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             # switch to another random interface that is on this fork, if any
             filtered = [iface for iface in interfaces
                         if iface.blockchain == chain]
+            if not self.auto_connect:
+                filtered = [i for i in filtered if i.server in self.config.get_servers()]
             if filtered:
                 self.logger.info(f"switching to (more) preferred fork (rank {rank})")
                 chosen_iface = random.choice(filtered)
@@ -973,6 +1001,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
     async def _run_new_interface(self, server: ServerAddr):
+        if server is None:
+            return
         if (server in self.interfaces
                 or server in self._connecting_ifaces
                 or server in self._closing_ifaces):

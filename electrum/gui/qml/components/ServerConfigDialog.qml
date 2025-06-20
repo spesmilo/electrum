@@ -42,9 +42,10 @@ ElDialog {
             icon.source: '../../icons/confirmed.png'
             onClicked: {
                 let auto_connect = serverconfig.serverConnectMode == ServerConnectModeComboBox.Mode.Autoconnect
-                let server = serverconfig.address
                 let one_server = serverconfig.serverConnectMode == ServerConnectModeComboBox.Mode.Single
-                Network.setServerParameters(server, auto_connect, one_server)
+                Network.setParameters(auto_connect, one_server)
+                let server = serverconfig.address
+                Network.setBookmark(server, true)
                 rootItem.close()
             }
         }
