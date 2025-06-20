@@ -333,6 +333,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
+        self.bring_to_front()
         return True
 
     def show_list(self):
@@ -388,4 +389,4 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         def _bring_self_to_front():
             self.activateWindow()
             self.setFocus()
-        QTimer.singleShot(100, _bring_self_to_front)
+        QTimer.singleShot(250, _bring_self_to_front)
