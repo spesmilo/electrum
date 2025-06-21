@@ -89,6 +89,7 @@ class TimelockRecoveryContext:
             outputs=alert_tx_outputs,
             fee_policy=fee_policy,
             is_sweep=False,
+            locktime=self.alert_tx.locktime if self.alert_tx else None,
         )
 
     def _alert_tx_output(self) -> Tuple[int, 'TxOutput']:
@@ -122,11 +123,15 @@ class TimelockRecoveryContext:
             outputs=[output for output in self.outputs if output.value != 0],
             fee_policy=fee_policy,
             is_sweep=False,
+            locktime=self.recovery_tx.locktime if self.recovery_tx else None,
         )
 
-    def add_input_info(self):
-        self.recovery_tx.inputs()[0].utxo = self.alert_tx
-        if self.cancellation_tx:
+    def add_input_info_to_recovery_tx(self):
+        if self.recovery_tx and self.alert_tx.is_complete():
+            self.recovery_tx.inputs()[0].utxo = self.alert_tx
+
+    def add_input_info_to_cancellation_tx(self):
+        if self.cancellation_tx and self.alert_tx.is_complete():
             self.cancellation_tx.inputs()[0].utxo = self.alert_tx
 
     def make_unsigned_cancellation_tx(self, fee_policy) -> 'PartialTransaction':
@@ -143,6 +148,7 @@ class TimelockRecoveryContext:
             ],
             fee_policy=fee_policy,
             is_sweep=False,
+            locktime=self.cancellation_tx.locktime if self.cancellation_tx else None,
         )
 
 class TimelockRecoveryPlugin(BasePlugin):
