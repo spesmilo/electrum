@@ -50,12 +50,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.channels = channels
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
-        toolbar, menu = create_toolbar_with_menu(self.config, '')
-        menu.addAction(
-            _('Choose swap provider'),
-            lambda: self.choose_swap_server(transport),
-        ).setEnabled(not self.config.SWAPSERVER_URL)
-        vbox.addLayout(toolbar)
+
+        recent_offers = transport.get_recent_offers() if not self.config.SWAPSERVER_URL else []
+        self.server_button = QPushButton(_(f'{len(recent_offers)} providers'))
+        self.server_button.clicked.connect(lambda: self.choose_swap_server(transport))
+        self.server_button.setEnabled(not self.config.SWAPSERVER_URL)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -90,14 +89,14 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.swap_limits_label = QLabel()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
-        vbox.addWidget(self.description_label)
         h = QGridLayout()
+        h.addWidget(self.description_label, 0, 0, 1, 3)
+        h.addWidget(self.toggle_button, 0, 3)
         self.send_label = IconLabel(text=_('You send')+':')
         self.recv_label = IconLabel(text=_('You receive')+':')
         h.addWidget(self.send_label, 1, 0)
         h.addWidget(self.send_amount_e, 1, 1)
         h.addWidget(self.max_button, 1, 2)
-        h.addWidget(self.toggle_button, 1, 3)
         h.addWidget(self.recv_label, 2, 0)
         h.addWidget(self.recv_amount_e, 2, 1)
         h.addWidget(QLabel(_('Swap limits')+':'), 4, 0)
@@ -109,12 +108,15 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         h.addWidget(self.fee_slider, 7, 1)
         h.addWidget(self.fee_combo, 7, 2)
         h.addWidget(self.fee_target_label, 7, 0)
+        h.addWidget(QLabel(''), 8, 0)
         vbox.addLayout(h)
-        vbox.addStretch(1)
+        vbox.addStretch()
         self.ok_button = OkButton(self)
         self.ok_button.setDefault(True)
         self.ok_button.setEnabled(False)
-        vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
+        buttons = Buttons(CancelButton(self), self.ok_button)
+        vbox.addLayout(buttons)
+        buttons.insertWidget(0, self.server_button)
         if recv_amount_sat:
             self.init_recv_amount(recv_amount_sat)
         self.update()
@@ -406,10 +408,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.window.on_swap_result(funding_txid, is_reverse=False)
 
     def get_description(self):
-        onchain_funds = "onchain funds"
-        lightning_funds = "lightning funds"
+        onchain_funds = "onchain"
+        lightning_funds = "lightning"
 
-        return "Swap {fromType} for {toType}.\nThis will increase your {capacityType} capacity.".format(
+        return "Send {fromType}, receive {toType}.\nThis will increase your lightning {capacityType} capacity.\n".format(
             fromType=lightning_funds if self.is_reverse else onchain_funds,
             toType=onchain_funds if self.is_reverse else lightning_funds,
             capacityType="receiving" if self.is_reverse else "sending",
