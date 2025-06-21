@@ -177,10 +177,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         vbox.addWidget(scroll)
         add_button = QPushButton(_('Add'))
         add_button.setMinimumWidth(40)  # looks better on windows, no difference on linux
-        menu = QMenu()
-        menu.addAction(_('Local ZIP file'), self.add_plugin_dialog)
-        menu.addAction(_('Download ZIP file'), self.download_plugin_dialog)
-        add_button.setMenu(menu)
+        add_button.clicked.connect(self.add_plugin_dialog)
         vbox.addLayout(Buttons(add_button, CloseButton(self)))
         self.show_list()
 
@@ -270,28 +267,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             ]
             if self.show_message(msg, buttons=buttons) or exit_dialog:
                 break
-
-    def download_plugin_dialog(self):
-        from .util import line_dialog
-        from electrum.util import UserCancelled
-        pubkey, salt = self.plugins.get_pubkey_bytes()
-        if not pubkey:
-            self.init_plugins_password()
-            return
-        url = line_dialog(self, 'url', _('Enter plugin URL'), _('Download'))
-        if not url:
-            return
-        coro = self.plugins.download_external_plugin(url)
-        try:
-            d = RunCoroutineDialog(self, _("Downloading plugin..."), coro)
-            path = d.run()
-        except UserCancelled:
-            return
-        except Exception as e:
-            self._logger.exception("")
-            self.show_error(f"{e}")
-            return
-        self._try_add_external_plugin_from_path(path)
 
     def add_plugin_dialog(self):
         pubkey, salt = self.plugins.get_pubkey_bytes()
