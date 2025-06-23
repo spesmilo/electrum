@@ -148,10 +148,18 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_channel_db(self, num_nodes, num_channels, num_policies):
-        self._logger.debug(f'channel_db: {num_nodes} nodes, {num_channels} channels, {num_policies} policies')
-        self._gossipDbNodes = num_nodes
-        self._gossipDbChannels = num_channels
-        self._gossipDbPolicies = num_policies
+        changed = False
+        if self._gossipDbNodes != num_nodes:
+            self._gossipDbNodes = num_nodes
+            changed = True
+        if self._gossipDbChannels != num_channels:
+            self._gossipDbChannels = num_channels
+            changed = True
+        if self._gossipDbPolicies != num_policies:
+            self._gossipDbPolicies = num_policies
+            changed = True
+        if changed:
+            self._logger.debug(f'channel_db: {num_nodes} nodes, {num_channels} channels, {num_policies} policies')
         self.gossipUpdated.emit()
 
     @event_listener
