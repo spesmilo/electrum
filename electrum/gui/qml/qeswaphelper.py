@@ -1,4 +1,5 @@
 import asyncio
+import bisect
 from enum import IntEnum
 from typing import Union, Optional, TYPE_CHECKING, Sequence
 
@@ -33,7 +34,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES= ('npub', 'server_pubkey', 'timestamp', 'percentage_fee', 'mining_fee',
-                  'min_amount', 'max_forward_amount', 'max_reverse_amount')
+                  'min_amount', 'max_forward_amount', 'max_reverse_amount', 'pow_bits')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -77,6 +78,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
             'max_forward_amount': x.pairs.max_forward,
             'max_reverse_amount': x.pairs.max_reverse,
             'timestamp': age(x.timestamp),
+            'pow_bits': x.pow_bits,
         }
 
     def updateModel(self, items: Sequence['SwapOffer']):
@@ -103,10 +105,16 @@ class QESwapServerNPubListModel(QAbstractListModel):
 
         # add new offers
         if offers:
-            self.beginInsertRows(QModelIndex(), len(self._services), len(self._services) + len(offers) - 1)
             for offer in offers:
-                self._services.append(self.offer_to_model(offer))
-            self.endInsertRows()
+                # offers are sorted by pow_bits
+                insertion_index = bisect.bisect_left(
+                    self._services,
+                    -offer.pow_bits,  # negate the values to get ascending order
+                    key=lambda service: -service['pow_bits'],
+                )
+                self.beginInsertRows(QModelIndex(), insertion_index, insertion_index)
+                self._services.insert(insertion_index, self.offer_to_model(offer))
+                self.endInsertRows()
 
         if offers or remove:
             self.countChanged.emit()
