@@ -1,3 +1,4 @@
+import enum
 from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence
 
 from PyQt6.QtCore import pyqtSignal, Qt
@@ -19,7 +20,7 @@ from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
 from .util import qt_event_listener, QtEventListener
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
-from .my_treeview import create_toolbar_with_menu
+from .my_treeview import create_toolbar_with_menu, MyTreeView
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -424,7 +425,22 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
 class SwapServerDialog(WindowModalDialog, QtEventListener):
 
-    def __init__(self, window, servers):
+    class Columns(MyTreeView.BaseColumnsEnum):
+        PUBKEY = enum.auto()
+        FEE = enum.auto()
+        MAX_FORWARD = enum.auto()
+        MAX_REVERSE = enum.auto()
+        LAST_SEEN = enum.auto()
+
+    headers = {
+        Columns.PUBKEY: _("Pubkey"),
+        Columns.FEE: _("Fee"),
+        Columns.MAX_FORWARD: _('Max Forward'),
+        Columns.MAX_REVERSE: _('Max Reverse'),
+        Columns.LAST_SEEN: _("Last seen"),
+    }
+
+    def __init__(self, window: 'ElectrumWindow', servers: Sequence['SwapOffer']):
         WindowModalDialog.__init__(self, window, _('Choose Swap Provider'))
         self.window = window
         self.config = window.config
@@ -433,11 +449,11 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
             _("Note that fees and liquidity may be updated frequently.")
         ])
         self.servers_list = QTreeWidget()
-        self.servers_list.setColumnCount(5)
-        self.servers_list.setHeaderLabels([_("Pubkey"), _("Fee"), _('Max Forward'), _('Max Reverse'), _("Last seen")])
+        col_names = [self.headers[col_idx] for col_idx in sorted(self.headers.keys())]
+        self.servers_list.setHeaderLabels(col_names)
         self.servers_list.header().setStretchLastSection(False)
-        for col_idx in range(5):
-            sm = QHeaderView.ResizeMode.Stretch if col_idx == 0 else QHeaderView.ResizeMode.ResizeToContents
+        for col_idx in range(len(self.Columns)):
+            sm = QHeaderView.ResizeMode.Stretch if col_idx == self.Columns.PUBKEY else QHeaderView.ResizeMode.ResizeToContents
             self.servers_list.header().setSectionResizeMode(col_idx, sm)
         self.update_servers_list(servers)
         vbox = QVBoxLayout()
@@ -453,7 +469,7 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
         if self.exec() != 1:
             return None
         if item := self.servers_list.currentItem():
-            return item.data(0, ROLE_NPUB)
+            return item.data(self.Columns.PUBKEY, ROLE_NPUB)
         return None
 
     def update_servers_list(self, servers: Sequence['SwapOffer']):
@@ -461,13 +477,15 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
         from electrum.util import age
         items = []
         for x in servers:
-            last_seen = age(x.timestamp)
-            fee = f"{x.pairs.percentage}% + {x.pairs.mining_fee} sats"
-            max_forward = self.window.format_amount(x.pairs.max_forward) + ' ' + self.window.base_unit()
-            max_reverse = self.window.format_amount(x.pairs.max_reverse) + ' ' + self.window.base_unit()
-            item = QTreeWidgetItem([x.server_pubkey, fee, max_forward, max_reverse, last_seen])
-            item.setData(0, ROLE_NPUB, x.server_npub)
-            item.setIcon(0, self._pubkey_to_q_icon(x.server_pubkey))
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.PUBKEY] = x.server_pubkey
+            labels[self.Columns.FEE] = f"{x.pairs.percentage}% + {x.pairs.mining_fee} sats"
+            labels[self.Columns.MAX_FORWARD] = self.window.format_amount(x.pairs.max_forward) + ' ' + self.window.base_unit()
+            labels[self.Columns.MAX_REVERSE] = self.window.format_amount(x.pairs.max_reverse) + ' ' + self.window.base_unit()
+            labels[self.Columns.LAST_SEEN] = age(x.timestamp)
+            item = QTreeWidgetItem(labels)
+            item.setData(self.Columns.PUBKEY, ROLE_NPUB, x.server_npub)
+            item.setIcon(self.Columns.PUBKEY, self._pubkey_to_q_icon(x.server_pubkey))
             items.append(item)
         self.servers_list.insertTopLevelItems(0, items)
 
