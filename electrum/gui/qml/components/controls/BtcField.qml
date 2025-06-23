@@ -32,5 +32,5 @@ TextField {
         }
     }
 
-    Component.onCompleted: textAsSats = Config.unitsToSats('')
+    Component.onCompleted: amount.textChanged()
 }
