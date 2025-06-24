@@ -155,7 +155,7 @@ class QEInvoice(QObject, QtEventListener):
         return self._amountOverride
 
     @amountOverride.setter
-    def amountOverride(self, new_amount):
+    def amountOverride(self, new_amount: QEAmount):
         self._logger.debug(f'set new override amount {repr(new_amount)}')
         self._amountOverride.copyFrom(new_amount)
         self.amountOverrideChanged.emit()
