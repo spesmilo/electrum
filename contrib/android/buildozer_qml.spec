@@ -160,9 +160,13 @@ android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
+# (list) Gradle repositories to add {can be necessary for some android.gradle_dependencies}
+# e.g. android.gradle_repositories = maven { url "https://repo.spring.io/release" }
+android.add_gradle_repositories = maven { url "https://jitpack.io" }
+
 android.gradle_dependencies =
     com.android.support:support-compat:28.0.0,
-    me.dm7.barcodescanner:zxing:1.9.8
+    com.github.markusfisch:BarcodeScannerView:1.6.0
 
 android.add_activities = org.electrum.qr.SimpleScannerActivity
 
