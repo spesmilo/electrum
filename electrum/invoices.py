@@ -6,7 +6,7 @@ import attr
 
 from .json_db import StoredObject, stored_in
 from .i18n import _
-from .util import age, InvoiceError, format_satoshis
+from .util import age, InvoiceError, format_satoshis, bfh
 from .bip21 import create_bip21_uri
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode, LnAddr
@@ -92,6 +92,9 @@ def _decode_outputs(outputs) -> Optional[List[PartialTxOutput]]:
 # Our higher level invoices code however uses 0 for "never".
 # Hence set some high expiration here
 LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
+
+
+BOLT12_INVOICE_PREFIX = 'bolt12_invoice_tlv:'
 
 
 @attr.s
@@ -233,6 +236,33 @@ class BaseInvoice(StoredObject):
         )
 
     @classmethod
+    def from_bolt12_invoice_tlv(cls, bolt12_invoice_tlv: bytes) -> 'Invoice':
+        # FIXME: due to
+        #  1) the codebase assumption of Invoice to be serialized to WalletDB and
+        #  2) asymmetry of storing bytes fields in WalletDB (returns as hex str) we cannot store bolt12_invoice
+        #  in WalletDB directly without explicit conversion of each bytes field occurrence. Instead, store whole
+        #  invoice TLV as hex str and re-parse when needed.
+        from .bolt12 import decode_invoice
+        bolt12_invoice = decode_invoice(bolt12_invoice_tlv)
+        amount_msat = bolt12_invoice.get('invoice_amount').get('msat')
+        timestamp = bolt12_invoice.get('invoice_created_at').get('timestamp')
+        exp_delay = bolt12_invoice.get('invoice_relative_expiry', {}).get('seconds_from_creation', 0)
+        message = bolt12_invoice.get('offer_description', {}).get('description', '')
+
+        # TODO: check payer id?
+        # check htlc minmax from invoice_blindedpay?
+        return Invoice(
+            message=message,
+            amount_msat=amount_msat,
+            time=timestamp,
+            exp=exp_delay,
+            outputs=None,
+            bip70=None,
+            height=0,
+            lightning_invoice=BOLT12_INVOICE_PREFIX + bolt12_invoice_tlv.hex()
+        )
+
+    @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest', *, height: int = 0) -> 'Invoice':
         return Invoice(
             amount_msat=pr.get_amount()*1000,
@@ -289,10 +319,24 @@ class Invoice(BaseInvoice):
             address = self._lnaddr.get_fallback_address() or None
         return address
 
+    def _is_bolt12_invoice(self) -> bool:
+        return bool(self.bolt12_invoice_tlv())
+
+    def bolt12_invoice_tlv(self) -> Optional[bytes]:
+        if self.lightning_invoice is None or not self.lightning_invoice.startswith(BOLT12_INVOICE_PREFIX):
+            return None
+        return bfh(self.lightning_invoice[len(BOLT12_INVOICE_PREFIX):])
+
     @property
     def _lnaddr(self) -> LnAddr:
         if self.__lnaddr is None:
-            self.__lnaddr = lndecode(self.lightning_invoice)
+            if self._is_bolt12_invoice():
+                from .bolt12 import decode_invoice, to_lnaddr
+                invoice_tlv = bfh(self.lightning_invoice[len(BOLT12_INVOICE_PREFIX):])
+                bolt12_invoice = decode_invoice(invoice_tlv)
+                self.__lnaddr = to_lnaddr(bolt12_invoice)
+            else:
+                self.__lnaddr = lndecode(self.lightning_invoice)
         return self.__lnaddr
 
     @property
@@ -303,8 +347,14 @@ class Invoice(BaseInvoice):
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):
         if value is not None:
-            lnaddr = lndecode(value)  # this checks the str can be decoded
-            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
+            if value.startswith(BOLT12_INVOICE_PREFIX):
+                from .bolt12 import decode_invoice, to_lnaddr
+                invoice_tlv = bfh(value[len(BOLT12_INVOICE_PREFIX):])
+                bolt12_invoice = decode_invoice(invoice_tlv)
+                self.__lnaddr = to_lnaddr(bolt12_invoice)
+            else:
+                lnaddr = lndecode(value)  # this checks the str can be decoded
+                self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
 
     def can_be_paid_onchain(self) -> bool:
         if self.is_lightning():
