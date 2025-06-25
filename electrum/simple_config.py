@@ -37,6 +37,7 @@ class ConfigVar(property):
         default: Union[Any, Callable[['SimpleConfig'], Any]],  # typically a literal, but can also be a callable
         type_=None,
         convert_getter: Callable[[Any], Any] = None,
+        convert_setter: Callable[[Any], Any] = None,
         short_desc: Callable[[], str] = None,
         long_desc: Callable[[], str] = None,
         plugin: Optional[str] = None,
@@ -45,6 +46,7 @@ class ConfigVar(property):
         self._default = default
         self._type = type_
         self._convert_getter = convert_getter
+        self._convert_setter = convert_setter
         # note: the descriptions are callables instead of str literals, to delay evaluating the _() translations
         #       until after the language is set.
         assert short_desc is None or callable(short_desc)
@@ -84,6 +86,10 @@ class ConfigVar(property):
             return value
 
     def _set_config_value(self, config: 'SimpleConfig', value, *, save=True):
+        # run converter
+        if self._convert_setter is not None and value is not None:
+            value = self._convert_setter(value)
+        # type-check
         if self._type is not None and value is not None:
             if not isinstance(value, self._type):
                 raise ValueError(
@@ -853,7 +859,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             'For more information, see https://openalias.org'),
     )
     HWD_SESSION_TIMEOUT = ConfigVar('session_timeout', default=300, type_=int)
-    CLI_TIMEOUT = ConfigVar('timeout', default=60, type_=float)
+    CLI_TIMEOUT = ConfigVar('timeout', default=60.0, type_=float, convert_setter=lambda v: float(v))
     AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = ConfigVar(
         'check_updates', default=False, type_=bool,
         short_desc=lambda: _("Automatically check for software updates"),
