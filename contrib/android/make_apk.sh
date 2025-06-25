@@ -27,6 +27,10 @@ info "preparing electrum-locale."
     rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
 )
 
+# fetch barcode scanner aars
+info "fetching barcode scanner aars."
+"$CONTRIB_ANDROID"/fetch_barcode_scanner.sh || fail "fetch_barcode_scanner.sh failed"
+
 pushd "$CONTRIB_ANDROID"
 
 info "apk building phase starts."

@@ -156,17 +156,20 @@ android.accept_sdk_license = True
 android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum/jar/*.jar
 
 
+android.add_aars =
+    contrib/android/.cache/aars/BarcodeScannerView.aar,
+    contrib/android/.cache/aars/CameraView.aar,
+    contrib/android/.cache/aars/zxing-cpp.aar
+
+
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
-# (list) Gradle repositories to add {can be necessary for some android.gradle_dependencies}
-# e.g. android.gradle_repositories = maven { url "https://repo.spring.io/release" }
-android.add_gradle_repositories = maven { url "https://jitpack.io" }
-
+# kotlin-stdlib is required for zxing-cpp (BarcodeScannerView)
 android.gradle_dependencies =
     com.android.support:support-compat:28.0.0,
-    com.github.markusfisch:BarcodeScannerView:1.6.0
+    org.jetbrains.kotlin:kotlin-stdlib:1.8.22
 
 android.add_activities = org.electrum.qr.SimpleScannerActivity
 
