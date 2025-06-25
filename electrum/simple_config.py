@@ -863,7 +863,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
         short_desc=lambda: _("Write logs to file"),
         long_desc=lambda: _('Debug logs can be persisted to disk. These are useful for troubleshooting.'),
     )
-    LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=10, type_=int)
+    LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=30, type_=int)
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
         'language', default="", type_=str,
