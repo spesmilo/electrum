@@ -110,6 +110,9 @@ class TestLightningSwapserver(TestLightning):
     def test_swapserver_refund(self):
         self.run_shell(['swapserver_refund'])
 
+    def test_swapserver_server_skip_onchain_funding(self):
+        self.run_shell(['swapserver_server_skip_onchain_funding'])
+
 
 
 class TestLightningWatchtower(TestLightning):

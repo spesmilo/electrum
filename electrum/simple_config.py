@@ -891,6 +891,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # connect to remote submarine swap server
     SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
+    TEST_SWAPSERVER_SKIP_ONCHAIN_FUNDING = ConfigVar('test_swapserver_skip_onchain_funding', default=False, type_=bool)
     SWAPSERVER_NPUB = ConfigVar('swapserver_npub', default=None, type_=str)
     SWAPSERVER_POW_TARGET = ConfigVar('swapserver_pow_target', default=30, type_=int)
 

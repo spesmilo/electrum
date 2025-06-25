@@ -515,6 +515,8 @@ class SwapManager(Logger):
         key = payment_hash.hex()
         if swap := self._swaps.get(key):
             if not swap.is_funded():
+                if self.network.config.TEST_SWAPSERVER_SKIP_ONCHAIN_FUNDING:  # for testing
+                    return
                 output = self.create_funding_output(swap)
                 self.wallet.txbatcher.add_payment_output('swaps', output)
                 swap._payment_pending = True

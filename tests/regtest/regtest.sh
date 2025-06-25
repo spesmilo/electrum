@@ -317,6 +317,51 @@ if [[ $1 == "swapserver_refund" ]]; then
 fi
 
 
+if [[ $1 == "swapserver_server_skip_onchain_funding" ]]; then
+    # Alice starts reverse-swap with Bob.
+    # Alice sends hold-HTLCs via LN. Bob does NOT fund locking script onchain.
+    # After a while, Alice requests Bob to force-close chan, and Bob does.
+    # Alice will broadcast HTLC-timeout tx to reclaim the swap amount from Bob's commitment tx.
+    $bob setconfig test_swapserver_skip_onchain_funding true
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='')
+    chan_funding_txid=$(echo "$channel" | cut -d ":" -f 1)
+    chan_funding_outidx=$(echo "$channel" | cut -d ":" -f 2)
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates swap"
+    dryrun=$($alice reverse_swap 0.02 dryrun)
+    onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
+    # Alice starts a reverse-swap, but will time out waiting for Bob's swap-funding-tx to appear in mempool.
+    $alice setconfig timeout 10
+    set +e
+    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    set -e
+    $alice unsetconfig timeout
+    # After a while, Alice gets impatient and gets Bob to close the channel.
+    new_blocks 20
+    $alice request_force_close $channel
+    wait_until_spent $chan_funding_txid $chan_funding_outidx
+    new_blocks 1
+    wait_until_channel_closed alice
+    ctx_id=$($alice list_channels | jq -r ".[0].closing_txid")
+    # need more blocks to reach CLTV of HTLC-output in ctx
+    new_blocks 20
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        htlc_output_index=3  # FIXME index depends on Alice not using MPP  # FIXME presence of fee prepayment depends on fee-levels
+    else
+        htlc_output_index=1
+    fi
+    assert_utxo_exists $ctx_id $htlc_output_index
+    new_blocks 110
+    wait_until_spent $ctx_id $htlc_output_index
+    new_blocks 1
+    wait_for_balance alice 0.997
+fi
+
+
 if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     # Alice sends two HTLCs to Bob (one for small invoice, one for large invoice), which Bob will hold.
     # Alice requests Bob to force-close the channel, while the HTLCs are pending. Bob force-closes.
