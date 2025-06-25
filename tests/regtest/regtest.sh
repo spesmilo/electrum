@@ -249,6 +249,11 @@ fi
 
 
 if [[ $1 == "swapserver_forceclose" ]]; then
+    # Alice starts reverse-swap with Bob.
+    # Alice sends hold-HTLCs via LN, Bob funds locking script onchain.
+    # Bob force-closes the channel, before swap-funding-tx gets mined.
+    # After swap-funding-tx gets mined, Alice broadcasts onchain claim tx, revealing preimage.
+    # Bob finds preimage onchain, and creates HTLC-success tx to spend own ctx htlc output onchain.
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -278,6 +283,11 @@ fi
 
 
 if [[ $1 == "swapserver_refund" ]]; then
+    # Alice starts reverse-swap with Bob.
+    # Alice sends hold-HTLCs via LN, Bob funds locking script onchain.
+    # Alice never broadcasts onchain claim tx. Bob will use timeout path onchain.
+    # Then Bob fails hold-HTLCs via LN.
+    # Channel stays open.
     $alice setconfig test_swapserver_refund true
     wait_for_balance alice 1
     echo "alice opens channel"
