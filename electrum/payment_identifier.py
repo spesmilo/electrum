@@ -638,6 +638,8 @@ class PaymentIdentifier(Logger):
             offer_amount = self.bolt12_offer.get('offer_amount')
             if offer_amount:
                 amount = int(offer_amount.get('amount')) / 1000  # msat->sat, FIXME: cannot handle fractional sats..
+                if amount > int(amount):  # fractional sat, round up
+                    amount += 1
             offer_description = self.bolt12_offer.get('offer_description')
             if offer_description:
                 description = offer_description.get('description')
