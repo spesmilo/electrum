@@ -1737,6 +1737,7 @@ class Commands(Logger):
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
                 'channel_id': chan.channel_id.hex(),
                 'channel_point': chan.funding_outpoint.to_str(),
+                'closing_txid': chan.get_closing_height()[0] if chan.get_closing_height() else None,
                 'state': chan.get_state().name,
                 'peer_state': chan.peer_state.name,
                 'remote_pubkey': chan.node_id.hex(),
@@ -1755,6 +1756,7 @@ class Commands(Logger):
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
                 'channel_id': chan.channel_id.hex(),
                 'channel_point': chan.funding_outpoint.to_str(),
+                'closing_txid': chan.get_closing_height()[0] if chan.get_closing_height() else None,
                 'state': chan.get_state().name,
             } for channel_id, chan in backups
         ]
