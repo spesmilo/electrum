@@ -1681,11 +1681,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def show_lightning_invoice(self, invoice: Invoice):
         from electrum.util import format_short_id
-        if invoice.lightning_invoice:
-            lnaddr = lndecode(invoice.lightning_invoice)  # FIXME: assumes BOLT11, should be abstracted by Invoice
-        elif invoice.bolt12_invoice:
-            bolt12_inv = bolt12.decode_invoice(bfh(invoice.bolt12_invoice))
+        if bolt12_invoice_tlv := invoice.bolt12_invoice_tlv():
+            bolt12_inv = bolt12.decode_invoice(bolt12_invoice_tlv)
             lnaddr = bolt12.to_lnaddr(bolt12_inv)
+        elif invoice.lightning_invoice:
+            lnaddr = lndecode(invoice.lightning_invoice)  # FIXME: assumes BOLT11, should be abstracted by Invoice
         else:
             raise Exception()
         d = WindowModalDialog(self, _("Lightning Invoice"))
