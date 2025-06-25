@@ -638,6 +638,11 @@ class LNPathFinder(Logger):
         if my_sending_channels is None:
             my_sending_channels = {}
 
+        if self.channel_db.get_node_info_for_node_id(nodeB):
+            self.logger.debug(f'destination node {nodeB.hex()} in channel_db')
+        else:
+            self.logger.debug(f'destination node {nodeB.hex()} not in channel_db')
+
         previous_hops = self.get_shortest_path_hops(
             nodeA=nodeA,
             nodeB=nodeB,
