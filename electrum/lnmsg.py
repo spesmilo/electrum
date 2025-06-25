@@ -611,6 +611,7 @@ class LNSerializer:
 
                 # if we need to sign the tlvs, we need the entire TLV, so serialize again
                 # and collect in `sign_over_tlvs`
+                # NOTE: assumption: there are no fields after 'signature' (240)
                 if signing_key and tlv_record_name != 'signature':
                     with io.BytesIO() as tlvfd:
                         _write_tlv_record(fd=tlvfd, tlv_type=tlv_record_type, tlv_val=tlv_val)
@@ -621,6 +622,7 @@ class LNSerializer:
                         tlv_stream_name: str,
                         signing_key_path: Optional[Sequence[str]] = None) -> Dict[str, Dict[str, Any]]:
         sign_over_tlvs = []
+        signature_seen = False
         parsed = {}  # type: Dict[str, Dict[str, Any]]
         scheme_map = self.in_tlv_stream_get_tlv_record_scheme_from_type[tlv_stream_name]
         last_seen_tlv_record_type = -1  # type: int
@@ -643,6 +645,7 @@ class LNSerializer:
             # collect tlvs for signature check
             if signing_key_path:
                 if tlv_record_name == 'signature':
+                    signature_seen = True
                     # verify
                     merkle_root = _tlv_merkle_root(sign_over_tlvs)
                     signature = tlv_record_val
@@ -683,6 +686,8 @@ class LNSerializer:
                         raise Exception(f"unexpected row in scheme: {row!r}")
                 if _num_remaining_bytes_to_read(tlv_record_fd) > 0:
                     raise MsgTrailingGarbage(f"TLV record ({tlv_stream_name}/{tlv_record_name}) has extra trailing garbage")
+        if signing_key_path and not signature_seen:
+            raise MalformedMsg(f"signature expected but missing")
         return parsed
 
     def encode_msg(self, msg_type: str, **kwargs) -> bytes:
