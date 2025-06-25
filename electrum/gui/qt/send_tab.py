@@ -563,9 +563,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(pi.error)
             return
         invoice = pi.bolt11
-        if not invoice and pi.bolt12_offer:  # TODO
-            self.show_error('bolt12: invoice received, not implemented yet')
-            return
+        if not invoice and pi.bolt12_offer:
+            invoice = Invoice.from_bolt12_invoice_tlv(pi.bolt12_invoice_tlv)
         self.pending_invoice = invoice
         self.logger.debug(f'after finalize invoice: {invoice!r}')
         self.do_pay_invoice(invoice)
