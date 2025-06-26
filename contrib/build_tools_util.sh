@@ -50,6 +50,28 @@ function download_if_not_exist() {
     fi
 }
 
+# Function to clone or update a git repository to a specific commit
+clone_or_update_repo() {
+    local repo_url=$1
+    local commit_hash=$2
+    local repo_dir=$3
+
+    if [ -z "$repo_url" ] || [ -z "$commit_hash" ] || [ -z "$repo_dir" ]; then
+        fail "clone_or_update_repo: invalid arguments: repo_url='$repo_url', commit_hash='$commit_hash', repo_dir='$repo_dir'"
+    fi
+
+    if [ -d "$repo_dir" ]; then
+        info "Repository $repo_url exists in $repo_dir, updating..."
+        git -C "$repo_dir" clean -ffxd >/dev/null 2>&1 || fail "Failed to clean repository $repo_dir"
+        git -C "$repo_dir" fetch --all >/dev/null 2>&1 || fail "Failed to fetch from repository"
+        git -C "$repo_dir" reset --hard "$commit_hash^{commit}" >/dev/null 2>&1 || fail "Failed to reset to commit $commit_hash"
+    else
+        info "Cloning repository: $repo_url to $repo_dir"
+        git clone "$repo_url" "$repo_dir" >/dev/null 2>&1 || fail "Failed to clone repository $repo_url"
+        git -C "$repo_dir" checkout "$commit_hash^{commit}" >/dev/null 2>&1 || fail "Failed to checkout commit $commit_hash"
+    fi
+}
+
 # https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
 function retry() {
     local result=0
