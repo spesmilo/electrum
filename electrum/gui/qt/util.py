@@ -726,13 +726,15 @@ def get_icon_camera() -> QIcon:
     return read_QIcon(name)
 
 
-def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> None:
-    m = self.createStandardContextMenu()
-    m.addSeparator()
-    m.addAction(get_icon_camera(),    _("Read QR code with camera"), p.on_qr_from_camera_input_btn)
-    m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), p.on_qr_from_screenshot_input_btn)
-    m.addAction(read_QIcon("file.png"), _("Read file"), p.on_input_file)
-    m.exec(e.globalPos())
+def add_input_actions_to_context_menu(gih: 'GenericInputHandler', m: QMenu) -> None:
+    if gih.on_qr_from_camera_input_btn:
+        m.addAction(get_icon_camera(), _("Read QR code with camera"), gih.on_qr_from_camera_input_btn)
+    if gih.on_qr_from_screenshot_input_btn:
+        m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), gih.on_qr_from_screenshot_input_btn)
+    if gih.on_qr_from_file_input_btn:
+        m.addAction(read_QIcon("qr_file.png"), _("Read QR code from file"), gih.on_qr_from_file_input_btn)
+    if gih.on_input_file:
+        m.addAction(read_QIcon("file.png"), _("Read text from file"), gih.on_input_file)
 
 
 def scan_qr_from_screenshot() -> QrCodeResult:
@@ -758,6 +760,11 @@ def scan_qr_from_screenshot() -> QrCodeResult:
 
 
 class GenericInputHandler:
+    on_qr_from_camera_input_btn: Callable[[], None] = None
+    on_qr_from_screenshot_input_btn: Callable[[], None] = None
+    on_qr_from_file_input_btn: Callable[[], None] = None
+    on_input_file: Callable[[], None] = None
+
     def input_qr_from_camera(
             self,
             *,
@@ -1019,39 +1026,6 @@ class OverlayControlMixin(GenericInputHandler):
         # side-effect: we export this method:
         self.on_qr_show_btn = qr_show
 
-    def add_qr_input_combined_button(
-            self,
-            *,
-            config: 'SimpleConfig',
-            allow_multi: bool = False,
-            show_error: Callable[[str], None],
-            setText: Callable[[str], None] = None,
-    ):
-        input_qr_from_camera = partial(
-            self.input_qr_from_camera,
-            config=config,
-            allow_multi=allow_multi,
-            show_error=show_error,
-            setText=setText,
-        )
-        input_qr_from_screenshot = partial(
-            self.input_qr_from_screenshot,
-            allow_multi=allow_multi,
-            show_error=show_error,
-            setText=setText,
-        )
-        self.add_menu_button(
-            icon=get_icon_camera(),
-            tooltip=_("Read QR code"),
-            options=[
-                (get_icon_camera(),    _("Read QR code from camera"), input_qr_from_camera),
-                ("picture_in_picture.png", _("Read QR code from screen"), input_qr_from_screenshot),
-            ],
-        )
-        # side-effect: we export these methods:
-        self.on_qr_from_camera_input_btn = input_qr_from_camera
-        self.on_qr_from_screenshot_input_btn = input_qr_from_screenshot
-
     def add_qr_input_from_camera_button(
             self,
             *,
@@ -1067,7 +1041,7 @@ class OverlayControlMixin(GenericInputHandler):
             show_error=show_error,
             setText=setText,
         )
-        self.addButton(get_icon_camera(), input_qr_from_camera, _("Read QR code from camera"))
+        self.addButton(get_icon_camera(), input_qr_from_camera, _("Read QR code with camera"))
         # side-effect: we export these methods:
         self.on_qr_from_camera_input_btn = input_qr_from_camera
 

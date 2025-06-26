@@ -24,11 +24,11 @@
 # SOFTWARE.
 
 from functools import partial
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Union
 
 from PyQt6.QtCore import Qt, QTimer, QSize, QStringListModel
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QFont
+from PyQt6.QtGui import QFontMetrics, QFont, QContextMenuEvent
 from PyQt6.QtWidgets import QTextEdit, QWidget, QLineEdit, QStackedLayout, QCompleter
 
 from electrum.payment_identifier import PaymentIdentifier
@@ -36,7 +36,7 @@ from electrum.logging import Logger
 from electrum.util import EventListener, event_listener
 
 from . import util
-from .util import MONOSPACE_FONT, GenericInputHandler, editor_contextMenuEvent, ColorScheme
+from .util import MONOSPACE_FONT, GenericInputHandler, ColorScheme, add_input_actions_to_context_menu
 
 if TYPE_CHECKING:
     from .send_tab import SendTab
@@ -193,8 +193,8 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
             setText=self.try_payment_identifier,
         )
 
-        self.text_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.text_edit, self)
-        self.line_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.line_edit, self)
+        self.text_edit.contextMenuEvent = partial(self.custom_context_menu_event, tl_edit=self.text_edit)
+        self.line_edit.contextMenuEvent = partial(self.custom_context_menu_event, tl_edit=self.line_edit)
 
         self.edit_timer = QTimer(self)
         self.edit_timer.setSingleShot(True)
@@ -205,6 +205,12 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
+
+    def custom_context_menu_event(self, e: 'QContextMenuEvent', *, tl_edit: Union[QTextEdit, QLineEdit]) -> None:
+        m = tl_edit.createStandardContextMenu()
+        m.addSeparator()
+        add_input_actions_to_context_menu(self, m)
+        m.exec(e.globalPos())
 
     @event_listener
     def on_event_contacts_updated(self):
