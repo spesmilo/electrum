@@ -6,6 +6,8 @@ from PyQt6.QtGui import QIcon, QPixmap, QColor
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem, QHeaderView
 
+from electrum_aionostr.util import from_nip19
+
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
@@ -268,9 +270,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.server_fee_label.setText(server_fee_str)
         self.server_fee_label.repaint()  # macOS hack for #6269
         self.needs_tx_update = True
-
-        current_offer = transport.get_offer(self.config.SWAPSERVER_NPUB) if not self.config.SWAPSERVER_URL else None
-        pubkey = current_offer.server_pubkey if current_offer else ''
+        # update icon
+        pubkey = from_nip19(self.config.SWAPSERVER_NPUB)['object'].hex() if self.config.SWAPSERVER_NPUB else ''
         self.server_button.setIcon(SwapServerDialog._pubkey_to_q_icon(pubkey))
 
     def get_client_swap_limits_sat(self) -> Tuple[int, int]:
