@@ -53,7 +53,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout(self)
 
         recent_offers = transport.get_recent_offers() if not self.config.SWAPSERVER_URL else []
-        self.server_button = QPushButton(_(f'{len(recent_offers)} providers'))
+        self.server_button = QPushButton(_(f' {len(recent_offers)} providers'))
         self.server_button.clicked.connect(lambda: self.choose_swap_server(transport))
         self.server_button.setEnabled(not self.config.SWAPSERVER_URL)
         self.description_label = WWLabel(self.get_description())
@@ -269,6 +269,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.server_fee_label.repaint()  # macOS hack for #6269
         self.needs_tx_update = True
 
+        current_offer = transport.get_offer(self.config.SWAPSERVER_NPUB) if not self.config.SWAPSERVER_URL else None
+        pubkey = current_offer.server_pubkey if current_offer else ''
+        self.server_button.setIcon(SwapServerDialog._pubkey_to_q_icon(pubkey))
+
     def get_client_swap_limits_sat(self) -> Tuple[int, int]:
         """Returns the (min, max) client swap limits in sat."""
         sm = self.swap_manager
@@ -421,6 +425,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def choose_swap_server(self, transport: 'SwapServerTransport') -> None:
         self.window.choose_swapserver_dialog(transport)  # type: ignore
         self.update()
+        self.on_send_edited()
+        self.on_recv_edited()
 
 
 class SwapServerDialog(WindowModalDialog, QtEventListener):
