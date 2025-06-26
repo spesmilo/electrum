@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from . import util
 from .util import TxMinedInfo, BelowDustLimit
@@ -88,13 +88,13 @@ class LNWatcher(Logger, EventListener):
         if chan.need_to_subscribe():
             self.add_callback(address, callback)
 
-    def unwatch_channel(self, address, funding_outpoint):
+    def unwatch_channel(self, address: str, funding_outpoint: str) -> None:
         self.logger.info(f'unwatching {funding_outpoint}')
         self.remove_callback(address)
 
     @ignore_exceptions
     @log_exceptions
-    async def check_onchain_situation(self, address, funding_outpoint):
+    async def check_onchain_situation(self, address: str, funding_outpoint: str) -> None:
         # early return if address has not been added yet
         if not self.adb.is_mine(address):
             return
@@ -142,17 +142,18 @@ class LNWatcher(Logger, EventListener):
             self._pending_force_closes.discard(chan)
         await self.lnworker.handle_onchain_state(chan)
 
-    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx) -> bool:
+    async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
         """This function is called when a channel was closed. In this case
         we need to check for redeemable outputs of the commitment transaction
         or spenders down the line (HTLC-timeout/success transactions).
 
         Returns whether we should continue to monitor.
 
-        Side-effécts:
+        Side-effects:
           - sets defaults labels
           - populates wallet._accounting_addresses
         """
+        assert closing_tx
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
@@ -188,7 +189,8 @@ class LNWatcher(Logger, EventListener):
                 self.maybe_add_accounting_address(spender_txid, sweep_info)
             else:
                 keep_watching |= was_added
-            self.maybe_add_pending_forceclose(chan, spender_txid, is_local_ctx, sweep_info, was_added)
+            self.maybe_add_pending_forceclose(
+                chan=chan, spender_txid=spender_txid, is_local_ctx=is_local_ctx, sweep_info=sweep_info, was_added=was_added)
         return keep_watching
 
     def get_pending_force_closes(self):
@@ -242,7 +244,15 @@ class LNWatcher(Logger, EventListener):
         txout = prev_tx.outputs()[int(prev_index)]
         self.lnworker.wallet._accounting_addresses.add(txout.address)
 
-    def maybe_add_pending_forceclose(self, chan, spender_txid, is_local_ctx, sweep_info, was_added):
+    def maybe_add_pending_forceclose(
+        self,
+        *,
+        chan: 'AbstractChannel',
+        spender_txid: Optional[str],
+        is_local_ctx: bool,
+        sweep_info: 'SweepInfo',
+        was_added: bool,
+    ):
         """ we are waiting for ctx to be confirmed and there are received htlcs """
         if was_added and is_local_ctx and sweep_info.name == 'received-htlc' and chan.has_anchors():
             tx_mined_status = self.adb.get_tx_height(spender_txid)
