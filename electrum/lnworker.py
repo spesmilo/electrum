@@ -1211,6 +1211,7 @@ class LNWallet(LNWorker):
         for chan in self.channel_backups.values():
             if chan.funding_outpoint.to_str() == txo:
                 return chan
+        return None
 
     async def handle_onchain_state(self, chan: Channel):
         if self.network is None:
@@ -1511,6 +1512,7 @@ class LNWallet(LNWorker):
                 return chan
             if chan.get_local_scid_alias() == short_channel_id:
                 return chan
+        return None
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
