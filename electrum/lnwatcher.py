@@ -5,11 +5,12 @@
 from typing import TYPE_CHECKING, Optional
 
 from . import util
-from .util import TxMinedInfo, BelowDustLimit
+from .util import TxMinedInfo, BelowDustLimit, NoDynamicFeeEstimates
 from .util import EventListener, event_listener, log_exceptions, ignore_exceptions
 from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 
 
 if TYPE_CHECKING:
@@ -172,32 +173,31 @@ class LNWatcher(Logger, EventListener):
                 # do not keep watching if prevout does not exist
                 self.logger.info(f'prevout does not exist for {name}: {prevout}')
                 continue
-            was_added = self.maybe_redeem(sweep_info)
+            watch_sweep_info = self.maybe_redeem(sweep_info)
             spender_txid = self.adb.get_spender(prevout)  # note: LOCAL spenders don't count
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
-                    htlc_was_added = self.maybe_redeem(htlc_sweep_info)
+                    watch_htlc_sweep_info = self.maybe_redeem(htlc_sweep_info)
                     htlc_tx_spender = self.adb.get_spender(prevout2)
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
                         keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
                         self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
                     else:
-                        keep_watching |= htlc_was_added
+                        keep_watching |= watch_htlc_sweep_info
                 keep_watching |= not self.adb.is_deeply_mined(spender_txid)
                 self.maybe_extract_preimage(chan, spender_tx, prevout)
                 self.maybe_add_accounting_address(spender_txid, sweep_info)
             else:
-                keep_watching |= was_added
+                keep_watching |= watch_sweep_info
             self.maybe_add_pending_forceclose(
                 chan=chan,
                 spender_txid=spender_txid,
                 is_local_ctx=is_local_ctx,
                 sweep_info=sweep_info,
-                sweep_info_txo_is_nondust=was_added,
             )
         return keep_watching
 
@@ -205,10 +205,16 @@ class LNWatcher(Logger, EventListener):
         return self._pending_force_closes
 
     def maybe_redeem(self, sweep_info: 'SweepInfo') -> bool:
-        """ returns False if it was dust """
+        """ returns 'keep_watching' """
         try:
             self.lnworker.wallet.txbatcher.add_sweep_input('lnwatcher', sweep_info)
         except BelowDustLimit:
+            # utxo is considered dust at *current* fee estimates.
+            # but maybe the fees atm are very high? We will retry later.
+            pass
+        except NoDynamicFeeEstimates:
+            pass  # will retry later
+        if sweep_info.is_anchor():
             return False
         return True
 
@@ -259,10 +265,18 @@ class LNWatcher(Logger, EventListener):
         spender_txid: Optional[str],
         is_local_ctx: bool,
         sweep_info: 'SweepInfo',
-        sweep_info_txo_is_nondust: bool,  # i.e. we want to sweep it
-    ):
-        """ we are waiting for ctx to be confirmed and there are received htlcs """
-        if is_local_ctx and sweep_info.name == 'received-htlc' and sweep_info_txo_is_nondust:
+    ) -> None:
+        """Adds chan into set of ongoing force-closures if the user should keep the wallet open, waiting for it.
+        (we are waiting for ctx to be confirmed and there are received htlcs)
+        """
+        if is_local_ctx and sweep_info.name == 'received-htlc':
+            cltv = sweep_info.cltv_abs
+            assert cltv is not None, f"missing cltv for {sweep_info}"
+            if self.adb.get_local_height() > cltv + REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                # We had plenty of time to sweep. The remote also had time to time out the htlc.
+                # Maybe its value has been ~dust at current and past fee levels (every time we checked).
+                # We should not keep warning the user forever.
+                return
             tx_mined_status = self.adb.get_tx_height(spender_txid)
             if tx_mined_status.height == TX_HEIGHT_LOCAL:
                 self._pending_force_closes.add(chan)
