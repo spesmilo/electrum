@@ -14,6 +14,7 @@ from electrum.invoices import (
 )
 from electrum.transaction import PartialTxOutput, TxOutput
 from electrum.lnutil import format_short_channel_id
+from electrum.lnurl import LNURLData, LNURL3Data, LNURL6Data, request_lnurl_withdraw_callback, LNURLError
 from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
@@ -32,6 +33,7 @@ class QEInvoice(QObject, QtEventListener):
         OnchainInvoice = 0
         LightningInvoice = 1
         LNURLPayRequest = 2
+        LNURLWithdrawRequest = 3
 
     @pyqtEnum
     class Status(IntEnum):
@@ -477,7 +479,7 @@ class QEInvoiceParser(QEInvoice):
 
     @pyqtProperty(bool, notify=lnurlRetrieved)
     def isLnurlPay(self):
-        return self._lnurlData is not None
+        return self._lnurlData is not None and self.invoiceType == QEInvoice.Type.LNURLPayRequest
 
     @pyqtProperty(bool, notify=busyChanged)
     def busy(self):
@@ -512,6 +514,12 @@ class QEInvoiceParser(QEInvoice):
         self._effectiveInvoice = None
         self.invoiceChanged.emit()
 
+    def setValidLNURLWithdrawRequest(self):
+        self._logger.debug('setValidLNURLWithdrawRequest')
+        self.setInvoiceType(QEInvoice.Type.LNURLWithdrawRequest)
+        self._effectiveInvoice = None
+        self.invoiceChanged.emit()
+
     def create_onchain_invoice(self, outputs, message, payment_request, uri):
         return self._wallet.wallet.create_invoice(
             outputs=outputs,
@@ -542,7 +550,7 @@ class QEInvoiceParser(QEInvoice):
         self._pi = PaymentIdentifier(self._wallet.wallet, recipient)
         if not self._pi.is_valid() or self._pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21,
                                                             PaymentIdentifierType.BIP70, PaymentIdentifierType.BOLT11,
-                                                            PaymentIdentifierType.LNURLP,
+                                                            PaymentIdentifierType.LNURL,
                                                             PaymentIdentifierType.EMAILLIKE,
                                                             PaymentIdentifierType.DOMAINLIKE]:
             self.validationError.emit('unknown', _('Unknown invoice'))
@@ -561,7 +569,11 @@ class QEInvoiceParser(QEInvoice):
             self.resolve_pi()
             return
 
-        if self._pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
+        if self._pi.type in [
+            PaymentIdentifierType.LNURLP,
+            PaymentIdentifierType.LNURLW,
+            PaymentIdentifierType.LNADDR,
+        ]:
             self.on_lnurl(self._pi.lnurl_data)
             return
 
@@ -621,7 +633,7 @@ class QEInvoiceParser(QEInvoice):
             if pi.is_error():
                 if pi.type in [PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE]:
                     msg = _('Could not resolve address')
-                elif pi.type == PaymentIdentifierType.LNURLP:
+                elif pi.type == PaymentIdentifierType.LNURL:
                     msg = _('Could not resolve LNURL') + "\n\n" + pi.get_error()
                 elif pi.type == PaymentIdentifierType.BIP70:
                     msg = _('Could not resolve BIP70 payment request: {}').format(pi.error)
@@ -636,19 +648,32 @@ class QEInvoiceParser(QEInvoice):
 
         self._pi.resolve(on_finished=on_finished)
 
-    def on_lnurl(self, lnurldata):
+    def on_lnurl(self, lnurldata: LNURLData):
         self._logger.debug('on_lnurl')
         self._logger.debug(f'{repr(lnurldata)}')
 
-        self._lnurlData = {
-            'domain': urlparse(lnurldata.callback_url).netloc,
-            'callback_url': lnurldata.callback_url,
-            'min_sendable_sat': lnurldata.min_sendable_sat,
-            'max_sendable_sat': lnurldata.max_sendable_sat,
-            'metadata_plaintext': lnurldata.metadata_plaintext,
-            'comment_allowed': lnurldata.comment_allowed
-        }
-        self.setValidLNURLPayRequest()
+        if isinstance(lnurldata, LNURL6Data):
+            self._lnurlData = {
+                'domain': urlparse(lnurldata.callback_url).netloc,
+                'callback_url': lnurldata.callback_url,
+                'min_sendable_sat': lnurldata.min_sendable_sat,
+                'max_sendable_sat': lnurldata.max_sendable_sat,
+                'metadata_plaintext': lnurldata.metadata_plaintext,
+                'comment_allowed': lnurldata.comment_allowed,
+            }
+            self.setValidLNURLPayRequest()
+        elif isinstance(lnurldata, LNURL3Data):
+            self._lnurlData = {
+                'domain': urlparse(lnurldata.callback_url).netloc,
+                'callback_url': lnurldata.callback_url,
+                'min_withdrawable_sat': lnurldata.min_withdrawable_sat,
+                'max_withdrawable_sat': lnurldata.max_withdrawable_sat,
+                'default_description': lnurldata.default_description,
+                'k1': lnurldata.k1,
+            }
+            self.setValidLNURLWithdrawRequest()
+        else:
+            raise NotImplementedError(f"Invalid lnurl type in on_lnurl {lnurldata=}")
         self.lnurlRetrieved.emit()
 
     @pyqtSlot()
@@ -656,6 +681,7 @@ class QEInvoiceParser(QEInvoice):
     def lnurlGetInvoice(self, comment=None):
         assert self._lnurlData
         assert self._pi.need_finalize()
+        assert self.invoiceType == QEInvoice.Type.LNURLPayRequest
         self._logger.debug(f'{repr(self._lnurlData)}')
 
         amount = self.amountOverride.satsInt
@@ -679,6 +705,54 @@ class QEInvoiceParser(QEInvoice):
         self.busyChanged.emit()
 
         self._pi.finalize(amount_sat=amount, comment=comment, on_finished=on_finished)
+
+    @pyqtSlot()
+    def lnurlRequestWithdrawal(self):
+        assert self._lnurlData
+        assert self.invoiceType == QEInvoice.Type.LNURLWithdrawRequest
+        self._logger.debug(f'{repr(self._lnurlData)}')
+
+        amount_sat = self.amountOverride.satsInt
+
+        try:
+            key = self.wallet.wallet.create_request(
+                amount_sat=amount_sat,
+                message=self._lnurlData.get('default_description', ''),
+                exp_delay=120,
+                address=None,
+            )
+            req = self.wallet.wallet.get_request(key)
+            _lnaddr, b11_invoice = self.wallet.wallet.lnworker.get_bolt11_invoice(
+                payment_hash=req.payment_hash,
+                amount_msat=req.get_amount_msat(),
+                message=req.get_message(),
+                expiry=req.exp,
+                fallback_address=None
+            )
+        except Exception as e:
+            self._logger.exception('')
+            self.lnurlError.emit(
+                'lnurl',
+                _("Failed to create payment request for withdrawal: {}").format(str(e))
+            )
+            return
+
+        self._busy = True
+        self.busyChanged.emit()
+
+        coro = request_lnurl_withdraw_callback(
+            callback_url=self._lnurlData['callback_url'],
+            k1=self._lnurlData['k1'],
+            bolt_11=b11_invoice,
+        )
+        try:
+            Network.run_from_another_thread(coro)
+        except LNURLError as e:
+            self.lnurlError.emit('lnurl', str(e))
+
+        self._busy = False
+        self.busyChanged.emit()
+
 
     def on_lnurl_invoice(self, orig_amount, invoice):
         self._logger.debug('on_lnurl_invoice')

@@ -2233,7 +2233,7 @@ class LNWallet(LNWorker):
         timestamp = int(time.time())
         needs_jit: bool = self.receive_requires_jit_channel(amount_msat)
         routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels, needs_jit=needs_jit)
-        self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}, jit: {needs_jit}, sat: {amount_msat or 0 // 1000}")
+        self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}, jit: {needs_jit}, sat: {(amount_msat or 0) // 1000}")
         invoice_features = self.features.for_invoice()
         if not self.uses_trampoline():
             invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
