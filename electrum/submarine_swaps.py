@@ -32,7 +32,7 @@ from .transaction import (
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
-    run_sync_function_on_asyncio_thread
+    run_sync_function_on_asyncio_thread, trigger_callback
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
@@ -1648,6 +1648,7 @@ class NostrTransport(SwapServerTransport):
             if self.config.SWAPSERVER_NPUB == offer.server_npub:
                 self.sm.update_pairs(pairs)
             self._offers[offer.server_npub] = offer
+            trigger_callback('swap_offers_changed', self.get_recent_offers())
             # mirror event to other relays
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
 

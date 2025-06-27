@@ -14,6 +14,7 @@ from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.fee_policy import FeePolicy
 from electrum.crypto import sha256
+from electrum.submarine_swaps import NostrTransport
 
 from electrum.gui import messages
 from . import util
@@ -54,8 +55,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
 
-        recent_offers = transport.get_recent_offers() if not self.config.SWAPSERVER_URL else []
-        self.server_button = QPushButton(_(f' {len(recent_offers)} providers'))
+        self.server_button = QPushButton()
+        self.set_server_button_text(len(transport.get_recent_offers()) \
+            if not self.config.SWAPSERVER_URL and isinstance(transport, NostrTransport) else 0
+        )
         self.server_button.clicked.connect(lambda: self.choose_swap_server(transport))
         self.server_button.setEnabled(not self.config.SWAPSERVER_URL)
         self.description_label = WWLabel(self.get_description())
@@ -141,6 +144,15 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def on_event_fee(self, *args):
         self.on_send_edited()
         self.on_recv_edited()
+
+    @qt_event_listener
+    def on_event_swap_offers_changed(self, recent_offers: Sequence['SwapOffer']):
+        self.set_server_button_text(len(recent_offers))
+        self.update()
+
+    def set_server_button_text(self, offer_count: int):
+        button_text = f' {offer_count} ' + (_('providers') if offer_count != 1 else _('provider'))
+        self.server_button.setText(button_text)
 
     def timer_actions(self):
         if self.needs_tx_update:
@@ -471,6 +483,7 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
         self.ok_button = OkButton(self)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
         self.setMinimumWidth(650)
+        self.register_callbacks()
 
     def run(self):
         if self.exec() != 1:
@@ -478,6 +491,14 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
         if item := self.servers_list.currentItem():
             return item.data(self.Columns.PUBKEY, ROLE_NPUB)
         return None
+
+    def closeEvent(self, event):
+        self.unregister_callbacks()
+        event.accept()
+
+    @qt_event_listener
+    def on_event_swap_offers_changed(self, recent_offers: Sequence['SwapOffer']):
+        self.update_servers_list(recent_offers)
 
     def update_servers_list(self, servers: Sequence['SwapOffer']):
         self.servers_list.clear()
