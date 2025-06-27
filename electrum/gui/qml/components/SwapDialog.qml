@@ -290,7 +290,19 @@ ElDialog {
                 enabled: swaphelper.valid && (swaphelper.state == SwapHelper.ServiceReady || swaphelper.state == SwapHelper.Failed)
 
                 onClicked: {
-                    swaphelper.executeSwap()
+                    if (swaphelper.isReverse) {
+                        swaphelper.executeSwap()
+                    } else {
+                        swaphelper.prepNormalSwap()
+                        var dialog = forwardSwapTxDialog.createObject(app, {
+                            finalizer: swaphelper.finalizer,
+                            satoshis: swaphelper.finalizer.amount
+                        })
+                        dialog.accepted.connect(function() {
+                            swaphelper.executeSwap()
+                        })
+                        dialog.open()
+                    }
                 }
             }
             FlatButton {
@@ -325,6 +337,15 @@ ElDialog {
                 })
                 dialog.open()
             }
+        }
+    }
+
+    Component {
+        id: forwardSwapTxDialog
+        ConfirmTxDialog {
+            amountLabelText: qsTr('Amount to swap')
+            sendButtonText: qsTr('Swap')
+            finalizer: swaphelper.finalizer
         }
     }
 
