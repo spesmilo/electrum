@@ -9,7 +9,6 @@ import re
 import urllib.parse
 
 import aiohttp.client_exceptions
-from aiohttp import ClientResponse
 
 from electrum import segwit_addr
 from electrum.segwit_addr import bech32_decode, Encoding, convertbits, bech32_encode
@@ -17,15 +16,16 @@ from electrum.lnaddr import LnDecodeException, LnEncodeException
 from electrum.network import Network
 from electrum.logging import get_logger
 
-if TYPE_CHECKING:
-    from collections.abc import Coroutine
-
 
 _logger = get_logger(__name__)
 
 
 class LNURLError(Exception):
-    pass
+    def __init__(self, message="", *args):
+        # error messages are returned by the LNURL server, some services could try to trick
+        # users into doing something by sending a malicious error message
+        modified_message = f"[DO NOT TRUST THIS MESSAGE]:\n{message}"
+        super().__init__(modified_message, *args)
 
 
 def decode_lnurl(lnurl: str) -> str:
@@ -68,6 +68,19 @@ def _is_url_safe_enough_for_lnurl(url: str) -> bool:
     return False
 
 
+def _parse_lnurl_response_callback_url(lnurl_response: dict) -> str:
+    try:
+        callback_url = lnurl_response['callback']
+    except KeyError as e:
+        raise LNURLError(f"Missing 'callback' field in lnurl response.") from e
+    if not _is_url_safe_enough_for_lnurl(callback_url):
+        raise LNURLError(
+            f"This lnurl callback_url looks unsafe. It must use 'https://' or '.onion' (found: {callback_url[:10]}...)")
+    return callback_url
+
+
+# payRequest
+# https://github.com/lnurl/luds/blob/227f850b701e9ba893c080103c683273e2feb521/06.md
 class LNURL6Data(NamedTuple):
     callback_url: str
     max_sendable_sat: int
@@ -75,6 +88,23 @@ class LNURL6Data(NamedTuple):
     metadata_plaintext: str
     comment_allowed: int
     #tag: str = "payRequest"
+
+# withdrawRequest
+# https://github.com/lnurl/luds/blob/227f850b701e9ba893c080103c683273e2feb521/03.md
+class LNURL3Data(NamedTuple):
+    # The URL which LN SERVICE would accept a withdrawal Lightning invoice as query parameter
+    callback_url: str
+    # Random or non-random string to identify the user's LN WALLET when using the callback URL
+    k1: str
+    # A default withdrawal invoice description
+    default_description: str
+    # Min amount the user can withdraw from LN SERVICE, or 0
+    min_withdrawable_sat: int
+    # Max amount the user can withdraw from LN SERVICE,
+    # or equal to minWithdrawable if the user has no choice over the amounts
+    max_withdrawable_sat: int
+
+LNURLData = LNURL6Data | LNURL3Data
 
 
 async def _request_lnurl(url: str) -> dict:
@@ -98,37 +128,30 @@ async def _request_lnurl(url: str) -> dict:
     return response
 
 
-async def request_lnurl(url: str) -> LNURL6Data:
-    lnurl_dict = await _request_lnurl(url)
-    tag = lnurl_dict.get('tag')
-    if tag != 'payRequest':  # only LNURL6 is handled atm
-        raise LNURLError(f"Unknown subtype of lnurl. tag={tag}")
+def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
     # parse lnurl6 "metadata"
     metadata_plaintext = ""
     try:
-        metadata_raw = lnurl_dict["metadata"]
+        metadata_raw = lnurl_response["metadata"]
         metadata = json.loads(metadata_raw)
         for m in metadata:
             if m[0] == 'text/plain':
                 metadata_plaintext = str(m[1])
     except Exception as e:
-        raise LNURLError(f"Missing or malformed 'metadata' field in lnurl6 response. exc: {e!r}") from e
+        raise LNURLError(
+            f"Missing or malformed 'metadata' field in lnurl6 response. exc: {e!r}") from e
     # parse lnurl6 "callback"
-    try:
-        callback_url = lnurl_dict['callback']
-    except KeyError as e:
-        raise LNURLError(f"Missing 'callback' field in lnurl6 response.") from e
-    if not _is_url_safe_enough_for_lnurl(callback_url):
-        raise LNURLError(f"This lnurl callback_url looks unsafe. It must use 'https://' or '.onion' (found: {callback_url[:10]}...)")
+    callback_url = _parse_lnurl_response_callback_url(lnurl_response)
     # parse lnurl6 "minSendable"/"maxSendable"
     try:
-        max_sendable_sat = int(lnurl_dict['maxSendable']) // 1000
-        min_sendable_sat = int(lnurl_dict['minSendable']) // 1000
+        max_sendable_sat = int(lnurl_response['maxSendable']) // 1000
+        min_sendable_sat = int(lnurl_response['minSendable']) // 1000
     except Exception as e:
-        raise LNURLError(f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
+        raise LNURLError(
+            f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
     # parse lnurl6 "commentAllowed" (optional, described in lnurl-12)
     try:
-        comment_allowed = int(lnurl_dict['commentAllowed']) if 'commentAllowed' in lnurl_dict else 0
+        comment_allowed = int(lnurl_response['commentAllowed']) if 'commentAllowed' in lnurl_response else 0
     except Exception as e:
         raise LNURLError(f"Malformed 'commentAllowed' field in lnurl6 response. {e=!r}") from e
     data = LNURL6Data(
@@ -141,14 +164,59 @@ async def request_lnurl(url: str) -> LNURL6Data:
     return data
 
 
-async def try_resolve_lnurl(lnurl: Optional[str]) -> Optional[LNURL6Data]:
+def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
+    """Parses the server response received when requesting a LNURL-withdraw (lud3) request"""
+    callback_url = _parse_lnurl_response_callback_url(lnurl_response)
+    if not (k1 := lnurl_response.get('k1')):
+        raise LNURLError(f"Missing k1 value in LNURL3 response: {lnurl_response=}")
+    default_description = lnurl_response.get('defaultDescription', '')
+    try:
+        min_withdrawable_sat = int(lnurl_response['minWithdrawable']) // 1000
+        max_withdrawable_sat = int(lnurl_response['maxWithdrawable']) // 1000
+        assert max_withdrawable_sat >= min_withdrawable_sat, f"Invalid amounts: max < min amount"
+        assert max_withdrawable_sat > 0, f"Invalid max amount: {max_withdrawable_sat} sat"
+    except Exception as e:
+        raise LNURLError(
+            f"Missing or malformed 'minWithdrawable'/'minWithdrawable' field in lnurl3 response. {e=!r}") from e
+    return LNURL3Data(
+        callback_url=callback_url,
+        k1=k1,
+        default_description=default_description,
+        min_withdrawable_sat=min_withdrawable_sat,
+        max_withdrawable_sat=max_withdrawable_sat,
+    )
+
+
+async def request_lnurl(url: str) -> LNURLData:
+    lnurl_dict = await _request_lnurl(url)
+    tag = lnurl_dict.get('tag')
+    if tag == 'payRequest':  # only LNURL6 is handled atm
+        return _parse_lnurl6_response(lnurl_dict)
+    elif tag == 'withdrawRequest':
+        return _parse_lnurl3_response(lnurl_dict)
+    raise LNURLError(f"Unknown subtype of lnurl. tag={tag}")
+
+
+async def try_resolve_lnurlpay(lnurl: Optional[str]) -> Optional[LNURL6Data]:
     if lnurl:
         try:
-            return await request_lnurl(lnurl)
+            result = await request_lnurl(lnurl)
+            assert isinstance(result, LNURL6Data), f"lnurl result is not LNURL-pay response: {result=}"
+            return result
         except Exception as request_error:
             _logger.debug(f"Error resolving lnurl: {request_error!r}")
     return None
 
+async def request_lnurl_withdraw_callback(callback_url: str, k1: str, bolt_11: str) -> None:
+    assert bolt_11
+    params = {
+        "k1": k1,
+        "pr": bolt_11,
+    }
+    await callback_lnurl(
+        url=callback_url,
+        params=params
+    )
 
 async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""

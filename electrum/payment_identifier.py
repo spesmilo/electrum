@@ -14,8 +14,9 @@ from .logging import Logger
 from .util import parse_max_spend, InvoiceError
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
-from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url,
-                    try_resolve_lnurl)
+from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
+                    lightning_address_to_url, try_resolve_lnurlpay, LNURL6Data,
+                    LNURL3Data, LNURLData)
 from .bitcoin import opcodes, construct_script
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
@@ -60,10 +61,11 @@ class PaymentIdentifierState(IntEnum):
                             # of the channels Electrum supports (on-chain, lightning)
     NEED_RESOLVE = 3        # PI contains a recognized destination format, but needs an online resolve step
     LNURLP_FINALIZE = 4     # PI contains a resolved LNURLp, but needs amount and comment to resolve to a bolt11
-    MERCHANT_NOTIFY = 5     # PI contains a valid payment request and on-chain destination. It should notify
+    LNURLW_FINALIZE = 5     # PI contains resolved LNURLw, user needs to enter amount and initiate withdraw
+    MERCHANT_NOTIFY = 6     # PI contains a valid payment request and on-chain destination. It should notify
                             # the merchant payment processor of the tx after on-chain broadcast,
                             # and supply a refund address (bip70)
-    MERCHANT_ACK = 6        # PI notified merchant. nothing to be done.
+    MERCHANT_ACK = 7        # PI notified merchant. nothing to be done.
     ERROR = 50              # generic error
     NOT_FOUND = 51          # PI contains a recognized destination format, but resolve step was unsuccessful
     MERCHANT_ERROR = 52     # PI failed notifying the merchant after broadcasting onchain TX
@@ -77,11 +79,13 @@ class PaymentIdentifierType(IntEnum):
     BIP70 = 3
     MULTILINE = 4
     BOLT11 = 5
-    LNURLP = 6
-    EMAILLIKE = 7
-    OPENALIAS = 8
-    LNADDR = 9
-    DOMAINLIKE = 10
+    LNURL = 6  # before the resolve it's unknown if pi is LNURLP or LNURLW
+    LNURLP = 7
+    LNURLW = 8
+    EMAILLIKE = 9
+    OPENALIAS = 10
+    LNADDR = 11
+    DOMAINLIKE = 12
 
 
 class FieldsForGUI(NamedTuple):
@@ -133,8 +137,8 @@ class PaymentIdentifier(Logger):
         self.merchant_ack_status = None
         self.merchant_ack_message = None
         #
-        self.lnurl = None
-        self.lnurl_data = None
+        self.lnurl = None  # type: Optional[str]
+        self.lnurl_data = None # type: Optional[LNURLData]
 
         self.parse(text)
 
@@ -223,7 +227,7 @@ class PaymentIdentifier(Logger):
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
             if invoice_or_lnurl.startswith('lnurl'):
-                self._type = PaymentIdentifierType.LNURLP
+                self._type = PaymentIdentifierType.LNURL
                 try:
                     self.lnurl = decode_lnurl(invoice_or_lnurl)
                     self.set_state(PaymentIdentifierState.NEED_RESOLVE)
@@ -317,7 +321,7 @@ class PaymentIdentifier(Logger):
 
                 # prefers lnurl over openalias if both are available
                 lnurl = lightning_address_to_url(self.emaillike) if self.emaillike else None
-                if lnurl is not None and (lnurl_result := await try_resolve_lnurl(lnurl)):
+                if lnurl is not None and (lnurl_result := await try_resolve_lnurlpay(lnurl)):
                     openalias_task.cancel()
                     self._type = PaymentIdentifierType.LNADDR
                     self.lnurl = lnurl
@@ -353,7 +357,14 @@ class PaymentIdentifier(Logger):
             elif self.lnurl:
                 data = await request_lnurl(self.lnurl)
                 self.lnurl_data = data
-                self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+                if isinstance(data, LNURL6Data):
+                    self._type = PaymentIdentifierType.LNURLP
+                    self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+                elif isinstance(data, LNURL3Data):
+                    self._type = PaymentIdentifierType.LNURLW
+                    self.set_state(PaymentIdentifierState.LNURLW_FINALIZE)
+                else:
+                    raise NotImplementedError(f"Invalid LNURL type? {data=}")
                 self.logger.debug(f'LNURL data: {data!r}')
             else:
                 self.set_state(PaymentIdentifierState.ERROR)
@@ -592,6 +603,7 @@ class PaymentIdentifier(Logger):
             recipient, amount, description = self._get_bolt11_fields()
 
         elif self.lnurl and self.lnurl_data:
+            assert isinstance(self.lnurl_data, LNURL6Data), f"{self.lnurl_data=}"
             domain = urllib.parse.urlparse(self.lnurl).netloc
             recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
             description = self.lnurl_data.metadata_plaintext
