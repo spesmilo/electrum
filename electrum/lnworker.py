@@ -40,7 +40,7 @@ from .util import (
 )
 from .fee_policy import (
     FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
-    FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET
+    FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_REGTEST_STATIC_FEE
 )
 from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
@@ -3080,9 +3080,10 @@ class LNWallet(LNWorker):
                 # grows quickly
                 feerate_per_kvbyte = max(feerate_per_kvbyte, 5000)
         else:
-            if constants.net is not constants.BitcoinRegtest:
+            if constants.net is constants.BitcoinRegtest:
+                feerate_per_kvbyte = FEERATE_REGTEST_STATIC_FEE
+            else:
                 return None
-            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(FEERATE_PER_KW_MIN_RELAY_LIGHTNING, feerate_per_kvbyte // 4)
 
     def current_low_feerate_per_kw_srk_channel(self) -> Optional[int]:

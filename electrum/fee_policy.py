@@ -23,6 +23,7 @@ FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
 FEERATE_MAX_DYNAMIC = 1500000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 150000
+FEERATE_REGTEST_STATIC_FEE = FEERATE_FALLBACK_STATIC_FEE  # hardcoded fee used on regtest
 FEERATE_DEFAULT_RELAY = 1000
 FEERATE_MAX_RELAY = 50000
 
@@ -218,7 +219,7 @@ class FeePolicy(Logger):
         Note: might return None.
         """
         if self.use_dynamic_estimates and constants.net is constants.BitcoinRegtest:
-            return FEERATE_FALLBACK_STATIC_FEE
+            return FEERATE_REGTEST_STATIC_FEE
 
         if self.method == FeeMethod.FEERATE:
             fee_rate = self.value
