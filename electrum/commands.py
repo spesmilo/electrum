@@ -1965,8 +1965,8 @@ class Commands(Logger):
         configured exchange rate source.
 
         arg:decimal:from_amount:Amount to convert (default=1)
-        arg:decimal:from_ccy:Currency to convert from
-        arg:decimal:to_ccy:Currency to convert to
+        arg:str:from_ccy:Currency to convert from
+        arg:str:to_ccy:Currency to convert to
         """
         if not self.daemon.fx.is_enabled():
             raise UserFacingException("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
