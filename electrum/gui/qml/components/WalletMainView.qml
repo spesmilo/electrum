@@ -44,8 +44,8 @@ Item {
         // Android based send dialog if on android
         var scanner = app.scanDialog.createObject(mainView, {
             hint: Daemon.currentWallet.isLightning
-                ? qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel Backup')
-                : qsTr('Scan an Invoice, an Address, an LNURL-pay or a PSBT')
+                ? qsTr('Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+                : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
         })
         scanner.onFoundText.connect(function(data) {
             data = data.trim()
@@ -418,9 +418,18 @@ Item {
 
         onLnurlRetrieved: {
             closeSendDialog()
-            var dialog = lnurlPayDialog.createObject(app, {
-                invoiceParser: invoiceParser
-            })
+            if (invoiceParser.invoiceType === Invoice.Type.LNURLPayRequest) {
+                var dialog = lnurlPayDialog.createObject(app, {
+                    invoiceParser: invoiceParser
+                })
+            } else if (invoiceParser.invoiceType === Invoice.Type.LNURLWithdrawRequest) {
+                var dialog = lnurlWithdrawDialog.createObject(app, {
+                    invoiceParser: invoiceParser
+                })
+            } else {
+                console.log("Unsupported LNURL type:", invoiceParser.invoiceType)
+                return
+            }
             dialog.open()
         }
         onLnurlError: (code, message) => {
@@ -727,6 +736,16 @@ Item {
     Component {
         id: lnurlPayDialog
         LnurlPayRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: lnurlWithdrawDialog
+        LnurlWithdrawRequestDialog {
             width: parent.width * 0.9
             anchors.centerIn: parent
 
