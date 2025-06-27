@@ -392,8 +392,8 @@ class QETxFinalizer(TxFeeSlider):
         self,
         parent=None,
         *,
-        make_tx: Callable[[int, FeePolicy], PartialTransaction] = None,
-        accept: Callable[[PartialTransaction], None] = None,
+        make_tx: Optional[Callable[[int | str, Optional[FeePolicy]], PartialTransaction]] = None,
+        accept: Optional[Callable[[PartialTransaction], None]] = None
     ):
         super().__init__(parent)
         self.f_make_tx = make_tx
@@ -457,7 +457,7 @@ class QETxFinalizer(TxFeeSlider):
         self.rbf = self._canRbf  # if we can RbF, we do RbF
 
     @profiler
-    def make_tx(self, amount):
+    def make_tx(self, amount: int | str) -> PartialTransaction:
         self._logger.debug(f'make_tx amount={amount}')
 
         if self.f_make_tx:
