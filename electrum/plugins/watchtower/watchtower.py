@@ -202,9 +202,10 @@ class WatchTower(Logger, EventListener):
                 result.update(r)
         return result
 
-    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx):
+    async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
+        assert closing_tx
         spenders = self.inspect_tx_candidate(funding_outpoint, 0)
-        keep_watching = False
+        keep_watching = not self.adb.is_deeply_mined(closing_tx.txid())
         for prevout, spender in spenders.items():
             if spender is not None:
                 keep_watching |= not self.adb.is_deeply_mined(spender)

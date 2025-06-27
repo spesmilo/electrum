@@ -99,6 +99,7 @@ class LNWatcher(Logger, EventListener):
         if not self.adb.is_mine(address):
             return
         # inspect_tx_candidate might have added new addresses, in which case we return early
+        # note: maybe we should wait until adb.is_up_to_date... (?)
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.adb.get_tx_height(funding_txid)
         closing_txid = self.adb.get_spender(funding_outpoint)
@@ -159,7 +160,9 @@ class LNWatcher(Logger, EventListener):
             return False
         # detect who closed and get information about how to claim outputs
         is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
-        keep_watching = False if sweep_info_dict else not self.adb.is_deeply_mined(closing_tx.txid())
+        # note: we need to keep watching *at least* until the closing tx is deeply mined,
+        #       possibly longer if there are TXOs to sweep
+        keep_watching = not self.adb.is_deeply_mined(closing_tx.txid())
         # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
             prev_txid, prev_index = prevout.split(':')
@@ -170,7 +173,7 @@ class LNWatcher(Logger, EventListener):
                 self.logger.info(f'prevout does not exist for {name}: {prevout}')
                 continue
             was_added = self.maybe_redeem(sweep_info)
-            spender_txid = self.adb.get_spender(prevout)
+            spender_txid = self.adb.get_spender(prevout)  # note: LOCAL spenders don't count
             spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
             if spender_tx:
                 # the spender might be the remote, revoked or not
