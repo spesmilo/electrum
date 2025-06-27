@@ -5,6 +5,7 @@ from typing import Union, Optional, TYPE_CHECKING, Sequence
 from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
                           QModelIndex)
 
+from electrum.gui.qml.qetxfinalizer import QETxFinalizer
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
@@ -148,6 +149,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         super().__init__(parent)
 
         self._wallet = None  # type: Optional[QEWallet]
+        self._finalizer = None  # type: Optional[QETxFinalizer]
         self._sliderPos = 0
         self._rangeMin = -1
         self._rangeMax = 1
@@ -204,6 +206,11 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._wallet = wallet
             self.run_swap_manager()
             self.walletChanged.emit()
+
+    finalizerChanged = pyqtSignal()
+    @pyqtProperty(QETxFinalizer, notify=finalizerChanged)
+    def finalizer(self):
+        return self._finalizer
 
     sliderPosChanged = pyqtSignal()
     @pyqtProperty(float, notify=sliderPosChanged)
@@ -537,23 +544,25 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.swap_slider_moved()
 
     @profiler
-    def update_tx(self, onchain_amount: Union[int, str]):
+    def update_tx(self, onchain_amount: Union[int, str], fee_policy: Optional[FeePolicy] = None):
         """Updates the transaction associated with a forward swap."""
         if onchain_amount is None:
             self._tx = None
             self.valid = False
             return
-        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
-        coins = self._wallet.wallet.get_spendable_coins(None)
-        fee_policy = FeePolicy('eta:2')
         try:
-            self._tx = self._wallet.wallet.make_unsigned_transaction(
-                coins=coins,
-                outputs=outputs,
-                fee_policy=fee_policy)
+            self._tx = self._create_swap_tx(onchain_amount, fee_policy)
         except (NotEnoughFunds, NoDynamicFeeEstimates):
             self._tx = None
             self.valid = False
+
+    def _create_swap_tx(self, onchain_amount: int | str, fee_policy: Optional[FeePolicy] = None):
+        outputs = [PartialTxOutput.from_address_and_value(DummyAddress.SWAP, onchain_amount)]
+        coins = self._wallet.wallet.get_spendable_coins(None)
+        fee_policy = fee_policy if fee_policy else FeePolicy('eta:2')
+        return self._wallet.wallet.make_unsigned_transaction(
+            coins=coins, outputs=outputs, fee_policy=fee_policy
+        )
 
     @qt_event_listener
     def on_event_fee_histogram(self, *args):
@@ -619,7 +628,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         async def swap_task():
             assert self.swap_transport is not None, "Swap transport not available"
             try:
-                dummy_tx = self._create_tx(onchain_amount)
+                # dummy_tx = self._create_tx(onchain_amount)
+                dummy_tx = self._finalized_tx
                 self.userinfo = _('Performing swap...')
                 self.state = QESwapHelper.State.Started
                 self._swap, invoice = await self._wallet.wallet.lnworker.swap_manager.request_normal_swap(
@@ -664,6 +674,27 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     pass
 
         asyncio.run_coroutine_threadsafe(swap_task(), get_asyncio_loop())
+
+    @pyqtSlot()
+    def prepNormalSwap(self):
+        def mktx(amt, fee_policy: FeePolicy):
+            try:
+                self._finalized_tx = self._create_swap_tx(amt, fee_policy)
+            except (NotEnoughFunds, NoDynamicFeeEstimates):
+                self._finalized_tx = None
+            return self._finalized_tx
+
+        # def acpt(tx):
+        #     raise Exception('EXPECTED!')
+        #     self._logger.info(f'acpt {tx=}')
+        #     assert tx == self._tx, 'acpt tx is not self._tx'
+        #     assert tx != self._tx, 'acpt tx is self._tx'
+
+        self._finalizer = QETxFinalizer(self, make_tx=mktx)  #, accept=acpt)
+        self._finalizer.canRbf = False
+        self._finalizer.amount = QEAmount(amount_sat=self._send_amount)
+        self._finalizer.wallet = self._wallet
+        self.finalizerChanged.emit()
 
     def _create_tx(self, onchain_amount: Union[int, str, None]) -> PartialTransaction:
         # TODO: func taken from qt GUI, this should be common code

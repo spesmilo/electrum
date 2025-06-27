@@ -2,7 +2,7 @@ import copy
 from enum import IntEnum
 import threading
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Callable
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum
@@ -54,7 +54,7 @@ class FeeSlider(QObject):
         self._wallet = None  # type: Optional[QEWallet]
         self._sliderSteps = 0
         self._sliderPos = 0
-        self._fee_policy = None
+        self._fee_policy: Optional[FeePolicy] = None
         self._target = ''
         self._config = None  # type: Optional[SimpleConfig]
 
@@ -314,7 +314,13 @@ class QETxFinalizer(TxFeeSlider):
     finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
     signError = pyqtSignal([str], arguments=['message'])
 
-    def __init__(self, parent=None, *, make_tx=None, accept=None):
+    def __init__(
+            self,
+            parent=None,
+            *,
+            make_tx: Optional[Callable[[int | str, Optional[FeePolicy]], PartialTransaction]] = None,
+            accept: Optional[Callable[[PartialTransaction], None]] = None
+    ):
         super().__init__(parent)
         self.f_make_tx = make_tx
         self.f_accept = accept
@@ -377,7 +383,7 @@ class QETxFinalizer(TxFeeSlider):
         self.rbf = self._canRbf  # if we can RbF, we do RbF
 
     @profiler
-    def make_tx(self, amount):
+    def make_tx(self, amount: int | str) -> PartialTransaction:
         self._logger.debug(f'make_tx amount={amount}')
 
         if self.f_make_tx:
