@@ -515,7 +515,7 @@ class Plugin(TimelockRecoveryPlugin):
             line_number += 1
 
         grid.setRowStretch(line_number, 1)
-        # Create butttons
+        # Create buttons
         recovery_menu = QMenu()
         action = QAction('Save as PDF', recovery_menu)
         action.triggered.connect(partial(self._save_recovery_plan_pdf, context, download_dialog))
