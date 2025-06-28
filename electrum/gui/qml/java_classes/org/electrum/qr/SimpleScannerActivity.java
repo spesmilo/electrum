@@ -20,17 +20,15 @@ import androidx.core.app.ActivityCompat;
 
 import java.util.Arrays;
 
-import me.dm7.barcodescanner.zxing.ZXingScannerView;
+import de.markusfisch.android.barcodescannerview.widget.BarcodeScannerView;
 
-import com.google.zxing.Result;
-import com.google.zxing.BarcodeFormat;
 
 import org.electrum.electrum.res.R; // package set in build.gradle
 
-public class SimpleScannerActivity extends Activity implements ZXingScannerView.ResultHandler {
+public class SimpleScannerActivity extends Activity {
     private static final int MY_PERMISSIONS_CAMERA = 1002;
 
-    private ZXingScannerView mScannerView = null;
+    private BarcodeScannerView mScannerView = null;
     final String TAG = "org.electrum.SimpleScannerActivity";
 
     private boolean mAlreadyRequestedPermissions = false;
@@ -85,23 +83,23 @@ public class SimpleScannerActivity extends Activity implements ZXingScannerView.
     public void onPause() {
         super.onPause();
         if (null != mScannerView) {
-            mScannerView.stopCamera();           // Stop camera on pause
+            mScannerView.close();  // Stop camera on pause
         }
     }
 
     private void startCamera() {
-        mScannerView = new ZXingScannerView(this);
-        mScannerView.setFormats(Arrays.asList(BarcodeFormat.QR_CODE));
+        mScannerView = new BarcodeScannerView(this);
+        mScannerView.setCropRatio(0.75f); // Set crop ratio to 75% (this defines the square area shown in the scanner view)
+        // by default only Format.QR_CODE is set
         ViewGroup contentFrame = (ViewGroup) findViewById(R.id.content_frame);
         contentFrame.addView(mScannerView);
-        mScannerView.setResultHandler(this);         // Register ourselves as a handler for scan results.
-        mScannerView.startCamera();                  // Start camera on resume
-    }
-
-    @Override
-    public void handleResult(Result rawResult) {
-        //resultIntent.putExtra("format", rawResult.getBarcodeFormat().toString());
-        this.setResultAndClose(rawResult.getText());
+        mScannerView.setOnBarcodeListener(result -> {
+            // Handle the scan result
+            this.setResultAndClose(result.getText());
+            // Return false to stop scanning after first result
+            return false;
+        });
+        mScannerView.openAsync();  // Start camera on resume
     }
 
     private void setResultAndClose(String resultText) {
