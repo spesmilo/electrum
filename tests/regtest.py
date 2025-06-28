@@ -82,6 +82,9 @@ class TestLightningAB(TestLightning):
     def test_breach_with_spent_htlc(self):
         self.run_shell(['breach_with_spent_htlc'])
 
+    def test_lnwatcher_waits_until_fees_go_down(self):
+        self.run_shell(['lnwatcher_waits_until_fees_go_down'])
+
 
 class TestLightningSwapserver(TestLightning):
     agents = {
