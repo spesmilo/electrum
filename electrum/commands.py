@@ -1701,10 +1701,18 @@ class Commands(Logger):
     async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
         """
         Pay a lightning invoice
+        Note: it is *not* safe to try paying the same invoice multiple times with a timeout.
+              It is only safe to retry paying the same invoice if there are no more pending HTLCs
+              with the same payment_hash.  # FIXME should there even be a default timeout? just block forever.
 
         arg:str:invoice:Lightning invoice (bolt 11)
-        arg:int:timeout:Timeout in seconds (default=20)
+        arg:int:timeout:Timeout in seconds (default=120)
         """
+        # note: The "timeout" param works via black magic.
+        #       The CLI-parser stores it in the config, and the argname matches config.cv.CLI_TIMEOUT.key().
+        #       - it works when calling the CLI and there is also a daemon (online command)
+        #       - FIXME it does NOT work when calling an offline command (-o)
+        #       - FIXME it does NOT work when calling RPC directly (e.g. curl)
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_bolt11_invoice(invoice)
         payment_hash = lnaddr.paymenthash
