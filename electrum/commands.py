@@ -1643,7 +1643,8 @@ class Commands(Logger):
         arg:int:timeout:Timeout in seconds (default=20)
         """
         lnworker = self.network.lngossip if gossip else wallet.lnworker
-        await lnworker.add_peer(connection_string)
+        async with util.async_timeout(timeout):
+            await lnworker.add_peer(connection_string)
         return True
 
     @command('wnl')
@@ -1719,19 +1720,20 @@ class Commands(Logger):
         return invoice.to_debug_json()
 
     @command('wnpl')
-    async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
+    async def lnpay(self, invoice, timeout=0, password=None, wallet: Abstract_Wallet = None):
         """
         Pay a lightning invoice
 
         arg:str:invoice:Lightning invoice (bolt 11)
-        arg:int:timeout:Timeout in seconds (default=20)
+        arg:int:timeout:Timeout in seconds. Note: *not* safe to try paying same invoice multiple times with a timeout.
         """
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_bolt11_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         invoice_obj = Invoice.from_bech32(invoice)
         wallet.save_invoice(invoice_obj)
-        success, log = await lnworker.pay_invoice(invoice_obj)
+        async with util.async_timeout(timeout or None):
+            success, log = await lnworker.pay_invoice(invoice_obj)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
