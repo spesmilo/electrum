@@ -224,12 +224,12 @@ class FeePolicy(Logger):
         if self.method == FeeMethod.FEERATE:
             fee_rate = self.value
         elif self.method == FeeMethod.MEMPOOL:
-            if network and network.mempool_fees.has_data():
+            if network:
                 fee_rate = network.mempool_fees.depth_to_fee(self.get_slider_pos())
             else:
                 fee_rate = None
         elif self.method == FeeMethod.ETA:
-            if network and network.fee_estimates.has_data():
+            if network:
                 fee_rate = network.fee_estimates.eta_to_fee(self.get_slider_pos())
             else:
                 fee_rate = None
@@ -372,8 +372,13 @@ class FeeTimeEstimates:
     def get_data(self):
         return self.data
 
-    def has_data(self):
-        # we do not request estimate for next block fee
+    def has_data(self) -> bool:
+        """Returns if we have estimates for *all* targets requested.
+        Note: if wanting an estimate for a specific target, instead of checking has_data(),
+              just try to do the estimate and handle a potential None result. That way,
+              estimation works for targets we have, even if some targets are missing.
+        """
+        # we do not request estimate for next block fee, hence -1
         return len(self.data) == len(FEE_ETA_TARGETS) - 1
 
     def set_data(self, nblock_target: int, fee_per_kb: int):
