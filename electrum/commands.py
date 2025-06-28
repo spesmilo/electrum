@@ -71,7 +71,7 @@ from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .fee_policy import FeePolicy
+from .fee_policy import FeePolicy, FEE_ETA_TARGETS, FEERATE_DEFAULT_RELAY
 from . import GuiImportError
 from . import crypto
 from . import constants
@@ -1577,6 +1577,27 @@ class Commands(Logger):
             'tooltip': tooltip,
         }
 
+    @command('n')
+    async def test_inject_fee_etas(self, fee_est):
+        """
+        Inject fee estimates into the network object, as if they were coming from connected servers.
+        Useful on regtest.
+
+        arg:str:fee_est:dict of ETA-based fee estimates, encoded as str
+        """
+        if not isinstance(fee_est, dict):
+            fee_est = ast.literal_eval(fee_est)
+        assert isinstance(fee_est, dict), f"unexpected type for fee_est. got {repr(fee_est)}"
+        # populate missing high-block-number estimates using default relay fee.
+        # e.g. {"25": 2222} -> {"25": 2222, "144": 1000, "1008": 1000}
+        furthest_estimate = max(fee_est.keys()) if fee_est else 0
+        further_fee_est = {
+            eta_target: FEERATE_DEFAULT_RELAY for eta_target in FEE_ETA_TARGETS
+            if eta_target > furthest_estimate
+        }
+        fee_est.update(further_fee_est)
+        self.network.update_fee_estimates(fee_est=fee_est)
+
     @command('w')
     async def removelocaltx(self, txid, wallet: Abstract_Wallet = None):
         """Remove a 'local' transaction from the wallet, and its dependent
@@ -1622,7 +1643,8 @@ class Commands(Logger):
         arg:int:timeout:Timeout in seconds (default=20)
         """
         lnworker = self.network.lngossip if gossip else wallet.lnworker
-        await lnworker.add_peer(connection_string)
+        async with util.async_timeout(timeout):
+            await lnworker.add_peer(connection_string)
         return True
 
     @command('wnl')
@@ -1698,19 +1720,20 @@ class Commands(Logger):
         return invoice.to_debug_json()
 
     @command('wnpl')
-    async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
+    async def lnpay(self, invoice, timeout=0, password=None, wallet: Abstract_Wallet = None):
         """
         Pay a lightning invoice
 
         arg:str:invoice:Lightning invoice (bolt 11)
-        arg:int:timeout:Timeout in seconds (default=20)
+        arg:int:timeout:Timeout in seconds. Note: *not* safe to try paying same invoice multiple times with a timeout.
         """
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_bolt11_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         invoice_obj = Invoice.from_bech32(invoice)
         wallet.save_invoice(invoice_obj)
-        success, log = await lnworker.pay_invoice(invoice_obj)
+        async with util.async_timeout(timeout or None):
+            success, log = await lnworker.pay_invoice(invoice_obj)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,

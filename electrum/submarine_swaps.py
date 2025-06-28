@@ -32,7 +32,7 @@ from .transaction import (
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
-    run_sync_function_on_asyncio_thread, trigger_callback
+    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
@@ -485,6 +485,9 @@ class SwapManager(Logger):
             except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 return
+            except NoDynamicFeeEstimates:
+                self.logger.info('got NoDynamicFeeEstimates')
+                return
 
     def get_fee_for_txbatcher(self):
         return self._get_tx_fee(self.config.FEE_POLICY_SWAPS)
@@ -512,6 +515,8 @@ class SwapManager(Logger):
         key = payment_hash.hex()
         if swap := self._swaps.get(key):
             if not swap.is_funded():
+                if self.network.config.TEST_SWAPSERVER_SKIP_ONCHAIN_FUNDING:  # for testing
+                    return
                 output = self.create_funding_output(swap)
                 self.wallet.txbatcher.add_payment_output('swaps', output)
                 swap._payment_pending = True
