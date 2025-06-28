@@ -218,9 +218,6 @@ class FeePolicy(Logger):
         """Returns sat/kvB fee to pay for a txn.
         Note: might return None.
         """
-        if self.use_dynamic_estimates and constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_STATIC_FEE
-
         if self.method == FeeMethod.FEERATE:
             fee_rate = self.value
         elif self.method == FeeMethod.MEMPOOL:
@@ -426,4 +423,7 @@ class FeeTimeEstimates:
             fee = self.data.get(num_blocks)
             if fee is not None:
                 fee = int(fee)
+        # fallback for regtest
+        if fee is None and constants.net is constants.BitcoinRegtest:
+            return FEERATE_REGTEST_STATIC_FEE
         return fee

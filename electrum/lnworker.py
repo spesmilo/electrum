@@ -40,7 +40,7 @@ from .util import (
 )
 from .fee_policy import (
     FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
-    FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_REGTEST_STATIC_FEE
+    FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET
 )
 from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
@@ -3075,10 +3075,7 @@ class LNWallet(LNWorker):
         target: int = FEE_LN_MINIMUM_ETA_TARGET if has_anchors else FEE_LN_ETA_TARGET
         feerate_per_kvbyte = self.network.fee_estimates.eta_target_to_fee(target)
         if feerate_per_kvbyte is None:
-            if constants.net is constants.BitcoinRegtest:
-                feerate_per_kvbyte = FEERATE_REGTEST_STATIC_FEE
-            else:
-                return None
+            return None
         if has_anchors:
             # set a floor of 5 sat/vb to have some safety margin in case the mempool
             # grows quickly
