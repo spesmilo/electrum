@@ -99,6 +99,7 @@ class TxBatcher(Logger):
 
     @locked
     def add_sweep_input(self, key: str, sweep_info: 'SweepInfo') -> None:
+        """Can raise BelowDustLimit or NoDynamicFeeEstimates."""
         if sweep_info.txin and sweep_info.txout:
             # detect legacy htlc using name and csv delay
             if sweep_info.name in ['received-htlc', 'offered-htlc'] and sweep_info.csv_delay == 0:
@@ -263,20 +264,25 @@ class TxBatch(Logger):
         self.batch_payments.append(output)
 
     def is_dust(self, sweep_info: SweepInfo) -> bool:
+        """Can raise BelowDustLimit or NoDynamicFeeEstimates."""
         if sweep_info.is_anchor():
             return False
         if sweep_info.txout is not None:
             return False
-        value = sweep_info.txin._trusted_value_sats
+        value = sweep_info.txin.value_sats()
         witness_size = len(sweep_info.txin.make_witness(71*b'\x00'))
         tx_size_vbytes = 84 + witness_size//4     # assumes no batching, sweep to p2wpkh
         self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}')
-        fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.wallet.network, allow_fallback_to_static_rates=True)
+        fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.wallet.network)
         return value - fee <= dust_threshold()
 
     @locked
     def add_sweep_input(self, sweep_info: 'SweepInfo') -> None:
+        """Can raise BelowDustLimit or NoDynamicFeeEstimates."""
         if self.is_dust(sweep_info):
+            # note: this uses the current fee estimates. Just because something is dust
+            #       at the current fee levels, if fees go down, it might still become
+            #       worthwhile to sweep. So callers might want to retry later.
             raise BelowDustLimit
         txin = sweep_info.txin
         if txin.prevout in self._unconfirmed_sweeps:
