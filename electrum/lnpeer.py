@@ -2546,15 +2546,15 @@ class Peer(Logger, EventListener):
             callback = lambda: hold_invoice_callback(payment_hash)
             return None, (payment_key, callback)
 
+        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
+            return None, None
+
         if not preimage:
             if not already_forwarded:
                 log_fail_reason(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
                 raise exc_incorrect_or_unknown_pd
             else:
                 return None, None
-
-        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
-            return None, None
 
         chan.opening_fee = None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")

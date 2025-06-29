@@ -445,7 +445,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         payment_hash: str = sha256(bytes.fromhex(preimage)).hex()
         with (mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000)):
             result = await cmds.add_hold_invoice(
-                preimage=preimage,
+                payment_hash=payment_hash,
                 amount=Decimal(0.0001),
                 memo="test",
                 expiry=3500,
@@ -453,10 +453,12 @@ class TestCommandsTestnet(ElectrumTestCase):
             )
         invoice = lndecode(invoice=result['invoice'])
         assert invoice.paymenthash.hex() == payment_hash
-        assert payment_hash in wallet.lnworker._preimages
         assert payment_hash in wallet.lnworker.payment_info
         assert payment_hash in wallet.lnworker.dont_settle_htlcs
         assert invoice.get_amount_sat() == 10000
+        assert invoice.get_description() == "test"
+        assert wallet.get_label_for_rhash(rhash=invoice.paymenthash.hex()) == "test"
+        assert invoice.get_expiry() == 3500
 
         cancel_result = await cmds.cancel_hold_invoice(
             payment_hash=payment_hash,
@@ -464,13 +466,13 @@ class TestCommandsTestnet(ElectrumTestCase):
         )
         assert payment_hash not in wallet.lnworker.payment_info
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs
-        assert payment_hash not in wallet.lnworker._preimages
+        assert wallet.get_label_for_rhash(rhash=invoice.paymenthash.hex()) == ""
         assert cancel_result['cancelled'] == payment_hash
 
         with self.assertRaises(AssertionError):
             # settling a cancelled invoice should raise
             await cmds.settle_hold_invoice(
-                payment_hash=payment_hash,
+                preimage=preimage,
                 wallet=wallet,
             )
             # cancelling an unknown invoice should raise
@@ -484,7 +486,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         payment_hash: str = sha256(preimage).hex()
         with mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000):
             await cmds.add_hold_invoice(
-                preimage=preimage.hex(),
+                payment_hash=payment_hash,
                 amount=Decimal(0.0001),
                 wallet=wallet,
             )
@@ -496,7 +498,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             assert status['amount_sat'] == 10000
 
             settle_result = await cmds.settle_hold_invoice(
-                payment_hash=payment_hash,
+                preimage=preimage.hex(),
                 wallet=wallet,
             )
         assert settle_result['settled'] == payment_hash
