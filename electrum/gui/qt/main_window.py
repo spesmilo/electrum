@@ -1066,19 +1066,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 network_text = _("Connected")
-                confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
+                p_bal = self.wallet.get_balances_for_piechart()
                 self.balance_label.update_list(
                     [
-                        (_('Frozen'), COLOR_FROZEN, frozen),
-                        (_('Unmatured'), COLOR_UNMATURED, unmatured),
-                        (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
-                        (_('On-chain'), COLOR_CONFIRMED, confirmed),
-                        (_('Lightning'), COLOR_LIGHTNING, lightning),
-                        (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
+                        (_('Frozen'), COLOR_FROZEN, p_bal.frozen),
+                        (_('Unmatured'), COLOR_UNMATURED, p_bal.unmatured),
+                        (_('Unconfirmed'), COLOR_UNCONFIRMED, p_bal.unconfirmed),
+                        (_('On-chain'), COLOR_CONFIRMED, p_bal.confirmed),
+                        (_('Lightning'), COLOR_LIGHTNING, p_bal.lightning),
+                        (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, p_bal.lightning_frozen),
                     ],
                     warning = self.wallet.is_low_reserve(),
                 )
-                balance = confirmed + unconfirmed + unmatured + frozen + lightning + f_lightning
+                balance = p_bal.total()
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -1787,7 +1787,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         console.updateNamespace(methods)
 
     def show_balance_dialog(self):
-        balance = sum(self.wallet.get_balances_for_piechart())
+        balance = self.wallet.get_balances_for_piechart().total()
         if balance == 0:
             return
         from .balance_dialog import BalanceDialog
@@ -1981,7 +1981,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
         from electrum.lnutil import MIN_FUNDING_SAT
         from .new_channel_dialog import NewChannelDialog
-        confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
+        confirmed = self.wallet.get_spendable_balance_sat(confirmed_only=True)
         min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         if confirmed < min_amount_sat:
             msg = _('Not enough funds') + '\n\n' + _('You need at least {} to open a channel.').format(self.format_amount_and_units(min_amount_sat))

@@ -40,6 +40,7 @@ import itertools
 import threading
 import enum
 import asyncio
+from dataclasses import dataclass
 
 import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
@@ -368,6 +369,19 @@ class TxWalletDetails(NamedTuple):
     can_remove: bool  # whether user should be allowed to delete tx
     is_lightning_funding_tx: bool
     is_related_to_wallet: bool
+
+
+@dataclass(kw_only=True, slots=True, frozen=True)
+class PiechartBalance:
+    confirmed: int    # confirmed and matured and NOT frozen
+    unconfirmed: int  # unconfirmed and NOT frozen
+    unmatured: int    # unmatured and NOT frozen
+    frozen: int       # on-chain
+    lightning: Decimal
+    lightning_frozen: Decimal
+
+    def total(self) -> Decimal:
+        return self.confirmed + self.unconfirmed + self.unmatured + self.frozen + self.lightning + self.lightning_frozen
 
 
 class Abstract_Wallet(ABC, Logger, EventListener):
@@ -1063,6 +1077,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return result
 
     def get_balance(self, **kwargs):
+        """Note: intended for display-purposes.
+        Do not use for NotEnoughFunds checks. Use get_spendable_balance_sat() instead.
+        """
         domain = self.get_addresses()
         return self.adb.get_balance(domain, **kwargs)
 
@@ -1144,9 +1161,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
         return c1-c2, u1-u2, x1-x2
 
-    def get_balances_for_piechart(self):
+    def get_balances_for_piechart(self) -> PiechartBalance:
+        """Note: intended for display-purposes.
+        Do not use for NotEnoughFunds checks. Use get_spendable_balance_sat() instead.
+        """
         # return only positive values
-        # todo: add lightning frozen
         c, u, x = self.get_balance()
         fc, fu, fx = self.get_frozen_balance()
         lightning = self.lnworker.get_balance() if self.has_lightning() else 0
@@ -1156,7 +1175,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         uu = u - fu
         xx = x - fx
         frozen = fc + fu + fx
-        return cc, uu, xx, frozen, lightning - f_lightning, f_lightning
+        return PiechartBalance(
+            confirmed=cc,
+            unconfirmed=uu,
+            unmatured=xx,
+            frozen=frozen,
+            lightning=lightning - f_lightning,
+            lightning_frozen=f_lightning,
+        )
 
     def balance_at_timestamp(self, domain, target_timestamp):
         # we assume that get_history returns items ordered by block height

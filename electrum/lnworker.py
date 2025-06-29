@@ -2717,7 +2717,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self.payment_info.pop(payment_hash_hex, None)
 
-    def get_balance(self, frozen=False):
+    def get_balance(self, *, frozen=False) -> Decimal:
         with self.lock:
             return Decimal(sum(
                 chan.balance(LOCAL) if not chan.is_closed() and (chan.is_frozen_for_sending() if frozen else True) else 0

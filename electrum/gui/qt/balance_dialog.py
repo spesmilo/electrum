@@ -168,7 +168,13 @@ class BalanceDialog(WindowModalDialog):
         self.config = parent.config
         self.fx = parent.fx
 
-        confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
+        p_bal = self.wallet.get_balances_for_piechart()
+        confirmed = p_bal.confirmed
+        unconfirmed = p_bal.unconfirmed
+        unmatured = p_bal.unmatured
+        frozen = p_bal.frozen
+        lightning = p_bal.lightning
+        f_lightning = p_bal.lightning_frozen
 
         frozen_str =  self.config.format_amount_and_units(frozen)
         confirmed_str =  self.config.format_amount_and_units(confirmed)

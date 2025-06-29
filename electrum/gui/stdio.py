@@ -133,11 +133,11 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
+                msg = _("Balance")+": {}  ".format(Decimal(c) / COIN)
                 if u:
-                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
+                    msg += "  [{} unconfirmed]".format(Decimal(u) / COIN)
                 if x:
-                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
+                    msg += "  [{} unmatured]".format(Decimal(x) / COIN)
         else:
                 msg = _("Not connected")
 

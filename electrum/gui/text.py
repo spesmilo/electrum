@@ -212,7 +212,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if not self.wallet.is_up_to_date():
                 msg = _("Synchronizing...")
             else:
-                balance = sum(self.wallet.get_balances_for_piechart())
+                balance = self.wallet.get_balances_for_piechart().total()
                 msg = _("Balance") + ': ' + self.config.format_amount_and_units(balance)
         else:
             msg = _("Not connected")
