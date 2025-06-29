@@ -17,10 +17,12 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier, invoice_from_payment_identifier,
-                                         payment_identifier_from_invoice)
+from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
+                                         invoice_from_payment_identifier,
+                                         payment_identifier_from_invoice, PaymentIdentifierState)
 from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
+from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -432,7 +434,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.send_button.setEnabled(False)
             return
 
-        lock_recipient = pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
+        lock_recipient = pi.type in [PaymentIdentifierType.LNURL, PaymentIdentifierType.LNURLW,
+                                     PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
                                      PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
                                      PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
@@ -501,6 +504,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(pi.error)
             self.do_clear()
             return
+        if pi.type == PaymentIdentifierType.LNURLW:
+            assert pi.state == PaymentIdentifierState.LNURLW_FINALIZE, \
+                f"Detected LNURLW but not ready to finalize? {pi=}"
+            self.do_clear()
+            self.request_lnurl_withdraw_dialog(pi.lnurl_data)
+            return
+
         # if openalias add openalias to contacts
         if pi.type == PaymentIdentifierType.OPENALIAS:
             key = pi.emaillike if pi.emaillike else pi.domainlike
@@ -827,3 +837,134 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             else:
                 total += output.value
         self.amount_e.setAmount(total if outputs else None)
+
+    def request_lnurl_withdraw_dialog(self, lnurl_data: LNURL3Data):
+        from .util import WindowModalDialog, OkButton, CancelButton, Buttons
+
+        if not self.wallet.has_lightning():
+            self.show_error(
+                _("Cannot request lightning withdrawal, wallet has no lightning channels.")
+            )
+            return
+
+        dialog = WindowModalDialog(self, _("Lightning Withdrawal"))
+        dialog.setMinimumWidth(400)
+
+        vbox = QVBoxLayout()
+        dialog.setLayout(vbox)
+
+        if lnurl_data.default_description:
+            desc_label = QLabel(_("Description:"))
+            desc_text = QLabel(lnurl_data.default_description)
+            desc_text.setWordWrap(True)
+            vbox.addWidget(desc_label)
+            vbox.addWidget(desc_text)
+            vbox.addSpacing(10)
+
+        min_amount = max(lnurl_data.min_withdrawable_sat, 1)
+        max_amount = min(
+            lnurl_data.max_withdrawable_sat,
+            int(self.wallet.lnworker.num_sats_can_receive())
+        )
+        min_text = self.format_amount_and_units(lnurl_data.min_withdrawable_sat)
+        if min_amount > int(self.wallet.lnworker.num_sats_can_receive()):
+            self.show_error("\n\n".join([
+                _("Too little incoming liquidity to satisfy this withdrawal request."),
+                _("Can receive: {}  -  Minimum receive amount: {}").format(
+                    self.format_amount_and_units(self.wallet.lnworker.num_sats_can_receive()),
+                    min_text,
+                ),
+                _("Do a submarine swap in the 'Channels' tab to get more incoming liquidity.")
+            ]))
+            return
+
+        is_fixed_amount = lnurl_data.min_withdrawable_sat == lnurl_data.max_withdrawable_sat
+        if is_fixed_amount:
+            # Fixed amount, just show the amount
+            amount_label = QLabel(_("Amount:"))
+            amount_text = QLabel(self.format_amount_and_units(lnurl_data.max_withdrawable_sat))
+            amount_text.setStyleSheet("font-weight: bold;")
+            vbox.addWidget(amount_label)
+            vbox.addWidget(amount_text)
+        else:
+            # Range, show input field and max button
+            amount_label = QLabel(_("Amount:"))
+            vbox.addWidget(amount_label)
+
+            range_label = QLabel(_("Range: {} - {}").format(
+                min_text,
+                self.format_amount_and_units(lnurl_data.max_withdrawable_sat)
+            ))
+            range_label.setStyleSheet("color: gray; font-size: 90%;")
+            vbox.addWidget(range_label)
+
+            # Amount input row
+            amount_hbox = QHBoxLayout()
+            amount_edit = BTCAmountEdit(self.window.get_decimal_point, max_amount=max_amount)
+            amount_edit.setAmount(max_amount)
+            amount_hbox.addWidget(amount_edit)
+
+            # Max button
+            max_button = EnterButton(_("Max"), lambda: amount_edit.setAmount(max_amount))
+            btn_width = 10 * char_width_in_lineedit()
+            max_button.setFixedWidth(btn_width)
+            amount_hbox.addWidget(max_button)
+
+            vbox.addLayout(amount_hbox)
+
+            if lnurl_data.max_withdrawable_sat > int(self.wallet.lnworker.num_sats_can_receive()):
+                vbox.addSpacing(10)
+                warning_text = QLabel(
+                    _("Warning: Maximum withdrawable amount is larger than what your channels can receive. "
+                      "You may need to do a submarine swap to increase your incoming liquidity.")
+                )
+                warning_text.setWordWrap(True)
+                warning_text.setStyleSheet("color: red;")
+                vbox.addWidget(warning_text)
+
+        vbox.addSpacing(20)
+
+        # Buttons
+        request_button = OkButton(dialog, _("Request Withdrawal"))
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, request_button))
+
+        # Show dialog and handle result
+        if dialog.exec():
+            if is_fixed_amount:
+                amount_sat = lnurl_data.max_withdrawable_sat
+            else:
+                amount_sat = amount_edit.get_amount()
+                if not amount_sat or not (min_amount <= int(amount_sat) <= max_amount):
+                    self.show_error(_("Enter a valid amount. You entered: {}".format(amount_sat)))
+                    return
+        else:
+            return
+
+        try:
+            key = self.wallet.create_request(
+                amount_sat=amount_sat,
+                message=lnurl_data.default_description,
+                exp_delay=120,
+                address=None,
+            )
+            req = self.wallet.get_request(key)
+            _lnaddr, b11_invoice = self.wallet.lnworker.get_bolt11_invoice(
+                payment_hash=req.payment_hash,
+                amount_msat=req.get_amount_msat(),
+                message=req.get_message(),
+                expiry=req.exp,
+                fallback_address=None
+            )
+        except Exception as e:
+            self.logger.exception('')
+            self.show_error(
+                _("Failed to create payment request for withdrawal: {}").format(str(e))
+            )
+            return
+
+        coro = request_lnurl_withdraw_callback(b11_invoice, lnurl_data)
+        try:
+            self.window.run_coroutine_dialog(coro, _("Requesting lightning withdrawal..."))
+        except LNURLError as e:
+            self.show_error(_("Failed to request withdrawal:\n{}").format(str(e)))
