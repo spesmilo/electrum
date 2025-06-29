@@ -395,10 +395,7 @@ class QEInvoice(QObject, QtEventListener):
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
     def get_max_spendable_onchain(self):
-        spendable = self._wallet.confirmedBalance.satsInt
-        if not self._wallet.wallet.config.WALLET_SPEND_CONFIRMED_ONLY:
-            spendable += self._wallet.unconfirmedBalance.satsInt
-        return spendable
+        return self._wallet.wallet.get_spendable_balance_sat()
 
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
