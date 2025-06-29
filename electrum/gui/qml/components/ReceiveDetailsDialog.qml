@@ -131,7 +131,7 @@ ElDialog {
                         })
                         confirmdialog.open()
                     } else {
-                        // show error that amnt > 200k is neccessary to get zeroconf channel
+                        // show error that amnt > 200k is necessary to get zeroconf channel
                         var confirmdialog = app.messageDialog.createObject(dialog, {
                             title: qsTr("Amount too low"),
                             text: [qsTr("You don't have channels with enough inbound liquidity to receive this payment."),

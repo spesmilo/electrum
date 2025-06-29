@@ -117,7 +117,7 @@ MSG_CONNECTMODE_ONESERVER = _('Connect only to a single server')
 
 MSG_CONNECTMODE_SERVER_HELP = _(
     "Electrum connects to a unique server in order to receive your transaction history. "
-    "This server will learn your wallet adddresses."
+    "This server will learn your wallet addresses."
 )
 MSG_CONNECTMODE_NODES_HELP = _(
     "In addition to your history server, Electrum will try to maintain connections with ~10 extra servers, in order to download block headers and find out the longest blockchain. "
