@@ -124,9 +124,10 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
-            txpos_in_block = tx_item.get('txpos_in_block')
-            if txpos_in_block is not None and txpos_in_block >= 0:
-                short_id = f"{tx_item['height']}x{txpos_in_block}"
+            if col == HistoryColumns.SHORT_ID:
+                txpos_in_block = tx_item.get('txpos_in_block', -1)
+                if txpos_in_block >= 0:
+                    short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
@@ -317,6 +318,13 @@ class HistoryModel(CustomModel, Logger):
             balance += node._data['value'].value
             node._data['balance'] = Satoshis(balance)
 
+        # update tx_status_cache
+        self.tx_status_cache.clear()
+        for txid, tx_item in transactions.items():
+            if not tx_item.get('lightning', False):
+                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
+                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
+
         new_length = self._root.childCount()
         self.beginInsertRows(QModelIndex(), 0, new_length-1)
         self.transactions = transactions
@@ -336,12 +344,6 @@ class HistoryModel(CustomModel, Logger):
                 end_date = self.transactions.value_from_pos(len(self.transactions) - 1).get('date') or end_date
             self.view.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.view.period_combo.insertItems(1, self.view.years)
-        # update tx_status_cache
-        self.tx_status_cache.clear()
-        for txid, tx_item in self.transactions.items():
-            if not tx_item.get('lightning', False):
-                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
-                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
         # update counter
         num_tx = len(self.transactions)
         if self.view:
