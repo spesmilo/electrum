@@ -1365,7 +1365,7 @@ class Commands(Logger):
     @command('wnl')
     async def add_hold_invoice(
             self,
-            preimage: str,
+            payment_hash: str,
             amount: Optional[Decimal] = None,
             memo: str = "",
             expiry: int = 3600,
@@ -1373,20 +1373,19 @@ class Commands(Logger):
             wallet: Abstract_Wallet = None
     ) -> dict:
         """
-        Create a lightning hold invoice for the given preimage. Hold invoices have to get settled manually later.
+        Create a lightning hold invoice for the given payment hash. Hold invoices have to get settled manually later.
         HTLCs will get failed automatically if block_height + 144 > htlc.cltv_abs.
 
-        arg:str:preimage:Hex encoded preimage to be used for the invoice
+        arg:str:payment_hash:Hex encoded payment hash to be used for the invoice
         arg:decimal:amount:Optional requested amount (in btc)
         arg:str:memo:Optional description of the invoice
         arg:int:expiry:Optional expiry in seconds (default: 3600s)
         arg:int:min_final_cltv_expiry_delta:Optional min final cltv expiry delta (default: 294 blocks)
         """
-        assert len(preimage) == 64, f"Invalid preimage length: {len(preimage)} != 64"
-        payment_hash: str = crypto.sha256(bfh(preimage)).hex()
-        assert payment_hash not in wallet.lnworker._preimages, "Preimage already in use!"
+        assert len(payment_hash) == 64, f"Invalid payment hash length: {len(payment_hash)} != 64"
         assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already used!"
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs, "Payment hash already used!"
+        assert wallet.lnworker.get_preimage(bfh(payment_hash)) is None, "Already got a preimage for this payment hash!"
         assert MIN_FINAL_CLTV_DELTA_FOR_INVOICE < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
         amount = amount if amount and satoshis(amount) > 0 else None  # make amount either >0 or None
         inbound_capacity = wallet.lnworker.num_sats_can_receive()
@@ -1406,7 +1405,6 @@ class Commands(Logger):
             satoshis(amount) if amount else None,
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
-        wallet.lnworker.save_preimage(bfh(payment_hash), bfh(preimage))
         wallet.set_label(payment_hash, memo)
         result = {
             "invoice": invoice
@@ -1414,21 +1412,23 @@ class Commands(Logger):
         return result
 
     @command('wnl')
-    async def settle_hold_invoice(self, payment_hash: str, wallet: Abstract_Wallet = None) -> dict:
+    async def settle_hold_invoice(self, preimage: str, wallet: Abstract_Wallet = None) -> dict:
         """
-        Settles lightning hold invoice 'payment_hash' using the stored preimage.
+        Settles lightning hold invoice with the given preimage.
         Doesn't block until actual settlement of the HTLCs.
 
-        arg:str:payment_hash:Hex encoded payment hash of the invoice to be settled
+        arg:str:preimage:Hex encoded preimage of the invoice to be settled
         """
-        assert len(payment_hash) == 64, f"Invalid payment_hash length: {len(payment_hash)} != 64"
-        assert payment_hash in wallet.lnworker._preimages, f"Couldn't find preimage for {payment_hash}"
-        assert payment_hash in wallet.lnworker.dont_settle_htlcs, "Is already settled!"
+        assert len(preimage) == 64, f"Invalid payment_hash length: {len(preimage)} != 64"
+        payment_hash: str = crypto.sha256(bfh(preimage)).hex()
+        assert payment_hash not in wallet.lnworker._preimages, f"Invoice {payment_hash=} already settled"
         assert payment_hash in wallet.lnworker.payment_info, \
-            f"Couldn't find lightning invoice for payment hash {payment_hash}"
+            f"Couldn't find lightning invoice for {payment_hash=}"
+        assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"Invoice {payment_hash=} not a hold invoice?"
         assert wallet.lnworker.is_accepted_mpp(bfh(payment_hash)), \
             f"MPP incomplete, cannot settle hold invoice {payment_hash} yet"
         del wallet.lnworker.dont_settle_htlcs[payment_hash]
+        wallet.lnworker.save_preimage(bfh(payment_hash), bfh(preimage))
         util.trigger_callback('wallet_updated', wallet)
         result = {
             "settled": payment_hash
@@ -1444,9 +1444,8 @@ class Commands(Logger):
         """
         assert payment_hash in wallet.lnworker.payment_info, \
             f"Couldn't find lightning invoice for payment hash {payment_hash}"
-        assert payment_hash in wallet.lnworker._preimages, "Nothing to cancel, no known preimage."
-        assert payment_hash in wallet.lnworker.dont_settle_htlcs, "Is already settled!"
-        del wallet.lnworker._preimages[payment_hash]
+        assert payment_hash not in wallet.lnworker._preimages, "Cannot cancel anymore, preimage already given."
+        assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"{payment_hash=} not a hold invoice?"
         # set to PR_UNPAID so it can get deleted
         wallet.lnworker.set_payment_status(bfh(payment_hash), PR_UNPAID)
         wallet.lnworker.delete_payment_info(payment_hash)
