@@ -318,7 +318,7 @@ class HistoryModel(CustomModel, Logger):
             balance += node._data['value'].value
             node._data['balance'] = Satoshis(balance)
 
-        # update tx_status_cache
+        # update tx_status_cache  (before endInsertRows() triggers get_data_for_role() calls)
         self.tx_status_cache.clear()
         for txid, tx_item in transactions.items():
             if not tx_item.get('lightning', False):
