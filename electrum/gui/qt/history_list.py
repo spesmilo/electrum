@@ -75,36 +75,70 @@ TX_ICONS = [
 ]
 
 
-ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 1000
-
-
 class HistorySortModel(QSortFilterProxyModel):
+
+    def data_for(self, index: QModelIndex):
+        col = index.column()
+        if col == HistoryColumns.STATUS:
+            # respect sort order of self.transactions (wallet.get_full_history)
+            return -index.row()
+        else:
+            node = index.internalPointer()
+            return node.sort_keys[col]
+
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
-        item1 = self.sourceModel().data(source_left, ROLE_SORT_ORDER)
-        item2 = self.sourceModel().data(source_right, ROLE_SORT_ORDER)
-        if item1 is None or item2 is None:
-            raise Exception(f'UserRole not set for column {source_left.column()}')
-        v1 = item1.value()
-        v2 = item2.value()
-        if v1 is None or isinstance(v1, Decimal) and v1.is_nan(): v1 = -float("inf")
-        if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
-        try:
-            return v1 < v2
-        except Exception:
-            return False
+        return self.data_for(source_left) < self.data_for(source_right)
 
 
 def get_item_key(tx_item):
     return tx_item.get('txid') or tx_item['payment_hash']
+
+def flatten_sort_key(v):
+    if v is None or isinstance(v, Decimal) and v.is_nan():
+        return -float("inf")
+    else:
+        return v
 
 
 class HistoryNode(CustomNode):
 
     model: 'HistoryModel'
 
+    def __init__(self, model: 'CustomModel', tx_item):
+        super().__init__(model, tx_item)
+
+        if tx_item is None:
+            tx_item = {}
+        is_lightning = tx_item.get('lightning', False)
+        short_id = ""
+        if not is_lightning:
+            txpos_in_block = tx_item.get('txpos_in_block', -1)
+            if txpos_in_block >= 0:
+                short_id = f"{tx_item['height']}x{txpos_in_block}"
+        self.sort_keys = {
+            HistoryColumns.DESCRIPTION: flatten_sort_key(
+                tx_item.get('label')),
+            HistoryColumns.AMOUNT: flatten_sort_key(
+                (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
+                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0)),
+            HistoryColumns.BALANCE: 0,
+            HistoryColumns.FIAT_VALUE: flatten_sort_key(
+                tx_item['fiat_value'].value if 'fiat_value' in tx_item else None),
+            HistoryColumns.FIAT_ACQ_PRICE: flatten_sort_key(
+                tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None),
+            HistoryColumns.FIAT_CAP_GAINS: flatten_sort_key(
+                tx_item['capital_gain'].value if 'capital_gain' in tx_item else None),
+            HistoryColumns.TXID: flatten_sort_key(
+                tx_item.get('txid') if not is_lightning else None),
+            HistoryColumns.SHORT_ID:
+                short_id,
+        }
+
+    def set_balance(self, balance):
+        self._data['balance'] = Satoshis(balance)
+        self.sort_keys[HistoryColumns.BALANCE] = balance
+
     def get_data_for_role(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:
-        # note: this method is performance-critical.
-        # it is called a lot, and so must run extremely fast.
         assert index.isValid()
         col = index.column()
         window = self.model.window
@@ -115,7 +149,6 @@ class HistoryNode(CustomNode):
             # and the group does not have an onchain tx
             is_lightning = True
         timestamp = tx_item['timestamp']
-        short_id = None
         if is_lightning:
             status = 0
             if timestamp is None:
@@ -124,10 +157,6 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
-            if col == HistoryColumns.SHORT_ID:
-                txpos_in_block = tx_item.get('txpos_in_block', -1)
-                if txpos_in_block >= 0:
-                    short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
@@ -135,28 +164,6 @@ class HistoryNode(CustomNode):
                 tx_mined_info = self.model._tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        if role == ROLE_SORT_ORDER:
-            d = {
-                HistoryColumns.STATUS:
-                    # respect sort order of self.transactions (wallet.get_full_history)
-                    -index.row(),
-                HistoryColumns.DESCRIPTION:
-                    tx_item['label'] if 'label' in tx_item else None,
-                HistoryColumns.AMOUNT:
-                    (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
-                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
-                HistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0),
-                HistoryColumns.FIAT_VALUE:
-                    tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
-                HistoryColumns.FIAT_ACQ_PRICE:
-                    tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
-                HistoryColumns.FIAT_CAP_GAINS:
-                    tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
-                HistoryColumns.TXID: tx_hash if not is_lightning else None,
-                HistoryColumns.SHORT_ID: short_id,
-            }
-            return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
             return QVariant(get_item_key(tx_item))
         if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, MyTreeView.ROLE_CLIPBOARD_DATA):
@@ -227,7 +234,7 @@ class HistoryNode(CustomNode):
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
         elif col == HistoryColumns.SHORT_ID:
-            return QVariant(short_id or "")
+            return QVariant(self.sort_keys[HistoryColumns.SHORT_ID])
         return QVariant()
 
 
@@ -295,8 +302,6 @@ class HistoryModel(CustomModel, Logger):
             include_lightning=self.should_include_lightning_payments(),
             include_fiat=self.should_show_fiat(),
         )
-        if transactions == self.transactions:
-            return
         old_length = self._root.childCount()
         if old_length != 0:
             self.beginRemoveRows(QModelIndex(), 0, old_length)
@@ -316,7 +321,7 @@ class HistoryModel(CustomModel, Logger):
         balance = 0
         for node in self._root._children:
             balance += node._data['value'].value
-            node._data['balance'] = Satoshis(balance)
+            node.set_balance(balance)
 
         # update tx_status_cache  (before endInsertRows() triggers get_data_for_role() calls)
         self.tx_status_cache.clear()
