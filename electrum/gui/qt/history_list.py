@@ -112,7 +112,7 @@ class HistoryNode(CustomNode):
         is_lightning = tx_item.get('lightning', False)
         short_id = ""
         if not is_lightning:
-            txpos_in_block = tx_item.get('txpos_in_block', -1)
+            txpos_in_block = tx_item.get('txpos_in_block') or -1
             if txpos_in_block >= 0:
                 short_id = f"{tx_item['height']}x{txpos_in_block}"
         self.sort_keys = {
