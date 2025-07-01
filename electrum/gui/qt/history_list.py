@@ -81,7 +81,7 @@ class HistorySortModel(QSortFilterProxyModel):
         col = index.column()
         if col == HistoryColumns.STATUS:
             # respect sort order of self.transactions (wallet.get_full_history)
-            return -index.row()
+            return index.row()
         else:
             node = index.internalPointer()
             return node.sort_keys[col]
@@ -507,7 +507,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.period_combo.addItems([_('All'), _('Custom')])
         self.period_combo.activated.connect(self.on_combo)
         self.wallet = self.main_window.wallet  # type: Abstract_Wallet
-        self.sortByColumn(HistoryColumns.STATUS, Qt.SortOrder.AscendingOrder)
+        self.sortByColumn(HistoryColumns.STATUS, Qt.SortOrder.DescendingOrder)
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
         for col in HistoryColumns:
