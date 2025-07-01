@@ -509,6 +509,10 @@ class QETxFinalizer(TxFeeSlider):
                 except Exception as e:
                     self.swapError.emit(str(e))
                     return
+                else:
+                    # swap cancelled?
+                    if not sm.get_swap(tx.swap_payment_hash):
+                        return
 
             self._wallet.sign_and_broadcast(self._tx, on_success=partial(self.on_signed_tx, False),
                                             on_failure=self.on_sign_failed)
