@@ -1271,7 +1271,7 @@ class LNWallet(LNWorker):
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
 
-        # prevent settling the htlc until the channel opening was successfull so we can fail it if needed
+        # prevent settling the htlc until the channel opening was successful so we can fail it if needed
         self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
             funding_sat = 2 * (next_amount_msat_htlc // 1000) # try to fully spend htlcs
@@ -1938,7 +1938,7 @@ class LNWallet(LNWorker):
             (chan.channel_id, chan.node_id): ( int(chan.available_to_spend(HTLCOwner.LOCAL)), chan.htlc_slots_left(HTLCOwner.LOCAL))
             for chan in my_active_channels
         }
-        # if we have a direct channel it's preferrable to send a single part directly through this
+        # if we have a direct channel it's preferable to send a single part directly through this
         # channel, so this bool will disable excluding single part payments
         have_direct_channel = any(chan.node_id == receiver_pubkey for chan in my_active_channels)
         self.logger.info(f"channels_with_funds: {channels_with_funds}, {have_direct_channel=}")

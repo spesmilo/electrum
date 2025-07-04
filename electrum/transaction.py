@@ -1951,7 +1951,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            # FIXME: side effect interfers with make_witness
+            # FIXME: side effect interferes with make_witness
             # self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
