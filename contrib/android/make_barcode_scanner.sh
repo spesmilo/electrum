@@ -39,7 +39,7 @@ TARGET_ARCH="$1"
 if [[ "$TARGET_ARCH" != "armeabi-v7a" \
         && "$TARGET_ARCH" != "arm64-v8a" \
         && "$TARGET_ARCH" != "x86_64" ]]; then
-    fail "build_barcode_scanner.sh invalid target architecture argument: $TARGET_ARCH"
+    fail "make_barcode_scanner.sh invalid target architecture argument: $TARGET_ARCH"
 fi
 
 info "Building BarcodeScannerView and deps for architecture: $TARGET_ARCH"
@@ -68,7 +68,7 @@ else
     cd "$ZXING_CPP_DIR/wrappers/aar"
     chmod +x gradlew
 
-    # Set local.properties to use SDK of docker container 
+    # Set local.properties to use SDK of docker container
     echo "sdk.dir=${ANDROID_SDK_HOME}" > local.properties
     # gradlew will install a specific NDK version required by zxing-cpp
     ./gradlew :zxingcpp:assembleRelease -Pandroid.injected.build.abi="$TARGET_ARCH"
