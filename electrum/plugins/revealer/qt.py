@@ -191,12 +191,8 @@ class Plugin(RevealerPlugin):
 
         # Define the create noise file function.
         def create_noise_file():
-            try:
-                self.make_digital(self.d)
-            except Exception:
-                self.logger.exception('')
-            else:
-                self.cypherseed_dialog(window)
+            self.make_digital(self.d)
+            self.cypherseed_dialog(window)
 
         # Handle clicks on the buttons.
         create_button.clicked.connect(create_noise_file)
@@ -258,24 +254,37 @@ class Plugin(RevealerPlugin):
         self.rawnoise = False
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
-                                     "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
-                                     "<br/>", "<b>", _("Always check your backups.")]),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            _("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
+            "<b>",
+            self.get_path_to_revealer_file(),
+            "</b>",
+            "<br/>",
+            "<br/>",
+            "<b>",
+            _("Always check your backups.")
+        ]), rich_text=True)
         dialog.close()
 
     def ext_warning(self, dialog):
-        dialog.show_message(''.join(["<b>",_("Warning"), ": </b>",
-                                     _("your seed extension will <b>not</b> be included in the encrypted backup.")]),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            "<b>",
+            _("Warning"),
+            ": </b>",
+            _("your seed extension will <b>not</b> be included in the encrypted backup.")
+        ]), rich_text=True)
         dialog.close()
 
     def bdone(self, dialog):
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
-                                     "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            _("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
+            "<br/>",
+            "<b>",
+            self.get_path_to_revealer_file(),
+            '</b>'
+        ]), rich_text=True)
 
 
     def customtxt_limits(self):
