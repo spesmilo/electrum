@@ -45,8 +45,9 @@ class LNWatcher(Logger, EventListener):
     def remove_callback(self, address):
         self.callbacks.pop(address, None)
 
-    def add_callback(self, address, callback):
-        self.adb.add_address(address)
+    def add_callback(self, address, callback, *, subscribe=True):
+        if subscribe:
+            self.adb.add_address(address)
         self.callbacks[address] = callback
 
     async def trigger_callbacks(self, *, requires_synchronizer=True):
@@ -85,12 +86,7 @@ class LNWatcher(Logger, EventListener):
         outpoint = chan.funding_outpoint.to_str()
         address = chan.get_funding_address()
         callback = lambda: self.check_onchain_situation(address, outpoint)
-        if chan.need_to_subscribe():
-            self.add_callback(address, callback)
-
-    def unwatch_channel(self, address: str, funding_outpoint: str) -> None:
-        self.logger.info(f'unwatching {funding_outpoint}')
-        self.remove_callback(address)
+        self.add_callback(address, callback, subscribe=chan.need_to_subscribe())
 
     @ignore_exceptions
     @log_exceptions
@@ -119,8 +115,6 @@ class LNWatcher(Logger, EventListener):
             closing_txid=closing_txid,
             closing_height=closing_height,
             keep_watching=keep_watching)
-        if not keep_watching:
-            self.unwatch_channel(address, funding_outpoint)
 
     def diagnostic_name(self):
         return f"{self.lnworker.wallet.diagnostic_name()}-LNW"
