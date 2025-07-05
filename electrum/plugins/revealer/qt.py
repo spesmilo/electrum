@@ -191,12 +191,8 @@ class Plugin(RevealerPlugin):
 
         # Define the create noise file function.
         def create_noise_file():
-            try:
-                self.make_digital(self.d)
-            except Exception:
-                self.logger.exception('')
-            else:
-                self.cypherseed_dialog(window)
+            self.make_digital(self.d)
+            self.cypherseed_dialog(window)
 
         # Handle clicks on the buttons.
         create_button.clicked.connect(create_noise_file)
