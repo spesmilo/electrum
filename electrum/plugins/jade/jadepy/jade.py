@@ -1027,7 +1027,7 @@ class JadeAPI:
         dict
             Description of registered descriptor wallet identified by registration name.
             Contains keys:
-                descriptor_name - str, name of descritpor registration
+                descriptor_name - str, name of descriptor registration
                 descriptor - str, descriptor output script, may contain substitution placeholders
                 datavalues - dict containing placeholders for substitution into script
         """
