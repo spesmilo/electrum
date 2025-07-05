@@ -375,8 +375,9 @@ class FeeTimeEstimates:
               just try to do the estimate and handle a potential None result. That way,
               estimation works for targets we have, even if some targets are missing.
         """
-        # we do not request estimate for next block fee, hence -1
-        return len(self.data) == len(FEE_ETA_TARGETS) - 1
+        targets = set(FEE_ETA_TARGETS)
+        targets.discard(1)  # rm "next block" target
+        return all(target in self.data for target in targets)
 
     def set_data(self, nblock_target: int, fee_per_kb: int):
         assert isinstance(nblock_target, int), f"expected int, got {nblock_target!r}"

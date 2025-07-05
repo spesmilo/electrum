@@ -71,7 +71,7 @@ from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .fee_policy import FeePolicy
+from .fee_policy import FeePolicy, FEE_ETA_TARGETS, FEERATE_DEFAULT_RELAY
 from . import GuiImportError
 from . import crypto
 from . import constants
@@ -1575,6 +1575,27 @@ class Commands(Logger):
             'sat/kvB': feerate,
             'tooltip': tooltip,
         }
+
+    @command('n')
+    async def test_inject_fee_etas(self, fee_est):
+        """
+        Inject fee estimates into the network object, as if they were coming from connected servers.
+        Useful on regtest.
+
+        arg:str:fee_est:dict of ETA-based fee estimates, encoded as str
+        """
+        if not isinstance(fee_est, dict):
+            fee_est = ast.literal_eval(fee_est)
+        assert isinstance(fee_est, dict), f"unexpected type for fee_est. got {repr(fee_est)}"
+        # populate missing high-block-number estimates using default relay fee.
+        # e.g. {"25": 2222} -> {"25": 2222, "144": 1000, "1008": 1000}
+        furthest_estimate = max(fee_est.keys()) if fee_est else 0
+        further_fee_est = {
+            eta_target: FEERATE_DEFAULT_RELAY for eta_target in FEE_ETA_TARGETS
+            if eta_target > furthest_estimate
+        }
+        fee_est.update(further_fee_est)
+        self.network.update_fee_estimates(fee_est=fee_est)
 
     @command('w')
     async def removelocaltx(self, txid, wallet: Abstract_Wallet = None):
