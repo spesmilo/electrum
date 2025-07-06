@@ -45,13 +45,18 @@ _language = _get_null_translations()
 
 
 # note: do not use old-style (%) formatting inside translations,
-#       as syntactically incorrectly translated strings would raise exceptions (see #3237).
-#       e.g. consider  _("Connected to %d nodes.") % n
+#       as syntactically incorrectly translated strings often raise exceptions (see #3237).
+#       e.g. consider  _("Connected to %d nodes.") % n            # <- raises. do NOT use
 #                      >>> "Connecté aux noeuds" % n
 #                      TypeError: not all arguments converted during string formatting
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
-#       So this does not work:   _(f"My name: {name}")
-#       instead use .format:     _("My name: {}").format(name)
+#       So this does NOT work:   _(f"My name: {name}")            # <- cannot be translated. do NOT use
+#       instead use .format:     _("My name: {}").format(name)    # <- works. prefer this way.
+# note: positional and keyword-based substitution also works with str.format().
+#       These give more flexibility to translators: it allows reordering the substituted values.
+#       However, only if the translators understand and use it correctly!
+#          _("time left: {0} minutes, {1} seconds").format(t//60, t%60)                   # <- works. ok to use
+#          _("time left: {mins} minutes, {secs} seconds").format(mins=t//60, secs=t%60)   # <- works, but too complex
 def _(msg: str, *, context=None) -> str:
     if msg == "":
         return ""  # empty string must not be translated. see #7158
