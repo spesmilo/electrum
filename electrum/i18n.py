@@ -22,7 +22,9 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import functools
 import os
+import string
 from typing import Optional
 
 import gettext
@@ -44,6 +46,35 @@ def _get_null_translations():
 _language = _get_null_translations()
 
 
+def _ensure_translation_keeps_format_string_syntax_similar(translator):
+    """This checks that the source string is syntactically similar to the translated string.
+    If not, translations are rejected by falling back to the source string.
+    """
+    sf = string.Formatter()
+    @functools.wraps(translator)
+    def safe_translator(msg: str, **kwargs):
+        translation = translator(msg, **kwargs)
+        parsed1 = list(sf.parse(msg))  # iterable of tuples (literal_text, field_name, format_spec, conversion)
+        try:
+            parsed2 = list(sf.parse(translation))
+        except ValueError:  # malformed format string in translation
+            _logger.info(f"rejected translation string: failed to parse. original={msg!r}. {translation=!r}")
+            return msg
+        # num of replacement fields must match:
+        if len(parsed1) != len(parsed2):
+            _logger.info(f"rejected translation string: num replacement fields mismatch. original={msg!r}. {translation=!r}")
+            return msg
+        # set of "field_name"s must not change. (re-ordering is explicitly allowed):
+        field_names1 = set(tupl[1] for tupl in parsed1)
+        field_names2 = set(tupl[1] for tupl in parsed2)
+        if field_names1 != field_names2:
+            _logger.info(f"rejected translation string: set of field_names mismatch. original={msg!r}. {translation=!r}")
+            return msg
+        # checks done.
+        return translation
+    return safe_translator
+
+
 # note: do not use old-style (%) formatting inside translations,
 #       as syntactically incorrectly translated strings often raise exceptions (see #3237).
 #       e.g. consider  _("Connected to %d nodes.") % n            # <- raises. do NOT use
@@ -57,6 +88,7 @@ _language = _get_null_translations()
 #       However, only if the translators understand and use it correctly!
 #          _("time left: {0} minutes, {1} seconds").format(t//60, t%60)                   # <- works. ok to use
 #          _("time left: {mins} minutes, {secs} seconds").format(mins=t//60, secs=t%60)   # <- works, but too complex
+@_ensure_translation_keeps_format_string_syntax_similar
 def _(msg: str, *, context=None) -> str:
     if msg == "":
         return ""  # empty string must not be translated. see #7158
