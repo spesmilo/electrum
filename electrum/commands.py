@@ -168,12 +168,12 @@ def command(s):
                 if 'wallet' in cmd.options:
                     wallet_path = kwargs.pop('wallet_path', None) # unit tests may set wallet and not wallet_path
                     wallet = kwargs.get('wallet', None)           # run_offline_command sets both
-                    if wallet is None:
+                    if wallet is None and wallet_path is not None:
                         wallet = daemon.get_wallet(wallet_path)
                         if wallet is None:
                             raise UserFacingException('wallet not loaded')
                         kwargs['wallet'] = wallet
-                    if cmd.requires_password and password is None and wallet.has_password():
+                    if cmd.requires_password and password is None and wallet and wallet.has_password():
                         password = wallet.get_unlocked_password()
                         if password:
                             kwargs['password'] = password
