@@ -643,7 +643,11 @@ class SimpleConfig(Logger):
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
     NETWORK_SKIPMERKLECHECK = ConfigVar('skipmerklecheck', default=False, type_=bool)
     NETWORK_SERVERFINGERPRINT = ConfigVar('serverfingerprint', default=None, type_=str)
-    NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=1_000_000, type_=int)  # in bytes
+    NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=8_100_000, type_=int)  # in bytes
+        # ^ the default is chosen so that the largest consensus-valid tx fits in a JSON-RPC message.
+        #   (so that if we request a tx from the server, we won't reject the response)
+        #   For Bitcoin, that is 4 M weight units, i.e. 4 MB on the p2p wire.
+        #   Double that due to our JSON-RPC hex-encoding, plus overhead, that's 8+ MB.
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
     NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
