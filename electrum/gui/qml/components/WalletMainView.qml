@@ -642,11 +642,21 @@ Item {
 
             onRequestPaid: {
                 close()
+                var capturedHistoryModel = Daemon.currentWallet.historyModel
                 if (isLightning) {
-                    app.stack.push(Qt.resolvedUrl('LightningPaymentDetails.qml'), {'key': key})
+                    var page = app.stack.push(Qt.resolvedUrl('LightningPaymentDetails.qml'), {'key': key})
+                    var capturedKey = key
+                    page.detailsChanged.connect(function() {
+                            capturedHistoryModel.updateTxLabel(capturedKey, page.label)
+                        }
+                    )
                 } else {
                     let paidTxid = getPaidTxid()
-                    app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': paidTxid})
+                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': paidTxid})
+                    page.detailsChanged.connect(function() {
+                            capturedHistoryModel.updateTxLabel(paidTxid, page.label)
+                        }
+                    )
                 }
             }
             onClosed: destroy()
