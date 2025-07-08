@@ -90,6 +90,15 @@ function wait_until_spent()
     printf "\n"
 }
 
+function assert_utxo_exists()
+{
+    utxo=$($bitcoin_cli gettxout $1 $2)
+    if [[ -z "$utxo" ]]; then
+        echo "utxo $1:$2 does not exist"
+        exit 1
+    fi
+}
+
 if [[ $# -eq 0 ]]; then
     echo "syntax: init|start|open|status|pay|close|stop"
     exit 1
@@ -305,6 +314,89 @@ if [[ $1 == "swapserver_refund" ]]; then
     wait_until_spent $funding_txid 0
     new_blocks 1
     wait_until_htlcs_settled alice
+fi
+
+
+if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
+    # Alice sends two HTLCs to Bob (one for small invoice, one for large invoice), which Bob will hold.
+    # Alice requests Bob to force-close the channel, while the HTLCs are pending. Bob force-closes.
+    # Fee levels rise, to the point where the small HTLC is not economical to claim.
+    #                  Alice sweeps the large HTLC (via onchain timeout), but not the small one.
+    # Then, fee levels go back down, and Alice sweeps the small HTLC.
+    # This test checks Alice does not abandon channel outputs that are temporarily ~dust due to
+    # mempool spikes, and keeps watching the channel in hope of fees going down.
+    $alice setconfig test_force_disable_mpp true
+    $alice setconfig test_force_mpp false
+    wait_for_balance alice 1
+    $alice test_inject_fee_etas "{2:1000}"
+    $bob test_inject_fee_etas "{2:1000}"
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='')
+    chan_funding_txid=$(echo "$channel" | cut -d ":" -f 1)
+    chan_funding_outidx=$(echo "$channel" | cut -d ":" -f 2)
+    new_blocks 3
+    wait_until_channel_open alice
+    # Alice sends an HTLC to Bob, which Bob will hold indefinitely. Alice's lnpay will time out.
+    invoice1=$($bob add_hold_invoice deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbee1 \
+                    --amount 0.0004 --min_final_cltv_expiry_delta 300 | jq -r ".invoice")
+    invoice2=$($bob add_hold_invoice deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbee2 \
+                    --amount 0.04 --min_final_cltv_expiry_delta 300 | jq -r ".invoice")
+    set +e
+    $alice lnpay $invoice1 --timeout 3
+    $alice lnpay $invoice2 --timeout 3
+    set -e
+    # After a while, Alice gets impatient and gets Bob to close the channel.
+    new_blocks 20
+    $alice request_force_close $channel
+    wait_until_spent $chan_funding_txid $chan_funding_outidx
+    $bob stop  # bob closes and then disappears. FIXME this is a hack to prevent Bob claiming the fake-hold-invoice-htlc onchain
+    new_blocks 1
+    wait_until_channel_closed alice
+    ctx_id=$($alice list_channels | jq -r ".[0].closing_txid")
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        htlc_output_index1=2
+        htlc_output_index2=3
+        to_alice_index=4  # Bob's to_remote
+        wait_until_spent $ctx_id $to_alice_index
+    else
+        htlc_output_index1=0
+        htlc_output_index2=1
+        to_alice_index=2
+    fi
+    new_blocks 1
+    assert_utxo_exists $ctx_id $htlc_output_index1
+    assert_utxo_exists $ctx_id $htlc_output_index2
+    # fee levels rise. now small htlc is ~dust
+    $alice test_inject_fee_etas "{2:300000}"
+    new_blocks 300  # this goes past the CLTV of the HTLC-output in ctx
+    wait_until_spent $ctx_id $htlc_output_index2
+    assert_utxo_exists $ctx_id $htlc_output_index1
+    new_blocks 24  # note: >20 blocks depth is considered "DEEP" by lnwatcher
+    sleep 1  # give time for Alice to make mistakes, such as abandoning the channel. which it should NOT do.
+    new_blocks 1
+    # Alice goes offline and comes back later, 1
+    $alice stop
+    $alice daemon -d
+    $alice test_inject_fee_etas "{2:300000}"
+    $alice load_wallet
+    $alice wait_for_sync
+    new_blocks 1
+    sleep 1  # give time for Alice to make mistakes
+    # Alice goes offline and comes back later, 2
+    $alice stop
+    $alice daemon -d
+    $alice test_inject_fee_etas "{2:300000}"
+    $alice load_wallet
+    $alice wait_for_sync
+    new_blocks 1
+    sleep 1  # give time for Alice to make mistakes
+    # fee levels go down. time to claim the small htlc
+    $alice test_inject_fee_etas "{2:1000}"
+    new_blocks 1
+    wait_until_spent $ctx_id $htlc_output_index1
+    new_blocks 1
+    wait_for_balance alice 0.9995
 fi
 
 

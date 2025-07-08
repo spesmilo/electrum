@@ -1064,7 +1064,7 @@ class AddressSynchronizer(Logger, EventListener):
             return TxMinedDepth.FREE
         tx_mined_depth = self.get_tx_height(txid)
         height, conf = tx_mined_depth.height, tx_mined_depth.conf
-        if conf > 20:
+        if conf > 20:  # FIXME unify with lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY ?
             return TxMinedDepth.DEEP
         elif conf > 0:
             return TxMinedDepth.SHALLOW
