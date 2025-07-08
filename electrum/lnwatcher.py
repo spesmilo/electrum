@@ -190,7 +190,12 @@ class LNWatcher(Logger, EventListener):
             else:
                 keep_watching |= was_added
             self.maybe_add_pending_forceclose(
-                chan=chan, spender_txid=spender_txid, is_local_ctx=is_local_ctx, sweep_info=sweep_info, was_added=was_added)
+                chan=chan,
+                spender_txid=spender_txid,
+                is_local_ctx=is_local_ctx,
+                sweep_info=sweep_info,
+                sweep_info_txo_is_nondust=was_added,
+            )
         return keep_watching
 
     def get_pending_force_closes(self):
@@ -251,10 +256,10 @@ class LNWatcher(Logger, EventListener):
         spender_txid: Optional[str],
         is_local_ctx: bool,
         sweep_info: 'SweepInfo',
-        was_added: bool,
+        sweep_info_txo_is_nondust: bool,  # i.e. we want to sweep it
     ):
         """ we are waiting for ctx to be confirmed and there are received htlcs """
-        if was_added and is_local_ctx and sweep_info.name == 'received-htlc' and chan.has_anchors():
+        if is_local_ctx and sweep_info.name == 'received-htlc' and sweep_info_txo_is_nondust:
             tx_mined_status = self.adb.get_tx_height(spender_txid)
             if tx_mined_status.height == TX_HEIGHT_LOCAL:
                 self._pending_force_closes.add(chan)
