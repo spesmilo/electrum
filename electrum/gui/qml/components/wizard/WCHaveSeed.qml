@@ -24,19 +24,16 @@ WizardComponent {
     property bool _seedValid
 
     function apply() {
-        var seed_extend = extendcb.checked && _canPassphrase
         if (cosigner) {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = _seedType
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = seed_extend
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = seed_extend ? customwordstext.text : ''
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = _canPassphrase
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['seed_type'] = _seedType
-            wizard_data['seed_extend'] = seed_extend
-            wizard_data['seed_extra_words'] = seed_extend ? customwordstext.text : ''
+            wizard_data['seed_extend'] = _canPassphrase
 
             // determine script type from electrum seed type
             // (used to limit script type options for bip39 cosigners)
@@ -52,22 +49,20 @@ WizardComponent {
     function setSeedTypeHelpText() {
         var t = {
             'electrum': [
+                // not shown as electrum is the default seed type anyways and the name is self-explanatory
                 qsTr('Electrum seeds are the default seed type.'),
                 qsTr('If you are restoring from a seed previously created by Electrum, choose this option')
             ].join(' '),
             'bip39': [
                 qsTr('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
-                '<br/><br/>',
-                qsTr('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
-                qsTr('BIP39 seeds do not include a version number, which compromises compatibility with future software.')
+                qsTr('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
             ].join(' '),
             'slip39': [
                 qsTr('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
-                '<br/><br/>',
-                qsTr('However, we do not generate SLIP39 seeds.')
             ].join(' ')
         }
         infotext.text = t[seed_variant_cb.currentValue]
+        infotext.visible = !cosigner && !is2fa && seed_variant_cb.currentValue != 'electrum'
     }
 
     function checkValid() {
@@ -98,11 +93,6 @@ WizardComponent {
             } else {
                 _seedValid = true
             }
-        }
-
-        if (_canPassphrase && extendcb.checked && customwordstext.text == '') {
-            valid = false
-            return
         }
 
         valid = _seedValid
@@ -196,7 +186,6 @@ WizardComponent {
 
             InfoTextArea {
                 id: infotext
-                visible: !cosigner && !is2fa
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 Layout.bottomMargin: constants.paddingLarge
@@ -220,26 +209,6 @@ WizardComponent {
                 onTextChanged: {
                     startValidationTimer()
                 }
-            }
-
-            ElCheckBox {
-                id: extendcb
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                visible: _canPassphrase
-                text: qsTr('Extend seed with custom words')
-                onCheckedChanged: startValidationTimer()
-            }
-
-            TextField {
-                id: customwordstext
-                visible: extendcb.checked && extendcb.visible
-                Layout.fillWidth: true
-                Layout.columnSpan: 2
-                placeholderText: qsTr('Enter your custom word(s)')
-                inputMethodHints: Qt.ImhNoPredictiveText
-
-                onTextChanged: startValidationTimer()
             }
         }
     }
