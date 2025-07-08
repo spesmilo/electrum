@@ -9,13 +9,12 @@ import "../controls"
 WizardComponent {
     securePage: true
 
-    valid: seedtext.text != '' && extendcb.checked ? customwordstext.text != '' : true
+    valid: seedtext.text != ''
 
     function apply() {
         wizard_data['seed'] = seedtext.text
         wizard_data['seed_variant'] = 'electrum' // generated seed always electrum variant
-        wizard_data['seed_extend'] = extendcb.checked
-        wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+        wizard_data['seed_extend'] = true  // true so we get forwarded to the passphrase page
     }
 
     function setWarningText(numwords) {
@@ -68,20 +67,6 @@ WizardComponent {
                     height: parent.height * 2/3
                     visible: seedtext.text == ''
                 }
-            }
-
-            ElCheckBox {
-                id: extendcb
-                Layout.fillWidth: true
-                text: qsTr('Extend seed with custom words')
-            }
-
-            TextField {
-                id: customwordstext
-                visible: extendcb.checked
-                Layout.fillWidth: true
-                placeholderText: qsTr('Enter your custom word(s)')
-                inputMethodHints: Qt.ImhNoPredictiveText
             }
 
             Component.onCompleted : {

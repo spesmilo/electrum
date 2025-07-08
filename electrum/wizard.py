@@ -333,7 +333,7 @@ class KeystoreWizard(AbstractWizard):
 
     def keystore_from_data(self, wallet_type: str, data: dict):
         if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
-            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
+            seed_extension = data.get('seed_extra_words', '')
             if data['seed_variant'] == 'electrum':
                 for_multisig = wallet_type in ['multisig']
                 return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=for_multisig)
