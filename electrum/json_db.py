@@ -25,7 +25,8 @@
 import threading
 import copy
 import json
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence, List, Union
+
 import jsonpatch
 
 from . import util
@@ -81,7 +82,7 @@ def stored_in(name, _type=dict):
     return decorator
 
 
-def key_path(path, key):
+def key_path(path: Sequence[Union[str, int]], key: Optional[str]) -> str:
     def to_str(x):
         if isinstance(x, int):
             return str(int(x))
@@ -96,7 +97,7 @@ def key_path(path, key):
 
 class StoredObject:
 
-    db = None
+    db: 'JsonDB' = None
     path = None
 
     def __setattr__(self, key, value):
@@ -123,7 +124,7 @@ _RaiseKeyError = object() # singleton for no-default behavior
 
 class StoredDict(dict):
 
-    def __init__(self, data, db, path):
+    def __init__(self, data, db: 'JsonDB', path):
         self.db = db
         self.lock = self.db.lock if self.db else threading.RLock()
         self.path = path
@@ -197,7 +198,7 @@ class StoredDict(dict):
 
 class StoredList(list):
 
-    def __init__(self, data, db, path):
+    def __init__(self, data, db: 'JsonDB', path):
         list.__init__(self, data)
         self.db = db
         self.lock = self.db.lock if self.db else threading.RLock()
@@ -239,7 +240,7 @@ class JsonDB(Logger):
         self.lock = threading.RLock()
         self.storage = storage
         self.encoder = encoder
-        self.pending_changes = []
+        self.pending_changes = []  # type: List[str]
         self._modified = False
         # load data
         data = self.load_data(s)
