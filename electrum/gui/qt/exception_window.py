@@ -67,7 +67,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         self._report_contents_dlg = None  # type: Optional[ReportContentsDialog]
         collapse_info = QPushButton(_("Show report contents"))
-        collapse_info.clicked.connect(self.show_report_contents_dlg)
+        collapse_info.clicked.connect(lambda _checked: self.show_report_contents_dlg())
 
         main_box.addWidget(collapse_info)
 
@@ -83,16 +83,16 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         buttons = QHBoxLayout()
 
         report_button = QPushButton(_('Send Bug Report'))
-        report_button.clicked.connect(self.send_report)
+        report_button.clicked.connect(lambda _checked: self.send_report())
         report_button.setIcon(read_QIcon("tab_send.png"))
         buttons.addWidget(report_button)
 
         never_button = QPushButton(_('Never'))
-        never_button.clicked.connect(self.show_never)
+        never_button.clicked.connect(lambda _checked: self.show_never())
         buttons.addWidget(never_button)
 
         close_button = QPushButton(_('Not Now'))
-        close_button.clicked.connect(self.close)
+        close_button.clicked.connect(lambda _checked: self.close())
         buttons.addWidget(close_button)
 
         main_box.addLayout(buttons)
