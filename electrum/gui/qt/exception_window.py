@@ -25,10 +25,10 @@ import sys
 import html
 from typing import TYPE_CHECKING, Optional, Set
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, Qt
 import PyQt6.QtCore as QtCore
 from PyQt6.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
-                             QMessageBox, QHBoxLayout, QVBoxLayout)
+                             QMessageBox, QHBoxLayout, QVBoxLayout, QDialog, QScrollArea)
 
 from electrum.i18n import _
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue, CrashReportResponse
@@ -65,11 +65,9 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         main_box.addWidget(QLabel(BaseCrashReporter.REQUEST_HELP_MESSAGE))
 
+        self._report_contents_dlg = None  # type: Optional[ReportContentsDialog]
         collapse_info = QPushButton(_("Show report contents"))
-        collapse_info.clicked.connect(
-            lambda: self.msg_box(QMessageBox.Icon.NoIcon,
-                                 self, _("Report contents"), self.get_report_string(),
-                                 rich_text=True))
+        collapse_info.clicked.connect(self.show_report_contents_dlg)
 
         main_box.addWidget(collapse_info)
 
@@ -157,6 +155,15 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         traceback_str = super()._get_traceback_str_to_display()
         return html.escape(traceback_str)
 
+    def show_report_contents_dlg(self):
+        if self._report_contents_dlg is None:
+            self._report_contents_dlg = ReportContentsDialog(
+                parent=self,
+                text=self.get_report_string(),
+            )
+        self._report_contents_dlg.show()
+        self._report_contents_dlg.raise_()
+
 
 def _show_window(*args):
     if not Exception_Window._active_window:
@@ -192,3 +199,20 @@ class Exception_Hook(QObject, Logger):
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
         self._report_exception.emit(self.config, *exc_info)
+
+
+class ReportContentsDialog(QDialog):
+
+    def __init__(self, *, parent: QWidget, text: str):
+        QDialog.__init__(self, parent)
+        self.setWindowTitle(_("Report contents"))
+        self.setMinimumSize(800, 500)
+        vbox = QVBoxLayout(self)
+        scroll_area = QScrollArea(self)
+
+        report_text = QLabel(text)
+        report_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        report_text.setTextFormat(Qt.TextFormat.AutoText)  # likely rich text
+
+        scroll_area.setWidget(report_text)
+        vbox.addWidget(scroll_area)
