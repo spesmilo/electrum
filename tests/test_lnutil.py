@@ -474,7 +474,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore(StoredDict({}, None, []))
+            receiver = RevocationStore(StoredDict({}, None))
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
 
@@ -497,7 +497,7 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore(StoredDict({}, None, []))
+        consumer = RevocationStore(StoredDict({}, None))
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
@@ -507,7 +507,7 @@ class TestLNUtil(ElectrumTestCase):
             if i % 1000 == 0:
                 c1 = consumer
                 s1 = json.dumps(c1.storage, cls=MyEncoder)
-                c2 = RevocationStore(StoredDict(json.loads(s1), None, []))
+                c2 = RevocationStore(StoredDict(json.loads(s1), None))
                 s2 = json.dumps(c2.storage, cls=MyEncoder)
                 self.assertEqual(s1, s2)
 
