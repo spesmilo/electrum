@@ -450,6 +450,7 @@ def show_transaction(
     on_closed: Callable[[Optional[Transaction]], None] = None,
     show_sign_button: bool = True,
     show_broadcast_button: bool = True,
+    show_combine_menu: bool = True,
 ):
     try:
         d = TxDialog(
@@ -465,6 +466,8 @@ def show_transaction(
             d.sign_button.setVisible(False)
         if not show_broadcast_button:
             d.broadcast_button.setVisible(False)
+        if not show_combine_menu:
+            d.partial_tx_actions_button.setVisible(False)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
