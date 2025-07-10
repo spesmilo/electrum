@@ -363,18 +363,32 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
-            self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
+            if tx.contains_silent_payment():
+                def sign_done(success):
+                    if success:
+                        self.window.show_transaction(
+                            tx,
+                            show_sign_button=False,
+                            show_combine_menu=False,
+                            invoice=invoice
+                        )
+                self.window.sign_tx_with_password(tx, callback=sign_done, password=password)
+            else:
+                self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
             return
+
         self.save_pending_invoice()
         def sign_done(success):
             if success:
                 self.window.broadcast_or_show(tx, invoice=invoice)
-        #TODO: sign_tx_with_password could be called directly if password is available due to silent payments.
-        #      otherwise the user gets prompted for pw twice.
-        self.window.sign_tx(
-            tx,
-            callback=sign_done,
-            external_keypairs=external_keypairs)
+
+        if password: # avoid prompting the user twice
+            self.window.sign_tx_with_password(tx, callback=sign_done, password=password)
+        else:
+            self.window.sign_tx(
+                tx,
+                callback=sign_done,
+                external_keypairs=external_keypairs)
 
     def do_clear(self):
         self.logger.debug('do_clear')
