@@ -67,6 +67,7 @@ RUN apt-get update -q && \
         libv4l-dev \
         libjpeg62-turbo-dev \
         libx11-dev \
+        desktop-file-utils \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
