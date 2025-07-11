@@ -8,12 +8,16 @@ WizardComponent {
     valid: wallettypegroup.checkedButton !== null
 
     function apply() {
+        // apply gets called when the page is rendered and implicitly
+        // sets the first radio button or the last selected one when going back
         wizard_data['wallet_type'] = wallettypegroup.checkedButton.wallettype
+        delete wizard_data['seed_type']
         if (wizard_data['wallet_type'] == 'standard')
             wizard_data['seed_type'] = 'segwit'
         else if (wizard_data['wallet_type'] == '2fa')
             wizard_data['seed_type'] = '2fa_segwit'
-        // TODO: multisig
+        else if (wizard_data['wallet_type'] == 'multisig')
+            wizard_data['seed_type'] = 'segwit'
     }
 
     ButtonGroup {
