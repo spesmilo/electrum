@@ -36,7 +36,7 @@ Item {
     function openSendDialog() {
         // Qt based send dialog if not on android
         if (!AppController.isAndroid()) {
-            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
             _sendDialog.open()
             return
         }
@@ -62,7 +62,7 @@ Item {
                 })
                 dialog.open()
             } else {
-                invoiceParser.recipient = data
+                piResolver.recipient = data
             }
             //scanner.destroy()  // TODO
         })
@@ -362,7 +362,7 @@ Item {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
-                enabled: !invoiceParser.busy
+                enabled: !invoiceParser.busy && !piResolver.busy && !requestDetails.busy
                 onClicked: openSendDialog()
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
@@ -370,6 +370,45 @@ Item {
                     AppController.haptic()
                 }
             }
+        }
+    }
+
+    PIResolver {
+        id: piResolver
+        wallet: Daemon.currentWallet
+
+        onResolveError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+
+        Component.onCompleted: {
+            piResolver.invoiceResolved.connect(invoiceParser.fromResolvedPaymentIdentifier)
+            piResolver.requestResolved.connect(requestDetails.fromResolvedPaymentIdentifier)
+        }
+    }
+
+    RequestDetails {
+        id: requestDetails
+        wallet: Daemon.currentWallet
+        onNeedsLNURLUserInput: {
+            closeSendDialog()
+            var dialog = lnurlWithdrawDialog.createObject(app, {
+                requestDetails: requestDetails
+            })
+            dialog.open()
+        }
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
+            dialog.open()
         }
     }
 
@@ -416,15 +455,10 @@ Item {
         onInvoiceCreateError: (code, message) => {
             console.log(code + ' ' + message)
         }
-
         onLnurlRetrieved: {
             closeSendDialog()
             if (invoiceParser.invoiceType === Invoice.Type.LNURLPayRequest) {
                 var dialog = lnurlPayDialog.createObject(app, {
-                    invoiceParser: invoiceParser
-                })
-            } else if (invoiceParser.invoiceType === Invoice.Type.LNURLWithdrawRequest) {
-                var dialog = lnurlWithdrawDialog.createObject(app, {
                     invoiceParser: invoiceParser
                 })
             } else {
@@ -456,7 +490,7 @@ Item {
                 _intentUri = uri
                 return
             }
-            invoiceParser.recipient = uri
+            piResolver.recipient = uri
         }
     }
 
@@ -465,7 +499,7 @@ Item {
         function onWalletLoaded() {
             infobanner.hide() // start hidden when switching wallets
             if (_intentUri) {
-                invoiceParser.recipient = _intentUri
+                piResolver.recipient = _intentUri
                 _intentUri = ''
             }
         }

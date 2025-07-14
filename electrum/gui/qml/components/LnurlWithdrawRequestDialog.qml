@@ -13,13 +13,14 @@ ElDialog {
     title: qsTr('LNURL Withdraw request')
     iconSource: '../../../icons/link.png'
 
-    property InvoiceParser invoiceParser
+    property Wallet wallet: Daemon.currentWallet
+    property RequestDetails requestDetails
 
     padding: 0
 
-    property int walletCanReceive: invoiceParser.wallet.lightningCanReceive.satsInt
-    property int providerMinWithdrawable: parseInt(invoiceParser.lnurlData['min_withdrawable_sat'])
-    property int providerMaxWithdrawable: parseInt(invoiceParser.lnurlData['max_withdrawable_sat'])
+    property int walletCanReceive: 0
+    property int providerMinWithdrawable: parseInt(requestDetails.lnurlData['min_withdrawable_sat'])
+    property int providerMaxWithdrawable: parseInt(requestDetails.lnurlData['max_withdrawable_sat'])
     property int effectiveMinWithdrawable: Math.max(providerMinWithdrawable, 1)
     property int effectiveMaxWithdrawable: Math.min(providerMaxWithdrawable, walletCanReceive)
     property bool insufficientLiquidity: effectiveMinWithdrawable > walletCanReceive
@@ -29,6 +30,12 @@ ElDialog {
         amountBtc.textAsSats.satsInt >= dialog.effectiveMinWithdrawable &&
         amountBtc.textAsSats.satsInt <= dialog.effectiveMaxWithdrawable
     property bool valid: amountValid
+
+    Component.onCompleted: {
+        // Initialize walletCanReceive (instead of binding wallet.lightningCanReceive.satsInt)
+        // to prevent binding loop if wallet.lightningCanReceive.satsInt changes
+        walletCanReceive = wallet.lightningCanReceive.satsInt
+    }
 
     ColumnLayout {
         width: parent.width
@@ -89,17 +96,17 @@ ElDialog {
             }
             Label {
                 Layout.fillWidth: true
-                text: invoiceParser.lnurlData['domain']
+                text: requestDetails.lnurlData['domain']
             }
             Label {
                 text: qsTr('Description')
                 color: Material.accentColor
-                visible: invoiceParser.lnurlData['default_description']
+                visible: requestDetails.lnurlData['default_description']
             }
             Label {
                 Layout.fillWidth: true
-                text: invoiceParser.lnurlData['default_description']
-                visible: invoiceParser.lnurlData['default_description']
+                text: requestDetails.lnurlData['default_description']
+                visible: requestDetails.lnurlData['default_description']
                 wrapMode: Text.Wrap
             }
 
@@ -117,9 +124,6 @@ ElDialog {
                     enabled: !dialog.insufficientLiquidity && (dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable)
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
-                    onTextAsSatsChanged: {
-                        invoiceParser.amountOverride = textAsSats
-                    }
                 }
                 Label {
                     text: Config.baseUnit
@@ -150,12 +154,12 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Withdraw...')
             icon.source: '../../icons/confirmed.png'
-            enabled: valid
+            enabled: valid && !requestDetails.busy
             onClicked: {
-                invoiceParser.lnurlRequestWithdrawal()
-                dialog.close()
+                var satsAmount = amountBtc.textAsSats.satsInt;
+                requestDetails.lnurlRequestWithdrawal(satsAmount);
+                dialog.close();
             }
         }
     }
-
 }
