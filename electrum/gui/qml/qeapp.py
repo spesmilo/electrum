@@ -33,6 +33,7 @@ from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller, QETxSweepFinalizer, FeeSlider
 from .qeinvoice import QEInvoice, QEInvoiceParser
+from .qepiresolver import QEPIResolver
 from .qerequestdetails import QERequestDetails
 from .qetypes import QEAmount, QEBytes
 from .qeaddressdetails import QEAddressDetails
@@ -439,6 +440,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEQRScanner, 'org.electrum', 1, 0, 'QRScanner')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
+        qmlRegisterType(QEPIResolver, 'org.electrum', 1, 0, 'PIResolver')
         qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
         qmlRegisterType(QEInvoiceParser, 'org.electrum', 1, 0, 'InvoiceParser')
         qmlRegisterType(QEAddressDetails, 'org.electrum', 1, 0, 'AddressDetails')

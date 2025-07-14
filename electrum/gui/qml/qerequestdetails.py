@@ -1,5 +1,6 @@
 from enum import IntEnum
 from typing import Optional
+from urllib.parse import urlparse
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
 
@@ -8,6 +9,10 @@ from electrum.invoices import (
     PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER
 )
 from electrum.lnutil import MIN_FUNDING_SAT
+from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
+from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierType
+from electrum.i18n import _
+from electrum.network import Network
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -31,6 +36,9 @@ class QERequestDetails(QObject, QtEventListener):
 
     detailsChanged = pyqtSignal()  # generic request properties changed signal
     statusChanged = pyqtSignal()
+    needsLNURLUserInput = pyqtSignal()
+    lnurlError = pyqtSignal(str, str)  # code, message
+    busyChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,6 +48,9 @@ class QERequestDetails(QObject, QtEventListener):
         self._req = None
         self._timer = None
         self._amount = None
+
+        self._lnurlData = None  # type: Optional[dict]
+        self._busy = False
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -150,6 +161,14 @@ class QERequestDetails(QObject, QtEventListener):
     def bip21(self):
         return self._req.get_bip21_URI() if self._req else ''
 
+    @pyqtProperty('QVariantMap', notify=detailsChanged)
+    def lnurlData(self) -> Optional[dict]:
+        return self._lnurlData
+
+    @pyqtProperty(bool, notify=busyChanged)
+    def busy(self):
+        return self._busy
+
     def initRequest(self):
         if self._wallet is None or self._key is None:
             return
@@ -181,3 +200,70 @@ class QERequestDetails(QObject, QtEventListener):
         self.statusChanged.emit()
         self.set_status_timer()
 
+    @pyqtSlot(object)
+    def fromResolvedPaymentIdentifier(self, resolved_pi: PaymentIdentifier) -> None:
+        """
+        Called when a payment identifier is resolved to a request (currently only LNURLW, but
+        could also be used for other "voucher" type input like redeeming ecash tokens or
+        some bolt12 thing).
+        """
+        if not self._wallet:
+            return
+        if resolved_pi.type == PaymentIdentifierType.LNURLW:
+            lnurldata = resolved_pi.lnurl_data
+            assert isinstance(lnurldata, LNURL3Data), "Expected LNURL3Data type"
+            self._lnurlData = {
+                'domain': urlparse(lnurldata.callback_url).netloc,
+                'callback_url': lnurldata.callback_url,
+                'min_withdrawable_sat': lnurldata.min_withdrawable_sat,
+                'max_withdrawable_sat': lnurldata.max_withdrawable_sat,
+                'default_description': lnurldata.default_description,
+                'k1': lnurldata.k1,
+            }
+            self.needsLNURLUserInput.emit()
+        else:
+            raise NotImplementedError("Cannot request withdrawal for this payment identifier type")
+
+    @pyqtSlot(int)
+    def lnurlRequestWithdrawal(self, amount_sat: int) -> None:
+        assert self._lnurlData
+        self._logger.debug(f'requesting lnurlw: {repr(self._lnurlData)}')
+
+        try:
+            key = self.wallet.wallet.create_request(
+                amount_sat=amount_sat,
+                message=self._lnurlData.get('default_description', ''),
+                exp_delay=120,
+                address=None,
+            )
+            req = self.wallet.wallet.get_request(key)
+            _lnaddr, b11_invoice = self.wallet.wallet.lnworker.get_bolt11_invoice(
+                payment_hash=req.payment_hash,
+                amount_msat=req.get_amount_msat(),
+                message=req.get_message(),
+                expiry=req.exp,
+                fallback_address=None
+            )
+        except Exception as e:
+            self._logger.exception('')
+            self.lnurlError.emit(
+                'lnurl',
+                _("Failed to create payment request for withdrawal: {}").format(str(e))
+            )
+            return
+
+        self._busy = True
+        self.busyChanged.emit()
+
+        coro = request_lnurl_withdraw_callback(
+            callback_url=self._lnurlData['callback_url'],
+            k1=self._lnurlData['k1'],
+            bolt_11=b11_invoice,
+        )
+        try:
+            Network.run_from_another_thread(coro)
+        except LNURLError as e:
+            self.lnurlError.emit('lnurl', str(e))
+        finally:
+            self._busy = False
+            self.busyChanged.emit()

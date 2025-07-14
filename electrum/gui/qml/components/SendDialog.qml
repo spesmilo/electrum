@@ -12,6 +12,7 @@ ElDialog {
     id: dialog
 
     property InvoiceParser invoiceParser
+    property PIResolver piResolver
 
     signal txFound(data: string)
     signal channelBackupFound(data: string)
@@ -36,7 +37,7 @@ ElDialog {
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
             channelBackupFound(data)
         } else {
-            invoiceParser.recipient = data
+            piResolver.recipient = data
         }
     }
 
@@ -71,7 +72,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                enabled: !invoiceParser.busy
+                enabled: !invoiceParser.busy && !piResolver.busy
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
                 onClicked: {
