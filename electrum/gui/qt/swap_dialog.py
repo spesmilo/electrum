@@ -13,8 +13,7 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.fee_policy import FeePolicy
-from electrum.crypto import sha256
-from electrum.submarine_swaps import NostrTransport
+from electrum.submarine_swaps import NostrTransport, pubkey_to_rgb_color
 
 from electrum.gui import messages
 from . import util
@@ -519,14 +518,7 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
 
     @staticmethod
     def _pubkey_to_q_icon(server_pubkey: str) -> QIcon:
-        def str_to_rgb(color_input: str) -> int:
-            input_hash = int.from_bytes(sha256(color_input), byteorder="big")
-            r = (input_hash & 0xFF0000) >> 16
-            g = (input_hash & 0x00FF00) >> 8
-            b = input_hash & 0x0000FF
-            return (r << 16) | (g << 8) | b
-
-        color = QColor(str_to_rgb(server_pubkey))
+        color = QColor(*pubkey_to_rgb_color(server_pubkey))
         color_pixmap = QPixmap(100, 100)
         color_pixmap.fill(color)
         return QIcon(color_pixmap)

@@ -186,6 +186,16 @@ class SwapData(StoredObject):
         return self._payment_pending or bool(self.funding_txid)
 
 
+def pubkey_to_rgb_color(swapserver_pubkey: str) -> Tuple[int, int, int]:
+    assert isinstance(swapserver_pubkey, str), type(swapserver_pubkey)
+    assert len(swapserver_pubkey) == 64, len(swapserver_pubkey)
+    input_hash = int.from_bytes(sha256(swapserver_pubkey), byteorder="big")
+    r = (input_hash & 0xFF0000) >> 16
+    g = (input_hash & 0x00FF00) >> 8
+    b = input_hash & 0x0000FF
+    return r, g, b
+
+
 class SwapManager(Logger):
 
     network: Optional['Network'] = None

@@ -13,9 +13,8 @@ from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import (NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age,
                            wait_for2)
-from electrum.submarine_swaps import NostrTransport, SwapServerTransport
+from electrum.submarine_swaps import NostrTransport, SwapServerTransport, pubkey_to_rgb_color
 from electrum.fee_policy import FeePolicy
-from electrum.crypto import sha256
 
 from electrum.gui import messages
 
@@ -70,14 +69,6 @@ class QESwapServerNPubListModel(QAbstractListModel):
         self._services = []
         self.endResetModel()
 
-    @staticmethod
-    def str_to_color(color_input: str) -> QColor:
-        input_hash = int.from_bytes(sha256(color_input), byteorder="big")
-        r = (input_hash & 0xFF0000) >> 16
-        g = (input_hash & 0x00FF00) >> 8
-        b = input_hash & 0x0000FF
-        return QColor(r, g, b)
-
     def offer_to_model(self, x: 'SwapOffer'):
         return {
             'npub': x.server_npub,
@@ -89,7 +80,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
             'max_reverse_amount': x.pairs.max_reverse,
             'timestamp': age(x.timestamp),
             'pow_bits': x.pow_bits,
-            'color': self.str_to_color(x.server_pubkey),
+            'color': QColor(*pubkey_to_rgb_color(x.server_pubkey)),
         }
 
     def updateModel(self, items: Sequence['SwapOffer']):
