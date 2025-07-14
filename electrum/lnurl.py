@@ -230,6 +230,7 @@ async def callback_lnurl(url: str, params: dict) -> dict:
         raise LNURLError(f"Client error: {e}") from e
     try:
         response = json.loads(response_raw)
+        _logger.debug(f"lnurl response: {response}")
     except json.JSONDecodeError:
         raise LNURLError(f"Invalid response from LNURL server")
 
