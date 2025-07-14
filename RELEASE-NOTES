@@ -88,6 +88,8 @@
        addresses as payment identifier.
    - show warnings on wallet close if there are sensitive pending operations,
      e.g. when in the middle of doing a swap (#9715)
+   - some performance improvements for large wallets (#9958, #9967, #9968)
+   - qr-reader: macos: add runtime requesting of camera permission (#9955)
  * Accounting rules: In order to properly handle on-chain transactions
    created by lightning channel force closures, we consider that funds
    successfully redeemed from a script with several possible
@@ -119,15 +121,20 @@
      - {add,settle,cancel,check}_hold_invoice
      - send_onion_message, get_blinded_path_via
      - wait_for_sync
- * Security:
+ * General:
    - Mitigate against dust attacks; Add option to avoid spending from
      used addresses. (#9636)
    - Restrict process memory access on Linux. (#9749)
+   - locale: syntax-check i18n translations at runtime. Malformed translation
+     strings are now less likely to cause errors: instead we fallback to the
+     original English string (#10011)
+   - fix: would sometimes hang on startup if system clock jumped backwards (#9802)
  * QML GUI (Android):
    - "Sweep key" feature ported to mobile
    - Estimate amount when Max is checked
    - exposed option to connect to only a single server (--oneserver)
  * Android:
+   - replace QR code scanning library to make scanning fun again (#9983)
    - properly ask for (notification) OS permission access. (#9682)
    - add option to prevent the app touching the screen brightness (#9321)
  * Electrum protocol: add padding and some noise to messages (#9875)
@@ -144,7 +151,6 @@
          note: 32-bit Windows is no longer supported.
      - macOS: 11 "Big Sur"
      - Linux AppImage: x86_64, glibc 2.31 ("debian 11"-equivalent)
-   - known issue: the Windows binaries are not codesigned atm (but there are GPG sigs!)
  * Dependencies:
    - the minimum required python version was increased: 3.8->3.10 (#9418)
    - new first-party dep: electrum-aionostr
