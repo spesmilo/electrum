@@ -28,6 +28,7 @@ import json
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union
 
 import jsonpatch
+import jsonpointer
 
 from . import util
 from .util import WalletFileException, profiler
@@ -35,6 +36,15 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
+
+
+# We monkeypatch exceptions in the jsonpatch package to ensure they do not contain secrets from the DB.
+# We often log exceptions and offer to send them to the crash reporter, so they must not contain secrets.
+jsonpointer.JsonPointerException.__str__ = lambda self: """(JPE) 'redacted'"""
+jsonpointer.JsonPointerException.__repr__ = lambda self: """<JsonPointerException 'redacted'>"""
+jsonpatch.JsonPatchException.__str__ = lambda self: """(JPE) 'redacted'"""
+jsonpatch.JsonPatchException.__repr__ = lambda self: """<JsonPatchException 'redacted'>"""
+
 
 def modifier(func):
     def wrapper(self, *args, **kwargs):
