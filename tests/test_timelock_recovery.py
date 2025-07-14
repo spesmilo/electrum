@@ -35,7 +35,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         with open(os.path.join(os.path.dirname(__file__), "test_timelock_recovery", "default_wallet"), "r") as f:
             wallet_str = f.read()
         storage = WalletStorage(self.wallet_path)
-        db = WalletDB(wallet_str, storage=storage, upgrade=True)
+        db = WalletDB(wallet_str, storage=storage, upgrade=True, config=self.config)
         wallet = Wallet(db, config=self.config)
         return wallet
 

@@ -51,7 +51,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None):
-        db = storage.WalletDB('', storage=None, upgrade=True)
+        db = storage.WalletDB('', storage=None, upgrade=True, config=config)
         db.put('keystore', ks.dump())
         db.put('gap_limit', gap_limit or cls.gap_limit)
         w = Standard_Wallet(db, config=config)
@@ -60,7 +60,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_imported_wallet(cls, *, config: SimpleConfig, privkeys: bool):
-        db = storage.WalletDB('', storage=None, upgrade=True)
+        db = storage.WalletDB('', storage=None, upgrade=True, config=config)
         if privkeys:
             k = keystore.Imported_KeyStore({})
             db.put('keystore', k.dump())
@@ -71,7 +71,7 @@ class WalletIntegrityHelper:
     def create_multisig_wallet(cls, keystores: Sequence, multisig_type: str, *,
                                config: SimpleConfig, gap_limit=None):
         """Creates a multisig wallet."""
-        db = storage.WalletDB('', storage=None, upgrade=False)
+        db = storage.WalletDB('', storage=None, upgrade=False, config=config)
         for i, ks in enumerate(keystores):
             cosigner_index = i + 1
             db.put('x%d' % cosigner_index, ks.dump())

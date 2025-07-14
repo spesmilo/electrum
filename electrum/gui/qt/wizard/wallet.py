@@ -194,7 +194,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
             "Do you want to split your wallet into multiple files?").format(wallet_path)
         if self.question(msg):
-            file_list = WalletDB.split_accounts(wallet_path, split_data)
+            file_list = WalletDB.split_accounts(wallet_path, split_data, config=self.config)
             msg = _('Your accounts have been moved to') + ':\n' + '\n'.join(file_list) + '\n\n' + _(
                 'Do you want to delete the old file') + ':\n' + wallet_path
             if self.question(msg):

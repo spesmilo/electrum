@@ -515,7 +515,7 @@ class Daemon(Logger):
                 raise InvalidPassword('No password given')
             storage.decrypt(password)
         # read data, pass it to db
-        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
+        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade, config=config)
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)

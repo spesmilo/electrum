@@ -251,11 +251,13 @@ class JsonDB(Logger):
         storage: Optional['WalletStorage'] = None,
         encoder=None,
         upgrader=None,
+        allow_partial_writes: bool = False,
     ):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.storage = storage
         self.encoder = encoder
+        self._allow_partial_writes = allow_partial_writes
         self.pending_changes = []  # type: List[str]
         self._modified = False
         # load data
@@ -425,6 +427,7 @@ class JsonDB(Logger):
             not self.storage.file_exists()
             or self.storage.is_encrypted()
             or self.storage.needs_consolidation()
+            or not self._allow_partial_writes
         ):
             self.write_and_force_consolidation()
         else:
@@ -432,6 +435,7 @@ class JsonDB(Logger):
 
     @locked
     def _append_pending_changes(self):
+        assert self._allow_partial_writes
         if threading.current_thread().daemon:
             raise Exception('daemon thread cannot write db')
         if not self.pending_changes:

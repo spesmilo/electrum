@@ -342,24 +342,30 @@ class TestStorageUpgrade(WalletTestCase):
             try:
                 db = self._load_db_from_json_string(
                     wallet_json=wallet_json,
-                    upgrade=False)
+                    upgrade=False,
+                    config=self.config,
+                )
             except WalletRequiresUpgrade:
                 db = self._load_db_from_json_string(
                     wallet_json=wallet_json,
-                    upgrade=True)
+                    upgrade=True,
+                    config=self.config,
+                )
                 await self._sanity_check_upgraded_db(db)
             return db
         else:
             try:
                 db = self._load_db_from_json_string(
                     wallet_json=wallet_json,
-                    upgrade=False)
+                    upgrade=False,
+                    config=self.config,
+                )
             except WalletRequiresSplit as e:
                 split_data = e._split_data
                 self.assertEqual(accounts, len(split_data))
                 for item in split_data:
                     data = json.dumps(item)
-                    new_db = WalletDB(data, storage=None, upgrade=True)
+                    new_db = WalletDB(data, storage=None, upgrade=True, config=self.config)
                     await self._sanity_check_upgraded_db(new_db)
 
     async def _sanity_check_upgraded_db(self, db):
@@ -367,6 +373,6 @@ class TestStorageUpgrade(WalletTestCase):
         await wallet.stop()
 
     @staticmethod
-    def _load_db_from_json_string(*, wallet_json, upgrade):
-        db = WalletDB(wallet_json, storage=None, upgrade=upgrade)
+    def _load_db_from_json_string(*, wallet_json, upgrade, config: 'SimpleConfig'):
+        db = WalletDB(wallet_json, storage=None, upgrade=upgrade, config=config)
         return db

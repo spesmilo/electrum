@@ -52,6 +52,7 @@ from .version import ELECTRUM_VERSION
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
+    from .simple_config import SimpleConfig
 
 
 class WalletRequiresUpgrade(WalletFileException):
@@ -1288,8 +1289,17 @@ class WalletDB(JsonDB):
         *,
         storage: Optional['WalletStorage'] = None,
         upgrade: bool = False,
+        config: 'SimpleConfig',
     ):
-        JsonDB.__init__(self, s, storage=storage, encoder=MyEncoder, upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade))
+        JsonDB.__init__(
+            self,
+            s,
+            storage=storage,
+            encoder=MyEncoder,
+            upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade),
+            allow_partial_writes=config.WALLET_PARTIAL_WRITES,
+        )
+        self.config = config
         # create pointers
         self.load_transactions()
         # load plugins that are conditional on wallet type
@@ -1706,13 +1716,13 @@ class WalletDB(JsonDB):
         return True
 
     @classmethod
-    def split_accounts(klass, root_path, split_data):
+    def split_accounts(klass, root_path, split_data, *, config: 'SimpleConfig'):
         from .storage import WalletStorage
         file_list = []
         for data in split_data:
             path = root_path + '.' + data['suffix']
             item_storage = WalletStorage(path)
-            db = WalletDB(json.dumps(data), storage=item_storage, upgrade=True)
+            db = WalletDB(json.dumps(data), storage=item_storage, upgrade=True, config=config)
             db.write()
             file_list.append(path)
         return file_list
