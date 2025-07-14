@@ -350,7 +350,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.unlock_wallet(message=msg)
 
     def update_lock_menu(self):
-        self.lock_menu.setEnabled(self.wallet.has_password())
+        self.lock_menu.setEnabled(self._protected_requires_password())
         text = _('Lock') if self.wallet.get_unlocked_password() else _('Unlock')
         self.lock_menu.setText(text)
 
