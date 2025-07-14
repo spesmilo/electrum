@@ -39,14 +39,12 @@ class TestJsonpatch(ElectrumTestCase):
         def fail_if_leaking_secret(ctx) -> None:
             self.assertNotIn("secret", str(ctx.exception))
             self.assertNotIn("secret", repr(ctx.exception))
+            self.assertNotIn("secret", ctx._customctx_original_tb)
+            self.assertNotIn("dictlevel", str(ctx.exception))
+            self.assertNotIn("dictlevel", repr(ctx.exception))
+            self.assertNotIn("dictlevel", ctx._customctx_original_tb)
             self.assertIn("redacted", str(ctx.exception))  # injected by our monkeypatching
             self.assertIn("redacted", repr(ctx.exception))  # injected by our monkeypatching
-            self.assertNotIn("secret", ctx._customctx_original_tb)
-            # Note, crucially, the following assert would FAIL:
-            # That is, exceptions might "leak" the db *path* but not values stored at the innermost level.
-            # IOW, in case of dicts, secrets should be stored in values. Dict keys should never contain secrets,
-            # as dict keys can appear in tracebacks.
-            #self.assertNotIn("dictlevel", ctx._customctx_original_tb)
         # op "replace"
         with self.subTest(msg="replace_dict_inner_key_missing"):
             patches = [{"op": "replace", "path": "/dictlevelA1/dictlevelX2", "value": "nakamoto_secret"}]

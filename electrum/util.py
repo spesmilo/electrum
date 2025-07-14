@@ -2199,6 +2199,30 @@ class classproperty(property):
         return self.fget(owner_cls)
 
 
+def sticky_property(val):
+    """Creates a 'property' whose value cannot be changed and that cannot be deleted.
+    Attempts to change the value are silently ignored.
+
+    >>> class C: pass
+    ...
+    >>> setattr(C, 'x', sticky_property(3))
+    >>> c = C()
+    >>> c.x
+    3
+    >>> c.x = 2
+    >>> c.x
+    3
+    >>> del c.x
+    >>> c.x
+    3
+    """
+    return property(
+        fget=lambda self: val,
+        fset=lambda *args, **kwargs: None,
+        fdel=lambda *args, **kwargs: None,
+    )
+
+
 def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
     """Returns the asyncio event loop that is *running in this thread*, if any."""
     try:
