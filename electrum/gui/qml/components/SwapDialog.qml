@@ -296,7 +296,7 @@ ElDialog {
                     if (swaphelper.isReverse) {
                         swaphelper.executeSwap()
                     } else {
-                        swaphelper.prepNormalSwap()
+                        swaphelper.prepareNormalSwap()
                         var dialog = forwardSwapTxDialog.createObject(app, {
                             finalizer: swaphelper.finalizer,
                             satoshis: swaphelper.finalizer.amount
