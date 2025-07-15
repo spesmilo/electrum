@@ -4189,7 +4189,7 @@ def create_new_wallet(
     gap_limit: Optional[int] = None
 ) -> dict:
     """Create a new wallet"""
-    storage = WalletStorage(path)
+    storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if storage.file_exists():
         raise UserFacingException("Remove the existing wallet first!")
     db = WalletDB('', storage=storage, upgrade=True)
@@ -4226,7 +4226,7 @@ def restore_wallet_from_text(
     if path is None:  # create wallet in-memory
         storage = None
     else:
-        storage = WalletStorage(path)
+        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if storage.file_exists():
             raise UserFacingException("Remove the existing wallet first!")
     if encrypt_file is None:

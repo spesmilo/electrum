@@ -64,11 +64,17 @@ class WalletStorage(Logger):
 
     # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
     #      Until then, the onus is on the caller to check file_exists().
-    def __init__(self, path):
+    def __init__(
+        self,
+        path,
+        *,
+        allow_partial_writes: bool = False,
+    ):
         Logger.__init__(self)
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self.logger.info(f"wallet path {self.path}")
+        self._allow_partial_writes = allow_partial_writes
         self.pubkey = None
         self.decrypted = ''
         try:
@@ -112,6 +118,7 @@ class WalletStorage(Logger):
 
     def append(self, data: str) -> None:
         """ append data to file. for the moment, only non-encrypted file"""
+        assert self._allow_partial_writes
         assert not self.is_encrypted()
         with open(self.path, "rb+") as f:
             pos = f.seek(0, os.SEEK_END)
@@ -122,8 +129,17 @@ class WalletStorage(Logger):
             f.flush()
             os.fsync(f.fileno())
 
-    def needs_consolidation(self):
+    def _needs_consolidation(self):
         return self.pos > 2 * self.init_pos
+
+    def should_do_full_write_next(self) -> bool:
+        """If false, next action can be a partial-write ('append')."""
+        return (
+            not self.file_exists()
+            or self.is_encrypted()
+            or self._needs_consolidation()
+            or not self._allow_partial_writes
+        )
 
     def file_exists(self) -> bool:
         return self._file_exists
