@@ -7,7 +7,6 @@ from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, p
                           QModelIndex)
 from PyQt6.QtGui import QColor
 
-from electrum.gui.qml.qetxfinalizer import QETxFinalizer
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
@@ -17,15 +16,14 @@ from electrum.util import (NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_
 from electrum.submarine_swaps import NostrTransport, SwapServerTransport, pubkey_to_rgb_color
 from electrum.fee_policy import FeePolicy
 
-from electrum.gui import messages
-
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import QtEventListener, qt_event_listener
+from .qetxfinalizer import QETxFinalizer
 
 if TYPE_CHECKING:
-    from electrum.submarine_swaps import SwapOffer
+    from electrum.submarine_swaps import SwapOffer, SwapData
 
 
 class InvalidSwapParameters(Exception): pass
@@ -158,13 +156,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None  # type: Optional[QEWallet]
-        self._finalizer = None  # type: Optional[QETxFinalizer]
-        self._sliderPos = 0
-        self._rangeMin = -1
-        self._rangeMax = 1
-        self._tx = None  # updated on feeslider move and fee histogram updates, used for estimation
-        self._finalized_tx = None  # updated by finalizer, used for actual forward swap
+        self._wallet: Optional[QEWallet] = None
+        self._finalizer: Optional[QETxFinalizer] = None
+        self._sliderPos: float = 0
+        self._rangeMin: float = -1
+        self._rangeMax: float = 1
+        self._preview_tx: Optional[PartialTransaction] = None  # updated on feeslider move and fee histogram updates, used for estimation
+        self._finalized_tx: Optional[PartialTransaction] = None  # updated by finalizer, used for actual forward swap
         self._valid = False
         self._state = QESwapHelper.State.Initialized
         self._userinfo = QESwapHelper.MESSAGE_SWAP_HOWTO
@@ -175,17 +173,21 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._miningfee = QEAmount()
         self._isReverse = False
         self._canCancel = False
-        self._swap = None
-        self._fut_htlc_wait = None
+        self._swap: Optional['SwapData'] = None
+        self._fut_htlc_wait: Optional[asyncio.Task] = None
 
         self._service_available = False
-        self._send_amount = 0
-        self._receive_amount = 0
+        self._send_amount: int = 0
+        self._receive_amount: int = 0
 
-        self._leftVoid = 0
-        self._rightVoid = 0
+        self._leftVoid: float = 0
+        self._rightVoid: float = 0
 
-        self._available_swapservers = None
+        self._available_swapservers: Optional[QESwapServerNPubListModel] = None
+
+        self.transport_task: Optional[asyncio.Task] = None
+        self.swap_transport: Optional[SwapServerTransport] = None
+        self.recent_offers: Sequence[SwapOffer] = []
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -194,11 +196,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._fwd_swap_updatetx_timer.setSingleShot(True)
         self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
         self.requestTxUpdate.connect(self.tx_update_pushback_timer)
-
         self.offersUpdated.connect(self.on_offers_updated)
-        self.transport_task: Optional[asyncio.Task] = None
-        self.swap_transport: Optional[SwapServerTransport] = None
-        self.recent_offers = []
 
     def on_destroy(self):
         if self.transport_task is not None:
@@ -517,7 +515,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         # this is just to estimate the maximal spendable onchain amount for HTLC
         self.update_tx('!')
         try:
-            max_onchain_spend = self._tx.output_value_for_address(DummyAddress.SWAP)
+            max_onchain_spend = self._preview_tx.output_value_for_address(DummyAddress.SWAP)
         except AttributeError:  # happens if there are no utxos
             max_onchain_spend = 0
         reverse = int(min(lnworker.num_sats_can_send(),
@@ -558,13 +556,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def update_tx(self, onchain_amount: Union[int, str], fee_policy: Optional[FeePolicy] = None):
         """Updates the transaction associated with a forward swap."""
         if onchain_amount is None:
-            self._tx = None
+            self._preview_tx = None
             self.valid = False
             return
         try:
-            self._tx = self._create_swap_tx(onchain_amount, fee_policy)
+            self._preview_tx = self._create_swap_tx(onchain_amount, fee_policy)
         except (NotEnoughFunds, NoDynamicFeeEstimates):
-            self._tx = None
+            self._preview_tx = None
             self.valid = False
 
     def _create_swap_tx(self, onchain_amount: int | str, fee_policy: Optional[FeePolicy] = None):
@@ -614,7 +612,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def tx_update_pushback_timer(self):
         self._fwd_swap_updatetx_timer.start(250)
 
-    def check_valid(self, send_amount, receive_amount):
+    def check_valid(self, send_amount: int | None, receive_amount: int | None):
         if send_amount and receive_amount:
             self.valid = True
         else:
@@ -627,12 +625,11 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             return
         self.update_tx(self._send_amount)
         # add lockup fees, but the swap amount is position
-        pay_amount = self._send_amount + self._tx.get_fee() if self._tx else 0
-        self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
+        pay_amount = self._send_amount + self._preview_tx.get_fee() if self._preview_tx else 0
+        self.miningfee = QEAmount(amount_sat=self._preview_tx.get_fee()) if self._preview_tx else QEAmount()
         self.check_valid(pay_amount, self._receive_amount)
 
     def do_normal_swap(self, lightning_amount, onchain_amount):
-        assert self._tx
         assert self._finalized_tx
         if lightning_amount is None or onchain_amount is None:
             return
@@ -689,7 +686,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         asyncio.run_coroutine_threadsafe(swap_task(), get_asyncio_loop())
 
     @pyqtSlot()
-    def prepNormalSwap(self):
+    def prepareNormalSwap(self):
+        """prepare for normal swap by instantiating a finalizer for the requested amount.
+           self._finalized_tx will contain the finalized tx using the fees set by the user"""
         def mktx(amt, fee_policy: FeePolicy):
             try:
                 self._finalized_tx = self._create_swap_tx(amt, fee_policy)
