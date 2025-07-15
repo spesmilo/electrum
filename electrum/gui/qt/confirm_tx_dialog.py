@@ -286,7 +286,7 @@ class TxEditor(WindowModalDialog):
             fee_policy = FixedFeePolicy(fee_amount)
         elif self.is_send_feerate_frozen() and feerate is not None:
             feerate_per_kb = int(feerate * 1000)
-            fee_policy = FeePolicy(f'static:{feerate_per_kb}')
+            fee_policy = FeePolicy(f'feerate:{feerate_per_kb}')
         else:
             fee_policy = self.fee_slider.get_policy()
         return fee_policy
