@@ -137,9 +137,11 @@ class TxEditor(WindowModalDialog):
         raise NotImplementedError()
 
     def update_fee_target(self):
-        text = self.fee_policy.get_target_text()
+        if self.fee_slider.is_active():
+            text = self.fee_policy.get_target_text()
+        else:
+            text = ""
         self.fee_target.setText(text)
-        # self.fee_target.setVisible(self.fee_slider.fee_policy.use_dynamic_estimates) # hide in static mode
 
     def update_feerate_label(self):
         self.feerate_label.setText(self.feerate_e.text() + ' ' + self.feerate_e.base_unit())
