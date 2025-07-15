@@ -151,7 +151,7 @@ def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'Simpl
         sys_exit(1)
 
     # instantiate wallet for command-line
-    storage = WalletStorage(wallet_path) if wallet_path else None
+    storage = WalletStorage(wallet_path, allow_partial_writes=config.WALLET_PARTIAL_WRITES) if wallet_path else None
 
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
@@ -234,7 +234,7 @@ async def run_offline_command(config: 'SimpleConfig', config_options: dict, wall
     if 'wallet_path' in cmd.options and config_options.get('wallet_path') is None:
         config_options['wallet_path'] = wallet_path
     if cmd.requires_wallet:
-        storage = WalletStorage(wallet_path)
+        storage = WalletStorage(wallet_path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if storage.is_encrypted():
             if storage.is_encrypted_with_hw_device():
                 password = get_password_for_hw_device_encrypted_storage(plugins)

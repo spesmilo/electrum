@@ -507,7 +507,7 @@ class Daemon(Logger):
             config: SimpleConfig,
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
-        storage = WalletStorage(path)
+        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if not storage.file_exists():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
         if storage.is_encrypted():

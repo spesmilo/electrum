@@ -687,6 +687,11 @@ class SimpleConfig(Logger):
 This can eliminate a serious privacy issue where a malicious user can track your spends by sending small payments
 to a previously-paid address of yours that would then be included with unrelated inputs in your future payments."""),
     )
+    WALLET_PARTIAL_WRITES = ConfigVar(
+        'wallet_partial_writes', default=False, type_=bool,
+        long_desc=lambda: _("""Allows partial updates to be written to disk for the wallet DB.
+If disabled, the full wallet file is written to disk for every change. Experimental."""),
+    )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
     FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)

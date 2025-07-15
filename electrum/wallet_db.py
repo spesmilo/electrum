@@ -1289,7 +1289,13 @@ class WalletDB(JsonDB):
         storage: Optional['WalletStorage'] = None,
         upgrade: bool = False,
     ):
-        JsonDB.__init__(self, s, storage=storage, encoder=MyEncoder, upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade))
+        JsonDB.__init__(
+            self,
+            s,
+            storage=storage,
+            encoder=MyEncoder,
+            upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade),
+        )
         # create pointers
         self.load_transactions()
         # load plugins that are conditional on wallet type
