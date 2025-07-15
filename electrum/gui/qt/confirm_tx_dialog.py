@@ -137,7 +137,7 @@ class TxEditor(WindowModalDialog):
         raise NotImplementedError()
 
     def update_fee_target(self):
-        text = self.fee_slider.fee_policy.get_target_text()
+        text = self.fee_policy.get_target_text()
         self.fee_target.setText(text)
         # self.fee_target.setVisible(self.fee_slider.fee_policy.use_dynamic_estimates) # hide in static mode
 
@@ -233,9 +233,6 @@ class TxEditor(WindowModalDialog):
         self.needs_update = True
 
     def fee_slider_callback(self, fee_rate):
-        if self.fee_policy.method == FeeMethod.FIXED:
-            return
-        self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         self.fee_slider.activate()
         if fee_rate:
             fee_rate = Decimal(fee_rate)
@@ -367,6 +364,7 @@ class TxEditor(WindowModalDialog):
         self.set_feerounding_visibility(abs(feerounding) >= 1)
         # feerate_label needs to be updated from feerate_e
         self.update_feerate_label()
+        self.update_fee_target()
 
     def create_buttons_bar(self):
         self.preview_button = QPushButton(_('Preview'))
@@ -617,7 +615,9 @@ class ConfirmTxDialog(TxEditor):
         self.amount_label.setText(amount_str)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
-        fee_policy = self.get_fee_policy()
+        self.fee_policy = fee_policy = self.get_fee_policy()
+        if fee_policy.method != FeeMethod.FIXED:
+            self.config.FEE_POLICY = fee_policy.get_descriptor()
         confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
         base_tx = self._base_tx
         try:
