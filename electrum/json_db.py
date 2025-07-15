@@ -421,9 +421,11 @@ class JsonDB(Logger):
 
     @locked
     def write(self):
-        if (not self.storage.file_exists()
-                or self.storage.is_encrypted()
-                or self.storage.needs_consolidation()):
+        if (
+            not self.storage.file_exists()
+            or self.storage.is_encrypted()
+            or self.storage.needs_consolidation()
+        ):
             self.write_and_force_consolidation()
         else:
             self._append_pending_changes()

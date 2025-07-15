@@ -4163,7 +4163,7 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(cls, db: 'WalletDB', *, config: SimpleConfig):
+    def __new__(cls, db: 'WalletDB', *, config: SimpleConfig) -> Abstract_Wallet:
         wallet_type = db.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
         wallet = WalletClass(db, config=config)

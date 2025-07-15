@@ -66,15 +66,16 @@ class WatchTower(Logger, EventListener):
 
     def __init__(self, network: 'Network'):
         Logger.__init__(self)
-        self.adb = AddressSynchronizer(WalletDB('', storage=None, upgrade=True), network.config, name=self.diagnostic_name())
-        self.adb.start_network(network)
         self.config = network.config
+        wallet_db = WalletDB('', storage=None, upgrade=True)
+        self.adb = AddressSynchronizer(wallet_db, self.config, name=self.diagnostic_name())
+        self.adb.start_network(network)
         self.callbacks = {}  # address -> lambda function
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
         self.network = network
-        self.sweepstore = SweepStore(os.path.join(self.network.config.path, "watchtower_db"), network)
+        self.sweepstore = SweepStore(os.path.join(self.config.path, "watchtower_db"), network)
 
     def remove_callback(self, address):
         self.callbacks.pop(address, None)

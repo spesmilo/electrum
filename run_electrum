@@ -227,7 +227,7 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
         sys.exit(0)
 
 
-async def run_offline_command(config, config_options, wallet_path, plugins: 'Plugins'):
+async def run_offline_command(config: 'SimpleConfig', config_options: dict, wallet_path: str, plugins: 'Plugins'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
