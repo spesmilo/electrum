@@ -36,3 +36,5 @@ async def f():
 
 # 2. send the subscription
 asyncio.run_coroutine_threadsafe(f(), loop)
+while loop_thread.is_alive():
+    loop_thread.join(1)

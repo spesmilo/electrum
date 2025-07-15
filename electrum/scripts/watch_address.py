@@ -18,7 +18,7 @@ except Exception:
 config = SimpleConfig()
 
 # start network
-loop = create_and_start_event_loop()[0]
+loop, stopping_fut, loop_thread = create_and_start_event_loop()
 network = Network(config)
 network.start()
 
@@ -45,3 +45,5 @@ class Notifier(SynchronizerBase):
 
 notifier = Notifier(network)
 asyncio.run_coroutine_threadsafe(notifier.watch_queue.put(addr), loop)
+while loop_thread.is_alive():
+    loop_thread.join(1)
