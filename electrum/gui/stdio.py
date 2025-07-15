@@ -27,14 +27,16 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
+        password = None
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        del storage
+        self.wallet = self.daemon.load_wallet(config.get_wallet_path(), password)
+        self.contacts = self.wallet.contacts
 
         self.done = 0
         self.last_balance = ""
@@ -43,10 +45,6 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.str_description = ""
         self.str_amount = ""
         self.str_fee = ""
-
-        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
-        self.wallet.start_network(self.network)
-        self.contacts = self.wallet.contacts
 
         self.register_callbacks()
         self.commands = [_("[h] - displays this help text"), \
@@ -128,7 +126,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         print(self.get_balance())
 
     def get_balance(self):
-        if self.wallet.network.is_connected():
+        network = self.wallet.network
+        if network and network.is_connected():
             if not self.wallet.is_up_to_date():
                 msg = _("Synchronizing...")
             else:
