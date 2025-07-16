@@ -189,7 +189,7 @@ Pane {
                             Layout.fillWidth: true
                             visible: seed_extension_label.visible
                             Label {
-                                Layout.fillWidth: true
+                                width: parent.width
                                 text: Daemon.currentWallet.seedPassphrase
                                 wrapMode: Text.Wrap
                                 font.family: FixedFont
