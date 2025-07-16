@@ -27,7 +27,7 @@ from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union, Callable
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton, QMenu, QComboBox
 
@@ -114,7 +114,11 @@ class TxEditor(WindowModalDialog):
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
-        self.main_window.gui_object.timer.timeout.connect(self.timer_actions)
+        self.timer = QTimer(self)
+        self.timer.setInterval(500)
+        self.timer.setSingleShot(False)
+        self.timer.timeout.connect(self.timer_actions)
+        self.timer.start()
 
     def is_batching(self) -> bool:
         return self._base_tx is not None
@@ -130,7 +134,7 @@ class TxEditor(WindowModalDialog):
         self._update_widgets()
 
     def stop_editor_updates(self):
-        self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
+        self.timer.stop()
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error

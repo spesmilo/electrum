@@ -38,7 +38,7 @@ from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping, Call
 import concurrent.futures
 
 from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
-from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (QMessageBox, QTabWidget, QMenuBar, QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit, QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QMainWindow, QInputDialog, QWidget, QSizePolicy, QStatusBar, QToolTip,
@@ -286,7 +286,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # update fee slider in case we missed the callback
         #self.fee_slider.update()
         self.load_wallet(wallet)
-        gui_object.timer.timeout.connect(self.timer_actions)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(500)
+        self.timer.setSingleShot(False)
+        self.timer.timeout.connect(self.timer_actions)
+        self.timer.start()
+
         self.contacts.fetch_openalias(self.config)
 
         # If the option hasn't been set yet
@@ -1213,7 +1219,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def show_tooltip_after_delay(self, message):
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
-        self.gui_object.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, self))
+        QTimer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, self))
 
     def toggle_qr_window(self):
         from . import qrwindow
@@ -2809,7 +2815,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self._update_check_thread.stop()
         if self.tray:
             self.tray = None
-        self.gui_object.timer.timeout.disconnect(self.timer_actions)
+        self.timer.stop()
         self.gui_object.close_window(self)
 
     def cpfp_dialog(self, parent_tx: Transaction) -> None:

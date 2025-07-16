@@ -1,7 +1,7 @@
 import enum
 from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QColor
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem, QHeaderView
@@ -126,7 +126,13 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             self.init_recv_amount(recv_amount_sat)
         self.update()
         self.needs_tx_update = True
-        self.window.gui_object.timer.timeout.connect(self.timer_actions)
+
+        self.timer = QTimer(self)
+        self.timer.setInterval(500)
+        self.timer.setSingleShot(False)
+        self.timer.timeout.connect(self.timer_actions)
+        self.timer.start()
+
         self.fee_slider.update()
         self.register_callbacks()
 

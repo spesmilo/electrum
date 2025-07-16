@@ -168,11 +168,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
         self._cleaned_up = False
-        # timer
-        self.timer = QTimer(self.app)
-        self.timer.setSingleShot(False)
-        self.timer.setInterval(500)  # msec
-
         self.network_dialog = None
         self.lightning_dialog = None
         self._num_wizards_in_progress = 0
@@ -287,9 +282,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if self.lightning_dialog:
             self.lightning_dialog.close()
             self.lightning_dialog = None
-        # Shut down the timer cleanly
-        self.timer.stop()
-        self.timer = None
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Type.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
@@ -589,7 +581,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.logger.exception('')
             return
         # start wizard to select/create wallet
-        self.timer.start()
         path = self.config.get_wallet_path()
         try:
             if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
@@ -622,7 +613,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app.clipboard().setText(text)
         message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
-        self.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
+        QTimer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
 
 
 def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
