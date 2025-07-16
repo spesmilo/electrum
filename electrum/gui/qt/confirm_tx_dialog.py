@@ -130,7 +130,8 @@ class TxEditor(WindowModalDialog):
         self._update_widgets()
 
     def stop_editor_updates(self):
-        self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
+        if self.main_window.gui_object.timer is not None:
+            self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error
