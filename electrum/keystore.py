@@ -732,11 +732,10 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def watching_only_keystore(self):
         return Old_KeyStore({'mpk': self.mpk})
 
-    def _get_hex_seed(self, password) -> bytes:
-        # FIXME we return bytes that only contain hex characters.
+    def _get_hex_seed(self, password) -> str:
         hex_str = pw_decode(self.seed, password, version=self.pw_hash_version)
         assert is_hex_str(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
-        return hex_str.encode('ascii')
+        return hex_str
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
@@ -773,19 +772,18 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return ' '.join(old_mnemonic.mn_encode(hex_seed))
 
     @classmethod
-    def mpk_from_seed(cls, hex_seed: bytes) -> str:
-        # FIXME `hex_seed` is bytes that only contain hex characters.
+    def mpk_from_seed(cls, hex_seed: str) -> str:
         secexp = cls.stretch_key(hex_seed)
         privkey = ecc.ECPrivkey.from_secret_scalar(secexp)
         return privkey.get_public_key_hex(compressed=False)[2:]
 
     @classmethod
-    def stretch_key(cls, hex_seed: bytes) -> int:
-        # FIXME `hex_seed` is bytes that only contain hex characters.
-        assert isinstance(hex_seed, bytes), f"expected bytes, got {type(hex_seed)}"
-        x = hex_seed
+    def stretch_key(cls, hex_seed: str) -> int:
+        assert is_hex_str(hex_seed), f"expected hex str, got {type(hex_seed)} with {len(hex_seed)=}"
+        encoded_hex_seed = hex_seed.encode('ascii')
+        x = encoded_hex_seed
         for i in range(100000):
-            x = hashlib.sha256(x + hex_seed).digest()
+            x = hashlib.sha256(x + encoded_hex_seed).digest()
         return string_to_number(x)
 
     @classmethod
@@ -821,8 +819,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         pk = self._get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
 
-    def _check_seed(self, hex_seed: bytes, *, secexp: int = None) -> None:
-        # FIXME `hex_seed` is bytes that only contain hex characters.
+    def _check_seed(self, hex_seed: str, *, secexp: int = None) -> None:
         if secexp is None:
             secexp = self.stretch_key(hex_seed)
         master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)

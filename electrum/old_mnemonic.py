@@ -26,6 +26,7 @@
 from typing import Sequence, Union
 
 from .mnemonic import Wordlist
+from .util import is_hex_str
 
 
 # list of words from http://en.wiktionary.org/wiki/Wiktionary:Frequency_lists/Contemporary_poetry
@@ -1668,11 +1669,10 @@ assert n == 1626
 # Note about US patent no 5892470: Here each word does not represent a given digit.
 # Instead, the digit represented by a word is variable, it depends on the previous word.
 
-def mn_encode(message: Union[str, bytes]) -> Sequence[str]:
-    # FIXME `message` is either bytes that can only contain hex chars, or is a hex str
+def mn_encode(message: str) -> Sequence[str]:
     # note: to generate an 'old'-type mnemonic for testing:
     #       " ".join(electrum.old_mnemonic.mn_encode(secrets.token_hex(16)))
-    #assert is_hex_str(message), f"expected hex, got {type(message)}"
+    assert is_hex_str(message), f"expected hex, got {type(message)}"
     assert len(message) % 8 == 0
     out = []
     for i in range(len(message)//8):
