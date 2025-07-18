@@ -75,6 +75,7 @@ from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
 from electrum.submarine_swaps import SwapServerTransport, NostrTransport
 from electrum.fee_policy import FeePolicy
+from electrum.silent_payment import is_silent_payment_address
 
 from .rate_limiter import rate_limited
 from .exception_window import Exception_Hook
@@ -1193,6 +1194,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         on_closed: Callable[[Optional[Transaction]], None] = None,
         show_sign_button: bool = True,
         show_broadcast_button: bool = True,
+        show_combine_menu: bool = True,
     ):
         show_transaction(
             tx,
@@ -1203,6 +1205,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             on_closed=on_closed,
             show_sign_button=show_sign_button,
             show_broadcast_button=show_broadcast_button,
+            show_combine_menu=show_combine_menu,
         )
 
     def show_lightning_transaction(self, tx_item):
@@ -1619,11 +1622,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.payto_contacts(labels)
 
     def set_contact(self, label, address):
-        if not (is_address(address) or is_valid_email(address)):  # email = lightning address
+        if not (is_address(address) or is_silent_payment_address(address) or is_valid_email(address)):  # email = lightning address
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
-        address_type = 'address' if is_address(address) else 'lnaddress'
+
+        if is_address(address):
+            address_type = 'address'
+        elif is_silent_payment_address(address):
+            address_type = 'sp_address'
+        else:
+            address_type = 'lnaddress'
         self.contacts[address] = (address_type, label)
         self.contact_list.update()
         self.history_list.update()
@@ -1651,6 +1660,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             grid.addWidget(QLabel(_("Address") + ':'), 2, 0)
             grid.addWidget(QLabel(invoice.get_address()), 2, 1)
         else:
+            # Fixme: fails with multiline address and script (concat None)
             outputs_str = '\n'.join(map(lambda x: x.address + ' : ' + self.format_amount(x.value)+ self.base_unit(), invoice.outputs))
             grid.addWidget(QLabel(_("Outputs") + ':'), 2, 0)
             grid.addWidget(QLabel(outputs_str), 2, 1)
@@ -2941,6 +2951,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             win.show_error(e)
             return False
         else:
+            for output in tx.outputs():
+                if output.is_silent_payment():
+                    self.wallet.save_silent_payment_address(output.address, output.sp_addr.encoded, write_to_disk=False)
             self.wallet.save_db()
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
