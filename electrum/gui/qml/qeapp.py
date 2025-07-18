@@ -379,10 +379,6 @@ class QEAppController(BaseCrashReporter, QObject):
         self.sendingBugreport.emit()
         threading.Thread(target=report_task, daemon=True).start()
 
-    @pyqtSlot()
-    def showNever(self):
-        self.config.SHOW_CRASH_REPORTER = False
-
     def _get_traceback_str_to_display(self) -> str:
         # The msg_box that shows the report uses rich_text=True, so
         # if traceback contains special HTML characters, e.g. '<',
@@ -551,9 +547,6 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, wallet: 'Abstract_Wallet' = None, slot=None) -> None:
-        if not QEConfig.instance.config.SHOW_CRASH_REPORTER:
-            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
-            return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(slot=slot)
         if wallet:

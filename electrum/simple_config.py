@@ -886,7 +886,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
         long_desc=lambda: _("Select which language is used in the GUI (after restart)."),
     )
     BLOCKCHAIN_PREFERRED_BLOCK = ConfigVar('blockchain_preferred_block', default=None)
-    SHOW_CRASH_REPORTER = ConfigVar('show_crash_reporter', default=True, type_=bool)
     DONT_SHOW_TESTNET_WARNING = ConfigVar('dont_show_testnet_warning', default=False, type_=bool)
     RECENTLY_OPEN_WALLET_FILES = ConfigVar('recently_open', default=None)
     IO_DIRECTORY = ConfigVar('io_dir', default=os.path.expanduser('~'), type_=str)

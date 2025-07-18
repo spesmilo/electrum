@@ -92,15 +92,6 @@ ElDialog
             Button {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 2
-                text: qsTr('Never')
-                onClicked: {
-                    AppController.showNever()
-                    close()
-                }
-            }
-            Button {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 2
                 text: qsTr('Not Now')
                 onClicked: close()
             }

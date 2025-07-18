@@ -87,10 +87,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         report_button.setIcon(read_QIcon("tab_send.png"))
         buttons.addWidget(report_button)
 
-        never_button = QPushButton(_('Never'))
-        never_button.clicked.connect(lambda _checked: self.show_never())
-        buttons.addWidget(never_button)
-
         close_button = QPushButton(_('Not Now'))
         close_button.clicked.connect(lambda _checked: self.close())
         buttons.addWidget(close_button)
@@ -135,10 +131,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
     def on_close(self):
         Exception_Window._active_window = None
-        self.close()
-
-    def show_never(self):
-        self.config.SHOW_CRASH_REPORTER = False
         self.close()
 
     def closeEvent(self, event):
@@ -192,9 +184,6 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
-        if not config.SHOW_CRASH_REPORTER:
-            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
-            return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(config=config)
         if wallet:
