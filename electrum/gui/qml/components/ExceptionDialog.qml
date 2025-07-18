@@ -17,7 +17,7 @@ ElDialog
 
     width: parent.width
     height: parent.height
-    z: 1000  // assure topmost of all other dialogs
+    z: 1000  // assure topmost of all other dialogs. note: child popups need even higher!
 
     header: null
 
@@ -135,7 +135,8 @@ ElDialog
             _sending = false
             var dialog = app.messageDialog.createObject(app, {
                 text: text,
-                richText: true
+                richText: true,
+                z: 1001  // assure topmost of all other dialogs
             })
             dialog.open()
             close()
@@ -146,7 +147,8 @@ ElDialog
                 title: qsTr('Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: text,
-                richText: true
+                richText: true,
+                z: 1001  // assure topmost of all other dialogs
             })
             dialog.open()
         }
