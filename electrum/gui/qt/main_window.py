@@ -42,7 +42,7 @@ from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (QMessageBox, QTabWidget, QMenuBar, QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit, QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QMainWindow, QInputDialog, QWidget, QSizePolicy, QStatusBar, QToolTip,
-                             QMenu, QToolButton)
+                             QMenu, QToolButton, QDialog)
 
 import electrum_ecc as ecc
 
@@ -1991,11 +1991,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
         from electrum.lnutil import MIN_FUNDING_SAT
         from .new_channel_dialog import NewChannelDialog
+        assert self.wallet.can_have_lightning()
         confirmed = self.wallet.get_spendable_balance_sat(confirmed_only=True)
         min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         if confirmed < min_amount_sat:
             msg = _('Not enough funds') + '\n\n' + _('You need at least {} to open a channel.').format(self.format_amount_and_units(min_amount_sat))
             self.show_error(msg)
+            return
+        if not self.wallet.has_lightning() and not self.init_lightning_dialog():
             return
         lnworker = self.wallet.lnworker
         if not lnworker.channels and not lnworker.channel_backups:
@@ -2025,7 +2028,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d.exec():
             self.set_contact(line2.text(), line1.text())
 
-    def init_lightning_dialog(self, dialog):
+    def init_lightning_dialog(self, close_dialog: Optional[QDialog] = None) -> bool:
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
             msg = _(
@@ -2037,11 +2040,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 "You will need to backup your wallet every time you create a new channel. "
                 "Create lightning keys?")
         if self.question(msg):
-            self._init_lightning_dialog(dialog=dialog)
+            self._init_lightning_dialog(close_dialog=close_dialog)
+        return self.wallet.has_lightning()
 
     @protected
-    def _init_lightning_dialog(self, *, dialog, password):
-        dialog.close()
+    def _init_lightning_dialog(self, *, close_dialog: Optional[QDialog], password):
+        if close_dialog is not None:
+            close_dialog.close()
         self.wallet.init_lightning(password=password)
         self.update_lightning_icon()
         self.show_message(_('Lightning keys have been initialized.'))
