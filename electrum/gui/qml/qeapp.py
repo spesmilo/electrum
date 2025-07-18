@@ -344,7 +344,7 @@ class QEAppController(BaseCrashReporter, QObject):
     @pyqtSlot(result='QVariantMap')
     def crashData(self):
         return {
-            'traceback': self.get_traceback_info(),
+            'traceback': self.get_traceback_info(*self.exc_args),
             'extra': self.get_additional_info(),
             'reportstring': self.get_report_string()
         }

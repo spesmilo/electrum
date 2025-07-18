@@ -25,7 +25,8 @@ import locale
 import traceback
 import sys
 import queue
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple, Optional, TypedDict
+from types import TracebackType
 
 from .version import ELECTRUM_VERSION
 from . import constants
@@ -68,9 +69,16 @@ class BaseCrashReporter(Logger):
     USER_COMMENT_PLACEHOLDER = _("Do not enter sensitive/private information here. "
                                  "The report will be visible on the public issue tracker.")
 
-    def __init__(self, exctype, value, tb):
+    exc_args: tuple[type[BaseException], BaseException, TracebackType | None]
+
+    def __init__(
+        self,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ):
         Logger.__init__(self)
-        self.exc_args = (exctype, value, tb)
+        self.exc_args = (exctype, excvalue, tb)
 
     def send_report(self, asyncio_loop, proxy: 'ProxySettings', *, timeout=None) -> CrashReportResponse:
         # FIXME the caller needs to catch generic "Exception", as this method does not have a well-defined API...
@@ -82,7 +90,7 @@ class BaseCrashReporter(Logger):
         ] and ".electrum.org" in BaseCrashReporter.report_server):
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
-        report = self.get_traceback_info()
+        report = self.get_traceback_info(*self.exc_args)
         report.update(self.get_additional_info())
         report = json.dumps(report)
         coro = self.do_post(proxy, BaseCrashReporter.report_server + "/crash.json", data=report)
@@ -111,19 +119,25 @@ class BaseCrashReporter(Logger):
             async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
 
-    def get_traceback_info(self):
-        exc_string = str(self.exc_args[1])
-        stack = traceback.extract_tb(self.exc_args[2])
-        readable_trace = self.__get_traceback_str_to_send()
-        id = {
+    @classmethod
+    def get_traceback_info(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> TypedDict('TBInfo', {'exc_string': str, 'stack': str, 'id': dict[str, str]}):
+        exc_string = str(excvalue)
+        stack = traceback.extract_tb(tb)
+        readable_trace = cls._get_traceback_str_to_send(exctype, excvalue, tb)
+        _id = {
             "file": stack[-1].filename if len(stack) else '<no stack>',
             "name": stack[-1].name if len(stack) else '<no stack>',
-            "type": self.exc_args[0].__name__
-        }
+            "type": exctype.__name__
+        }  # note: this is the "id" the crash reporter server uses to group together reports.
         return {
             "exc_string": exc_string,
             "stack": readable_trace,
-            "id": id
+            "id": _id,
         }
 
     def get_additional_info(self):
@@ -142,15 +156,21 @@ class BaseCrashReporter(Logger):
             pass
         return args
 
-    def __get_traceback_str_to_send(self) -> str:
+    @classmethod
+    def _get_traceback_str_to_send(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> str:
         # make sure that traceback sent to crash reporter contains
         # e.__context__ and e.__cause__, i.e. if there was a chain of
         # exceptions, we want the full traceback for the whole chain.
-        return "".join(traceback.format_exception(*self.exc_args))
+        return "".join(traceback.format_exception(exctype, excvalue, tb))
 
     def _get_traceback_str_to_display(self) -> str:
         # overridden in Qt subclass
-        return self.__get_traceback_str_to_send()
+        return self._get_traceback_str_to_send(*self.exc_args)
 
     def get_report_string(self):
         info = self.get_additional_info()
