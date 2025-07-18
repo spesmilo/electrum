@@ -256,7 +256,8 @@ class HistoryModel(CustomModel, Logger):
 
     def update_label(self, index):
         tx_item = index.internalPointer().get_data()
-        tx_item['label'] = self.window.wallet.get_label_for_txid(get_item_key(tx_item))
+        tx_item['label'] = self.window.wallet.get_label_for_txid(
+            get_item_key(tx_item))  # FIXME get_item_key might return an RHASH, but we call get_label_for_txid?!
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.ItemDataRole.DisplayRole])
         self.window.utxo_list.update()

@@ -495,7 +495,9 @@ class QETxFinalizer(TxFeeSlider):
     @pyqtSlot(result='QVariantList')
     def getSerializedTx(self):
         txqr = self._tx.to_qr_data()
-        label = self._wallet.wallet.get_label_for_txid(self._tx.txid())
+        label = ""
+        if txid := self._tx.txid():
+            label = self._wallet.wallet.get_label_for_txid(txid)
         return [str(self._tx), txqr[0], txqr[1], label]
 
 

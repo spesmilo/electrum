@@ -1683,7 +1683,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._default_labels['group:' + group_id] = label
 
     def get_label_for_txid(self, tx_hash: str) -> str:
-        return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
+        assert tx_hash, f"expected a txid, got {tx_hash!r}"
+        return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash) or ""
 
     def _get_default_label_for_txid(self, tx_hash: str) -> str:
         if label := self._default_labels.get(tx_hash):
