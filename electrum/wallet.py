@@ -521,8 +521,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not self.txin_type == 'p2wpkh':
             return False
         if self.config.ENABLE_ANCHOR_CHANNELS:
-            # exclude watching-only wallets
             if not self.keystore:
+                return False
+            if self.keystore.is_watching_only():
                 return False
             # exclude hardware wallets
             if not self.keystore.may_have_password():
