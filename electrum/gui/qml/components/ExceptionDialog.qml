@@ -61,12 +61,21 @@ ElDialog
             Layout.fillWidth: true
             text: qsTr('Please briefly describe what led to the error (optional):')
         }
-        TextArea {
-            id: user_text
-            Layout.fillWidth: true
+        Flickable {
+            width: parent.width
             Layout.fillHeight: true
-            background: Rectangle {
-                color: Qt.darker(Material.background, 1.25)
+            contentHeight: user_text.height
+            interactive: height < contentHeight
+            clip: true
+
+            TextArea {
+                id: user_text
+                width: parent.width
+                height: Math.max(implicitHeight, 100)
+                wrapMode: TextInput.WordWrap
+                background: Rectangle {
+                    color: Qt.darker(Material.background, 1.25)
+                }
             }
         }
         Label {
