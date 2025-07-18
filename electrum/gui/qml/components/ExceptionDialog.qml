@@ -77,7 +77,17 @@ ElDialog
                 Layout.fillWidth: true
                 Layout.preferredWidth: 3
                 text: qsTr('Send Bug Report')
-                onClicked: AppController.sendReport(user_text.text)
+                onClicked: {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Confirm to send bugreport?'),
+                        yesno: true,
+                        z: 1001  // assure topmost of all other dialogs
+                    })
+                    dialog.accepted.connect(function() {
+                        AppController.sendReport(user_text.text)
+                    })
+                    dialog.open()
+                }
             }
             Button {
                 Layout.fillWidth: true

@@ -83,7 +83,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         buttons = QHBoxLayout()
 
         report_button = QPushButton(_('Send Bug Report'))
-        report_button.clicked.connect(lambda _checked: self.send_report())
+        report_button.clicked.connect(lambda _checked: self._ask_for_confirm_to_send_report())
         report_button.setIcon(read_QIcon("tab_send.png"))
         buttons.addWidget(report_button)
 
@@ -102,6 +102,10 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         self.setLayout(main_box)
         self.show()
+
+    def _ask_for_confirm_to_send_report(self):
+        if self.question("Confirm to send bugreport?"):
+            self.send_report()
 
     def send_report(self):
         def on_success(response: CrashReportResponse):
