@@ -707,11 +707,6 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         pk = node.eckey.get_secret_bytes()
         return pk, True
 
-    def get_keypair(self, sequence, password):
-        k, _ = self.get_private_key(sequence, password)
-        cK = ecc.ECPrivkey(k).get_public_key_bytes()
-        return cK, k
-
     def can_have_deterministic_lightning_xprv(self):
         if (self.get_seed_type() == 'segwit'
                 and self.get_bip32_node_for_xpub().xtype == 'p2wpkh'):
@@ -916,16 +911,6 @@ class Hardware_KeyStore(Xpub, KeyStore):
             'label':self.label,
             'soft_device_id': self.soft_device_id,
         }
-
-    def unpaired(self):
-        '''A device paired with the wallet was disconnected.  This can be
-        called in any thread context.'''
-        self.logger.info("unpaired")
-
-    def paired(self):
-        '''A device paired with the wallet was (re-)connected.  This can be
-        called in any thread context.'''
-        self.logger.info("paired")
 
     def is_watching_only(self):
         '''The wallet is not watching-only; the user will be prompted for
