@@ -732,10 +732,11 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def watching_only_keystore(self):
         return Old_KeyStore({'mpk': self.mpk})
 
-    def get_hex_seed(self, password) -> bytes:
+    def _get_hex_seed(self, password) -> bytes:
         # FIXME we return bytes that only contain hex characters.
         hex_str = pw_decode(self.seed, password, version=self.pw_hash_version)
-        return hex_str.encode('utf8')
+        assert is_hex_str(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
+        return hex_str.encode('ascii')
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
@@ -744,8 +745,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     def add_seed(self, seed):
         Deterministic_KeyStore.add_seed(self, seed)
-        s = self.get_hex_seed(None)
-        self.mpk = self.mpk_from_seed(s)
+        hex_seed = self._get_hex_seed(None)
+        self.mpk = self.mpk_from_seed(hex_seed)
 
     def add_master_public_key(self, mpk: str) -> None:
         self.mpk = mpk
@@ -768,23 +769,23 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     def get_seed(self, password):
         from . import old_mnemonic
-        s = self.get_hex_seed(password)
-        return ' '.join(old_mnemonic.mn_encode(s))
+        hex_seed = self._get_hex_seed(password)
+        return ' '.join(old_mnemonic.mn_encode(hex_seed))
 
     @classmethod
-    def mpk_from_seed(cls, seed: bytes) -> str:
-        # FIXME `seed` is bytes that only contain hex characters.
-        secexp = cls.stretch_key(seed)
+    def mpk_from_seed(cls, hex_seed: bytes) -> str:
+        # FIXME `hex_seed` is bytes that only contain hex characters.
+        secexp = cls.stretch_key(hex_seed)
         privkey = ecc.ECPrivkey.from_secret_scalar(secexp)
         return privkey.get_public_key_hex(compressed=False)[2:]
 
     @classmethod
-    def stretch_key(cls, seed: bytes) -> int:
-        # FIXME `seed` is bytes that only contain hex characters.
-        assert isinstance(seed, bytes), f"expected bytes, got {type(seed)}"
-        x = seed
+    def stretch_key(cls, hex_seed: bytes) -> int:
+        # FIXME `hex_seed` is bytes that only contain hex characters.
+        assert isinstance(hex_seed, bytes), f"expected bytes, got {type(hex_seed)}"
+        x = hex_seed
         for i in range(100000):
-            x = hashlib.sha256(x + seed).digest()
+            x = hashlib.sha256(x + hex_seed).digest()
         return string_to_number(x)
 
     @classmethod
@@ -811,17 +812,19 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return pk
 
     def get_private_key(self, sequence: Sequence[int], password):
-        seed = self.get_hex_seed(password)
-        secexp = self.stretch_key(seed)
-        self._check_seed(seed, secexp=secexp)
+        hex_seed = self._get_hex_seed(password)
+        secexp = self.stretch_key(hex_seed)
+        self._check_seed(hex_seed, secexp=secexp)
         for_change, n = sequence
+        assert isinstance(for_change, int), type(for_change)
+        assert isinstance(n, int), type(n)
         pk = self._get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
 
-    def _check_seed(self, seed: bytes, *, secexp: int = None) -> None:
-        # FIXME `seed` is bytes that only contain hex characters.
+    def _check_seed(self, hex_seed: bytes, *, secexp: int = None) -> None:
+        # FIXME `hex_seed` is bytes that only contain hex characters.
         if secexp is None:
-            secexp = self.stretch_key(seed)
+            secexp = self.stretch_key(hex_seed)
         master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)
         master_public_key = master_private_key.get_public_key_bytes(compressed=False)[1:]
         if master_public_key != bfh(self.mpk):
@@ -829,8 +832,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     @also_test_none_password
     def check_password(self, password):
-        seed = self.get_hex_seed(password)
-        self._check_seed(seed)
+        hex_seed = self._get_hex_seed(password)
+        self._check_seed(hex_seed)
 
     def get_master_public_key(self):
         return self.mpk
