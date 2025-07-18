@@ -1658,9 +1658,9 @@ class NostrTransport(SwapServerTransport):
                 server_pubkey=pubkey,
                 pow_bits=pow_bits,
             )
+            self._offers[offer.server_npub] = offer
             if self.config.SWAPSERVER_NPUB == offer.server_npub:
                 self.sm.update_pairs(pairs)
-            self._offers[offer.server_npub] = offer
             trigger_callback('swap_offers_changed', self.get_recent_offers())
             # mirror event to other relays
             await self.taskgroup.spawn(self.rebroadcast_event(event, server_relays))
@@ -1673,7 +1673,13 @@ class NostrTransport(SwapServerTransport):
         while True:
             previous_relays = self._last_swapserver_relays
             await self.sm.pairs_updated.wait()
-            latest_known_relays = self._offers[self.config.SWAPSERVER_NPUB].relays
+            if (conf_swapserver_offer := self._offers.get(self.config.SWAPSERVER_NPUB)) is None:
+                self.logger.debug(
+                    f"pairs updated but no pair for {self.config.SWAPSERVER_NPUB=} available? {self._offers=}",
+                    stack_info=True,
+                )
+                continue
+            latest_known_relays = conf_swapserver_offer.relays
             if latest_known_relays != previous_relays:
                 self.logger.debug(f"swapserver relays changed, updating relay list.")
                 # store the latest known relays to a file
