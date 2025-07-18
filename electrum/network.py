@@ -886,6 +886,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         queue interface to be started. The actual switch will
         happen when the interface becomes ready.
         """
+        assert isinstance(server, ServerAddr), f"expected ServerAddr, got {type(server)}"
         self.default_server = server
         old_interface = self.interface
         old_server = old_interface.server if old_interface else None
@@ -973,6 +974,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
     async def _run_new_interface(self, server: ServerAddr):
+        assert isinstance(server, ServerAddr), f"expected ServerAddr, got {type(server)}"
         if (server in self.interfaces
                 or server in self._connecting_ifaces
                 or server in self._closing_ifaces):
@@ -1508,6 +1510,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 # FIXME this should try to honour "healthy spread of connected servers"
                 server = self._get_next_server_to_try()
                 if server:
+                    assert isinstance(server, ServerAddr), f"expected ServerAddr, got {type(server)}"
                     await self.taskgroup.spawn(self._run_new_interface(server))
         async def maintain_healthy_spread_of_connected_servers():
             with self.interfaces_lock: interfaces = list(self.interfaces.values())

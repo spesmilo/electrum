@@ -462,7 +462,7 @@ class ServerWidget(QWidget, QtEventListener):
         if not self.network._was_started:
             self.update()
             return
-        server = self.server_e.text().strip()
+        server = ServerAddr.from_str_with_inference(self.server_e.text().strip())
         net_params = self.network.get_parameters()
         if server != net_params.server or self.is_auto_connect() != net_params.auto_connect or self.is_one_server() != net_params.oneserver:
             self.set_server()

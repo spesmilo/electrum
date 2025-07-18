@@ -496,6 +496,7 @@ def _get_cert_path_for_host(*, config: 'SimpleConfig', host: str) -> str:
 class Interface(Logger):
 
     def __init__(self, *, network: 'Network', server: ServerAddr):
+        assert isinstance(server, ServerAddr), f"expected ServerAddr, got {type(server)}"
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
         self.server = server

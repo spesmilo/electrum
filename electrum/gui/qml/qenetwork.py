@@ -207,16 +207,13 @@ class QENetwork(QObject, QtEventListener):
         return self._server
 
     @pyqtSlot(str, bool, bool)
-    def setServerParameters(self, server: str, auto_connect: bool, one_server: bool):
+    def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
+        server = ServerAddr.from_str_with_inference(server_str)
         if server == net_params.server and auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
             return
-        if server != str(net_params.server):
-            try:
-                server = ServerAddr.from_str_with_inference(server)
-                if not server:
-                    raise Exception('failed to parse')
-            except Exception:
+        if server != net_params.server:
+            if server is None:
                 if not auto_connect:
                     return
                 server = net_params.server
