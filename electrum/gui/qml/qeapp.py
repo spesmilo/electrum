@@ -161,14 +161,17 @@ class QEAppController(BaseCrashReporter, QObject):
 
     def doNotify(self, wallet_name, message):
         self.logger.debug(f'sending push notification to OS: {message=!r}')
+        if os.name == 'nt':
+            icon = ""  # plyer wants image to be in .ico format on Windows
+        else:
+            icon = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "icons", "electrum.png",
+            )
         try:
             # TODO: lazy load not in UI thread please
             global notification
             if not notification:
                 from plyer import notification
-            icon = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "icons", "electrum.png",
-            )
             notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
         except ImportError:
             self.logger.warning('Notification: needs plyer; `python3 -m pip install plyer`')
