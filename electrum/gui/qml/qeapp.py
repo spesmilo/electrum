@@ -537,6 +537,7 @@ class Exception_Hook(QObject, Logger):
         Logger.__init__(self)
         assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
         self.wallet_types_seen = set()  # type: Set[str]
+        self.exception_ids_seen = set()  # type: Set[bytes]
 
         sys.excepthook = self.handler
         threading.excepthook = self.handler
@@ -554,4 +555,8 @@ class Exception_Hook(QObject, Logger):
 
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        groupid_hash = BaseCrashReporter.get_traceback_groupid_hash(*exc_info)
+        if groupid_hash in self.exception_ids_seen:
+            return  # to avoid annoying the user, only show crash reporter once per exception groupid
+        self.exception_ids_seen.add(groupid_hash)
         self._report_exception.emit(*exc_info)

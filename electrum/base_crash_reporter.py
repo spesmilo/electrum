@@ -33,6 +33,7 @@ from . import constants
 from .i18n import _
 from .util import make_aiohttp_session, error_text_str_to_safe_str
 from .logging import describe_os_version, Logger, get_git_version
+from .crypto import sha256
 
 if TYPE_CHECKING:
     from .network import ProxySettings
@@ -139,6 +140,17 @@ class BaseCrashReporter(Logger):
             "stack": readable_trace,
             "id": _id,
         }
+
+    @classmethod
+    def get_traceback_groupid_hash(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> bytes:
+        tb_info = cls.get_traceback_info(exctype, excvalue, tb)
+        _id = tb_info["id"]
+        return sha256(str(_id))
 
     def get_additional_info(self):
         args = {
