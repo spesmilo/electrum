@@ -290,12 +290,12 @@ class BIP32Node(NamedTuple):
         return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
-def xpub_type(x: str):
+def xpub_type(x: str) -> str:
     assert x is not None
     return BIP32Node.from_xkey(x).xtype
 
 
-def is_xpub(text):
+def is_xpub(text: str) -> bool:
     try:
         node = BIP32Node.from_xkey(text)
         return not node.is_private()
@@ -303,7 +303,7 @@ def is_xpub(text):
         return False
 
 
-def is_xprv(text):
+def is_xprv(text: str) -> bool:
     try:
         node = BIP32Node.from_xkey(text)
         return node.is_private()
@@ -311,7 +311,7 @@ def is_xprv(text):
         return False
 
 
-def xpub_from_xprv(xprv):
+def xpub_from_xprv(xprv: str) -> str:
     return BIP32Node.from_xkey(xprv).to_xpub()
 
 
