@@ -709,7 +709,13 @@ If disabled, the full wallet file is written to disk for every change. Experimen
         short_desc=lambda: _('Show Fiat balances'),
     )
 
-    LIGHTNING_LISTEN = ConfigVar('lightning_listen', default=None, type_=str)
+    LIGHTNING_LISTEN = ConfigVar(
+        'lightning_listen', default=None, type_=str,
+        long_desc=lambda: _("""By default the client does not listen on any port for incoming BOLT-08 transports.
+Set this to an interface:port combination, such as 'localhost:9735', to open a port and start listening.
+
+Note: if you open multiple lightning wallets, they will all try to bind the same port, conflict, and only the first will succeed."""),
+    )
     LIGHTNING_PEERS = ConfigVar('lightning_peers', default=None)
     LIGHTNING_USE_GOSSIP = ConfigVar(
         'use_gossip', default=False, type_=bool,
