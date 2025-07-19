@@ -34,5 +34,6 @@ export PYTHONPATH="$PYTHONPATH:"\
 "/usr/lib/python3/dist-packages:"\
 "/usr/lib/python${PYTHON_VER}/site-packages:"
 
+export PYTHONPATH="$PYHTONPATH:./env/lib/python${PYTHON_VER}/site-packages:./env/lib/python${PYTHON_VER}/dist-packages" 
 
 ./run_electrum "$@"
