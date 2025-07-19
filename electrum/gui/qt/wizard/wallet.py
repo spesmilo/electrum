@@ -94,8 +94,11 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             'wallet_type': {'gui': WCWalletType},
             'keystore_type': {'gui': WCKeystoreType},
             'create_seed': {'gui': WCCreateSeed},
+            'create_ext': {'gui': WCEnterExt},
             'confirm_seed': {'gui': WCConfirmSeed},
+            'confirm_ext': {'gui': WCConfirmExt},
             'have_seed': {'gui': WCHaveSeed},
+            'have_ext': {'gui': WCEnterExt},
             'choose_hardware_device': {'gui': WCChooseHWDevice},
             'script_and_derivation': {'gui': WCScriptAndDerivation},
             'have_master_key': {'gui': WCHaveMasterKey},
@@ -103,6 +106,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             'multisig_cosigner_keystore': {'gui': WCCosignerKeystore},
             'multisig_cosigner_key': {'gui': WCHaveMasterKey},
             'multisig_cosigner_seed': {'gui': WCHaveSeed},
+            'multisig_cosigner_have_ext': {'gui': WCEnterExt},
             'multisig_cosigner_hardware': {'gui': WCChooseHWDevice},
             'multisig_cosigner_script_and_derivation': {'gui': WCScriptAndDerivation},
             'imported': {'gui': WCImport},
@@ -120,47 +124,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
                 'gui': WCChooseHWDevice,
                 'next': lambda d: self.on_hardware_device(d, new_wallet=False)
             }
-        })
-
-        # insert seed extension entry/confirm as separate views
-        self.navmap_merge({
-            'create_seed': {
-                'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed'
-            },
-            'create_ext': {
-                'next': 'confirm_seed',
-                'gui': WCEnterExt
-            },
-            'confirm_seed': {
-                'next': lambda d: 'confirm_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d)
-            },
-            'confirm_ext': {
-                'next': self.on_have_or_confirm_seed,
-                'accept': self.maybe_master_pubkey,
-                'gui': WCConfirmExt
-            },
-            'have_seed': {
-                'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
-                'last': lambda d: self.is_single_password() and not
-                                  (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d))
-            },
-            'have_ext': {
-                'next': self.on_have_or_confirm_seed,
-                'accept': self.maybe_master_pubkey,
-                'gui': WCEnterExt
-            },
-            'multisig_cosigner_seed': {
-                'next': lambda d: 'multisig_cosigner_have_ext' if self.wants_ext(d) else self.on_have_cosigner_seed(d),
-                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not
-                                  (self.needs_derivation_path(d) or self.wants_ext(d))
-            },
-            'multisig_cosigner_have_ext': {
-                'next': self.on_have_cosigner_seed,
-                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d),
-                'gui': WCEnterExt
-            },
         })
 
         run_hook('init_wallet_wizard', self)

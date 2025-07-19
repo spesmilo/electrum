@@ -333,7 +333,7 @@ class KeystoreWizard(AbstractWizard):
 
     def keystore_from_data(self, wallet_type: str, data: dict):
         if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
-            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
+            seed_extension = data.get('seed_extra_words', '')
             if data['seed_variant'] == 'electrum':
                 for_multisig = wallet_type in ['multisig']
                 return keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=for_multisig)
@@ -391,14 +391,28 @@ class NewWalletWizard(KeystoreWizard):
                 'next': self.on_keystore_type
             },
             'create_seed': {
-                'next': 'confirm_seed'
+                'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed',
+            },
+            'create_ext': {
+                'next': 'confirm_seed',
             },
             'confirm_seed': {
+                'next': lambda d: 'confirm_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
+                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
+                'last': lambda d: self.is_single_password() and not self.is_multisig(d) and not self.wants_ext(d),
+            },
+            'confirm_ext': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
+                'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
+                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
+                'last': lambda d: self.is_single_password() and not
+                                    (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d)),
+            },
+            'have_ext': {
                 'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not
@@ -428,6 +442,11 @@ class NewWalletWizard(KeystoreWizard):
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'multisig_cosigner_seed': {
+                'next': lambda d: 'multisig_cosigner_have_ext' if self.wants_ext(d) else self.on_have_cosigner_seed(d),
+                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not
+                                  (self.needs_derivation_path(d) or self.wants_ext(d)),
+            },
+            'multisig_cosigner_have_ext': {
                 'next': self.on_have_cosigner_seed,
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d)
             },

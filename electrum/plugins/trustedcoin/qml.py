@@ -69,11 +69,20 @@ class Plugin(TrustedCoinPlugin):
             'trustedcoin_create_seed': {
                 'gui': 'WCCreateSeed',
             },
+            'trustedcoin_create_ext': {
+                'gui': 'WCEnterExt',
+            },
             'trustedcoin_confirm_seed': {
                 'gui': 'WCConfirmSeed',
             },
+            'trustedcoin_confirm_ext': {
+                'gui': 'WCConfirmExt',
+            },
             'trustedcoin_have_seed': {
                 'gui': 'WCHaveSeed',
+            },
+            'trustedcoin_have_ext': {
+                'gui': 'WCEnterExt',
             },
             'trustedcoin_keep_disable': {
                 'gui': '../../../../plugins/trustedcoin/qml/KeepDisable',
