@@ -1,38 +1,39 @@
 #!/usr/bin/env bash
 #
-# This script creates a virtualenv named 'env' and installs all
+# This script creates a virtualenv named 'env' and installs all pinned
 # python dependencies before activating the env and running Electrum.
 # If 'env' already exists, it is activated and Electrum is started
-# without any installations. Additionally, the PYTHONPATH environment
-# variable is set so that system packages such as e.g. apt installed
-# PyQt will also be visible.
+# without any installations (unless the pins have changed).
 #
-# By default, only pure python dependencies are installed.
-# If you would like more extras to be installed, do e.g.:
+# By default, not all optional dependencies are installed.
+# E.g. for hardware wallet support, do:
 # $ source ./env/bin/activate
-# $ pip install -e '.[crypto,gui,hardware]'
+# $ pip install -r contrib/deterministic-build/requirements-hw.txt
 # $ deactivate
 
 set -e
 
-PYTHON_VER="$(python3 -c 'import sys; print(sys.version[:3])')"
-
 cd $(dirname $0)
-if [ -e ./env/bin/activate ]; then
+if [ -e ./env/bin/activate ]; then  # existing venv
     source ./env/bin/activate
-    # FIXME what if this is an old directory and our requirements
-    #       changed in the meantime? should run "pip install -e . --upgrade"
-else
+else  # create new venv
+    echo "Creating new venv."
     python3 -m venv env
     source ./env/bin/activate
-    pip install -e .
+    pip install -r contrib/deterministic-build/requirements.txt
+    pip install -r contrib/deterministic-build/requirements-binaries.txt
+    pip install --no-dependencies -e .
+    echo "Done creating venv."
 fi
 
-export PYTHONPATH="$PYTHONPATH:"\
-"/usr/local/lib/python${PYTHON_VER}/site-packages:"\
-"/usr/local/lib/python${PYTHON_VER}/dist-packages:"\
-"/usr/lib/python3/dist-packages:"\
-"/usr/lib/python${PYTHON_VER}/site-packages:"
-
+# This might be an old directory and our requirements might have changed in the meantime:
+DEPS_CHANGED_TIME=$(stat --printf %Y contrib/deterministic-build/requirements.txt)
+if [ "$DEPS_CHANGED_TIME" -gt "$(stat --printf %Y env)" ] ; then
+    echo "Detected changed requirements.txt. Updating dependencies now..."
+    pip install -r contrib/deterministic-build/requirements.txt
+    pip install -r contrib/deterministic-build/requirements-binaries.txt
+    touch env
+    echo "Done updating deps."
+fi
 
 ./run_electrum "$@"
