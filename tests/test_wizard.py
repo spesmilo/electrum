@@ -136,7 +136,7 @@ class WalletWizardTestCase(WizardTestCase):
 
         return w
 
-    async def test_create_standard_wallet_newseed(self):
+    async def test_create_standard_wallet_createseed(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
         v = w._current
         d = v.wizard_data
@@ -166,7 +166,7 @@ class WalletWizardTestCase(WizardTestCase):
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0", wallet.get_receiving_addresses()[0])
 
-    async def test_create_standard_wallet_newseed_passphrase(self):
+    async def test_create_standard_wallet_createseed_passphrase(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
         v = w._current
         d = v.wizard_data
@@ -369,6 +369,42 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertTrue(os.path.exists(wallet_path))
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qjexrunguxz8rlfuul8h4apafyh3sq5yp9kg98j", wallet.get_receiving_addresses()[0])
+
+    async def test_2fa_createseed(self):
+        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
+        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('trustedcoin_start', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_choose_seed', v.view)
+        d.update({'keystore_type': 'createseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_create_seed', v.view)
+        d.update({
+            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
+            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_confirm_seed', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_tos', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('wallet_password', v.view)
+
+        d.update({'password': None, 'encrypt': False})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        wallet_path = os.path.join(w._daemon.config.get_datadir_wallet_path(), d['wallet_name'])
+        w.create_storage(wallet_path, d)
+
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94", wallet.get_receiving_addresses()[0])
+
 
     async def test_2fa_haveseed(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
