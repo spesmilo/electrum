@@ -1489,8 +1489,10 @@ class Commands(Logger):
             amount_sat = amount_msat // 1000
         result = {
             "status": status,
-            "amount_sat_received": amount_sat
+            "received_amount_sat": amount_sat,
         }
+        if info is not None:
+            result["invoice_amount_sat"] = (info.amount_msat or 0) // 1000
         return result
 
     @command('w')
