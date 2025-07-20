@@ -203,6 +203,57 @@ class WalletWizardTestCase(WizardTestCase):
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4", wallet.get_receiving_addresses()[0])
 
+    async def test_create_standard_wallet_haveseed_electrum_oldseed(self):
+        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        d.update({
+            'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
+            'seed_type': 'old', 'seed_extend': False, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('wallet_password', v.view)
+
+        d.update({'password': None, 'encrypt': False})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        wallet_path = os.path.join(w._daemon.config.get_datadir_wallet_path(), d['wallet_name'])
+        w.create_storage(wallet_path, d)
+
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo", wallet.get_receiving_addresses()[0])
+
+    async def test_create_standard_wallet_haveseed_electrum_oldseed_passphrase(self):
+        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        d.update({
+            'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
+            'seed_type': 'old', 'seed_extend': True, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+        # FIXME this diverges from the actual GUIs :(
+        #  the GUIs do validation using wizard.validate_seed() and don't go to 'have_ext' for next view.
+        #  the validation should be moved to the base impl!
+        self.assertEqual('have_ext', v.view)
+
+        d.update({'seed_extra_words': UNICODE_HORROR})
+        with self.assertRaises(Exception) as ctx:
+            v = w.resolve_next(v.view, d)
+        self.assertTrue("cannot have passphrase" in ctx.exception.args[0])
+
     async def test_create_standard_wallet_haveseed_electrum(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
         v = w._current
@@ -285,6 +336,39 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertTrue(os.path.exists(wallet_path))
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qrjr8qn4669jgr3s34f2pyj9awhz02eyvk5eh8g", wallet.get_receiving_addresses()[0])
+
+    async def test_create_standard_wallet_haveseed_bip39_passphrase(self):
+        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        d.update({'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_ext', v.view)
+
+        d.update({'seed_extra_words': UNICODE_HORROR})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('script_and_derivation', v.view)
+
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('wallet_password', v.view)
+
+        d.update({'password': None, 'encrypt': False})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        wallet_path = os.path.join(w._daemon.config.get_datadir_wallet_path(), d['wallet_name'])
+        w.create_storage(wallet_path, d)
+
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("bc1qjexrunguxz8rlfuul8h4apafyh3sq5yp9kg98j", wallet.get_receiving_addresses()[0])
 
     async def test_2fa_haveseed(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))

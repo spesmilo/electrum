@@ -289,7 +289,7 @@ class KeystoreWizard(AbstractWizard):
         plugin = self.plugins.get_plugin(_type)
         return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 
-    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str):
+    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str) -> Tuple[bool, str, str, bool]:
         seed_type = ''
         seed_valid = False
         validation_message = ''
