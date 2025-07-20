@@ -8,6 +8,7 @@ from electrum.wizard import ServerConnectWizard, NewWalletWizard
 from electrum.daemon import Daemon
 
 from . import ElectrumTestCase
+from .test_wallet_vertical import UNICODE_HORROR
 
 
 class NetworkMock:
@@ -145,8 +146,9 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('create_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
-                  'seed_extra_words': False})
+        d.update({
+            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
         v = w.resolve_next(v.view, d)
         self.assertEqual('confirm_seed', v.view)
 
@@ -174,13 +176,13 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('create_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True,
-                  'seed_variant': 'electrum',
-                  'seed_extra_words': False})
-
+        d.update({
+            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+        })
         v = w.resolve_next(v.view, d)
         self.assertEqual('create_ext', v.view)
 
+        d.update({'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('confirm_seed', v.view)
 
@@ -198,6 +200,8 @@ class WalletWizardTestCase(WizardTestCase):
         w.create_storage(wallet_path, d)
 
         self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4", wallet.get_receiving_addresses()[0])
 
     async def test_create_standard_wallet_haveseed_electrum(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
@@ -209,8 +213,7 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
-                  'seed_extra_words': False})
+        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('wallet_password', v.view)
 
@@ -235,12 +238,11 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
-                  'seed_extra_words': False})
-
+        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_ext', v.view)
 
+        d.update({'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('wallet_password', v.view)
 
@@ -252,6 +254,8 @@ class WalletWizardTestCase(WizardTestCase):
         w.create_storage(wallet_path, d)
 
         self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4", wallet.get_receiving_addresses()[0])
 
     async def test_create_standard_wallet_haveseed_bip39(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
@@ -263,8 +267,7 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39',
-                  'seed_extra_words': False})
+        d.update({'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
 
@@ -283,7 +286,7 @@ class WalletWizardTestCase(WizardTestCase):
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qrjr8qn4669jgr3s34f2pyj9awhz02eyvk5eh8g", wallet.get_receiving_addresses()[0])
 
-    async def test_2fa(self):
+    async def test_2fa_haveseed(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
         w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
         v = w._current
@@ -297,11 +300,8 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertEqual('trustedcoin_have_seed', v.view)
         d.update({
             'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': True, 'seed_variant': 'electrum',
-            'seed_extra_words': False
+            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
         })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_ext', v.view)
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_keep_disable', v.view)
         d.update({'trustedcoin_keepordisable': 'keep'})
@@ -322,3 +322,44 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertTrue(os.path.exists(wallet_path))
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         self.assertEqual("bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94", wallet.get_receiving_addresses()[0])
+
+    async def test_2fa_haveseed_passphrase(self):
+        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
+        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('trustedcoin_start', v.view)
+
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_choose_seed', v.view)
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_have_seed', v.view)
+        d.update({
+            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
+            'seed_type': '2fa', 'seed_extend': True, 'seed_variant': 'electrum',
+        })
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_have_ext', v.view)
+        d.update({'seed_extra_words': UNICODE_HORROR})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        d.update({'trustedcoin_keepordisable': 'keep'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_tos', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('wallet_password', v.view)
+
+        d.update({'password': None, 'encrypt': False})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        wallet_path = os.path.join(w._daemon.config.get_datadir_wallet_path(), d['wallet_name'])
+        w.create_storage(wallet_path, d)
+
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        self.assertEqual("bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud", wallet.get_receiving_addresses()[0])
+
