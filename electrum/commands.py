@@ -1427,6 +1427,8 @@ class Commands(Logger):
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"Invoice {payment_hash=} not a hold invoice?"
         assert wallet.lnworker.is_accepted_mpp(bfh(payment_hash)), \
             f"MPP incomplete, cannot settle hold invoice {payment_hash} yet"
+        info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        assert (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) >= (info.amount_msat or 0)
         del wallet.lnworker.dont_settle_htlcs[payment_hash]
         wallet.lnworker.save_preimage(bfh(payment_hash), bfh(preimage))
         util.trigger_callback('wallet_updated', wallet)
@@ -1474,17 +1476,20 @@ class Commands(Logger):
         status = "unknown"
         if info is None:
             pass
-        elif not is_accepted_mpp:
+        elif not is_accepted_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
+            # is_accepted_mpp is False for settled payments
             status = "unpaid"
         elif is_accepted_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
             status = "paid"
-        elif (payment_hash in wallet.lnworker._preimages
-                and payment_hash not in wallet.lnworker.dont_settle_htlcs
-                and is_accepted_mpp):
+        elif wallet.lnworker.get_preimage_hex(payment_hash) is not None \
+                and payment_hash not in wallet.lnworker.dont_settle_htlcs:
             status = "settled"
+            plist = wallet.lnworker.get_payments(status='settled')[bfh(payment_hash)]
+            _dir, amount_msat, _fee, _ts = wallet.lnworker.get_payment_value(info, plist)
+            amount_sat = amount_msat // 1000
         result = {
             "status": status,
-            "amount_sat": amount_sat
+            "amount_sat_received": amount_sat
         }
         return result
 

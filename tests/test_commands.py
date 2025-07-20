@@ -495,7 +495,7 @@ class TestCommandsTestnet(ElectrumTestCase):
                 mock.patch.object(wallet.lnworker, 'get_payment_mpp_amount_msat', return_value=10_000 * 1000):
             status: dict = await cmds.check_hold_invoice(payment_hash=payment_hash, wallet=wallet)
             assert status['status'] == 'paid'
-            assert status['amount_sat'] == 10000
+            assert status['amount_sat_received'] == 10000
 
             settle_result = await cmds.settle_hold_invoice(
                 preimage=preimage.hex(),
@@ -504,6 +504,14 @@ class TestCommandsTestnet(ElectrumTestCase):
         assert settle_result['settled'] == payment_hash
         assert wallet.lnworker._preimages[payment_hash] == preimage.hex()
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs
+        with (mock.patch.object(
+            wallet.lnworker,
+            'get_payment_value',
+            return_value=(None, 10000*1000, None, None),
+        )):
+            settled_status: dict = await cmds.check_hold_invoice(payment_hash=payment_hash, wallet=wallet)
+            assert settled_status['status'] == 'settled'
+            assert settled_status['amount_sat_received'] == 10000
 
         with self.assertRaises(AssertionError):
             # cancelling a settled invoice should raise
