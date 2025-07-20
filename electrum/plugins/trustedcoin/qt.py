@@ -250,12 +250,24 @@ class Plugin(TrustedCoinPlugin):
                 'gui': WCCreateSeed,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
+            'trustedcoin_create_ext': {
+                'gui': WCEnterExt,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
             'trustedcoin_confirm_seed': {
                 'gui': WCConfirmSeed,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
+            'trustedcoin_confirm_ext': {
+                'gui': WCConfirmExt,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
             'trustedcoin_have_seed': {
                 'gui': WCHaveSeed,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
+            'trustedcoin_have_ext': {
+                'gui': WCEnterExt,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_keep_disable': {
@@ -276,35 +288,6 @@ class Plugin(TrustedCoinPlugin):
             }
         }
         wizard.navmap_merge(views)
-
-        # modify default flow, insert seed extension entry/confirm as separate views
-        ext = {
-            'trustedcoin_create_seed': {
-                'next': lambda d: 'trustedcoin_create_ext' if wizard.wants_ext(d) else 'trustedcoin_confirm_seed'
-            },
-            'trustedcoin_create_ext': {
-                'gui': WCEnterExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_confirm_seed',
-            },
-            'trustedcoin_confirm_seed': {
-                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos'
-            },
-            'trustedcoin_confirm_ext': {
-                'gui': WCConfirmExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_tos',
-            },
-            'trustedcoin_have_seed': {
-                'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable'
-            },
-            'trustedcoin_have_ext': {
-                'gui': WCEnterExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_keep_disable',
-            },
-        }
-        wizard.navmap_merge(ext)
 
         # insert page offering choice to go online or continue on another system
         ext_online = {
