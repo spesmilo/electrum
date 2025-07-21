@@ -344,7 +344,7 @@ class QEAppController(BaseCrashReporter, QObject):
     @pyqtSlot(result='QVariantMap')
     def crashData(self):
         return {
-            'traceback': self.get_traceback_info(),
+            'traceback': self.get_traceback_info(*self.exc_args),
             'extra': self.get_additional_info(),
             'reportstring': self.get_report_string()
         }
@@ -378,10 +378,6 @@ class QEAppController(BaseCrashReporter, QObject):
 
         self.sendingBugreport.emit()
         threading.Thread(target=report_task, daemon=True).start()
-
-    @pyqtSlot()
-    def showNever(self):
-        self.config.SHOW_CRASH_REPORTER = False
 
     def _get_traceback_str_to_display(self) -> str:
         # The msg_box that shows the report uses rich_text=True, so
@@ -541,6 +537,7 @@ class Exception_Hook(QObject, Logger):
         Logger.__init__(self)
         assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
         self.wallet_types_seen = set()  # type: Set[str]
+        self.exception_ids_seen = set()  # type: Set[bytes]
 
         sys.excepthook = self.handler
         threading.excepthook = self.handler
@@ -551,9 +548,6 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, wallet: 'Abstract_Wallet' = None, slot=None) -> None:
-        if not QEConfig.instance.config.SHOW_CRASH_REPORTER:
-            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
-            return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(slot=slot)
         if wallet:
@@ -561,4 +555,8 @@ class Exception_Hook(QObject, Logger):
 
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        groupid_hash = BaseCrashReporter.get_traceback_groupid_hash(*exc_info)
+        if groupid_hash in self.exception_ids_seen:
+            return  # to avoid annoying the user, only show crash reporter once per exception groupid
+        self.exception_ids_seen.add(groupid_hash)
         self._report_exception.emit(*exc_info)

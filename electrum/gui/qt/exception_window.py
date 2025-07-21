@@ -83,13 +83,9 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         buttons = QHBoxLayout()
 
         report_button = QPushButton(_('Send Bug Report'))
-        report_button.clicked.connect(lambda _checked: self.send_report())
+        report_button.clicked.connect(lambda _checked: self._ask_for_confirm_to_send_report())
         report_button.setIcon(read_QIcon("tab_send.png"))
         buttons.addWidget(report_button)
-
-        never_button = QPushButton(_('Never'))
-        never_button.clicked.connect(lambda _checked: self.show_never())
-        buttons.addWidget(never_button)
 
         close_button = QPushButton(_('Not Now'))
         close_button.clicked.connect(lambda _checked: self.close())
@@ -102,6 +98,10 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         self.setLayout(main_box)
         self.show()
+
+    def _ask_for_confirm_to_send_report(self):
+        if self.question("Confirm to send bugreport?"):
+            self.send_report()
 
     def send_report(self):
         def on_success(response: CrashReportResponse):
@@ -131,10 +131,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
     def on_close(self):
         Exception_Window._active_window = None
-        self.close()
-
-    def show_never(self):
-        self.config.SHOW_CRASH_REPORTER = False
         self.close()
 
     def closeEvent(self, event):
@@ -181,6 +177,7 @@ class Exception_Hook(QObject, Logger):
         assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
         self.config = config
         self.wallet_types_seen = set()  # type: Set[str]
+        self.exception_ids_seen = set()  # type: Set[bytes]
 
         sys.excepthook = self.handler
         self._report_exception.connect(_show_window)
@@ -188,9 +185,6 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
-        if not config.SHOW_CRASH_REPORTER:
-            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
-            return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(config=config)
         if wallet:
@@ -198,6 +192,10 @@ class Exception_Hook(QObject, Logger):
 
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        groupid_hash = BaseCrashReporter.get_traceback_groupid_hash(*exc_info)
+        if groupid_hash in self.exception_ids_seen:
+            return  # to avoid annoying the user, only show crash reporter once per exception groupid
+        self.exception_ids_seen.add(groupid_hash)
         self._report_exception.emit(self.config, *exc_info)
 
 
