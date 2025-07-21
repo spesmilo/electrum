@@ -1426,7 +1426,7 @@ class WCHWXPub(WalletWizardComponent, Logger):
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.exception(repr(e))
-            self.logger.debug(f'Done retrieve xpub: {self.xpub}')
+            self.logger.debug(f'Done retrieve xpub: {self.xpub[:10]}...{self.xpub[-5:]}')
             self.busy = False
             self.validate()
 
