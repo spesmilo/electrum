@@ -67,7 +67,8 @@ from .wallet import (
 )
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
-from .lnutil import channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -1725,7 +1726,15 @@ class Commands(Logger):
         return invoice.to_debug_json()
 
     @command('wnpl')
-    async def lnpay(self, invoice, timeout=120, password=None, wallet: Abstract_Wallet = None):
+    async def lnpay(
+        self,
+        invoice: str,
+        timeout: int = 120,
+        max_cltv: Optional[int] = None,
+        max_fee_msat: Optional[int] = None,
+        password=None,
+        wallet: Abstract_Wallet = None
+    ):
         """
         Pay a lightning invoice
         Note: it is *not* safe to try paying the same invoice multiple times with a timeout.
@@ -1734,6 +1743,8 @@ class Commands(Logger):
 
         arg:str:invoice:Lightning invoice (bolt 11)
         arg:int:timeout:Timeout in seconds (default=120)
+        arg:int:max_cltv:Maximum total time lock for the route (default=4032+invoice_final_cltv_delta)
+        arg:int:max_fee_msat:Maximum absolute fee budget for the payment (if unset, the default is a percentage fee based on config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         """
         # note: The "timeout" param works via black magic.
         #       The CLI-parser stores it in the config, and the argname matches config.cv.CLI_TIMEOUT.key().
@@ -1741,11 +1752,27 @@ class Commands(Logger):
         #       - FIXME it does NOT work when calling an offline command (-o)
         #       - FIXME it does NOT work when calling RPC directly (e.g. curl)
         lnworker = wallet.lnworker
-        lnaddr = lnworker._check_bolt11_invoice(invoice)
+        lnaddr = lnworker._check_bolt11_invoice(invoice)  # also checks if amount is given
         payment_hash = lnaddr.paymenthash
         invoice_obj = Invoice.from_bech32(invoice)
+        assert not max_fee_msat or max_fee_msat < max(invoice_obj.amount_msat // 2, 1_000_000), \
+                                    f"{max_fee_msat=} > max(invoice amount msat / 2, 1_000_000)"
         wallet.save_invoice(invoice_obj)
-        success, log = await lnworker.pay_invoice(invoice_obj)
+        if max_cltv is not None:
+            # The cltv budget excludes the final cltv delta which is why it is deducted here
+            # so the whole used cltv is <= max_cltv
+            assert max_cltv <= NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, \
+                    f"{max_cltv=} > {NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE=}"
+            max_cltv_remaining = max_cltv - lnaddr.get_min_final_cltv_delta()
+            assert max_cltv_remaining > 0, f"{max_cltv=} - {lnaddr.get_min_final_cltv_delta()=} < 1"
+            max_cltv = max_cltv_remaining
+        budget = PaymentFeeBudget.custom(
+            config=wallet.config,
+            invoice_amount_msat=invoice_obj.amount_msat,
+            max_cltv_delta=max_cltv,
+            max_fee_msat=max_fee_msat,
+        )
+        success, log = await lnworker.pay_invoice(invoice_obj, budget=budget)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
