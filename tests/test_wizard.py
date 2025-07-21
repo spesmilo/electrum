@@ -130,7 +130,12 @@ class WalletWizardTestCase(WizardTestCase):
     # TODO multisig
     # TODO slip39
 
-    def wizard_for(self, *, name: str, wallet_type: str) -> NewWalletWizard:
+    def _wizard_for(
+        self,
+        *,
+        name: str = "mywallet",
+        wallet_type: str,
+    ) -> NewWalletWizard:
         w = NewWalletWizard(DaemonMock(self.config), self.plugins)
         if wallet_type == '2fa':
             w.plugins.get_plugin('trustedcoin').extend_wizard(w)
@@ -173,7 +178,7 @@ class WalletWizardTestCase(WizardTestCase):
         return wallet
 
     async def test_set_password_and_encrypt_file(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -195,7 +200,7 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertTrue(wallet.has_storage_encryption())
 
     async def test_set_password_but_dont_encrypt_file(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -217,7 +222,7 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertFalse(wallet.has_storage_encryption())
 
     async def test_create_standard_wallet_createseed(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -236,7 +241,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0")
 
     async def test_create_standard_wallet_createseed_passphrase(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -262,7 +267,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4")
 
     async def test_create_standard_wallet_haveseed_electrum_oldseed(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -278,7 +283,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
 
     async def test_create_standard_wallet_haveseed_electrum_oldseed_passphrase(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -302,7 +307,7 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertTrue("cannot have passphrase" in ctx.exception.args[0])
 
     async def test_create_standard_wallet_haveseed_electrum(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -316,7 +321,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0")
 
     async def test_create_standard_wallet_haveseed_electrum_passphrase(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -334,7 +339,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4")
 
     async def test_create_standard_wallet_haveseed_bip39(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -352,7 +357,7 @@ class WalletWizardTestCase(WizardTestCase):
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qrjr8qn4669jgr3s34f2pyj9awhz02eyvk5eh8g")
 
     async def test_create_standard_wallet_haveseed_bip39_passphrase(self):
-        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        w = self._wizard_for(wallet_type='standard')
         v = w._current
         d = v.wizard_data
         self.assertEqual('keystore_type', v.view)
@@ -375,7 +380,7 @@ class WalletWizardTestCase(WizardTestCase):
 
     async def test_2fa_createseed(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        w = self._wizard_for(wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
@@ -399,7 +404,7 @@ class WalletWizardTestCase(WizardTestCase):
 
     async def test_2fa_haveseed_keep2FAenabled(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        w = self._wizard_for(wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
@@ -425,7 +430,7 @@ class WalletWizardTestCase(WizardTestCase):
 
     async def test_2fa_haveseed_disable2FA(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        w = self._wizard_for(wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
@@ -447,7 +452,7 @@ class WalletWizardTestCase(WizardTestCase):
 
     async def test_2fa_haveseed_passphrase(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        w = self._wizard_for(wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
