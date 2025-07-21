@@ -6,6 +6,8 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState
 from electrum.daemon import Daemon
+from electrum.wallet import Abstract_Wallet
+from electrum import util
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR
@@ -117,10 +119,18 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertTrue(w._daemon.network.run_called)
         self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
 
+# TODO KeystoreWizard ("enable keystore")
 
 class WalletWizardTestCase(WizardTestCase):
 
-    def wizard_for(self, *, name, wallet_type):
+    # TODO imported addresses
+    # TODO imported WIF keys
+    # TODO hardware signer std wallet (e.g. Trezor)
+    # TODO encrypt with hardware (xpub) password
+    # TODO multisig
+    # TODO slip39
+
+    def wizard_for(self, *, name: str, wallet_type: str) -> NewWalletWizard:
         w = NewWalletWizard(DaemonMock(self.config), self.plugins)
         if wallet_type == '2fa':
             w.plugins.get_plugin('trustedcoin').extend_wizard(w)
@@ -142,11 +152,13 @@ class WalletWizardTestCase(WizardTestCase):
         v: WizardViewState,
         w: NewWalletWizard,
         recv_addr: str,
-    ):
+        password: str | None = None,
+        encrypt_file: bool = False,
+    ) -> Abstract_Wallet:
         d = v.wizard_data
         self.assertEqual('wallet_password', v.view)
 
-        d.update({'password': None, 'encrypt': False})
+        d.update({'password': password, 'encrypt': encrypt_file})
         self.assertTrue(w.is_last_view(v.view, d))
         v = w.resolve_next(v.view, d)
 
@@ -154,8 +166,55 @@ class WalletWizardTestCase(WizardTestCase):
         w.create_storage(wallet_path, d)
 
         self.assertTrue(os.path.exists(wallet_path))
-        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        wallet = Daemon._load_wallet(wallet_path, password=password, config=self.config)
         self.assertEqual(recv_addr, wallet.get_receiving_addresses()[0])
+        self.assertEqual(bool(password), wallet.has_password())
+        self.assertEqual(encrypt_file, wallet.has_storage_encryption())
+        return wallet
+
+    async def test_set_password_and_encrypt_file(self):
+        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+
+        wallet = self._set_password_and_check_address(
+            v=v, w=w, recv_addr="bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0",
+            password="1234", encrypt_file=True,
+        )
+        self.assertTrue(wallet.has_password())
+        with self.assertRaises(util.InvalidPassword):
+            wallet.check_password("0000")
+        wallet.check_password("1234")
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertTrue(wallet.has_storage_encryption())
+
+    async def test_set_password_but_dont_encrypt_file(self):
+        w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+
+        wallet = self._set_password_and_check_address(
+            v=v, w=w, recv_addr="bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0",
+            password="1234", encrypt_file=False,
+        )
+        self.assertTrue(wallet.has_password())
+        with self.assertRaises(util.InvalidPassword):
+            wallet.check_password("0000")
+        wallet.check_password("1234")
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertFalse(wallet.has_storage_encryption())
 
     async def test_create_standard_wallet_createseed(self):
         w = self.wizard_for(name='test_standard_wallet', wallet_type='standard')

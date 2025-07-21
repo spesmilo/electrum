@@ -202,7 +202,7 @@ class KeystoreWizard(AbstractWizard):
 
     _logger = get_logger(__name__)
 
-    def __init__(self, plugins):
+    def __init__(self, plugins: 'Plugins'):
         AbstractWizard.__init__(self)
         self.plugins = plugins
         self.navmap = {
