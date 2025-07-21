@@ -126,8 +126,6 @@ class WalletWizardTestCase(WizardTestCase):
 
     # TODO imported addresses
     # TODO imported WIF keys
-    # TODO hardware signer std wallet (e.g. Trezor)
-    # TODO encrypt with hardware (xpub) password
     # TODO multisig
     # TODO slip39
 
@@ -523,3 +521,28 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertEqual("bc1q7ltf4aq95rj695fu5aaa5mx5m9p55xyr2fy6y0", wallet.get_receiving_addresses()[0])
         self.assertTrue(wallet.has_password())
         self.assertTrue(wallet.has_storage_encryption())
+
+    async def test_unlock_hw_trezor(self):
+        # bip39 seed for trezor: "history six okay anchor sheriff flock atom tomorrow foster aerobic eternal foam"
+        w = NewWalletWizard(DaemonMock(self.config), self.plugins)
+        v = w.start()
+        self.assertEqual('wallet_name', v.view)
+        d = {
+            'wallet_name': 'mywallet',
+            'wallet_exists': True, 'wallet_is_open': False, 'wallet_needs_hw_unlock': True,}
+        self.assertFalse(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('hw_unlock', v.view)
+
+        d.update({
+            'hardware_device': (
+                'trezor',
+                DeviceInfo(
+                    device=Device(path='webusb:002:1', interface_number=-1, id_='webusb:002:1', product_key='Trezor', usage_page=0, transport_ui_string='webusb:002:1'),
+                    label='trezor_unittests', initialized=True, exception=None, plugin_name='trezor', soft_device_id='088C3F260B66F60E15DE0FA5', model_name='Trezor T'))})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_unlock', v.view)
+
+        d.update({'password': '03a580deb85ef85654ed177fc049867ce915a8b392a34a524123870925e48a5b9e'})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)

@@ -382,7 +382,10 @@ class NewWalletWizard(KeystoreWizard):
         KeystoreWizard.__init__(self, plugins)
         self.navmap = {
             'wallet_name': {
-                'next': 'wallet_type'
+                'next': lambda d: 'hw_unlock' if d.get('wallet_needs_hw_unlock') else 'wallet_type',
+            },
+            'hw_unlock': {
+                'next': lambda d: self.on_hardware_device(d, new_wallet=False),
             },
             'wallet_type': {
                 'next': self.on_wallet_type

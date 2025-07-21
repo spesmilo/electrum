@@ -17,7 +17,7 @@ from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivat
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
-from electrum.util import is_subpath, ChoiceItem, multisig_type
+from electrum.util import is_subpath, ChoiceItem, multisig_type, UserCancelled
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
@@ -91,6 +91,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         # attach gui classes to views
         self.navmap_merge({
             'wallet_name': {'gui': WCWalletName},
+            'hw_unlock': {'gui': WCChooseHWDevice},
             'wallet_type': {'gui': WCWalletType},
             'keystore_type': {'gui': WCKeystoreType},
             'create_seed': {'gui': WCCreateSeed},
@@ -114,16 +115,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             'wallet_password_hardware': {'gui': WCWalletPasswordHardware}
         })
 
-        # add open existing wallet from wizard, incl hw unlock
+        # add open existing wallet from wizard
         self.navmap_merge({
             'wallet_name': {
                 'next': lambda d: 'hw_unlock' if d['wallet_needs_hw_unlock'] else 'wallet_type',
                 'last': lambda d: d['wallet_exists'] and not d['wallet_needs_hw_unlock']
             },
-            'hw_unlock': {
-                'gui': WCChooseHWDevice,
-                'next': lambda d: self.on_hardware_device(d, new_wallet=False)
-            }
         })
 
         run_hook('init_wallet_wizard', self)
@@ -1333,6 +1330,8 @@ class WCHWUnlock(WalletWizardComponent, Logger):
         def unlock_task(client):
             try:
                 self.password = client.get_password_for_storage_encryption()
+            except UserCancelled as e:
+                self.error = repr(e)
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.exception(repr(e))
