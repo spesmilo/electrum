@@ -124,10 +124,6 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         # - doesn't matter if device not connected, continue
         CKCCSettingsDialog(window, self, keystore).exec()
 
-    @hook
-    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
-        self.extend_wizard(wizard)
-
     # insert coldcard pages in new wallet wizard
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)

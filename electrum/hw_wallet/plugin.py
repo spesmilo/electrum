@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     import threading
     from electrum.plugin import DeviceInfo
     from electrum.wallet import Abstract_Wallet
+    from electrum.wizard import AbstractWizard
 
 
 class HW_PluginBase(BasePlugin, ABC):
@@ -186,6 +187,14 @@ class HW_PluginBase(BasePlugin, ABC):
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet: bool) -> str:
         """Return view name for device
         """
+        pass
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'AbstractWizard') -> None:
+        self.extend_wizard(wizard)
+
+    @abstractmethod
+    def extend_wizard(self, wizard: 'AbstractWizard') -> None:
         pass
 
 

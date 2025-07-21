@@ -3,7 +3,7 @@ import os
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
 from electrum.network import NetworkParameters, ProxySettings
-from electrum.plugin import Plugins
+from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState
 from electrum.daemon import Daemon
 from electrum.wallet import Abstract_Wallet
@@ -49,6 +49,7 @@ class WizardTestCase(ElectrumTestCase):
         self.wallet_path = os.path.join(self.electrum_path, "somewallet")
         self.plugins = Plugins(self.config, gui_name='cmdline')
         self.plugins.load_plugin_by_name('trustedcoin')
+        # note: hw plugins are loaded on-demand
 
     def tearDown(self):
         self.plugins.stop()
@@ -479,3 +480,46 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
 
+    async def test_create_standard_wallet_trezor(self):
+        # bip39 seed for trezor: "history six okay anchor sheriff flock atom tomorrow foster aerobic eternal foam"
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'hardware'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('choose_hardware_device', v.view)
+
+        d.update({
+            'hardware_device': (
+                'trezor',
+                DeviceInfo(
+                    device=Device(path='webusb:002:1', interface_number=-1, id_='webusb:002:1', product_key='Trezor', usage_page=0, transport_ui_string='webusb:002:1'),
+                    label='trezor_unittests', initialized=True, exception=None, plugin_name='trezor', soft_device_id='088C3F260B66F60E15DE0FA5', model_name='Trezor T'))})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_start', v.view)
+
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_xpub', v.view)
+
+        d.update({
+            'hw_type': 'trezor', 'master_key': 'zpub6qqp9XwsVMsovwzayXhFDJTpoc8VFoNy6mjkJHygou9NPRPDNR7MXVp9DM7qpacWwoePFWg7Gt5L5xnKNLmZYH8AFoTm2AAZA7LasycHu3n',
+            'root_fingerprint': '6306ee35', 'label': 'trezor_unittests', 'soft_device_id': '088C3F260B66F60E15DE0FA5',
+            'multisig_master_pubkey': 'zpub6qqp9XwsVMsovwzayXhFDJTpoc8VFoNy6mjkJHygou9NPRPDNR7MXVp9DM7qpacWwoePFWg7Gt5L5xnKNLmZYH8AFoTm2AAZA7LasycHu3n'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('wallet_password_hardware', v.view)
+
+        d.update({'password': '03a580deb85ef85654ed177fc049867ce915a8b392a34a524123870925e48a5b9e', 'encrypt': True, 'xpub_encrypt': True})
+        self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        wallet_path = os.path.join(w._daemon.config.get_datadir_wallet_path(), d['wallet_name'])
+        w.create_storage(wallet_path, d)
+
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=d['password'], config=self.config)
+        self.assertEqual("bc1q7ltf4aq95rj695fu5aaa5mx5m9p55xyr2fy6y0", wallet.get_receiving_addresses()[0])
+        self.assertTrue(wallet.has_password())
+        self.assertTrue(wallet.has_storage_encryption())

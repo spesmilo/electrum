@@ -172,7 +172,7 @@ class AbstractWizard:
             "wallet_type", "keystore_type", "seed_variant", "seed_type", "seed_extend",
             "script_type", "derivation_path", "encrypt",
             # hardware devices:
-            "hardware_device", "hw_type", "label", "soft_device_id",
+            "hardware_device", "hw_type", "label", "soft_device_id", "xpub_encrypt",
             # inside keystore:
             "type", "pw_hash_version", "derivation", "root_fingerprint",
             # multisig:
@@ -285,8 +285,8 @@ class KeystoreWizard(AbstractWizard):
     def on_hardware_device(self, wizard_data: dict, new_wallet=True) -> str:
         current_cosigner = self.current_cosigner(wizard_data)
         _type, _info = current_cosigner['hardware_device']
-        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         plugin = self.plugins.get_plugin(_type)
+        run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 
     def validate_seed(self, seed: str, seed_variant: str, wallet_type: str) -> Tuple[bool, str, str, bool]:
