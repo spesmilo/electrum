@@ -110,7 +110,7 @@ else
     fi
     cp "$CAMERA_AAR_SOURCE" "$CAMERA_AAR_DEST_GENERIC"
     cp "$CAMERA_AAR_SOURCE" "$CAMERA_AAR_DEST_SPECIFIC"
-    info "CameraView AAR copied to $CAMERA_AAR_DEST"
+    info "CameraView AAR copied to $CAMERA_AAR_DEST_GENERIC"
 fi
 
 ########### BarcodeScannerView ###########
@@ -137,7 +137,7 @@ else
     fi
     cp "$BARCODE_AAR_SOURCE" "$BARCODE_AAR_DEST_GENERIC"
     cp "$BARCODE_AAR_SOURCE" "$BARCODE_AAR_DEST_SPECIFIC"
-    info "BarcodeScannerView AAR copied to $BARCODE_AAR_DEST"
+    info "BarcodeScannerView AAR copied to $BARCODE_AAR_DEST_GENERIC"
 fi
 
 
