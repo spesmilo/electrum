@@ -397,7 +397,7 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
 
-    async def test_2fa_haveseed(self):
+    async def test_2fa_haveseed_keep2FAenabled(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
         w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
         v = w._current
@@ -420,6 +420,28 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertEqual('trustedcoin_tos', v.view)
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_show_confirm_otp', v.view)
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+
+    async def test_2fa_haveseed_disable2FA(self):
+        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
+        w = self.wizard_for(name='test_2fa_wallet', wallet_type='2fa')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('trustedcoin_start', v.view)
+
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_choose_seed', v.view)
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_have_seed', v.view)
+        d.update({
+            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
+            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        d.update({'trustedcoin_keepordisable': 'disable'})
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
 
