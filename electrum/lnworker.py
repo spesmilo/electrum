@@ -1525,6 +1525,7 @@ class LNWallet(LNWorker):
             attempts: int = None,  # used only in unit tests
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
+            budget: Optional[PaymentFeeBudget] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
         bolt11 = invoice.lightning_invoice
         lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
@@ -1547,7 +1548,8 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
         self.set_invoice_status(key, PR_INFLIGHT)
-        budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
+        if budget is None:
+            budget = PaymentFeeBudget.default(invoice_amount_msat=amount_to_pay, config=self.config)
         if attempts is None and self.uses_trampoline():
             # we don't expect lots of failed htlcs with trampoline, so we can fail sooner
             attempts = 30
