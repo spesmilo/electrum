@@ -88,17 +88,19 @@ public class SimpleScannerActivity extends Activity {
     }
 
     private void startCamera() {
-        mScannerView = new BarcodeScannerView(this);
-        mScannerView.setCropRatio(0.75f); // Set crop ratio to 75% (this defines the square area shown in the scanner view)
-        // by default only Format.QR_CODE is set
-        ViewGroup contentFrame = (ViewGroup) findViewById(R.id.content_frame);
-        contentFrame.addView(mScannerView);
-        mScannerView.setOnBarcodeListener(result -> {
-            // Handle the scan result
-            this.setResultAndClose(result.getText());
-            // Return false to stop scanning after first result
-            return false;
-        });
+        if (mScannerView == null) {
+            mScannerView = new BarcodeScannerView(this);
+            mScannerView.setCropRatio(0.75f); // Set crop ratio to 75% (this defines the square area shown in the scanner view)
+            // by default only Format.QR_CODE is set
+            ViewGroup contentFrame = (ViewGroup) findViewById(R.id.content_frame);
+            contentFrame.addView(mScannerView);
+            mScannerView.setOnBarcodeListener(result -> {
+                // Handle the scan result
+                this.setResultAndClose(result.getText());
+                // Return false to stop scanning after first result
+                return false;
+            });
+        }
         mScannerView.openAsync();  // Start camera on resume
     }
 
