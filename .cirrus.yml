@@ -112,7 +112,7 @@ task:
     - python3 -m pip install --user --upgrade pip
     # install electrum
     - export ELECTRUM_ECC_DONT_COMPILE=1  # we build manually to make caching it easier
-    - python3 -m pip install .[tests]
+    - python3 -m pip install .[tests] --ignore-installed  # ignore installed system installed attrs
     # install e-x some commits after 1.18.0 tag
     - python3 -m pip install git+https://github.com/spesmilo/electrumx.git@0b260d4345242cc41e316e97d7de10ae472fd172
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
@@ -139,6 +139,7 @@ task:
   env:
     LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
+    PIP_BREAK_SYSTEM_PACKAGES: 1
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
   depends_on:
