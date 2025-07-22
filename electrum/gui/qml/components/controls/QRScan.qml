@@ -10,14 +10,12 @@ Item {
 
     property bool active: false
     property string url
-    property string scanData
     property string hint
 
-    signal found
+    signal foundText(data: string)
 
     function restart() {
         console.log('qrscan.restart')
-        scanData = ''
         qr.reset()
         start()
     }
@@ -153,8 +151,7 @@ Item {
         function onDataChanged() {
             console.log('QR DATA: ' + qr.data)
             scanner.active = false
-            scanner.scanData = qr.data
-            scanner.found()
+            scanner.foundText(qr.data)
         }
     }
 

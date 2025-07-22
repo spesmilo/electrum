@@ -91,11 +91,11 @@ ElDialog {
                                     ? qsTr('Scan another address')
                                     : qsTr('Scan another private key')
                             })
-                            dialog.onFound.connect(function() {
-                                if (verify(dialog.scanData)) {
+                            dialog.onFoundText.connect(function(data) {
+                                if (verify(data)) {
                                     if (import_ta.text != '')
                                         import_ta.text = import_ta.text + ',\n'
-                                    import_ta.text = import_ta.text + dialog.scanData
+                                    import_ta.text = import_ta.text + data
                                 }
                                 dialog.close()
                             })
