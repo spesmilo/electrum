@@ -502,7 +502,7 @@ class Commands(Logger):
                 {"address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd", "value_sats": 990000}
             ]
         }
-        :arg:json:jsontx:Transaction in json
+        arg:json:jsontx:Transaction in json
         """
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
@@ -2338,7 +2338,7 @@ def get_parser():
             description=cmd.description,
             help=cmd.short_description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="Run 'electrum -h to see the list of global options",
+            epilog="Run 'electrum -h' to see the list of global options",
         )
         for optname, default in zip(cmd.options, cmd.defaults):
             if optname in ['wallet_path', 'wallet', 'plugin']:
