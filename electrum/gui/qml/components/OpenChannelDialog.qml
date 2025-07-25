@@ -124,9 +124,9 @@ ElDialog {
                             var dialog = app.scanDialog.createObject(app, {
                                 hint: qsTr('Scan a node-id or a connect string')
                             })
-                            dialog.onFound.connect(function() {
-                                if (channelopener.validateConnectString(dialog.scanData)) {
-                                    channelopener.connectStr = dialog.scanData
+                            dialog.onFoundText.connect(function(data) {
+                                if (channelopener.validateConnectString(data)) {
+                                    channelopener.connectStr = data
                                     node.text = channelopener.connectStr
                                 } else {
                                     var errdialog = app.messageDialog.createObject(app, {

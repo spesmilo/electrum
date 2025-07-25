@@ -2,17 +2,19 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import org.electrum
+
 import "controls"
 
 // currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: scanDialog
 
-    property string scanData
     property string error
     property string hint
 
-    signal found
+    signal foundText(data: string)
+    signal foundBinary(data: Bytes)
 
     width: parent.width
     height: parent.height
@@ -35,9 +37,8 @@ ElDialog {
             Layout.fillWidth: true
             Layout.fillHeight: true
             hint: scanDialog.hint
-            onFound: {
-                scanDialog.scanData = scanData
-                scanDialog.found()
+            onFoundText: (data) => {
+                scanDialog.foundText(data)
             }
         }
 

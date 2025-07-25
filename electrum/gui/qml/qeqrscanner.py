@@ -3,8 +3,8 @@ import os
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Qt
 from PyQt6.QtGui import QGuiApplication
 
-from electrum.util import send_exception_to_crash_reporter, UserFacingException
-from electrum.simple_config import SimpleConfig
+from electrum.gui.qml.qetypes import QEBytes
+from electrum.util import send_exception_to_crash_reporter
 from electrum.logging import get_logger
 from electrum.i18n import _
 
@@ -21,14 +21,14 @@ if 'ANDROID_DATA' in os.environ:
 class QEQRScanner(QObject):
     _logger = get_logger(__name__)
 
-    found = pyqtSignal()
+    foundText = pyqtSignal(str)
+    foundBinary = pyqtSignal(QEBytes)
 
     finished = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._hint = _("Scan a QR code.")
-        self._scan_data = ""  # decoded qr code result
         self.finished.connect(self._unbind, Qt.ConnectionType.QueuedConnection)
 
         self.destroyed.connect(lambda: self.on_destroy())
@@ -43,14 +43,6 @@ class QEQRScanner(QObject):
     @hint.setter
     def hint(self, v: str):
         self._hint = v
-
-    @pyqtProperty(str)
-    def scanData(self):
-        return self._scan_data
-
-    @scanData.setter
-    def scanData(self, v: str):
-        self._scan_data = v
 
     @pyqtSlot()
     def open(self):
@@ -67,9 +59,11 @@ class QEQRScanner(QObject):
     def on_qr_activity_result(self, requestCode, resultCode, intent):
         try:
             if resultCode == -1:  # RESULT_OK:
-                contents = intent.getStringExtra(jString("text"))
-                self.scanData = contents
-                self.found.emit()
+                if (contents := intent.getStringExtra(jString("text"))) is not None:
+                    self.foundText.emit(contents)
+                if (contents := intent.getByteArrayExtra(jString("binary"))) is not None:
+                    self._binary_content = QEBytes(bytes(contents.tolist()))
+                    self.foundBinary.emit(self._binary_content)
         except Exception as e:  # exc would otherwise get lost
             send_exception_to_crash_reporter(e)
         finally:
@@ -82,23 +76,6 @@ class QEQRScanner(QObject):
 
     def _scan_qr_non_android(self):
         data = QGuiApplication.clipboard().text()
-        self.scanData = data
-        self.found.emit()
+        self.foundText.emit(data)
         self.finished.emit()
         return
-        # from electrum import qrscanner
-        # from .qeapp import ElectrumQmlApplication
-        # daemon = ElectrumQmlApplication._daemon
-        # config = daemon.config  # type: SimpleConfig
-        # try:
-        #     video_dev = config.get_video_device()
-        #     data = qrscanner.scan_barcode(video_dev)
-        #     if data is not None:
-        #         self.scanData = data
-        #         self.found.emit()
-        # except UserFacingException as e:
-        #     self._logger.warning(f'camera error: {e!r}')
-        #     #self.show_error(e)
-        # except Exception as e:
-        #     self._logger.exception('camera error')
-        #     #self.show_error(repr(e))

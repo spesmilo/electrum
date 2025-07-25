@@ -117,9 +117,9 @@ ElDialog {
                                 var dialog = app.scanDialog.createObject(app, {
                                     hint: qsTr('Scan a private key')
                                 })
-                                dialog.onFound.connect(function() {
-                                    if (verifyPrivateKey(dialog.scanData))
-                                        addPrivateKey(dialog.scanData)
+                                dialog.onFoundText.connect(function(data) {
+                                    if (verifyPrivateKey(data))
+                                        addPrivateKey(data)
                                     dialog.close()
                                 })
                                 dialog.open()

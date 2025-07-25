@@ -166,9 +166,9 @@ WizardComponent {
                                 ? qsTr('Scan a cosigner master public key')
                                 : qsTr('Scan a master key')
                         })
-                        dialog.onFound.connect(function() {
-                            if (verifyMasterKey(dialog.scanData))
-                                masterkey_ta.text = dialog.scanData
+                        dialog.onFoundText.connect(function(data) {
+                            if (verifyMasterKey(data))
+                                masterkey_ta.text = data
                             else
                                 masterkey_ta.text = ''
                             dialog.close()

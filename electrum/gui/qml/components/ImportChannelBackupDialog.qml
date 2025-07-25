@@ -62,8 +62,8 @@ ElDialog {
                         var dialog = app.scanDialog.createObject(app, {
                             hint:  qsTr('Scan a channel backup')
                         })
-                        dialog.onFound.connect(function() {
-                            channelbackup_ta.text = dialog.scanData
+                        dialog.onFoundText.connect(function(data) {
+                            channelbackup_ta.text = data
                             dialog.close()
                         })
                         dialog.open()

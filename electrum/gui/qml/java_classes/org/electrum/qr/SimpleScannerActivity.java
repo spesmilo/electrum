@@ -21,6 +21,8 @@ import androidx.core.app.ActivityCompat;
 import java.util.Arrays;
 
 import de.markusfisch.android.barcodescannerview.widget.BarcodeScannerView;
+import de.markusfisch.android.zxingcpp.ZxingCpp.Result;
+import de.markusfisch.android.zxingcpp.ZxingCpp.ContentType;
 
 
 import org.electrum.electrum.res.R; // package set in build.gradle
@@ -29,7 +31,7 @@ public class SimpleScannerActivity extends Activity {
     private static final int MY_PERMISSIONS_CAMERA = 1002;
 
     private BarcodeScannerView mScannerView = null;
-    final String TAG = "org.electrum.SimpleScannerActivity";
+    final String TAG = "org.electrum.qr.SimpleScannerActivity";
 
     private boolean mAlreadyRequestedPermissions = false;
 
@@ -60,7 +62,7 @@ public class SimpleScannerActivity extends Activity {
                         Toast.makeText(SimpleScannerActivity.this, "Clipboard contents too large.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    SimpleScannerActivity.this.setResultAndClose(clipboardText);
+                    SimpleScannerActivity.this.setResultAndClose(null, clipboardText);
                 } else {
                     Toast.makeText(SimpleScannerActivity.this, "Clipboard is empty.", Toast.LENGTH_SHORT).show();
                 }
@@ -96,7 +98,7 @@ public class SimpleScannerActivity extends Activity {
             contentFrame.addView(mScannerView);
             mScannerView.setOnBarcodeListener(result -> {
                 // Handle the scan result
-                this.setResultAndClose(result.getText());
+                this.setResultAndClose(result, null);
                 // Return false to stop scanning after first result
                 return false;
             });
@@ -104,9 +106,22 @@ public class SimpleScannerActivity extends Activity {
         mScannerView.openAsync();  // Start camera on resume
     }
 
-    private void setResultAndClose(String resultText) {
+    private void setResultAndClose(Result scanResult, String textOnly) {
         Intent resultIntent = new Intent();
-        resultIntent.putExtra("text", resultText);
+        if (textOnly != null) {
+            Log.v(TAG, "clipboard contentType TEXT");
+            resultIntent.putExtra("text", textOnly);
+        } else if (scanResult != null) {
+            if (scanResult.getContentType() == ContentType.TEXT) {
+                Log.v(TAG, "scanResult contentType TEXT");
+                resultIntent.putExtra("text", scanResult.getText());
+            } else if (scanResult.getContentType() == ContentType.BINARY) {
+                Log.v(TAG, "scanResult contentType BINARY");
+                resultIntent.putExtra("binary", scanResult.getRawBytes());
+            } else {
+                Log.v(TAG, "scanresult contenttype unknown");
+            }
+        }
         setResult(Activity.RESULT_OK, resultIntent);
         this.finish();
     }
