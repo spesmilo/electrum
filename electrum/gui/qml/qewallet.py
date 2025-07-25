@@ -301,7 +301,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                     _("New transaction: {}").format(config.format_amount_and_units(tx_wallet_delta.delta)))
 
     def update_sync_progress(self):
-        if self.wallet.network.is_connected():
+        if self.wallet.network and self.wallet.network.is_connected():
             num_sent, num_answered = self.wallet.adb.get_history_sync_state_details()
             self.synchronizingProgress = \
                 ("{} ({}/{})".format(_("Synchronizing..."), num_answered, num_sent))
