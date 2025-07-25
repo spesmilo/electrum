@@ -2337,6 +2337,7 @@ def get_parser():
             cmdname,
             description=cmd.description,
             help=cmd.short_description,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="Run 'electrum -h to see the list of global options",
         )
         for optname, default in zip(cmd.options, cmd.defaults):
