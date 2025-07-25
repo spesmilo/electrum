@@ -1948,23 +1948,63 @@ class PaymentFeeBudget(NamedTuple):
 
     @classmethod
     def default(cls, *, invoice_amount_msat: int, config: 'SimpleConfig') -> 'PaymentFeeBudget':
-        millionths_orig = config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS
-        millionths = min(max(0, millionths_orig), 250_000)  # clamp into [0, 25%]
-        cutoff_orig = config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT
-        cutoff = min(max(0, cutoff_orig), 10_000_000)  # clamp into [0, 10k sat]
-        if millionths != millionths_orig:
-            _logger.warning(
-                f"PaymentFeeBudget. found insane fee millionths in config. "
-                f"clamped: {millionths_orig}->{millionths}")
-        if cutoff != cutoff_orig:
-            _logger.warning(
-                f"PaymentFeeBudget. found insane fee cutoff in config. "
-                f"clamped: {cutoff_orig}->{cutoff}")
-        # for small payments, fees <= constant cutoff are fine
-        # for large payments, the max fee is percentage-based
-        fee_msat = invoice_amount_msat * millionths // 1_000_000
-        fee_msat = max(fee_msat, cutoff)
+        fee_msat = PaymentFeeBudget._calculate_fee_msat(
+            invoice_amount_msat=invoice_amount_msat,
+            config=config,
+        )
         return PaymentFeeBudget(
             fee_msat=fee_msat,
             cltv=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
         )
+
+    @classmethod
+    def custom(
+        cls,
+        *,
+        invoice_amount_msat: int,
+        config: 'SimpleConfig',
+        fee_millionths: int = None,
+        fee_cutoff_msat: int = None,
+        max_cltv_delta: int = None,
+        ):
+        fee_msat = PaymentFeeBudget._calculate_fee_msat(
+            invoice_amount_msat=invoice_amount_msat,
+            config=config,
+            fee_millionths=fee_millionths,
+            fee_cutoff_msat=fee_cutoff_msat,
+        )
+        if max_cltv_delta is None:
+            max_cltv_delta = NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE
+        assert max_cltv_delta > 0, max_cltv_delta
+        return PaymentFeeBudget(
+            fee_msat=fee_msat,
+            cltv=max_cltv_delta,
+        )
+
+    @classmethod
+    def _calculate_fee_msat(cls,
+        *,
+        invoice_amount_msat: int,
+        config: 'SimpleConfig',
+        fee_millionths: int = None,
+        fee_cutoff_msat: int = None,
+    ) -> int:
+        if fee_millionths is None:
+            fee_millionths = config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS
+        if fee_cutoff_msat is None:
+            fee_cutoff_msat = config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT
+        millionths_clamped = min(max(0, fee_millionths), 250_000)  # clamp into [0, 25%]
+        cutoff_clamped = min(max(0, fee_cutoff_msat), 10_000_000)  # clamp into [0, 10k sat]
+        if fee_millionths != millionths_clamped:
+            _logger.warning(
+                f"PaymentFeeBudget. found insane fee millionths in config. "
+                f"clamped: {fee_millionths}->{millionths_clamped}")
+        if fee_cutoff_msat != cutoff_clamped:
+            _logger.warning(
+                f"PaymentFeeBudget. found insane fee cutoff in config. "
+                f"clamped: {fee_cutoff_msat}->{cutoff_clamped}")
+        # for small payments, fees <= constant cutoff are fine
+        # for large payments, the max fee is percentage-based
+        fee_msat = invoice_amount_msat * millionths_clamped // 1_000_000
+        fee_msat = max(fee_msat, cutoff_clamped)
+        return fee_msat
