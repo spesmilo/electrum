@@ -1206,7 +1206,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             on_closed=on_closed,
             show_sign_button=show_sign_button,
             show_broadcast_button=show_broadcast_button,
-            show_combine_menu=show_combine_menu,
         )
 
     def show_lightning_transaction(self, tx_item):

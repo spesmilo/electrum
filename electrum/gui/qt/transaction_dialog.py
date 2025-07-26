@@ -450,7 +450,6 @@ def show_transaction(
     on_closed: Callable[[Optional[Transaction]], None] = None,
     show_sign_button: bool = True,
     show_broadcast_button: bool = True,
-    show_combine_menu: bool = True,
 ):
     try:
         d = TxDialog(
@@ -466,8 +465,6 @@ def show_transaction(
             d.sign_button.setVisible(False)
         if not show_broadcast_button:
             d.broadcast_button.setVisible(False)
-        if not show_combine_menu:
-            d.partial_tx_actions_button.setVisible(False)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -884,7 +881,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
         self.sign_button.setEnabled(can_sign and not self.io_widget.sighash_danger.needs_reject())
-        if sh_danger_msg := self.io_widget.sighash_danger.get_long_message():
+        if self.tx.contains_silent_payment():
+            self.sign_button.setToolTip(_("Transactions containing silent payments are signed automatically"))
+        elif sh_danger_msg := self.io_widget.sighash_danger.get_long_message(): # sp and sh_danger can't co-exist here
             self.sign_button.setToolTip(sh_danger_msg)
         if tx_details.txid:
             self.tx_hash_e.setText(tx_details.txid)
@@ -1007,7 +1006,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.ln_amount_label.setText(ln_amount_str)
         else:
             self.ln_amount_label.hide()
-        show_psbt_only_widgets = isinstance(self.tx, PartialTransaction)
+        show_psbt_only_widgets = isinstance(self.tx, PartialTransaction) and not self.tx.contains_silent_payment()
         for widget in self.psbt_only_widgets:
             if isinstance(widget, QMenu):
                 widget.menuAction().setVisible(show_psbt_only_widgets)
@@ -1015,6 +1014,10 @@ class TxDialog(QDialog, MessageBoxMixin):
                 widget.setVisible(show_psbt_only_widgets)
         if tx_details.is_lightning_funding_tx:
             self._ptx_join_txs_action.setEnabled(False)  # would change txid
+
+        # disable sharing for unsigned silent-payments
+        if self.tx.contains_silent_payment():
+            self.export_actions_button.setVisible(self.tx.is_complete())
 
         self.save_button.setEnabled(tx_details.can_save_as_local)
         if tx_details.can_save_as_local:

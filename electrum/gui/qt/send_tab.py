@@ -366,12 +366,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             if tx.contains_silent_payment():
                 def sign_done(success):
                     if success:
-                        self.window.show_transaction(
-                            tx,
-                            show_sign_button=False,
-                            show_combine_menu=False,
-                            invoice=invoice
-                        )
+                        self.window.show_transaction(tx, invoice=invoice)
                 self.window.sign_tx_with_password(tx, callback=sign_done, password=password)
             else:
                 self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
