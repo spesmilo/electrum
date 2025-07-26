@@ -2176,7 +2176,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 tr_spk = spks_by_sp_addr.get(sp_output.sp_addr).pop()
                 sp_output.scriptpubkey = tr_spk
             assert all(not lst for lst in spks_by_sp_addr.values()), "Found remaining sp_spks, but no more outputs left"
+
             tx.set_rbf(False) # Transaction should be final
+            tx.bind_silent_payment_integrity_hash()
 
         return tx
 
@@ -2818,9 +2820,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if sh_danger.needs_confirm() and not ignore_warnings:
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
 
-        # transactions containing silent payments should have 'safe' sighash only
-        if tx.contains_silent_payment() and sh_danger.risk_level != TxSighashRiskLevel.SAFE:
-            raise TransactionDangerousException('Not signing transaction:\n'
+        if tx.contains_silent_payment():
+            # raise if sp_elements (especially inputs) have been tampered with since tx-creation
+            tx.check_silent_payment_integrity()
+            # transactions containing silent payments should have 'safe' sighash only
+            if sh_danger.risk_level != TxSighashRiskLevel.SAFE:
+                raise TransactionDangerousException('Not signing transaction:\n'
                                                 'Transactions containing silent payments must use SIGHASH.ALL')
 
         # find out if we are replacing a txbatcher transaction

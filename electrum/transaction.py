@@ -1510,6 +1510,29 @@ class Transaction:
             assert self.inputs()[idx].prevout == prevout
         return idx
 
+    def get_silent_payment_integrity_hash(self) -> bytes:
+        sp_outputs = [o for o in self.outputs() if o.is_silent_payment()]
+        sorted_inputs = sorted(self.inputs(), key=lambda i: i.prevout.serialize_to_network())
+        sorted_outputs = sorted(sp_outputs, key=lambda o: o.serialize_to_network())
+
+        preimage = b''.join(i.prevout.serialize_to_network() for i in sorted_inputs)
+        preimage += b''.join(o.serialize_to_network() for o in sorted_outputs)
+
+        return sha256(preimage)
+
+    def bind_silent_payment_integrity_hash(self) -> None:
+        """Bind integrity hash of inputs and SP outputs (only once, else raise)."""
+        if hasattr(self, '_silent_payment_integrity_hash'):
+            raise Exception("Silent payment integrity hash already bound to this transaction")
+        self._silent_payment_integrity_hash = self.get_silent_payment_integrity_hash()
+
+    def check_silent_payment_integrity(self) -> None:
+        """Verify transaction matches bound silent payment hash. Raises if called before binding"""
+        if not hasattr(self, '_silent_payment_integrity_hash'):
+            raise Exception("Missing silent payment integrity hash")
+        if self._silent_payment_integrity_hash != self.get_silent_payment_integrity_hash():
+            raise Exception("Silent payment integrity check failed")
+
 
 def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     """Sanitizes tx-describing input (hex/base43/base64) into
