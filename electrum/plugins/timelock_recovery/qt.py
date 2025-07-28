@@ -1045,7 +1045,7 @@ class Plugin(TimelockRecoveryPlugin):
             "The time that takes a transaction to confirm depends on the fee that it pays, compared to the fee that other "
             "pending transactions are willing to pay. At the time this document was created, it was hard to predict what a "
             "reasonable fee would be today. If the transaction is not confirmed after 24 hours, you may try paying to a "
-            "Transaction Acceleration service, such as the one offered by: https://mempool.space.com ."
+            "Transaction Acceleration service, such as the one offered by: https://mempool.space ."
         )
         if len(context.outputs) > 0:
             explanation_text += (
