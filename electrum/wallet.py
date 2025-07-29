@@ -1911,6 +1911,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_low_reserve(self) -> bool:
         return self.should_keep_reserve_utxo([], [], False)
 
+    def tx_keeps_ln_utxo_reserve(self, tx, *, gui_spend_max: bool) -> Optional[int]:
+        if reserve_output_amount := sum(txo.value for txo in tx.outputs() if txo.is_utxo_reserve):
+            # tx has a reserve change output
+            return reserve_output_amount
+        if gui_spend_max:  # user tried to spend max amount
+            coins_in_wallet = self.get_spendable_coins(nonlocal_only=False, confirmed_only=False)
+            amount_in_wallet = sum(c.value_sats() for c in coins_in_wallet)
+            tx_spend_amount = tx.output_value() + tx.get_fee()
+            if amount_in_wallet - tx_spend_amount == self.config.LN_UTXO_RESERVE:
+                # tx keeps exactly LN_UTXO_RESERVE amount sats in the wallet
+                return self.config.LN_UTXO_RESERVE
+        return None
+
     @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,

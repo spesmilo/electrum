@@ -434,7 +434,10 @@ class QETxFinalizer(TxFeeSlider):
         self.update_fee_warning_from_tx(tx=tx, invoice_amt=amount)
 
         if self._amount.isMax and not self.warning:
-            if reserve_sats := sum(txo.value for txo in tx.outputs() if txo.is_utxo_reserve):
+            if reserve_sats := self._wallet.wallet.tx_keeps_ln_utxo_reserve(
+                tx,
+                gui_spend_max=self._amount.isMax
+            ):
                 reserve_str = self._config.format_amount_and_units(reserve_sats)
                 self.warning = ' '.join([
                     _('Warning') + ':',
