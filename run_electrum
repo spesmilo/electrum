@@ -391,12 +391,7 @@ def main():
             SimpleConfig.GUI_NAME.key(): 'qml',
             SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
         }
-        if util.get_android_package_name() == "org.electrum.testnet.electrum":
-            # ~hack for easier testnet builds. pkgname subject to change.
-            config_options['testnet'] = True
-        elif util.get_android_package_name() == "org.electrum.regtest.electrum":
-            # ~hack for easier regtest builds. pkgname subject to change.
-            config_options['regtest'] = True
+        SimpleConfig.set_chain_config_opt_based_on_android_packagename(config_options)
     else:
         # save sys args for next parser
         saved_sys_argv = sys.argv[:]
