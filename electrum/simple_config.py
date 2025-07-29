@@ -239,6 +239,14 @@ class SimpleConfig(Logger):
         make_dir(path, allow_symlink=False)
         return path
 
+    @classmethod
+    def set_chain_config_opt_based_on_android_packagename(cls, config_options: dict[str, Any]) -> None:
+        # ~hack for easier testnet builds. pkgname subject to change.
+        android_pkg_name = util.get_android_package_name()
+        for chain in constants.NETS_LIST:
+            if android_pkg_name == f"org.electrum.{chain.cli_flag()}.electrum":
+                config_options[chain.cli_flag()] = True
+
     def get_selected_chain(self) -> Type[constants.AbstractNet]:
         selected_chains = [
             chain for chain in constants.NETS_LIST
