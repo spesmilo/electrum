@@ -1882,8 +1882,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def should_keep_reserve_utxo(
             self,
-            tx_inputs: List[PartialTxInput],
-            tx_outputs: List[PartialTxOutput],
+            tx_inputs: Sequence[PartialTxInput],
+            tx_outputs: Sequence[PartialTxOutput],
             is_anchor_channel_opening: bool,
     ) -> bool:
         channels_need_reserve = self.lnworker and self.lnworker.has_anchor_channels()
@@ -2049,18 +2049,32 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
             fee = fee_estimator(tx.estimated_size())
 
-            input_amount = sum(c.value_sats() for c in tx_inputs)
+            input_amount = sum(c.value_sats() for c in tx_inputs)  # may change if reserve is needed
             allocated_amount = sum(o.value for o in outputs if not parse_max_spend(o.value))
             to_distribute = input_amount - allocated_amount
             distribute_amount(to_distribute - fee)
 
             if self.should_keep_reserve_utxo(tx_inputs, outputs, is_anchor_channel_opening):
-                self.logger.info(f'Adding change output to meet utxo reserve requirements')
-                change_addr = self.get_change_addresses_for_new_transaction(change_addr)[0]
-                change = PartialTxOutput.from_address_and_value(change_addr, self.config.LN_UTXO_RESERVE)
-                change.is_utxo_reserve = True  # for GUI
-                outputs.append(change)
-                to_distribute -= change.value
+                # check if any input of the tx is == LN_UTXO_RESERVE, then we can just remove the input
+                reserve_sized_input = None
+                for tx_input in tx_inputs:
+                    if tx_input.value_sats() and tx_input.value_sats() == self.config.LN_UTXO_RESERVE:
+                        reserve_sized_input = tx_input
+                        break
+
+                if reserve_sized_input:
+                    self.logger.debug(f'Removing LN_UTXO_RESERVE sized input to keep utxo reserve')
+                    tx_inputs.remove(reserve_sized_input)
+                    to_distribute -= reserve_sized_input.value_sats()
+                else:
+                    self.logger.info(f'Adding change output to meet utxo reserve requirements')
+                    change_addr = self.get_change_addresses_for_new_transaction(change_addr)[0]
+                    change = PartialTxOutput.from_address_and_value(change_addr, self.config.LN_UTXO_RESERVE)
+                    change.is_utxo_reserve = True  # for GUI
+                    outputs.append(change)
+                    to_distribute -= change.value
+
+                assert not self.should_keep_reserve_utxo(tx_inputs, outputs, is_anchor_channel_opening)
                 tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
                 fee = fee_estimator(tx.estimated_size())
                 distribute_amount(to_distribute - fee)
