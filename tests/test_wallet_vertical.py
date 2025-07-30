@@ -2060,9 +2060,10 @@ class TestWalletSending(ElectrumTestCase):
         fee_sats = 1000
         outputs = [PartialTxOutput.from_address_and_value(outgoing_address, balance - fee_sats)]
         def make_tx(b):
+            wallet.lnworker = mock.Mock()
+            wallet.lnworker.has_anchor_channels.return_value = b
             return wallet.make_unsigned_transaction(
                 outputs = outputs,
-                is_anchor_channel_opening = b,
                 fee_policy = FixedFeePolicy(fee_sats),
             )
         tx = make_tx(False)
@@ -2075,15 +2076,54 @@ class TestWalletSending(ElectrumTestCase):
         wallet, outgoing_address, to_self_address = self._create_cause_carbon_wallet()
         def make_tx(address):
             outputs = [PartialTxOutput.from_address_and_value(address, '!')]
+            wallet.lnworker = mock.Mock()
+            wallet.lnworker.has_anchor_channels.return_value = True
             return wallet.make_unsigned_transaction(
                 outputs = outputs,
-                is_anchor_channel_opening = True,
                 fee_policy = FixedFeePolicy(100),
             )
         tx = make_tx(outgoing_address)
         self.assertEqual(2, len(tx.outputs()))
         tx = make_tx(to_self_address)
         self.assertEqual(1, len(tx.outputs()))
+
+    async def test_ln_reserve_keep_existing_reserve(self):
+        """
+        tests if make_unsigned_transaction keeps the existing reserve utxo
+        instead of creating a new one
+        """
+        wallet1, outgoing_address1, to_self_address1 = self._create_cause_carbon_wallet()
+        wallet2 = self.create_standard_wallet_from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song')
+        wallet2_addr = wallet2.get_receiving_addresses()[0]
+        def make_tx(address, wallet):
+            outputs = [PartialTxOutput.from_address_and_value(address, '!')]
+            wallet.lnworker = mock.Mock()
+            wallet.lnworker.has_anchor_channels.return_value = True
+            return wallet.make_unsigned_transaction(
+                outputs = outputs,
+                fee_policy = FixedFeePolicy(100),
+            )
+        # send ! from wallet1 to outgoing address so wallet1 has exactly one reserve utxo
+        tx = make_tx(wallet2_addr, wallet1)
+        self.assertEqual(2, len(tx.outputs()))
+        wallet1.sign_transaction(tx, password=None)
+        wallet1.adb.receive_tx_callback(tx, tx_height=1000000)
+        wallet2.adb.receive_tx_callback(tx, tx_height=1000000)
+        assert sum(utxo.value_sats() for utxo in wallet1.get_spendable_coins()) == self.config.LN_UTXO_RESERVE
+
+        # send funds back to wallet1, so wallet1 is able to do a max spend again
+        tx = make_tx(to_self_address1, wallet2)
+        wallet2.sign_transaction(tx, password=None)
+        wallet1.adb.receive_tx_callback(tx, tx_height=1000100)
+
+        # now there is a reserve UTXO of config.LN_UTXO_RESERVE sat in wallet1, so wallet1 should
+        # not add it as input to the tx
+        assert len(wallet1.get_spendable_coins()) > 1, f"{len(wallet1.get_spendable_coins())=}"
+        tx = make_tx(outgoing_address1, wallet1)
+        self.assertEqual(1, len(tx.outputs()))
+        wallet1.adb.receive_tx_callback(tx, tx_height=1000200)
+        assert len(wallet1.get_spendable_coins()) == 1, f"{len(wallet1.get_spendable_coins())=}"
+        assert wallet1.get_spendable_coins()[0].value_sats() == self.config.LN_UTXO_RESERVE
 
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self):
         """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
