@@ -102,7 +102,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             header = blockchain.read_header(block_height)
             if header is None:
                 if block_height <= constants.net.max_checkpoint():
-                    await self.taskgroup.spawn(self.interface.request_chunk(block_height, can_return_early=True))
+                    await self.taskgroup.spawn(self.interface.request_chunk_below_max_checkpoint(height=block_height))
                 continue
             self.started_verifying_channel.add(short_channel_id)
             await self.taskgroup.spawn(self.verify_channel(block_height, short_channel_id))

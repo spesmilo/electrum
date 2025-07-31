@@ -1313,19 +1313,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def request_chunk(
-        self,
-        height: int,
-        *,
-        tip: Optional[int] = None,
-        can_return_early: bool = False,
-    ) -> Optional[Tuple[bool, int]]:
-        if self.interface is None:  # handled by best_effort_reliable
-            raise RequestTimedOut()
-        return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
-
-    @best_effort_reliable
-    @catch_server_exceptions
     async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
