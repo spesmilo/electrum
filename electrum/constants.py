@@ -251,6 +251,7 @@ class BitcoinSignet(BitcoinTestnet):
 
 
 NETS_LIST = tuple(all_subclasses(AbstractNet))  # type: Sequence[Type[AbstractNet]]
+NETS_LIST = tuple(sorted(NETS_LIST, key=lambda x: x.NET_NAME))
 
 assert len(NETS_LIST) == len(set([chain.NET_NAME for chain in NETS_LIST])), "NET_NAME must be unique for each concrete AbstractNet"
 assert len(NETS_LIST) == len(set([chain.datadir_subdir() for chain in NETS_LIST])), "datadir must be unique for each concrete AbstractNet"
