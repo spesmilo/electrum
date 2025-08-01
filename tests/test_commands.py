@@ -476,6 +476,7 @@ class TestCommandsTestnet(ElectrumTestCase):
                 preimage=preimage,
                 wallet=wallet,
             )
+        with self.assertRaises(AssertionError):
             # cancelling an unknown invoice should raise
             await cmds.cancel_hold_invoice(
                 payment_hash=sha256(urandom(32)).hex(),
