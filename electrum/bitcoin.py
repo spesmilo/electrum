@@ -347,10 +347,7 @@ DUST_LIMIT_P2WPKH = 294
 
 def dust_threshold(network: 'Network' = None) -> int:
     """Returns the dust limit in satoshis."""
-    # Change <= dust threshold is added to the tx fee
-    dust_lim = 182 * 3 * relayfee(network)  # in msat
-    # convert to sat, but round up:
-    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
+    return DUST_LIMIT_P2PKH
 
 
 def hash_encode(x: bytes) -> str:
