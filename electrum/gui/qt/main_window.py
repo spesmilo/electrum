@@ -2874,8 +2874,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def get_child_fee_from_total_feerate(fee_per_kb: Optional[int]) -> Optional[int]:
             if fee_per_kb is None:
                 return None
-            fee = fee_per_kb * total_size / 1000 - parent_fee
-            fee = round(fee)
+            package_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=total_size)
+            fee = package_fee - parent_fee
             fee = min(max_fee, fee)
             fee = max(total_size, fee)  # pay at least 1 sat/byte for combined size
             return fee

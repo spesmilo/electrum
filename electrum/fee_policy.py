@@ -2,6 +2,7 @@ from typing import Optional, Sequence, Tuple, Union, TYPE_CHECKING, Dict
 from decimal import Decimal
 from numbers import Real
 from enum import IntEnum
+import math
 
 from .i18n import _
 from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis
@@ -257,11 +258,15 @@ class FeePolicy(Logger):
             else:
                 raise NoDynamicFeeEstimates()
 
-        return self.estimate_fee_for_feerate(fee_per_kb, size)
+        return self.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
-                                 size: Union[int, float, Decimal]) -> int:
+    def estimate_fee_for_feerate(
+        cls,
+        *,
+        fee_per_kb: Union[int, float, Decimal],
+        size: Union[int, float, Decimal],
+    ) -> int:
         # note: 'size' is in vbytes
         size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
@@ -269,7 +274,7 @@ class FeePolicy(Logger):
         # to be consistent with what is displayed in the GUI,
         # the calculation needs to use the same precision:
         fee_per_byte = quantize_feerate(fee_per_byte)
-        return round(fee_per_byte * size)
+        return math.ceil(fee_per_byte * size)
 
 
 class FixedFeePolicy(FeePolicy):
