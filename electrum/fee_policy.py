@@ -2,6 +2,7 @@ from typing import Optional, Sequence, Tuple, Union, TYPE_CHECKING, Dict
 from decimal import Decimal
 from numbers import Real
 from enum import IntEnum
+import math
 
 from .i18n import _
 from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis
@@ -24,8 +25,10 @@ FEERATE_MAX_DYNAMIC = 1500000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 150000
 FEERATE_REGTEST_STATIC_FEE = FEERATE_FALLBACK_STATIC_FEE  # hardcoded fee used on regtest
-FEERATE_DEFAULT_RELAY = 1000
+FEERATE_MIN_RELAY = 100
+FEERATE_DEFAULT_RELAY = 1000  # conservative "min relay fee"
 FEERATE_MAX_RELAY = 50000
+assert FEERATE_MIN_RELAY <= FEERATE_DEFAULT_RELAY <= FEERATE_MAX_RELAY
 
 # warn user if fee/amount for on-chain tx is higher than this
 FEE_RATIO_HIGH_WARNING = 0.05
@@ -257,11 +260,15 @@ class FeePolicy(Logger):
             else:
                 raise NoDynamicFeeEstimates()
 
-        return self.estimate_fee_for_feerate(fee_per_kb, size)
+        return self.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
-                                 size: Union[int, float, Decimal]) -> int:
+    def estimate_fee_for_feerate(
+        cls,
+        *,
+        fee_per_kb: Union[int, float, Decimal],
+        size: Union[int, float, Decimal],
+    ) -> int:
         # note: 'size' is in vbytes
         size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
@@ -269,7 +276,7 @@ class FeePolicy(Logger):
         # to be consistent with what is displayed in the GUI,
         # the calculation needs to use the same precision:
         fee_per_byte = quantize_feerate(fee_per_byte)
-        return round(fee_per_byte * size)
+        return math.ceil(fee_per_byte * size)
 
 
 class FixedFeePolicy(FeePolicy):
@@ -283,6 +290,8 @@ def impose_hard_limits_on_fee(func):
         if fee is None:
             return fee
         fee = min(FEERATE_MAX_DYNAMIC, fee)
+        # Clamp dynamic feerates with conservative min relay fee,
+        # to ensure txs propagate well:
         fee = max(FEERATE_DEFAULT_RELAY, fee)
         return fee
     return get_fee_within_limits
@@ -354,7 +363,7 @@ class FeeHistogram:
             slot = min(item[1], bytes_limit-bytes_current)
             bytes_current += slot
             capped_histogram.append([
-                max(FEERATE_DEFAULT_RELAY/1000, item[0]),  # clamped to [FEERATE_DEFAULT_RELAY/1000,inf[
+                max(FEERATE_MIN_RELAY/1000, item[0]),  # clamped to [FEERATE_MIN_RELAY/1000,inf[
                 slot,  # width of bucket
                 bytes_current,  # cumulative depth at far end of bucket
             ])

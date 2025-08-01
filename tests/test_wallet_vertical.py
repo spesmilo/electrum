@@ -4435,7 +4435,7 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
 
         wallet1.adb.add_transaction(tx)
         # let's see if the calculated feerate correct:
-        self.assertEqual((3, 'Local [26.3 sat/vB]'),
+        self.assertEqual((3, 'Local [26.32 sat/vB]'),
                          wallet1.get_tx_status(tx.txid(), TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)))
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
@@ -4458,7 +4458,7 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
         tx = tx_from_any("01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000")
         wallet1.adb.add_transaction(tx)
         # let's see if the calculated feerate correct:
-        self.assertEqual((3, 'Local [26.3 sat/vB]'),
+        self.assertEqual((3, 'Local [26.32 sat/vB]'),
                          wallet1.get_tx_status(tx.txid(), TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)))
 
 
