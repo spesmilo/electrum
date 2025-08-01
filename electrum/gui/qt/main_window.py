@@ -2875,10 +2875,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if fee_per_kb is None:
                 return None
             package_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=total_size)
-            fee = package_fee - parent_fee
-            fee = min(max_fee, fee)
-            fee = max(total_size, fee)  # pay at least 1 sat/byte for combined size
-            return fee
+            child_fee = package_fee - parent_fee
+            child_fee = min(max_fee, child_fee)
+            # pay at least minrelayfee for combined size:
+            min_child_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=self.wallet.relayfee(), size=total_size)
+            child_fee = max(min_child_fee, child_fee)
+            return child_fee
         fee_policy = FeePolicy(self.config.FEE_POLICY)
         suggested_feerate = fee_policy.fee_per_kb(self.network)
         fee = get_child_fee_from_total_feerate(suggested_feerate)
