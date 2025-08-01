@@ -1465,7 +1465,13 @@ class Commands(Logger):
     async def check_hold_invoice(self, payment_hash: str, wallet: Abstract_Wallet = None) -> dict:
         """
         Checks the status of a lightning hold invoice 'payment_hash'.
-        Possible states: unpaid, paid, settled, unknown (cancelled or not found)
+        Returns: {
+            "status": unpaid | paid | settled | unknown (cancelled or not found),
+            "received_amount_sat": currently received amount (pending htlcs or final after settling),
+            "invoice_amount_sat": Invoice amount, Optional (only if invoice is found),
+            "closest_htlc_expiry_height": Closest absolute expiry height of all received htlcs
+            (Note: HTLCs will get failed automatically if block_height + 144 > htlc_expiry_height)
+        }
 
         arg:str:payment_hash:Payment hash in hex of the hold invoice
         """
@@ -1473,24 +1479,28 @@ class Commands(Logger):
         info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
         is_accepted_mpp: bool = wallet.lnworker.is_accepted_mpp(bfh(payment_hash))
         amount_sat = (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) // 1000
-        status = "unknown"
+        result = {
+            "status": "unknown",
+            "received_amount_sat": amount_sat,
+        }
         if info is None:
             pass
         elif not is_accepted_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
             # is_accepted_mpp is False for settled payments
-            status = "unpaid"
+            result["status"] = "unpaid"
         elif is_accepted_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
-            status = "paid"
+            result["status"] = "paid"
+            payment_key: str = wallet.lnworker._get_payment_key(bfh(payment_hash)).hex()
+            htlc_status = wallet.lnworker.received_mpp_htlcs[payment_key]
+            result["closest_htlc_expiry_height"] = min(
+                htlc.cltv_abs for _, htlc in htlc_status.htlc_set
+            )
         elif wallet.lnworker.get_preimage_hex(payment_hash) is not None \
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs:
-            status = "settled"
+            result["status"] = "settled"
             plist = wallet.lnworker.get_payments(status='settled')[bfh(payment_hash)]
             _dir, amount_msat, _fee, _ts = wallet.lnworker.get_payment_value(info, plist)
-            amount_sat = amount_msat // 1000
-        result = {
-            "status": status,
-            "received_amount_sat": amount_sat,
-        }
+            result["received_amount_sat"] = amount_msat // 1000
         if info is not None:
             result["invoice_amount_sat"] = (info.amount_msat or 0) // 1000
         return result

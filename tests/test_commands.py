@@ -6,6 +6,7 @@ from os import urandom
 
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
+from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
@@ -491,11 +492,22 @@ class TestCommandsTestnet(ElectrumTestCase):
                 wallet=wallet,
             )
 
-        with mock.patch.object(wallet.lnworker, 'is_accepted_mpp', return_value=True), \
-                mock.patch.object(wallet.lnworker, 'get_payment_mpp_amount_msat', return_value=10_000 * 1000):
+        mock_htlc1 = mock.Mock()
+        mock_htlc1.cltv_abs = 800_000
+        mock_htlc1.amount_msat = 4_500_000
+        mock_htlc2 = mock.Mock()
+        mock_htlc2.cltv_abs = 800_144
+        mock_htlc2.amount_msat = 5_500_000
+        mock_htlc_status = mock.Mock()
+        mock_htlc_status.htlc_set = [(None, mock_htlc1), (None, mock_htlc2)]
+        mock_htlc_status.resolution = RecvMPPResolution.ACCEPTED
+
+        payment_key = wallet.lnworker._get_payment_key(bytes.fromhex(payment_hash)).hex()
+        with mock.patch.dict(wallet.lnworker.received_mpp_htlcs, {payment_key: mock_htlc_status}):
             status: dict = await cmds.check_hold_invoice(payment_hash=payment_hash, wallet=wallet)
             assert status['status'] == 'paid'
             assert status['received_amount_sat'] == 10000
+            assert status['closest_htlc_expiry_height'] == 800_000
 
             settle_result = await cmds.settle_hold_invoice(
                 preimage=preimage.hex(),
