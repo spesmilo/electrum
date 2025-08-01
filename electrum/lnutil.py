@@ -1947,25 +1947,14 @@ class PaymentFeeBudget(NamedTuple):
     #num_htlc: int
 
     @classmethod
-    def default(cls, *, invoice_amount_msat: int, config: 'SimpleConfig') -> 'PaymentFeeBudget':
-        fee_msat = PaymentFeeBudget._calculate_fee_msat(
-            invoice_amount_msat=invoice_amount_msat,
-            config=config,
-        )
-        return PaymentFeeBudget(
-            fee_msat=fee_msat,
-            cltv=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
-        )
-
-    @classmethod
-    def custom(
+    def from_invoice_amount(
         cls,
-        config: 'SimpleConfig',
         *,
         invoice_amount_msat: int,
+        config: 'SimpleConfig',
         max_cltv_delta: Optional[int] = None,
         max_fee_msat: Optional[int] = None,
-        ):
+    ) -> 'PaymentFeeBudget':
         if max_fee_msat is None:
             max_fee_msat = PaymentFeeBudget._calculate_fee_msat(
                 invoice_amount_msat=invoice_amount_msat,
@@ -1980,7 +1969,8 @@ class PaymentFeeBudget(NamedTuple):
         )
 
     @classmethod
-    def _calculate_fee_msat(cls,
+    def _calculate_fee_msat(
+        cls,
         *,
         invoice_amount_msat: int,
         config: 'SimpleConfig',

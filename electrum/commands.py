@@ -1766,7 +1766,7 @@ class Commands(Logger):
             max_cltv_remaining = max_cltv - lnaddr.get_min_final_cltv_delta()
             assert max_cltv_remaining > 0, f"{max_cltv=} - {lnaddr.get_min_final_cltv_delta()=} < 1"
             max_cltv = max_cltv_remaining
-        budget = PaymentFeeBudget.custom(
+        budget = PaymentFeeBudget.from_invoice_amount(
             config=wallet.config,
             invoice_amount_msat=invoice_obj.amount_msat,
             max_cltv_delta=max_cltv,
