@@ -116,3 +116,27 @@ class QEAmount(QObject):
 
     def __repr__(self):
         return f"<QEAmount max={self._is_max} sats={self._amount_sat} msats={self._amount_msat} empty={self.isEmpty}>"
+
+
+class QEBytes(QObject):
+    def __init__(self, data: bytes = None, *, parent=None):
+        super().__init__(parent)
+        self.data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, _data):
+        self._data = _data
+
+    @pyqtProperty(bool)
+    def isEmpty(self):
+        return self._data is None or self._data == bytes()
+
+    def __str__(self):
+        return f'{self._data}'
+
+    def __repr__(self):
+        return f"<QEBytes data={'None' if self._data is None else self._data.hex()}>"
