@@ -9,9 +9,10 @@ import sys
 import pathlib
 import os
 import platform
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Set
 import copy
 import subprocess
+import hashlib
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
@@ -190,6 +191,24 @@ def _process_verbosity_log_levels(verbosity):
             raise Exception(f"invalid log filter: {filt}")
 
 
+class _CustomLogger(logging.getLoggerClass()):
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, *args, **kwargs)
+        self.msg_hashes_seen = set()  # type: Set[bytes]
+        # ^ note: size grows without bounds, but only for log lines using "only_once".
+
+    def _log(self, level, msg: str, *args, only_once: bool = False, **kwargs) -> None:
+        """Overridden to add 'only_once' arg to logger.debug()/logger.info()/logger.warning()/etc."""
+        if only_once:  # if set, this logger will only log this msg a single time during its lifecycle
+            msg_hash = hashlib.sha256(msg.encode("utf-8")).digest()
+            if msg_hash in self.msg_hashes_seen:
+                return
+            self.msg_hashes_seen.add(msg_hash)
+        super()._log(level, msg, *args, **kwargs)
+
+logging.setLoggerClass(_CustomLogger)
+
+
 # enable logs universally (including for other libraries)
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.WARNING)
@@ -216,7 +235,7 @@ electrum_logger.setLevel(logging.DEBUG)
 
 # --- External API
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> _CustomLogger:
     if name.startswith("electrum."):
         name = name[9:]
     return electrum_logger.getChild(name)
