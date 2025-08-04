@@ -7,6 +7,7 @@ from aiorpcx import timeout_after
 from electrum import storage, bitcoin, keystore, wallet
 from electrum import SimpleConfig
 from electrum import util
+from electrum.util import TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.logging import console_stderr_handler, Logger
@@ -151,8 +152,10 @@ class TestTxBatcher(ElectrumTestCase):
         assert output2 in tx1_prime.outputs()
         # tx1 gets confirmed, tx2 gets removed
         wallet.adb.receive_tx_callback(tx1, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), tx_mined_status._replace(conf=1))
+        wallet.adb.add_verified_tx(
+            tx1.txid(),
+            TxMinedInfo(height=1, timestamp=999999, txpos=0, header_hash="aa"*32),
+        )
         assert wallet.adb.get_transaction(tx1.txid()) is not None
         assert wallet.adb.get_transaction(tx1_prime.txid()) is None
         # txbatcher creates tx2
@@ -194,8 +197,10 @@ class TestTxBatcher(ElectrumTestCase):
 
         # tx1 gets confirmed
         wallet.adb.receive_tx_callback(tx1, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), tx_mined_status._replace(conf=1))
+        wallet.adb.add_verified_tx(
+            tx1.txid(),
+            TxMinedInfo(height=1, timestamp=999999, txpos=0, header_hash="aa"*32),
+        )
 
         tx2 = await self.network.next_tx()
         assert len(tx2.outputs()) == 2

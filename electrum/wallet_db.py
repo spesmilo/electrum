@@ -38,7 +38,7 @@ from functools import partial
 import attr
 
 from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, MyEncoder
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, MyEncoder, is_hash256_str
 from .invoices import Invoice, Request
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
@@ -1504,10 +1504,14 @@ class WalletDB(JsonDB):
 
     @locked
     def get_verified_tx(self, txid: str) -> Optional[TxMinedInfo]:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         if txid not in self.verified_tx:
             return None
         height, timestamp, txpos, header_hash = self.verified_tx[txid]
+        assert isinstance(height, int) and height > 0, height
+        assert isinstance(timestamp, int), timestamp
+        assert isinstance(txpos, int) and txpos >= 0, txpos
+        assert is_hash256_str(header_hash), header_hash
         return TxMinedInfo(height=height,
                            conf=None,
                            timestamp=timestamp,
@@ -1516,8 +1520,12 @@ class WalletDB(JsonDB):
 
     @modifier
     def add_verified_tx(self, txid: str, info: TxMinedInfo):
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         assert isinstance(info, TxMinedInfo)
+        assert isinstance(info.height, int) and info.height > 0, info.height
+        assert isinstance(info.timestamp, int), info.timestamp
+        assert isinstance(info.txpos, int) and info.txpos >= 0, info.txpos
+        assert is_hash256_str(info.header_hash), info.header_hash
         self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
 
     @modifier
