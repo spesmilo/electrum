@@ -58,17 +58,23 @@ def _ensure_translation_keeps_format_string_syntax_similar(translator):
         try:
             parsed2 = list(sf.parse(translation))
         except ValueError:  # malformed format string in translation
-            _logger.info(f"rejected translation string: failed to parse. original={msg!r}. {translation=!r}")
+            _logger.warning(
+                f"rejected translation string: failed to parse. original={msg!r}. {translation=!r}",
+                only_once=True)
             return msg
         # num of replacement fields must match:
         if len(parsed1) != len(parsed2):
-            _logger.info(f"rejected translation string: num replacement fields mismatch. original={msg!r}. {translation=!r}")
+            _logger.warning(
+                f"rejected translation string: num replacement fields mismatch. original={msg!r}. {translation=!r}",
+                only_once=True)
             return msg
         # set of "field_name"s must not change. (re-ordering is explicitly allowed):
         field_names1 = set(tupl[1] for tupl in parsed1)
         field_names2 = set(tupl[1] for tupl in parsed2)
         if field_names1 != field_names2:
-            _logger.info(f"rejected translation string: set of field_names mismatch. original={msg!r}. {translation=!r}")
+            _logger.warning(
+                f"rejected translation string: set of field_names mismatch. original={msg!r}. {translation=!r}",
+                only_once=True)
             return msg
         # checks done.
         return translation
