@@ -261,6 +261,7 @@ ElDialog {
             FlatButton {
                 text: qsTr('Choose swap provider')
                 enabled: _swaphelper.state != SwapHelper.Initializing
+                    && _swaphelper.state != SwapHelper.Started
                     && _swaphelper.state != SwapHelper.Success
                     && _swaphelper.availableSwapServers.count
                 onClicked: {
