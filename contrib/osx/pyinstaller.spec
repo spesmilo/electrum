@@ -51,6 +51,7 @@ datas += collect_data_files('trezorlib')  # TODO is this needed? and same questi
 datas += collect_data_files('safetlib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
+datas += collect_data_files('pysatochip')
 
 # some deps rely on importlib metadata
 datas += copy_metadata('slip10')  # from trezor->slip10
