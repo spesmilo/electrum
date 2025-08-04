@@ -1312,19 +1312,19 @@ class WalletDB(JsonDB):
     @locked
     def get_txi_addresses(self, tx_hash: str) -> List[str]:
         """Returns list of is_mine addresses that appear as inputs in tx."""
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         return list(self.txi.get(tx_hash, {}).keys())
 
     @locked
     def get_txo_addresses(self, tx_hash: str) -> List[str]:
         """Returns list of is_mine addresses that appear as outputs in tx."""
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         return list(self.txo.get(tx_hash, {}).keys())
 
     @locked
     def get_txi_addr(self, tx_hash: str, address: str) -> Iterable[Tuple[str, int]]:
         """Returns an iterable of (prev_outpoint, value)."""
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         assert isinstance(address, str)
         d = self.txi.get(tx_hash, {}).get(address, {})
         return list(d.items())
@@ -1332,14 +1332,14 @@ class WalletDB(JsonDB):
     @locked
     def get_txo_addr(self, tx_hash: str, address: str) -> Dict[int, Tuple[int, bool]]:
         """Returns a dict: output_index -> (value, is_coinbase)."""
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         assert isinstance(address, str)
         d = self.txo.get(tx_hash, {}).get(address, {})
         return {int(n): (v, cb) for (n, (v, cb)) in d.items()}
 
     @modifier
     def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> None:
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         assert isinstance(addr, str)
         assert isinstance(ser, str)
         assert isinstance(v, int)
@@ -1353,7 +1353,7 @@ class WalletDB(JsonDB):
     @modifier
     def add_txo_addr(self, tx_hash: str, addr: str, n: Union[int, str], v: int, is_coinbase: bool) -> None:
         n = str(n)
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         assert isinstance(addr, str)
         assert isinstance(n, str)
         assert isinstance(v, int)
@@ -1375,12 +1375,12 @@ class WalletDB(JsonDB):
 
     @modifier
     def remove_txi(self, tx_hash: str) -> None:
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         self.txi.pop(tx_hash, None)
 
     @modifier
     def remove_txo(self, tx_hash: str) -> None:
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         self.txo.pop(tx_hash, None)
 
     @locked
@@ -1392,18 +1392,18 @@ class WalletDB(JsonDB):
 
     @locked
     def get_spent_outpoints(self, prevout_hash: str) -> Sequence[str]:
-        assert isinstance(prevout_hash, str)
+        assert is_hash256_str(prevout_hash), prevout_hash
         return list(self.spent_outpoints.get(prevout_hash, {}).keys())
 
     @locked
     def get_spent_outpoint(self, prevout_hash: str, prevout_n: Union[int, str]) -> Optional[str]:
-        assert isinstance(prevout_hash, str)
+        assert is_hash256_str(prevout_hash), prevout_hash
         prevout_n = str(prevout_n)
         return self.spent_outpoints.get(prevout_hash, {}).get(prevout_n)
 
     @modifier
     def remove_spent_outpoint(self, prevout_hash: str, prevout_n: Union[int, str]) -> None:
-        assert isinstance(prevout_hash, str)
+        assert is_hash256_str(prevout_hash), prevout_hash
         prevout_n = str(prevout_n)
         self.spent_outpoints[prevout_hash].pop(prevout_n, None)
         if not self.spent_outpoints[prevout_hash]:
@@ -1411,8 +1411,8 @@ class WalletDB(JsonDB):
 
     @modifier
     def set_spent_outpoint(self, prevout_hash: str, prevout_n: Union[int, str], tx_hash: str) -> None:
-        assert isinstance(prevout_hash, str)
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(prevout_hash), prevout_hash
+        assert is_hash256_str(tx_hash), tx_hash
         prevout_n = str(prevout_n)
         if prevout_hash not in self.spent_outpoints:
             self.spent_outpoints[prevout_hash] = {}
@@ -1420,7 +1420,7 @@ class WalletDB(JsonDB):
 
     @modifier
     def add_prevout_by_scripthash(self, scripthash: str, *, prevout: TxOutpoint, value: int) -> None:
-        assert isinstance(scripthash, str)
+        assert is_hash256_str(scripthash)
         assert isinstance(prevout, TxOutpoint)
         assert isinstance(value, int)
         if scripthash not in self._prevouts_by_scripthash:
@@ -1429,7 +1429,7 @@ class WalletDB(JsonDB):
 
     @modifier
     def remove_prevout_by_scripthash(self, scripthash: str, *, prevout: TxOutpoint, value: int) -> None:
-        assert isinstance(scripthash, str)
+        assert is_hash256_str(scripthash)
         assert isinstance(prevout, TxOutpoint)
         assert isinstance(value, int)
         self._prevouts_by_scripthash[scripthash].pop(prevout.to_str(), None)
@@ -1438,13 +1438,13 @@ class WalletDB(JsonDB):
 
     @locked
     def get_prevouts_by_scripthash(self, scripthash: str) -> Set[Tuple[TxOutpoint, int]]:
-        assert isinstance(scripthash, str)
+        assert is_hash256_str(scripthash)
         prevouts_and_values = self._prevouts_by_scripthash.get(scripthash, {})
         return {(TxOutpoint.from_str(prevout), value) for prevout, value in prevouts_and_values.items()}
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         assert isinstance(tx, Transaction), tx
         # note that tx might be a PartialTransaction
         # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
@@ -1460,14 +1460,14 @@ class WalletDB(JsonDB):
 
     @modifier
     def remove_transaction(self, tx_hash: str) -> Optional[Transaction]:
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         return self.transactions.pop(tx_hash, None)
 
     @locked
     def get_transaction(self, tx_hash: Optional[str]) -> Optional[Transaction]:
         if tx_hash is None:
             return None
-        assert isinstance(tx_hash, str)
+        assert is_hash256_str(tx_hash), tx_hash
         return self.transactions.get(tx_hash)
 
     @locked
@@ -1530,16 +1530,16 @@ class WalletDB(JsonDB):
 
     @modifier
     def remove_verified_tx(self, txid: str):
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         self.verified_tx.pop(txid, None)
 
     def is_in_verified_tx(self, txid: str) -> bool:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         return txid in self.verified_tx
 
     @modifier
     def add_tx_fee_from_server(self, txid: str, fee_sat: Optional[int]) -> None:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         # note: when called with (fee_sat is None), rm currently saved value
         if txid not in self.tx_fees:
             self.tx_fees[txid] = TxFeesValue()
@@ -1550,7 +1550,7 @@ class WalletDB(JsonDB):
 
     @modifier
     def add_tx_fee_we_calculated(self, txid: str, fee_sat: Optional[int]) -> None:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         if fee_sat is None:
             return
         assert isinstance(fee_sat, int)
@@ -1560,7 +1560,7 @@ class WalletDB(JsonDB):
 
     @locked
     def get_tx_fee(self, txid: str, *, trust_server: bool = False) -> Optional[int]:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         """Returns tx_fee."""
         tx_fees_value = self.tx_fees.get(txid)
         if tx_fees_value is None:
@@ -1571,7 +1571,7 @@ class WalletDB(JsonDB):
 
     @modifier
     def add_num_inputs_to_tx(self, txid: str, num_inputs: int) -> None:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         assert isinstance(num_inputs, int)
         if txid not in self.tx_fees:
             self.tx_fees[txid] = TxFeesValue()
@@ -1579,7 +1579,7 @@ class WalletDB(JsonDB):
 
     @locked
     def get_num_all_inputs_of_tx(self, txid: str) -> Optional[int]:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         tx_fees_value = self.tx_fees.get(txid)
         if tx_fees_value is None:
             return None
@@ -1587,13 +1587,13 @@ class WalletDB(JsonDB):
 
     @locked
     def get_num_ismine_inputs_of_tx(self, txid: str) -> int:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         txins = self.txi.get(txid, {})
         return sum([len(tupls) for addr, tupls in txins.items()])
 
     @modifier
     def remove_tx_fee(self, txid: str) -> None:
-        assert isinstance(txid, str)
+        assert is_hash256_str(txid), txid
         self.tx_fees.pop(txid, None)
 
     @locked
