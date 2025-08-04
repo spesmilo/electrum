@@ -281,7 +281,15 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if os.path.exists(path):
             self.show_warning(_('Plugin already installed.'))
             return
-        shutil.copyfile(filename, path)
+        try:
+            shutil.copyfile(filename, path)
+        except OSError as e:
+            self.show_error(_("Could not copy plugin file {} into directory {}:\n\n{}").format(
+                filename,
+                path,
+                str(e)
+            ))
+            return
         self._try_add_external_plugin_from_path(path)
 
     def _try_add_external_plugin_from_path(self, path: str):
