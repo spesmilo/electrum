@@ -3657,11 +3657,12 @@ class Imported_Wallet(Simple_Wallet):
     def delete_address(self, address: str) -> None:
         if not self.db.has_imported_address(address):
             return
-        if len(self.get_addresses()) <= 1:
-            raise UserFacingException(_('Cannot delete last remaining address from wallet'))
-        transactions_to_remove = set()  # only referred to by this address
-        transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
+            if len(self.get_addresses()) <= 1:  # check this inside lock
+                raise UserFacingException(_('Cannot delete last remaining address from wallet'))
+            transactions_to_remove = set()  # only referred to by this address
+            transactions_new = set()  # txs that are not only referred to by address
+            # rm txs from history
             for addr in self.db.get_history():
                 details = self.adb.get_address_history(addr).items()
                 if addr == address:
@@ -3674,26 +3675,30 @@ class Imported_Wallet(Simple_Wallet):
             self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.adb._remove_transaction(tx_hash)
-        self.set_label(address, None)
-        if req := self.get_request_by_addr(address):
-            self.delete_request(req.get_id())
-        self.set_frozen_state_of_addresses([address], False, write_to_disk=False)
-        pubkey = self.get_public_key(address)
-        self.db.remove_imported_address(address)
-        if pubkey:
-            # delete key iff no other address uses it (e.g. p2pkh and p2wpkh for same key)
-            for txin_type in bitcoin.WIF_SCRIPT_TYPES.keys():
-                try:
-                    addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
-                except NotImplementedError:
-                    pass
+            # rm label for addr
+            # TODO rm label for txids?
+            self.set_label(address, None)
+            # rm receive requests for addr
+            if req := self.get_request_by_addr(address):
+                self.delete_request(req.get_id())
+            self.set_frozen_state_of_addresses([address], False, write_to_disk=False)
+            # rm corresponding key from keystore
+            pubkey = self.get_public_key(address)
+            self.db.remove_imported_address(address)
+            if pubkey:
+                # delete key iff no other address uses it (e.g. p2pkh and p2wpkh for same key)
+                for txin_type in bitcoin.WIF_SCRIPT_TYPES.keys():
+                    try:
+                        addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
+                    except NotImplementedError:
+                        pass
+                    else:
+                        if self.db.has_imported_address(addr2):
+                            break
                 else:
-                    if self.db.has_imported_address(addr2):
-                        break
-            else:
-                self.keystore.delete_imported_key(pubkey)
-                self.save_keystore()
-        self.save_db()
+                    self.keystore.delete_imported_key(pubkey)
+                    self.save_keystore()
+            self.save_db()
 
     def get_change_addresses_for_new_transaction(self, *args, **kwargs) -> List[str]:
         # for an imported wallet, if all "change addresses" are already used,
