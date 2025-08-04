@@ -1101,14 +1101,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         oc_balance = sum([coin.value_sats() for coin in spendable_coins]) - anchor_reserve
         return max(0, oc_balance)
 
-    def get_addr_balance(self, address):
+    def get_addr_balance(self, address) -> tuple[int, int, int]:
         return self.adb.get_balance([address])
 
     def get_utxos(
             self,
             domain: Optional[Iterable[str]] = None,
             **kwargs,
-    ):
+    ) -> Sequence[PartialTxInput]:
         if domain is None:
             domain = self.get_addresses()
         return self.adb.get_utxos(domain=domain, **kwargs)
@@ -1142,11 +1142,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_change_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence[str]:
         pass
 
-    def dummy_address(self):
+    def dummy_address(self) -> str:
         # first receiving address
         return self.get_receiving_addresses(slice_start=0, slice_stop=1)[0]
 
-    def get_frozen_balance(self):
+    def get_frozen_balance(self) -> tuple[int, int, int]:
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
         # note: for coins, use is_frozen_coin instead of _frozen_coins,
@@ -1203,7 +1203,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             from_timestamp=None,
             to_timestamp=None,
             from_height=None,
-            to_height=None) -> Dict[str, OnchainHistoryItem]:
+            to_height=None
+    ) -> Dict[str, OnchainHistoryItem]:
         # sanity check
         if (from_timestamp is not None or to_timestamp is not None) \
                 and (from_height is not None or to_height is not None):
@@ -1420,7 +1421,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return is_paid, conf_needed
 
     @profiler
-    def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True, include_fiat=False) -> dict:
+    def get_full_history(
+            self,
+            fx=None,
+            *,
+            onchain_domain=None,
+            include_lightning=True,
+            include_fiat=False
+    ) -> OrderedDictWithIndex:
         """
         includes both onchain and lightning
         includes grouping information
