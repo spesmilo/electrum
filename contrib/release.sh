@@ -24,7 +24,8 @@
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
-# - $ git tag -s $VERSION -m $VERSION
+# - $ git tag -s "$VERSION" -m "$VERSION"
+# - $ git push "$REMOTE_ORIGIN" tag "$VERSION"
 #
 # -----
 # Then, typical release flow:
