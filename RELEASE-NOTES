@@ -1,3 +1,28 @@
+# Release 4.6.1 (Aug 5, 2025)
+ * QML GUI (Android):
+   - fix: QR scanner crashes due to null/orphaned View in hierarchy (#10071)
+   - fix: creating a tx with a pre-segwit watchonly wallet (#10042)
+ * CLI/RPC:
+   - fix several bugs related to new hold_invoice APIs. This required
+     minor breaking changes in the new APIs. (#10059, #10082)
+   - add max_cltv, max_fee_msat parameters to lnpay command (#10067)
+ * Hardware wallets:
+   - bitbox02: bump required and bundled library to 7.0.0 (#10040)
+     This should add support for the new BitBox02 "Nova" devices.
+ * General:
+   - rework crash reporter (#10052)
+     - show additional confirmation popup on clicking "Send"
+     - remove the "Never" button and the corresponding config option.
+       The crash reporter is now always shown on uncaught exceptions.
+       This unifies some code paths: the crash-reporter-disabled case
+       was untested and buggy.
+     - don't show reporter multiple times for the "same" exception
+   - new: network: parallelize block-header-chunks downloads (#10033)
+ * Lightning:
+   - wallet: don't spend reserve utxo to create new reserve utxo (#10091)
+ * various UI fixes (#10060, #10062, #10081, ...)
+
+
 # Release 4.6.0 (July 16, 2025)
  * A 'Terms of Use' screen was added to the install wizard. While the
    licence remains unchanged, we ask users to agree with the fact that
