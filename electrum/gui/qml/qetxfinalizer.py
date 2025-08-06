@@ -16,6 +16,7 @@ from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, Bump
 from electrum import keystore
 from electrum.plugin import run_hook
 from electrum.fee_policy import FeePolicy, FeeMethod
+from electrum.network import NetworkException
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -1013,6 +1014,9 @@ class QETxSweepFinalizer(QETxFinalizer):
             try:
                 self._txins = self._wallet.wallet.network.run_from_another_thread(sweep_preparations(privkeys, self._wallet.wallet.network))
                 self._logger.debug(f'txins {self._txins!r}')
+            except NetworkException as e:
+                self.warning = _('Network error') + ': ' + str(e)
+                return
             except UserFacingException as e:
                 self.warning = str(e)
                 return
