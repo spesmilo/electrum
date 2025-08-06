@@ -1,4 +1,5 @@
 import asyncio
+import collections
 
 import aiorpcx
 from aiorpcx import RPCError
@@ -117,6 +118,7 @@ class ServerSession(aiorpcx.RPCSession, Logger):
         self.txs = {
             "bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb": bfh("020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025100ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"),
         }  # type: dict[str, bytes]
+        self._method_counts = collections.defaultdict(int)  # type: dict[str, int]
         _active_server_sessions.add(self)
 
     async def connection_lost(self):
@@ -136,6 +138,7 @@ class ServerSession(aiorpcx.RPCSession, Logger):
             'server.ping': self._handle_ping,
         }
         handler = handlers.get(request.method)
+        self._method_counts[request.method] += 1
         coro = aiorpcx.handler_invocation(handler, request)()
         return await coro
 
@@ -220,11 +223,18 @@ class TestInterface(ElectrumTestCase):
         # try requesting known tx:
         rawtx = await interface.get_transaction("bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb")
         self.assertEqual(rawtx, _get_active_server_session().txs["bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb"].hex())
+        self.assertEqual(_get_active_server_session()._method_counts["blockchain.transaction.get"], 2)
 
     async def test_transaction_broadcast(self):
         interface = await self._start_iface_and_wait_for_sync()
         rawtx1 = "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025200ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"
         tx = Transaction(rawtx1)
+        # broadcast
         await interface.broadcast_transaction(tx)
+        self.assertEqual(bfh(rawtx1), _get_active_server_session().txs.get(tx.txid()))
+        # now request tx.
+        # as we just broadcast this same tx, this will hit the client iface cache, and won't call the server.
+        self.assertEqual(_get_active_server_session()._method_counts["blockchain.transaction.get"], 0)
         rawtx2 = await interface.get_transaction(tx.txid())
         self.assertEqual(rawtx1, rawtx2)
+        self.assertEqual(_get_active_server_session()._method_counts["blockchain.transaction.get"], 0)
