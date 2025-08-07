@@ -2931,7 +2931,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tx = PartialTransaction.from_tx(tx)
         if not tx.add_info_from_wallet_and_network(wallet=self.wallet, show_error=self.show_error):
             return
-        d = BumpFeeDialog(main_window=self, tx=tx)
+        password = None # bumping fee might require password for silent payment tx
+        if tx.contains_silent_payment() and self.wallet.has_keystore_encryption():
+            message = _("This transaction includes silent payments. "
+                        "Your password is needed to construct the replacement transaction.")
+            password = self.get_password(message=message)
+            if password is None: return # user cancelled
+        d = BumpFeeDialog(main_window=self, tx=tx, password=password)
         d.run()
 
     def dscancel_dialog(self, tx: Transaction):

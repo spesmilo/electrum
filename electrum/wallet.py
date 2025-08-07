@@ -938,6 +938,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
 
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
+        for o in tx.outputs(): # populate silent payment information to determine can_bump
+            self.add_silent_payment_output_info(o)
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
@@ -2145,42 +2147,56 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         # Handle silent payment
         if tx.contains_silent_payment() and mind_silent_payments:
-            if not self.can_send_silent_payment():
-                raise SilentPaymentException("This wallet cannot send silent payments")
             # If we can, we don't let the user pay to a previously calculated address from a silent payment
             for out in tx.outputs():
                 if self.db.get_silent_payment_address(out.address):
                     raise SilentPaymentReuseException(out.address)
-            # Raise if password is not correct.
-            self.check_password(password)
-            # collect input privkeys
-            input_privkeys = []
-            for txin in tx.inputs():
-                der_index = self.get_address_index(txin.address)
-                if not der_index:
-                    raise SilentPaymentInputsNotOwnedException()
-                privkey, compressed = self.keystore.get_private_key(der_index, password=password)
-                if compressed: # will always be true with bip32 keystore.
-                    input_privkeys.append(ecc.ECPrivkey(privkey))
 
-            # collect prevouts
-            outpoints = [txin.prevout for txin in tx.inputs()]
-
-            # collect silent payment recipients
-            sp_recipients = [o.sp_addr for o in tx.outputs() if o.is_silent_payment()]
-            spks_by_sp_addr = create_silent_payment_outputs(input_privkeys, outpoints, sp_recipients)
-
-            # replace dummy spks with calculated taproot spks
-            sp_outputs = [o for o in tx.outputs() if o.is_silent_payment()]
-            for sp_output in sp_outputs:
-                tr_spk = spks_by_sp_addr.get(sp_output.sp_addr).pop()
-                sp_output.scriptpubkey = tr_spk
-            assert all(not lst for lst in spks_by_sp_addr.values()), "Found remaining sp_spks, but no more outputs left"
-
-            tx.set_rbf(False) # Transaction should be final
+            tx = self._finalize_silent_payment_tx(tx, password)
+            tx.set_rbf(False) # Transaction should be final (see PR 9900)
+            # used in sign_transaction to verify nothing has invalidated silent payment calculations
             tx.bind_silent_payment_integrity_hash()
 
         return tx
+
+    def _finalize_silent_payment_tx(
+        self,
+        tx: PartialTransaction,
+        password: Optional[str],
+    ) -> PartialTransaction:
+        """
+        Helper related to a silent payment tx.
+        Replaces dummy outputs with derived taproot outputs.
+        """
+        if not self.can_send_silent_payment():
+            raise SilentPaymentException("This wallet cannot send silent payments")
+        # Raise if password is not correct.
+        self.check_password(password)
+        # collect input privkeys
+        input_privkeys = []
+        for txin in tx.inputs():
+            der_index = self.get_address_index(txin.address)
+            if not der_index:
+                raise SilentPaymentInputsNotOwnedException()
+            privkey, compressed = self.keystore.get_private_key(der_index, password=password)
+            if compressed:  # will always be true with bip32 keystore.
+                input_privkeys.append(ecc.ECPrivkey(privkey))
+
+        # collect prevouts
+        outpoints = [txin.prevout for txin in tx.inputs()]
+
+        # collect silent payment recipients
+        sp_recipients = [o.sp_addr for o in tx.outputs() if o.is_silent_payment()]
+        spks_by_sp_addr = create_silent_payment_outputs(input_privkeys, outpoints, sp_recipients)
+
+        # replace dummy spks with calculated taproot spks
+        sp_outputs = [o for o in tx.outputs() if o.is_silent_payment()]
+        for sp_output in sp_outputs:
+            tr_spk = spks_by_sp_addr.get(sp_output.sp_addr).pop()
+            sp_output.scriptpubkey = tr_spk
+        assert all(not lst for lst in spks_by_sp_addr.values()), "Found remaining sp_spks, but no more outputs left"
+        return tx
+
 
     def is_frozen_address(self, addr: str) -> bool:
         return addr in self._frozen_addresses
@@ -2333,6 +2349,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             new_fee_rate: Union[int, float, Decimal],
             coins: Sequence[PartialTxInput] = None,
             strategy: BumpFeeStrategy = BumpFeeStrategy.PRESERVE_PAYMENT,
+            password: str = None, # fee-bumping silent-payment-tx needs this
     ) -> PartialTransaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
@@ -2346,10 +2363,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
         tx.remove_signatures()
+        tx.add_info_from_wallet(self)
         if not self.can_rbf_tx(tx):
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
-        tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
             raise Exception("tx missing info from network")
         old_tx_size = tx.estimated_size()
@@ -2358,6 +2375,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotBumpFee(_("The new fee rate needs to be higher than the old fee rate."))
+
+        is_silent_payment_tx = tx.contains_silent_payment()
+        if is_silent_payment_tx:
+            # used to check if recalculation is necessary if an input was added during fee-bumping
+            sp_integrity_hash_pre_bumping = tx.calc_silent_payment_integrity_hash()
 
         if strategy == BumpFeeStrategy.PRESERVE_PAYMENT:
             # FIXME: we should try decreasing change first,
@@ -2385,6 +2407,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 f"got {actual_fee}, expected >={target_min_fee}. "
                 f"target rate was {new_fee_rate}")
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
+
+        # check if an input was added
+        if is_silent_payment_tx:
+            if hasattr(tx, '_silent_payment_integrity_hash'):
+                del tx._silent_payment_integrity_hash  # discard potentially stale hash before rebuild
+            if sp_integrity_hash_pre_bumping != tx_new.calc_silent_payment_integrity_hash():
+                # recalculate silent payment outputs
+                tx_new = self._finalize_silent_payment_tx(tx_new, password)
+                tx_new.set_rbf(False) # See PR 9900
+            tx_new.bind_silent_payment_integrity_hash()
+
         tx_new.add_info_from_wallet(self)
         return tx_new
 
@@ -2421,7 +2454,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             old_not_is_mine = list(filter(lambda o: not self.is_mine(o.address), old_outputs))
             if old_not_is_mine:
                 fixed_outputs = old_not_is_mine
-            else:
+            else: #FIXME? can this even be reached, since we bailed out in this case already?
                 fixed_outputs = old_outputs
         if not fixed_outputs:
             raise CannotBumpFee(_('Could not figure out which outputs to keep'))
@@ -2572,7 +2605,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # do not mutate LN funding txs, as that would change their txid
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
             return False
-        return tx.is_rbf_enabled()
+        return tx.is_rbf_enabled() or tx.contains_silent_payment()
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         assert tx

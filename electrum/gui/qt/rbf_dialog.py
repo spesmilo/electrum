@@ -91,17 +91,27 @@ class _BaseRBFDialog(TxEditor):
         if not self.exec():
             return
         if self.is_preview:
-            self.main_window.show_transaction(self.tx)
+            # reuse password if we are bumping fee for silent payment tx; sign sp-tx before previewing
+            if self.tx.contains_silent_payment() and hasattr(self, 'password'):
+                def sign_done(success):
+                    if success:
+                        self.main_window.show_transaction(self.tx)
+                self.main_window.sign_tx_with_password(self.tx, callback=sign_done, password=self.password)
+            else:
+                self.main_window.show_transaction(self.tx)
             return
 
         def sign_done(success):
             if success:
                 self.main_window.broadcast_or_show(self.tx)
 
-        self.main_window.sign_tx(
-            self.tx,
-            callback=sign_done,
-            external_keypairs={})
+        if hasattr(self, 'password'): # avoid prompting user twice for password
+            self.main_window.sign_tx_with_password(self.tx, callback=sign_done, password=self.password)
+        else:
+            self.main_window.sign_tx(
+                self.tx,
+                callback=sign_done,
+                external_keypairs={})
 
     def update_tx(self):
         fee_rate = self.feerate_e.get_amount()
@@ -142,7 +152,9 @@ class BumpFeeDialog(_BaseRBFDialog):
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
+            password: str # rbf_func might need password if it is fee-bumping silent payment tx
     ):
+        self.password = password
         _BaseRBFDialog.__init__(
             self,
             main_window=main_window,
@@ -155,6 +167,7 @@ class BumpFeeDialog(_BaseRBFDialog):
             new_fee_rate=fee_rate,
             coins=self.main_window.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
             strategy=self._strategies[self.method_combo.currentIndex()],
+            password=self.password
         )
 
 

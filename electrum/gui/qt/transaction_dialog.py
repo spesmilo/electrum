@@ -932,7 +932,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.nsequence_label.hide()
 
         # TODO: 'Yes'/'No' might be better translatable than 'True'/'False'?
-        self.rbf_label.setText(_('Replace by fee: {}').format(_('True') if self.tx.is_rbf_enabled() else _('False')))
+        rbf_status = _('True') if self.tx.is_rbf_enabled() or self.tx.contains_silent_payment() else _('False')
+        self.rbf_label.setText(_('Replace by fee: {}').format(rbf_status))
 
         if tx_mined_status.header_hash:
             self.block_height_label.setText(_("At block height: {}").format(tx_mined_status.height))

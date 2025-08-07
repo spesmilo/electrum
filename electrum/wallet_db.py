@@ -1474,6 +1474,12 @@ class WalletDB(JsonDB):
     def list_transactions(self) -> Sequence[str]:
         return list(self.transactions.keys())
 
+    ### Silent payment persistence
+    # Note: Removing silent payment mappings is intentionally avoided for two reasons:
+    #   1. It complicates handling RBF-replaced transactions that use silent payments,
+    #      because it's non-trivial to determine whether the replacement added new inputs
+    #      (which would invalidate the original silent payment mapping).
+    #    2. We can still detect if a user tries to pay to a previously silent payment derived address.
     @locked
     def get_silent_payment_address(self, onchain_addr: str) -> Optional[str]:
         if onchain_addr is None: return None
@@ -1484,11 +1490,6 @@ class WalletDB(JsonDB):
         assert isinstance(onchain_addr, str)
         assert isinstance(silent_payment_addr, str)
         self.sp_addresses[onchain_addr] = silent_payment_addr
-
-    @modifier
-    def remove_silent_payment_address(self, onchain_addr: str) -> None:
-        assert isinstance(onchain_addr, str)
-        self.sp_addresses.pop(onchain_addr, None)
 
     @locked
     def get_history(self) -> Sequence[str]:
