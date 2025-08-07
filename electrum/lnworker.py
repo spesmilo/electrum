@@ -31,7 +31,7 @@ from .i18n import _
 from .json_db import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
-from . import constants, util
+from . import constants, util, bolt12
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
@@ -42,7 +42,8 @@ from .fee_policy import (
     FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
     FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEE_LN_MINIMUM_ETA_TARGET
 )
-from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice
+from .invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, LN_EXPIRY_NEVER, BaseInvoice, \
+    BOLT12_INVOICE_PREFIX
 from .bitcoin import COIN, opcodes, make_op_return, address_to_scripthash, DummyAddress
 from .bip32 import BIP32Node
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -696,6 +697,7 @@ class PaySession(Logger):
             invoice_pubkey: bytes,
             uses_trampoline: bool,  # whether sender uses trampoline or gossip
             use_two_trampolines: bool,  # whether legacy payments will try to use two trampolines
+            bolt12_invoice: dict,
     ):
         assert payment_hash
         assert payment_secret
@@ -704,6 +706,7 @@ class PaySession(Logger):
         self.payment_key = payment_hash + payment_secret
         Logger.__init__(self)
 
+        self.bolt12_invoice = bolt12_invoice
         self.invoice_features = LnFeatures(invoice_features)
         self.r_tags = r_tags
         self.min_final_cltv_delta = min_final_cltv_delta
@@ -1527,9 +1530,14 @@ class LNWallet(LNWorker):
             channels: Optional[Sequence[Channel]] = None,
             budget: Optional[PaymentFeeBudget] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
-        bolt11 = invoice.lightning_invoice
-        lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
-        min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
+        if bolt12_invoice_tlv := invoice.bolt12_invoice_tlv():
+            bolt12_invoice = bolt12.decode_invoice(bolt12_invoice_tlv)
+            lnaddr = self._check_bolt12_invoice(bolt12_invoice, amount_msat=amount_msat)
+            min_final_cltv_delta = bolt12_invoice.get('invoice_blindedpay').get('payinfo')[0].get('cltv_expiry_delta')
+        elif bolt11 := invoice.lightning_invoice:
+            lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
+            min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
+
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
         payment_secret = lnaddr.payment_secret
@@ -1567,6 +1575,7 @@ class LNWallet(LNWorker):
                 full_path=full_path,
                 channels=channels,
                 budget=budget,
+                bolt12_invoice=bolt12_invoice,
             )
             success = True
         except PaymentFailure as e:
@@ -1601,6 +1610,7 @@ class LNWallet(LNWorker):
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
             fw_payment_key: str = None,  # for forwarding
+            bolt12_invoice: Optional[dict] = None,  # TODO: lots of unnecessary data included here, split off later
     ) -> None:
 
         assert budget
@@ -1625,6 +1635,7 @@ class LNWallet(LNWorker):
             # TODO: if you read this, the year is 2027 and there is no use for the second trampoline
             # hop code anymore remove the code completely.
             use_two_trampolines=False,
+            bolt12_invoice=bolt12_invoice,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
 
@@ -1746,7 +1757,8 @@ class LNWallet(LNWorker):
             payment_hash=paysession.payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=shi.payment_secret_bucket,
-            trampoline_onion=trampoline_onion)
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=paysession.bolt12_invoice)
 
         key = (paysession.payment_hash, short_channel_id, htlc.htlc_id)
         self.sent_htlcs_info[key] = shi
@@ -1910,6 +1922,33 @@ class LNWallet(LNWorker):
         addr.validate_and_compare_features(self.features)
         return addr
 
+    def _check_bolt12_invoice(self, invoice: dict, *, amount_msat: int = None) -> LnAddr:
+        """Parses and validates a bolt12 invoice dict into a LnAddr.
+        Includes pre-payment checks external to the parser.
+        """
+        addr = bolt12.to_lnaddr(invoice)
+
+        # # blind copy below, unchecked
+        # if addr.is_expired():
+        #     raise InvoiceError(_("This invoice has expired"))
+        # # check amount
+        # if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices
+        #     existing_amt_msat = addr.get_amount_msat()
+        #     if existing_amt_msat and amount_msat < existing_amt_msat:
+        #         raise Exception("cannot pay lower amt than what is originally in LN invoice")
+        #     addr.amount = Decimal(amount_msat) / COIN / 1000
+        # if addr.amount is None:
+        #     raise InvoiceError(_("Missing amount"))
+        # # check cltv
+        # if addr.get_min_final_cltv_delta() > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+        #     raise InvoiceError("{}\n{}".format(
+        #         _("Invoice wants us to risk locking funds for unreasonably long."),
+        #         f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
+        # # check features
+        # addr.validate_and_compare_features(self.features)
+
+        return addr
+
     def is_trampoline_peer(self, node_id: bytes) -> bool:
         # until trampoline is advertised in lnfeatures, check against hardcoded list
         if is_hardcoded_trampoline(node_id):
@@ -2005,7 +2044,7 @@ class LNWallet(LNWorker):
             final_total_msat=paysession.amount_to_pay,
             my_active_channels=my_active_channels,
             invoice_features=paysession.invoice_features,
-            r_tags=paysession.r_tags,
+            r_tags=paysession.r_tags,  # bolt12 TODO: r_tags only used in trampoline case
             receiver_pubkey=paysession.invoice_pubkey,
         )
         for sc in split_configurations:
@@ -2103,6 +2142,7 @@ class LNWallet(LNWorker):
                                     my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
                                     budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                    bolt12_invoice=paysession.bolt12_invoice,
                                 )
                             )
                             shi = SentHtlcInfo(
@@ -2139,6 +2179,7 @@ class LNWallet(LNWorker):
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
             budget: PaymentFeeBudget,
+            bolt12_invoice: Optional[dict],
     ) -> LNPaymentRoute:
 
         my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
@@ -2186,10 +2227,14 @@ class LNWallet(LNWorker):
                 private_route_edges[route_edge.short_channel_id] = route_edge
                 start_node = end_node
         # now find a route, end to end: between us and the recipient
+        dest_node = invoice_pubkey
+        if bolt12_invoice:
+            paths = bolt12_invoice.get('invoice_paths').get('paths')
+            dest_node = paths[0].get('first_node_id')
         try:
             route = self.network.path_finder.find_route(
                 nodeA=self.node_keypair.pubkey,
-                nodeB=invoice_pubkey,
+                nodeB=dest_node,
                 invoice_amount_msat=amount_msat,
                 path=full_path,
                 my_sending_channels=my_sending_channels,
@@ -2204,8 +2249,11 @@ class LNWallet(LNWorker):
             self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
             raise FeeBudgetExceeded()
         assert len(route) > 0
-        if route[-1].end_node != invoice_pubkey:
-            raise LNPathInconsistent("last node_id != invoice pubkey")
+        if route[-1].end_node != dest_node:
+            if bolt12_invoice:
+                raise LNPathInconsistent("last node_id != blinded path introduction point")
+            else:
+                raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
         route[-1].node_features |= invoice_features
         return route

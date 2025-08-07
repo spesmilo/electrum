@@ -33,7 +33,7 @@ from .lnrouter import RouteEdge
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
                       OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
-                      OnionFailureCodeMetaFlag)
+                      OnionFailureCodeMetaFlag, calc_hops_data_for_blinded_payment)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
@@ -1884,23 +1884,37 @@ class Peer(Logger, EventListener):
             min_final_cltv_delta: int,
             payment_secret: bytes,
             trampoline_onion: Optional[OnionPacket] = None,
+            bolt12_invoice: Optional[dict] = None,
     ):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
         final_cltv_abs = local_height + min_final_cltv_delta
-        hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
-            route,
-            amount_msat,
-            final_cltv_abs=final_cltv_abs,
-            total_msat=total_msat,
-            payment_secret=payment_secret)
+
+        if not bolt12_invoice:
+            hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
+                route,
+                amount_msat,
+                final_cltv_abs=final_cltv_abs,
+                total_msat=total_msat,
+                payment_secret=payment_secret)
+        else:
+            hops_data, blinded_node_ids, amount_msat, cltv_abs = calc_hops_data_for_blinded_payment(
+                route,
+                amount_msat,
+                final_cltv_abs=final_cltv_abs,
+                total_msat=total_msat,
+                bolt12_invoice=bolt12_invoice)
+
         num_hops = len(hops_data)
         self.logger.info(f"lnpeer.pay len(route)={len(route)}")
         for i in range(len(route)):
-            self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
+            self.logger.info(f"  {i}: edge={route[i].short_channel_id} to={route[i].end_node.hex()[0:8]} hop_data={hops_data[i]!r}")
+        if len(hops_data) > len(route):
+            for i in range(len(route), len(hops_data)):
+                self.logger.info(f"  {i}: blind to={blinded_node_ids[i-len(route)].hex()[0:12]} hop_data={hops_data[i]!r}")
         assert final_cltv_abs <= cltv_abs, (final_cltv_abs, cltv_abs)
-        session_key = os.urandom(32) # session_key
+        session_key = os.urandom(32)  # session_key
         # if we are forwarding a trampoline payment, add trampoline onion
         if trampoline_onion:
             self.logger.info(f'adding trampoline onion to final payload')
@@ -1918,7 +1932,11 @@ class Peer(Logger, EventListener):
                 for i in range(len(t_route)):
                     self.logger.info(f"  {i}: t_node={t_route[i].end_node.hex()} hop_data={t_hops_data[i]!r}")
         # create onion packet
-        payment_path_pubkeys = [x.node_id for x in route]
+        if bolt12_invoice:
+            payment_path_pubkeys = [x.node_id for x in route] + len(blinded_node_ids) * [bfh('03d430b71fd7d4f0f6df575be7d9f33b0fa549c152dc03f4fc13ee2a393d4a2a5a')]
+        else:
+            payment_path_pubkeys = [x.node_id for x in route]
+        # payment_path_pubkeys = [x.node_id for x in route]
         onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
         self.logger.info(f"starting payment. len(route)={len(hops_data)}.")
         # create htlc
@@ -1962,6 +1980,7 @@ class Peer(Logger, EventListener):
             min_final_cltv_delta: int,
             payment_secret: bytes,
             trampoline_onion: Optional[OnionPacket] = None,
+            bolt12_invoice: Optional[dict] = None,
         ) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1975,7 +1994,8 @@ class Peer(Logger, EventListener):
             payment_hash=payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=payment_secret,
-            trampoline_onion=trampoline_onion
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=bolt12_invoice,
         )
         htlc = self.send_htlc(
             chan=chan,
