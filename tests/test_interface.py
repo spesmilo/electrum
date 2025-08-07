@@ -1,12 +1,15 @@
 import asyncio
 
 import aiorpcx
+from aiorpcx import RPCError
 
+import electrum
 from electrum.interface import ServerAddr, Interface, PaddedRSTransport
 from electrum import util, blockchain
 from electrum.util import OldTaskGroup, bfh
 from electrum.logging import Logger
 from electrum.simple_config import SimpleConfig
+from electrum.transaction import Transaction
 
 from . import ElectrumTestCase
 
@@ -111,6 +114,9 @@ class ServerSession(aiorpcx.RPCSession, Logger):
         Logger.__init__(self)
         self.logger.debug(f'connection from {self.remote_address()}')
         self.cur_height = 6  # type: int  # chain tip
+        self.txs = {
+            "bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb": bfh("020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025100ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"),
+        }  # type: dict[str, bytes]
         _active_server_sessions.add(self)
 
     async def connection_lost(self):
@@ -125,6 +131,8 @@ class ServerSession(aiorpcx.RPCSession, Logger):
             'blockchain.headers.subscribe': self._handle_headers_subscribe,
             'blockchain.block.header': self._handle_block_header,
             'blockchain.block.headers': self._handle_block_headers,
+            'blockchain.transaction.get': self._handle_transaction_get,
+            'blockchain.transaction.broadcast': self._handle_transaction_broadcast,
             'server.ping': self._handle_ping,
         }
         handler = handlers.get(request.method)
@@ -153,6 +161,19 @@ class ServerSession(aiorpcx.RPCSession, Logger):
     async def _handle_ping(self):
         return None
 
+    async def _handle_transaction_get(self, tx_hash: str, verbose=False):
+        assert not verbose
+        rawtx = self.txs.get(tx_hash)
+        if rawtx is None:
+            DAEMON_ERROR = 2
+            raise RPCError(DAEMON_ERROR, f'daemon error: unknown txid={tx_hash}')
+        return rawtx.hex()
+
+    async def _handle_transaction_broadcast(self, raw_tx: str):
+        tx = Transaction(raw_tx)
+        self.txs[tx.txid()] = bfh(raw_tx)
+        return tx.txid()
+
 
 class TestInterface(ElectrumTestCase):
     REGTEST = True
@@ -178,10 +199,32 @@ class TestInterface(ElectrumTestCase):
         self._server.close()
         await super().asyncTearDown()
 
-    async def test_client_syncs_headers_to_tip(self):
+    async def _start_iface_and_wait_for_sync(self):
         interface = Interface(network=self.network, server=ServerAddr(host="127.0.0.1", port=self._server_port, protocol="t"))
         self.network.interface = interface
         await util.wait_for2(interface.ready, 5)
         await interface._blockchain_updated.wait()
+        return interface
+
+    async def test_client_syncs_headers_to_tip(self):
+        interface = await self._start_iface_and_wait_for_sync()
         self.assertEqual(_get_active_server_session().cur_height, interface.tip)
         self.assertFalse(interface.got_disconnected.is_set())
+
+    async def test_transaction_get(self):
+        interface = await self._start_iface_and_wait_for_sync()
+        # try requesting tx unknown to server:
+        with self.assertRaises(RPCError) as ctx:
+            await interface.get_transaction("deadbeef"*8)
+        self.assertTrue("unknown txid" in ctx.exception.message)
+        # try requesting known tx:
+        rawtx = await interface.get_transaction("bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb")
+        self.assertEqual(rawtx, _get_active_server_session().txs["bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb"].hex())
+
+    async def test_transaction_broadcast(self):
+        interface = await self._start_iface_and_wait_for_sync()
+        rawtx1 = "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025200ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"
+        tx = Transaction(rawtx1)
+        await interface.broadcast_transaction(tx)
+        rawtx2 = await interface.get_transaction(tx.txid())
+        self.assertEqual(rawtx1, rawtx2)
