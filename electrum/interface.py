@@ -529,6 +529,7 @@ class Interface(Logger):
         assert isinstance(server, ServerAddr), f"expected ServerAddr, got {type(server)}"
         self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
+        self._blockchain_updated = asyncio.Event()
         self.server = server
         Logger.__init__(self)
         assert network.config.path
@@ -1058,6 +1059,8 @@ class Interface(Logger):
                 self.logger.info(f"new chain tip. {height=}")
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
+                self._blockchain_updated.set()
+                self._blockchain_updated.clear()
             util.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
@@ -1100,6 +1103,8 @@ class Interface(Logger):
                     continue
                 # report progress to gui/etc
                 util.trigger_callback('blockchain_updated')
+                self._blockchain_updated.set()
+                self._blockchain_updated.clear()
                 util.trigger_callback('network_updated')
                 height += num_headers
                 assert height <= next_height+1, (height, self.tip)
