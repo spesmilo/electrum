@@ -14,8 +14,8 @@
 # sudo apt-get install gcc-multilib g++-multilib
 # $ AUTOCONF_FLAGS="--host=i686-linux-gnu CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32" ./contrib/make_libsecp256k1.sh
 
-LIBSECP_VERSION="0cdc758a56360bf58a851fe91085a327ec97685a"
-# ^ tag "v0.6.0"
+LIBSECP_VERSION="a660a4976efe880bae7982ee410b9e0dc59ac983"
+# ^ tag "v0.7.0"
 # note: this version is duplicated in contrib/android/p4a_recipes/libsecp256k1/__init__.py
 #       (and also in electrum-ecc, for the "secp256k1" git submodule)
 

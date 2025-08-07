@@ -18,8 +18,8 @@ dnspython==2.4.2 \
     --hash=sha256:8dcfae8c7460a2f84b4072e26f1c9f4101ca20c071649cb7c34e8b6a93d58984
 electrum-aionostr==0.0.11 \
     --hash=sha256:0eeb1d01e55d4bab2c116268965a0b2c11490659e969fd864c453104558bcf81
-electrum-ecc==0.0.5 \
-    --hash=sha256:f733b8596a0f7b25c8371d08af61ef79c7b871d5b40f05a5b95d2d05eb2fb7d2
+electrum-ecc==0.0.6 \
+    --hash=sha256:6360c71fb08b51d80a455e938f126ba4c790be74ba226461d54d7a3aa6890b89
 frozenlist==1.6.0 \
     --hash=sha256:b99655c32c1c8e06d111e7f41c06c29a5318cb1835df23a45518e02a47c63b68
 idna==3.10 \
