@@ -1516,7 +1516,7 @@ class Transaction:
         sorted_outputs = sorted(sp_outputs, key=lambda o: o.serialize_to_network())
 
         preimage = b''.join(i.prevout.serialize_to_network() for i in sorted_inputs)
-        preimage += b''.join(o.serialize_to_network() for o in sorted_outputs)
+        preimage += b''.join(o.scriptpubkey for o in sorted_outputs)
 
         return sha256(preimage)
 
