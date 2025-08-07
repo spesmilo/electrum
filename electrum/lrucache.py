@@ -26,6 +26,7 @@
 
 import collections
 import collections.abc
+from typing import TypeVar, Dict
 
 
 class _DefaultSize:
@@ -42,19 +43,21 @@ class _DefaultSize:
         return 1
 
 
-class Cache(collections.abc.MutableMapping):
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+class Cache(collections.abc.MutableMapping[_KT, _VT]):
     """Mutable mapping to serve as a simple cache or cache base class."""
 
     __marker = object()
 
     __size = _DefaultSize()
 
-    def __init__(self, maxsize, getsizeof=None):
+    def __init__(self, maxsize: int, getsizeof=None):
         if getsizeof:
             self.getsizeof = getsizeof
         if self.getsizeof is not Cache.getsizeof:
             self.__size = dict()
-        self.__data = dict()
+        self.__data = dict()  # type: Dict[_KT, _VT]
         self.__currsize = 0
         self.__maxsize = maxsize
 
@@ -66,13 +69,13 @@ class Cache(collections.abc.MutableMapping):
             self.__currsize,
         )
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: _KT) -> _VT:
         try:
             return self.__data[key]
         except KeyError:
             return self.__missing__(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: _KT, value: _VT) -> None:
         maxsize = self.__maxsize
         size = self.getsizeof(value)
         if size > maxsize:
@@ -88,15 +91,15 @@ class Cache(collections.abc.MutableMapping):
         self.__size[key] = size
         self.__currsize += diffsize
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: _KT) -> None:
         size = self.__size.pop(key)
         del self.__data[key]
         self.__currsize -= size
 
-    def __contains__(self, key):
+    def __contains__(self, key: _KT) -> bool:
         return key in self.__data
 
-    def __missing__(self, key):
+    def __missing__(self, key: _KT):
         raise KeyError(key)
 
     def __iter__(self):
@@ -105,13 +108,13 @@ class Cache(collections.abc.MutableMapping):
     def __len__(self):
         return len(self.__data)
 
-    def get(self, key, default=None):
+    def get(self, key: _KT, default: _VT = None) -> _VT | None:
         if key in self:
             return self[key]
         else:
             return default
 
-    def pop(self, key, default=__marker):
+    def pop(self, key: _KT, default=__marker) -> _VT:
         if key in self:
             value = self[key]
             del self[key]
@@ -121,7 +124,7 @@ class Cache(collections.abc.MutableMapping):
             value = default
         return value
 
-    def setdefault(self, key, default=None):
+    def setdefault(self, key: _KT, default: _VT = None) -> _VT | None:
         if key in self:
             value = self[key]
         else:
@@ -129,43 +132,43 @@ class Cache(collections.abc.MutableMapping):
         return value
 
     @property
-    def maxsize(self):
+    def maxsize(self) -> int:
         """The maximum size of the cache."""
         return self.__maxsize
 
     @property
-    def currsize(self):
+    def currsize(self) -> int:
         """The current size of the cache."""
         return self.__currsize
 
     @staticmethod
-    def getsizeof(value):
+    def getsizeof(value) -> int:
         """Return the size of a cache element's value."""
         return 1
 
 
-class LRUCache(Cache):
+class LRUCache(Cache[_KT, _VT]):
     """Least Recently Used (LRU) cache implementation."""
 
-    def __init__(self, maxsize, getsizeof=None):
+    def __init__(self, maxsize: int, getsizeof=None):
         Cache.__init__(self, maxsize, getsizeof)
         self.__order = collections.OrderedDict()
 
-    def __getitem__(self, key, cache_getitem=Cache.__getitem__):
+    def __getitem__(self, key: _KT, cache_getitem=Cache.__getitem__) -> _VT | None:
         value = cache_getitem(self, key)
         if key in self:  # __missing__ may not store item
             self.__update(key)
         return value
 
-    def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
+    def __setitem__(self, key: _KT, value, cache_setitem=Cache.__setitem__) -> None:
         cache_setitem(self, key, value)
         self.__update(key)
 
-    def __delitem__(self, key, cache_delitem=Cache.__delitem__):
+    def __delitem__(self, key: _KT, cache_delitem=Cache.__delitem__) -> None:
         cache_delitem(self, key)
         del self.__order[key]
 
-    def popitem(self):
+    def popitem(self) -> tuple[_KT, _VT]:
         """Remove and return the `(key, value)` pair least recently used."""
         try:
             key = next(iter(self.__order))
@@ -174,7 +177,7 @@ class LRUCache(Cache):
         else:
             return (key, self.pop(key))
 
-    def __update(self, key):
+    def __update(self, key: _KT) -> None:
         try:
             self.__order.move_to_end(key)
         except KeyError:
