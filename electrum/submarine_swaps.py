@@ -1725,7 +1725,7 @@ class NostrTransport(SwapServerTransport):
                         "error": str(e)[:100],
                         "reply_to": event.id,
                     })
-                    await self.send_direct_message(event.pubkey,[], error_response)
+                    await self.send_direct_message(event.pubkey, error_response)
             else:
                 self.logger.info(f'unknown message {content}')
 
