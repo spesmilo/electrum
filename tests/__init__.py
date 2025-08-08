@@ -55,7 +55,11 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
             constants.BitcoinMainnet.set_as_network()
 
     def setUp(self):
-        self._test_lock.acquire()
+        have_lock = self._test_lock.acquire(timeout=0.1)
+        if not have_lock:
+            # This can happen when trying to run the tests in parallel,
+            # or if a prior test raised  during `setUp` or `asyncSetUp` and never released the lock.
+            raise Exception("timed out waiting for test_lock")
         super().setUp()
         self.electrum_path = tempfile.mkdtemp(prefix="electrum-unittest-base-")
         assert util._asyncio_event_loop is None, "global event loop already set?!"
