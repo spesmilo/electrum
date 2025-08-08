@@ -71,6 +71,7 @@ class MockNetwork:
         self.proxy = None
         self.debug = True
         self.bhi_lock = asyncio.Lock()
+        self.interface = None  # type: Interface | None
 
     async def connection_down(self, interface: Interface):
         pass
@@ -199,7 +200,10 @@ class TestInterface(ElectrumTestCase):
         self.network = MockNetwork(config=self.config)
 
     async def asyncTearDown(self):
+        if self.network.interface:
+            await self.network.interface.close()
         self._server.close()
+        await self._server.wait_closed()
         await super().asyncTearDown()
 
     async def _start_iface_and_wait_for_sync(self):
