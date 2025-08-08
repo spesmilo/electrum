@@ -1840,19 +1840,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 change_addrs = [preferred_change_addr]
         elif self.use_change:
-            # Recalc and get unused change addresses
-            addrs = self.calc_unused_change_addresses()
-            # New change addresses are created only after a few
-            # confirmations.
-            if addrs:
-                # if there are any unused, select all
-                change_addrs = addrs
-            else:
-                # if there are none, take one randomly from the last few
-                if not allow_reusing_used_change_addrs:
-                    return []
-                addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
-                change_addrs = [random.choice(addrs)] if addrs else []
+            change_addrs = self._get_change_addresses_we_can_use_now(allow_reuse=allow_reusing_used_change_addrs)
         for addr in change_addrs:
             assert is_address(addr), f"not valid bitcoin address: {addr}"
             # note that change addresses are not necessarily ismine
@@ -1872,21 +1860,37 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return addrs[0]
         return None
 
-    @check_returned_address_for_corruption
     def get_new_sweep_address_for_channel(self) -> str:
+        addrs = self._get_change_addresses_we_can_use_now(allow_reuse=True)
+        if addrs:
+            return addrs[0]
+        # fallback for e.g. imported wallets
+        return self.get_receiving_address()
+
+    def _get_change_addresses_we_can_use_now(
+        self,
+        *,
+        allow_reuse: bool = True,
+    ) -> Sequence[str]:
         # Recalc and get unused change addresses
         addrs = self.calc_unused_change_addresses()
+        # New change addresses are created only after a few
+        # confirmations.
         if addrs:
-            selected_addr = addrs[0]
+            # if there are any unused, select all
+            change_addrs = addrs
         else:
             # if there are none, take one randomly from the last few
+            if not allow_reuse:
+                return []
             addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
-            if addrs:
-                selected_addr = random.choice(addrs)
-            else:  # fallback for e.g. imported wallets
-                selected_addr = self.get_receiving_address()
-        assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
-        return selected_addr
+            change_addrs = [random.choice(addrs)] if addrs else []
+        for addr in change_addrs:
+            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            # note that change addresses are not necessarily ismine
+            # in which case this is a no-op
+            self.check_address_for_corruption(addr)
+        return change_addrs
 
     def should_keep_reserve_utxo(
             self,
