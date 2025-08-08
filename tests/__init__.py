@@ -4,12 +4,14 @@ import unittest
 import threading
 import tempfile
 import shutil
+import functools
 
 import electrum
 import electrum.logging
 from electrum import constants
 from electrum import util
 from electrum.logging import Logger
+from electrum.wallet import restore_wallet_from_text
 
 
 # Set this locally to make the test suite run faster.
@@ -92,3 +94,14 @@ def as_testnet(func):
             finally:
                 constants.net = old_net
     return run_test
+
+
+@functools.wraps(restore_wallet_from_text)
+def restore_wallet_from_text__for_unittest(*args, gap_limit=2, gap_limit_for_change=1, **kwargs):
+    """much lower default gap limits (to save compute time)"""
+    return restore_wallet_from_text(
+        *args,
+        gap_limit=gap_limit,
+        gap_limit_for_change=gap_limit_for_change,
+        **kwargs,
+    )

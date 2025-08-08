@@ -11,7 +11,7 @@ from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
-                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
+                             Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException, TransactionDangerousException,
                              TxSighashRiskLevel)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
@@ -23,6 +23,7 @@ from electrum.network import Network
 from electrum.plugins.trustedcoin import trustedcoin
 
 from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
 
 
 UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe381be20e3828fe3828b2077cda2cda2cd9d68cda16fcda2cda120ccb8cda26bccb5cd9f6eccb4cd98c7ab77ccb8cc9b73cd9820cc80cc8177cd98cda2e1b8a9ccb561d289cca1cda27420cca7cc9568cc816fccb572cd8fccb5726f7273cca120ccb6cda1cda06cc4afccb665cd9fcd9f20ccb6cd9d696ecda220cd8f74cc9568ccb7cca1cd9f6520cd9fcd9f64cc9b61cd9c72cc95cda16bcca2cca820cda168ccb465cd8f61ccb7cca2cca17274cc81cd8f20ccb4ccb7cda0c3b2ccb5ccb666ccb82075cca7cd986ec3adcc9bcd9c63cda2cd8f6fccb7cd8f64ccb8cda265cca1cd9d3fcd9e'
@@ -33,6 +34,7 @@ assert UNICODE_HORROR == '₿ 😀 😈     う けたま わる w͢͢͝h͡o͢͡
 class WalletIntegrityHelper:
 
     gap_limit = 1  # make tests run faster
+    gap_limit_for_change = 1  # make tests run faster
     # TODO also use short gap limit for change addrs, for performance
 
     @classmethod
@@ -50,10 +52,11 @@ class WalletIntegrityHelper:
         test_obj.assertFalse(ks.has_seed())
 
     @classmethod
-    def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None):
+    def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None, gap_limit_for_change=None):
         db = storage.WalletDB('', storage=None, upgrade=True)
         db.put('keystore', ks.dump())
         db.put('gap_limit', gap_limit or cls.gap_limit)
+        db.put('gap_limit_for_change', gap_limit_for_change or cls.gap_limit_for_change)
         w = Standard_Wallet(db, config=config)
         w.synchronize()
         return w
@@ -69,7 +72,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_multisig_wallet(cls, keystores: Sequence, multisig_type: str, *,
-                               config: SimpleConfig, gap_limit=None):
+                               config: SimpleConfig, gap_limit=None, gap_limit_for_change=None):
         """Creates a multisig wallet."""
         db = storage.WalletDB('', storage=None, upgrade=False)
         for i, ks in enumerate(keystores):
@@ -77,6 +80,7 @@ class WalletIntegrityHelper:
             db.put('x%d' % cosigner_index, ks.dump())
         db.put('wallet_type', multisig_type)
         db.put('gap_limit', gap_limit or cls.gap_limit)
+        db.put('gap_limit_for_change', gap_limit_for_change or cls.gap_limit_for_change)
         w = Multisig_Wallet(db, config=config)
         w.synchronize()
         return w
@@ -2046,7 +2050,7 @@ class TestWalletSending(ElectrumTestCase):
     def _create_cause_carbon_wallet(self):
         data = read_test_vector('cause_carbon_wallet.json')
         ks = keystore.from_seed(data['seed'], passphrase='', for_multisig=False)
-        wallet = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2, config=self.config)
+        wallet = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2, gap_limit_for_change=2, config=self.config)
         # bootstrap wallet (incoming funding_tx0)
         funding_tx = Transaction(data['funding_tx'])
         wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
@@ -2949,7 +2953,7 @@ class TestWalletSending(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_imported_wallet_usechange_off(self, mock_save_db):
-        wallet = restore_wallet_from_text(
+        wallet = restore_wallet_from_text__for_unittest(
             "p2wpkh:cVcwSp488C8Riguq55Tuktgi6TpzuyLdDwUxkBDBz3yzV7FW4af2 p2wpkh:cPWyoPvnv2hiyyxbhMkhX3gPEENzB6DqoP9bbR8SDTg5njK5SL9n",
             path='if_this_exists_mocking_failed_648151893',
             config=self.config)['wallet']  # type: Abstract_Wallet
@@ -2985,7 +2989,7 @@ class TestWalletSending(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_imported_wallet_usechange_on(self, mock_save_db):
-        wallet = restore_wallet_from_text(
+        wallet = restore_wallet_from_text__for_unittest(
             "p2wpkh:cVcwSp488C8Riguq55Tuktgi6TpzuyLdDwUxkBDBz3yzV7FW4af2 p2wpkh:cPWyoPvnv2hiyyxbhMkhX3gPEENzB6DqoP9bbR8SDTg5njK5SL9n",
             path='if_this_exists_mocking_failed_648151893',
             config=self.config)['wallet']  # type: Abstract_Wallet
@@ -3020,7 +3024,7 @@ class TestWalletSending(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_imported_wallet_usechange_on__no_more_unused_addresses(self, mock_save_db):
-        wallet = restore_wallet_from_text(
+        wallet = restore_wallet_from_text__for_unittest(
             "p2wpkh:cVcwSp488C8Riguq55Tuktgi6TpzuyLdDwUxkBDBz3yzV7FW4af2 p2wpkh:cPWyoPvnv2hiyyxbhMkhX3gPEENzB6DqoP9bbR8SDTg5njK5SL9n",
             path='if_this_exists_mocking_failed_648151893',
             config=self.config)['wallet']  # type: Abstract_Wallet
@@ -4259,7 +4263,7 @@ class TestWalletHistory_SimpleRandomOrder(ElectrumTestCase):
     def create_old_wallet(self):
         ks = keystore.from_old_mpk('e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
         # seed words: powerful random nobody notice nothing important anyway look away hidden message over
-        w = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=20, config=self.config)
+        w = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=20, gap_limit_for_change=6, config=self.config)
         # some txns are beyond gap limit:
         w.create_new_address(for_change=True)
         return w
@@ -4364,10 +4368,11 @@ class TestWalletHistory_DoubleSpend(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_restoring_wallet_without_manual_delete(self, mock_save_db):
-        w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
-                                     path='if_this_exists_mocking_failed_648151893',
-                                     gap_limit=5,
-                                     config=self.config)['wallet']  # type: Abstract_Wallet
+        w = restore_wallet_from_text__for_unittest(
+            "small rapid pattern language comic denial donate extend tide fever burden barrel",
+            path='if_this_exists_mocking_failed_648151893',
+            gap_limit=5,
+            config=self.config)['wallet']  # type: Abstract_Wallet
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
             w.adb.add_transaction(tx)
@@ -4378,10 +4383,11 @@ class TestWalletHistory_DoubleSpend(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_restoring_wallet_with_manual_delete(self, mock_save_db):
-        w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
-                                     path='if_this_exists_mocking_failed_648151893',
-                                     gap_limit=5,
-                                     config=self.config)['wallet']  # type: Abstract_Wallet
+        w = restore_wallet_from_text__for_unittest(
+            "small rapid pattern language comic denial donate extend tide fever burden barrel",
+            path='if_this_exists_mocking_failed_648151893',
+            gap_limit=5,
+            config=self.config)['wallet']  # type: Abstract_Wallet
         # txn A is an external incoming txn funding the wallet
         txA = Transaction(self.transactions["a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625"])
         w.adb.add_transaction(txA)
@@ -4479,9 +4485,10 @@ class TestImportedWallet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_importing_and_deleting_addresses(self, mock_save_db):
-        w = restore_wallet_from_text("tb1q7648a2pm2se425lvun0g3vlf4ahmflcthegz63",
-                                     path='if_this_exists_mocking_failed_648151893',
-                                     config=self.config)['wallet']  # type: Abstract_Wallet
+        w = restore_wallet_from_text__for_unittest(
+            "tb1q7648a2pm2se425lvun0g3vlf4ahmflcthegz63",
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']  # type: Abstract_Wallet
         self.assertEqual(1, len(w.get_addresses()))
         w.adb.add_transaction(Transaction(self.transactions["0e350564ee7ed4ffce24a998b538f7f3ebbab6fcb4bb331f8bb6b9d86d86fcd8"]))
         w.adb.add_transaction(Transaction(self.transactions["54de13f7ee4853dc1a281c0e7132efb95330f7ceebc1dbce76fdf34c28028f14"]))

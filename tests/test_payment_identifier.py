@@ -4,10 +4,10 @@ from electrum import SimpleConfig
 from electrum.invoices import Invoice
 from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
                                          PaymentIdentifierType, invoice_from_payment_identifier)
-from electrum.wallet import restore_wallet_from_text
+from electrum.transaction import PartialTxOutput
 
 from . import ElectrumTestCase
-from electrum.transaction import PartialTxOutput
+from . import restore_wallet_from_text__for_unittest
 
 
 class WalletMock:
@@ -286,7 +286,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(2_000_000_000, invoice.amount_msat)
 
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        d = restore_wallet_from_text(text, path=self.wallet2_path, gap_limit=2, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet2_path, config=self.config)
         wallet2 = d['wallet']  # type: Standard_Wallet
 
         # no amount bip21+lightning, MAX amount passed

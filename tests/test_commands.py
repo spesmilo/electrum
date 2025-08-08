@@ -7,7 +7,7 @@ from os import urandom
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
 from electrum.lnworker import RecvMPPResolution
-from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
+from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutput, tx_from_any
@@ -16,6 +16,7 @@ from electrum.crypto import sha256
 from electrum.lnaddr import lndecode
 
 from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
 from .test_wallet_vertical import WalletIntegrityHelper
 
 
@@ -91,9 +92,10 @@ class TestCommands(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_encrypt_decrypt(self, mock_save_db):
-        wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN',
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         cmds = Commands(config=self.config)
         cleartext = "asdasd this is the message"
         pubkey = "021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da"
@@ -102,9 +104,10 @@ class TestCommands(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_export_private_key_imported(self, mock_save_db):
-        wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         cmds = Commands(config=self.config)
         # single address tests
         with self.assertRaises(UserFacingException):
@@ -121,10 +124,10 @@ class TestCommands(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_export_private_key_deterministic(self, mock_save_db):
-        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         cmds = Commands(config=self.config)
         # single address tests
         with self.assertRaises(UserFacingException):
@@ -150,10 +153,10 @@ class TestCommands(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_decrypt_enforces_strict_base64(self, mock_save_db):
         cmds = Commands(config=self.config)
-        wallet = restore_wallet_from_text('9dk',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']  # type: Abstract_Wallet
+        wallet = restore_wallet_from_text__for_unittest(
+            '9dk',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']  # type: Abstract_Wallet
         plaintext = "hello there"
         ciphertext = "QklFMQJEFgxfkXj+UNblbHR+4y6ZA2rGEeEhWo7h84lBFjlRY5JOPfV1zyC1fw5YmhIr7+3ceIV11lpf/Yv7gSqQCQ5Wuf1aGXceHZO0GjKVxBsuew=="
         pubkey = "02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"
@@ -234,10 +237,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_getprivatekeyforpath(self, mock_save_db):
-        wallet = restore_wallet_from_text('north rent dawn bunker hamster invest wagon market romance pig either squeeze',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'north rent dawn bunker hamster invest wagon market romance pig either squeeze',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         cmds = Commands(config=self.config)
         self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
                          await cmds.getprivatekeyforpath([0, 10000], wallet=wallet))
@@ -248,10 +251,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_payto(self, mock_save_db):
-        wallet = restore_wallet_from_text('disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         # bootstrap wallet
         funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
         funding_txid = funding_tx.txid()
@@ -276,10 +279,10 @@ class TestCommandsTestnet(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_payto__confirmed_only(self, mock_save_db):
         """test that payto respects 'confirmed_only' config var"""
-        wallet = restore_wallet_from_text('disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         # bootstrap wallet
         funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
         funding_txid = funding_tx.txid()
@@ -310,10 +313,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_paytomany_multiple_max_spends(self, mock_save_db):
-        wallet = restore_wallet_from_text('kit virtual quantum festival fortune inform ladder saddle filter soldier start ghost',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'kit virtual quantum festival fortune inform ladder saddle filter soldier start ghost',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         # bootstrap wallet
         funding_tx = Transaction('02000000000101f59876b1c65bbe3e182ccc7ea7224fe397bb9b70aadcbbf4f4074c75c8a074840000000000fdffffff021f351f00000000001600144eec851dd980cc36af1f629a32325f511604d6af56732d000000000016001439267bc7f3e3fabeae3bc3f73880de22d8b01ba50247304402207eac5f639806a00878488d58ca651d690292145bca5511531845ae21fab309d102207162708bd344840cc1bacff1092e426eb8484f83f5c068ba4ca579813de324540121020e0798c267ff06ee8b838cd465f3cfa6c843a122a04917364ce000c29ca205cae5f31f00')
         funding_txid = funding_tx.txid()
@@ -345,10 +348,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_signtransaction_with_wallet(self, mock_save_db):
-        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
 
         # bootstrap wallet1
         funding_tx = Transaction('01000000014576dacce264c24d81887642b726f5d64aa7825b21b350c7b75a57f337da6845010000006b483045022100a3f8b6155c71a98ad9986edd6161b20d24fad99b6463c23b463856c0ee54826d02200f606017fd987696ebbe5200daedde922eee264325a184d5bbda965ba5160821012102e5c473c051dae31043c335266d0ef89c1daab2f34d885cc7706b267f3269c609ffffffff0240420f00000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c42a2ddb90e000000001976a914c384950342cb6f8df55175b48586838b03130fad88ac00000000')
@@ -366,10 +369,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_bumpfee(self, mock_save_db):
-        wallet = restore_wallet_from_text('right nominee cheese afford exotic pilot mask illness rug fringe degree pottery',
-                                          gap_limit=2,
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']  # type: Abstract_Wallet
+        wallet = restore_wallet_from_text__for_unittest(
+            'right nominee cheese afford exotic pilot mask illness rug fringe degree pottery',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']  # type: Abstract_Wallet
 
         funding_tx = Transaction("02000000000102789e8aa8caa79d87241ff9df0e3fd757a07c85a30195d76e8efced1d57c56b670000000000fdffffff7ee2b6abd52b332f797718ae582f8d3b979b83b1799e0a3bfb2c90c6e070c29e0100000000fdffffff020820000000000000160014c0eb720c93a61615d2d66542d381be8943ca553950c3000000000000160014d7dbd0196a2cbd76420f14a19377096cf6cddb75024730440220485b491ad8d3ce3b4da034a851882da84a06ec9800edff0d3fd6aa42eeba3b440220359ea85d32a05932ac417125e133fa54e54e7e9cd20ebc54b883576b8603fd65012103860f1fbf8a482b9d35d7d4d04be8fb33d856a514117cd8b73e372d36895feec60247304402206c2ca56cc030853fa59b4b3cb293f69a3378ead0f10cb76f640f8c2888773461022079b7055d0f6af6952a48e5b97218015b0723462d667765c142b41bd35e3d9c0a01210359e303f57647094a668d69e8ff0bd46c356d00aa7da6dc533c438e71c057f0793e721f00")
         funding_txid = funding_tx.txid()
@@ -397,9 +400,10 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_importprivkey(self, mock_save_db):
-        wallet = restore_wallet_from_text('p2wpkh:cQUdWZehnGDwGn7CSc911cJBcWTAcnyzpLoJYTsFNYW1w6iaq7Nw p2wpkh:cNHsDLo137ngrr2wGf3mwqpwTUvpuDVAZrqzan9heHcMTK4rP5JB',
-                                          path='if_this_exists_mocking_failed_648151893',
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            'p2wpkh:cQUdWZehnGDwGn7CSc911cJBcWTAcnyzpLoJYTsFNYW1w6iaq7Nw p2wpkh:cNHsDLo137ngrr2wGf3mwqpwTUvpuDVAZrqzan9heHcMTK4rP5JB',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
         cmds = Commands(config=self.config)
         self.assertEqual(2, len(wallet.get_addresses()))
         # try importing a single bad privkey
@@ -435,9 +439,8 @@ class TestCommandsTestnet(ElectrumTestCase):
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_hold_invoice_commands(self, mock_save_db):
-        wallet: Abstract_Wallet = restore_wallet_from_text(
+        wallet: Abstract_Wallet = restore_wallet_from_text__for_unittest(
             'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
-            gap_limit=2,
             path='if_this_exists_mocking_failed_648151893',
             config=self.config)['wallet']
 

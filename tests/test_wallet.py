@@ -11,7 +11,7 @@ import asyncio
 from electrum.storage import WalletStorage
 from electrum.wallet_db import FINAL_SEED_VERSION
 from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
-                             restore_wallet_from_text, Imported_Wallet, Wallet)
+                             Imported_Wallet, Wallet)
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
@@ -24,6 +24,7 @@ from electrum.transaction import tx_from_any
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
 
 
 class FakeSynchronizer(object):
@@ -93,7 +94,7 @@ class TestWalletStorage(WalletTestCase):
             'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
             'p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
         ])
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
         await wallet.stop()
@@ -118,7 +119,7 @@ class TestWalletStorage(WalletTestCase):
 
     async def test_storage_prevouts_by_scripthash_persistence(self):
         text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=2, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         # create payreq
         addr = wallet1.get_unused_address()
@@ -224,6 +225,7 @@ class TestCreateRestoreWallet(WalletTestCase):
                               password=password,
                               encrypt_file=encrypt_file,
                               gap_limit=1,
+                              gap_limit_for_change=1,
                               config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
 
@@ -240,13 +242,14 @@ class TestCreateRestoreWallet(WalletTestCase):
         passphrase = 'mypassphrase'
         password = 'mypassword'
         encrypt_file = True
-        d = restore_wallet_from_text(text,
-                                     path=self.wallet_path,
-                                     passphrase=passphrase,
-                                     password=password,
-                                     encrypt_file=encrypt_file,
-                                     gap_limit=1,
-                                     config=self.config)
+        d = restore_wallet_from_text__for_unittest(
+            text,
+            path=self.wallet_path,
+            passphrase=passphrase,
+            password=password,
+            encrypt_file=encrypt_file,
+            gap_limit=1,
+            config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(passphrase, wallet.keystore.get_passphrase(password))
         self.assertEqual(text, wallet.keystore.get_seed(password))
@@ -255,7 +258,7 @@ class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_restore_wallet_from_text_no_storage(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        d = restore_wallet_from_text(
+        d = restore_wallet_from_text__for_unittest(
             text,
             path=None,
             gap_limit=1,
@@ -268,28 +271,28 @@ class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_restore_wallet_from_text_xpub(self):
         text = 'zpub6nydoME6CFdJtMpzHW5BNoPz6i6XbeT9qfz72wsRqGdgGEYeivso6xjfw8cGcCyHwF7BNW4LDuHF35XrZsovBLWMF4qXSjmhTXYiHbWqGLt'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_public_key())
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_xkey_that_is_also_a_valid_electrum_seed_by_chance(self):
         text = 'yprvAJBpuoF4FKpK92ofzQ7ge6VJMtorow3maAGPvPGj38ggr2xd1xCrC9ojUVEf9jhW5L9SPu6fU2U3o64cLrRQ83zaQGNa6YP3ajZS6hHNPXj'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_private_key(password=None))
         self.assertEqual('3Pa4hfP3LFWqa2nfphYaF7PZfdJYNusAnp', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_xprv(self):
         text = 'zprvAZzHPqhCMt51fskXBUYB1fTFYgG3CBjJUT4WEZTpGw6hPSDWBPZYZARC5sE9xAcX8NeWvvucFws8vZxEa65RosKAhy7r5MsmKTxr3hmNmea'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_private_key(password=None))
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_addresses(self):
         text = 'bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
@@ -299,7 +302,7 @@ class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_restore_wallet_from_text_privkeys(self):
         text = 'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         addr0 = wallet.get_receiving_addresses()[0]
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', addr0)

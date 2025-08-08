@@ -15,10 +15,11 @@ from electrum.lnutil import (
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
-from electrum.wallet import restore_wallet_from_text, Standard_Wallet
+from electrum.wallet import Standard_Wallet
 from electrum.simple_config import SimpleConfig
 
 from . import ElectrumTestCase, as_testnet
+from . import restore_wallet_from_text__for_unittest
 from .test_bitcoin import disable_ecdsa_r_value_grinding
 
 
@@ -1069,7 +1070,7 @@ class TestLNUtil(ElectrumTestCase):
     async def test_decode_imported_channel_backup_v0(self):
         encrypted_cb = "channel_backup:Adn87xcGIs9H2kfp4VpsOaNKWCHX08wBoqq37l1cLYKGlJamTeoaLEwpJA81l1BXF3GP/mRxqkY+whZG9l51G8izIY/kmMSvnh0DOiZEdwaaT/1/MwEHfsEomruFqs+iW24SFJPHbMM7f80bDtIxcLfZkKmgcKBAOlcqtq+dL3U3yH74S8BDDe2L4snaxxpCjF0JjDMBx1UR/28D+QlIi+lbvv1JMaCGXf+AF1+3jLQf8+lVI+rvFdyArws6Ocsvjf+ANQeSGUwW6Nb2xICQcMRgr1DO7bO4pgGu408eYRr2v3ayJBVtnKwSwd49gF5SDSjTDAO4CCM0uj9H5RxyzH7fqotkd9J80MBr84RiBXAeXKz+Ap8608/FVqgQ9BOcn6LhuAQdE5zXpmbQyw5jUGkPvHuseR+rzthzncy01odUceqTNg=="
         config = SimpleConfig({'electrum_path': self.electrum_path})
-        d = restore_wallet_from_text("9dk", path=None, gap_limit=2, config=config)
+        d = restore_wallet_from_text__for_unittest("9dk", path=None, config=config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet1.get_fingerprint())
         self.assertEqual(
@@ -1097,7 +1098,7 @@ class TestLNUtil(ElectrumTestCase):
     async def test_decode_imported_channel_backup_v1(self):
         encrypted_cb = "channel_backup:AVYIedu0qSLfY2M2bBxF6dA4RAxcmobp+3h9mxALWWsv5X7hhNg0XYOKNd11FE6BJOZgZnIZ4CCAlHtLNj0/9S5GbNhbNZiQXxeHMwC1lHvtjawkwSejIJyOI52DkDFHBAGZRd4fJjaPJRHnUizWfySVR4zjd08lTinpoIeL7C7tXBW1N6YqceqV7RpeoywlBXJtFfCCuw0hnUKgq3SMlBKapkNAIgGrg15aIHNcYeENxCxr5FD1s7DIwFSECqsBVnu/Ogx2oii8BfuxqJq8vuGq4Ib/BVaSVtdb2E1wklAor/CG0p9Fg9mFWND98JD+64nz9n/knPFFyHxTXErn+ct3ZcStsLYynWKUIocgu38PtzCJ7r5ivqOw4O49fbbzdjcgMUGklPYxjuinETneCo+dCPa1uepOGTqeOYmnjVYtYZYXOlWV1F5OtNoM7MwwJjAbz84="
         config = SimpleConfig({'electrum_path': self.electrum_path})
-        d = restore_wallet_from_text("9dk", path=None, gap_limit=2, config=config)
+        d = restore_wallet_from_text__for_unittest("9dk", path=None, config=config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet1.get_fingerprint())
         self.assertEqual(
