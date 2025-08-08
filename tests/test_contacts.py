@@ -1,10 +1,11 @@
 import os
 
-from . import ElectrumTestCase
-
 from electrum.simple_config import SimpleConfig
-from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
+from electrum.wallet import Abstract_Wallet
 from electrum.daemon import Daemon
+
+from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
 
 
 class TestContacts(ElectrumTestCase):
@@ -17,7 +18,7 @@ class TestContacts(ElectrumTestCase):
 
     async def test_saving_contacts(self):
         text = 'cross end slow expose giraffe fuel track awake turtle capital ranch pulp'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=2, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         w = d['wallet']  # type: Abstract_Wallet
         w.contacts["myNNuLYNgHE92nGQuJd5mXo6gy9gKXEDyQ"] = ("address", "alice")
         w.contacts["tb1q4syjltptqwhe62t3u5gwz9nsw87kmcwx003z05"] = ("address", "bob")

@@ -4,10 +4,10 @@ from typing import Optional, Iterable
 from electrum.commands import Commands
 from electrum.daemon import Daemon
 from electrum.simple_config import SimpleConfig
-from electrum.wallet import restore_wallet_from_text, Abstract_Wallet
+from electrum.wallet import Abstract_Wallet
 from electrum import util
 
-from . import ElectrumTestCase, as_testnet
+from . import ElectrumTestCase, as_testnet, restore_wallet_from_text__for_unittest
 
 
 class DaemonTestCase(ElectrumTestCase):
@@ -34,12 +34,11 @@ class DaemonTestCase(ElectrumTestCase):
         """Returns path for created wallet."""
         basename = util.get_new_wallet_name(self.wallet_dir)
         path = os.path.join(self.wallet_dir, basename)
-        wallet_dict = restore_wallet_from_text(
+        wallet_dict = restore_wallet_from_text__for_unittest(
             text,
             path=path,
             password=password,
             encrypt_file=encrypt_file,
-            gap_limit=2,
             config=self.config,
         )
         # We return the path instead of the wallet object, as extreme
@@ -193,19 +192,19 @@ class TestCommandsWithDaemon(DaemonTestCase):
 
     async def test_wp_command_with_inmemory_wallet_has_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wallet = restore_wallet_from_text(self.SEED,
-                                          gap_limit=2,
-                                          path=None,
-                                          password="123456",
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            self.SEED,
+            path=None,
+            password="123456",
+            config=self.config)['wallet']
         self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet, password="123456"))
 
     async def test_wp_command_with_inmemory_wallet_no_password(self):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        wallet = restore_wallet_from_text(self.SEED,
-                                          gap_limit=2,
-                                          path=None,
-                                          config=self.config)['wallet']
+        wallet = restore_wallet_from_text__for_unittest(
+            self.SEED,
+            path=None,
+            config=self.config)['wallet']
         self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet))
 
     async def test_wp_command_with_diskfile_wallet_has_password(self):
