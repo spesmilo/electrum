@@ -72,7 +72,7 @@ class LNWatcher(Logger, EventListener):
         await self.trigger_callbacks()
 
     @event_listener
-    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
+    async def on_event_adb_added_verified_tx(self, adb, tx_hash, info: TxMinedInfo):
         if adb != self.adb:
             return
         await self.trigger_callbacks()

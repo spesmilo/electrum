@@ -47,7 +47,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.unregister_callbacks()
 
     @qt_event_listener
-    def on_event_verified(self, wallet, txid, info):
+    def on_event_verified(self, wallet, txid: str, info: TxMinedInfo):
         if wallet == self.wallet:
             self._logger.debug('verified event for txid %s' % txid)
             self.on_tx_verified(txid, info)
@@ -228,7 +228,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
         self._dirty = False
 
-    def on_tx_verified(self, txid, info):
+    def on_tx_verified(self, txid: str, info: TxMinedInfo):
         for i, tx in enumerate(self.tx_history):
             if 'txid' in tx and tx['txid'] == txid:
                 tx['height'] = info.height
