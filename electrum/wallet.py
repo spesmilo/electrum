@@ -391,6 +391,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     """
 
     max_change_outputs = 3
+    gap_limit_for_change = None  # type: int | None
 
     txin_type: str
     wallet_type: str
@@ -1882,7 +1883,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # if there are none, take one randomly from the last few
             if not allow_reuse:
                 return []
-            addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
+            gap_limit = self.gap_limit_for_change or 0
+            addrs = self.get_change_addresses(slice_start=-gap_limit)
             change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
             assert is_address(addr), f"not valid bitcoin address: {addr}"
@@ -3808,6 +3810,7 @@ class Imported_Wallet(Simple_Wallet):
 
 
 class Deterministic_Wallet(Abstract_Wallet):
+    gap_limit_for_change: int
 
     def __init__(self, db, *, config):
         self._ephemeral_addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]
