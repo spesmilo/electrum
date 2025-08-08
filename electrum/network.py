@@ -43,10 +43,9 @@ from aiohttp import ClientResponse
 
 from . import util
 from .util import (
-    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter, MyEncoder,
+    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session, MyEncoder,
     NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
 )
-from .bitcoin import DummyAddress, DummyAddressUsedInTxException
 from . import constants
 from . import blockchain
 from . import dns_hacks
@@ -54,7 +53,7 @@ from .transaction import Transaction
 from .blockchain import Blockchain
 from .interface import (
     Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-    NetworkException, RequestCorrupted, ServerAddr
+    NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError,
 )
 from .version import PROTOCOL_VERSION
 from .i18n import _
@@ -285,34 +284,6 @@ class NetworkParameters(NamedTuple):
 
 
 class BestEffortRequestFailed(NetworkException): pass
-
-
-class TxBroadcastError(NetworkException):
-    def get_message_for_gui(self):
-        raise NotImplementedError()
-
-
-class TxBroadcastHashMismatch(TxBroadcastError):
-    def get_message_for_gui(self):
-        return "{}\n{}\n\n{}" \
-            .format(_("The server returned an unexpected transaction ID when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."),
-                    str(self))
-
-
-class TxBroadcastServerReturnedError(TxBroadcastError):
-    def get_message_for_gui(self):
-        return "{}\n{}\n\n{}" \
-            .format(_("The server returned an error when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."),
-                    str(self))
-
-
-class TxBroadcastUnknownError(TxBroadcastError):
-    def get_message_for_gui(self):
-        return "{}\n{}" \
-            .format(_("Unknown error when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."))
 
 
 class UntrustedServerReturnedError(NetworkException):
@@ -1096,26 +1067,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         """caller should handle TxBroadcastError"""
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
-        if timeout is None:
-            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
-        if any(DummyAddress.is_dummy_address(txout.address) for txout in tx.outputs()):
-            raise DummyAddressUsedInTxException("tried to broadcast tx with dummy address!")
-        try:
-            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [tx.serialize()], timeout=timeout)
-            # note: both 'out' and exception messages are untrusted input from the server
-        except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
-            raise  # pass-through
-        except aiorpcx.jsonrpc.CodeMessageError as e:
-            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}. tx={str(tx)}")
-            raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
-        except BaseException as e:  # intentional BaseException for sanity!
-            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}. tx={str(tx)}")
-            send_exception_to_crash_reporter(e)
-            raise TxBroadcastUnknownError() from e
-        if out != tx.txid():
-            self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: "
-                             f"{error_text_str_to_safe_str(out)} != {tx.txid()}. tx={str(tx)}")
-            raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
+        await self.interface.broadcast_transaction(tx, timeout=timeout)
 
     async def try_broadcasting(self, tx, name) -> bool:
         try:
@@ -1126,190 +1078,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         else:
             self.logger.info(f'success: broadcasting {name} {tx.txid()}')
             return True
-
-    @staticmethod
-    def sanitize_tx_broadcast_response(server_msg) -> str:
-        # Unfortunately, bitcoind and hence the Electrum protocol doesn't return a useful error code.
-        # So, we use substring matching to grok the error message.
-        # server_msg is untrusted input so it should not be shown to the user. see #4968
-        server_msg = str(server_msg)
-        server_msg = server_msg.replace("\n", r"\n")
-
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/script/script_error.cpp
-        script_error_messages = {
-            r"Script evaluated without error but finished with a false/empty top stack element",
-            r"Script failed an OP_VERIFY operation",
-            r"Script failed an OP_EQUALVERIFY operation",
-            r"Script failed an OP_CHECKMULTISIGVERIFY operation",
-            r"Script failed an OP_CHECKSIGVERIFY operation",
-            r"Script failed an OP_NUMEQUALVERIFY operation",
-            r"Script is too big",
-            r"Push value size limit exceeded",
-            r"Operation limit exceeded",
-            r"Stack size limit exceeded",
-            r"Signature count negative or greater than pubkey count",
-            r"Pubkey count negative or limit exceeded",
-            r"Opcode missing or not understood",
-            r"Attempted to use a disabled opcode",
-            r"Operation not valid with the current stack size",
-            r"Operation not valid with the current altstack size",
-            r"OP_RETURN was encountered",
-            r"Invalid OP_IF construction",
-            r"Negative locktime",
-            r"Locktime requirement not satisfied",
-            r"Signature hash type missing or not understood",
-            r"Non-canonical DER signature",
-            r"Data push larger than necessary",
-            r"Only push operators allowed in signatures",
-            r"Non-canonical signature: S value is unnecessarily high",
-            r"Dummy CHECKMULTISIG argument must be zero",
-            r"OP_IF/NOTIF argument must be minimal",
-            r"Signature must be zero for failed CHECK(MULTI)SIG operation",
-            r"NOPx reserved for soft-fork upgrades",
-            r"Witness version reserved for soft-fork upgrades",
-            r"Taproot version reserved for soft-fork upgrades",
-            r"OP_SUCCESSx reserved for soft-fork upgrades",
-            r"Public key version reserved for soft-fork upgrades",
-            r"Public key is neither compressed or uncompressed",
-            r"Stack size must be exactly one after execution",
-            r"Extra items left on stack after execution",
-            r"Witness program has incorrect length",
-            r"Witness program was passed an empty witness",
-            r"Witness program hash mismatch",
-            r"Witness requires empty scriptSig",
-            r"Witness requires only-redeemscript scriptSig",
-            r"Witness provided for non-witness script",
-            r"Using non-compressed keys in segwit",
-            r"Invalid Schnorr signature size",
-            r"Invalid Schnorr signature hash type",
-            r"Invalid Schnorr signature",
-            r"Invalid Taproot control block size",
-            r"Too much signature validation relative to witness weight",
-            r"OP_CHECKMULTISIG(VERIFY) is not available in tapscript",
-            r"OP_IF/NOTIF argument must be minimal in tapscript",
-            r"Using OP_CODESEPARATOR in non-witness script",
-            r"Signature is found in scriptCode",
-        }
-        for substring in script_error_messages:
-            if substring in server_msg:
-                return substring
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/validation.cpp
-        # grep "REJECT_"
-        # grep "TxValidationResult"
-        # should come after script_error.cpp (due to e.g. "non-mandatory-script-verify-flag")
-        validation_error_messages = {
-            r"coinbase": None,
-            r"tx-size-small": None,
-            r"non-final": None,
-            r"txn-already-in-mempool": None,
-            r"txn-mempool-conflict": None,
-            r"txn-already-known": None,
-            r"non-BIP68-final": None,
-            r"bad-txns-nonstandard-inputs": None,
-            r"bad-witness-nonstandard": None,
-            r"bad-txns-too-many-sigops": None,
-            r"mempool min fee not met":
-                ("mempool min fee not met\n" +
-                 _("Your transaction is paying a fee that is so low that the bitcoin node cannot "
-                   "fit it into its mempool. The mempool is already full of hundreds of megabytes "
-                   "of transactions that all pay higher fees. Try to increase the fee.")),
-            r"min relay fee not met": None,
-            r"absurdly-high-fee": None,
-            r"max-fee-exceeded": None,
-            r"too-long-mempool-chain": None,
-            r"bad-txns-spends-conflicting-tx": None,
-            r"insufficient fee": ("insufficient fee\n" +
-                 _("Your transaction is trying to replace another one in the mempool but it "
-                   "does not meet the rules to do so. Try to increase the fee.")),
-            r"too many potential replacements": None,
-            r"replacement-adds-unconfirmed": None,
-            r"mempool full": None,
-            r"non-mandatory-script-verify-flag": None,
-            r"mandatory-script-verify-flag-failed": None,
-            r"Transaction check failed": None,
-        }
-        for substring in validation_error_messages:
-            if substring in server_msg:
-                msg = validation_error_messages[substring]
-                return msg if msg else substring
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/rpc/rawtransaction.cpp
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/util/error.cpp
-        # https://github.com/bitcoin/bitcoin/blob/3f83c744ac28b700090e15b5dda2260724a56f49/src/common/messages.cpp#L126
-        # grep "RPC_TRANSACTION"
-        # grep "RPC_DESERIALIZATION_ERROR"
-        # grep "TransactionError"
-        rawtransaction_error_messages = {
-            r"Missing inputs": None,
-            r"Inputs missing or spent": None,
-            r"transaction already in block chain": None,
-            r"Transaction already in block chain": None,
-            r"Transaction outputs already in utxo set": None,
-            r"TX decode failed": None,
-            r"Peer-to-peer functionality missing or disabled": None,
-            r"Transaction rejected by AcceptToMemoryPool": None,
-            r"AcceptToMemoryPool failed": None,
-            r"Transaction rejected by mempool": None,
-            r"Mempool internal error": None,
-            r"Fee exceeds maximum configured by user": None,
-            r"Unspendable output exceeds maximum configured by user": None,
-            r"Transaction rejected due to invalid package": None,
-        }
-        for substring in rawtransaction_error_messages:
-            if substring in server_msg:
-                msg = rawtransaction_error_messages[substring]
-                return msg if msg else substring
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/consensus/tx_verify.cpp
-        # https://github.com/bitcoin/bitcoin/blob/c7ad94428ab6f54661d7a5441e1fdd0ebf034903/src/consensus/tx_check.cpp
-        # grep "REJECT_"
-        # grep "TxValidationResult"
-        tx_verify_error_messages = {
-            r"bad-txns-vin-empty": None,
-            r"bad-txns-vout-empty": None,
-            r"bad-txns-oversize": None,
-            r"bad-txns-vout-negative": None,
-            r"bad-txns-vout-toolarge": None,
-            r"bad-txns-txouttotal-toolarge": None,
-            r"bad-txns-inputs-duplicate": None,
-            r"bad-cb-length": None,
-            r"bad-txns-prevout-null": None,
-            r"bad-txns-inputs-missingorspent":
-                ("bad-txns-inputs-missingorspent\n" +
-                 _("You might have a local transaction in your wallet that this transaction "
-                   "builds on top. You need to either broadcast or remove the local tx.")),
-            r"bad-txns-premature-spend-of-coinbase": None,
-            r"bad-txns-inputvalues-outofrange": None,
-            r"bad-txns-in-belowout": None,
-            r"bad-txns-fee-outofrange": None,
-        }
-        for substring in tx_verify_error_messages:
-            if substring in server_msg:
-                msg = tx_verify_error_messages[substring]
-                return msg if msg else substring
-        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/policy/policy.cpp
-        # grep "reason ="
-        # should come after validation.cpp (due to "tx-size" vs "tx-size-small")
-        # should come after script_error.cpp (due to e.g. "version")
-        policy_error_messages = {
-            r"version": _("Transaction uses non-standard version."),
-            r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
-            r"scriptsig-size": None,
-            r"scriptsig-not-pushonly": None,
-            r"scriptpubkey":
-                ("scriptpubkey\n" +
-                 _("Some of the outputs pay to a non-standard script.")),
-            r"bare-multisig": None,
-            r"dust":
-                (_("Transaction could not be broadcast due to dust outputs.\n"
-                   "Some of the outputs are too small in value, probably lower than 1000 satoshis.\n"
-                   "Check the units, make sure you haven't confused e.g. mBTC and BTC.")),
-            r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
-        }
-        for substring in policy_error_messages:
-            if substring in server_msg:
-                msg = policy_error_messages[substring]
-                return msg if msg else substring
-        # otherwise:
-        return _("Unknown error")
 
     @best_effort_reliable
     @catch_server_exceptions

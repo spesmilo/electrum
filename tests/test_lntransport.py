@@ -102,6 +102,7 @@ class TestLNTransport(ElectrumTestCase):
                 for t in transports:
                     t.close()
                 server.close()
+                await server.wait_closed()
 
         await f()
 
