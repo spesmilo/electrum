@@ -350,7 +350,10 @@ class TxEditor(WindowModalDialog):
                 # fallback to actual fee
                 displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
-            displayed_fee = round(displayed_feerate * size) if displayed_feerate is not None else None
+            if displayed_feerate is not None:
+                displayed_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=displayed_feerate * 1000, size=size)
+            else:
+                displayed_fee = None
             self.fee_e.setAmount(displayed_fee)
         else:
             if freeze_fee:

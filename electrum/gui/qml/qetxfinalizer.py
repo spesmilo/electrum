@@ -888,11 +888,13 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     def get_child_fee_from_total_feerate(self, fee_per_kb: Optional[int]) -> Optional[int]:
         if fee_per_kb is None:
             return None
-        fee = fee_per_kb * self._total_size / 1000 - self._parent_fee
-        fee = round(fee)
-        fee = min(self._max_fee, fee)
-        fee = max(self._total_size, fee)  # pay at least 1 sat/byte for combined size
-        return fee
+        package_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=self._total_size)
+        child_fee = package_fee - self._parent_fee
+        child_fee = min(self._max_fee, child_fee)
+        # pay at least minrelayfee for combined size:
+        min_child_fee = FeePolicy.estimate_fee_for_feerate(fee_per_kb=self._wallet.wallet.relayfee(), size=self._total_size)
+        child_fee = max(min_child_fee, child_fee)
+        return child_fee
 
     def tx_verified(self):
         self._valid = False
