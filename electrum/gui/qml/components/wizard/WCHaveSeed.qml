@@ -224,7 +224,11 @@ WizardComponent {
         id: validationTimer
         interval: 500
         repeat: false
-        onTriggered: checkValid()
+        onTriggered: {
+            checkValid()
+            // checkIsLast depends on 'seed_extend'(_canPassphrase) getting set in apply()
+            checkIsLast()
+        }
     }
 
     Component.onCompleted: {
