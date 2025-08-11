@@ -32,9 +32,19 @@ ElDialog {
     property bool valid: amountValid
 
     Component.onCompleted: {
-        // Initialize walletCanReceive (instead of binding wallet.lightningCanReceive.satsInt)
-        // to prevent binding loop if wallet.lightningCanReceive.satsInt changes
-        walletCanReceive = wallet.lightningCanReceive.satsInt
+        dialog.walletCanReceive = wallet.lightningCanReceive.satsInt
+    }
+
+    Connections {
+        // assign walletCanReceive directly to prevent a binding loop
+        target: wallet
+        function onLightningCanReceiveChanged() {
+            if (!requestDetails.busy) {
+                // don't assign while busy to prevent the view from changing while receiving
+                // the incoming payment
+                dialog.walletCanReceive = wallet.lightningCanReceive.satsInt
+            }
+        }
     }
 
     ColumnLayout {
