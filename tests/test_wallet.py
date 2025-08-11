@@ -148,7 +148,7 @@ class TestWalletStorage(WalletTestCase):
     async def test_silent_payment_persistence(self):
         text = 'frost repair depend effort salon ring foam oak cancel receive save usage'
 
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=2, config=self.config) #p2wpkh
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=2, config=self.config) #p2wpkh
         wallet1 = d['wallet']  # type: Standard_Wallet
 
         # funding tx
@@ -199,7 +199,7 @@ class TestWalletStorage(WalletTestCase):
 
         # simulate two device scenario. Another wallet instance wants to bump the fee of this tx.
         other_wallet_path = self.wallet_path + 'other'
-        d = restore_wallet_from_text(text, path=other_wallet_path, gap_limit=2, config=self.config) #p2wpkh
+        d = restore_wallet_from_text__for_unittest(text, path=other_wallet_path, gap_limit=2, config=self.config) #p2wpkh
         wallet2 = d['wallet']  # type: Standard_Wallet
 
         # strip sp info from tx, as it would come from the server
