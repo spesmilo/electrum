@@ -481,6 +481,8 @@ class Test_bitcoin(ElectrumTestCase):
         # test vectors from BIP-0173
         # note: the ones that are commented out have been invalidated by BIP-0350
         self.assertEqual(address_to_script('BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4').hex(), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7', net=constants.BitcoinTestnet).hex(), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
+        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy', net=constants.BitcoinTestnet).hex(), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
         # self.assertEqual(address_to_script('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
         # self.assertEqual(address_to_script('BC1SW50QA3JX3S'), '6002751e')
         # self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), '5210751e76e8199196d454941c45d1b3a323')
@@ -491,43 +493,57 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(address_to_script('BC1SW50QGDZ25J').hex(), '6002751e')
         self.assertEqual(address_to_script('bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs').hex(), '5210751e76e8199196d454941c45d1b3a323')
         self.assertEqual(address_to_script('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0').hex(), '512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798')
+        self.assertEqual(address_to_script('tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c', net=constants.BitcoinTestnet).hex(), '5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
 
         # invalid addresses (from BIP-0173)
-        self.assertFalse(is_address('tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty'))
-        self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5'))
-        self.assertFalse(is_address('BC13W508D6QEJXTDG4Y5R3ZARVARY0C5XW7KN40WF2'))
-        self.assertFalse(is_address('bc1rw5uspcuh'))
-        self.assertFalse(is_address('bc10w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90'))
-        self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P'))
-        self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sL5k7'))
-        self.assertFalse(is_address('bc1zw508d6qejxtdg4y5r3zarvaryvqyzf3du'))
-        self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3pjxtptv'))
-        self.assertFalse(is_address('bc1gmk9yu'))
+        for net in [constants.BitcoinMainnet, constants.BitcoinTestnet]:
+            self.assertFalse(is_address('tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty', net=net))
+            self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5', net=net))
+            self.assertFalse(is_address('BC13W508D6QEJXTDG4Y5R3ZARVARY0C5XW7KN40WF2', net=net))
+            self.assertFalse(is_address('bc1rw5uspcuh', net=net))
+            self.assertFalse(is_address('bc10w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90', net=net))
+            self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P', net=net))
+            self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sL5k7', net=net))
+            self.assertFalse(is_address('bc1zw508d6qejxtdg4y5r3zarvaryvqyzf3du', net=net))
+            self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3pjxtptv', net=net))
+            self.assertFalse(is_address('bc1gmk9yu', net=net))
 
         # invalid addresses (from BIP-0350)
-        self.assertFalse(is_address('tc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq5zuyut'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqh2y7hd'))
-        self.assertFalse(is_address('tb1z0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqglt7rf'))
-        self.assertFalse(is_address('BC1S0XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ54WELL'))
-        self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh'))
-        self.assertFalse(is_address('tb1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq24jc47'))
-        self.assertFalse(is_address('bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4'))
-        self.assertFalse(is_address('BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R'))
-        self.assertFalse(is_address('bc1pw5dgrnzv'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v8n0nx0muaewav253zgeav'))
-        self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P'))
-        self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47Zagq'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v07qwwzcrf'))
-        self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vpggkg4j'))
-        self.assertFalse(is_address('bc1gmk9yu'))
+        for net in [constants.BitcoinMainnet, constants.BitcoinTestnet]:
+            self.assertFalse(is_address('tc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq5zuyut', net=net))
+            self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqh2y7hd', net=net))
+            self.assertFalse(is_address('tb1z0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqglt7rf', net=net))
+            self.assertFalse(is_address('BC1S0XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ54WELL', net=net))
+            self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh', net=net))
+            self.assertFalse(is_address('tb1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq24jc47', net=net))
+            self.assertFalse(is_address('bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4', net=net))
+            self.assertFalse(is_address('BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R', net=net))
+            self.assertFalse(is_address('bc1pw5dgrnzv', net=net))
+            self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v8n0nx0muaewav253zgeav', net=net))
+            self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P', net=net))
+            self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47Zagq', net=net))
+            self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v07qwwzcrf', net=net))
+            self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vpggkg4j', net=net))
+            self.assertFalse(is_address('bc1gmk9yu', net=net))
+
+        # bech32(m) mixed case:
+        bech32_mixed_case1 = 'BC1QW508D6QEJXTDG4Y5R3zarvary0c5xw7kv8f3t4'
+        self.assertFalse(is_address(bech32_mixed_case1))
+        self.assertTrue(is_address(bech32_mixed_case1.lower()))
+        self.assertTrue(is_address(bech32_mixed_case1.upper()))
 
         # base58 P2PKH
         self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG').hex(), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
         self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv').hex(), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
+        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX', net=constants.BitcoinTestnet).hex(), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
+        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K', net=constants.BitcoinTestnet).hex(), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
 
         # base58 P2SH
         self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT').hex(), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji').hex(), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p', net=constants.BitcoinTestnet).hex(), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
+        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk', net=constants.BitcoinTestnet).hex(), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
+
 
     def test_address_to_payload(self):
         # bech32 P2WPKH
@@ -642,59 +658,6 @@ class Test_bitcoin(ElectrumTestCase):
                          segwit_addr.bech32_decode('16plkw9'))
         self.assertEqual(DecodedBech32(None, None, None),
                          segwit_addr.bech32_decode('1p2gdwpf'))
-
-
-class Test_bitcoin_testnet(ElectrumTestCase):
-    TESTNET = True
-
-    def test_address_to_script(self):
-        # bech32/bech32m native segwit
-        # test vectors from BIP-0173
-        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7').hex(), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy').hex(), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
-
-        # bech32/bech32m native segwit
-        # test vectors from BIP-0350
-        self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7').hex(), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy').hex(), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
-        self.assertEqual(address_to_script('tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c').hex(), '5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
-
-        # invalid addresses (from BIP-0173)
-        self.assertFalse(is_address('tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty'))
-        self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5'))
-        self.assertFalse(is_address('BC13W508D6QEJXTDG4Y5R3ZARVARY0C5XW7KN40WF2'))
-        self.assertFalse(is_address('bc1rw5uspcuh'))
-        self.assertFalse(is_address('bc10w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90'))
-        self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P'))
-        self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sL5k7'))
-        self.assertFalse(is_address('bc1zw508d6qejxtdg4y5r3zarvaryvqyzf3du'))
-        self.assertFalse(is_address('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3pjxtptv'))
-        self.assertFalse(is_address('bc1gmk9yu'))
-
-        # invalid addresses (from BIP-0350)
-        self.assertFalse(is_address('tc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq5zuyut'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqh2y7hd'))
-        self.assertFalse(is_address('tb1z0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqglt7rf'))
-        self.assertFalse(is_address('BC1S0XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ54WELL'))
-        self.assertFalse(is_address('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh'))
-        self.assertFalse(is_address('tb1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq24jc47'))
-        self.assertFalse(is_address('bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4'))
-        self.assertFalse(is_address('BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R'))
-        self.assertFalse(is_address('bc1pw5dgrnzv'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v8n0nx0muaewav253zgeav'))
-        self.assertFalse(is_address('BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P'))
-        self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47Zagq'))
-        self.assertFalse(is_address('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v07qwwzcrf'))
-        self.assertFalse(is_address('tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vpggkg4j'))
-        self.assertFalse(is_address('bc1gmk9yu'))
-
-        # base58 P2PKH
-        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX').hex(), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
-        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K').hex(), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
-
-        # base58 P2SH
-        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p').hex(), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
-        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk').hex(), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
 class Test_xprv_xpub(ElectrumTestCase):
