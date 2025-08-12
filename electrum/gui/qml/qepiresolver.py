@@ -17,8 +17,8 @@ class QEPIResolver(QObject):
 
     busyChanged = pyqtSignal()
     resolveError = pyqtSignal([str, str], arguments=['code', 'message'])
-    invoiceResolved = pyqtSignal(object)
-    requestResolved = pyqtSignal(object)
+    invoiceResolved = pyqtSignal([object], arguments=['pi'])
+    requestResolved = pyqtSignal([object], arguments=['pi'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
