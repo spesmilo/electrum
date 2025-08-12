@@ -386,9 +386,12 @@ Item {
             dialog.open()
         }
 
-        Component.onCompleted: {
-            piResolver.invoiceResolved.connect(invoiceParser.fromResolvedPaymentIdentifier)
-            piResolver.requestResolved.connect(requestDetails.fromResolvedPaymentIdentifier)
+        onInvoiceResolved: (pi) => {
+            invoiceParser.fromResolvedPaymentIdentifier(pi)
+        }
+
+        onRequestResolved: (pi) => {
+            requestDetails.fromResolvedPaymentIdentifier(pi)
         }
     }
 
