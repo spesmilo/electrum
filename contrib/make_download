@@ -54,7 +54,7 @@ files = {
 }
 
 # default signers
-signers = ['ThomasV', 'SomberNight']
+signers = ['ThomasV', 'sombernight_releasekey']
 
 # detect extra signers
 list_dir = os.listdir('dist')
@@ -72,8 +72,8 @@ for k, v in detected_sigs.items():
 
 print(f"signers: {signers}", file=sys.stderr)
 
-gpg_name = lambda x: 'sombernight_releasekey' if x=='SomberNight' else x
-signers_list = ', '.join("<a href=\"https://raw.githubusercontent.com/spesmilo/electrum/master/pubkeys/%s.asc\">%s</a>"%(gpg_name(x), x) for x in signers)
+friendly_nick = lambda x: 'SomberNight' if x=='sombernight_releasekey' else x
+signers_list = ', '.join("<a href=\"https://raw.githubusercontent.com/spesmilo/electrum/master/pubkeys/%s.asc\">%s</a>"%(x, friendly_nick(x)) for x in signers)
 download_page_str = download_page_str.replace("##signers_list##", signers_list)
 
 for k, filename in files.items():
