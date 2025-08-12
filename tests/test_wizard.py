@@ -789,10 +789,26 @@ class WalletWizardTestCase(WizardTestCase):
             {
                 "14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG",
                 "35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT",
-                "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+                "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",  # TODO normalize to lowercase?
                 "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
             },
         )
+
+    async def test_create_imported_wallet_from_addresses__invalid_input(self):
+        w = self._wizard_for(wallet_type='imported')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('imported', v.view)
+
+        d.update({
+            'address_list':
+                'garbagegarbage\n'
+                '35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT\n'
+        })
+        v = w.resolve_next(v.view, d)
+        with self.assertRaises(AssertionError) as ctx:
+            wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=None)
+        self.assertTrue("expected bitcoin addr" in ctx.exception.args[0])
 
     async def test_create_imported_wallet_from_wif_keys(self):
         w = self._wizard_for(wallet_type='imported')
