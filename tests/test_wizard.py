@@ -127,7 +127,6 @@ class WalletWizardTestCase(WizardTestCase):
 
     # TODO imported addresses
     # TODO imported WIF keys
-    # TODO multisig
 
     def _wizard_for(
         self,
@@ -624,3 +623,151 @@ class WalletWizardTestCase(WizardTestCase):
         d.update({'password': '03a580deb85ef85654ed177fc049867ce915a8b392a34a524123870925e48a5b9e'})
         self.assertTrue(w.is_last_view(v.view, d))
         v = w.resolve_next(v.view, d)
+
+    async def test_create_multisig_wallet_2of2_createseed_cosigner2hasmasterkey(self):
+        w = self._wizard_for(wallet_type='multisig')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('multisig', v.view)
+
+        d.update({'multisig_participants': 2, 'multisig_signatures': 2, 'multisig_cosigner_data': {}})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'createseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('create_seed', v.view)
+
+        d.update({
+            'seed': 'eager divert pigeon dentist punch festival manage smart globe regular adult cash',
+            'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('confirm_seed', v.view)
+
+        d.update({'multisig_master_pubkey': 'Zpub6y7YR1dmZZV4f5rRm6dJCKSqqxZhKUxc8PkssXm84k2bzbGYkL22ugC4aZxVxC1qz4yo53Zwz1c1kiSHmybB4JjCsjCPjzygSsN1UcdCcvB'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 2nd cosigner uses Zpub from "9dk" seed
+        d['multisig_cosigner_data']['2'] = {'keystore_type': 'masterkey'}
+        d.update({
+            'multisig_current_cosigner': 2, 'cosigner_keystore_type': 'masterkey'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_key', v.view)
+
+        d['multisig_cosigner_data']['2'].update({'master_key': 'Zpub6y4evsU8HJw2d7ZH8QNyC6UKWHyxinAuQKkD6btsEZMbamy96UnefnM4sZp2K38rdiUssEhNq9TBpJ8Bh1GZCGTFpnYz8jM9pAdS6vk5VQs'})
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qg39tkymxwq4tn2ly6c3lmnyvsy94jyw52rdvfqkzdv2slvlj9xcsfy63vc")
+
+    async def test_create_multisig_wallet_3of6_haveseed_passphrase__cs2hasbip39__cs3zpub__cs4trezor__cs5seedandpassphrase__cs6zprv(self):
+        w = self._wizard_for(wallet_type='multisig')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('multisig', v.view)
+
+        d.update({'multisig_participants': 6, 'multisig_signatures': 3, 'multisig_cosigner_data': {}})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        d.update({
+            'seed': '9dk',
+            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_ext', v.view)
+
+        d.update({
+            'seed_extra_words': UNICODE_HORROR,
+            'multisig_master_pubkey': 'Zpub6zAYrXzLbLwWFCkahiB3fQz4KMUm68RsoGVHkM5aBjzHBGnQ9orvy7PKuFvMj4gyJXhFW5uFzHBgDDYFEPS75b3ADq3yvtuEJF86ZgLLyeL'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 2nd cosigner
+        d['multisig_cosigner_data']['2'] = {'keystore_type': 'haveseed'}
+        d.update({
+            'multisig_current_cosigner': 2, 'cosigner_keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_seed', v.view)
+
+        d['multisig_cosigner_data']['2'].update({
+            'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+            'seed_variant': 'bip39', 'seed_type': 'bip39', 'seed_extend': False})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_script_and_derivation', v.view)
+
+        d['multisig_cosigner_data']['2'].update({
+            'script_type': 'p2wsh', 'derivation_path': 'm/48h/0h/0h/2h'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 3rd cosigner uses Zpub from "9dk" seed
+        d['multisig_cosigner_data']['3'] = {'keystore_type': 'masterkey'}
+        d.update({
+            'multisig_current_cosigner': 3, 'cosigner_keystore_type': 'masterkey'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_key', v.view)
+
+        d['multisig_cosigner_data']['3'].update({
+            'master_key': 'Zpub6y4evsU8HJw2d7ZH8QNyC6UKWHyxinAuQKkD6btsEZMbamy96UnefnM4sZp2K38rdiUssEhNq9TBpJ8Bh1GZCGTFpnYz8jM9pAdS6vk5VQs'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 4th cosigner
+        d['multisig_cosigner_data']['4'] = {'keystore_type': 'hardware'}
+        d.update({
+            'multisig_current_cosigner': 4, 'cosigner_keystore_type': 'hardware'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_hardware', v.view)
+
+        d['multisig_cosigner_data']['4'].update({
+            'hardware_device': (
+                'trezor',
+                DeviceInfo(
+                    device=Device(path='webusb:002:1', interface_number=-1, id_='webusb:002:1', product_key='Trezor', usage_page=0, transport_ui_string='webusb:002:1'),
+                    label='trezor_unittests', initialized=True, exception=None, plugin_name='trezor', soft_device_id='088C3F260B66F60E15DE0FA5', model_name='Trezor T'))})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_start', v.view)
+
+        d['multisig_cosigner_data']['4'].update({
+            'script_type': 'p2wsh', 'derivation_path': 'm/48h/0h/0h/2h'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_xpub', v.view)
+
+        d['multisig_cosigner_data']['4'].update({
+            'hw_type': 'trezor', 'master_key': 'Zpub75t8XsK4GVa2EyQtjvT9auayKwonGaQJ149qB9r11o5iikugxJ99hYgbcaTdCGjd4DUdz4z2bqAtmDv2s8UihG1AnbzBufSG82GxjMDfVUn',
+            'root_fingerprint': '6306ee35', 'label': 'trezor_unittests', 'soft_device_id': '088C3F260B66F60E15DE0FA5'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 5th cosigner
+        d['multisig_cosigner_data']['5'] = {'keystore_type': 'haveseed'}
+        d.update({
+            'multisig_current_cosigner': 5, 'cosigner_keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_seed', v.view)
+
+        d['multisig_cosigner_data']['5'].update({
+            'seed': 'abandon bike',
+            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_have_ext', v.view)
+
+        d['multisig_cosigner_data']['5'].update({
+            'seed_extra_words': UNICODE_HORROR})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_keystore', v.view)
+
+        # 6th cosigner uses Zprv from "abandon bike" seed
+        d['multisig_cosigner_data']['6'] = {'keystore_type': 'masterkey'}
+        d.update({
+            'multisig_current_cosigner': 6, 'cosigner_keystore_type': 'masterkey'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('multisig_cosigner_key', v.view)
+
+        d['multisig_cosigner_data']['6'].update({
+            'master_key': 'ZprvAjWENdvYc1Ctvppxm4Z67U4EoiDy5VXKNvWmVAZshy7UjgKggu1UcAH7MqRqTaHVunuEPZ7o51wCrsZnJXPJtzHnAoxNmMLWFMHC7uvUN5P'})
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qtuzp7rectyjquax5c3p80eletswhp6cxslye749l47h4m9x92hzs6cmymy")
