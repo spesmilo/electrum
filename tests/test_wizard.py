@@ -125,9 +125,6 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
 class WalletWizardTestCase(WizardTestCase):
 
-    # TODO imported addresses
-    # TODO imported WIF keys
-
     def _wizard_for(
         self,
         *,
@@ -154,7 +151,7 @@ class WalletWizardTestCase(WizardTestCase):
         *,
         v: WizardViewState,
         w: NewWalletWizard,
-        recv_addr: str,
+        recv_addr: str | None,  # "first addr" only makes sense for HD wallets
         password: str | None = None,
         encrypt_file: bool = False,
     ) -> Abstract_Wallet:
@@ -170,7 +167,8 @@ class WalletWizardTestCase(WizardTestCase):
 
         self.assertTrue(os.path.exists(wallet_path))
         wallet = Daemon._load_wallet(wallet_path, password=password, config=self.config)
-        self.assertEqual(recv_addr, wallet.get_receiving_addresses()[0])
+        if recv_addr is not None:
+            self.assertEqual(recv_addr, wallet.get_receiving_addresses()[0])
         self.assertEqual(bool(password), wallet.has_password())
         self.assertEqual(encrypt_file, wallet.has_storage_encryption())
         return wallet
@@ -771,3 +769,45 @@ class WalletWizardTestCase(WizardTestCase):
             'master_key': 'ZprvAjWENdvYc1Ctvppxm4Z67U4EoiDy5VXKNvWmVAZshy7UjgKggu1UcAH7MqRqTaHVunuEPZ7o51wCrsZnJXPJtzHnAoxNmMLWFMHC7uvUN5P'})
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qtuzp7rectyjquax5c3p80eletswhp6cxslye749l47h4m9x92hzs6cmymy")
+
+    async def test_create_imported_wallet_from_addresses(self):
+        w = self._wizard_for(wallet_type='imported')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('imported', v.view)
+
+        d.update({
+            'address_list':
+                '14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG\n'
+                '35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT\n'
+                'BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4\n'
+                'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y\n'})
+        v = w.resolve_next(v.view, d)
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=None)
+        self.assertEqual(
+            set(wallet.get_receiving_addresses()),
+            {
+                "14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG",
+                "35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT",
+                "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+                "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
+            },
+        )
+
+    async def test_create_imported_wallet_from_wif_keys(self):
+        w = self._wizard_for(wallet_type='imported')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('imported', v.view)
+
+        d.update({
+            'private_key_list':
+                'p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY\n'
+                'p2pkh:KyQ2voUQj71P6E9KyDFqQoYMMm3yKKAPMKbfqZccib6xWxbWHCex\n'
+                'p2pkh:5JuecQZ1nH4VCQRQJTQjB4yu93BU6NmnAkDoGRdHX2PyH2E8QVX\n'})
+        v = w.resolve_next(v.view, d)
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=None)
+        self.assertEqual(
+            set(wallet.get_receiving_addresses()),
+            {"bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0", "1LNvv5h6QHoYv1nJcqrp13T2TBkD2sUGn1", "1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo"},
+        )
