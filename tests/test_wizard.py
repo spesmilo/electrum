@@ -337,6 +337,22 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4")
 
+    async def test_create_standard_wallet_have_master_key(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'masterkey'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_master_key', v.view)
+
+        d.update({
+            'master_key': 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr',
+            'multisig_master_pubkey': 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr'})
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0")
+
     async def test_create_standard_wallet_haveseed_bip39(self):
         w = self._wizard_for(wallet_type='standard')
         v = w._current
