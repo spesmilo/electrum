@@ -95,6 +95,12 @@ class QETxDetails(QObject, QtEventListener):
             self.update()
             self.txRemoved.emit()
 
+    @qt_event_listener
+    def on_event_fee_histogram(self, histogram):
+        if not self._wallet or not self._tx:
+            return
+        self.update()
+
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
     def wallet(self):
