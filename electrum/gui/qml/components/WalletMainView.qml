@@ -114,7 +114,8 @@ Item {
         var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
         dialog.accepted.connect(function() {
             if (invoice.canSave)
-                invoice.saveInvoice()
+                if (!invoice.saveInvoice())
+                    return
             if (!canComplete) {
                 if (Daemon.currentWallet.isWatchOnly) {
                     dialog.finalizer.saveOrShow()
@@ -413,7 +414,11 @@ Item {
             dialog.open()
         }
         onInvoiceCreateError: (code, message) => {
-            console.log(code + ' ' + message)
+            var msg = qsTr('Cannot save invoice') + ': ' + message
+            var dialog = app.messageDialog.createObject(app, {
+                text: msg
+            })
+            dialog.open()
         }
 
         onLnurlRetrieved: {

@@ -470,9 +470,10 @@ ElDialog {
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }
-                    invoice.saveInvoice()
-                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
-                    dialog.close()
+                    if (invoice.saveInvoice()) {
+                        app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                        dialog.close()
+                    }
                 }
             }
             FlatButton {
