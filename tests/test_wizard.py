@@ -8,6 +8,7 @@ from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewStat
 from electrum.daemon import Daemon
 from electrum.wallet import Abstract_Wallet
 from electrum import util
+from electrum import slip39
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR
@@ -127,7 +128,6 @@ class WalletWizardTestCase(WizardTestCase):
     # TODO imported addresses
     # TODO imported WIF keys
     # TODO multisig
-    # TODO slip39
 
     def _wizard_for(
         self,
@@ -392,6 +392,68 @@ class WalletWizardTestCase(WizardTestCase):
         d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qjexrunguxz8rlfuul8h4apafyh3sq5yp9kg98j")
+
+    async def test_create_standard_wallet_haveseed_slip39(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        # SLIP39 shares (128 bits, 2 groups from 1 of 1, 1 of 1, 3 of 5, 2 of 6)
+        mnemonics = [
+            "fact else acrobat romp analysis usher havoc vitamins analysis garden prevent romantic silent dramatic adjust priority mailman plains vintage else",
+            "fact else ceramic round craft lips snake faint adorn square bucket deadline violence guitar greatest academic stadium snake frequent memory",
+            "fact else ceramic scatter counter remove club forbid busy cause taxi forecast prayer uncover living type training forward software pumps",
+            "fact else ceramic shaft clock crowd detect cleanup wildlife depict include trip profile isolate express category wealthy advance garden mixture",
+        ]
+        encrypted_seed = slip39.recover_ems(mnemonics)
+
+        d.update({'seed': encrypted_seed, 'seed_variant': 'slip39', 'seed_type': 'slip39', 'seed_extend': False})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('script_and_derivation', v.view)
+
+        d.update({
+            'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h',
+            'multisig_master_pubkey': 'zpub6riQosasrLdM1rmmohyUHtseLYeCBKP55Xe1LTT7jyKFM6dMMZPYVx5ug6zH2gZ6XFGcUYubjbm43vXHecTzNmoMS3yfp6oeZT3GetsGFt4'})
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1q40ksvkl7wvc2l999ppl48swgt3rsl45ykyyrjn")
+
+    async def test_create_standard_wallet_haveseed_slip39_passphrase(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        # SLIP39 shares (128 bits, 2 groups from 1 of 1, 1 of 1, 3 of 5, 2 of 6)
+        mnemonics = [
+            "fact else acrobat romp analysis usher havoc vitamins analysis garden prevent romantic silent dramatic adjust priority mailman plains vintage else",
+            "fact else ceramic round craft lips snake faint adorn square bucket deadline violence guitar greatest academic stadium snake frequent memory",
+            "fact else ceramic scatter counter remove club forbid busy cause taxi forecast prayer uncover living type training forward software pumps",
+            "fact else ceramic shaft clock crowd detect cleanup wildlife depict include trip profile isolate express category wealthy advance garden mixture",
+        ]
+        encrypted_seed = slip39.recover_ems(mnemonics)
+
+        d.update({'seed': encrypted_seed, 'seed_variant': 'slip39', 'seed_type': 'slip39', 'seed_extend': True})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_ext', v.view)
+
+        d.update({'seed_extra_words': 'TREZOR'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('script_and_derivation', v.view)
+
+        d.update({
+            'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h',
+            'multisig_master_pubkey': 'zpub6s6A9ynh7TT1sPXmQyu8S6g7kxMF6iSZkM3NmgF4w7CtpsGgg56aouYSWHgAoMy186a8FRT8zkmhcwV5SWKFFQfMpvV8C9Ft4woWSzD5sXz'})
+        v = w.resolve_next(v.view, d)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t")
 
     async def test_2fa_createseed(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
