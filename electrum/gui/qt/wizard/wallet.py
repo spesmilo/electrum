@@ -48,7 +48,6 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("It also contains your master public key that allows watching your addresses.")
 
 
-
 class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
