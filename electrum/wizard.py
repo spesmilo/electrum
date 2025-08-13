@@ -226,6 +226,12 @@ class KeystoreWizard(AbstractWizard):
             'choose_hardware_device': {
                 'next': self.on_hardware_device,
             },
+            'wallet_password': {
+                'last': True
+            },
+            'wallet_password_hardware': {
+                'last': True
+            },
         }
 
     def maybe_master_pubkey(self, wizard_data):

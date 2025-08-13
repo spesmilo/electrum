@@ -2,7 +2,7 @@ import os
 
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
-from electrum.keystore import bip44_derivation
+from electrum.keystore import bip44_derivation, Hardware_KeyStore
 from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
@@ -266,12 +266,22 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertEqual('trezor_xpub', v.view)
         d.update({
             'hw_type': 'trezor',
-            'master_key': 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs',
-            'root_fingerprint': '',
+            'master_key': 'zpub6rakEaM5ps5UiQ2yhbWiEkd6ceJfmuzegwc62G4itMz8L7rRFRqh6y8bTCScXV6NfTMUhANYQnfqfBd9dYfBRKf4LD1Yyfc8UvwY1MtNKWs',
+            'root_fingerprint': 'b3569ff0',
             'label': 'test',
-            'soft_device_id': '',
+            'soft_device_id': '1',
         })
         self.assertTrue(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+
+        ks, ishww = w._result
+        self.assertTrue(ishww)
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6rakEaM5ps5UiQ2yhbWiEkd6ceJfmuzegwc62G4itMz8L7rRFRqh6y8bTCScXV6NfTMUhANYQnfqfBd9dYfBRKf4LD1Yyfc8UvwY1MtNKWs')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+        self.assertTrue(isinstance(wallet.get_keystore(), Hardware_KeyStore))
 
 
 class WalletWizardTestCase(WizardTestCase):
