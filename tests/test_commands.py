@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 from decimal import Decimal
 from os import urandom
+import shutil
 
 import electrum
 from electrum.commands import Commands, eval_bool
@@ -177,6 +178,9 @@ class TestCommandsTestnet(ElectrumTestCase):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.config.NETWORK_OFFLINE = True
+        shutil.copytree(os.path.join(os.path.dirname(__file__), "fiat_fx_data"), os.path.join(self.electrum_path, "cache"))
+        self.config.FX_EXCHANGE = "BitFinex"
+        self.config.FX_CURRENCY = "EUR"
         self._default_default_timezone = electrum.util.DEFAULT_TIMEZONE
         electrum.util.DEFAULT_TIMEZONE = datetime.timezone.utc
 
@@ -620,3 +624,19 @@ class TestCommandsTestnet(ElectrumTestCase):
         with self.subTest(msg="timestamp and block height based filtering cannot be used together"):
             with self.assertRaises(UserFacingException):
                 hist = await cmds.onchain_history(wallet_path=wallet_path, year=2019, from_height=1638866, to_height=1665815)
+        with self.subTest(msg="'show_fiat' param"):
+            self.config.FX_USE_EXCHANGE_RATE = True
+            hist = await cmds.onchain_history(wallet_path=wallet_path, show_fiat=True)
+            self.assertEqual(len(hist), 89)
+            self.assertEqual(
+                hist[-1],
+                expected_last_history_item | {
+                    "acquisition_price": "41.67",
+                    "capital_gain": "-1.16",
+                    "fiat_currency": "EUR",
+                    "fiat_default": True,
+                    "fiat_fee": "0.02",
+                    "fiat_rate": "8097.91",
+                    "fiat_value": "-40.51",
+                }
+            )
