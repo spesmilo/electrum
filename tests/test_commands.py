@@ -1,9 +1,12 @@
 import binascii
+import datetime
+import os.path
 import unittest
 from unittest import mock
 from decimal import Decimal
 from os import urandom
 
+import electrum
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
 from electrum.lnworker import RecvMPPResolution
@@ -14,6 +17,8 @@ from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
 from electrum.crypto import sha256
 from electrum.lnaddr import lndecode
+from electrum.daemon import Daemon
+from electrum import json_db
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
@@ -171,6 +176,23 @@ class TestCommandsTestnet(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config.NETWORK_OFFLINE = True
+        self._default_default_timezone = electrum.util.DEFAULT_TIMEZONE
+        electrum.util.DEFAULT_TIMEZONE = datetime.timezone.utc
+
+    def tearDown(self):
+        electrum.util.DEFAULT_TIMEZONE = self._default_default_timezone
+        super().tearDown()
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.daemon = Daemon(config=self.config, listen_jsonrpc=False)
+        assert self.daemon.network is None
+
+    async def asyncTearDown(self):
+        with mock.patch.object(wallet.Abstract_Wallet, 'save_db'):
+            await self.daemon.stop()
+        await super().asyncTearDown()
 
     async def test_convert_xkey(self):
         cmds = Commands(config=self.config)
@@ -533,3 +555,68 @@ class TestCommandsTestnet(ElectrumTestCase):
         with self.assertRaises(AssertionError):
             # cancelling a settled invoice should raise
             await cmds.cancel_hold_invoice(payment_hash=payment_hash, wallet=wallet)
+
+    @mock.patch.object(storage.WalletStorage, 'write')
+    @mock.patch.object(storage.WalletStorage, 'append')
+    async def test_onchain_history(self, *mock_args):
+        cmds = Commands(config=self.config, daemon=self.daemon)
+        WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
+        wallet_path = os.path.join(WALLET_FILES_DIR, "client_3_3_8_xpub_with_realistic_history")
+        await cmds.load_wallet(wallet_path=wallet_path)
+
+        expected_last_history_item = {
+            "amount_sat": -500200,
+            "bc_balance": "0.75136687",
+            "bc_value": "-0.005002",
+            "confirmations": 968,
+            "date": "2020-07-02 11:57+00:00",  # kind of a hack. normally, there is no timezone offset here
+            "fee_sat": 200,
+            "group_id": None,
+            "height": 1774910,
+            "incoming": False,
+            "label": "",
+            "monotonic_timestamp": 1593691025,
+            "timestamp": 1593691025,
+            "txid": "6db8ee1bf57bb6ff1c4447749079ba1bd5e47a948bf5700b114b37af3437b5fc",
+            "txpos_in_block": 44,
+            "wanted_height": None,
+        }
+
+        hist = await cmds.onchain_history(wallet_path=wallet_path)
+        self.assertEqual(len(hist), 89)
+        self.assertEqual(hist[-1], expected_last_history_item)
+
+        with self.subTest(msg="'show_addresses' param"):
+            hist = await cmds.onchain_history(wallet_path=wallet_path, show_addresses=True)
+            self.assertEqual(len(hist), 89)
+            self.assertEqual(
+                hist[-1],
+                expected_last_history_item | {
+                    'inputs': [
+                        {
+                            'coinbase': False,
+                            'nsequence': 4294967293,
+                            'prevout_hash': 'd42f6de015d93e6cd573ec8ae5ef6f87c4deb3763b0310e006d26c30d8800c67',
+                            'prevout_n': 0,
+                            'scriptSig': '',
+                            'witness': [
+                                '3044022056e0a02c45b5e4f93dc533c7f3fa95296684b0f41019ae91b5b7b083a5b651c202200a0e0c56bdfa299f4af8c604d359033863c9ce0a7fdd35acfbda5cff4a6ffa3301',
+                                '02eba8ba71542a884f2eec1f40594192be2628268f9fa141c9b12b026008dbb274'
+                            ]
+                        }
+                    ],
+                    'outputs': [
+                        {'address': 'tb1qr5mf6sumdlhjrq9t6wlyvdm960zu0n0t5d60ug', 'value_sat': 500000},
+                        {'address': 'tb1qp3p2d72gj2l7r6za056tgu4ezsurjphper4swh', 'value_sat': 762100}
+                    ],
+                }
+            )
+        with self.subTest(msg="'from_height' / 'to_height' params"):
+            hist = await cmds.onchain_history(wallet_path=wallet_path, from_height=1638866, to_height=1665815)
+            self.assertEqual(len(hist), 8)
+        with self.subTest(msg="'year' param"):
+            hist = await cmds.onchain_history(wallet_path=wallet_path, year=2019)
+            self.assertEqual(len(hist), 23)
+        with self.subTest(msg="timestamp and block height based filtering cannot be used together"):
+            with self.assertRaises(UserFacingException):
+                hist = await cmds.onchain_history(wallet_path=wallet_path, year=2019, from_height=1638866, to_height=1665815)

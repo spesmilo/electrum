@@ -325,7 +325,8 @@ class MyEncoder(json.JSONEncoder):
         if isinstance(obj, Decimal):
             return str(obj)
         if isinstance(obj, datetime):
-            return obj.isoformat(' ')[:-3]
+            # note: if there is a timezone specified, this will include the offset
+            return obj.isoformat(' ', timespec="minutes")
         if isinstance(obj, set):
             return list(obj)
         if isinstance(obj, bytes): # for nametuples in lnchannel
@@ -893,10 +894,11 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
+DEFAULT_TIMEZONE = None  # type: timezone | None  # None means local OS timezone
 def timestamp_to_datetime(timestamp: Union[int, float, None], *, utc: bool = False) -> Optional[datetime]:
     if timestamp is None:
         return None
-    tz = None
+    tz = DEFAULT_TIMEZONE
     if utc:
         tz = timezone.utc
     return datetime.fromtimestamp(timestamp, tz=tz)
