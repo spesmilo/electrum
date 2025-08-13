@@ -679,6 +679,11 @@ class NewWalletWizard(KeystoreWizard):
                     addresses[addr] = {'type': txin_type, 'pubkey': pubkey}
             elif 'address_list' in data:
                 for addr in data['address_list'].split():
+                    assert isinstance(addr, str)
+                    assert bitcoin.is_address(addr), f"expected bitcoin addr. got {addr[:5] + '..' + addr[-2:]}"
+                    # note: we do not normalize addresses. :/
+                    #       In particular, bech32 addresses can be either all-lowercase or all-uppercase.
+                    #       TODO we should normalize them, but it only makes sense if we also do a walletDB-upgrade.
                     addresses[addr] = {}
         elif data['keystore_type'] in ['createseed', 'haveseed']:
             seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
