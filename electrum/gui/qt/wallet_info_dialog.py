@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
+from electrum.wizard import WizardViewState
 
 from .main_window import protected
 from electrum.gui.qt.wizard.wallet import QEKeystoreWizard
@@ -192,7 +193,9 @@ class WalletInfoDialog(WindowModalDialog):
         self.window.gui_object.reload_windows()
 
     def enable_keystore(self, b: bool):
-        dialog = QEKeystoreWizard(self.window.config, self.window.wallet.wallet_type, self.window.gui_object.app, self.window.gui_object.plugins)
+        v = WizardViewState('keystore_type', {'wallet_type': self.window.wallet.wallet_type}, {})
+        dialog = QEKeystoreWizard(config=self.window.config, app=self.window.gui_object.app,
+                                  plugins=self.window.gui_object.plugins, start_viewstate=v)
         result = dialog.run()
         if not result:
             return
