@@ -17,6 +17,7 @@ ElDialog {
     }
 
     property string tx_label
+    property bool can_be_saved
     property int choice: PsbtReceiveDialog.Choice.None
 
     // TODO: it might be better to defer popup until no dialogs are shown
@@ -81,6 +82,7 @@ ElDialog {
                 Layout.preferredWidth: 1
                 text: qsTr('Save to Wallet')
                 icon.source: Qt.resolvedUrl('../../../gui/icons/wallet.png')
+                visible: dialog.can_be_saved
                 onClicked: {
                     choice = PsbtReceiveDialog.Choice.Save
                     doAccept()
