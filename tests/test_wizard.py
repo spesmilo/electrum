@@ -2,9 +2,10 @@ import os
 
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
+from electrum.keystore import bip44_derivation
 from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
-from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState
+from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
 from electrum.wallet import Abstract_Wallet
 from electrum import util
@@ -121,7 +122,157 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertTrue(w._daemon.network.run_called)
         self.assertEqual(NetworkParameters(server=serverobj, proxy=None, auto_connect=False, oneserver=False), w._daemon.network.parameters)
 
-# TODO KeystoreWizard ("enable keystore")
+
+class KeystoreWizardTestCase(WizardTestCase):
+    class TKeystoreWizard(KeystoreWizard):
+        def is_single_password(self):
+            """impl abstract reqd"""
+            return True
+
+    class TNewWalletWizard(NewWalletWizard):
+        def is_single_password(self):
+            """impl abstract reqd"""
+            return True
+
+    def _wizard_for(self, *, wallet_type: str = 'standard', hww: bool = False) -> tuple[KeystoreWizard, WizardViewState]:
+        w = KeystoreWizardTestCase.TKeystoreWizard(self.plugins)
+        v = w.start({'wallet_type': wallet_type})
+        self.assertEqual('keystore_type', v.view)
+        d = v.wizard_data
+        if hww:
+            d.update({'keystore_type': 'hardware'})
+            v = w.resolve_next(v.view, d)
+            self.assertEqual('choose_hardware_device', v.view)
+        else:
+            d.update({'keystore_type': 'haveseed'})
+            v = w.resolve_next(v.view, d)
+            self.assertEqual('enter_seed', v.view)
+
+        return w, v
+
+    def _create_xpub_keystore_wallet(self, *, wallet_type: str = 'standard', xpub):
+        w = KeystoreWizardTestCase.TNewWalletWizard(DaemonMock(self.config), self.plugins)
+        wallet_path = self.wallet_path
+        d = {
+            'wallet_type': wallet_type,
+            'keystore_type': 'masterkey',
+            'master_key': xpub,
+            'password': None,
+            'encrypt': False,
+        }
+        w.create_storage(wallet_path, d)
+        self.assertTrue(os.path.exists(wallet_path))
+        wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
+        return wallet
+
+    async def test_haveseed_electrum(self):
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        d.update({
+            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        self.assertTrue(w.is_last_view(v.view, d))
+        w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.xpub, 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+
+    async def test_haveseed_ext_electrum(self):
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        d.update({
+            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+        })
+        self.assertFalse(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('enter_ext', v.view)
+        d.update({'seed_extra_words': 'abc'})
+        self.assertTrue(w.is_last_view(v.view, d))
+        w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.xpub, 'zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL')
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+
+    async def test_haveseed_bip39(self):
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        d.update({
+            'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39',
+        })
+        self.assertFalse(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('script_and_derivation', v.view)
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        v = w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs')
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+
+    async def test_haveseed_ext_bip39(self):
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        d.update({
+            'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
+        })
+        self.assertFalse(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('enter_ext', v.view)
+        d.update({'seed_extra_words': 'abc'})
+        v = w.resolve_next(v.view, d)
+
+        self.assertEqual('script_and_derivation', v.view)
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        v = w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy')
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+
+    async def test_hww(self):
+        w, v = self._wizard_for(hww=True)
+        d = v.wizard_data
+        d.update({
+            'hardware_device': (
+                'trezor',
+                DeviceInfo(
+                    device=Device(path='webusb:002:1', interface_number=-1, id_='webusb:002:1', product_key='Trezor', usage_page=0, transport_ui_string='webusb:002:1'),
+                    label='trezor_unittests', initialized=True, exception=None, plugin_name='trezor', soft_device_id='088C3F260B66F60E15DE0FA5', model_name='Trezor T'))})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_start', v.view)
+        d.update({
+            'script_type': 'p2wpkh',
+            'derivation_path': bip44_derivation(0, bip43_purpose=84)
+        })
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trezor_xpub', v.view)
+        d.update({
+            'hw_type': 'trezor',
+            'master_key': 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs',
+            'root_fingerprint': '',
+            'label': 'test',
+            'soft_device_id': '',
+        })
+        self.assertTrue(w.is_last_view(v.view, d))
+
 
 class WalletWizardTestCase(WizardTestCase):
 
