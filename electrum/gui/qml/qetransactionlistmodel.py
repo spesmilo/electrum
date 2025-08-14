@@ -162,7 +162,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
         return item
 
-    def get_section_by_timestamp(self, timestamp):
+    @staticmethod
+    def get_section_by_timestamp(timestamp):
         txts = datetime.fromtimestamp(timestamp)
         today = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -177,14 +178,15 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         else:
             return 'older'
 
-    def format_date_by_section(self, section, date):
+    @staticmethod
+    def format_date_by_section(section: str, date: datetime):
         # TODO: l10n
         dfmt = {
-            'today': '%H:%M:%S',
-            'yesterday': '%H:%M:%S',
-            'lastweek': '%a, %H:%M:%S',
-            'lastmonth': '%a %d, %H:%M:%S',
-            'older': '%Y-%m-%d %H:%M:%S'
+            'today': '%H:%M',
+            'yesterday': '%H:%M',
+            'lastweek': '%a, %H:%M',
+            'lastmonth': '%a %d, %H:%M',
+            'older': '%Y-%m-%d %H:%M'
         }
         if section not in dfmt:
             section = 'older'
