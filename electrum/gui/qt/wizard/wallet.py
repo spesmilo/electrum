@@ -23,7 +23,7 @@ from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
 from electrum import WalletStorage, mnemonic, keystore
 from electrum.wallet_db import WalletDB
-from electrum.wizard import NewWalletWizard, KeystoreWizard
+from electrum.wizard import NewWalletWizard, KeystoreWizard, WizardViewState
 
 from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
@@ -48,14 +48,21 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("It also contains your master public key that allows watching your addresses.")
 
 
-
 class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', wallet_type: str, app: 'QElectrumApplication', plugins: 'Plugins', *, start_viewstate=None):
+    def __init__(
+            self,
+            *,
+            config: 'SimpleConfig',
+            app: 'QElectrumApplication',
+            plugins: 'Plugins',
+            start_viewstate: WizardViewState = None
+    ):
+        assert 'wallet_type' in start_viewstate.wizard_data, 'wallet_type required'
+
         QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
         KeystoreWizard.__init__(self, plugins)
-        self._wallet_type = wallet_type
         self.window_title = _('Extend wallet keystore')
         # attach gui classes to views
         self.navmap_merge({
@@ -418,9 +425,7 @@ class WCKeystoreType(WalletWizardComponent):
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
 
 
-
 class WCExtendKeystore(WalletWizardComponent):
-
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Keystore'))
         message = _('What type of signing method do you want to add?')
@@ -432,13 +437,10 @@ class WCExtendKeystore(WalletWizardComponent):
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
-        self.wizard_data['wallet_type'] = self._wallet_type = wizard._wallet_type
 
     def apply(self):
-        self.wizard_data['wallet_type'] = self._wallet_type
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
-        if multisig_type(self._wallet_type):
-            self.wizard_data['wallet_type'] = self._wallet_type = 'multisig'
+        if multisig_type(self.wizard_data['wallet_type']):
             self.wizard_data['multisig_participants'] = 2
             self.wizard_data['multisig_signatures'] = 2
             self.wizard_data['multisig_cosigner_data'] = {}

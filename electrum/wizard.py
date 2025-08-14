@@ -210,16 +210,27 @@ class KeystoreWizard(AbstractWizard):
                 'next': self.on_keystore_type
             },
             'enter_seed': {
-                'next': 'enter_ext',
-                'accept': lambda d: None if self.wants_ext(d) else self.update_keystore(d),
-                'last': lambda d: not self.wants_ext(d),
+                'next': lambda d: 'enter_ext' if self.wants_ext(d) else 'script_and_derivation',
+                'accept': lambda d: None if (self.wants_ext(d) or self.needs_derivation_path(d)) else self.update_keystore(d),
+                'last': lambda d: not self.wants_ext(d) and not self.needs_derivation_path(d),
             },
             'enter_ext': {
+                'next': 'script_and_derivation',
+                'accept': lambda d: None if self.needs_derivation_path(d) else self.update_keystore(d),
+                'last': lambda d: not self.needs_derivation_path(d)
+            },
+            'script_and_derivation': {
                 'accept': self.update_keystore,
                 'last': True
             },
             'choose_hardware_device': {
                 'next': self.on_hardware_device,
+            },
+            'wallet_password': {
+                'last': True
+            },
+            'wallet_password_hardware': {
+                'last': True
             },
         }
 

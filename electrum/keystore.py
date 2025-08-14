@@ -640,7 +640,11 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         self.xprv = d.get('xprv')
 
     def watching_only_keystore(self):
-        return BIP32_KeyStore({'xpub':self.xpub})
+        return BIP32_KeyStore({
+            'xpub': self.xpub,
+            'root_fingerprint': self.get_root_fingerprint(),
+            'derivation_prefix': self.get_derivation_prefix(),
+        })
 
     def format_seed(self, seed):
         return ' '.join(seed.split())
@@ -895,6 +899,13 @@ class Hardware_KeyStore(Xpub, KeyStore):
         self.handler = None  # type: Optional[HardwareHandlerBase]
         run_hook('init_keystore', self)
 
+    def watching_only_keystore(self):
+        return BIP32_KeyStore({
+            'xpub': self.xpub,
+            'root_fingerprint': self.get_root_fingerprint(),
+            'derivation_prefix': self.get_derivation_prefix(),
+        })
+
     def set_label(self, label: Optional[str]) -> None:
         self.label = label
 
@@ -914,13 +925,13 @@ class Hardware_KeyStore(Xpub, KeyStore):
             'xpub': self.xpub,
             'derivation': self.get_derivation_prefix(),
             'root_fingerprint': self.get_root_fingerprint(),
-            'label':self.label,
+            'label': self.label,
             'soft_device_id': self.soft_device_id,
         }
 
     def is_watching_only(self):
-        '''The wallet is not watching-only; the user will be prompted for
-        pin and passphrase as appropriate when needed.'''
+        """The wallet is not watching-only; the user will be prompted for
+        pin and passphrase as appropriate when needed."""
         assert not self.has_seed()
         return False
 
