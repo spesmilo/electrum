@@ -325,14 +325,14 @@ def construct_script(
 
 def relayfee(network: 'Network' = None) -> int:
     """Returns feerate in sat/kbyte."""
-    from .fee_policy import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    from .fee_policy import FEERATE_MIN_RELAY, FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
         fee = FEERATE_DEFAULT_RELAY
     # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, FEERATE_MAX_RELAY)
-    fee = max(fee, FEERATE_DEFAULT_RELAY)
+    fee = max(fee, FEERATE_MIN_RELAY)
     return fee
 
 
@@ -347,10 +347,7 @@ DUST_LIMIT_P2WPKH = 294
 
 def dust_threshold(network: 'Network' = None) -> int:
     """Returns the dust limit in satoshis."""
-    # Change <= dust threshold is added to the tx fee
-    dust_lim = 182 * 3 * relayfee(network)  # in msat
-    # convert to sat, but round up:
-    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
+    return DUST_LIMIT_P2PKH
 
 
 def hash_encode(x: bytes) -> str:
