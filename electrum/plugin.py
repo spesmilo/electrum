@@ -30,7 +30,6 @@ import importlib.util
 import time
 import threading
 import sys
-import aiohttp
 import zipfile as zipfile_lib
 from urllib.parse import urlparse
 
@@ -192,7 +191,7 @@ class Plugins(DaemonThread):
     def get_keyfile_path(self, key_hex: Optional[str]) -> Tuple[str, str]:
         if sys.platform in ['windows', 'win32']:
             keyfile_path = self.keyfile_windows
-            keyfile_help = _('This file can be edited with Regdit')
+            keyfile_help = _('This file can be edited with Regedit')
         elif 'ANDROID_DATA' in os.environ:
             raise Exception('platform not supported')
         else:
@@ -446,7 +445,7 @@ class Plugins(DaemonThread):
         key = bytes([PLUGIN_PASSWORD_VERSION]) + salt + pubkey
         return key.hex()
 
-    def get_pubkey_bytes(self) -> Tuple[Optional[bytes], bytes]:
+    def get_pubkey_bytes(self) -> Tuple[Optional[bytes], Optional[bytes]]:
         """
         returns pubkey, salt
         returns None, None if the pubkey has not been set
@@ -467,7 +466,7 @@ class Plugins(DaemonThread):
             if not os.path.exists(self.keyfile_posix):
                 return None, None
             if not self._has_root_permissions(self.keyfile_posix):
-                return
+                return None, None
             with open(self.keyfile_posix) as f:
                 key_hex = f.read()
         try:
@@ -805,8 +804,9 @@ class Plugins(DaemonThread):
             # no icon
             return None
 
+
 def get_file_hash256(path: str) -> bytes:
-    '''Get the sha256 hash of a file, similar to `sha256sum`.'''
+    """Get the sha256 hash of a file, similar to `sha256sum`."""
     with open(path, 'rb') as f:
         return sha256(f.read())
 
@@ -901,6 +901,7 @@ class BasePlugin(Logger):
         """Returns a dict which is persisted in the per-wallet database."""
         plugin_storage = wallet.db.get_plugin_storage()
         return plugin_storage.setdefault(self.name, {})
+
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
@@ -1049,8 +1050,8 @@ class DeviceMgr(ThreadJob):
         return [self]
 
     def run(self):
-        '''Handle device timeouts.  Runs in the context of the Plugins
-        thread.'''
+        """Handle device timeouts.  Runs in the context of the Plugins
+        thread."""
         with self.lock:
             clients = list(self.clients.keys())
         cutoff = time.time() - self.config.get_session_timeout()
@@ -1123,9 +1124,9 @@ class DeviceMgr(ThreadJob):
         return None
 
     def client_by_id(self, id_, *, scan_now: bool = True) -> Optional['HardwareClientBase']:
-        '''Returns a client for the device ID if one is registered.  If
+        """Returns a client for the device ID if one is registered.  If
         a device is wiped or in bootloader mode pairing is impossible;
-        in such cases we communicate by device ID and not wallet.'''
+        in such cases we communicate by device ID and not wallet."""
         if scan_now:
             self.scan_devices()
         return self._client_by_id(id_)
