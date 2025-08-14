@@ -250,6 +250,14 @@ class BitcoinSignet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class BitcoinMutinynet(BitcoinTestnet):
+
+    NET_NAME = "mutinynet"
+    BOLT11_HRP = "tbs"
+    GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
+    LN_DNS_SEEDS = []
+
+
 NETS_LIST = tuple(all_subclasses(AbstractNet))  # type: Sequence[Type[AbstractNet]]
 NETS_LIST = tuple(sorted(NETS_LIST, key=lambda x: x.NET_NAME))
 
