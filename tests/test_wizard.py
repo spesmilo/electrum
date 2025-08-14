@@ -168,8 +168,10 @@ class KeystoreWizardTestCase(WizardTestCase):
     async def test_haveseed_electrum(self):
         w, v = self._wizard_for()
         d = v.wizard_data
+        myseed = '9dk'
+        mypassphrase = ''
         d.update({
-            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+            'seed': myseed, 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
         })
         self.assertTrue(w.is_last_view(v.view, d))
         w.resolve_next(v.view, d)
@@ -181,17 +183,21 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+        self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
     async def test_haveseed_ext_electrum(self):
         w, v = self._wizard_for()
         d = v.wizard_data
+        myseed = '9dk'
+        mypassphrase = 'abc'
         d.update({
-            'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+            'seed': myseed, 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
         })
         self.assertFalse(w.is_last_view(v.view, d))
         v = w.resolve_next(v.view, d)
         self.assertEqual('enter_ext', v.view)
-        d.update({'seed_extra_words': 'abc'})
+        d.update({'seed_extra_words': mypassphrase})
         self.assertTrue(w.is_last_view(v.view, d))
         w.resolve_next(v.view, d)
         ks, ishww = w._result
@@ -202,6 +208,30 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+        self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
+
+    async def test_haveseed_electrum_oldseed(self):
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        myseed = 'powerful random nobody notice nothing important anyway look away hidden message over'
+        mypassphrase = ''
+        d.update({
+            'seed': myseed,
+            'seed_type': 'old', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        self.assertTrue(w.is_last_view(v.view, d))
+        w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.get_master_public_key(), 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+
+        wallet = self._create_xpub_keystore_wallet(xpub='e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+        self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
     async def test_haveseed_bip39(self):
         w, v = self._wizard_for()
