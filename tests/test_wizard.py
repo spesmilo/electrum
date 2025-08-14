@@ -2,7 +2,7 @@ import os
 
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
-from electrum.keystore import bip44_derivation, Hardware_KeyStore
+from electrum.keystore import bip44_derivation, Hardware_KeyStore, KeyStore, BIP32_KeyStore
 from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
@@ -124,6 +124,10 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
 
 class KeystoreWizardTestCase(WizardTestCase):
+    # TODO add test cases for:
+    #  - multisig
+    #  - 2fa
+
     class TKeystoreWizard(KeystoreWizard):
         def is_single_password(self):
             """impl abstract reqd"""
@@ -165,11 +169,20 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         return wallet
 
+    def _sanity_checks_after_disabling_keystore(self, *, ks: 'KeyStore', xpub: str) -> None:
+        self.assertTrue(ks.is_watching_only())
+        self.assertTrue(ks.type in ('bip32', 'old'))
+        self.assertFalse(ks.has_seed())
+        self.assertEqual(ks.get_master_public_key(), xpub)
+        if isinstance(ks, BIP32_KeyStore):
+            self.assertEqual(ks.xprv, None)
+
     async def test_haveseed_electrum(self):
         w, v = self._wizard_for()
         d = v.wizard_data
         myseed = '9dk'
         mypassphrase = ''
+        myxpub = 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr'
         d.update({
             'seed': myseed, 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
         })
@@ -177,20 +190,24 @@ class KeystoreWizardTestCase(WizardTestCase):
         w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
-        self.assertEqual(ks.xpub, 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        self.assertEqual(ks.xpub, myxpub)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+
     async def test_haveseed_ext_electrum(self):
         w, v = self._wizard_for()
         d = v.wizard_data
         myseed = '9dk'
         mypassphrase = 'abc'
+        myxpub = 'zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL'
         d.update({
             'seed': myseed, 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
         })
@@ -202,20 +219,24 @@ class KeystoreWizardTestCase(WizardTestCase):
         w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
-        self.assertEqual(ks.xpub, 'zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL')
+        self.assertEqual(ks.xpub, myxpub)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+
     async def test_haveseed_electrum_oldseed(self):
         w, v = self._wizard_for()
         d = v.wizard_data
         myseed = 'powerful random nobody notice nothing important anyway look away hidden message over'
         mypassphrase = ''
+        myxpub = 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3'
         d.update({
             'seed': myseed,
             'seed_type': 'old', 'seed_extend': False, 'seed_variant': 'electrum',
@@ -224,18 +245,22 @@ class KeystoreWizardTestCase(WizardTestCase):
         w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
-        self.assertEqual(ks.get_master_public_key(), 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+        self.assertEqual(ks.get_master_public_key(), myxpub)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+
     async def test_haveseed_bip39(self):
         w, v = self._wizard_for()
         d = v.wizard_data
+        myxpub = 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs'
         d.update({
             'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39',
         })
@@ -246,16 +271,20 @@ class KeystoreWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
-        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs')
+        self.assertEqual(ks.xpub, myxpub)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+
     async def test_haveseed_ext_bip39(self):
         w, v = self._wizard_for()
         d = v.wizard_data
+        myxpub = 'zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy'
         d.update({
             'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
         })
@@ -270,16 +299,20 @@ class KeystoreWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
-        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy')
+        self.assertEqual(ks.xpub, myxpub)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+
     async def test_hww(self):
         w, v = self._wizard_for(hww=True)
         d = v.wizard_data
+        myxpub = 'zpub6rakEaM5ps5UiQ2yhbWiEkd6ceJfmuzegwc62G4itMz8L7rRFRqh6y8bTCScXV6NfTMUhANYQnfqfBd9dYfBRKf4LD1Yyfc8UvwY1MtNKWs'
         d.update({
             'hardware_device': (
                 'trezor',
@@ -296,7 +329,7 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertEqual('trezor_xpub', v.view)
         d.update({
             'hw_type': 'trezor',
-            'master_key': 'zpub6rakEaM5ps5UiQ2yhbWiEkd6ceJfmuzegwc62G4itMz8L7rRFRqh6y8bTCScXV6NfTMUhANYQnfqfBd9dYfBRKf4LD1Yyfc8UvwY1MtNKWs',
+            'master_key': myxpub,
             'root_fingerprint': 'b3569ff0',
             'label': 'trezor_unittests',
             'soft_device_id': '088C3F260B66F60E15DE0FA5',
@@ -307,11 +340,14 @@ class KeystoreWizardTestCase(WizardTestCase):
         ks, ishww = w._result
         self.assertTrue(ishww)
 
-        wallet = self._create_xpub_keystore_wallet(xpub='zpub6rakEaM5ps5UiQ2yhbWiEkd6ceJfmuzegwc62G4itMz8L7rRFRqh6y8bTCScXV6NfTMUhANYQnfqfBd9dYfBRKf4LD1Yyfc8UvwY1MtNKWs')
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertTrue(isinstance(wallet.get_keystore(), Hardware_KeyStore))
+
+        wallet.disable_keystore(wallet.get_keystore())
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
 
 
 class WalletWizardTestCase(WizardTestCase):

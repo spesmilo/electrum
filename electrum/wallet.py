@@ -3267,6 +3267,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def disable_keystore(self, keystore: KeyStore) -> None:
         raise NotImplementedError()
 
+    def _update_keystore(self, keystore: KeyStore) -> None:
+        raise NotImplementedError()
+
     @abstractmethod
     def has_seed(self) -> bool:
         pass
