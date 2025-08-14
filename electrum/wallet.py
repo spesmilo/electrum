@@ -3261,6 +3261,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def save_keystore(self):
         pass
 
+    def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
+        raise NotImplementedError()
+
+    def disable_keystore(self, keystore: KeyStore) -> None:
+        raise NotImplementedError()
+
     @abstractmethod
     def has_seed(self) -> bool:
         pass
@@ -4030,14 +4036,13 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_txin_type(self, address=None):
         return self.txin_type
 
-    def enable_keystore(self, keystore, is_hardware_keystore: bool, password):
+    def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
         self._update_keystore(keystore)
 
-    def disable_keystore(self, keystore):
-        from .keystore import BIP32_KeyStore
+    def disable_keystore(self, keystore: KeyStore) -> None:
         assert not self.has_channels()
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()

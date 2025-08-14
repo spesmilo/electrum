@@ -183,7 +183,7 @@ class WalletInfoDialog(WindowModalDialog):
             self.window.show_message(_('Cannot disable keystore: You have active lightning channels'))
             return
 
-        msg = _('Disable keystore? This will make the keytore watching-only.')
+        msg = _('Disable keystore? This will make the keystore watching-only.')
         if self.wallet.storage.is_encrypted_with_hw_device():
             msg += '\n\n' + _('Note that this will disable wallet file encryption, because it uses your hardware wallet device.')
         if not self.window.question(msg):
