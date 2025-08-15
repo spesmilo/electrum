@@ -48,7 +48,7 @@ class QReceiveSignalObject(QObject):
         QObject.__init__(self)
         self._plugin = plugin
 
-    cosignerReceivedPsbt = pyqtSignal(str, str, str, str)
+    cosignerReceivedPsbt = pyqtSignal(str, str, str, str, bool)
     sendPsbtFailed = pyqtSignal(str, arguments=['reason'])
     sendPsbtSuccess = pyqtSignal()
 
@@ -138,7 +138,8 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
     def on_event_psbt_nostr_received(self, wallet, pubkey, event_id, tx: 'PartialTransaction', label: str):
         if self.wallet == wallet:
             self.tx = tx
-            self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize(), label)
+            can_be_saved = tx.txid() is not None
+            self.plugin.so.cosignerReceivedPsbt.emit(pubkey, event_id, tx.serialize(), label, can_be_saved)
 
     def close(self):
         super().close()
@@ -173,5 +174,5 @@ class QmlCosignerWallet(EventListener, CosignerWallet):
     def reject_psbt(self, event_id):
         self.mark_pending_event_rcvd(event_id)
 
-    def on_add_fail(self):
-        self.logger.error('failed to add tx to wallet')
+    def on_add_fail(self, error_msg: str):
+        self.logger.error(f'failed to add tx to wallet: {error_msg}')

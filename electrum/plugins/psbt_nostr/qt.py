@@ -102,7 +102,8 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             self.obj.cosignerReceivedPsbt.emit(*args)  # put on UI thread via signal
 
     def send_to_cosigners(self, tx: Union['Transaction', 'PartialTransaction'], label: str):
-        self.add_transaction_to_wallet(tx, label=label, on_failure=self.on_add_fail)
+        if tx.txid():
+            self.add_transaction_to_wallet(tx, label=label, on_failure=self.on_add_fail)
         self.send_psbt(tx, label)
 
     def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
@@ -120,8 +121,10 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         except Exception as e:
             self.window.show_error(str(e))
             return
-        self.window.show_message(
-            _("Your transaction was sent to your cosigners via Nostr.") + '\n\n' + txid)
+        message = _("Your transaction was sent to your cosigners via Nostr.")
+        if txid:
+            message += '\n\n' + txid
+        self.window.show_message(message)
 
     def on_receive(self, pubkey, event_id, tx, label):
         msg = '<br/>'.join([
@@ -129,13 +132,17 @@ class QtCosignerWallet(EventListener, CosignerWallet):
             _("A transaction was received from your cosigner with label: <br/><big>{}</big><br/>").format(label),
             _("Do you want to open it now?")
         ])
-        result = self.window.show_message(msg, rich_text=True, icon=QMessageBox.Icon.Question, buttons=[
-                QMessageBox.StandardButton.Open,
-                (QPushButton('Discard'), QMessageBox.ButtonRole.DestructiveRole, 100),
-                (QPushButton('Save to wallet'), QMessageBox.ButtonRole.AcceptRole, 101)]
-        )
+        buttons = [
+            QMessageBox.StandardButton.Open,
+            (QPushButton('Discard'), QMessageBox.ButtonRole.DestructiveRole, 100),
+        ]
+        if tx.txid():  # cannot add tx without txid to wallet history (e.g. unsigned legacy tx)
+            buttons.append(
+                (QPushButton('Save to wallet'), QMessageBox.ButtonRole.AcceptRole, 101)  # type: ignore
+            )
+        result = self.window.show_message(msg, rich_text=True, icon=QMessageBox.Icon.Question, buttons=buttons)
         if result == QMessageBox.StandardButton.Open:
-            if label:
+            if label and tx.txid():
                 self.wallet.set_label(tx.txid(), label)
             show_transaction(tx, parent=self.window, prompt_if_unsaved=True, on_closed=partial(self.on_tx_dialog_closed, event_id))
         else:
