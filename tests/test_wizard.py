@@ -11,9 +11,11 @@ from electrum.wallet import Abstract_Wallet
 from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
+from electrum import keystore
+from electrum.storage import WalletStorage
 
 from . import ElectrumTestCase
-from .test_wallet_vertical import UNICODE_HORROR
+from .test_wallet_vertical import UNICODE_HORROR, WalletIntegrityHelper
 
 
 class NetworkMock:
@@ -125,8 +127,6 @@ class ServerConnectWizardTestCase(WizardTestCase):
 
 
 class KeystoreWizardTestCase(WizardTestCase):
-    # TODO add test cases for:
-    #  - multisig
 
     class TKeystoreWizard(KeystoreWizard):
         def is_single_password(self):
@@ -389,6 +389,46 @@ class KeystoreWizardTestCase(WizardTestCase):
         my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
         self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
+
+    async def test_multisig(self):
+        seed1 = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
+        xpub1 = "Zpub6ymNkfdyhypEoqQNNGAUz9gXeiWJsW8AWx8Aa6PnDdeL76UC9b1UPGmEvwWzzkVVghVQuDBry7CK7wCBBdysRQgFFmdDSqi5kWoZ3A4cBuA"
+        seed2 = "snow nest raise royal more walk demise rotate smooth spirit canyon gun"
+        xpub2 = "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed(seed1, passphrase='', for_multisig=True),
+                keystore.from_xpub(xpub2),
+            ],
+            '2of2',
+            config=self.config,
+            storage=WalletStorage(self.wallet_path),
+        )
+
+        w, v = self._wizard_for(wallet_type=wallet.wallet_type)
+        d = v.wizard_data
+        d.update({
+            'seed': seed2, 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        self.assertTrue(w.is_last_view(v.view, d))
+        w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+        self.assertEqual(ks.xpub, xpub2)
+
+        self.assertFalse(wallet.get_keystores()[0].is_watching_only())
+        self.assertTrue(wallet.get_keystores()[1].is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
+        wallet.enable_keystore(ks, ishww, None)
+        self.assertFalse(wallet.get_keystores()[0].is_watching_only())
+        self.assertFalse(wallet.get_keystores()[1].is_watching_only())
+        self.assertEqual(seed1, wallet.get_keystores()[0].get_seed(None))
+        self.assertEqual(seed2, wallet.get_keystores()[1].get_seed(None))
+
+        keyorigininfo1 = wallet.get_keystores()[0].get_key_origin_info()
+        wallet.disable_keystore(wallet.get_keystores()[0])
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystores()[0], xpub=xpub1, key_origin_info=keyorigininfo1)
 
 
 class WalletWizardTestCase(WizardTestCase):
