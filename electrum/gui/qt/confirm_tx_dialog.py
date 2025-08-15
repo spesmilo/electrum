@@ -39,6 +39,7 @@ from electrum.transaction import Transaction, PartialTransaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
+from electrum.silent_payment import SilentPaymentException
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    WWLabel, read_QIcon)
@@ -558,6 +559,7 @@ class TxEditor(WindowModalDialog):
         num_ismine = sum(int(o.is_mine) for o in self.tx.outputs())
         if num_change > 1:
             messages.append(_('This transaction has {} change outputs.'.format(num_change)))
+
         # warn if there is no ismine output, as it might be problematic to RBF the tx later.
         # (though RBF is still possible by adding new inputs, if the wallet has more utxos)
         if num_ismine == 0:
@@ -658,7 +660,12 @@ class ConfirmTxDialog(TxEditor):
             self.tx = None
             self.main_window.show_error(str(e))
             raise
-        self.tx.set_rbf(True)
+        except SilentPaymentException as e:
+            self.tx = None
+            self.error = e.message
+            return
+        # sp-tx should be final
+        self.tx.set_rbf(False if self.tx.contains_silent_payment() else True)
 
     def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
         # called in send_tab.py

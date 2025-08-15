@@ -1474,6 +1474,23 @@ class WalletDB(JsonDB):
     def list_transactions(self) -> Sequence[str]:
         return list(self.transactions.keys())
 
+    ### Silent payment persistence
+    # Note: Removing silent payment mappings is intentionally avoided for two reasons:
+    #   1. It complicates handling RBF-replaced transactions that use silent payments,
+    #      because it's non-trivial to determine whether the replacement added new inputs
+    #      (which would invalidate the original silent payment mapping).
+    #    2. We can still detect if a user tries to pay to a previously silent payment derived address.
+    @locked
+    def get_silent_payment_address(self, onchain_addr: str) -> Optional[str]:
+        if onchain_addr is None: return None
+        return self.sp_addresses.get(onchain_addr, None)
+
+    @modifier
+    def add_silent_payment_address(self, onchain_addr: str, silent_payment_addr: str) -> None:
+        assert isinstance(onchain_addr, str)
+        assert isinstance(silent_payment_addr, str)
+        self.sp_addresses[onchain_addr] = silent_payment_addr
+
     @locked
     def get_history(self) -> Sequence[str]:
         return list(self.history.keys())
@@ -1679,6 +1696,8 @@ class WalletDB(JsonDB):
         self.tx_fees = self.get_dict('tx_fees')                  # type: Dict[str, TxFeesValue]
         # scripthash -> outpoint -> value
         self._prevouts_by_scripthash = self.get_dict('prevouts_by_scripthash')  # type: Dict[str, Dict[str, int]]
+        # taproot_addr -> sp_addr
+        self.sp_addresses = self.get_dict('sp_addresses')        # type: Dict[str, str]
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
             if not self.get_txi_addresses(tx_hash) and not self.get_txo_addresses(tx_hash):

@@ -773,6 +773,9 @@ class DummyAddress:
     @purpose
     def SWAP(self) -> str:
         return _get_dummy_address("swap")
+    @purpose
+    def SILENT_PAYMENT(self) -> str:
+        return _get_dummy_address("silent_payment")
 
     @classmethod
     def is_dummy_address(cls, addr: str) -> bool:
