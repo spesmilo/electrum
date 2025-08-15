@@ -3261,6 +3261,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def save_keystore(self):
         pass
 
+    def can_enable_disable_keystore(self, ks: KeyStore) -> bool:
+        """Whether the wallet is capable of disabling/enabling the given keystore.
+        This is a necessary but not sufficient check: e.g. if wallet has LN channels, we should not allow disabling.
+        """
+        return False
+
+    def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
+        raise NotImplementedError()
+
+    def disable_keystore(self, keystore: KeyStore) -> None:
+        raise NotImplementedError()
+
+    def _update_keystore(self, keystore: KeyStore) -> None:
+        raise NotImplementedError()
+
     @abstractmethod
     def has_seed(self) -> bool:
         pass
@@ -4030,15 +4045,20 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_txin_type(self, address=None):
         return self.txin_type
 
-    def enable_keystore(self, keystore, is_hardware_keystore: bool, password):
+    def can_enable_disable_keystore(self, ks: KeyStore) -> bool:
+        return True
+
+    def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
+        assert self.can_enable_disable_keystore(keystore)
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
         self._update_keystore(keystore)
 
-    def disable_keystore(self, keystore):
-        from .keystore import BIP32_KeyStore
+    def disable_keystore(self, keystore: KeyStore) -> None:
+        assert self.can_enable_disable_keystore(keystore)
         assert not self.has_channels()
+        assert keystore in self.get_keystores()
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
         if self.storage.is_encrypted_with_hw_device():
@@ -4086,7 +4106,8 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
         self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
 
     def _update_keystore(self, keystore):
-        assert self.keystore.get_master_public_key() == keystore.get_master_public_key()
+        if self.keystore.get_master_public_key() != keystore.get_master_public_key():
+            raise Exception("mismatching xpubs")
         self.keystore = keystore
         self.save_keystore()
 

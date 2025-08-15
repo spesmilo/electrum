@@ -150,16 +150,17 @@ class WalletInfoDialog(WindowModalDialog):
                 bip32fp_hbox.addWidget(bip32fp_text)
                 bip32fp_hbox.addStretch()
                 ks_vbox.addLayout(bip32fp_hbox)
-                ks_buttons = []
-                if not ks.is_watching_only():
-                    rm_keystore_button = QPushButton('Disable keystore')
-                    rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
-                    ks_buttons.insert(0, rm_keystore_button)
-                else:
-                    add_keystore_button = QPushButton('Enable Keystore')
-                    add_keystore_button.clicked.connect(self.enable_keystore)
-                    ks_buttons.insert(0, add_keystore_button)
-                ks_vbox.addLayout(Buttons(*ks_buttons))
+                if wallet.can_enable_disable_keystore(ks):
+                    ks_buttons = []
+                    if not ks.is_watching_only():
+                        rm_keystore_button = QPushButton('Disable keystore')
+                        rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
+                        ks_buttons.insert(0, rm_keystore_button)
+                    else:
+                        add_keystore_button = QPushButton('Enable Keystore')
+                        add_keystore_button.clicked.connect(self.enable_keystore)
+                        ks_buttons.insert(0, add_keystore_button)
+                    ks_vbox.addLayout(Buttons(*ks_buttons))
                 tab_label = _("Cosigner") + f' {idx+1}' if len(keystores) > 1 else _("Keystore")
                 index = self.keystore_tabs.addTab(ks_w, tab_label)
                 if not ks.is_watching_only():
@@ -183,7 +184,7 @@ class WalletInfoDialog(WindowModalDialog):
             self.window.show_message(_('Cannot disable keystore: You have active lightning channels'))
             return
 
-        msg = _('Disable keystore? This will make the keytore watching-only.')
+        msg = _('Disable keystore? This will make the keystore watching-only.')
         if self.wallet.storage.is_encrypted_with_hw_device():
             msg += '\n\n' + _('Note that this will disable wallet file encryption, because it uses your hardware wallet device.')
         if not self.window.question(msg):
