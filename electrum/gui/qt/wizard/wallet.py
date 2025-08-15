@@ -57,7 +57,7 @@ class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
             config: 'SimpleConfig',
             app: 'QElectrumApplication',
             plugins: 'Plugins',
-            start_viewstate: WizardViewState = None
+            start_viewstate: WizardViewState = None,
     ):
         assert 'wallet_type' in start_viewstate.wizard_data, 'wallet_type required'
 
@@ -440,10 +440,6 @@ class WCExtendKeystore(WalletWizardComponent):
 
     def apply(self):
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
-        if multisig_type(self.wizard_data['wallet_type']):
-            self.wizard_data['multisig_participants'] = 2
-            self.wizard_data['multisig_signatures'] = 2
-            self.wizard_data['multisig_cosigner_data'] = {}
 
 
 class WCCreateSeed(WalletWizardComponent):
