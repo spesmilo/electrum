@@ -4106,7 +4106,8 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
         self.keystore.add_slip_19_ownership_proofs_to_tx(tx=tx, password=None)
 
     def _update_keystore(self, keystore):
-        assert self.keystore.get_master_public_key() == keystore.get_master_public_key()
+        if self.keystore.get_master_public_key() != keystore.get_master_public_key():
+            raise Exception("mismatching xpubs")
         self.keystore = keystore
         self.save_keystore()
 

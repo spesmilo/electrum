@@ -127,7 +127,6 @@ class ServerConnectWizardTestCase(WizardTestCase):
 class KeystoreWizardTestCase(WizardTestCase):
     # TODO add test cases for:
     #  - multisig
-    #  - mismatching xpub vs seed errors
 
     class TKeystoreWizard(KeystoreWizard):
         def is_single_password(self):
@@ -242,6 +241,25 @@ class KeystoreWizardTestCase(WizardTestCase):
         my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
         self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
+
+    async def test_haveseed_electrum__mismatching_seed(self):
+        """adding an unrelated seed to an xpub-only keystore should raise"""
+        w, v = self._wizard_for()
+        d = v.wizard_data
+        d.update({
+            'seed': 'abandon bike', 'seed_type': 'segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        self.assertTrue(w.is_last_view(v.view, d))
+        w.resolve_next(v.view, d)
+        ks, ishww = w._result
+        self.assertFalse(ishww)
+
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
+        with self.assertRaises(Exception) as ctx:
+            wallet.enable_keystore(ks, ishww, None)
+        self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
 
     async def test_haveseed_electrum_oldseed(self):
         w, v = self._wizard_for()
