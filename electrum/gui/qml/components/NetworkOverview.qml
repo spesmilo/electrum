@@ -118,7 +118,7 @@ Pane {
                                     Layout.preferredWidth: 300 * (modelData[1] / Network.feeHistogram.total)
                                     Layout.fillWidth: true
                                     height: parent.height
-                                    color: Qt.hsva(2/3-(2/3*(Math.log(Math.min(600, modelData[0]))/Math.log(600))), 0.8, 1, 1)
+                                    color: Qt.hsva(2/3-(2/3*(Math.log(Math.min(600, Math.max(modelData[0], 1)))/Math.log(600))), 0.8, 1, 1)
                                     ToolTip.text: (qsTr("%1 around depth %2")
                                         .arg(modelData[0] + " " + UI_UNIT_NAME.FEERATE_SAT_PER_VB)
                                         .arg((modelData[2]/1000000).toFixed(2) + " " + UI_UNIT_NAME.MEMPOOL_MB)

@@ -352,7 +352,7 @@ class FeeHistogram:
 
     def get_capped_data(self):
         """ used by QML """
-        data = self._data or [[FEERATE_DEFAULT_RELAY/1000,1]]
+        data = self._data or [[FEERATE_DEFAULT_RELAY/1000, 1]]
         # cap the histogram to a limited number of megabytes
         bytes_limit = 10*1000*1000
         bytes_current = 0
@@ -360,10 +360,12 @@ class FeeHistogram:
         for item in sorted(data, key=lambda x: x[0], reverse=True):
             if bytes_current >= bytes_limit:
                 break
-            slot = min(item[1], bytes_limit-bytes_current)
+            slot = min(item[1], bytes_limit - bytes_current)
             bytes_current += slot
+            # round & limit precision
+            value = int(item[0] * 100) / 100
             capped_histogram.append([
-                max(FEERATE_MIN_RELAY/1000, item[0]),  # clamped to [FEERATE_MIN_RELAY/1000,inf[
+                max(FEERATE_MIN_RELAY/1000, value),  # clamped to [FEERATE_MIN_RELAY/1000,inf]
                 slot,  # width of bucket
                 bytes_current,  # cumulative depth at far end of bucket
             ])
