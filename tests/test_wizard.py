@@ -126,6 +126,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
 class KeystoreWizardTestCase(WizardTestCase):
     # TODO add test cases for:
     #  - multisig
+    #  - mismatching xpub vs seed errors
 
     class TKeystoreWizard(KeystoreWizard):
         def is_single_password(self):
@@ -262,14 +263,15 @@ class KeystoreWizardTestCase(WizardTestCase):
     async def test_haveseed_bip39(self):
         w, v = self._wizard_for()
         d = v.wizard_data
-        myxpub = 'zpub6jftahH18ngZwMBBp7epRdBwPMPphfdy9gM6P4n5zFUXdfQJmsYfMNZoBnQMkAoBAiQYRyDQKdpxLYp6QuTrWbgmt6v1cxnFdesyiDSocAs'
+        myxpub = 'zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs'
         d.update({
-            'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39',
+            'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+            'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39',
         })
         self.assertFalse(w.is_last_view(v.view, d))
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
-        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h'})
         v = w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
@@ -287,9 +289,10 @@ class KeystoreWizardTestCase(WizardTestCase):
     async def test_haveseed_ext_bip39(self):
         w, v = self._wizard_for()
         d = v.wizard_data
-        myxpub = 'zpub6jftahH18ngZwVNQQqNX9vgARaQRs5X89bPzjruSH2hgEBr1LRZN8reopYDALiKngTd8j5jUeGDipb68BXqjP6qMFsReLGwP6naDRvzVHxy'
+        myxpub = 'zpub6qaQ1V7UyjNRXR5u8QzTi1ibaWQkskUsfpi7na4oqwkXrZWzVqqohSKG8g2sL5m8CJju2E8GFRkZBxKKq5iEqS167CLLDK2jNz4vpNAea7X'
         d.update({
-            'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
+            'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+            'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
         })
         self.assertFalse(w.is_last_view(v.view, d))
         v = w.resolve_next(v.view, d)
@@ -298,7 +301,7 @@ class KeystoreWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
 
         self.assertEqual('script_and_derivation', v.view)
-        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h'})
         v = w.resolve_next(v.view, d)
         ks, ishww = w._result
         self.assertFalse(ishww)
@@ -592,13 +595,14 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39'})
+        d.update({'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+                  'seed_type': 'bip39', 'seed_extend': False, 'seed_variant': 'bip39'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
 
-        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h'})
         v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qrjr8qn4669jgr3s34f2pyj9awhz02eyvk5eh8g")
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu")
 
     async def test_create_standard_wallet_haveseed_bip39_passphrase(self):
         w = self._wizard_for(wallet_type='standard')
@@ -610,7 +614,8 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39'})
+        d.update({'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+                  'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_ext', v.view)
 
@@ -618,9 +623,9 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
 
-        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm'})
+        d.update({'script_type': 'p2wpkh', 'derivation_path': 'm/84h/0h/0h'})
         v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qjexrunguxz8rlfuul8h4apafyh3sq5yp9kg98j")
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qjc3dsy5wxaksae6zqmr3nwjsmuckwqca8flql3")
 
     async def test_create_standard_wallet_haveseed_slip39(self):
         w = self._wizard_for(wallet_type='standard')
