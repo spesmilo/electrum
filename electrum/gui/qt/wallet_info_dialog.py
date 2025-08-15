@@ -150,16 +150,17 @@ class WalletInfoDialog(WindowModalDialog):
                 bip32fp_hbox.addWidget(bip32fp_text)
                 bip32fp_hbox.addStretch()
                 ks_vbox.addLayout(bip32fp_hbox)
-                ks_buttons = []
-                if not ks.is_watching_only():
-                    rm_keystore_button = QPushButton('Disable keystore')
-                    rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
-                    ks_buttons.insert(0, rm_keystore_button)
-                else:
-                    add_keystore_button = QPushButton('Enable Keystore')
-                    add_keystore_button.clicked.connect(self.enable_keystore)
-                    ks_buttons.insert(0, add_keystore_button)
-                ks_vbox.addLayout(Buttons(*ks_buttons))
+                if wallet.can_enable_disable_keystore(ks):
+                    ks_buttons = []
+                    if not ks.is_watching_only():
+                        rm_keystore_button = QPushButton('Disable keystore')
+                        rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
+                        ks_buttons.insert(0, rm_keystore_button)
+                    else:
+                        add_keystore_button = QPushButton('Enable Keystore')
+                        add_keystore_button.clicked.connect(self.enable_keystore)
+                        ks_buttons.insert(0, add_keystore_button)
+                    ks_vbox.addLayout(Buttons(*ks_buttons))
                 tab_label = _("Cosigner") + f' {idx+1}' if len(keystores) > 1 else _("Keystore")
                 index = self.keystore_tabs.addTab(ks_w, tab_label)
                 if not ks.is_watching_only():

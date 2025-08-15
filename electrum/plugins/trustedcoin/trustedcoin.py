@@ -45,6 +45,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.util import NotEnoughFunds, UserFacingException, error_text_str_to_safe_str
 from electrum.network import Network
 from electrum.logging import Logger
+from electrum.keystore import KeyStore
 
 if TYPE_CHECKING:
     from electrum.wizard import NewWalletWizard
@@ -381,6 +382,15 @@ class Wallet_2fa(Multisig_Wallet):
 
     def is_billing_address(self, addr: str) -> bool:
         return addr in self._billing_addresses_set
+
+    def can_enable_disable_keystore(self, ks: KeyStore) -> bool:
+        return False
+
+    def enable_keystore(self, keystore, is_hardware_keystore, password):
+        raise Exception("2fa wallet cannot enable keystore")
+
+    def disable_keystore(self, keystore):
+        raise Exception("2fa wallet cannot disable keystore")
 
 
 # Utility functions

@@ -126,7 +126,6 @@ class ServerConnectWizardTestCase(WizardTestCase):
 class KeystoreWizardTestCase(WizardTestCase):
     # TODO add test cases for:
     #  - multisig
-    #  - 2fa
 
     class TKeystoreWizard(KeystoreWizard):
         def is_single_password(self):
@@ -194,6 +193,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
@@ -223,6 +223,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
@@ -249,6 +250,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
@@ -275,6 +277,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
@@ -303,6 +306,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
@@ -342,6 +346,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
         wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
         self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertTrue(wallet.can_enable_disable_keystore(ks))
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertTrue(isinstance(wallet.get_keystore(), Hardware_KeyStore))
@@ -701,7 +706,17 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_show_confirm_otp', v.view)
         v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+
+        with self.subTest(msg="2fa wallet cannot enable/disable keystore"):
+            for ks in wallet.get_keystores():
+                self.assertFalse(wallet.can_enable_disable_keystore(ks))
+                with self.assertRaises(Exception) as ctx:
+                    wallet.enable_keystore(ks, False, None)
+                self.assertTrue("2fa wallet cannot" in ctx.exception.args[0])
+                with self.assertRaises(Exception) as ctx:
+                    wallet.enable_keystore(ks, False, None)
+                self.assertTrue("2fa wallet cannot" in ctx.exception.args[0])
 
     async def test_2fa_haveseed_keep2FAenabled(self):
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
@@ -1054,3 +1069,4 @@ class WalletWizardTestCase(WizardTestCase):
             set(wallet.get_receiving_addresses()),
             {"bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0", "1LNvv5h6QHoYv1nJcqrp13T2TBkD2sUGn1", "1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo"},
         )
+        self.assertFalse(wallet.can_enable_disable_keystore(wallet.keystore))
