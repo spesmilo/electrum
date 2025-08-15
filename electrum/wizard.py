@@ -257,7 +257,7 @@ class KeystoreWizard(AbstractWizard):
         # one at a time
         return True
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
+    def start(self, *, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:
             initial_data = {}
         self.reset()
@@ -487,7 +487,7 @@ class NewWalletWizard(KeystoreWizard):
         # todo: load only if needed, like hw plugins
         self.plugins.load_plugin_by_name('trustedcoin')
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
+    def start(self, *, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:
             initial_data = {}
         self.reset()
@@ -861,7 +861,7 @@ class ServerConnectWizard(AbstractWizard):
             if wizard_data.get('autoconnect') is not None:
                 self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data.get('autoconnect')
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
+    def start(self, *, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:
             initial_data = {}
         self.reset()
@@ -888,7 +888,7 @@ class TermsOfUseWizard(AbstractWizard):
     def accept_terms_of_use(self, _):
         self._config.TERMS_OF_USE_ACCEPTED = TERMS_OF_USE_LATEST_VERSION
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
+    def start(self, *, initial_data: dict = None) -> WizardViewState:
         if initial_data is None:
             initial_data = {}
         self.reset()

@@ -140,7 +140,7 @@ class KeystoreWizardTestCase(WizardTestCase):
 
     def _wizard_for(self, *, wallet_type: str = 'standard', hww: bool = False) -> tuple[KeystoreWizard, WizardViewState]:
         w = KeystoreWizardTestCase.TKeystoreWizard(self.plugins)
-        v = w.start({'wallet_type': wallet_type})
+        v = w.start(initial_data={'wallet_type': wallet_type})
         self.assertEqual('keystore_type', v.view)
         d = v.wizard_data
         if hww:
