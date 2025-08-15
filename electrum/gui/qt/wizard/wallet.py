@@ -57,7 +57,7 @@ class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
             config: 'SimpleConfig',
             app: 'QElectrumApplication',
             plugins: 'Plugins',
-            start_viewstate: WizardViewState = None
+            start_viewstate: WizardViewState = None,
     ):
         assert 'wallet_type' in start_viewstate.wizard_data, 'wallet_type required'
 

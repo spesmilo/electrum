@@ -257,13 +257,14 @@ class KeystoreWizard(AbstractWizard):
         # one at a time
         return True
 
-    def start(self, *, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'keystore_type'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'keystore_type'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
 
     # returns (sub)dict of current cosigner (or root if first)
@@ -487,13 +488,14 @@ class NewWalletWizard(KeystoreWizard):
         # todo: load only if needed, like hw plugins
         self.plugins.load_plugin_by_name('trustedcoin')
 
-    def start(self, *, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'wallet_name'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'wallet_name'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
 
     def is_single_password(self) -> bool:
@@ -861,13 +863,14 @@ class ServerConnectWizard(AbstractWizard):
             if wizard_data.get('autoconnect') is not None:
                 self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data.get('autoconnect')
 
-    def start(self, *, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'welcome'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'welcome'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
 
 
@@ -888,11 +891,12 @@ class TermsOfUseWizard(AbstractWizard):
     def accept_terms_of_use(self, _):
         self._config.TERMS_OF_USE_ACCEPTED = TERMS_OF_USE_LATEST_VERSION
 
-    def start(self, *, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'terms_of_use'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'terms_of_use'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
