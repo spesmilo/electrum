@@ -36,7 +36,7 @@ import inspect
 from collections import defaultdict
 from functools import wraps
 from decimal import Decimal, InvalidOperation
-from typing import Optional, TYPE_CHECKING, Dict, List
+from typing import Optional, TYPE_CHECKING, Dict, List, Any
 import os
 import re
 
@@ -1011,7 +1011,7 @@ class Commands(Logger):
             await self.addtransaction(result, wallet=wallet)
         return result
 
-    def get_year_timestamps(self, year:int):
+    def get_year_timestamps(self, year: int) -> dict[str, Any]:
         kwargs = {}
         if year:
             start_date = datetime.datetime(year, 1, 1)
@@ -1071,21 +1071,26 @@ class Commands(Logger):
         return new_tx.serialize()
 
     @command('w')
-    async def onchain_history(self, show_fiat=False, year=None, show_addresses=False, wallet: Abstract_Wallet = None):
+    async def onchain_history(
+        self, show_fiat=False, year=None, show_addresses=False,
+        from_height=None, to_height=None,
+        wallet: Abstract_Wallet = None,
+    ):
         """Wallet onchain history. Returns the transaction history of your wallet.
 
         arg:bool:show_addresses:Show input and output addresses
         arg:bool:show_fiat:Show fiat value of transactions
-        arg:bool:show_fees:Show miner fees paid by transactions
         arg:int:year:Show history for a given year
+        arg:int:from_height:Only show transactions that confirmed after(inclusive) given block height
+        arg:int:to_height:Only show transactions that confirmed before(exclusive) given block height
         """
         # trigger lnwatcher callbacks for their side effects: setting labels and accounting_addresses
         if not self.network and wallet.lnworker:
             await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
 
-        #'from_height': (None, "Only show transactions that confirmed after given block height"),
-        #'to_height':   (None, "Only show transactions that confirmed before given block height"),
         kwargs = self.get_year_timestamps(year)
+        kwargs['from_height'] = from_height
+        kwargs['to_height'] = to_height
         onchain_history = wallet.get_onchain_history(**kwargs)
         out = [x.to_dict() for x in onchain_history.values()]
         if show_fiat:

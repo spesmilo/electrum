@@ -1202,8 +1202,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain=None,
             from_timestamp=None,
             to_timestamp=None,
-            from_height=None,
-            to_height=None
+            from_height=None,  # [from_height, to_height[
+            to_height=None,
     ) -> Dict[str, OnchainHistoryItem]:
         # sanity check
         if (from_timestamp is not None or to_timestamp is not None) \
@@ -1220,7 +1220,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
             timestamp = (hist_item.tx_mined_status.timestamp or TX_TIMESTAMP_INF)
-            height = hist_item.tx_mined_status
+            height = hist_item.tx_mined_status.height
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
             if to_timestamp and (timestamp or now) >= to_timestamp:
