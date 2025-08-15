@@ -23,6 +23,7 @@ from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
 from ...fee_policy import FeePolicy
+from ...util import InvoiceError
 
 
 class QEInvoice(QObject, QtEventListener):
@@ -690,18 +691,22 @@ class QEInvoiceParser(QEInvoice):
 
         self.recipient = invoice.lightning_invoice
 
-    @pyqtSlot()
-    def saveInvoice(self):
+    @pyqtSlot(result=bool)
+    def saveInvoice(self) -> bool:
         if not self._effectiveInvoice:
-            return
+            return False
         if self.isSaved:
-            return
+            return False
 
-        if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
-            if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
-                self._effectiveInvoice.set_amount_msat('!')
-            else:
-                self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
+        try:
+            if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
+                if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
+                    self._effectiveInvoice.set_amount_msat('!')
+                else:
+                    self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
+        except InvoiceError as e:
+            self.invoiceCreateError.emit('validation', str(e))
+            return False
 
         self.canSave = False
 
@@ -709,3 +714,5 @@ class QEInvoiceParser(QEInvoice):
         self._key = self._effectiveInvoice.get_id()
         self._wallet.invoiceModel.addInvoice(self._key)
         self.invoiceSaved.emit(self._key)
+
+        return True
