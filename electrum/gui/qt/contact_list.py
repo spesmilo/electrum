@@ -61,7 +61,7 @@ class ContactList(MyTreeView):
     def __init__(self, main_window: 'ElectrumWindow'):
         super().__init__(
             main_window=main_window,
-            stretch_column=self.Columns.NAME,
+            stretch_column=self.Columns.ADDRESS,
             editable_columns=[self.Columns.NAME],
         )
         self.setModel(QStandardItemModel(self))
