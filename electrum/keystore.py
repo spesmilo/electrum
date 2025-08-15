@@ -643,7 +643,7 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         return BIP32_KeyStore({
             'xpub': self.xpub,
             'root_fingerprint': self.get_root_fingerprint(),
-            'derivation_prefix': self.get_derivation_prefix(),
+            'derivation': self.get_derivation_prefix(),
         })
 
     def format_seed(self, seed):
@@ -903,7 +903,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         return BIP32_KeyStore({
             'xpub': self.xpub,
             'root_fingerprint': self.get_root_fingerprint(),
-            'derivation_prefix': self.get_derivation_prefix(),
+            'derivation': self.get_derivation_prefix(),
         })
 
     def set_label(self, label: Optional[str]) -> None:

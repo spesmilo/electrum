@@ -10,6 +10,7 @@ from electrum.daemon import Daemon
 from electrum.wallet import Abstract_Wallet
 from electrum import util
 from electrum import slip39
+from electrum.bip32 import KeyOriginInfo
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR
@@ -169,13 +170,20 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet = Daemon._load_wallet(wallet_path, password=None, config=self.config)
         return wallet
 
-    def _sanity_checks_after_disabling_keystore(self, *, ks: 'KeyStore', xpub: str) -> None:
+    def _sanity_checks_after_disabling_keystore(
+        self,
+        *,
+        ks: 'KeyStore',
+        xpub: str,
+        key_origin_info: KeyOriginInfo,
+    ) -> None:
         self.assertTrue(ks.is_watching_only())
         self.assertTrue(ks.type in ('bip32', 'old'))
         self.assertFalse(ks.has_seed())
         self.assertEqual(ks.get_master_public_key(), xpub)
         if isinstance(ks, BIP32_KeyStore):
             self.assertEqual(ks.xprv, None)
+        self.assertEqual(ks.get_key_origin_info(), key_origin_info)
 
     async def test_haveseed_electrum(self):
         w, v = self._wizard_for()
@@ -200,8 +208,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
     async def test_haveseed_ext_electrum(self):
         w, v = self._wizard_for()
@@ -230,8 +239,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
     async def test_haveseed_electrum_oldseed(self):
         w, v = self._wizard_for()
@@ -257,8 +267,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
         self.assertEqual(mypassphrase, wallet.get_keystore().get_passphrase(None))
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
     async def test_haveseed_bip39(self):
         w, v = self._wizard_for()
@@ -283,8 +294,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
     async def test_haveseed_ext_bip39(self):
         w, v = self._wizard_for()
@@ -313,8 +325,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet.enable_keystore(ks, ishww, None)
         self.assertFalse(wallet.get_keystore().is_watching_only())
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
     async def test_hww(self):
         w, v = self._wizard_for(hww=True)
@@ -354,8 +367,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertFalse(wallet.get_keystore().is_watching_only())
         self.assertTrue(isinstance(wallet.get_keystore(), Hardware_KeyStore))
 
+        my_keyorigininfo = wallet.get_keystore().get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystore())
-        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub)
+        self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystore(), xpub=myxpub, key_origin_info=my_keyorigininfo)
 
 
 class WalletWizardTestCase(WizardTestCase):

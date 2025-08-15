@@ -525,3 +525,10 @@ class KeyOriginInfo:
         xfp.extend(self.path)
         return xfp
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, KeyOriginInfo):
+            return False
+        return self.serialize() == other.serialize()
+
+    def __repr__(self) -> str:
+        return f"<KeyOriginInfo {self.to_string()}>"
