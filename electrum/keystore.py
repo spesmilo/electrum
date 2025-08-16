@@ -737,6 +737,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return Old_KeyStore({'mpk': self.mpk})
 
     def _get_hex_seed(self, password) -> str:
+        if not is_hex_str(self.seed) and password is None:
+            raise InvalidPassword()
         hex_str = pw_decode(self.seed, password, version=self.pw_hash_version)
         assert is_hex_str(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
         return hex_str
