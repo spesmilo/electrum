@@ -347,6 +347,20 @@ class TestWalletPassword(WalletTestCase):
             wallet.check_password("wrong password")
         wallet.check_password("1234")
 
+    async def test_update_password_of_standard_wallet_oldseed(self):
+        d = restore_wallet_from_text__for_unittest(
+            "powerful random nobody notice nothing important anyway look away hidden message over", path=self.wallet_path, config=self.config)
+        wallet = d['wallet']  # type: Standard_Wallet
+
+        wallet.check_password(None)
+
+        wallet.update_password(None, "1234")
+        with self.assertRaises(InvalidPassword):
+            wallet.check_password(None)
+        with self.assertRaises(InvalidPassword):
+            wallet.check_password("wrong password")
+        wallet.check_password("1234")
+
     async def test_update_password_with_app_restarts(self):
         wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'
         storage = WalletStorage(self.wallet_path)
