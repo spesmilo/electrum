@@ -124,10 +124,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
     @pyqtSlot()
     def strt(self):
-        if self.start_viewstate is not None:
-            viewstate = self._current = self.start_viewstate
-        else:
-            viewstate = self.start_wizard()
+        viewstate = self.start_wizard(start_viewstate=self.start_viewstate)
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
         self.set_default_focus()
 
@@ -236,8 +233,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
                 self.prev()  # rollback the submit above
                 raise e
 
-    def start_wizard(self) -> 'WizardViewState':
-        self.start()
+    def start_wizard(self, *, start_viewstate: Optional['WizardViewState'] = None) -> 'WizardViewState':
+        self.start(start_viewstate=start_viewstate)
         return self._current
 
     def view_to_component(self, view) -> QWidget:

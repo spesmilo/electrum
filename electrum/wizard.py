@@ -17,6 +17,7 @@ from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import keystore, mnemonic, bitcoin
 from electrum.mnemonic import is_any_2fa_seed_type, can_seed_have_passphrase
+from electrum.util import multisig_type
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -257,13 +258,23 @@ class KeystoreWizard(AbstractWizard):
         # one at a time
         return True
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def _convert_wallet_type(self, wizard_data: dict) -> None:
+        assert 'wallet_type' in wizard_data
+        if multisig_type(wizard_data['wallet_type']):
+            wizard_data['wallet_type'] = 'multisig'  # convert from e.g. "2of2" to "multisig"
+            wizard_data['multisig_participants'] = 2
+            wizard_data['multisig_signatures'] = 2
+            wizard_data['multisig_cosigner_data'] = {}
+
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'keystore_type'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'keystore_type'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
+        self._convert_wallet_type(self._current.wizard_data)  # mutating in-place
         return self._current
 
     # returns (sub)dict of current cosigner (or root if first)
@@ -487,13 +498,14 @@ class NewWalletWizard(KeystoreWizard):
         # todo: load only if needed, like hw plugins
         self.plugins.load_plugin_by_name('trustedcoin')
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'wallet_name'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'wallet_name'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
 
     def is_single_password(self) -> bool:
@@ -861,13 +873,14 @@ class ServerConnectWizard(AbstractWizard):
             if wizard_data.get('autoconnect') is not None:
                 self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data.get('autoconnect')
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'welcome'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'welcome'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
 
 
@@ -888,11 +901,12 @@ class TermsOfUseWizard(AbstractWizard):
     def accept_terms_of_use(self, _):
         self._config.TERMS_OF_USE_ACCEPTED = TERMS_OF_USE_LATEST_VERSION
 
-    def start(self, initial_data: dict = None) -> WizardViewState:
-        if initial_data is None:
-            initial_data = {}
+    def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
-        start_view = 'terms_of_use'
-        params = self.navmap[start_view].get('params', {})
-        self._current = WizardViewState(start_view, initial_data, params)
+        if start_viewstate is None:
+            start_view = 'terms_of_use'
+            params = self.navmap[start_view].get('params', {})
+            self._current = WizardViewState(start_view, {}, params)
+        else:
+            self._current = start_viewstate
         return self._current
