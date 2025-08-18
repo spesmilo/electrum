@@ -1031,6 +1031,9 @@ def parse_descriptor(desc: str) -> 'Descriptor':
 #####
 
 
+class NotLegacySinglesigScriptType(Exception): pass
+
+
 def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) -> Optional[Descriptor]:
     pubkey = PubkeyProvider.parse(pubkey)
     if script_type == 'p2pk':
@@ -1043,7 +1046,7 @@ def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) 
         wpkh = WPKHDescriptor(pubkey=pubkey)
         return SHDescriptor(subdescriptor=wpkh)
     else:
-        raise NotImplementedError(f"unexpected {script_type=}")
+        raise NotLegacySinglesigScriptType(f"unexpected {script_type=}")
 
 
 def create_dummy_descriptor_from_address(addr: Optional[str]) -> 'Descriptor':

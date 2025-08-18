@@ -999,6 +999,7 @@ class QETxSweepFinalizer(QETxFinalizer):
     def make_sweep_tx(self):
         address = self._wallet.wallet.get_receiving_address()
         assert self._wallet.wallet.is_mine(address)
+        assert self._txins is not None
 
         coins, keypairs = copy.deepcopy(self._txins)
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
@@ -1032,6 +1033,9 @@ class QETxSweepFinalizer(QETxFinalizer):
             return
         if not self._private_keys:
             self._logger.debug('private keys not set, ignoring update()')
+            return
+        if self._txins is None:
+            self._logger.debug('txins not set, ignoring update()')
             return
 
         try:

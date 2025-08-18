@@ -137,7 +137,10 @@ async def sweep_preparations(
 
     async def find_utxos_for_privkey(txin_type: str, privkey: bytes, compressed: bool):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=compressed)
-        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
+        try:
+            desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
+        except descriptor.NotLegacySinglesigScriptType:
+            raise UserFacingException(_("Unsupported script-type ({}) for sweeping.").format(txin_type)) from None
         await _append_utxos_to_inputs(
             inputs=inputs,
             network=network,
@@ -3710,7 +3713,7 @@ class Imported_Wallet(Simple_Wallet):
                 for txin_type in bitcoin.WIF_SCRIPT_TYPES.keys():
                     try:
                         addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
-                    except NotImplementedError:
+                    except descriptor.NotLegacySinglesigScriptType:
                         pass
                     else:
                         if self.db.has_imported_address(addr2):
