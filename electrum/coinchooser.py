@@ -90,7 +90,7 @@ class ScoredCandidate(NamedTuple):
     buckets: List[Bucket]
 
 
-def strip_unneeded(bkts: List[Bucket], sufficient_funds) -> List[Bucket]:
+def strip_unneeded(bkts: List[Bucket], sufficient_funds: Callable) -> List[Bucket]:
     '''Remove buckets that are unnecessary in achieving the spend amount'''
     if sufficient_funds([], bucket_value_sum=0):
         # none of the buckets are needed
@@ -113,7 +113,12 @@ class CoinChooserBase(Logger):
     def keys(self, coins: Sequence[PartialTxInput]) -> Sequence[str]:
         raise NotImplementedError
 
-    def bucketize_coins(self, coins: Sequence[PartialTxInput], *, fee_estimator_vb):
+    def bucketize_coins(
+        self,
+        coins: Sequence[PartialTxInput],
+        *,
+        fee_estimator_vb: Callable[[int | float | Decimal], int],
+    ):
         keys = self.keys(coins)
         buckets = defaultdict(list)  # type: Dict[str, List[PartialTxInput]]
         for key, coin in zip(keys, coins):
@@ -151,9 +156,12 @@ class CoinChooserBase(Logger):
 
         return list(map(make_Bucket, buckets.keys(), buckets.values()))
 
-    def penalty_func(self, base_tx, *,
-                     tx_from_buckets: Callable[[List[Bucket]], Tuple[PartialTransaction, List[PartialTxOutput]]]) \
-            -> Callable[[List[Bucket]], ScoredCandidate]:
+    def penalty_func(
+        self,
+        base_tx: Transaction,
+        *,
+        tx_from_buckets: Callable[[List[Bucket]], Tuple[PartialTransaction, List[PartialTxOutput]]],
+    ) -> Callable[[List[Bucket]], ScoredCandidate]:
         raise NotImplementedError
 
     def _change_amounts(self, tx: PartialTransaction, count: int, fee_estimator_numchange) -> List[int]:
@@ -282,7 +290,7 @@ class CoinChooserBase(Logger):
             inputs: List[PartialTxInput],
             outputs: List[PartialTxOutput],
             change_addrs: Sequence[str],
-            fee_estimator_vb: Callable,
+            fee_estimator_vb: Callable[[int | float | Decimal], int],
             dust_threshold: int,
             BIP69_sort: bool = True,
     ) -> PartialTransaction:
@@ -322,7 +330,7 @@ class CoinChooserBase(Logger):
         def fee_estimator_w(weight):
             return fee_estimator_vb(Transaction.virtual_size_from_weight(weight))
 
-        def sufficient_funds(buckets, *, bucket_value_sum):
+        def sufficient_funds(buckets: List[Bucket], *, bucket_value_sum: int) -> bool:
             '''Given a list of buckets, return True if it has enough
             value to pay for the transaction'''
             # assert bucket_value_sum == sum(bucket.value for bucket in buckets)  # expensive!
@@ -373,7 +381,11 @@ class CoinChooserBase(Logger):
 
 class CoinChooserRandom(CoinChooserBase):
 
-    def bucket_candidates_any(self, buckets: List[Bucket], sufficient_funds) -> List[List[Bucket]]:
+    def bucket_candidates_any(
+        self,
+        buckets: List[Bucket],
+        sufficient_funds: Callable,
+    ) -> List[List[Bucket]]:
         '''Returns a list of bucket sets.'''
         if not buckets:
             if sufficient_funds([], bucket_value_sum=0):
@@ -411,8 +423,11 @@ class CoinChooserRandom(CoinChooserBase):
         candidates = [[buckets[n] for n in c] for c in candidates]
         return [strip_unneeded(c, sufficient_funds) for c in candidates]
 
-    def bucket_candidates_prefer_confirmed(self, buckets: List[Bucket],
-                                           sufficient_funds) -> List[List[Bucket]]:
+    def bucket_candidates_prefer_confirmed(
+        self,
+        buckets: List[Bucket],
+        sufficient_funds: Callable,
+    ) -> List[List[Bucket]]:
         """Returns a list of bucket sets preferring confirmed coins.
 
         Any bucket can be:
@@ -435,7 +450,7 @@ class CoinChooserRandom(CoinChooserBase):
         for bkts_choose_from in bucket_sets:
             try:
                 def sfunds(
-                    bkts, *, bucket_value_sum,
+                    bkts: List[Bucket], *, bucket_value_sum: int,
                     already_selected_buckets_value_sum=already_selected_buckets_value_sum,
                     already_selected_buckets=already_selected_buckets,
                 ):

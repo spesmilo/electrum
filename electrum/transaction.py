@@ -29,7 +29,7 @@ import struct
 import io
 import base64
 from typing import (
-    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping
+    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping, Any
 )
 from collections import defaultdict
 from enum import IntEnum
@@ -703,7 +703,7 @@ def script_GetOp(_bytes : bytes):
 
 
 class OPPushDataGeneric:
-    def __init__(self, pushlen: Callable=None):
+    def __init__(self, pushlen: Callable[[int], bool] | None = None):
         if pushlen is not None:
             self.check_data_len = pushlen
 
@@ -721,7 +721,7 @@ class OPPushDataGeneric:
 
 
 class OPGeneric:
-    def __init__(self, matcher: Callable = None):
+    def __init__(self, matcher: Callable[[Any], bool] | None = None):
         if matcher is not None:
             self.matcher = matcher
 
@@ -729,7 +729,7 @@ class OPGeneric:
         return self.matcher(op)
 
     @classmethod
-    def is_instance(cls, item):
+    def is_instance(cls, item) -> bool:
         # accept objects that are instances of this class
         # or other classes that are subclasses
         return isinstance(item, cls) \
