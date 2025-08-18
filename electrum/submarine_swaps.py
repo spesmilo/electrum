@@ -384,7 +384,7 @@ class SwapManager(Logger):
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
         for txin in claim_tx.inputs():
             witness = txin.witness_elements()
-            if not witness:
+            if not witness or len(witness) < 2:
                 # tx may be unsigned
                 continue
             preimage = witness[1]
