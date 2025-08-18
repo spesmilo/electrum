@@ -143,6 +143,9 @@ class InvoiceList(MyTreeView):
 
     def show_invoice(self, key):
         invoice = self.wallet.get_invoice(key)
+        if not invoice:
+            self.update()
+            return
         if invoice.is_lightning():
             self.main_window.show_lightning_invoice(invoice)
         else:
