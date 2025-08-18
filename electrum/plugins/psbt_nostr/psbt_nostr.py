@@ -275,8 +275,8 @@ class CosignerWallet(Logger):
         tx: Union['Transaction', 'PartialTransaction'],
         *,
         label: str = None,
-        on_failure: Callable = None,
-        on_success: Callable = None
+        on_failure: Callable[[str], None] = None,
+        on_success: Callable[[], None] = None
     ) -> None:
         try:
             # TODO: adding tx should be handled more gracefully here:

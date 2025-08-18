@@ -1742,7 +1742,7 @@ def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
     loop.set_task_factory(factory)
 
 
-def run_sync_function_on_asyncio_thread(func: Callable, *, block: bool) -> None:
+def run_sync_function_on_asyncio_thread(func: Callable[[], Any], *, block: bool) -> None:
     """Run a non-async fn on the asyncio thread. Can be called from any thread.
 
     If the current thread is already the asyncio thread, func is guaranteed

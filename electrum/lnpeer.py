@@ -2352,8 +2352,8 @@ class Peer(Logger, EventListener):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            log_fail_reason: Callable,
-    ):
+            log_fail_reason: Callable[[str], None],
+    ) -> tuple[bytes, int, int, OnionRoutingFailure]:
         """
         Perform checks that are invariant (results do not depend on height, network conditions, etc).
         May raise OnionRoutingFailure
@@ -2379,13 +2379,13 @@ class Peer(Logger, EventListener):
                 code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                 data=htlc.cltv_abs.to_bytes(4, byteorder="big"))
         try:
-            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
+            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]  # type: int
         except Exception:
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
         if chan.opening_fee:
-            channel_opening_fee = chan.opening_fee['channel_opening_fee']
+            channel_opening_fee = chan.opening_fee['channel_opening_fee']  # type: int
             total_msat -= channel_opening_fee
             amt_to_forward -= channel_opening_fee
         else:
@@ -2405,7 +2405,16 @@ class Peer(Logger, EventListener):
 
         return payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd
 
-    def check_mpp_is_waiting(self, *, payment_secret, short_channel_id, htlc, expected_msat, exc_incorrect_or_unknown_pd, log_fail_reason) -> bool:
+    def check_mpp_is_waiting(
+        self,
+        *,
+        payment_secret: bytes,
+        short_channel_id: ShortChannelID,
+        htlc: UpdateAddHtlc,
+        expected_msat: int,
+        exc_incorrect_or_unknown_pd: OnionRoutingFailure,
+        log_fail_reason: Callable[[str], None],
+    ) -> bool:
         from .lnworker import RecvMPPResolution
         mpp_resolution = self.lnworker.check_mpp_status(
             payment_secret=payment_secret,
