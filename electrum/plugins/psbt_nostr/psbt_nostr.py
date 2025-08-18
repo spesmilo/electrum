@@ -278,6 +278,7 @@ class CosignerWallet(Logger):
         on_failure: Callable[[str], None] = None,
         on_success: Callable[[], None] = None
     ) -> None:
+        assert tx.txid(), "Shouldn't allow to save tx without txid"
         try:
             # TODO: adding tx should be handled more gracefully here:
             # 1) don't replace tx with same tx with less signatures
