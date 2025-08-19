@@ -1,0 +1,9 @@
+diff --git a/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt b/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
+index 11332e48..78f514f1 100644
+--- a/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
++++ b/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
+@@ -13,3 +13,4 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../core ZXing EXCLUD
+ add_library(zxingcpp_android SHARED ZxingCpp.cpp)
+ 
+ target_link_libraries(zxingcpp_android PRIVATE ZXing::ZXing jnigraphics)
++target_link_options(zxingcpp_android PRIVATE "-Wl,-z,max-page-size=16384")
