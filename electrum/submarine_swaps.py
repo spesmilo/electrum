@@ -1567,25 +1567,37 @@ class NostrTransport(SwapServerTransport):
         tags = [['d', f'electrum-swapserver-{self.NOSTR_EVENT_VERSION}'],
                 ['r', 'net:' + constants.net.NET_NAME],
                 ['expiration', str(int(time.time() + self.OFFER_UPDATE_INTERVAL_SEC + 10))]]
-        event_id = await aionostr._add_event(
-            self.relay_manager,
-            kind=self.USER_STATUS_NIP38,
-            tags=tags,
-            content=json.dumps(offer),
-            private_key=self.nostr_private_key)
-        self.logger.info(f"published offer {event_id}")
+        try:
+            event_id = await aionostr._add_event(
+                self.relay_manager,
+                kind=self.USER_STATUS_NIP38,
+                tags=tags,
+                content=json.dumps(offer),
+                private_key=self.nostr_private_key)
+            self.logger.info(f"published offer {event_id}")
+        except asyncio.TimeoutError as e:
+            self.logger.warning(f"failed to publish swap offer: {str(e)}")
 
-    async def send_direct_message(self, pubkey: str, content: str) -> str:
+    @ignore_exceptions
+    @log_exceptions
+    async def send_direct_message(self, pubkey: str, content: str, retries: int = 0) -> Optional[str]:
+        assert retries < 25, "Use a sane retry amount"
         our_private_key = aionostr.key.PrivateKey(self.private_key)
         recv_pubkey_hex = aionostr.util.from_nip19(pubkey)['object'].hex() if pubkey.startswith('npub') else pubkey
         encrypted_msg = our_private_key.encrypt_message(content, recv_pubkey_hex)
-        event_id = await aionostr._add_event(
-            self.relay_manager,
-            kind=self.EPHEMERAL_REQUEST,
-            content=encrypted_msg,
-            private_key=self.nostr_private_key,
-            tags=[['p', recv_pubkey_hex]],
-        )
+        try:
+            event_id = await aionostr._add_event(
+                self.relay_manager,
+                kind=self.EPHEMERAL_REQUEST,
+                content=encrypted_msg,
+                private_key=self.nostr_private_key,
+                tags=[['p', recv_pubkey_hex]],
+            )
+        except asyncio.TimeoutError:
+            self.logger.warning(f"sending message to {pubkey} failed: timeout. {retries=}")
+            if retries > 0:
+                return await self.send_direct_message(pubkey, content, retries - 1)
+            return None
         return event_id
 
     @log_exceptions
@@ -1593,7 +1605,9 @@ class NostrTransport(SwapServerTransport):
         self.logger.debug(f"swapserver req: method: {method} relays: {self.relays}")
         request_data['method'] = method
         server_npub = self.config.SWAPSERVER_NPUB
-        event_id = await self.send_direct_message(server_npub, json.dumps(request_data))
+        event_id = await self.send_direct_message(server_npub, json.dumps(request_data), retries=1)
+        if not event_id:
+            raise SwapServerError()
         response = await self.dm_replies[event_id]
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
@@ -1725,7 +1739,7 @@ class NostrTransport(SwapServerTransport):
                         "error": str(e)[:100],
                         "reply_to": event.id,
                     })
-                    await self.send_direct_message(event.pubkey, error_response)
+                    await self.taskgroup.spawn(self.send_direct_message(event.pubkey, error_response))
             else:
                 self.logger.info(f'unknown message {content}')
 
@@ -1747,7 +1761,7 @@ class NostrTransport(SwapServerTransport):
             raise Exception(method)
         r['reply_to'] = event_id
         self.logger.debug(f'sending response id={event_id}')
-        await self.send_direct_message(event_pubkey, json.dumps(r))
+        await self.taskgroup.spawn(self.send_direct_message(event_pubkey, json.dumps(r), retries=2))
 
     def _store_last_swapserver_relays(self, relays: Sequence[str]):
         self._last_swapserver_relays = relays
