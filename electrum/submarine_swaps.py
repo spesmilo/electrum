@@ -25,6 +25,7 @@ from .i18n import _
 from .logging import Logger
 from .crypto import sha256, ripemd
 from .bitcoin import script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness, construct_script
+from . import bitcoin
 from .transaction import (
     PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint, script_GetOp,
     match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
@@ -761,11 +762,21 @@ class SwapManager(Logger):
             "refundPublicKey": refund_pubkey.hex()
         }
         data = await transport.send_request_to_server('createnormalswap', request_data)
-        payment_hash = bytes.fromhex(data["preimageHash"])
-        onchain_amount = data["expectedAmount"]
-        locktime = data["timeoutBlockHeight"]
-        lockup_address = data["address"]
-        redeem_script = bytes.fromhex(data["redeemScript"])
+        try:
+            payment_hash = bytes.fromhex(data["preimageHash"])
+            assert len(payment_hash) == 32, len(payment_hash)
+            onchain_amount = data["expectedAmount"]
+            assert isinstance(onchain_amount, int), type(onchain_amount)
+            locktime = data["timeoutBlockHeight"]
+            assert isinstance(locktime, int), type(locktime)
+            lockup_address = data["address"]
+            assert isinstance(lockup_address, str), type(lockup_address)
+            assert bitcoin.is_address(lockup_address), lockup_address
+            redeem_script = bytes.fromhex(data["redeemScript"])
+        except Exception as e:
+            self.logger.error(f"failed to parse response from swapserver for createnormalswap: {e!r}")
+            raise SwapServerError("failed to parse response from swapserver for createnormalswap") from e
+        del data   # parsing done
         # verify redeem_script is built with our pubkey and preimage
         check_reverse_redeem_script(
             redeem_script=redeem_script,
@@ -826,7 +837,7 @@ class SwapManager(Logger):
             "invoice": invoice,
             "refundPublicKey": refund_pubkey.hex(),
         }
-        data = await transport.send_request_to_server('addswapinvoice', request_data)
+        await transport.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
         lnaddr = lndecode(invoice)
         while swap.funding_txid is None and not lnaddr.is_expired():
@@ -924,13 +935,24 @@ class SwapManager(Logger):
         }
         self.logger.debug(f'rswap: sending request for {lightning_amount_sat}')
         data = await transport.send_request_to_server('createswap', request_data)
-        invoice = data['invoice']
-        fee_invoice = data.get('minerFeeInvoice')
-        lockup_address = data['lockupAddress']
-        redeem_script = bytes.fromhex(data['redeemScript'])
-        locktime = data['timeoutBlockHeight']
-        onchain_amount = data["onchainAmount"]
-        response_id = data['id']
+        try:
+            invoice = data['invoice']
+            assert isinstance(invoice, str), type(invoice)
+            fee_invoice = data.get('minerFeeInvoice')
+            assert fee_invoice is None or isinstance(fee_invoice, str), type(fee_invoice)
+            lockup_address = data['lockupAddress']
+            assert isinstance(lockup_address, str), type(lockup_address)
+            assert bitcoin.is_address(lockup_address), lockup_address
+            redeem_script = bytes.fromhex(data['redeemScript'])
+            locktime = data['timeoutBlockHeight']
+            assert isinstance(locktime, int), type(locktime)
+            onchain_amount = data["onchainAmount"]
+            assert isinstance(onchain_amount, int), type(onchain_amount)
+            response_id = data['id']
+        except Exception as e:
+            self.logger.error(f"failed to parse response from swapserver for createswap: {e!r}")
+            raise SwapServerError("failed to parse response from swapserver for createswap") from e
+        del data  # parsing done
         self.logger.debug(f'rswap: {response_id=}')
         # verify redeem_script is built with our pubkey and preimage
         check_reverse_redeem_script(
@@ -1372,9 +1394,7 @@ class SwapServerTransport(Logger):
         pass
 
     async def send_request_to_server(self, method: str, request_data: Optional[dict]) -> dict:
-        pass
-
-    async def get_pairs(self) -> None:
+        """Might raise SwapServerError."""
         pass
 
     @property
@@ -1390,44 +1410,55 @@ class HttpTransport(SwapServerTransport):
         self.is_connected.set()
 
     def __enter__(self):
-        asyncio.run_coroutine_threadsafe(self.get_pairs(), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.get_pairs_just_once(), self.network.asyncio_loop)
         return self
 
     def __exit__(self, ex_type, ex, tb):
         pass
 
     async def __aenter__(self):
-        asyncio.create_task(self.get_pairs())
+        asyncio.create_task(self.get_pairs_just_once())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
     async def send_request_to_server(self, method, request_data):
-        response = await self.network.async_send_http_on_proxy(
-            'post' if request_data else 'get',
-            self.api_url + '/' + method,
-            json=request_data,
-            timeout=30)
-        return json.loads(response)
-
-    async def get_pairs(self) -> None:
-        """Might raise SwapServerError."""
         try:
-            response = await self.send_request_to_server('getpairs', None)
+            response = await self.network.async_send_http_on_proxy(
+                'post' if request_data else 'get',
+                self.api_url + '/' + method,
+                json=request_data,
+                timeout=30)
         except aiohttp.ClientError as e:
-            self.logger.error(f"Swap server errored: {e!r}")
+            self.logger.info(f"Swap server errored: {e!r}")
             raise SwapServerError() from e
-        assert response.get('htlcFirst') is True
-        fees = response['pairs']['BTC/BTC']['fees']
-        limits = response['pairs']['BTC/BTC']['limits']
-        pairs = SwapFees(
-            percentage=fees['percentage'],
-            mining_fee=fees['minerFees']['baseAsset']['mining_fee'],
-            min_amount=limits['minimal'],
-            max_forward=limits['max_forward_amount'],
-            max_reverse=limits['max_reverse_amount'],
-        )
+        try:
+            parsed_json = json.loads(response)
+            if not isinstance(parsed_json, dict):
+                raise Exception("malformed response, not dict")
+        except Exception as e:
+            self.logger.error(f"failed to parse response from swapserver for {method=}: {e!r}")
+            raise SwapServerError(f"failed to parse response from swapserver for {method=}") from e
+        return parsed_json
+
+    async def get_pairs_just_once(self) -> None:
+        """Might raise SwapServerError."""
+        response = await self.send_request_to_server('getpairs', None)
+        try:
+            assert response.get('htlcFirst') is True
+            fees = response['pairs']['BTC/BTC']['fees']
+            limits = response['pairs']['BTC/BTC']['limits']
+            pairs = SwapFees(
+                percentage=fees['percentage'],
+                mining_fee=fees['minerFees']['baseAsset']['mining_fee'],
+                min_amount=limits['minimal'],
+                max_forward=limits['max_forward_amount'],
+                max_reverse=limits['max_reverse_amount'],
+            )
+        except Exception as e:
+            self.logger.error(f"failed to parse response from swapserver for getpairs: {e!r}")
+            raise SwapServerError("failed to parse response from swapserver for getpairs") from e
         self.sm.update_pairs(pairs)
 
 
@@ -1449,7 +1480,7 @@ class NostrTransport(SwapServerTransport):
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
-        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[str, asyncio.Future]
+        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[str, asyncio.Future[dict]]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = None  # type: Optional[aionostr.Manager]
         self.taskgroup = OldTaskGroup()
@@ -1487,7 +1518,7 @@ class NostrTransport(SwapServerTransport):
         else:
             tasks = [
                 self.check_direct_messages(),
-                self.get_pairs(),
+                self._get_pairs_loop(),
                 self.update_relays()
             ]
         try:
@@ -1580,7 +1611,7 @@ class NostrTransport(SwapServerTransport):
 
     @ignore_exceptions
     @log_exceptions
-    async def send_direct_message(self, pubkey: str, content: str, retries: int = 0) -> Optional[str]:
+    async def send_direct_message(self, pubkey: str, content: str, *, retries: int = 0) -> Optional[str]:
         assert retries < 25, "Use a sane retry amount"
         our_private_key = aionostr.key.PrivateKey(self.private_key)
         recv_pubkey_hex = aionostr.util.from_nip19(pubkey)['object'].hex() if pubkey.startswith('npub') else pubkey
@@ -1596,7 +1627,7 @@ class NostrTransport(SwapServerTransport):
         except asyncio.TimeoutError:
             self.logger.warning(f"sending message to {pubkey} failed: timeout. {retries=}")
             if retries > 0:
-                return await self.send_direct_message(pubkey, content, retries - 1)
+                return await self.send_direct_message(pubkey, content, retries=retries-1)
             return None
         return event_id
 
@@ -1609,12 +1640,13 @@ class NostrTransport(SwapServerTransport):
         if not event_id:
             raise SwapServerError()
         response = await self.dm_replies[event_id]
+        assert isinstance(response, dict)
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
             raise SwapServerError()
         return response
 
-    async def get_pairs(self):
+    async def _get_pairs_loop(self):
         await self.is_connected.wait()
         query = {
             "kinds": [self.USER_STATUS_NIP38],
@@ -1627,6 +1659,8 @@ class NostrTransport(SwapServerTransport):
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
                 content = json.loads(event.content)
+                if not isinstance(content, dict):
+                    raise Exception("malformed content, not dict")
                 tags = {k: v for k, v in event.tags}
             except Exception as e:
                 self.logger.debug(f"failed to parse event: {e}")
@@ -1644,16 +1678,17 @@ class NostrTransport(SwapServerTransport):
             if prev_offer and event.created_at <= prev_offer.timestamp:
                 continue
             try:
-                pow_bits = get_nostr_ann_pow_amount(
-                    bytes.fromhex(pubkey),
-                    int(content.get('pow_nonce', "0"), 16)
-                )
-            except ValueError:
+                pow_nonce = int(content.get('pow_nonce', "0"), 16)  # type: int
+            except Exception:
                 continue
+            pow_bits = get_nostr_ann_pow_amount(bytes.fromhex(pubkey), pow_nonce)
             if pow_bits < self.config.SWAPSERVER_POW_TARGET:
-                self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {content.get('pow_nonce', 0)}")
+                self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {pow_nonce}")
                 continue
-            server_relays = content['relays'].split(',') if 'relays' in content else []
+            try:
+                server_relays = content['relays'].split(',')
+            except Exception:
+                continue
             try:
                 pairs = SwapFees(
                     percentage=content['percentage_fee'],
@@ -1724,6 +1759,8 @@ class NostrTransport(SwapServerTransport):
             try:
                 content = privkey.decrypt_message(event.content, event.pubkey)
                 content = json.loads(content)
+                if not isinstance(content, dict):
+                    raise Exception("malformed content, not dict")
             except Exception:
                 continue
             content['event_id'] = event.id
@@ -1732,7 +1769,7 @@ class NostrTransport(SwapServerTransport):
                 self.dm_replies[content['reply_to']].set_result(content)
             elif self.sm.is_server and 'method' in content:
                 try:
-                    await self.handle_request(content)
+                    await self._handle_request(content)
                 except Exception as e:
                     self.logger.exception(f"failed to handle request: {content}")
                     error_response = json.dumps({
@@ -1744,7 +1781,7 @@ class NostrTransport(SwapServerTransport):
                 self.logger.info(f'unknown message {content}')
 
     @log_exceptions
-    async def handle_request(self, request):
+    async def _handle_request(self, request: dict) -> None:
         assert self.sm.is_server
         # todo: remember event_id of already processed requests
         method = request.pop('method')

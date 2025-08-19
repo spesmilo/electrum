@@ -210,6 +210,8 @@ class CosignerWallet(Logger):
                     continue
                 try:
                     message = json_decode(message)
+                    if not isinstance(message, dict):
+                        raise Exception("malformed message, not dict")
                     tx_hex = message.get('tx')
                     label = message.get('label', '')
                     tx = tx_from_any(tx_hex)
