@@ -1480,7 +1480,7 @@ class NostrTransport(SwapServerTransport):
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
-        self.dm_replies = defaultdict(asyncio.Future)  # type: Dict[str, asyncio.Future[dict]]
+        self.dm_replies = {}  # type: Dict[str, asyncio.Future[dict]]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = None  # type: Optional[aionostr.Manager]
         self.taskgroup = OldTaskGroup()
@@ -1639,7 +1639,8 @@ class NostrTransport(SwapServerTransport):
         event_id = await self.send_direct_message(server_npub, json.dumps(request_data), retries=1)
         if not event_id:
             raise SwapServerError()
-        response = await self.dm_replies[event_id]
+        self.dm_replies[event_id] = f = asyncio.Future()
+        response = await f
         assert isinstance(response, dict)
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
@@ -1765,8 +1766,10 @@ class NostrTransport(SwapServerTransport):
                 continue
             content['event_id'] = event.id
             content['event_pubkey'] = event.pubkey
-            if 'reply_to' in content:
-                self.dm_replies[content['reply_to']].set_result(content)
+            if not self.sm.is_server and 'reply_to' in content:
+                reply_to = content['reply_to']
+                if reply_to in self.dm_replies:
+                    self.dm_replies[reply_to].set_result(content)
             elif self.sm.is_server and 'method' in content:
                 try:
                     await self._handle_request(content)
