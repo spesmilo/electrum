@@ -65,6 +65,7 @@ else
     info "Building zxing-cpp for $ZXING_CPP_BUILD_ID..."
     ZXING_CPP_DIR="$BUILDDIR/zxing-cpp"
     clone_or_update_repo "$ZXING_CPP_REPO" "$ZXING_CPP_COMMIT_HASH" "$ZXING_CPP_DIR"
+    apply_patch "${CONTRIB_ANDROID}/barcode_16kb.patch" "$ZXING_CPP_DIR"
     cd "$ZXING_CPP_DIR/wrappers/aar"
     chmod +x gradlew
 

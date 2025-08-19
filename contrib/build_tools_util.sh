@@ -72,6 +72,24 @@ clone_or_update_repo() {
     fi
 }
 
+apply_patch() {
+    local patch=$1
+    local path=$2
+
+    if [ -z "$patch" ] || [ -z "$path" ]; then
+        fail "apply_patch: invalid arguments: patch='$patch', path='$path'"
+    fi
+
+    if [ -d "$path" ]; then
+        info "Patching: $patch"
+        cd "$path"
+        patch -p1 <"$patch"
+        cd -
+    else
+        fail "apply_patch: path='$path' not found"
+    fi
+}
+
 # https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
 function retry() {
     local result=0

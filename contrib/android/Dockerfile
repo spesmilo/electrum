@@ -25,30 +25,50 @@ ENV LANG="en_US.UTF-8" \
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
     curl \
+    wget \
     unzip \
     ca-certificates \
+    python3 \
     && apt -y autoremove
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="23b"
-ENV ANDROID_NDK_HASH="c6e97f9c8cfe5b7be0a9e6c15af8e7a179475b7ded23e2d1c1fa0945d6fb4382"
+#ENV ANDROID_NDK_VERSION="23b"
+#ENV ANDROID_NDK_HASH="c6e97f9c8cfe5b7be0a9e6c15af8e7a179475b7ded23e2d1c1fa0945d6fb4382"
+#ENV ANDROID_NDK_VERSION="27d"
+#ENV ANDROID_NDK_HASH="601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be2829178c8ed15d9"
+ENV ANDROID_NDK_VERSION="23d-canary"
+ENV ANDROID_NDK_HASH="6944ffc20ab018ff4ef6a403048d0a99d50a0630c3eae690c8f803c452f46f3e"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
 ENV ANDROID_NDK_ARCHIVE="android-ndk-r${ANDROID_NDK_VERSION}-linux.zip"
 ENV ANDROID_NDK_DL_URL="https://dl.google.com/android/repository/${ANDROID_NDK_ARCHIVE}"
 
-# download and install Android NDK
-RUN curl --location --progress-bar \
-        "${ANDROID_NDK_DL_URL}" \
-        --output "${ANDROID_NDK_ARCHIVE}" \
-    && echo "${ANDROID_NDK_HASH} ${ANDROID_NDK_ARCHIVE}" | sha256sum -c - \
-    && mkdir --parents "${ANDROID_NDK_HOME_V}" \
-    && unzip -q "${ANDROID_NDK_ARCHIVE}" -d "${ANDROID_HOME}" \
-    && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
-    && rm -rf "${ANDROID_NDK_ARCHIVE}"
+# below disabled in favor of CI build download
 
+# download and install Android NDK
+#RUN curl --location --progress-bar \
+#        "${ANDROID_NDK_DL_URL}" \
+#        --output "${ANDROID_NDK_ARCHIVE}" \
+#    && echo "${ANDROID_NDK_HASH} ${ANDROID_NDK_ARCHIVE}" | sha256sum -c - \
+#    && mkdir --parents "${ANDROID_NDK_HOME_V}" \
+#    && unzip -q "${ANDROID_NDK_ARCHIVE}" -d "${ANDROID_HOME}" \
+#    && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
+#    && rm -rf "${ANDROID_NDK_ARCHIVE}"
+
+# temporary build using NDK from CI
+ENV CI_REV="12186248"
+ENV CI_NDK_FILE="android-ndk-${CI_REV}-linux-x86_64.zip"
+COPY contrib/android/dl-ndk-ci.sh /tmp/
+RUN /tmp/dl-ndk-ci.sh https://ci.android.com/builds/submitted/${CI_REV}/linux/latest/${CI_NDK_FILE} \
+    && pwd \
+    && ls -la / /tmp \
+    && echo "${ANDROID_NDK_HASH} file.zip" | sha256sum -c - \
+    && mkdir --parents "${ANDROID_NDK_HOME_V}" \
+    && unzip -q "file.zip" -d "${ANDROID_HOME}" \
+    && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
+    && rm -rf "file.zip"
 
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
@@ -190,8 +210,8 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="32a05cdedd41f0f569e9126fdfce23069c36fd9a"
-# ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
+ENV P4A_CHECKOUT_COMMIT="003451604321deb1f10d879b63450ec76db4a758"
+# ^ from branch electrum_20240930_android_16kb_page_alignment (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
     && cd python-for-android \
