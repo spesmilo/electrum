@@ -333,8 +333,12 @@ class NWCServer(Logger, EventListener):
             try:
                 content = our_connection_secret.decrypt_message(event.content, event.pubkey)
                 content = json.loads(content)
+                if not isinstance(content, dict):
+                    raise Exception("malformed content, not dict")
                 event.content = content
                 params: dict = content['params']
+                if not isinstance(params, dict):
+                    raise Exception("malformed params, not dict")
             except Exception:
                 self.logger.debug(f"Invalid request event content: {event.content}", exc_info=True)
                 continue
