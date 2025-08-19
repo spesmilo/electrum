@@ -5,7 +5,7 @@ from enum import IntEnum
 import math
 
 from .i18n import _
-from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis
+from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis, FEERATE_PRECISION
 from . import util, constants
 from .logging import Logger
 
@@ -363,9 +363,9 @@ class FeeHistogram:
             slot = min(item[1], bytes_limit - bytes_current)
             bytes_current += slot
             # round & limit precision
-            value = int(item[0] * 100) / 100
+            value = int(item[0] * 10**FEERATE_PRECISION) / 10**FEERATE_PRECISION
             capped_histogram.append([
-                max(FEERATE_MIN_RELAY/1000, value),  # clamped to [FEERATE_MIN_RELAY/1000,inf]
+                max(FEERATE_MIN_RELAY/1000, value),  # clamped to [FEERATE_MIN_RELAY/1000, inf)
                 slot,  # width of bucket
                 bytes_current,  # cumulative depth at far end of bucket
             ])
