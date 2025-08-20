@@ -571,7 +571,9 @@ class SwapManager(Logger):
     ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
         if prepay:
-            prepay_amount_sat = self.get_fee_for_txbatcher() * 2
+            # server requests 2 * the mining fee as instantly settled prepayment so that the mining
+            # fees of the funding tx and potential timeout refund tx are always covered
+            prepay_amount_sat = self.mining_fee * 2
             invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
         else:
             invoice_amount_sat = lightning_amount_sat
@@ -593,7 +595,7 @@ class SwapManager(Logger):
             _, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=prepay_hash,
                 amount_msat=prepay_amount_sat * 1000,
-                message='Submarine swap mining fees',
+                message='Submarine swap prepayment',
                 expiry=300,
                 fallback_address=None,
                 channels=channels,
@@ -978,6 +980,9 @@ class SwapManager(Logger):
         # check that the lightning amount is what we requested
         if fee_invoice:
             fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice)
+            if fee_lnaddr.get_amount_sat() > self.mining_fee * 2:
+                raise SwapServerError(_("Mining fee requested by swap-server larger "
+                                        "than what was announced in their offer."))
             invoice_amount += fee_lnaddr.get_amount_sat()
             prepay_hash = fee_lnaddr.paymenthash
         else:
