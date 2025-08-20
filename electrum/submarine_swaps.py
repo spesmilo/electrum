@@ -904,6 +904,7 @@ class SwapManager(Logger):
             transport: 'SwapServerTransport',
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
+            server_mining_fee_sat: int,
             channels: Optional[Sequence['Channel']] = None,
     ) -> Optional[str]:
         """send on Lightning, receive on-chain
@@ -920,6 +921,9 @@ class SwapManager(Logger):
         - Server fulfills HTLC using preimage.
 
         Note: expected_onchain_amount_sat is BEFORE deducting the on-chain claim tx fee.
+        Note: server_mining_fee_sat is passed as argument instead of accessing self.mining_fee to ensure
+        the mining fees the user sees in the GUI are also the values used for the checks performed here.
+        We commit to server_mining_fee_sat as it limits the max fee pre-payment amt, which the server is trusted with.
         """
         assert self.network
         assert self.lnwatcher
@@ -977,16 +981,16 @@ class SwapManager(Logger):
         invoice_amount = int(lnaddr.get_amount_sat())
         if lnaddr.paymenthash != payment_hash:
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
-        # check that the lightning amount is what we requested
         if fee_invoice:
             fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice)
-            if fee_lnaddr.get_amount_sat() > self.mining_fee * 2:
+            if fee_lnaddr.get_amount_sat() > server_mining_fee_sat * 2:
                 raise SwapServerError(_("Mining fee requested by swap-server larger "
                                         "than what was announced in their offer."))
             invoice_amount += fee_lnaddr.get_amount_sat()
             prepay_hash = fee_lnaddr.paymenthash
         else:
             prepay_hash = None
+        # check that the lightning amount is what we requested
         if int(invoice_amount) != lightning_amount_sat:
             raise Exception(f"rswap check failed: invoice_amount ({invoice_amount}) "
                             f"not what we requested ({lightning_amount_sat})")

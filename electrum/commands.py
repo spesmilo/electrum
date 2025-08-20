@@ -1975,7 +1975,7 @@ class Commands(Logger):
         arg:decimal_or_dryrun:onchain_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
         """
         sm = wallet.lnworker.swap_manager
-        with sm.create_transport() as transport:
+        async with sm.create_transport() as transport:
             await sm.is_initialized.wait()
             if lightning_amount == 'dryrun':
                 onchain_amount_sat = satoshis(onchain_amount)
@@ -2002,37 +2002,48 @@ class Commands(Logger):
         }
 
     @command('wnpl')
-    async def reverse_swap(self, lightning_amount, onchain_amount, password=None, wallet: Abstract_Wallet = None):
+    async def reverse_swap(
+        self, lightning_amount, onchain_amount, provider_mining_fee='dryrun', password=None, wallet: Abstract_Wallet = None,
+    ):
         """
         Reverse submarine swap: send on Lightning, receive on-chain
 
         arg:decimal_or_dryrun:lightning_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
         arg:decimal_or_dryrun:onchain_amount:Amount to be received, in BTC. Set it to 'dryrun' to receive a value
+        arg:decimal_or_dryrun:provider_mining_fee:Mining fee required by the swap provider, in BTC. Set it to 'dryrun' to receive a value
         """
         sm = wallet.lnworker.swap_manager
-        with sm.create_transport() as transport:
+        async with sm.create_transport() as transport:
             await sm.is_initialized.wait()
             if onchain_amount == 'dryrun':
                 lightning_amount_sat = satoshis(lightning_amount)
                 onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
+                assert provider_mining_fee == "dryrun", f"Cannot use {provider_mining_fee=} in dryrun. Set it to 'dryrun'."
+                provider_mining_fee = sm.mining_fee
                 funding_txid = None
             elif lightning_amount == 'dryrun':
                 onchain_amount_sat = satoshis(onchain_amount)
                 lightning_amount_sat = sm.get_send_amount(onchain_amount_sat, is_reverse=True)
+                assert provider_mining_fee == "dryrun", f"Cannot use {provider_mining_fee=} in dryrun. Set it to 'dryrun'."
+                provider_mining_fee = sm.mining_fee
                 funding_txid = None
             else:
                 lightning_amount_sat = satoshis(lightning_amount)
                 claim_fee = sm.get_fee_for_txbatcher()
                 onchain_amount_sat = satoshis(onchain_amount) + claim_fee
+                assert provider_mining_fee != "dryrun", "Provide the 'provider_mining_fee' obtained from the dryrun."
+                provider_mining_fee = satoshis(provider_mining_fee)
                 funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                     transport=transport,
                     lightning_amount_sat=lightning_amount_sat,
                     expected_onchain_amount_sat=onchain_amount_sat,
+                    server_mining_fee_sat=provider_mining_fee,
                 )
         return {
             'funding_txid': funding_txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
             'onchain_amount': format_satoshis(onchain_amount_sat),
+            'provider_mining_fee': format_satoshis(provider_mining_fee)
         }
 
     @command('n')
