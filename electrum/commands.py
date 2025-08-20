@@ -2002,7 +2002,9 @@ class Commands(Logger):
         }
 
     @command('wnpl')
-    async def reverse_swap(self, lightning_amount, onchain_amount, provider_mining_fee, password=None, wallet: Abstract_Wallet = None):
+    async def reverse_swap(
+        self, lightning_amount, onchain_amount, provider_mining_fee='dryrun', password=None, wallet: Abstract_Wallet = None,
+    ):
         """
         Reverse submarine swap: send on Lightning, receive on-chain
 
@@ -2029,7 +2031,7 @@ class Commands(Logger):
                 lightning_amount_sat = satoshis(lightning_amount)
                 claim_fee = sm.get_fee_for_txbatcher()
                 onchain_amount_sat = satoshis(onchain_amount) + claim_fee
-                assert provider_mining_fee != "dryrun", "Provide the 'provder_mining_fee' obtained from the dryrun."
+                assert provider_mining_fee != "dryrun", "Provide the 'provider_mining_fee' obtained from the dryrun."
                 provider_mining_fee = satoshis(provider_mining_fee)
                 funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                     transport=transport,
