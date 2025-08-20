@@ -94,6 +94,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.swap_limits_label = QLabel()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
+        self.last_server_mining_fee_sat = None
         h = QGridLayout()
         h.addWidget(self.description_label, 0, 0, 1, 3)
         h.addWidget(self.toggle_button, 0, 3)
@@ -153,7 +154,12 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     @qt_event_listener
     def on_event_swap_offers_changed(self, recent_offers: Sequence['SwapOffer']):
         self.set_server_button_text(len(recent_offers))
-        self.update()
+        if not self.ok_button.isEnabled():
+            # only update the dialog with the new offer if the user hasn't entered an amount yet.
+            # if the user has already entered an amount we prefer the swap to fail due to outdated
+            # fees than the possibility of a swap happening with fees the user hasn't seen
+            # due to an update happening just before the user initiated the swap
+            self.update()
 
     def set_server_button_text(self, offer_count: int):
         button_text = f' {offer_count} ' + (_('providers') if offer_count != 1 else _('provider'))
@@ -282,8 +288,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                               f"{self.window.format_amount(max_swap_limit)} {w_base_unit}")
         self.swap_limits_label.setText(swap_limit_str)
         self.swap_limits_label.repaint()  # macOS hack for #6269
-        server_mining_fee = sm.mining_fee
-        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + w_base_unit
+        self.last_server_mining_fee_sat = sm.mining_fee
+        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(sm.mining_fee) + ' ' + w_base_unit
         self.server_fee_label.setText(server_fee_str)
         self.server_fee_label.repaint()  # macOS hack for #6269
         self.needs_tx_update = True
@@ -332,6 +338,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 transport=transport,
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_fee_for_txbatcher(),
+                server_mining_fee_sat=self.last_server_mining_fee_sat,
             )
             try:
                 # we must not leave the context, so we use run_couroutine_dialog
