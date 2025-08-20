@@ -1485,7 +1485,7 @@ class NostrTransport(SwapServerTransport):
         self.private_key = keypair.privkey
         self.nostr_private_key = to_nip19('nsec', keypair.privkey.hex())
         self.nostr_pubkey = keypair.pubkey.hex()[2:]
-        self.dm_replies = {}  # type: Dict[str, asyncio.Future[dict]]
+        self.dm_replies = {}  # type: Dict[tuple[str, str], asyncio.Future[dict]]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = None  # type: Optional[aionostr.Manager]
         self.taskgroup = OldTaskGroup()
@@ -1641,11 +1641,12 @@ class NostrTransport(SwapServerTransport):
         self.logger.debug(f"swapserver req: method: {method} relays: {self.relays}")
         request_data['method'] = method
         server_npub = self.config.SWAPSERVER_NPUB
-        event_id = await self.send_direct_message(server_npub, json.dumps(request_data), retries=1)
+        server_pubkey = aionostr.util.from_nip19(server_npub)['object'].hex()
+        event_id = await self.send_direct_message(server_pubkey, json.dumps(request_data), retries=1)
         if not event_id:
             raise SwapServerError()
-        self.dm_replies[event_id] = f = asyncio.Future()
-        response = await f
+        self.dm_replies[(server_pubkey, event_id)] = fut = asyncio.Future()
+        response = await fut
         assert isinstance(response, dict)
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
@@ -1772,9 +1773,11 @@ class NostrTransport(SwapServerTransport):
             content['event_id'] = event.id
             content['event_pubkey'] = event.pubkey
             if not self.sm.is_server and 'reply_to' in content:
-                reply_to = content['reply_to']
-                if reply_to in self.dm_replies:
-                    self.dm_replies[reply_to].set_result(content)
+                prev_event_id = content['reply_to']
+                server_pubkey = event.pubkey
+                fut = self.dm_replies.get((server_pubkey, prev_event_id))
+                if fut:
+                    fut.set_result(content)
             elif self.sm.is_server and 'method' in content:
                 try:
                     await self._handle_request(content)
