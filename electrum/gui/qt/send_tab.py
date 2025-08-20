@@ -13,7 +13,10 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled, ChoiceItem
+from electrum.util import (
+    NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled, ChoiceItem,
+    UserFacingException,
+)
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
@@ -338,7 +341,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 coro = sm.request_swap_for_amount(transport=transport, onchain_amount=swap_dummy_output.value)
                 try:
                     swap, swap_invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
-                except SwapServerError as e:
+                except (SwapServerError, UserFacingException) as e:
                     self.show_error(str(e))
                     return
                 except UserCancelled:

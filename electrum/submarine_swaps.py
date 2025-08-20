@@ -33,7 +33,7 @@ from .transaction import (
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
-    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates
+    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException,
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
@@ -507,6 +507,26 @@ class SwapManager(Logger):
         fee_policy = FeePolicy(policy_descriptor)
         return fee_policy.estimate_fee(SWAP_TX_SIZE, network=self.network, allow_fallback_to_static_rates=True)
 
+    def _sanity_check_swap_costs(
+        self,
+        *,
+        incoming_sat: int,
+        outgoing_sat: int,
+    ) -> None:
+        """The user should have already seen the swap amounts, and hence the cost.
+        These are just some last-minute sanity checks that the cost of the swap is not insane.
+        """
+        costs_abs = outgoing_sat - incoming_sat
+        costs_ratio = 1 - incoming_sat / outgoing_sat
+        if costs_abs < 10_000:  # "small" amounts are exempt from checks
+            return
+        exc = UserFacingException(_("Total swap costs are insane.") + f"\n({costs_ratio=}, {costs_abs=} sat)")
+        if costs_ratio > 0.25:
+            raise exc
+        if costs_abs > 1_000_000:
+            if costs_ratio > 0.15:
+                raise exc
+
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
         swap = self._swaps.get(payment_hash.hex())
@@ -755,6 +775,8 @@ class SwapManager(Logger):
             expected_onchain_amount_sat: int,
             channels: Optional[Sequence['Channel']] = None,
     ) -> Tuple[SwapData, str]:
+        self._sanity_check_swap_costs(
+            incoming_sat=lightning_amount_sat, outgoing_sat=expected_onchain_amount_sat)
         await self.is_initialized.wait() # add timeout
         refund_privkey = os.urandom(32)
         refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
@@ -927,6 +949,8 @@ class SwapManager(Logger):
         """
         assert self.network
         assert self.lnwatcher
+        self._sanity_check_swap_costs(
+            incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
