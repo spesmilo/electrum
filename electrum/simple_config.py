@@ -892,7 +892,18 @@ Warning: setting this to too low will result in lots of payment failures."""),
         short_desc=lambda: _("Write logs to file"),
         long_desc=lambda: _('Debug logs can be persisted to disk. These are useful for troubleshooting.'),
     )
-    LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=30, type_=int)
+    LOGS_NUM_FILES_KEEP = ConfigVar(
+        'logs_num_files_keep', default=30, type_=int,
+        long_desc=lambda: _("Old log files get deleted on startup, with only the newest few being kept."),
+    )
+    LOGS_MAX_TOTAL_SIZE_BYTES = ConfigVar(
+        'logs_max_total_size', default=200_000_000, type_=int,
+        long_desc=lambda: _(
+            "Old log files get deleted on startup. "
+            "This value limits the max total size of the old log files kept, "
+            "and also separately the max size of the current log file. "
+            "Hence, the max disk usage will be twice this value."),
+    )
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
         'language', default="", type_=str,

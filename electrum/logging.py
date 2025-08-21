@@ -116,24 +116,52 @@ class TruncatingMemoryHandler(logging.handlers.MemoryHandler):
         super().close()
 
 
-def _delete_old_logs(path, *, num_files_keep: int):
-    files = sorted(list(pathlib.Path(path).glob("electrum_log_*.log")), reverse=True)
-    for f in files[num_files_keep:]:
+def _delete_old_logs(path, *, num_files_keep: int, max_total_size: int):
+    """Delete old logfiles, only keeping the latest few."""
+    def sortkey_oldest_first(p: pathlib.PurePath):
+        fname = p.name
+        basename, ext, counter = str(fname).partition(".log")
+        # - each time electrum is launched, there will be a new basename, ordered by date
+        # - for any given basename, there might be multiple log files, differing by counter
+        #   - empty counter is newest, then .1 is older, .2 is even older, etc
         try:
-            os.remove(str(f))
+            counter = int(counter[1:]) if counter else 0  # convert ".2" -> 2
+        except ValueError:
+            _logger.warning(f"failed to parse log file name: {fname}")
+            counter = 0
+        return basename, -counter
+    files = sorted(
+        list(pathlib.Path(path).glob("electrum_log_*.log*")),
+        key=sortkey_oldest_first,
+    )
+    total_size = sum(os.stat(f).st_size for f in files)  # in bytes
+    num_files_remaining = len(files)
+    for f in files:
+        fsize = os.stat(f).st_size
+        if total_size < max_total_size and num_files_remaining <= num_files_keep:
+            break
+        total_size -= fsize
+        num_files_remaining -= 1
+        try:
+            os.remove(f)
         except OSError as e:
             _logger.warning(f"cannot delete old logfile: {e}")
 
 
 _logfile_path = None
-def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int):
+def _configure_file_logging(
+    log_directory: pathlib.Path,
+    *,
+    num_files_keep: int,
+    max_total_size: int,
+):
     from .util import os_chmod
 
     global _logfile_path
     assert _logfile_path is None, 'file logging already initialized'
     log_directory.mkdir(exist_ok=True, mode=0o700)
 
-    _delete_old_logs(log_directory, num_files_keep=num_files_keep)
+    _delete_old_logs(log_directory, num_files_keep=num_files_keep, max_total_size=max_total_size)
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
@@ -142,7 +170,12 @@ def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int)
     with open(_logfile_path, "w+") as f:
         os_chmod(_logfile_path, 0o600)
 
-    file_handler = logging.FileHandler(_logfile_path, encoding='utf-8')
+    logfile_backupcount = 4
+    file_handler = logging.handlers.RotatingFileHandler(
+        _logfile_path,
+        maxBytes=max_total_size // (logfile_backupcount+1),
+        backupCount=logfile_backupcount,
+        encoding='utf-8')
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
@@ -236,8 +269,9 @@ electrum_logger.setLevel(logging.DEBUG)
 # --- External API
 
 def get_logger(name: str) -> _CustomLogger:
-    if name.startswith("electrum."):
-        name = name[9:]
+    prefix = "electrum."
+    if name.startswith(prefix):
+        name = name[len(prefix):]
     return electrum_logger.getChild(name)
 
 
@@ -283,7 +317,8 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         num_files_keep = config.LOGS_NUM_FILES_KEEP
-        _configure_file_logging(log_directory, num_files_keep=num_files_keep)
+        max_total_size = config.LOGS_MAX_TOTAL_SIZE_BYTES
+        _configure_file_logging(log_directory, num_files_keep=num_files_keep, max_total_size=max_total_size)
 
     # clean up and delete in-memory logs
     global _inmemory_startup_logs
