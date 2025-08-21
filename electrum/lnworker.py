@@ -2316,6 +2316,7 @@ class LNWallet(LNWorker):
         for key_list in self.payment_bundles:
             if payment_key in key_list:
                 return key_list
+        return []
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         if sha256(preimage) != payment_hash:
