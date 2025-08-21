@@ -303,6 +303,8 @@ class TxBatch(Logger):
     def _to_pay_after(self, tx: Optional[PartialTransaction]) -> Sequence[PartialTxOutput]:
         if not tx:
             return self.batch_payments
+        # note: the below is equivalent to
+        #   to_pay = multiset(self.batch_payments) - multiset(tx.outputs())
         to_pay = []
         outputs = copy.deepcopy(tx.outputs())
         for x in self.batch_payments:

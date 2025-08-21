@@ -1069,7 +1069,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             raise RequestTimedOut()
         await self.interface.broadcast_transaction(tx, timeout=timeout)
 
-    async def try_broadcasting(self, tx, name) -> bool:
+    async def try_broadcasting(self, tx: 'Transaction', name: str) -> bool:
         try:
             await self.broadcast_transaction(tx)
         except Exception as e:
