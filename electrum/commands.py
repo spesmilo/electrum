@@ -46,6 +46,7 @@ from . import util
 from .lnmsg import OnionWireSerializer
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
+from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
     UserFacingException, InvalidPassword
@@ -1966,6 +1967,32 @@ class Commands(Logger):
             'log': [x.formatted_tuple() for x in log]
         }
 
+    @command('wnl')
+    async def get_submarine_swap_providers(self, query_time=15, wallet: Abstract_Wallet = None):
+        """
+        Queries nostr relays for available submarine swap providers.
+
+        To configure one of the providers use:
+        setconfig swapserver_npub 'npub...'
+
+        arg:int:query_time:Optional timeout how long the relays should be queried for provider announcements. Default: 15 sec
+        """
+        sm = wallet.lnworker.swap_manager
+        async with sm.create_transport() as transport:
+            assert isinstance(transport, NostrTransport)
+            await asyncio.sleep(query_time)
+            offers = transport.get_recent_offers()
+        result = {}
+        for offer in offers:
+            result[offer.server_npub] = {
+                "percentage_fee": offer.pairs.percentage,
+                "max_forward_sat": offer.pairs.max_forward,
+                "max_reverse_sat": offer.pairs.max_reverse,
+                "min_amount_sat": offer.pairs.min_amount,
+                "provider_mining_fee": offer.pairs.mining_fee,
+            }
+        return result
+
     @command('wnpl')
     async def normal_swap(self, onchain_amount, lightning_amount, password=None, wallet: Abstract_Wallet = None):
         """
@@ -1975,8 +2002,13 @@ class Commands(Logger):
         arg:decimal_or_dryrun:onchain_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
         """
         sm = wallet.lnworker.swap_manager
+        assert self.config.SWAPSERVER_NPUB or self.config.SWAPSERVER_URL, \
+            "Configure swap provider first. See 'get_submarine_swap_providers'."
         async with sm.create_transport() as transport:
-            await sm.is_initialized.wait()
+            try:
+                await asyncio.wait_for(sm.is_initialized.wait(), timeout=15)
+            except asyncio.TimeoutError:
+                raise TimeoutError("Could not find configured swap provider. Setup another one. See 'get_submarine_swap_providers'")
             if lightning_amount == 'dryrun':
                 onchain_amount_sat = satoshis(onchain_amount)
                 lightning_amount_sat = sm.get_recv_amount(onchain_amount_sat, is_reverse=False)
@@ -2013,8 +2045,13 @@ class Commands(Logger):
         arg:decimal_or_dryrun:provider_mining_fee:Mining fee required by the swap provider, in BTC. Set it to 'dryrun' to receive a value
         """
         sm = wallet.lnworker.swap_manager
+        assert self.config.SWAPSERVER_NPUB or self.config.SWAPSERVER_URL, \
+            "Configure swap provider first. See 'get_submarine_swap_providers'."
         async with sm.create_transport() as transport:
-            await sm.is_initialized.wait()
+            try:
+                await asyncio.wait_for(sm.is_initialized.wait(), timeout=15)
+            except asyncio.TimeoutError:
+                raise TimeoutError("Could not find configured swap provider. Setup another one. See 'get_submarine_swap_providers'")
             if onchain_amount == 'dryrun':
                 lightning_amount_sat = satoshis(lightning_amount)
                 onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)

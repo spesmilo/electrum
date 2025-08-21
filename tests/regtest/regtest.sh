@@ -248,7 +248,8 @@ if [[ $1 == "swapserver_success" ]]; then
     echo "alice initiates swap"
     dryrun=$($alice reverse_swap 0.02 dryrun)
     onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
-    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    swapserver_mining_fee=$(echo $dryrun| jq -r ".provider_mining_fee")
+    swap=$($alice reverse_swap 0.02 $onchain_amount --provider_mining_fee $swapserver_mining_fee)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
     new_blocks 1
@@ -272,7 +273,8 @@ if [[ $1 == "swapserver_forceclose" ]]; then
     echo "alice initiates swap"
     dryrun=$($alice reverse_swap 0.02 dryrun)
     onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
-    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    swapserver_mining_fee=$(echo $dryrun| jq -r ".provider_mining_fee")
+    swap=$($alice reverse_swap 0.02 $onchain_amount --provider_mining_fee $swapserver_mining_fee)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
     ctx_id=$($bob close_channel --force $channel)
@@ -307,7 +309,8 @@ if [[ $1 == "swapserver_refund" ]]; then
     echo "alice initiates swap"
     dryrun=$($alice reverse_swap 0.02 dryrun)
     onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
-    swap=$($alice reverse_swap 0.02 $onchain_amount)
+    swapserver_mining_fee=$(echo $dryrun| jq -r ".provider_mining_fee")
+    swap=$($alice reverse_swap 0.02 $onchain_amount --provider_mining_fee $swapserver_mining_fee)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
     new_blocks 140
