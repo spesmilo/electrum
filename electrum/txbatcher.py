@@ -315,19 +315,19 @@ class TxBatch(Logger):
         return to_pay
 
     @locked
-    def _to_sweep_after(self, tx: Optional[PartialTransaction]) -> Dict[str, SweepInfo]:
+    def _to_sweep_after(self, tx: Optional[PartialTransaction]) -> Dict[TxOutpoint, SweepInfo]:
         tx_prevouts = set(txin.prevout for txin in tx.inputs()) if tx else set()
         result = []
-        for k, v in list(self.batch_inputs.items()):
-            prevout = v.txin.prevout
+        for prevout, v in list(self.batch_inputs.items()):
+            assert prevout == v.txin.prevout
             prev_txid, index = prevout.to_str().split(':')
             if not self.wallet.adb.db.get_transaction(prev_txid):
                 continue
             if v.is_anchor():
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
                 if prev_tx_mined_status.conf > 0:
-                    self.logger.info(f"anchor not needed {k}")
-                    self.batch_inputs.pop(k)  # note: if the input is already in a batch tx, this will trigger assert error
+                    self.logger.info(f"anchor not needed {prevout}")
+                    self.batch_inputs.pop(prevout)  # note: if the input is already in a batch tx, this will trigger assert error
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
@@ -335,7 +335,7 @@ class TxBatch(Logger):
                     continue
             if prevout in tx_prevouts:
                 continue
-            result.append((k,v))
+            result.append((prevout, v))
         return dict(result)
 
     def _should_bump_fee(self, base_tx: Optional[PartialTransaction]) -> bool:
@@ -462,11 +462,11 @@ class TxBatch(Logger):
     def create_next_transaction(self, base_tx: Optional[PartialTransaction]) -> Optional[PartialTransaction]:
         to_pay = self._to_pay_after(base_tx)
         to_sweep = self._to_sweep_after(base_tx)
-        to_sweep_now = {}
+        to_sweep_now = []
         for k, v in to_sweep.items():
             can_broadcast, wanted_height = self._can_broadcast(v, base_tx)
             if can_broadcast:
-                to_sweep_now[k] = v
+                to_sweep_now.append(v)
             else:
                 self.wallet.add_future_tx(v, wanted_height)
         while True:
@@ -505,16 +505,16 @@ class TxBatch(Logger):
         self,
         *,
         base_tx: Optional[PartialTransaction],
-        to_sweep: Mapping[str, SweepInfo],
+        to_sweep: Sequence[SweepInfo],
         to_pay: Sequence[PartialTxOutput],
     ) -> PartialTransaction:
-        self.logger.info(f'to_sweep: {list(to_sweep.keys())}')
+        self.logger.info(f'to_sweep: {[x.txin.prevout.to_str() for x in to_sweep]}')
         self.logger.info(f'to_pay: {to_pay}')
         inputs = []  # type: List[PartialTxInput]
         outputs = []  # type: List[PartialTxOutput]
         locktime = base_tx.locktime if base_tx else None
         # sort inputs so that txin-txout pairs are first
-        for sweep_info in sorted(to_sweep.values(), key=lambda x: not bool(x.txout)):
+        for sweep_info in sorted(to_sweep, key=lambda x: not bool(x.txout)):
             if sweep_info.cltv_abs is not None:
                 if locktime is None or locktime < sweep_info.cltv_abs:
                     # nLockTime must be greater than or equal to the stack operand.
