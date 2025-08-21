@@ -1841,7 +1841,7 @@ class NostrTransport(SwapServerTransport):
             except Exception as e:
                 self.logger.exception(f"failed to handle {request=}")
                 error_response = json.dumps({
-                    "error": str(e)[:100],
+                    "error": f"Internal Server Error: {str(type(e))}",
                     "reply_to": event_id,
                 })
                 await self.taskgroup.spawn(self.send_direct_message(event_pubkey, error_response))
