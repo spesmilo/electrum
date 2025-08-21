@@ -2318,6 +2318,13 @@ class LNWallet(LNWorker):
                 return key_list
         return []
 
+    def delete_payment_bundle(self, payment_hash: bytes) -> None:
+        payment_key = self._get_payment_key(payment_hash)
+        for key_list in self.payment_bundles:
+            if payment_key in key_list:
+                self.payment_bundles.remove(key_list)
+                return
+
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")

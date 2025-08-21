@@ -42,7 +42,7 @@ from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .fee_policy import FeePolicy
-from .invoices import Invoice
+from .invoices import Invoice, PR_PAID
 from .lnonion import OnionRoutingFailure, OnionFailureCode
 from .lnsweep import SweepInfo
 
@@ -370,16 +370,22 @@ class SwapManager(Logger):
         self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
-            payment_key = swap.payment_hash + payment_secret
-            e = OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-            self.lnworker.save_forwarding_failure(payment_key.hex(), failure_message=e)
+            # Peer.maybe_fulfill_htlc will fail incoming htlcs if there is no payment info
+            self.lnworker.delete_payment_info(swap.payment_hash.hex())
+            self.lnworker.clear_invoices_cache()
         self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
             with self.swaps_lock:
                 if self._swaps.pop(swap.payment_hash.hex(), None) is None:
                     self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
-                # TODO clean-up other swaps dicts, i.e. undo _add_or_reindex_swap()
+                if swap._funding_prevout is not None:
+                    self._swaps_by_funding_outpoint.pop(swap._funding_prevout, None)
+                self._swaps_by_lockup_address.pop(swap.lockup_address, None)
+                if swap.prepay_hash is not None:
+                    self._prepayments.pop(swap.prepay_hash, None)
+                    if self.lnworker.get_payment_status(swap.prepay_hash) != PR_PAID:
+                        self.lnworker.delete_payment_info(swap.prepay_hash.hex())
+                        self.lnworker.delete_payment_bundle(swap.payment_hash)
 
     @classmethod
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
