@@ -793,10 +793,11 @@ def format_satoshis_plain(
         x: Union[int, float, Decimal, str],  # amount in satoshis,
         *,
         decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        is_max_allowed: bool = True,
 ) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if parse_max_spend(x):
+    if is_max_allowed and parse_max_spend(x):
         return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
