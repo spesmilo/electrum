@@ -1989,7 +1989,7 @@ class Commands(Logger):
                 "max_forward_sat": offer.pairs.max_forward,
                 "max_reverse_sat": offer.pairs.max_reverse,
                 "min_amount_sat": offer.pairs.min_amount,
-                "provider_mining_fee": offer.pairs.mining_fee,
+                "prepayment": 2 * offer.pairs.mining_fee,
             }
         return result
 
@@ -2035,14 +2035,14 @@ class Commands(Logger):
 
     @command('wnpl')
     async def reverse_swap(
-        self, lightning_amount, onchain_amount, provider_mining_fee='dryrun', password=None, wallet: Abstract_Wallet = None,
+        self, lightning_amount, onchain_amount, prepayment='dryrun', password=None, wallet: Abstract_Wallet = None,
     ):
         """
         Reverse submarine swap: send on Lightning, receive on-chain
 
         arg:decimal_or_dryrun:lightning_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
         arg:decimal_or_dryrun:onchain_amount:Amount to be received, in BTC. Set it to 'dryrun' to receive a value
-        arg:decimal_or_dryrun:provider_mining_fee:Mining fee required by the swap provider, in BTC. Set it to 'dryrun' to receive a value
+        arg:decimal_or_dryrun:prepayment:Lightning payment required by the swap provider in order to cover their mining fees. This is included in lightning_amount. However, this part of the operation is not trustless; the provider is trusted to fail this payment if the swap fails.
         """
         sm = wallet.lnworker.swap_manager
         assert self.config.SWAPSERVER_NPUB or self.config.SWAPSERVER_URL, \
@@ -2055,32 +2055,32 @@ class Commands(Logger):
             if onchain_amount == 'dryrun':
                 lightning_amount_sat = satoshis(lightning_amount)
                 onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
-                assert provider_mining_fee == "dryrun", f"Cannot use {provider_mining_fee=} in dryrun. Set it to 'dryrun'."
-                provider_mining_fee = sm.mining_fee
+                assert prepayment == "dryrun", f"Cannot use {prepayment=} in dryrun. Set it to 'dryrun'."
+                prepayment_sat = 2 * sm.mining_fee
                 funding_txid = None
             elif lightning_amount == 'dryrun':
                 onchain_amount_sat = satoshis(onchain_amount)
                 lightning_amount_sat = sm.get_send_amount(onchain_amount_sat, is_reverse=True)
-                assert provider_mining_fee == "dryrun", f"Cannot use {provider_mining_fee=} in dryrun. Set it to 'dryrun'."
-                provider_mining_fee = sm.mining_fee
+                assert prepayment == "dryrun", f"Cannot use {prepayment=} in dryrun. Set it to 'dryrun'."
+                prepayment_sat = 2 * sm.mining_fee
                 funding_txid = None
             else:
                 lightning_amount_sat = satoshis(lightning_amount)
                 claim_fee = sm.get_fee_for_txbatcher()
                 onchain_amount_sat = satoshis(onchain_amount) + claim_fee
-                assert provider_mining_fee != "dryrun", "Provide the 'provider_mining_fee' obtained from the dryrun."
-                provider_mining_fee = satoshis(provider_mining_fee)
+                assert prepayment != "dryrun", "Provide the 'prepayment' obtained from the dryrun."
+                prepayment_sat = satoshis(prepayment)
                 funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                     transport=transport,
                     lightning_amount_sat=lightning_amount_sat,
                     expected_onchain_amount_sat=onchain_amount_sat,
-                    server_mining_fee_sat=provider_mining_fee,
+                    prepayment_sat=prepayment_sat,
                 )
         return {
             'funding_txid': funding_txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
             'onchain_amount': format_satoshis(onchain_amount_sat),
-            'provider_mining_fee': format_satoshis(provider_mining_fee)
+            'prepayment': format_satoshis(prepayment_sat)
         }
 
     @command('n')

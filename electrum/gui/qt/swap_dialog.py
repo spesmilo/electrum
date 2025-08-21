@@ -338,7 +338,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 transport=transport,
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_fee_for_txbatcher(),
-                server_mining_fee_sat=self.last_server_mining_fee_sat,
+                prepayment_sat=2 * self.last_server_mining_fee_sat,
             )
             try:
                 # we must not leave the context, so we use run_couroutine_dialog
