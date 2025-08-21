@@ -14,6 +14,7 @@ from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
+from electrum.submarine_swaps import SwapOffer, SwapFees, NostrTransport
 from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
 from electrum.crypto import sha256
@@ -640,3 +641,69 @@ class TestCommandsTestnet(ElectrumTestCase):
                     "fiat_value": "-40.51",
                 }
             )
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_get_submarine_swap_providers(self, *mock_args):
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+
+        cmds = Commands(config=self.config)
+
+        offer1 = SwapOffer(
+            pairs=SwapFees(
+                percentage=0.5,
+                mining_fee=2000,
+                min_amount=10000,
+                max_forward=1000000,
+                max_reverse=500000
+            ),
+            relays=["wss://relay1.example.com", "wss://relay2.example.com"],
+            timestamp=1640995200,
+            server_pubkey="a8cffad54f59e2c50a1d40ec0d57f1fc32df9cd2101fad8000215eb4a75b334d",
+            pow_bits=10
+        )
+
+        offer2 = SwapOffer(
+            pairs=SwapFees(
+                percentage=1.0,
+                mining_fee=3000,
+                min_amount=20000,
+                max_forward=2000000,
+                max_reverse=1000000
+            ),
+            relays=["ws://relay3.example.onion", "wss://relay4.example.com"],
+            timestamp=1640995300,
+            server_pubkey="7a483b6546be900481f6be2d2cc1b47c779ee89b4b66d1a066a8dc81c63ad1f0",
+            pow_bits=12
+        )
+        mock_offers = [offer1, offer2]
+        mock_transport = mock.Mock(NostrTransport)
+        mock_transport.get_recent_offers.return_value = mock_offers
+
+        with mock.patch.object(
+            wallet.lnworker.swap_manager,
+            'create_transport'
+        ) as mock_create_transport:
+            mock_create_transport.return_value.__aenter__.return_value = mock_transport
+
+            result = await cmds.get_submarine_swap_providers(query_time=1, wallet=wallet)
+
+        expected_result = {
+            offer1.server_npub: {
+                "percentage_fee": offer1.pairs.percentage,
+                "max_forward_sat": offer1.pairs.max_forward,
+                "max_reverse_sat": offer1.pairs.max_reverse,
+                "min_amount_sat": offer1.pairs.min_amount,
+                "provider_mining_fee": offer1.pairs.mining_fee,
+            },
+            offer2.server_npub: {
+                "percentage_fee": offer2.pairs.percentage,
+                "max_forward_sat": offer2.pairs.max_forward,
+                "max_reverse_sat": offer2.pairs.max_reverse,
+                "min_amount_sat": offer2.pairs.min_amount,
+                "provider_mining_fee": offer2.pairs.mining_fee,
+            }
+        }
+        self.assertEqual(result, expected_result)
