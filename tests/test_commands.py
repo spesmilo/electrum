@@ -711,14 +711,14 @@ class TestCommandsTestnet(ElectrumTestCase):
                 "max_forward_sat": offer1.pairs.max_forward,
                 "max_reverse_sat": offer1.pairs.max_reverse,
                 "min_amount_sat": offer1.pairs.min_amount,
-                "provider_mining_fee": offer1.pairs.mining_fee,
+                "prepayment": 2 * offer1.pairs.mining_fee,
             },
             offer2.server_npub: {
                 "percentage_fee": offer2.pairs.percentage,
                 "max_forward_sat": offer2.pairs.max_forward,
                 "max_reverse_sat": offer2.pairs.max_reverse,
                 "min_amount_sat": offer2.pairs.min_amount,
-                "provider_mining_fee": offer2.pairs.mining_fee,
+                "prepayment": 2 * offer2.pairs.mining_fee,
             }
         }
         self.assertEqual(result, expected_result)

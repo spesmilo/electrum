@@ -719,7 +719,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     transport=self.swap_transport,
                     lightning_amount_sat=lightning_amount,
                     expected_onchain_amount_sat=onchain_amount + swap_manager.get_fee_for_txbatcher(),
-                    server_mining_fee_sat=self.serverMiningfee.satsInt,
+                    prepayment_sat=2 * self.serverMiningfee.satsInt,
                 )
                 try:  # swaphelper might be destroyed at this point
                     if txid:

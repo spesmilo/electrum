@@ -926,7 +926,7 @@ class SwapManager(Logger):
             transport: 'SwapServerTransport',
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
-            server_mining_fee_sat: int,
+            prepayment_sat: int,
             channels: Optional[Sequence['Channel']] = None,
     ) -> Optional[str]:
         """send on Lightning, receive on-chain
@@ -943,9 +943,9 @@ class SwapManager(Logger):
         - Server fulfills HTLC using preimage.
 
         Note: expected_onchain_amount_sat is BEFORE deducting the on-chain claim tx fee.
-        Note: server_mining_fee_sat is passed as argument instead of accessing self.mining_fee to ensure
+        Note: prepayment_sat is passed as argument instead of accessing self.mining_fee to ensure
         the mining fees the user sees in the GUI are also the values used for the checks performed here.
-        We commit to server_mining_fee_sat as it limits the max fee pre-payment amt, which the server is trusted with.
+        We commit to prepayment_sat as it limits the max fee pre-payment amt, which the server is trusted with.
         """
         assert self.network
         assert self.lnwatcher
@@ -1007,7 +1007,7 @@ class SwapManager(Logger):
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
         if fee_invoice:
             fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice)
-            if fee_lnaddr.get_amount_sat() > server_mining_fee_sat * 2:
+            if fee_lnaddr.get_amount_sat() > prepayment_sat:
                 raise SwapServerError(_("Mining fee requested by swap-server larger "
                                         "than what was announced in their offer."))
             invoice_amount += fee_lnaddr.get_amount_sat()
