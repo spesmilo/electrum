@@ -2370,9 +2370,15 @@ class LNWallet(LNWorker):
         self.hold_invoice_callbacks.pop(payment_hash)
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
-        key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
         with self.lock:
+            if old_info := self.get_payment_info(payment_hash=info.payment_hash):
+                if info == old_info:
+                    return  # already saved
+                if info != old_info._replace(status=info.status):
+                    # differs more than in status. let's fail
+                    raise Exception("payment_hash already in use")
+            key = info.payment_hash.hex()
             self.payment_info[key] = info.amount_msat, info.direction, info.status
         if write_to_disk:
             self.wallet.save_db()

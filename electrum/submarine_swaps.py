@@ -253,7 +253,7 @@ class SwapManager(Logger):
         for payment_hash_hex, swap in self._swaps.items():
             payment_hash = bytes.fromhex(payment_hash_hex)
             swap._payment_hash = payment_hash
-            self._add_or_reindex_swap(swap)
+            self._add_or_reindex_swap(swap, is_new=False)
             if not swap.is_reverse and not swap.is_redeemed:
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
 
@@ -454,7 +454,7 @@ class SwapManager(Logger):
             # note: swap.funding_txid can change due to RBF, it will get updated here:
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
-            self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
+            self._add_or_reindex_swap(swap, is_new=False)  # to update _swaps_by_funding_outpoint
             funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
             # set spending_txid (even if tx is local), for GUI grouping
@@ -592,6 +592,8 @@ class SwapManager(Logger):
     def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes = None):
         """ server method """
         assert lightning_amount_sat
+        if payment_hash.hex() in self._swaps:
+            raise Exception("payment_hash already in use")
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         our_privkey = os.urandom(32)
         our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
@@ -629,6 +631,8 @@ class SwapManager(Logger):
             min_final_cltv_expiry_delta: Optional[int] = None,
     ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
+        if payment_hash.hex() in self._swaps:
+            raise Exception("payment_hash already in use")
         if prepay:
             # server requests 2 * the mining fee as instantly settled prepayment so that the mining
             # fees of the funding tx and potential timeout refund tx are always covered
@@ -684,7 +688,7 @@ class SwapManager(Logger):
             spending_txid=None,
         )
         swap._payment_hash = payment_hash
-        self._add_or_reindex_swap(swap)
+        self._add_or_reindex_swap(swap, is_new=True)
         self.add_lnwatcher_callback(swap)
         return swap, invoice, prepay_invoice
 
@@ -728,6 +732,9 @@ class SwapManager(Logger):
         payment_hash: bytes,
         prepay_hash: Optional[bytes] = None,
     ) -> SwapData:
+        if payment_hash.hex() in self._swaps:
+            raise Exception("payment_hash already in use")
+        assert sha256(preimage) == payment_hash
         lockup_address = script_to_p2wsh(redeem_script)
         receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
@@ -746,26 +753,41 @@ class SwapManager(Logger):
             spending_txid=None,
         )
         if prepay_hash:
+            if prepay_hash in self._prepayments:
+                raise Exception("prepay_hash already in use")
             self._prepayments[prepay_hash] = payment_hash
         swap._payment_hash = payment_hash
-        self._add_or_reindex_swap(swap)
+        self._add_or_reindex_swap(swap, is_new=True)
         self.add_lnwatcher_callback(swap)
         return swap
 
-    def server_add_swap_invoice(self, request):
+    def server_add_swap_invoice(self, request: dict) -> dict:
+        """ server method.
+        (client-forward-swap phase2)
+        """
         invoice = request['invoice']
         invoice = Invoice.from_bech32(invoice)
         key = invoice.rhash
         payment_hash = bytes.fromhex(key)
+        their_pubkey = bytes.fromhex(request['refundPublicKey'])
         with self.swaps_lock:
             assert key in self._swaps
             swap = self._swaps[key]
-        assert swap.lightning_amount == int(invoice.get_amount_sat())
-        self.wallet.save_invoice(invoice)
-        # check that we have the preimage
-        assert sha256(swap.preimage) == payment_hash
-        assert swap.spending_txid is None
-        self.invoices_to_pay[key] = 0
+            assert swap.lightning_amount == int(invoice.get_amount_sat())
+            assert swap.is_reverse is True
+            # check that we have the preimage
+            assert sha256(swap.preimage) == payment_hash
+            assert swap.spending_txid is None
+            # check their_pubkey by recalculating redeem_script
+            our_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
+            redeem_script = _construct_swap_scriptcode(
+                payment_hash=payment_hash, locktime=swap.locktime, refund_pubkey=their_pubkey, claim_pubkey=our_pubkey,
+            )
+            assert swap.redeem_script == redeem_script
+            assert key not in self.invoices_to_pay
+            self.invoices_to_pay[key] = 0
+            assert self.wallet.get_invoice(invoice.get_id()) is None
+            self.wallet.save_invoice(invoice)
         return {}
 
     async def normal_swap(
@@ -788,9 +810,9 @@ class SwapManager(Logger):
         cltv safety requirement: (onchain_locktime > LN_locktime),   otherwise server is vulnerable
 
         New flow:
-         - User requests swap
+         - User requests swap  (RPC 'createnormalswap')
          - Server creates preimage, sends RHASH to user
-         - User creates hold invoice, sends it to server
+         - User creates hold invoice, sends it to server  (RPC 'addswapinvoice')
          - Server sends HTLC, user holds it
          - User creates on-chain output locked to RHASH
          - Server spends the on-chain output using preimage (revealing the preimage)
@@ -898,8 +920,10 @@ class SwapManager(Logger):
         self.lnworker.register_hold_invoice(payment_hash, callback)
 
         # send invoice to server and wait for htlcs
+        # note: server will link this RPC to our previous 'createnormalswap' RPC
+        #       - using the RHASH from invoice, and using refundPublicKey
+        #       - FIXME it would be safer to use a proper session-secret?!
         request_data = {
-            "preimageHash": payment_hash.hex(),
             "invoice": invoice,
             "refundPublicKey": refund_pubkey.hex(),
         }
@@ -973,7 +997,7 @@ class SwapManager(Logger):
     ) -> Optional[str]:
         """send on Lightning, receive on-chain
 
-        - User generates preimage, RHASH. Sends RHASH to server.
+        - User generates preimage, RHASH. Sends RHASH to server.  (RPC 'createswap')
         - Server creates an LN invoice for RHASH.
         - User pays LN invoice - except server needs to hold the HTLC as preimage is unknown.
             - if the server requested a fee prepayment (using 'minerFeeInvoice'),
@@ -1000,10 +1024,9 @@ class SwapManager(Logger):
         request_data = {
             "type": "reversesubmarine",
             "pairId": "BTC/BTC",
-            "orderSide": "buy",
             "invoiceAmount": lightning_amount_sat,
             "preimageHash": payment_hash.hex(),
-            "claimPublicKey": our_pubkey.hex()
+            "claimPublicKey": our_pubkey.hex(),
         }
         self.logger.debug(f'rswap: sending request for {lightning_amount_sat}')
         data = await transport.send_request_to_server('createswap', request_data)
@@ -1084,8 +1107,9 @@ class SwapManager(Logger):
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         return swap.funding_txid
 
-    def _add_or_reindex_swap(self, swap: SwapData) -> None:
+    def _add_or_reindex_swap(self, swap: SwapData, *, is_new: bool) -> None:
         with self.swaps_lock:
+            assert is_new == (swap.payment_hash.hex() not in self._swaps), is_new
             if swap.payment_hash.hex() not in self._swaps:
                 self._swaps[swap.payment_hash.hex()] = swap
             if swap._funding_prevout:
@@ -1869,11 +1893,11 @@ class NostrTransport(SwapServerTransport):
             try:
                 method = request.pop('method')
                 self.logger.info(f'handle_request: id={event_id} {method} {request}')
-                if method == 'addswapinvoice':
+                if method == 'addswapinvoice':  # client-forward-swap phase2
                     r = self.sm.server_add_swap_invoice(request)
-                elif method == 'createswap':
+                elif method == 'createswap':  # client-reverse-swap
                     r = self.sm.server_create_swap(request)
-                elif method == 'createnormalswap':
+                elif method == 'createnormalswap':  # client-forward-swap phase1
                     r = self.sm.server_create_normal_swap(request)
                 else:
                     raise Exception(method)
