@@ -79,33 +79,34 @@ assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 WITNESS_TEMPLATE_REVERSE_SWAP = [
     opcodes.OP_SIZE,
-    OPPushDataGeneric(None),
+    OPPushDataGeneric(None),               # idx 1. length of preimage
     opcodes.OP_EQUAL,
     opcodes.OP_IF,
     opcodes.OP_HASH160,
-    OPPushDataGeneric(lambda x: x == 20),
+    OPPushDataGeneric(lambda x: x == 20),  # idx 5. payment_hash
     opcodes.OP_EQUALVERIFY,
-    OPPushDataPubkey,
+    OPPushDataPubkey,                      # idx 7. claim_pubkey
     opcodes.OP_ELSE,
     opcodes.OP_DROP,
-    OPPushDataGeneric(None),
+    OPPushDataGeneric(None),               # idx 10. locktime
     opcodes.OP_CHECKLOCKTIMEVERIFY,
     opcodes.OP_DROP,
-    OPPushDataPubkey,
+    OPPushDataPubkey,                      # idx 13. refund_pubkey
     opcodes.OP_ENDIF,
     opcodes.OP_CHECKSIG
 ]
 
 
-def check_reverse_redeem_script(
+def _check_swap_scriptcode(
     *,
     redeem_script: bytes,
     lockup_address: str,
     payment_hash: bytes,
     locktime: int,
-    refund_pubkey: bytes = None,
-    claim_pubkey: bytes = None,
+    refund_pubkey: Optional[bytes],   # note: We don't need to check the counterparty's key.
+    claim_pubkey: Optional[bytes],    #       Can use None in that case.
 ) -> None:
+    assert (refund_pubkey is not None) or (claim_pubkey is not None), "at least one pubkey must be set"
     parsed_script = [x for x in script_GetOp(redeem_script)]
     if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
         raise Exception("rswap check failed: scriptcode does not match template")
@@ -113,12 +114,38 @@ def check_reverse_redeem_script(
         raise Exception("rswap check failed: inconsistent scriptcode and address")
     if ripemd(payment_hash) != parsed_script[5][1]:
         raise Exception("rswap check failed: our preimage not in script")
-    if claim_pubkey and claim_pubkey != parsed_script[7][1]:
+    claim_pubkey = claim_pubkey or parsed_script[7][1]
+    if claim_pubkey != parsed_script[7][1]:
         raise Exception("rswap check failed: our pubkey not in script")
-    if refund_pubkey and refund_pubkey != parsed_script[13][1]:
+    refund_pubkey = refund_pubkey or parsed_script[13][1]
+    if refund_pubkey != parsed_script[13][1]:
         raise Exception("rswap check failed: our pubkey not in script")
     if locktime != int.from_bytes(parsed_script[10][1], byteorder='little'):
         raise Exception("rswap check failed: inconsistent locktime and script")
+    # let's just rebuild the full script from scratch...
+    if redeem_script != _construct_swap_scriptcode(
+        payment_hash=payment_hash,
+        locktime=locktime,
+        refund_pubkey=refund_pubkey,
+        claim_pubkey=claim_pubkey,
+    ):
+        raise Exception("failed to rebuild swap script from scratch")
+
+
+def _construct_swap_scriptcode(
+    payment_hash: bytes,
+    locktime: int,
+    refund_pubkey: bytes,
+    claim_pubkey: bytes,
+) -> bytes:
+    assert isinstance(payment_hash, bytes) and len(payment_hash) == 32
+    assert isinstance(locktime, int) and (0 <= locktime <= bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX)
+    assert isinstance(refund_pubkey, bytes) and len(refund_pubkey) == 33
+    assert isinstance(claim_pubkey, bytes) and len(claim_pubkey) == 33
+    return construct_script(
+        WITNESS_TEMPLATE_REVERSE_SWAP,
+        values={1: 32, 5: ripemd(payment_hash), 7: claim_pubkey, 10: locktime, 13: refund_pubkey}
+    )
 
 
 class SwapServerError(Exception):
@@ -571,9 +598,11 @@ class SwapManager(Logger):
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
         if not onchain_amount_sat:
             raise Exception("no onchain amount")
-        redeem_script = construct_script(
-            WITNESS_TEMPLATE_REVERSE_SWAP,
-            values={1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
+        redeem_script = _construct_swap_scriptcode(
+            payment_hash=payment_hash,
+            locktime=locktime,
+            refund_pubkey=our_pubkey,
+            claim_pubkey=their_pubkey,
         )
         swap, invoice, prepay_invoice = self.add_normal_swap(
             redeem_script=redeem_script,
@@ -670,9 +699,11 @@ class SwapManager(Logger):
             raise Exception("no onchain amount")
         preimage = os.urandom(32)
         payment_hash = sha256(preimage)
-        redeem_script = construct_script(
-            WITNESS_TEMPLATE_REVERSE_SWAP,
-            values={1:32, 5:ripemd(payment_hash), 7:our_pubkey, 10:locktime, 13:their_pubkey}
+        redeem_script = _construct_swap_scriptcode(
+            payment_hash=payment_hash,
+            locktime=locktime,
+            refund_pubkey=their_pubkey,
+            claim_pubkey=our_pubkey,
         )
         swap = self.add_reverse_swap(
             redeem_script=redeem_script,
@@ -812,12 +843,13 @@ class SwapManager(Logger):
             raise SwapServerError("failed to parse response from swapserver for createnormalswap") from e
         del data   # parsing done
         # verify redeem_script is built with our pubkey and preimage
-        check_reverse_redeem_script(
+        _check_swap_scriptcode(
             redeem_script=redeem_script,
             lockup_address=lockup_address,
             payment_hash=payment_hash,
             locktime=locktime,
             refund_pubkey=refund_pubkey,
+            claim_pubkey=None,
         )
 
         # check that onchain_amount is not more than what we estimated
@@ -995,7 +1027,7 @@ class SwapManager(Logger):
         del data  # parsing done
         self.logger.debug(f'rswap: {response_id=}')
         # verify redeem_script is built with our pubkey and preimage
-        check_reverse_redeem_script(
+        _check_swap_scriptcode(
             redeem_script=redeem_script,
             lockup_address=lockup_address,
             payment_hash=payment_hash,
