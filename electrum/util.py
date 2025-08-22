@@ -234,6 +234,8 @@ def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
     #   Decimal('41754.681')
     if isinstance(x, Decimal):
         return x
+    if isinstance(x, int):
+        return Decimal(x)
     return Decimal(str(x))
 
 
@@ -800,8 +802,10 @@ def format_satoshis_plain(
     if is_max_allowed and parse_max_spend(x):
         return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # TODO(ghost43) just hard-fail if x is a float. do we even use floats for money anywhere?
+    x = to_decimal(x)
     scale_factor = pow(10, decimal_point)
-    return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
+    return "{:.8f}".format(x / scale_factor).rstrip('0').rstrip('.')
 
 
 # Check that Decimal precision is sufficient.
@@ -833,8 +837,10 @@ def format_satoshis(
     if parse_max_spend(x):
         return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # TODO(ghost43) just hard-fail if x is a float. do we even use floats for money anywhere?
+    x = to_decimal(x)
     # lose redundant precision
-    x = Decimal(x).quantize(Decimal(10) ** (-precision))
+    x = x.quantize(Decimal(10) ** (-precision))
     # format string
     overall_precision = decimal_point + precision  # max digits after final decimal point
     decimal_format = "." + str(overall_precision) if overall_precision > 0 else ""

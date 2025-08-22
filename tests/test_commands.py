@@ -185,6 +185,7 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(format_satoshis(Decimal(123.456)), "0.00000123")
         self.assertEqual(format_satoshis(Decimal(123.5)), "0.00000124")
         self.assertEqual(format_satoshis(Decimal(123.789)), "0.00000124")
+        self.assertEqual(format_satoshis(41754.681), "0.00041755")
 
 
 class TestCommandsTestnet(ElectrumTestCase):

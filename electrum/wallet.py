@@ -1759,7 +1759,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
-                fee_per_byte = fee / size
+                fee_per_byte = Decimal(fee) / size
                 extra.append(format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VB}")
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.network and self.network.has_fee_mempool():
