@@ -1760,12 +1760,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
-                extra.append(format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VB}")
+                extra.append("fee: " + format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VB}")
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.network and self.network.has_fee_mempool():
                 exp_n = self.network.mempool_fees.fee_to_depth(fee_per_byte)
                 if exp_n is not None:
-                    extra.append(FeePolicy.get_depth_mb_str(exp_n))
+                    extra.append("mempool depth: " + FeePolicy.get_depth_mb_str(exp_n))
             if height == TX_HEIGHT_LOCAL:
                 status = 3
             elif height == TX_HEIGHT_UNCONF_PARENT:
