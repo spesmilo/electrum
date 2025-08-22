@@ -36,7 +36,7 @@ import inspect
 from collections import defaultdict
 from functools import wraps
 from decimal import Decimal, InvalidOperation
-from typing import Optional, TYPE_CHECKING, Dict, List, Any
+from typing import Optional, TYPE_CHECKING, Dict, List, Any, Union
 import os
 import re
 
@@ -101,8 +101,14 @@ def satoshis(amount):
     return int(COIN*to_decimal(amount)) if amount is not None else None
 
 
-def format_satoshis(x):
-    return str(to_decimal(x)/COIN) if x is not None else None
+def format_satoshis(x: Union[str, float, int, Decimal, None]) -> Optional[str]:
+    """
+    input: satoshis as a Number
+    output: str formatted as bitcoin amount
+    """
+    if x is None:
+        return None
+    return util.format_satoshis_plain(x, is_max_allowed=False)
 
 
 class Command:
@@ -476,7 +482,7 @@ class Commands(Logger):
         for txin in wallet.get_utxos():
             d = txin.to_json()
             v = d.pop("value_sats")
-            d["value"] = str(to_decimal(v)/COIN) if v is not None else None
+            d["value"] = format_satoshis(v)
             coins.append(d)
         return coins
 
@@ -719,13 +725,13 @@ class Commands(Logger):
         """Return the balance of your wallet. """
         c, u, x = wallet.get_balance()
         l = wallet.lnworker.get_balance() if wallet.lnworker else None
-        out = {"confirmed": str(to_decimal(c)/COIN)}
+        out = {"confirmed": format_satoshis(c)}
         if u:
-            out["unconfirmed"] = str(to_decimal(u)/COIN)
+            out["unconfirmed"] = format_satoshis(u)
         if x:
-            out["unmatured"] = str(to_decimal(x)/COIN)
+            out["unmatured"] = format_satoshis(x)
         if l:
-            out["lightning"] = str(to_decimal(l)/COIN)
+            out["lightning"] = format_satoshis(l)
         return out
 
     @command('n')
@@ -738,8 +744,8 @@ class Commands(Logger):
         """
         sh = bitcoin.address_to_scripthash(address)
         out = await self.network.get_balance_for_scripthash(sh)
-        out["confirmed"] =  str(to_decimal(out["confirmed"])/COIN)
-        out["unconfirmed"] =  str(to_decimal(out["unconfirmed"])/COIN)
+        out["confirmed"] = format_satoshis(out["confirmed"])
+        out["unconfirmed"] = format_satoshis(out["unconfirmed"])
         return out
 
     @command('n')
@@ -1183,7 +1189,7 @@ class Commands(Logger):
             if labels or balance:
                 item = (item,)
             if balance:
-                item += (util.format_satoshis(sum(wallet.get_addr_balance(addr))),)
+                item += (format_satoshis(sum(wallet.get_addr_balance(addr))),)
             if labels:
                 item += (repr(wallet.get_label_for_address(addr)),)
             out.append(item)

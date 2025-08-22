@@ -171,6 +171,21 @@ class TestCommands(ElectrumTestCase):
         with self.assertRaises(binascii.Error):  # perhaps it should raise some nice UserFacingException instead
             await cmds.decrypt(pubkey, ciphertext+"trailinggarbage", wallet=wallet)
 
+    def test_format_satoshis(self):
+        format_satoshis = electrum.commands.format_satoshis
+        # input type is highly polymorphic:
+        self.assertEqual(format_satoshis(None), None)
+        self.assertEqual(format_satoshis(1), "0.00000001")
+        self.assertEqual(format_satoshis(1.0), "0.00000001")
+        self.assertEqual(format_satoshis(Decimal(1)), "0.00000001")
+        # trailing zeroes are cut
+        self.assertEqual(format_satoshis(51000), "0.00051")
+        self.assertEqual(format_satoshis(123456_12345670), "123456.1234567")
+        # sub-satoshi precision is rounded
+        self.assertEqual(format_satoshis(Decimal(123.456)), "0.00000123")
+        self.assertEqual(format_satoshis(Decimal(123.5)), "0.00000124")
+        self.assertEqual(format_satoshis(Decimal(123.789)), "0.00000124")
+
 
 class TestCommandsTestnet(ElectrumTestCase):
     TESTNET = True
