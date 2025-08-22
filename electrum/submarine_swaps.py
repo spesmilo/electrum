@@ -439,8 +439,12 @@ class SwapManager(Logger):
                 if spent_height > 0:
                     if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                         self.logger.info(f'stop watching swap {swap.lockup_address}')
-                        self.lnwatcher.remove_callback(swap.lockup_address)
                         swap.is_redeemed = True
+                        # cleanup
+                        self.lnwatcher.remove_callback(swap.lockup_address)
+                        if not swap.is_reverse:
+                            self.lnworker.delete_payment_bundle(swap.payment_hash)
+                            self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
             if not swap.is_reverse:
                 if swap.preimage is None and spent_height is not None:
