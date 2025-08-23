@@ -910,7 +910,8 @@ class LNWallet(LNWorker):
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
-        self.payment_bundles = []                       # lists of hashes. todo:persist
+        self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]            # TODO: persist
+        self._payment_bundles_canon_to_pkeylist = {}   # type: Dict[bytes, Sequence[bytes]]  # TODO: persist
 
         self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
@@ -2308,22 +2309,42 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return payment_hash
 
-    def bundle_payments(self, hash_list):
+    def bundle_payments(self, hash_list: Sequence[bytes]) -> None:
+        """Bundle together a list of payment_hashes, for atomicity, so that either
+        - all gets fulfilled, or
+        - none of them gets fulfilled.
+        (we are the recipient of this payment)
+        """
         payment_keys = [self._get_payment_key(x) for x in hash_list]
-        self.payment_bundles.append(payment_keys)
+        with self.lock:
+            # We maintain two maps.
+            #   map1: payment_key -> bundle_key=canon_pkey (canonically smallest among pkeys)
+            #   map2: bundle_key -> list of pkeys in bundle
+            # assumption: bundles are immutable, so no adding extra pkeys after-the-fact
+            canon_pkey = min(payment_keys)
+            for pkey in payment_keys:
+                assert pkey not in self._payment_bundles_pkey_to_canon
+            for pkey in payment_keys:
+                self._payment_bundles_pkey_to_canon[pkey] = canon_pkey
+            self._payment_bundles_canon_to_pkeylist[canon_pkey] = tuple(payment_keys)
 
     def get_payment_bundle(self, payment_key: bytes) -> Sequence[bytes]:
-        for key_list in self.payment_bundles:
-            if payment_key in key_list:
-                return key_list
-        return []
+        with self.lock:
+            canon_pkey =  self._payment_bundles_pkey_to_canon.get(payment_key)
+            if canon_pkey is None:
+                return []
+            return self._payment_bundles_canon_to_pkeylist[canon_pkey]
 
     def delete_payment_bundle(self, payment_hash: bytes) -> None:
         payment_key = self._get_payment_key(payment_hash)
-        for key_list in self.payment_bundles:
-            if payment_key in key_list:
-                self.payment_bundles.remove(key_list)
+        with self.lock:
+            canon_pkey = self._payment_bundles_pkey_to_canon.get(payment_key)
+            if canon_pkey is None:  # is it ok for bundle to be missing??
                 return
+            pkey_list = self._payment_bundles_canon_to_pkeylist[canon_pkey]
+            for pkey in pkey_list:
+                del self._payment_bundles_pkey_to_canon[pkey]
+            del self._payment_bundles_canon_to_pkeylist[canon_pkey]
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         if sha256(preimage) != payment_hash:
@@ -2370,9 +2391,15 @@ class LNWallet(LNWorker):
         self.hold_invoice_callbacks.pop(payment_hash)
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
-        key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
         with self.lock:
+            if old_info := self.get_payment_info(payment_hash=info.payment_hash):
+                if info == old_info:
+                    return  # already saved
+                if info != old_info._replace(status=info.status):
+                    # differs more than in status. let's fail
+                    raise Exception("payment_hash already in use")
+            key = info.payment_hash.hex()
             self.payment_info[key] = info.amount_msat, info.direction, info.status
         if write_to_disk:
             self.wallet.save_db()

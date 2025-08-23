@@ -10,7 +10,7 @@ import logging
 import concurrent
 from concurrent import futures
 from unittest import mock
-from typing import Iterable, NamedTuple, Tuple, List, Dict
+from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence
 
 from aiorpcx import timeout_after, TaskTimeout
 from electrum_ecc import ECPrivkey
@@ -215,7 +215,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.downstream_to_upstream_htlc = {}
         self.dont_settle_htlcs = {}
         self.hold_invoice_callbacks = {}
-        self.payment_bundles = [] # lists of hashes. todo:persist
+        self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]
+        self._payment_bundles_canon_to_pkeylist = {}   # type: Dict[bytes, Sequence[bytes]]
         self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
