@@ -365,7 +365,11 @@ class DebugMem(ThreadJob):
         objmap = defaultdict(list)
         for obj in gc.get_objects():
             for class_ in self.classes:
-                if isinstance(obj, class_):
+                try:
+                    _isinstance = isinstance(obj, class_)
+                except AttributeError:
+                    _isinstance = False
+                if _isinstance:
                     objmap[class_].append(obj)
         for class_, objs in objmap.items():
             self.logger.info(f"{class_.__name__}: {len(objs)}")

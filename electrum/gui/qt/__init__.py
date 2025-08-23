@@ -147,7 +147,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.logger.info(f"Qt GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
-        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #plugins.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
