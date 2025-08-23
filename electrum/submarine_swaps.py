@@ -77,7 +77,8 @@ assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 # different length which would still allow for claiming the onchain
 # coins but the invoice couldn't be settled
 
-WITNESS_TEMPLATE_REVERSE_SWAP = [
+# Unified witness-script for all swaps.  Historically with Boltz-backend, this was the reverse-swap script.
+WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_SIZE,
     OPPushDataGeneric(None),               # idx 1. length of preimage
     opcodes.OP_EQUAL,
@@ -108,7 +109,7 @@ def _check_swap_scriptcode(
 ) -> None:
     assert (refund_pubkey is not None) or (claim_pubkey is not None), "at least one pubkey must be set"
     parsed_script = [x for x in script_GetOp(redeem_script)]
-    if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
+    if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP):
         raise Exception("rswap check failed: scriptcode does not match template")
     if script_to_p2wsh(redeem_script) != lockup_address:
         raise Exception("rswap check failed: inconsistent scriptcode and address")
@@ -143,7 +144,7 @@ def _construct_swap_scriptcode(
     assert isinstance(refund_pubkey, bytes) and len(refund_pubkey) == 33
     assert isinstance(claim_pubkey, bytes) and len(claim_pubkey) == 33
     return construct_script(
-        WITNESS_TEMPLATE_REVERSE_SWAP,
+        WITNESS_TEMPLATE_SWAP,
         values={1: 32, 5: ripemd(payment_hash), 7: claim_pubkey, 10: locktime, 13: refund_pubkey}
     )
 
