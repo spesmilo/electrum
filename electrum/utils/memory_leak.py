@@ -1,4 +1,6 @@
 from collections import defaultdict
+import datetime
+import os
 import time
 
 from electrum.util import ThreadJob
@@ -7,7 +9,7 @@ from electrum.util import ThreadJob
 class DebugMem(ThreadJob):
     '''A handy class for debugging GC memory leaks
 
-    In console:
+    In Qt console:
     >>> from electrum.utils.memory_leak import DebugMem
     >>> from electrum.wallet import Abstract_Wallet
     >>> plugins.add_jobs([DebugMem([Abstract_Wallet,], interval=5)])
@@ -39,3 +41,37 @@ class DebugMem(ThreadJob):
         if time.time() > self.next_time:
             self.mem_stats()
             self.next_time = time.time() + self.interval
+
+
+def debug_memusage_list_all_objects(limit: int = 50) -> list[tuple[str, int]]:
+    """Return a string listing the most common types in memory."""
+    import objgraph  # 3rd-party dependency
+    return objgraph.most_common_types(
+        limit=limit,
+        shortnames=False,
+    )
+
+
+def debug_memusage_dump_random_backref_chain(objtype: str) -> str:
+    """Writes a dotfile to cwd, containing the backref chain
+    for a randomly selected object of type objtype.
+
+    Warning: very slow!
+
+    In Qt console:
+    >>> debug_memusage_dump_random_backref_chain("Standard_Wallet")
+
+    To convert to image:
+    $ dot -Tps filename.dot -o outfile.ps
+    """
+    import objgraph  # 3rd-party dependency
+    import random
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    fpath = os.path.abspath(f"electrum_backref_chain_{timestamp}.dot")
+    with open(fpath, "w") as f:
+        objgraph.show_chain(
+            objgraph.find_backref_chain(
+                random.choice(objgraph.by_type(objtype)),
+                objgraph.is_proper_module),
+            output=f)
+    return fpath
