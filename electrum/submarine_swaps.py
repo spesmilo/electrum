@@ -595,6 +595,8 @@ class SwapManager(Logger):
         if payment_hash.hex() in self._swaps:
             raise Exception("payment_hash already in use")
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
+        if self.network.blockchain().is_tip_stale():
+            raise Exception("our blockchain tip is stale")
         our_privkey = os.urandom(32)
         our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
@@ -696,6 +698,8 @@ class SwapManager(Logger):
         """ server method. """
         assert lightning_amount_sat is not None
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
+        if self.network.blockchain().is_tip_stale():
+            raise Exception("our blockchain tip is stale")
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
@@ -881,6 +885,8 @@ class SwapManager(Logger):
         # verify that they are not locking up funds for too long
         if locktime - self.network.get_local_height() > MAX_LOCKTIME_DELTA:
             raise Exception("fswap check failed: locktime too far in future")
+        if self.network.blockchain().is_tip_stale():
+            raise Exception("our blockchain tip is stale")
 
         swap, invoice, _ = self.add_normal_swap(
             redeem_script=redeem_script,
@@ -1065,6 +1071,8 @@ class SwapManager(Logger):
         # verify that we will have enough time to get our tx confirmed
         if locktime - self.network.get_local_height() <= MIN_LOCKTIME_DELTA:
             raise Exception("rswap check failed: locktime too close")
+        if self.network.blockchain().is_tip_stale():
+            raise Exception("our blockchain tip is stale")
         # verify invoice payment_hash
         lnaddr = self.lnworker._check_bolt11_invoice(invoice)
         invoice_amount = int(lnaddr.get_amount_sat())
