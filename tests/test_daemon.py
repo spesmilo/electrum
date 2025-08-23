@@ -228,3 +228,79 @@ class TestCommandsWithDaemon(DaemonTestCase):
         self.assertEqual(self.SEED, await cmds.getseed(wallet_path=wpath))
         self.assertEqual(self.SEED, await cmds.getseed(wallet_path=basename))
         self.assertEqual(self.SEED, await cmds.getseed(wallet=wallet))
+
+
+class TestLoadWallet(DaemonTestCase):
+
+    async def test_simple_load(self):
+        path1 = self._restore_wallet_from_text("9dk", password=None)
+        wallet1 = self.daemon.load_wallet(path1, password=None)
+        await self.daemon._stop_wallet(path1)
+
+    async def test_password_checks_for_no_password(self):
+        real_password = None
+        path1 = self._restore_wallet_from_text("9dk", password=real_password)
+        # load_wallet will not validate the password arg unless needed for storage.decrypt():
+        wallet1 = self.daemon.load_wallet(path1, password="garbage")
+        await self.daemon._stop_wallet(path1)
+        # unless force_check_password is set:
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        await self.daemon._stop_wallet(path1)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password, force_check_password=True)
+        await self.daemon._stop_wallet(path1)
+
+        # load_wallet will not validate the password arg if wallet is already loaded, unless force_check_password
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        wallet1 = self.daemon.load_wallet(path1, password="garbage")
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+
+    async def test_password_checks_for_ks_enc(self):
+        real_password = "1234"
+        path1 = self._restore_wallet_from_text("9dk", password=real_password, encrypt_file=False)
+        # load_wallet will not validate the password arg unless needed for storage.decrypt():
+        wallet1 = self.daemon.load_wallet(path1, password="garbage")
+        await self.daemon._stop_wallet(path1)
+        # unless force_check_password is set:
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        await self.daemon._stop_wallet(path1)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password, force_check_password=True)
+        await self.daemon._stop_wallet(path1)
+
+        # load_wallet will not validate the password arg if wallet is already loaded, unless force_check_password
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        wallet1 = self.daemon.load_wallet(path1, password="garbage")
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+
+    async def test_password_checks_for_sto_enc(self):
+        real_password = "1234"
+        path1 = self._restore_wallet_from_text("9dk", password=real_password, encrypt_file=True)
+
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage")
+
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        await self.daemon._stop_wallet(path1)
+
+        wallet1 = self.daemon.load_wallet(path1, password=real_password, force_check_password=True)
+        await self.daemon._stop_wallet(path1)
+
+        # load_wallet will not validate the password arg if wallet is already loaded, unless force_check_password
+        wallet1 = self.daemon.load_wallet(path1, password=real_password)
+        wallet1 = self.daemon.load_wallet(path1, password="garbage")
+        with self.assertRaises(util.InvalidPassword):
+            wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
