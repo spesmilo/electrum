@@ -1,3 +1,29 @@
+# Release 4.6.2 (Aug 25, 2025)
+ * General:
+   - changed: minrelayfee clamps from [1, 50] to [0.1, 50] sat/vbyte (#10096)
+   - new: add support for "mutinynet" signet test network (#10134)
+   - new: network: don't request same tx from server that we just broadcast to it (#10111)
+   - new: logging: add config.LOGS_MAX_TOTAL_SIZE_BYTES: to limit size on disk (#10159)
+ * QML GUI (Android):
+   - fix: cannot open keystore-encryption-only wallets (#10171)
+   - fix: wizard: restoring from seed broken if already opened a wallet (#10117)
+   - fix: handle invoice validation errors on save (#10122)
+   - fix: sweep: handle network errors gracefully (#10108)
+   - fix: sweep: handle unexpected script_types (#10145)
+ * Qt GUI (desktop):
+   - fix: wizard: hardware device: handle missing xpub (#10109)
+   - fix: wizard: enable-keystore for bip39 seeds and hw devices (#10123)
+ * Lightning:
+   - fix: slow down peers sending too much gossip, and other rate-limits (#10153)
+ * Submarine swaps: several bug fixes and improved reliability.
+ * CLI/RPC:
+   - changed: onchain_history: add back from_height/to_height params (#10119)
+   - changed: reverse_swap: new mandatory parameter 'prepayment' (#10165)
+   - new: get_submarine_swap_providers: added command to fetch swap providers (#10158)
+ * Plugins:
+   - Nostr Cosigner: fix: don't allow saving tx without txid (#10128)
+
+
 # Release 4.6.1 (Aug 5, 2025)
  * QML GUI (Android):
    - fix: QR scanner crashes due to null/orphaned View in hierarchy (#10071)
