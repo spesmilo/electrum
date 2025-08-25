@@ -651,7 +651,10 @@ class AddressSynchronizer(Logger, EventListener):
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
-        util.trigger_callback('adb_added_verified_tx', self, tx_hash)
+            del info
+            info2 = self.get_tx_height(tx_hash)  # populates the 'conf' field
+            assert isinstance(info2.conf, int) and info2.conf > 0, f"{info2.conf=}, {info2.height=}, {self.get_local_height()=}"
+        util.trigger_callback('adb_added_verified_tx', self, tx_hash, info2)
 
     @with_lock
     def get_unverified_txs(self) -> Dict[str, int]:
