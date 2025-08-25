@@ -57,7 +57,7 @@ files = {
 signers = ['ThomasV', 'sombernight_releasekey']
 
 # detect extra signers
-list_dir = os.listdir('dist')
+list_dir = sorted(os.listdir('dist'))
 detected_sigs = defaultdict(set)
 for f in list_dir:
     if f.endswith('.asc'):
