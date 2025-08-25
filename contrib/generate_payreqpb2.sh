@@ -1,6 +1,8 @@
 #!/bin/bash
 # Generates the file paymentrequest_pb2.py
 
+set -e
+
 CONTRIB="$(dirname "$(readlink -e "$0")")"
 EL="$CONTRIB"/../electrum
 

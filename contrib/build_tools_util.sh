@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # Set a fixed umask as this leaks into docker containers
 umask 0022
 

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 here=$(dirname "$0")
 if [ -z "$WIN_SIGNING_PASSWORD" ]; then
     echo "password missing"
