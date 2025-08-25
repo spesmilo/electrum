@@ -12,6 +12,8 @@ from electrum.storage import WalletStorage
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from electrum.bitcoin import DummyAddress
+from electrum.silent_payment import SilentPaymentAddress
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException, TransactionDangerousException,
@@ -1246,6 +1248,9 @@ class TestWalletSending(ElectrumTestCase):
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
+                with self.subTest(msg="_rbf_silent_payment_tx"):
+                    await self._rbf_silent_payment_tx(config=config)
+            with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
                     await self._bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(
                         simulate_moving_txs=simulate_moving_txs,
@@ -1945,6 +1950,89 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 4_990_300, 0), wallet.get_balance())
+
+    async def _rbf_silent_payment_tx(self, *, config):
+        """
+            1. create tx sending to 2 silent-payment-addrs and 1 simple addr
+            2. bump fee, such that a new input must be added -> sp-addrs must change, but not simple addr
+            3. bump fee again by decreasing change -> all non-change-addrs must not change; change-addr may change
+        """
+        wallet: Standard_Wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
+                                                       config=config)
+        # bootstrap wallet (incoming funding_tx1)
+        funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_txid1 = funding_tx1.txid()
+        #funding_output_value = 10_000_000
+        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid1)
+        wallet.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        # another incoming transaction (funding_tx2)
+        funding_tx2 = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
+        funding_txid2 = funding_tx2.txid()
+        #funding_output_value = 5_000_000
+        self.assertEqual('c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a', funding_txid2)
+        wallet.adb.receive_tx_callback(funding_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        self.assertEqual((0, 15_000_000, 0), wallet.get_balance())
+        sp_out1 = PartialTxOutput.from_address_and_value(DummyAddress.SILENT_PAYMENT, 8_000_000)
+        sp_out1.sp_addr = SilentPaymentAddress('tsp1qqwv8kq70uqcsaxludf4v25u54qmc70awg5tjzp62lusvede5rwnf6q3xsce62j5hmzpcju5ugh22u9t05ydn2chy2p3cfay5zrdtqmua5uktxa6s')
+        sp_out2 = PartialTxOutput.from_address_and_value(DummyAddress.SILENT_PAYMENT, 1_000_000)
+        sp_out2.sp_addr = SilentPaymentAddress('tsp1qqds9kdhr2p7r9ygfay9jwc030ql0898mz9nls2nku5zydhqhxhtrcqcl5gutxgetht7kly9an08dn0tl39ffp5kcha3wwxzhuzvyjmg9myqp9xjd')
+        simple_addr = 'tb1pccz8l9zpa47k6vz9gphftsrumpw80rjt3nhnefat4symjhrsnmjs903hkq'
+        simple_out = PartialTxOutput.from_address_and_value(simple_addr, 990_000)
+        outputs = [sp_out1, sp_out2, simple_out]
+
+        coins = wallet.get_spendable_coins()
+        tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(8000), mind_silent_payments=True)
+
+        self.assertFalse(tx.is_rbf_enabled())
+        self.assertTrue(wallet.can_rbf_tx(tx))
+        self.assertEqual(1, len(tx.inputs()))
+        self.assertEqual(4, len(tx.outputs())) # 2*silent-payment + simple + change
+
+        sp_addrs_pre_bump_actual = sorted(o.address for o in tx.outputs() if o.is_silent_payment())
+        sp_addrs_pre_bump_expected = sorted(['tb1pzfdpq6n5kwgk6c0qj705f4zeng73pspuh4amtld8a235f04zkfsqu5u0xu', 'tb1pfdphk57q23dd8g0d8fey0srwfeqjxw60ct6xq07wlyy5t0wzdwcqnhdp3m'])
+        self.assertEqual(sp_addrs_pre_bump_actual, sp_addrs_pre_bump_expected)
+
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        self.assertEqual((0, 5_002_000, 0), wallet.get_balance())
+
+        # rbf tx, such that new inputs must be added
+        tx = wallet.bump_fee(
+            tx=tx,
+            new_fee_rate=100.0,
+            strategy=BumpFeeStrategy.PRESERVE_PAYMENT)
+
+        self.assertEqual(2, len(tx.inputs()))
+        self.assertEqual(4, len(tx.outputs()))
+
+        sp_addrs_post_bump_actual = sorted(o.address for o in tx.outputs() if o.is_silent_payment())
+        sp_addrs_post_bump_expected = sorted(['tb1pp3yxpchpcafmtz9d82erhhlyc06jkpyqmg3l8u9phahtp8p2aejsyddf4s', 'tb1puezym7cej9e7lfymws43pugunkp4h3qt2ll96xhh5xrl6l7stxaqh4pt0m'])
+        self.assertEqual(sp_addrs_post_bump_actual, sp_addrs_post_bump_expected)
+
+        # assure simple address hasn't changed. We ignore change, as it might was replaced during fee-bumping.
+        sole_simple_out = next((o for o in tx.outputs() if not o.is_silent_payment() and not o.is_change), None)
+        self.assertEqual(simple_addr, sole_simple_out.address)
+
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        ### bump fee again. No new inputs can be added at this point, so sp_addrs must not change
+        sp_data_pre_bump = tx.calc_silent_payment_integrity_hash()
+
+        # rbf tx via decreasing change
+        tx = wallet.bump_fee(
+            tx=tx,
+            new_fee_rate=150.0,
+            strategy=BumpFeeStrategy.PRESERVE_PAYMENT)
+
+        self.assertEqual(2, len(tx.inputs()))
+        sp_data_post_bump = tx.calc_silent_payment_integrity_hash()
+        self.assertEqual(sp_data_pre_bump, sp_data_post_bump)
+        sole_simple_out = next((o for o in tx.outputs() if not o.is_silent_payment() and not o.is_change), None)
+        self.assertEqual(simple_addr, sole_simple_out.address)
 
     async def _rbf_batching(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
