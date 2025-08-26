@@ -2545,6 +2545,8 @@ class Peer(Logger, EventListener):
             return None, None
 
         # TODO check against actual min_final_cltv_expiry_delta from invoice (and give 2-3 blocks of leeway?)
+        # note: payment_bundles might get split here, e.g. one payment is "already forwarded" and the other is not.
+        #       In practice, for the swap prepayment use case, this does not matter.
         if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs and not already_forwarded:
             log_fail_reason(f"htlc.cltv_abs is unreasonably close")
             raise exc_incorrect_or_unknown_pd
@@ -2580,7 +2582,9 @@ class Peer(Logger, EventListener):
                 return None, (payment_key, callback)
 
         # TODO don't accept payments twice for same invoice
-        # TODO check invoice expiry
+        # note: we don't check invoice expiry (bolt11 'x' field) on the receiver-side.
+        #       - semantics are weird: would make sense for simple-payment-receives, but not
+        #         if htlc is expected to be pending for a while, e.g. for a hold-invoice.
         info = self.lnworker.get_payment_info(payment_hash)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")

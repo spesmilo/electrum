@@ -190,7 +190,7 @@ class SwapOffer:
 @attr.s
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)
-    locktime = attr.ib(type=int)
+    locktime = attr.ib(type=int)  # onchain, abs
     onchain_amount = attr.ib(type=int)  # in sats
     lightning_amount = attr.ib(type=int)  # in sats
     redeem_script = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -624,7 +624,7 @@ class SwapManager(Logger):
     def add_normal_swap(
             self, *,
             redeem_script: bytes,
-            locktime: int,  # onchain
+            locktime: int,  # onchain, abs
             onchain_amount_sat: int,
             lightning_amount_sat: int,
             payment_hash: bytes,
@@ -644,7 +644,7 @@ class SwapManager(Logger):
         else:
             invoice_amount_sat = lightning_amount_sat
 
-        _, invoice = self.lnworker.get_bolt11_invoice(
+        lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
             payment_hash=payment_hash,
             amount_msat=invoice_amount_sat * 1000,
             message='Submarine swap',
@@ -653,12 +653,17 @@ class SwapManager(Logger):
             channels=channels,
             min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
         )
+        margin_to_get_refund_tx_mined = MIN_LOCKTIME_DELTA
+        if not (locktime + margin_to_get_refund_tx_mined < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
+            raise Exception(
+                f"onchain locktime ({locktime}+{margin_to_get_refund_tx_mined}) "
+                f"too close to LN-htlc-expiry ({self.network.get_local_height()+lnaddr1.get_min_final_cltv_delta()})")
         # add payment info to lnworker
         self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
 
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
-            _, prepay_invoice = self.lnworker.get_bolt11_invoice(
+            lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=prepay_hash,
                 amount_msat=prepay_amount_sat * 1000,
                 message='Submarine swap prepayment',
@@ -669,6 +674,7 @@ class SwapManager(Logger):
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
             self._prepayments[prepay_hash] = payment_hash
+            assert lnaddr1.get_min_final_cltv_delta() == lnaddr2.get_min_final_cltv_delta()
         else:
             prepay_invoice = None
             prepay_hash = None
@@ -1014,6 +1020,8 @@ class SwapManager(Logger):
         - Server creates on-chain output locked to RHASH.
         - User spends on-chain output, revealing preimage.
         - Server fulfills HTLC using preimage.
+
+        cltv safety requirement: (onchain_locktime < LN_locktime),   otherwise server is vulnerable
 
         Note: expected_onchain_amount_sat is BEFORE deducting the on-chain claim tx fee.
         Note: prepayment_sat is passed as argument instead of accessing self.mining_fee to ensure
