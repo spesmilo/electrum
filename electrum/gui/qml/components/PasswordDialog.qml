@@ -20,6 +20,7 @@ ElDialog {
     anchors.centerIn: parent
     width: parent.width * 4/5
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         id: rootLayout

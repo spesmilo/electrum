@@ -25,6 +25,7 @@ ElDialog {
     anchors.centerIn: parent
 
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         spacing: 0

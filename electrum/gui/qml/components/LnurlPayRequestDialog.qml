@@ -16,6 +16,7 @@ ElDialog {
     property InvoiceParser invoiceParser
 
     padding: 0
+    needsSystemBarPadding: false
 
     property bool commentValid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
     property bool amountValid: amountBtc.textAsSats.satsInt >= parseInt(invoiceParser.lnurlData['min_sendable_sat'])

@@ -20,6 +20,7 @@ ElDialog {
     property bool isLightning: false
 
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         width: parent.width

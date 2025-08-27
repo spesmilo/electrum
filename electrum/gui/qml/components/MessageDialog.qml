@@ -21,6 +21,7 @@ ElDialog {
     anchors.centerIn: parent
 
     padding: 0
+    needsSystemBarPadding: false
 
     width: rootLayout.width
 

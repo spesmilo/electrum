@@ -25,6 +25,7 @@ ElDialog {
     focus: true
     closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
     allowClose: canCancel
+    needsSystemBarPadding: false
 
     anchors.centerIn: parent
 

@@ -15,6 +15,8 @@ ElDialog {
 
     property string selectedPubkey
 
+    needsSystemBarPadding: false
+
     anchors.centerIn: parent
 
     padding: 0

@@ -18,6 +18,8 @@ ElDialog {
     property string derivationPath
     property string scriptType
 
+    needsSystemBarPadding: false
+
     z: 1 // raise z so it also covers wizard dialog
 
     anchors.centerIn: parent
