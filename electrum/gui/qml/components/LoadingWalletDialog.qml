@@ -32,6 +32,10 @@ ElDialog {
 
             running: Daemon.loading
         }
+
+        Item {
+            Layout.preferredHeight: 20
+        }
     }
 
     Connections {
