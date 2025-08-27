@@ -26,6 +26,7 @@
 import os
 import sys
 
+from electrum.daemon import check_fs_permissions
 
 MIN_PYTHON_VERSION = "3.10.0"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -528,6 +529,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         if fd is not None:
             # run daemon
             d = daemon.Daemon(config, fd)
+            check_fs_permissions(config)
             d.run_daemon()
             sys_exit(0)
         else:
@@ -570,6 +572,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 _logger.exception("error running command (with daemon)")
                 sys_exit(1)
         else:
+            check_fs_permissions(config)
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
