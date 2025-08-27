@@ -10,22 +10,30 @@ import urllib.parse
 
 import aiohttp.client_exceptions
 
-from electrum import segwit_addr
+from electrum import segwit_addr, util
 from electrum.segwit_addr import bech32_decode, Encoding, convertbits, bech32_encode
 from electrum.lnaddr import LnDecodeException, LnEncodeException
 from electrum.network import Network
 from electrum.logging import get_logger
+from electrum.i18n import _
 
 
 _logger = get_logger(__name__)
 
 
-class LNURLError(Exception):
-    def __init__(self, message="", *args):
-        # error messages are returned by the LNURL server, some services could try to trick
-        # users into doing something by sending a malicious error message
-        modified_message = f"[DO NOT TRUST THIS MESSAGE]:\n{message}"
-        super().__init__(modified_message, *args)
+class LNURLError(Exception): pass
+
+class UntrustedLNURLError(LNURLError):
+    def __init__(self, message=""):
+        # use if error messages are returned by the LNURL server,
+        # some services could try to trick users into doing something
+        # by sending a malicious error message
+        if message:
+            message = (
+                f"{_('[DO NOT TRUST THIS MESSAGE]:')}\n"
+                f"{util.error_text_str_to_safe_str(message)}"
+            )
+        super().__init__(message)
 
 
 def decode_lnurl(lnurl: str) -> str:
@@ -124,7 +132,7 @@ async def _request_lnurl(url: str) -> dict:
 
     status = response.get("status")
     if status and status == "ERROR":
-        raise LNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
+        raise UntrustedLNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
     return response
 
 
@@ -168,7 +176,7 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
     """Parses the server response received when requesting a LNURL-withdraw (lud3) request"""
     callback_url = _parse_lnurl_response_callback_url(lnurl_response)
     if not (k1 := lnurl_response.get('k1')):
-        raise LNURLError(f"Missing k1 value in LNURL3 response: {lnurl_response=}")
+        raise UntrustedLNURLError(f"Missing k1 value in LNURL3 response: {lnurl_response=}")
     default_description = lnurl_response.get('defaultDescription', '')
     try:
         min_withdrawable_sat = int(lnurl_response['minWithdrawable']) // 1000
@@ -194,7 +202,7 @@ async def request_lnurl(url: str) -> LNURLData:
         return _parse_lnurl6_response(lnurl_dict)
     elif tag == 'withdrawRequest':
         return _parse_lnurl3_response(lnurl_dict)
-    raise LNURLError(f"Unknown subtype of lnurl. tag={tag}")
+    raise UntrustedLNURLError(f"Unknown subtype of lnurl. tag={tag}")
 
 
 async def try_resolve_lnurlpay(lnurl: Optional[str]) -> Optional[LNURL6Data]:
@@ -236,7 +244,7 @@ async def callback_lnurl(url: str, params: dict) -> dict:
 
     status = response.get("status")
     if status and status == "ERROR":
-        raise LNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
+        raise UntrustedLNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
     # TODO: handling of specific errors (validate fields, e.g. for lnurl6)
     return response
 
