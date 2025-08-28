@@ -952,6 +952,52 @@ class TestPeerDirect(TestPeer):
         with self.assertRaises(SuccessfulTest):
             await f()
 
+    async def test_reject_invalid_min_final_cltv_delta(self):
+        """
+        Tests that htlcs with a final cltv delta < the minimum requested in the invoice get
+        rejected immediately upon receiving them.
+        """
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            async def try_pay_with_too_low_final_cltv_delta(lnaddr, w1=w1, w2=w2):
+                self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
+                assert lnaddr.get_min_final_cltv_delta() == 400  # what the receiver expects
+                lnaddr.tags = [tag for tag in lnaddr.tags if tag[0] != 'c'] + [['c', 144]]
+                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                pay_req = Invoice.from_bech32(b11)
+                assert pay_req._lnaddr.get_min_final_cltv_delta() == 144  # what w1 will use to pay
+                result, log = await w1.pay_invoice(pay_req)
+                if not result:
+                    raise PaymentFailure()
+                raise PaymentDone()
+
+            # create invoice with high min final cltv delta
+            lnaddr, _pay_req = self.prepare_invoice(w2, min_final_cltv_delta=400)
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_with_too_low_final_cltv_delta(lnaddr))
+
+            with self.assertRaises(PaymentFailure):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
     async def test_payment_race(self):
         """Alice and Bob pay each other simultaneously.
         They both send 'update_add_htlc' and receive each other's update
