@@ -18,10 +18,14 @@ ElDialog
     width: parent.width
     height: parent.height
     z: 1000  // assure topmost of all other dialogs. note: child popups need even higher!
+    // disable padding in ElDialog as it is overwritten here and shows no effect, this dialog needs padding though
+    needsSystemBarPadding: false
 
     header: null
 
     ColumnLayout {
+        anchors.topMargin: app.statusBarHeight  // edge-to-edge layout padding
+        anchors.bottomMargin: app.navigationBarHeight
         anchors.fill: parent
         enabled: !_sending
 
