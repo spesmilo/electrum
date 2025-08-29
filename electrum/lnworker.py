@@ -20,6 +20,8 @@ import concurrent
 from concurrent import futures
 import urllib.parse
 import itertools
+import dataclasses
+from dataclasses import dataclass
 
 import aiohttp
 import dns.asyncresolver
@@ -106,12 +108,44 @@ class PaymentDirection(IntEnum):
     FORWARDING = 3
 
 
-class PaymentInfo(NamedTuple):
-    payment_hash: bytes
+@stored_in('lightning_payments')
+@dataclass(frozen=True)
+class PaymentInfo:
+    """Information required to handle incoming htlcs for a payment request"""
+    rhash: str
     amount_msat: Optional[int]
+    # direction is being used with PaymentDirection and lnutil.Direction?
     direction: int
     status: int
+    min_final_cltv_delta: int
+    # expiration can be used to clean-up PaymentInfo and fail htlcs coming in too late
+    expiry_delay: int
+    creation_ts: int = dataclasses.field(default_factory=lambda: int(time.time()))
 
+    @property
+    def payment_hash(self) -> bytes:
+        return bytes.fromhex(self.rhash)
+
+    @property
+    def expiration_ts(self):
+        return self.creation_ts + self.expiry_delay
+
+    def validate(self):
+        assert isinstance(self.rhash, str), type(self.rhash)
+        assert self.amount_msat is None or isinstance(self.amount_msat, int)
+        assert isinstance(self.direction, int)
+        assert isinstance(self.status, int)
+        assert isinstance(self.min_final_cltv_delta, int)
+        assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0
+        assert isinstance(self.creation_ts, int)
+
+    def __post_init__(self):
+        self.validate()
+
+    def to_json(self):
+        # required because PaymentInfo doesn't inherit StoredObject so it can be declared frozen
+        self.validate()
+        return dataclasses.asdict(self)
 
 # Note: these states are persisted in the wallet file.
 # Do not modify them without performing a wallet db upgrade
@@ -869,7 +903,7 @@ class LNWallet(LNWorker):
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
-        self.payment_info = self.db.get_dict('lightning_payments')  # RHASH -> amount, direction, is_paid
+        self.payment_info = self.db.get_dict('lightning_payments')  # type: dict[str, PaymentInfo]
         self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1567,7 +1601,7 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
         if payment_hash in self.get_payments(status='inflight'):
             raise PaymentFailure(_("A previous attempt to pay this invoice did not clear"))
-        info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
+        info = PaymentInfo(key, amount_to_pay, SENT, PR_UNPAID, min_final_cltv_delta, LN_EXPIRY_NEVER)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
         self.set_invoice_status(key, PR_INFLIGHT)
@@ -2299,10 +2333,17 @@ class LNWallet(LNWorker):
         payment_secret = self.get_payment_secret(payment_hash)
         return payment_hash + payment_secret
 
-    def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
+    def create_payment_info(
+        self, *,
+        amount_msat: Optional[int],
+        min_final_cltv_delta: Optional[int] = None,
+        exp_delay: int = LN_EXPIRY_NEVER,
+        write_to_disk=True
+    ) -> bytes:
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        min_final_cltv_delta = min_final_cltv_delta if min_final_cltv_delta else MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        info = PaymentInfo(payment_hash.hex(), amount_msat, RECEIVED, PR_UNPAID, min_final_cltv_delta, exp_delay)
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
         self.save_payment_info(info, write_to_disk=False)
         if write_to_disk:
@@ -2374,14 +2415,17 @@ class LNWallet(LNWorker):
         """returns None if payment_hash is a payment we are forwarding"""
         key = payment_hash.hex()
         with self.lock:
-            if key in self.payment_info:
-                amount_msat, direction, status = self.payment_info[key]
-                return PaymentInfo(payment_hash, amount_msat, direction, status)
-            return None
+            return self.payment_info.get(key, None)
 
-    def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: Optional[int]):
+    def add_payment_info_for_hold_invoice(
+        self,
+        payment_hash: bytes, *,
+        lightning_amount_sat: Optional[int],
+        min_final_cltv_delta: int,
+        exp_delay: int,
+    ):
         amount = lightning_amount_sat * 1000 if lightning_amount_sat else None
-        info = PaymentInfo(payment_hash, amount, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(payment_hash.hex(), amount, RECEIVED, PR_UNPAID, min_final_cltv_delta, exp_delay)
         self.save_payment_info(info, write_to_disk=False)
 
     def register_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], Awaitable[None]]):
@@ -2396,11 +2440,13 @@ class LNWallet(LNWorker):
             if old_info := self.get_payment_info(payment_hash=info.payment_hash):
                 if info == old_info:
                     return  # already saved
-                if info != old_info._replace(status=info.status):
+                if info.direction == SENT:
+                    # allow saving of newer PaymentInfo if it is a sending attempt
+                    old_info = dataclasses.replace(old_info, creation_ts=info.creation_ts)
+                if info != dataclasses.replace(old_info, status=info.status):
                     # differs more than in status. let's fail
-                    raise Exception("payment_hash already in use")
-            key = info.payment_hash.hex()
-            self.payment_info[key] = info.amount_msat, info.direction, info.status
+                    raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
+            self.payment_info[info.rhash] = info
         if write_to_disk:
             self.wallet.save_db()
 
@@ -2577,7 +2623,7 @@ class LNWallet(LNWorker):
         if info is None:
             # if we are forwarding
             return
-        info = info._replace(status=status)
+        info = dataclasses.replace(info, status=status)
         self.save_payment_info(info)
 
     def is_forwarded_htlc(self, htlc_key) -> Optional[str]:
@@ -3016,7 +3062,10 @@ class LNWallet(LNWorker):
             raise Exception('Rebalance requires two different channels')
         if self.uses_trampoline() and chan1.node_id == chan2.node_id:
             raise Exception('Rebalance requires channels from different trampolines')
-        payment_hash = self.create_payment_info(amount_msat=amount_msat)
+        payment_hash = self.create_payment_info(
+            amount_msat=amount_msat,
+            exp_delay=3600,
+        )
         lnaddr, invoice = self.get_bolt11_invoice(
             payment_hash=payment_hash,
             amount_msat=amount_msat,
