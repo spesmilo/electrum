@@ -652,14 +652,12 @@ class SwapManager(Logger):
             min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
             exp_delay=300,
         )
+        info = self.lnworker.get_payment_info(payment_hash)
         lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=payment_hash,
-            amount_msat=invoice_amount_sat * 1000,
+            payment_info=info,
             message='Submarine swap',
-            expiry=300,
             fallback_address=None,
             channels=channels,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
         )
         margin_to_get_refund_tx_mined = MIN_LOCKTIME_DELTA
         if not (locktime + margin_to_get_refund_tx_mined < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
@@ -673,14 +671,12 @@ class SwapManager(Logger):
                 min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
                 exp_delay=300,
             )
+            info = self.lnworker.get_payment_info(prepay_hash)
             lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
-                payment_hash=prepay_hash,
-                amount_msat=prepay_amount_sat * 1000,
+                payment_info=info,
                 message='Submarine swap prepayment',
-                expiry=300,
                 fallback_address=None,
                 channels=channels,
-                min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
             self._prepayments[prepay_hash] = payment_hash

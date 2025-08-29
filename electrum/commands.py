@@ -1411,12 +1411,10 @@ class Commands(Logger):
             min_final_cltv_delta=min_final_cltv_expiry_delta,
             exp_delay=expiry,
         )
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
         lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
-            payment_hash=bfh(payment_hash),
-            amount_msat=satoshis(amount) * 1000 if amount else None,
+            payment_info=info,
             message=memo,
-            expiry=expiry,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
             fallback_address=None
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
