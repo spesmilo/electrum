@@ -1405,6 +1405,12 @@ class Commands(Logger):
         assert inbound_capacity > satoshis(amount or 0), \
             f"Not enough inbound capacity [{inbound_capacity} sat] to receive this payment"
 
+        wallet.lnworker.add_payment_info_for_hold_invoice(
+            bfh(payment_hash),
+            lightning_amount_sat=satoshis(amount) if amount else None,
+            min_final_cltv_delta=min_final_cltv_expiry_delta,
+            exp_delay=expiry,
+        )
         lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
             payment_hash=bfh(payment_hash),
             amount_msat=satoshis(amount) * 1000 if amount else None,
@@ -1412,10 +1418,6 @@ class Commands(Logger):
             expiry=expiry,
             min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
             fallback_address=None
-        )
-        wallet.lnworker.add_payment_info_for_hold_invoice(
-            bfh(payment_hash),
-            satoshis(amount) if amount else None,
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
         wallet.set_label(payment_hash, memo)
