@@ -2,6 +2,7 @@ package org.electrum.qr;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Build;
 import android.util.Log;
 import android.content.Intent;
 import android.Manifest;
@@ -12,6 +13,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -68,6 +70,7 @@ public class SimpleScannerActivity extends Activity {
                 }
             }
         });
+        setupEdgeToEdge();
     }
 
     @Override
@@ -156,4 +159,51 @@ public class SimpleScannerActivity extends Activity {
         }
     }
 
+    private boolean enforcesEdgeToEdge() {
+        // if true the UI needs to be padded to be e2e compatible
+        return Build.VERSION.SDK_INT >= 35;
+    }
+
+    private void setupEdgeToEdge() {
+        if (!enforcesEdgeToEdge()) {
+            return;
+        }
+
+        // Get the root view and set up insets listener
+        getWindow().getDecorView().setOnApplyWindowInsetsListener((v, insets) -> {
+            android.graphics.Insets systemBars = insets.getInsets(WindowInsets.Type.systemBars());
+            
+            // Apply padding to content frame to keep scanner focus area centered
+            ViewGroup contentFrame = findViewById(R.id.content_frame);
+            if (contentFrame != null) {
+                contentFrame.setPadding(
+                    systemBars.left,
+                    systemBars.top,
+                    systemBars.right,
+                    systemBars.bottom
+                );
+            }
+
+            // Apply top padding to hint text for status bar
+            TextView hintTextView = findViewById(R.id.hint);
+            if (hintTextView != null) {
+                hintTextView.setPadding(
+                    hintTextView.getPaddingLeft(),
+                    systemBars.top,
+                    hintTextView.getPaddingRight(),
+                    hintTextView.getPaddingBottom()
+                );
+            }
+
+            // Apply bottom margin to paste button for navigation bar  
+            Button pasteButton = findViewById(R.id.paste_btn);
+            if (pasteButton != null) {
+                ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) pasteButton.getLayoutParams();
+                params.bottomMargin = systemBars.bottom;
+                pasteButton.setLayoutParams(params);
+            }
+
+            return insets;
+        });
+    }
 }

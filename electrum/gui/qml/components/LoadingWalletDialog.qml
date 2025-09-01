@@ -18,6 +18,7 @@ ElDialog {
     x: Math.floor((parent.width - implicitWidth) / 2)
     y: Math.floor((parent.height - implicitHeight) / 2)
     // anchors.centerIn: parent // this strangely pixelates the spinner
+    needsSystemBarPadding: false
 
     function open() {
         showTimer.start()
@@ -30,6 +31,10 @@ ElDialog {
             Layout.alignment: Qt.AlignHCenter
 
             running: Daemon.loading
+        }
+
+        Item {
+            Layout.preferredHeight: 20
         }
     }
 

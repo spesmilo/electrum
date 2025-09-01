@@ -19,6 +19,9 @@ ApplicationWindow
 
     visible: false // initial value
 
+    readonly property int statusBarHeight: AppController ? AppController.getStatusBarHeight() : 0
+    readonly property int navigationBarHeight: AppController ? AppController.getNavigationBarHeight() : 0
+
     // dimensions ignored on android
     width: 480
     height: 800
@@ -117,6 +120,9 @@ ApplicationWindow
 
     header: ToolBar {
         id: toolbar
+ 
+        // Add top margin for status bar on Android when using edge-to-edge
+        topPadding: app.statusBarHeight
 
         background: Rectangle {
             implicitHeight: 48
@@ -133,7 +139,7 @@ ApplicationWindow
             spacing: 0
             anchors.left: parent.left
             anchors.right: parent.right
-            height: toolbar.height
+            height: toolbar.availableHeight
 
             RowLayout {
                 id: toolbarTopLayout
@@ -276,6 +282,13 @@ ApplicationWindow
                     mainStackView.push(item)
                 }
             }
+        }
+
+        // Add bottom padding for navigation bar on Android when UI is edge-to-edge
+        Item {
+            visible: app.navigationBarHeight > 0
+            Layout.fillWidth: true
+            Layout.preferredHeight: app.navigationBarHeight
         }
     }
 
