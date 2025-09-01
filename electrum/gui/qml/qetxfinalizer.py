@@ -2,7 +2,7 @@ import copy
 from enum import IntEnum
 import threading
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Callable
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum
@@ -55,7 +55,7 @@ class FeeSlider(QObject):
         self._wallet = None  # type: Optional[QEWallet]
         self._sliderSteps = 0
         self._sliderPos = 0
-        self._fee_policy = None
+        self._fee_policy = None  # type: Optional[FeePolicy]
         self._target = ''
         self._config = None  # type: Optional[SimpleConfig]
 
@@ -150,7 +150,7 @@ class TxFeeSlider(FeeSlider):
         self._fee = QEAmount()
         self._feeRate = ''
         self._rbf = False
-        self._tx = None
+        self._tx = None  # type: Optional[PartialTransaction]
         self._inputs = []
         self._outputs = []
         self._finalized_txid = ''
@@ -244,7 +244,7 @@ class TxFeeSlider(FeeSlider):
     def doUpdate(self):
         self.update()
 
-    def update_from_tx(self, tx):
+    def update_from_tx(self, tx: PartialTransaction):
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte
@@ -256,7 +256,7 @@ class TxFeeSlider(FeeSlider):
         self.update_inputs_from_tx(tx)
         self.update_outputs_from_tx(tx)
 
-    def update_inputs_from_tx(self, tx):
+    def update_inputs_from_tx(self, tx: Transaction):
         inputs = []
         for inp in tx.inputs():
             # addr = self.wallet.adb.get_txin_address(txin)
@@ -277,7 +277,7 @@ class TxFeeSlider(FeeSlider):
             })
         self.inputs = inputs
 
-    def update_outputs_from_tx(self, tx):
+    def update_outputs_from_tx(self, tx: PartialTransaction):
         sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.lnworker else None
 
         outputs = []
@@ -315,7 +315,13 @@ class QETxFinalizer(TxFeeSlider):
     finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
     signError = pyqtSignal([str], arguments=['message'])
 
-    def __init__(self, parent=None, *, make_tx=None, accept=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        make_tx: Callable[[int, FeePolicy], PartialTransaction] = None,
+        accept: Callable[[PartialTransaction], None] = None,
+    ):
         super().__init__(parent)
         self.f_make_tx = make_tx
         self.f_accept = accept
