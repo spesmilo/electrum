@@ -3003,7 +3003,7 @@ class LNWallet(LNWorker):
         return None
 
     def suggest_swap_to_receive(self, amount_sat):
-        assert amount_sat > self.num_sats_can_receive()
+        assert amount_sat > self.num_sats_can_receive(), f"{amount_sat=} | {self.num_sats_can_receive()=}"
         try:
             suggestions = self._suggest_channels_for_rebalance(RECEIVED, amount_sat)
         except NotEnoughFunds:
