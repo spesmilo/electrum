@@ -81,9 +81,6 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         # textEdited is triggered only for user editing of the fields
         self.send_amount_e.textEdited.connect(self.uncheck_max)
         self.recv_amount_e.textEdited.connect(self.uncheck_max)
-        self.send_amount_e.setEnabled(recv_amount_sat is None)
-        self.recv_amount_e.setEnabled(recv_amount_sat is None)
-        self.max_button.setEnabled(recv_amount_sat is None)
 
         self.fee_policy = FeePolicy(self.config.FEE_POLICY)
         self.fee_slider = FeeSlider(parent=self, network=self.network, fee_policy=self.fee_policy, callback=self.fee_slider_callback)
@@ -282,7 +279,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         min_swap_limit, max_swap_limit = self.get_client_swap_limits_sat()
         if max_swap_limit == 0:
             swap_name = _("reverse") if self.is_reverse else _("forward")
-            swap_limit_str = _("No {} swap possible").format(swap_name)
+            swap_limit_str = _("No {} swap possible with this provider").format(swap_name)
         else:
             swap_limit_str = (f"{self.window.format_amount(min_swap_limit)} - "
                               f"{self.window.format_amount(max_swap_limit)} {w_base_unit}")
