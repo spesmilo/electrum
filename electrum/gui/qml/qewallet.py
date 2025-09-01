@@ -637,14 +637,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         # TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
 
-    def save_tx(self, tx: 'PartialTransaction'):
+    def save_tx(self, tx: 'PartialTransaction') -> bool:
         assert tx
 
         try:
             if not self.wallet.adb.add_transaction(tx):
                 self.saveTxError.emit(tx.txid(), 'conflict',
                             _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
-                return
+                return False
             self.wallet.save_db()
             self.saveTxSuccess.emit(tx.txid())
             self.historyModel.initModel(True)

@@ -15,6 +15,7 @@ from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
 from electrum.fee_policy import FeePolicy
+from electrum.transaction import PartialTransaction
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
@@ -219,7 +220,7 @@ class QEChannelOpener(QObject, AuthMixin):
         self.finalizerChanged.emit()
 
     @auth_protect(message=_('Open Lightning channel?'))
-    def do_open_channel(self, funding_tx, conn_str, password):
+    def do_open_channel(self, funding_tx: PartialTransaction, conn_str, password):
         """
         conn_str: a connection string that extract_nodeid can parse, i.e. cannot be a trampoline name
         """
