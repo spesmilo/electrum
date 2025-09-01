@@ -2498,16 +2498,15 @@ class Peer(Logger, EventListener):
         Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
         Return (preimage, (payment_key, callback)) with at most a single element not None.
         """
+        htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
         if not processed_onion.are_we_final:
             if not self.lnworker.enable_htlc_forwarding:
                 return None, None
-            # use the htlc key if we are forwarding
-            payment_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
             callback = lambda: self.maybe_forward_htlc(
                 incoming_chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
-            return None, (payment_key, callback)
+            return None, (htlc_key, callback)  # use the htlc key if we are forwarding
 
         def log_fail_reason(reason: str):
             self.logger.info(
@@ -2544,10 +2543,10 @@ class Peer(Logger, EventListener):
         ):
             return None, None
 
-        # TODO check against actual min_final_cltv_expiry_delta from invoice (and give 2-3 blocks of leeway?)
+        blocks_to_expiry = htlc.cltv_abs - local_height
         # note: payment_bundles might get split here, e.g. one payment is "already forwarded" and the other is not.
         #       In practice, for the swap prepayment use case, this does not matter.
-        if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs and not already_forwarded:
+        if blocks_to_expiry < MIN_FINAL_CLTV_DELTA_ACCEPTED and not already_forwarded:
             log_fail_reason(f"htlc.cltv_abs is unreasonably close")
             raise exc_incorrect_or_unknown_pd
 
@@ -2582,9 +2581,6 @@ class Peer(Logger, EventListener):
                 return None, (payment_key, callback)
 
         # TODO don't accept payments twice for same invoice
-        # note: we don't check invoice expiry (bolt11 'x' field) on the receiver-side.
-        #       - semantics are weird: would make sense for simple-payment-receives, but not
-        #         if htlc is expected to be pending for a while, e.g. for a hold-invoice.
         info = self.lnworker.get_payment_info(payment_hash)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
@@ -2604,6 +2600,23 @@ class Peer(Logger, EventListener):
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
+
+        if htlc_key not in self.lnworker.verified_pending_htlcs:
+            # these checks against the PaymentInfo have to be done only once after
+            # receiving the htlc
+            valid_expiry = htlc.timestamp < info.expiration_ts
+            if not valid_expiry and not already_forwarded:
+                log_fail_reason(f"invoice already expired: {info.expiration_ts=}")
+                raise exc_incorrect_or_unknown_pd
+
+            valid_cltv = blocks_to_expiry >= info.min_final_cltv_delta
+            will_settle = preimage is not None and payment_hash.hex() not in self.lnworker.dont_settle_htlcs
+            if not valid_cltv and not will_settle and not already_forwarded:
+                # this check only really matters for htlcs which don't get settled right away
+                log_fail_reason(f"remaining locktime smaller than requested {blocks_to_expiry=} < {info.min_final_cltv_delta=}")
+                raise exc_incorrect_or_unknown_pd
+
+            self.lnworker.verified_pending_htlcs[htlc_key] = None
 
         hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
         if hold_invoice_callback and not preimage:
@@ -3099,6 +3112,8 @@ class Peer(Logger, EventListener):
                         self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
                         if forwarding_key:
                             self.lnworker.maybe_cleanup_forwarding(forwarding_key)
+                        htlc_key = serialize_htlc_key(chan.short_channel_id, htlc_id)
+                        self.lnworker.verified_pending_htlcs.pop(htlc_key, None)
                         done.add(htlc_id)
                         continue
                     if onion_packet_hex is None:

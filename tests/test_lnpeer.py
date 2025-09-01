@@ -217,6 +217,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.hold_invoice_callbacks = {}
         self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]
         self._payment_bundles_canon_to_pkeylist = {}   # type: Dict[bytes, Sequence[bytes]]
+        self.verified_pending_htlcs = {}  # type: Dict[str, None]
         self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
