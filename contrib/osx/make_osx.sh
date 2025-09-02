@@ -55,8 +55,8 @@ break_legacy_easy_install
 # This helps to avoid older versions of pip-installed dependencies interfering with the build.
 VENV_DIR="$CONTRIB_OSX/build-venv"
 rm -rf "$VENV_DIR"
-python3 -m venv $VENV_DIR
-source $VENV_DIR/bin/activate
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
 
 # don't add debug info to compiled C files (e.g. when pip calls setuptools/wheel calls gcc)
 # see https://github.com/pypa/pip/issues/6505#issuecomment-526613584

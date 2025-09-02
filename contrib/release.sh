@@ -311,7 +311,7 @@ else
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
 
-    if [ $REV != $VERSION ]; then
+    if [ "$REV" != "$VERSION" ]; then
         fail "versions differ, not uploading"
     fi
 

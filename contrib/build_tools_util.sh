@@ -35,7 +35,7 @@ function verify_signature() {
 
 function verify_hash() {
     local file=$1 expected_hash=$2
-    actual_hash=$(sha256sum $file | awk '{print $1}')
+    actual_hash=$(sha256sum "$file" | awk '{print $1}')
     if [ "$actual_hash" == "$expected_hash" ]; then
         return 0
     else
@@ -47,8 +47,8 @@ function verify_hash() {
 
 function download_if_not_exist() {
     local file_name=$1 url=$2
-    if [ ! -e $file_name ] ; then
-        wget -O $file_name "$url"
+    if [ ! -e "$file_name" ] ; then
+        wget -O "$file_name" "$url"
     fi
 }
 

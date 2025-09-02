@@ -5,9 +5,9 @@ set -e
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
 CONTRIB="$PROJECT_ROOT/contrib"
-here=$(dirname "$0")
+here="$(dirname "$0")"
 test -n "$here" -a -d "$here" || exit
-cd $here
+cd "$here"
 
 if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
