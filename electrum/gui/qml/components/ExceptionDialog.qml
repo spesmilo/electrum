@@ -115,11 +115,14 @@ ElDialog
             width: parent.width
             height: parent.height
             z: 1001  // above root
+            needsSystemBarPadding: false
 
             header: null
 
             Flickable {
                 anchors.fill: parent
+                anchors.topMargin: app.statusBarHeight
+                anchors.bottomMargin: app.navigationBarHeight
                 contentHeight: reportLabel.implicitHeight
                 interactive: height < contentHeight
 
