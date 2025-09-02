@@ -1038,6 +1038,50 @@ class TestPeerDirect(TestPeer):
         for _test_trampoline in [False, True]:
             await run_test(_test_trampoline)
 
+    async def test_reject_multiple_payments_of_same_invoice(self):
+        """Tests that new htlcs paying an invoice that has already been paid will get rejected."""
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            lnaddr, _pay_req = self.prepare_invoice(w2)
+
+            async def try_pay_invoice_twice(pay_req: Invoice, w1=w1):
+                result, log = await w1.pay_invoice(pay_req)
+                assert result is True
+                # now pay the same invoice again, the payment should be rejected by w2
+                w1.set_payment_status(pay_req._lnaddr.paymenthash, PR_UNPAID)
+                try:
+                    result, log = await w1.pay_invoice(pay_req)
+                except PaymentFailure:
+                    # pay_invoice can also raise PaymentFailure, e.g. payment status is already PR_PAID
+                    raise Exception from PaymentFailure
+                if not result:
+                    raise PaymentFailure()
+                raise PaymentDone()
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_invoice_twice(_pay_req))
+
+            with self.assertRaises(PaymentFailure):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
     async def test_payment_race(self):
         """Alice and Bob pay each other simultaneously.
         They both send 'update_add_htlc' and receive each other's update
