@@ -1,14 +1,15 @@
 import os
 
 from electrum import SimpleConfig
+from electrum.bip21 import MissingFallbackAddress
 from electrum.invoices import Invoice
 from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
-                                         PaymentIdentifierType, invoice_from_payment_identifier)
-from electrum.transaction import PartialTxOutput
+                                         PaymentIdentifierType, invoice_from_payment_identifier, PaymentIdentifierState)
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
-
+from electrum.transaction import PartialTxOutput
+from electrum.bitcoin import DummyAddress
 
 class WalletMock:
     def __init__(self, electrum_path):
@@ -303,3 +304,113 @@ class TestPaymentIdentifier(ElectrumTestCase):
             invoice_from_payment_identifier(pi, wallet2, '!')
         invoice = invoice_from_payment_identifier(pi, wallet2, 1)
         self.assertEqual(1000, invoice.amount_msat)
+
+    def test_silent_payment_spk(self):
+        sp_addr = 'sp1qqtr5s60ek5sh4nrmz0rlvh8hcph3yjkjsh922zk7auwekk9dwk3akq4amvvy93num5fas38t73yvl80kf5x0p3ty7s69e5hvqs25szaux572xhta'
+        for pi_str in [
+            f'{sp_addr}',
+            f'{sp_addr}   ',
+            f'  {sp_addr}',
+            f'{sp_addr.upper()}   ',
+            f'some label<{sp_addr}>'
+        ]:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertTrue(pi.is_available())
+            self.assertEqual(pi.sp_address.lower(), sp_addr.lower())
+            self.assertEqual(pi.type, PaymentIdentifierType.SILENT_PAYMENT) # we treat it as is_address to make sure an amount is set
+            self.assertTrue(pi.involves_silent_payments())
+            self.assertTrue(pi.get_onchain_outputs(0)[0].is_silent_payment())
+            self.assertEqual(pi.get_onchain_outputs(0)[0].address, DummyAddress.SILENT_PAYMENT)
+
+    def test_silent_payment_multiline(self):
+        # sp_addr with same B_Scan
+        sp_addr1 = 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj'
+        sp_addr2 = 'sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q3nxe92cnvvhgwp0tqnj6wa9lwu5l8fenke99kkftmymrrkete8kg06hd4v'
+        #
+        sp_addr3 = 'sp1qqtr5s60ek5sh4nrmz0rlvh8hcph3yjkjsh922zk7auwekk9dwk3akq4amvvy93num5fas38t73yvl80kf5x0p3ty7s69e5hvqs25szaux572xhta'
+        #
+        normal_addr = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
+        pi_str = '\n'.join([
+            f'{sp_addr1},0.01',
+            f'{sp_addr2},0.01',
+            f'{normal_addr},0.01',
+            f'{sp_addr3},0.01',
+            f'{sp_addr3},0.01',
+            f'{normal_addr},0.01'
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str) # wallet is needed because multiline depends on wallet.config
+        self.assertTrue(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertFalse(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(6, len(pi.multiline_outputs))
+        self.assertTrue(all(isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertTrue(all(1000 == o.value for o in pi.multiline_outputs))
+        self.assertTrue(pi.involves_silent_payments())
+        self.assertEqual(4, len([o for o in pi.multiline_outputs if o.is_silent_payment()]))
+
+        # test max spend:
+
+        pi_str = '\n'.join([
+            f'{sp_addr1},0.01',
+            f'{sp_addr2},2!',
+            f'{normal_addr},3!'
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertTrue(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertTrue(pi.is_multiline_max())
+        self.assertIsNotNone(pi.multiline_outputs)
+        self.assertEqual(3, len(pi.multiline_outputs))
+        self.assertTrue(all(isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
+        self.assertTrue(pi.involves_silent_payments())
+        self.assertTrue(pi.multiline_outputs[0].is_silent_payment())
+        self.assertEqual(sp_addr1, pi.multiline_outputs[0].sp_addr.encoded)
+        self.assertEqual(1000, pi.multiline_outputs[0].value)
+        self.assertTrue(pi.multiline_outputs[1].is_silent_payment())
+        self.assertEqual(sp_addr2, pi.multiline_outputs[1].sp_addr.encoded)
+        self.assertEqual('2!', pi.multiline_outputs[1].value)
+        self.assertFalse(pi.multiline_outputs[2].is_silent_payment())
+        self.assertEqual('3!', pi.multiline_outputs[2].value)
+
+    def test_silent_payment_bip21(self):
+        # The PaymentIdentifier is considered valid if the BIP21 URI itself is valid,
+        # regardless of whether the wallet is silent payment-capable.
+
+        # test no fallback
+        bip21 = 'bitcoin:?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&message=sp_unit_test&amount=0.001'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertTrue(pi.is_available())
+        self.assertTrue(pi.is_onchain())
+        self.assertIsNotNone(pi.bip21)
+        self.assertTrue(pi.involves_silent_payments(True)) # wallet is sp-capable
+        self.assertTrue(pi.involves_silent_payments(False)) # wallet is not sp-capable, but there is no fallback -> involves
+        # Raise in get_onchain_outputs if fallback is requested but non is present
+        self.assertRaises(MissingFallbackAddress, pi.get_onchain_outputs, 0, allow_silent_payment=False)
+
+        # test with fallback in context where wallet is silent payment capable
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?sp=sp1qqvwfct0plnus9vnyd08tvvcwq49g7xfjt3fnwcyu5zc29fj969fg7q4ffc6dnhl9anhec779az46rstpp0t6kzxqmg4tkelfhrejl532ycfaxvsj&message=sp_unit_test&amount=0.001'
+        pi = PaymentIdentifier(None, bip21)
+        self.assertTrue(pi.is_available())
+        self.assertTrue(pi.is_onchain())
+        self.assertIsNotNone(pi.bip21)
+        self.assertTrue(pi.involves_silent_payments(True)) # wallet is sp-capable, so fallback is ignored
+        self.assertFalse(pi.involves_silent_payments(False))  # wallet is not sp-capable, so fallback is taken -> no sp-involvement
+        # make sure fallback is taken from get_onchain_outputs if wallet can not send sp
+        self.assertEqual(
+            pi.get_onchain_outputs(0, allow_silent_payment=False)[0].address,
+            '1RustyRX2oai4EYYDpQGWvEL62BBGqN9T'
+        )
+
+    def test_dummy_address_abuse(self):
+        for dummy_addr in [DummyAddress.SILENT_PAYMENT, DummyAddress.SWAP, DummyAddress.CHANNEL]:
+            for pi_str in [
+                dummy_addr,  # spk/silent payment
+                f"1RustyRX2oai4EYYDpQGWvEL62BBGqN9T,2\n{dummy_addr}, 5",  # multiline
+                f"bitcoin:{dummy_addr}",  # bip21
+            ]:
+                pi = PaymentIdentifier(self.wallet, pi_str)
+                self.assertEqual(pi.state, PaymentIdentifierState.INVALID)
+
+
