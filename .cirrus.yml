@@ -4,10 +4,9 @@ task:
     cpu: 1
     memory: 2G
   matrix:
-    - name: "unittests: Tox Python $ELECTRUM_PYTHON_VERSION"
+    - name: "unittests: python $ELECTRUM_PYTHON_VERSION"
       env:
         ELECTRUM_IMAGE: python:$ELECTRUM_PYTHON_VERSION
-        TOXENV: py3
         ELECTRUM_PYTHON_NAME: python3
       matrix:
        - env:
@@ -18,7 +17,7 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.12
        - env:
            ELECTRUM_PYTHON_VERSION: 3.13
-       - name: "unittests: Tox Python 3 debug mode"
+       - name: "unittests: python 3 debug mode"
          env:
            ELECTRUM_PYTHON_VERSION: 3.13
            # enable additional checks:
@@ -27,28 +26,34 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI && cat $ELECTRUM_REQUIREMENTS
-  version_script:
-    - $ELECTRUM_PYTHON_NAME --version
   tag_script:
     - git tag
+  libsecp_build_cache:
+    folder: contrib/_saved_secp256k1_build
+    fingerprint_script: sha256sum ./contrib/make_libsecp256k1.sh
+    populate_script:
+      - apt-get update
+      - apt-get -y install automake libtool
+      - ./contrib/make_libsecp256k1.sh
+      - mkdir contrib/_saved_secp256k1_build
+      - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
   install_script:
     - apt-get update
     # qml test reqs:
     - apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
-  libsecp_build_cache:
-    folder: contrib/_saved_secp256k1_build
-    fingerprint_script: sha256sum ./contrib/make_libsecp256k1.sh
-    populate_script:
-      - apt-get -y install automake libtool
-      - ./contrib/make_libsecp256k1.sh
-      - mkdir contrib/_saved_secp256k1_build
-      - cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
-  tox_script:
-    - export PYTHONASYNCIODEBUG
-    - export PYTHONDEVMODE
+    # electrum itself:
     - export ELECTRUM_ECC_DONT_COMPILE=1
-    - tox
+    - pip install ".[tests,qml_gui]"
+  version_script:
+    - $ELECTRUM_PYTHON_NAME --version
+    - pip freeze --all
+  pytest_script:
+    - >
+      coverage run --source=electrum \
+               "--omit=electrum/gui/*,electrum/plugins/*,electrum/scripts/*" \
+               -m pytest tests -v
+    - coverage report
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
   env:
@@ -89,7 +94,7 @@ task:
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - "unittests: Tox Python 3.10"
+    - "unittests: python 3.10"
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
@@ -222,7 +227,7 @@ task:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
   depends_on:
-    - "unittests: Tox Python 3.10"
+    - "unittests: python 3.10"
 
 task:
   name: "build: Android (QML $APK_ARCH)"
@@ -256,7 +261,7 @@ task:
   binaries_artifacts:
     path: "dist/*"
   depends_on:
-    - "unittests: Tox Python 3.10"
+    - "unittests: python 3.10"
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
@@ -319,7 +324,7 @@ task:
   env:
     CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
   depends_on:
-    - "unittests: Tox Python 3.10"
+    - "unittests: python 3.10"
 
 task:
   container:
@@ -342,7 +347,7 @@ task:
       env:
         OMIT_UNCLEAN_FILES: 1
   depends_on:
-    - "unittests: Tox Python 3.10"
+    - "unittests: python 3.10"
 
 task:
   name: "check submodules"
