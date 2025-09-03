@@ -462,7 +462,11 @@ class Daemon(Logger):
         #   note: the path returned by realpath has been observed NOT to work for FS operations!
         #         (e.g. for Cryptomator WinFSP/FUSE mounts, see #8495).
         #         It is okay for us to use it for computing a canonical wallet *key*, but cannot be used as a path!
-        path = os.path.realpath(path)
+        try:
+            path = os.path.realpath(path, strict=False)
+        except OSError as e:  # see #10182
+            _logger.warning(f"could not parse {path!r}: {e!r}")
+            path = path
         # - "normcase" does Windows-specific case and slash normalisation:
         path = os.path.normcase(path)
         # - prepend header to break usage of wallet keys as fs paths
@@ -672,7 +676,7 @@ class Daemon(Logger):
             if not os.path.isfile(path):
                 continue
             wallet = self.get_wallet(path)
-            # note: we only create a new wallet object if one was not loaded into the wallet already.
+            # note: we only create a new wallet object if one was not loaded into the daemon already.
             #       This is to avoid having two wallet objects contending for the same file.
             #       Take care: this only works if the daemon knows about all wallet objects.
             #                  if other code already has created a Wallet() for a file but did not tell the daemon,
