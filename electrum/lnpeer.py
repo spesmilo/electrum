@@ -2580,7 +2580,6 @@ class Peer(Logger, EventListener):
                     fw_payment_key=payment_key)
                 return None, (payment_key, callback)
 
-        # TODO don't accept payments twice for same invoice
         info = self.lnworker.get_payment_info(payment_hash)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
@@ -2614,6 +2613,10 @@ class Peer(Logger, EventListener):
             if not valid_cltv and not will_settle and not already_forwarded:
                 # this check only really matters for htlcs which don't get settled right away
                 log_fail_reason(f"remaining locktime smaller than requested {blocks_to_expiry=} < {info.min_final_cltv_delta=}")
+                raise exc_incorrect_or_unknown_pd
+
+            if info.status == PR_PAID:
+                log_fail_reason(f"invoice has already been paid")
                 raise exc_incorrect_or_unknown_pd
 
             self.lnworker.verified_pending_htlcs[htlc_key] = None
