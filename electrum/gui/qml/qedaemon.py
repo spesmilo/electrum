@@ -38,7 +38,7 @@ class QEWalletListModel(QAbstractListModel):
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
-    def __init__(self, daemon, parent=None):
+    def __init__(self, daemon: 'Daemon', parent=None):
         QAbstractListModel.__init__(self, parent)
         self.daemon = daemon
         self._wallets = []
