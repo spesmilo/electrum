@@ -1326,7 +1326,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 except asyncio.TimeoutError:
                     return
             try:
-                self.run_coroutine_dialog(wait_until_initialized(), _('Please wait...'))
+                self.run_coroutine_dialog(wait_until_initialized(), _('Fetching swap providers...'))
             except UserCancelled:
                 return False
             except Exception as e:
@@ -1335,6 +1335,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         if not sm.is_initialized.is_set():
             if not self.config.SWAPSERVER_URL:
+                assert isinstance(transport, NostrTransport)
                 if not self.choose_swapserver_dialog(transport):
                     return False
             else:

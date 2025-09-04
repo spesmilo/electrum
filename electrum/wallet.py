@@ -2059,10 +2059,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 dust_threshold=self.dust_threshold(),
                 BIP69_sort=BIP69_sort)
             if self.lnworker and send_change_to_lightning:
+                sm = self.lnworker.swap_manager
+                assert sm and sm.is_initialized.is_set(), "swap manager should be initialized here"
+                min_swap_amnt, max_swap_amnt = sm.get_min_amount(), sm.get_provider_max_reverse_amount()
                 change = tx.get_change_outputs()
-                if len(change) == 1:
+                assert len(change) <= 1, len(change)
+                if len(change) == 1:  # tx creates change
                     amount = change[0].value
-                    if amount <= self.lnworker.num_sats_can_receive():
+                    if min_swap_amnt <= amount <= min(self.lnworker.num_sats_can_receive(), max_swap_amnt):
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
             if self.should_keep_reserve_utxo(tx.inputs(), tx.outputs(), is_anchor_channel_opening):
                 raise NotEnoughFunds()
