@@ -27,6 +27,7 @@ from .my_treeview import create_toolbar_with_menu, MyTreeView
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from electrum.submarine_swaps import SwapServerTransport, SwapOffer
+    from electrum.lnchannel import Channel
 
 CANNOT_RECEIVE_WARNING = _(
 """The requested amount is higher than what you can receive in your currently open channels.
@@ -43,7 +44,14 @@ class InvalidSwapParameters(Exception): pass
 
 class SwapDialog(WindowModalDialog, QtEventListener):
 
-    def __init__(self, window: 'ElectrumWindow', transport: 'SwapServerTransport', is_reverse=None, recv_amount_sat=None, channels=None):
+    def __init__(
+        self,
+        window: 'ElectrumWindow',
+        transport: 'SwapServerTransport',
+        is_reverse: Optional[bool] = None,
+        recv_amount_sat_or_max: Optional[Union[int, str]] = None,  # sat or '!'
+        channels: Optional[Sequence['Channel']] = None,
+    ):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
@@ -120,8 +128,9 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         buttons = Buttons(CancelButton(self), self.ok_button)
         vbox.addLayout(buttons)
         buttons.insertWidget(0, self.server_button)
-        if recv_amount_sat:
-            self.init_recv_amount(recv_amount_sat)
+        if recv_amount_sat_or_max:
+            assert isinstance(recv_amount_sat_or_max, (int, str)), f"invalid {type(recv_amount_sat_or_max)=}"
+            self.init_recv_amount(recv_amount_sat_or_max)
         self.update()
         self.needs_tx_update = True
 
@@ -321,15 +330,15 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.fee_label.setText(fee_text)
         self.fee_label.repaint()  # macOS hack for #6269
 
-    def run(self, transport):
+    def run(self, transport: 'SwapServerTransport') -> bool:
         """Can raise InvalidSwapParameters."""
         if not self.exec():
-            return
+            return False
         if self.is_reverse:
             lightning_amount = self.send_amount_e.get_amount()
             onchain_amount = self.recv_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
-                return
+                return False
             sm = self.swap_manager
             coro = sm.reverse_swap(
                 transport=transport,
@@ -342,17 +351,17 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 funding_txid = self.window.run_coroutine_dialog(coro, _('Initiating swap...'))
             except Exception as e:
                 self.window.show_error(f"Reverse swap failed: {str(e)}")
-                return
+                return False
             self.window.on_swap_result(funding_txid, is_reverse=True)
             return True
         else:
             lightning_amount = self.recv_amount_e.get_amount()
             onchain_amount = self.send_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
-                return
+                return False
             if lightning_amount > self.lnworker.num_sats_can_receive():
                 if not self.window.question(CANNOT_RECEIVE_WARNING):
-                    return
+                    return False
             self.window.protect(self.do_normal_swap, (transport, lightning_amount, onchain_amount))
             return True
 

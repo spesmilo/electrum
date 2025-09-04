@@ -112,7 +112,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         def on_receive_swap():
             if self.receive_swap_button.suggestion:
                 chan, swap_recv_amount_sat = self.receive_swap_button.suggestion
-                self.window.run_swap_dialog(is_reverse=True, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
+                self.window.run_swap_dialog(is_reverse=True, recv_amount_sat_or_max=swap_recv_amount_sat, channels=[chan])
         self.receive_swap_button.clicked.connect(on_receive_swap)
         buttons = QHBoxLayout()
         buttons.addWidget(self.receive_rebalance_button)
