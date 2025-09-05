@@ -2592,14 +2592,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if bitcoin.is_address(addr):
                 return addr
 
-        def get_pk(*, raise_on_error=False):
+        def get_pk(*, raise_on_error=False) -> Sequence[str]:
             text = str(keys_e.toPlainText())
             return keystore.get_private_keys(text, raise_on_error=raise_on_error)
 
         def on_edit():
             valid_privkeys = False
             try:
-                valid_privkeys = get_pk(raise_on_error=True) is not None
+                valid_privkeys = bool(get_pk(raise_on_error=True))
             except Exception as e:
                 button.setToolTip(f'{_("Error")}: {repr(e)}')
             else:

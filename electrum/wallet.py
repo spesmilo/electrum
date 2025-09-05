@@ -3755,7 +3755,7 @@ class Imported_Wallet(Simple_Wallet):
         x = self.db.get_imported_address(address)
         return x.get('pubkey') if x else None
 
-    def import_private_keys(self, keys: List[str], password: Optional[str], *,
+    def import_private_keys(self, keys: Sequence[str], password: Optional[str], *,
                             write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
         good_addr = []  # type: List[str]
         bad_keys = []  # type: List[Tuple[str, str]]

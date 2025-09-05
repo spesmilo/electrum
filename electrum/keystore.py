@@ -1134,7 +1134,7 @@ def is_address_list(text: str) -> bool:
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
 
-def get_private_keys(text: str, *, allow_spaces_inside_key=True, raise_on_error=False) -> Optional[Sequence[str]]:
+def get_private_keys(text: str, *, allow_spaces_inside_key=True, raise_on_error=False) -> Sequence[str]:
     if allow_spaces_inside_key:  # see #1612
         parts = text.split('\n')
         parts = map(lambda x: ''.join(x.split()), parts)
@@ -1143,7 +1143,7 @@ def get_private_keys(text: str, *, allow_spaces_inside_key=True, raise_on_error=
         parts = text.split()
     if bool(parts) and all(bitcoin.is_private_key(x, raise_on_error=raise_on_error) for x in parts):
         return parts
-    return None
+    return []
 
 
 def is_private_key_list(text: str, *, allow_spaces_inside_key: bool = True, raise_on_error: bool = False) -> bool:
