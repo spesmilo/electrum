@@ -54,6 +54,7 @@ from abc import abstractmethod, ABC
 import enum
 from contextlib import nullcontext
 import traceback
+import inspect
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
@@ -504,7 +505,7 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
 
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def do_profile(*args, **kw_args):
             timer_start()
             o = await func(*args, **kw_args)
@@ -1222,7 +1223,7 @@ def is_subpath(long_path: str, short_path: str) -> bool:
 
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
-    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    assert inspect.iscoroutinefunction(func), 'func needs to be a coroutine'
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -1243,7 +1244,7 @@ def log_exceptions(func):
 
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
-    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    assert inspect.iscoroutinefunction(func), 'func needs to be a coroutine'
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -1761,7 +1762,7 @@ def run_sync_function_on_asyncio_thread(func: Callable[[], Any], *, block: bool)
 
     For any other thread, we only wait for completion if `block` is True.
     """
-    assert not asyncio.iscoroutinefunction(func), "func must be a non-async function"
+    assert not inspect.iscoroutinefunction(func), "func must be a non-async function"
     asyncio_loop = get_asyncio_loop()
     if get_running_loop() == asyncio_loop:  # we are running on the asyncio thread
         func()
@@ -1964,7 +1965,7 @@ class CallbackManager(Logger):
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
-            if asyncio.iscoroutinefunction(callback):  # async cb
+            if inspect.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
 
                 def on_done(fut_: concurrent.futures.Future):
