@@ -13,6 +13,7 @@ from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, A
 from datetime import datetime
 import functools
 from functools import partial
+import inspect
 
 import electrum_ecc as ecc
 from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
@@ -256,7 +257,7 @@ class Peer(Logger, EventListener):
                 payload['sender_node_id'] = self.pubkey
             # note: the message handler might be async or non-async. In either case, by default,
             #       we wait for it to complete before we return, i.e. before the next message is processed.
-            if asyncio.iscoroutinefunction(f):
+            if inspect.iscoroutinefunction(f):
                 async with AsyncHangDetector(
                     message=f"message handler still running for {message_type.upper()}",
                     logger=self.logger,
@@ -269,7 +270,7 @@ class Peer(Logger, EventListener):
         """Makes a message handler non-blocking: while processing the message,
         the message_loop keeps processing subsequent incoming messages asynchronously.
         """
-        assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+        assert inspect.iscoroutinefunction(func), 'func needs to be a coroutine'
         @functools.wraps(func)
         async def wrapper(self: 'Peer', *args, **kwargs):
             return await self.taskgroup.spawn(func(self, *args, **kwargs))

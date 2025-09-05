@@ -36,6 +36,7 @@ import queue
 import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, Union, Dict, Mapping, Callable, List, Set
 import concurrent.futures
+import inspect
 
 from PyQt6.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics, QAction, QShortcut
 from PyQt6.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QTimer
@@ -2734,7 +2735,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         Registers a callback that will be called when the wallet is closed. If the callback
         returns a string it will be shown to the user as a warning to prevent them closing the wallet.
         """
-        assert not asyncio.iscoroutinefunction(callback)
+        assert not inspect.iscoroutinefunction(callback)
         def warning_callback() -> Optional[str]:
             try:
                 return callback()

@@ -2204,7 +2204,7 @@ def plugin_command(s, plugin_name):
         name = plugin_name + '_' + func.__name__
         if name in known_commands or hasattr(Commands, name):
             raise Exception(f"Command name {name} already exists. Plugin commands should not overwrite other commands.")
-        assert asyncio.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
+        assert inspect.iscoroutinefunction(func), f"Plugin commands must be a coroutine: {name}"
 
         @command(s)
         @wraps(func)
