@@ -114,7 +114,7 @@ def format_satoshis(x: Union[float, int, Decimal, None]) -> Optional[str]:
 class Command:
     def __init__(self, func, name, s):
         self.name = name
-        self.requires_network = 'n' in s
+        self.requires_network = 'n' in s  # better name would be "requires daemon"
         self.requires_wallet = 'w' in s
         self.requires_password = 'p' in s
         self.requires_lightning = 'l' in s
@@ -2198,6 +2198,9 @@ class Commands(Logger):
 def plugin_command(s, plugin_name):
     """Decorator to register a cli command inside a plugin. To be used within a commands.py file
     in the plugins root."""
+    # atm all plugin commands require a daemon, cannot be run in 'offline' mode:
+    if 'n' not in s:
+        s += 'n'
     def decorator(func):
         assert len(plugin_name) > 0, "Plugin name must not be empty"
         func.plugin_name = plugin_name
@@ -2211,6 +2214,7 @@ def plugin_command(s, plugin_name):
         async def func_wrapper(*args, **kwargs):
             cmd_runner = args[0]  # type: Commands
             daemon = cmd_runner.daemon
+            assert daemon is not None
             kwargs['plugin'] = daemon._plugins.get_plugin(plugin_name)
             return await func(*args, **kwargs)
 
