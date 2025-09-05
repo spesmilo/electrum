@@ -104,7 +104,10 @@ class WalletStorage(Logger):
         s = self.encrypt_before_writing(data)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "wb") as f:
-            os_chmod(temp_path, mode)  # set restrictive perms *before* we write data
+            try:
+                os_chmod(temp_path, mode)  # set restrictive perms *before* we write data
+            except PermissionError as e:  # tolerate NFS or similar weirdness?
+                self.logger.warning(f"cannot chmod temp wallet file: {e!r}")
             f.write(s.encode("utf-8"))
             self.pos = f.seek(0, os.SEEK_END)
             f.flush()
