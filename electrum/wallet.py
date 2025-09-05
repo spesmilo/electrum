@@ -1788,7 +1788,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def get_candidates_for_batching(self, outputs, coins) -> Sequence[Transaction]:
+    def get_candidates_for_batching(
+        self,
+        outputs: Sequence[PartialTxOutput],
+        *,
+        coins: Sequence[PartialTxInput],
+    ) -> Sequence[Transaction]:
+        """
+        coins: utxos available to add as inputs into the final tx. If empty, the set of candidates is restricted to
+               base txs with large enough change outputs to cover paying for all the `outputs`.
+        """
         # do not batch if we spend max (not supported by make_unsigned_transaction)
         if any([parse_max_spend(o.value) is not None for o in outputs]):
             return []
