@@ -255,7 +255,7 @@ class UTXOList(MyTreeView):
     def swap_coins(self, coins):
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
-        self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat='!')
+        self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!')
         self.clear_coincontrol()
 
     def can_open_channel(self, coins):

@@ -108,6 +108,7 @@ from electrum.gui.common_qt.util import TaskThread
 if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum.submarine_swaps import SwapOffer
+    from electrum.lnchannel import Channel
 
 
 class StatusBarButton(QToolButton):
@@ -1259,32 +1260,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def protect(self, func, args, password):
         return func(*args, password)
 
-    def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None, channels=None):
+    def run_swap_dialog(
+        self,
+        is_reverse: Optional[bool] = None,
+        recv_amount_sat_or_max: Optional[Union[int, str]] = None,
+        channels: Optional[Sequence['Channel']] = None,
+    ) -> bool:
         if not self.network:
             self.show_error(_("You are offline."))
-            return
+            return False
         if not self.wallet.lnworker:
             self.show_error(_('Lightning is disabled'))
-            return
+            return False
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
             self.show_error(_("You do not have liquidity in your active channels."))
-            return
+            return False
 
         transport = self.create_sm_transport()
         if not transport:
-            return
+            return False
 
         with transport:
             if not self.initialize_swap_manager(transport):
-                return
-            d = SwapDialog(self, transport, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
+                return False
+            d = SwapDialog(
+                self,
+                transport,
+                is_reverse=is_reverse,
+                recv_amount_sat_or_max=recv_amount_sat_or_max,
+                channels=channels
+            )
             try:
                 return d.run(transport)
             except InvalidSwapParameters as e:
                 self.show_error(str(e))
-                return
+                return False
             except UserCancelled:
-                return
+                return False
 
     def create_sm_transport(self) -> Optional['SwapServerTransport']:
         sm = self.wallet.lnworker.swap_manager
