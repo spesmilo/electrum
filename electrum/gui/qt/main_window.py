@@ -865,7 +865,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d:
             self.show_send_tab()
             host = self.network.get_parameters().server.host
-            self.handle_payment_identifier('bitcoin:%s?message=donation for %s' % (d, host))
+            sp = ''
+            if is_silent_payment_address(d):
+                sp = f"{constants.net.BIP352_HRP}={d}&"
+                d = ''
+            self.handle_payment_identifier('bitcoin:%s?%smessage=donation for %s' % (d, sp, host))
         else:
             self.show_error(_('No donation address for this server'))
 

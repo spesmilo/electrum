@@ -65,6 +65,7 @@ from .logging import Logger
 from .transaction import Transaction
 from .fee_policy import FEE_ETA_TARGETS
 from .lrucache import LRUCache
+from .silent_payment import is_silent_payment_address
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1477,7 +1478,7 @@ class Interface(Logger):
         # check response
         if not res:  # ignore empty string
             return ''
-        if not bitcoin.is_address(res):
+        if not bitcoin.is_address(res) and not is_silent_payment_address(res):
             # note: do not hard-fail -- allow server to use future-type
             #       bitcoin address we do not recognize
             self.logger.info(f"invalid donation address from server: {repr(res)}")
