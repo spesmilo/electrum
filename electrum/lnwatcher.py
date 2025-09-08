@@ -56,7 +56,10 @@ class LNWatcher(Logger, EventListener):
             self.logger.info("synchronizer not set yet")
             return
         for address, callback in list(self.callbacks.items()):
-            await callback()
+            try:
+                await callback()
+            except Exception:
+                self.logger.exception(f"LNWatcher callback failed {address=}")
         # send callback to GUI
         util.trigger_callback('wallet_updated', self.lnworker.wallet)
 
