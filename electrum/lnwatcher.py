@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Dict, Callable, Awaitable
 
 from . import util
 from .util import TxMinedInfo, BelowDustLimit, NoDynamicFeeEstimates
@@ -27,11 +27,9 @@ class LNWatcher(Logger, EventListener):
         Logger.__init__(self)
         self.adb = lnworker.wallet.adb
         self.config = lnworker.config
-        self.callbacks = {}  # address -> lambda function
+        self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address -> lambda function
         self.network = None
         self.register_callbacks()
-        # status gets populated when we run
-        self.channel_status = {}
         self._pending_force_closes = set()
 
     def start_network(self, network: 'Network'):
@@ -40,18 +38,21 @@ class LNWatcher(Logger, EventListener):
     def stop(self):
         self.unregister_callbacks()
 
-    def get_channel_status(self, outpoint):
-        return self.channel_status.get(outpoint, 'unknown')
-
-    def remove_callback(self, address):
+    def remove_callback(self, address: str) -> None:
         self.callbacks.pop(address, None)
 
-    def add_callback(self, address, callback, *, subscribe=True):
+    def add_callback(
+        self,
+        address: str,
+        callback: Callable[[], Awaitable[None]],
+        *,
+        subscribe: bool = True,
+    ) -> None:
         if subscribe:
             self.adb.add_address(address)
         self.callbacks[address] = callback
 
-    async def trigger_callbacks(self, *, requires_synchronizer=True):
+    async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
         if requires_synchronizer and not self.adb.synchronizer:
             self.logger.info("synchronizer not set yet")
             return

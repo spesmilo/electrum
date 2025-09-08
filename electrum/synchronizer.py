@@ -83,7 +83,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             # we are being cancelled now
             self.session.unsubscribe(self.status_queue)
 
-    def add(self, addr):
+    def add(self, addr: str) -> None:
         if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
         self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
 
