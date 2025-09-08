@@ -940,7 +940,7 @@ class LNWallet(LNWorker):
 
     def has_anchor_channels(self) -> bool:
         """Returns True if any active channel is an anchor channel."""
-        return any(chan.has_anchors() and not chan.is_redeemed()
+        return any(chan.has_anchors() and not chan.is_closed()
                    for chan in self.channels.values())
 
     @property
