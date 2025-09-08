@@ -2162,7 +2162,7 @@ class TestWalletSending(ElectrumTestCase):
         coins = wallet.get_spendable_coins(domain=None)
         self.assertEqual(2, len(coins))
 
-        candidates = wallet.get_candidates_for_batching(outputs, coins)
+        candidates = wallet.get_candidates_for_batching(outputs, coins=coins)
         self.assertEqual(candidates, [])
         with self.assertRaises(NotEnoughFunds):
             wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000), base_tx=toself_tx)
