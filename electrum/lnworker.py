@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures,
     PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
-    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE
+    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus,
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -151,28 +151,6 @@ class PaymentInfo:
         # required because PaymentInfo doesn't inherit StoredObject so it can be declared frozen
         self.validate()
         return dataclasses.asdict(self)
-
-# Note: these states are persisted in the wallet file.
-# Do not modify them without performing a wallet db upgrade
-class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    ACCEPTED = 2
-    FAILED = 3
-
-
-class ReceivedMPPStatus(NamedTuple):
-    resolution: RecvMPPResolution
-    expected_msat: int
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
-
-    @stored_in('received_mpp_htlcs', tuple)
-    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
-        return ReceivedMPPStatus(
-            resolution=RecvMPPResolution(resolution),
-            expected_msat=expected_msat,
-            htlc_set=htlc_set)
 
 
 SentHtlcKey = Tuple[bytes, ShortChannelID, int]  # RHASH, scid, htlc_id
