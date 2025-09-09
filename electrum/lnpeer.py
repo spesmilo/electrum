@@ -48,7 +48,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      IncompatibleLightningFeatures, ChannelType, LNProtocolWarning, validate_features,
                      IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
                      GossipForwardingMessage, GossipTimestampFilter, channel_id_from_funding_tx,
-                     PaymentFeeBudget, serialize_htlc_key, Keypair)
+                     PaymentFeeBudget, serialize_htlc_key, Keypair, RecvMPPResolution)
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
@@ -2465,7 +2465,6 @@ class Peer(Logger, EventListener):
         exc_incorrect_or_unknown_pd: OnionRoutingFailure,
         log_fail_reason: Callable[[str], None],
     ) -> bool:
-        from .lnworker import RecvMPPResolution
         mpp_resolution = self.lnworker.check_mpp_status(
             payment_secret=payment_secret,
             short_channel_id=short_channel_id,

@@ -68,7 +68,8 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
+    RecvMPPResolution, ReceivedMPPStatus,
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -124,28 +125,6 @@ class PaymentInfo:
     def __post_init__(self):
         self.validate()
 
-
-# Note: these states are persisted in the wallet file.
-# Do not modify them without performing a wallet db upgrade
-class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    ACCEPTED = 2
-    FAILED = 3
-
-
-class ReceivedMPPStatus(NamedTuple):
-    resolution: RecvMPPResolution
-    expected_msat: int
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
-
-    @stored_in('received_mpp_htlcs', tuple)
-    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
-        return ReceivedMPPStatus(
-            resolution=RecvMPPResolution(resolution),
-            expected_msat=expected_msat,
-            htlc_set=htlc_set)
 
 
 SentHtlcKey = Tuple[bytes, ShortChannelID, int]  # RHASH, scid, htlc_id

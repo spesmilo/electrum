@@ -1930,6 +1930,30 @@ class UpdateAddHtlc:
         self._validate()
 
 
+# Note: these states are persisted in the wallet file.
+# Do not modify them without performing a wallet db upgrade
+class RecvMPPResolution(IntEnum):
+    WAITING = 0
+    EXPIRED = 1
+    ACCEPTED = 2
+    FAILED = 3
+
+
+class ReceivedMPPStatus(NamedTuple):
+    resolution: RecvMPPResolution
+    expected_msat: int
+    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+
+    @staticmethod
+    @stored_in('received_mpp_htlcs', tuple)
+    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
+        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
+        return ReceivedMPPStatus(
+            resolution=RecvMPPResolution(resolution),
+            expected_msat=expected_msat,
+            htlc_set=htlc_set)
+
+
 class OnionFailureCodeMetaFlag(IntFlag):
     BADONION = 0x8000
     PERM     = 0x4000
