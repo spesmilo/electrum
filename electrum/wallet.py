@@ -80,6 +80,7 @@ from .lnutil import MIN_FUNDING_SAT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
+from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
 
 if TYPE_CHECKING:
     from .network import Network
@@ -3438,7 +3439,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
-        can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
+        can_receive = self.lnworker.num_sats_can_receive()
+        can_receive_lightning = self.lnworker and can_receive > 0 and amount_sat <= can_receive
         try:
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:
@@ -3478,7 +3480,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     ln_help = _('You must be online to receive Lightning payments.')
                 elif not can_receive_lightning or (amount_sat <= 0 and not lightning_has_channels):
                     ln_rebalance_suggestion = self.lnworker.suggest_rebalance_to_receive(amount_sat)
-                    ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(amount_sat)
+                    ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(max(amount_sat, MIN_SWAP_AMOUNT_SAT))
                     # prefer to use swaps over JIT channels if possible
                     if can_get_zeroconf_channel and not bool(ln_rebalance_suggestion) and not bool(ln_swap_suggestion):
                         if amount_sat < MIN_FUNDING_SAT:
@@ -3492,11 +3494,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                                         f'service provider. Service fees are deducted from the incoming payment.')
                     else:
                         ln_is_error = True
-                        ln_help = _('You do not have the capacity to receive this amount with Lightning.')
+                        ln_help = _('You do not have enough capacity to receive with Lightning.')
                         if bool(ln_rebalance_suggestion):
-                            ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
+                            ln_help += '\n\n' + _('You may have enough capacity if you rebalance your channels.')
                         elif bool(ln_swap_suggestion):
-                            ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
+                            ln_help += '\n\n' + _('You may have enough capacity if you swap some of your funds.')
                 # for URI that has LN part but no onchain part, copy error:
                 if not addr and ln_is_error:
                     URI_is_error = ln_is_error

@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
 SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 
+MIN_SWAP_AMOUNT_SAT = 20_000
 MIN_LOCKTIME_DELTA = 60
 LOCKTIME_DELTA_REFUND = 70
 MAX_LOCKTIME_DELTA = 100
@@ -1136,7 +1137,7 @@ class SwapManager(Logger):
     def server_update_pairs(self) -> None:
         """ for server """
         self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
-        self._min_amount = 20000
+        self._min_amount = MIN_SWAP_AMOUNT_SAT
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
         max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
         max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)

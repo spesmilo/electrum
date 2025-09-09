@@ -719,7 +719,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     self.window.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
                 elif r == 'swap':
                     chan, swap_recv_amount_sat = can_pay_with_swap
-                    self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
+                    self.window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max=swap_recv_amount_sat, channels=[chan])
                 elif r == 'onchain':
                     self.pay_onchain_dialog(invoice.get_outputs(), nonlocal_only=True, invoice=invoice)
             return

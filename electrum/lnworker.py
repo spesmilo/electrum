@@ -2925,10 +2925,10 @@ class LNWallet(LNWorker):
                 # add safety margin
                 delta += delta // 100 + 1
                 if func(deltas={chan:delta}) >= amount_sat:
-                    suggestions.append((chan, delta))
+                    suggestions.append((chan, int(delta)))
                 elif direction == RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
                     # MPP heuristics has a 0.5 slope
-                    suggestions.append((chan, 2*delta))
+                    suggestions.append((chan, int(2*delta)))
         if not suggestions:
             raise NotEnoughFunds
         return suggestions
@@ -3002,8 +3002,8 @@ class LNWallet(LNWorker):
             return chan, swap_recv_amount
         return None
 
-    def suggest_swap_to_receive(self, amount_sat):
-        assert amount_sat > self.num_sats_can_receive()
+    def suggest_swap_to_receive(self, amount_sat: int):
+        assert amount_sat > self.num_sats_can_receive(), f"{amount_sat=} | {self.num_sats_can_receive()=}"
         try:
             suggestions = self._suggest_channels_for_rebalance(RECEIVED, amount_sat)
         except NotEnoughFunds:
