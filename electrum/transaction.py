@@ -46,12 +46,13 @@ from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (
     TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
     TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
-    taproot_tweak_seckey
+    taproot_tweak_seckey, DummyAddress
 )
 from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
+from .silent_payment import SilentPaymentAddress
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -136,6 +137,7 @@ class TxOutput:
         if not (isinstance(value, int) or parse_max_spend(value) is not None):
             raise ValueError(f"bad txout value: {value!r}")
         self.value = value  # int in satoshis; or spend-max-like str
+        self.sp_addr = None  # type: Optional[SilentPaymentAddress] # if set, this output is a silent payment
 
     @classmethod
     def from_address_and_value(cls, address: str, value: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
@@ -191,6 +193,9 @@ class TxOutput:
         if addr is not None:
             return addr
         return f"SCRIPT {self.scriptpubkey.hex()}"
+
+    def is_silent_payment(self):
+        return self.sp_addr is not None
 
     def __repr__(self):
         return f"<TxOutput script={self.scriptpubkey.hex()} address={self.address} value={self.value}>"
@@ -775,11 +780,13 @@ def merge_duplicate_tx_outputs(outputs: Iterable['PartialTxOutput']) -> List['Pa
     """Merges outputs that are paying to the same address by replacing them with a single larger output."""
     output_dict = {}
     for output in outputs:
+        spk = output.scriptpubkey
+        key = output.sp_addr if output.is_silent_payment() and output.address == DummyAddress.SILENT_PAYMENT else spk
         assert isinstance(output.value, int), "tx outputs with spend-max-like str cannot be merged"
-        if output.scriptpubkey in output_dict:
-            output_dict[output.scriptpubkey].value += output.value
+        if key in output_dict:
+            output_dict[key].value += output.value
         else:
-            output_dict[output.scriptpubkey] = copy.copy(output)
+            output_dict[key] = copy.copy(output)
     return list(output_dict.values())
 
 
@@ -1257,6 +1264,9 @@ class Transaction:
         # populate prev_txs
         for txin in self.inputs():
             wallet.add_input_info(txin)
+        # populate silent payment info if any
+        for txout in self.outputs():
+            wallet.add_silent_payment_output_info(txout)
 
     async def add_info_from_network(
         self,
@@ -1337,6 +1347,9 @@ class Transaction:
             return
         locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
+
+    def contains_silent_payment(self):
+        return any(o.is_silent_payment() for o in self.outputs())
 
     def is_rbf_enabled(self) -> bool:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
@@ -1496,6 +1509,29 @@ class Transaction:
         if idx is not None:
             assert self.inputs()[idx].prevout == prevout
         return idx
+
+    def calc_silent_payment_integrity_hash(self) -> bytes:
+        sp_outputs = [o for o in self.outputs() if o.is_silent_payment()]
+        sorted_inputs = sorted(self.inputs(), key=lambda i: i.prevout.serialize_to_network())
+        sorted_outputs = sorted(sp_outputs, key=lambda o: o.serialize_to_network())
+
+        preimage = b''.join(i.prevout.serialize_to_network() for i in sorted_inputs)
+        preimage += b''.join(o.scriptpubkey for o in sorted_outputs)
+
+        return sha256(preimage)
+
+    def bind_silent_payment_integrity_hash(self) -> None:
+        """Bind integrity hash of inputs and SP outputs (only once, else raise)."""
+        if hasattr(self, '_silent_payment_integrity_hash'):
+            raise Exception("Silent payment integrity hash already bound to this transaction")
+        self._silent_payment_integrity_hash = self.calc_silent_payment_integrity_hash()
+
+    def check_silent_payment_integrity(self) -> None:
+        """Verify transaction matches bound silent payment hash. Raises if called before binding"""
+        if not hasattr(self, '_silent_payment_integrity_hash'):
+            raise Exception("Missing silent payment integrity hash")
+        if self._silent_payment_integrity_hash != self.calc_silent_payment_integrity_hash():
+            raise Exception("Silent payment integrity check failed")
 
 
 def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:

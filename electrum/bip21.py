@@ -7,6 +7,8 @@ from . import bitcoin
 from .util import format_satoshis_plain
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .lnaddr import lndecode, LnDecodeException
+from .silent_payment import SilentPaymentAddress
+from . import constants
 
 # note: when checking against these, use .lower() to support case-insensitivity
 BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
@@ -14,6 +16,10 @@ LIGHTNING_URI_SCHEME = 'lightning'
 
 
 class InvalidBitcoinURI(Exception):
+    pass
+
+class MissingFallbackAddress(Exception):
+    """Raised when a fallback address was required but not provided in the BIP21 URI."""
     pass
 
 
@@ -99,6 +105,17 @@ def parse_bip21_URI(uri: str) -> dict:
         if address and ln_fallback_addr:
             if ln_fallback_addr != address:
                 raise InvalidBitcoinURI("Inconsistent lightning field in bip21: address")
+
+    # silent payment
+    for key in ('sp', 'tsp'):
+        if key in out:
+            if key != constants.net.BIP352_HRP:
+                raise InvalidBitcoinURI(
+                    f"Silent payment field '{key}' does not match expected network HRP '{constants.net.BIP352_HRP}'")
+            try:
+                SilentPaymentAddress(out[key])  # validates SP address
+            except Exception as e:
+                raise InvalidBitcoinURI(f"Failed to decode '{key}' field: {e!r}") from e
 
     return out
 

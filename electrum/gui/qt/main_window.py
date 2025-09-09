@@ -76,6 +76,7 @@ from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode
 from electrum.submarine_swaps import SwapServerTransport, NostrTransport
 from electrum.fee_policy import FeePolicy
+from electrum.silent_payment import is_silent_payment_address
 
 from .rate_limiter import rate_limited
 from .exception_window import Exception_Hook
@@ -864,7 +865,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if d:
             self.show_send_tab()
             host = self.network.get_parameters().server.host
-            self.handle_payment_identifier('bitcoin:%s?message=donation for %s' % (d, host))
+            sp = ''
+            if is_silent_payment_address(d):
+                sp = f"{constants.net.BIP352_HRP}={d}&"
+                d = ''
+            self.handle_payment_identifier('bitcoin:%s?%smessage=donation for %s' % (d, sp, host))
         else:
             self.show_error(_('No donation address for this server'))
 
@@ -1194,6 +1199,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         on_closed: Callable[[Optional[Transaction]], None] = None,
         show_sign_button: bool = True,
         show_broadcast_button: bool = True,
+        show_combine_menu: bool = True,
     ):
         show_transaction(
             tx,
@@ -1620,11 +1626,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.payto_contacts(labels)
 
     def set_contact(self, label, address):
-        if not (is_address(address) or is_valid_email(address)):  # email = lightning address
+        if not (is_address(address) or is_silent_payment_address(address) or is_valid_email(address)):  # email = lightning address
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
-        address_type = 'address' if is_address(address) else 'lnaddress'
+
+        if is_address(address):
+            address_type = 'address'
+        elif is_silent_payment_address(address):
+            address_type = 'sp_address'
+        else:
+            address_type = 'lnaddress'
         self.contacts[address] = (address_type, label)
         self.contact_list.update()
         self.history_list.update()
@@ -1652,6 +1664,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             grid.addWidget(QLabel(_("Address") + ':'), 2, 0)
             grid.addWidget(QLabel(invoice.get_address()), 2, 1)
         else:
+            # Fixme: fails with multiline address and script (concat None)
             outputs_str = '\n'.join(map(lambda x: x.address + ' : ' + self.format_amount(x.value)+ self.base_unit(), invoice.outputs))
             grid.addWidget(QLabel(_("Outputs") + ':'), 2, 0)
             grid.addWidget(QLabel(outputs_str), 2, 1)
@@ -2922,7 +2935,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tx = PartialTransaction.from_tx(tx)
         if not tx.add_info_from_wallet_and_network(wallet=self.wallet, show_error=self.show_error):
             return
-        d = BumpFeeDialog(main_window=self, tx=tx)
+        password = None # bumping fee might require password for silent payment tx
+        if tx.contains_silent_payment() and self.wallet.has_keystore_encryption():
+            message = _("This transaction includes silent payments. "
+                        "Your password is needed to construct the replacement transaction.")
+            password = self.get_password(message=message)
+            if password is None: return # user cancelled
+        d = BumpFeeDialog(main_window=self, tx=tx, password=password)
         d.run()
 
     def dscancel_dialog(self, tx: Transaction):
@@ -2944,6 +2963,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             win.show_error(e)
             return False
         else:
+            for output in tx.outputs():
+                if output.is_silent_payment():
+                    self.wallet.save_silent_payment_address(output.address, output.sp_addr.encoded, write_to_disk=False)
             self.wallet.save_db()
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()

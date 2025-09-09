@@ -8,19 +8,21 @@ import time
 from io import StringIO
 import asyncio
 
+from electrum.fee_policy import FixedFeePolicy
+from electrum.silent_payment import SilentPaymentAddress
 from electrum.storage import WalletStorage
 from electrum.wallet_db import FINAL_SEED_VERSION
 from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
                              Imported_Wallet, Wallet)
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo, InvalidPassword
-from electrum.bitcoin import COIN
+from electrum.bitcoin import COIN, DummyAddress
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
 from electrum import util
 from electrum.daemon import Daemon
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
-from electrum.transaction import tx_from_any
+from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 from . import ElectrumTestCase
@@ -142,6 +144,82 @@ class TestWalletStorage(WalletTestCase):
         del wallet1
         wallet1 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
+
+    async def test_silent_payment_persistence(self):
+        text = 'frost repair depend effort salon ring foam oak cancel receive save usage'
+
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=2, config=self.config) #p2wpkh
+        wallet1 = d['wallet']  # type: Standard_Wallet
+
+        # funding tx
+        funding_tx = tx_from_any("01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400")
+        wallet1.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        sp_out = PartialTxOutput.from_address_and_value(DummyAddress.SILENT_PAYMENT, 8_000_000)
+        sp_out.sp_addr = SilentPaymentAddress('sp1qqvkws0k7fumt5mtsh2lqeeqfrfve9de2w5d7umz3j7hatnhe5d997q3wdmdpgnx6uuta6ykvpqnkzjhktmzpcy8qxr2p89jqmwhkkalhnyau4afs')
+        outputs = [sp_out]
+
+        coins = wallet1.get_spendable_coins()
+        tx = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(8000), mind_silent_payments=True)
+        tx = wallet1.sign_transaction(tx, password=None)
+
+        self.assertTrue(tx.contains_silent_payment())
+        sp_out = next(o for o in tx.outputs() if o.is_silent_payment()) # tx has only one sp-output
+        onchain_addr = sp_out.address
+        self.assertEqual(onchain_addr, 'bc1pkdvrh23m9ppeuvlpys5m7j9uxqcxfrrzvyt287nzmdr3yh643u4svdfvyr')
+
+        self.assertFalse(tx.is_rbf_enabled())
+        self.assertTrue(wallet1.can_rbf_tx(tx))
+
+        # successfully broadcast tx, persist onchain_addr -> sp_addr
+        wallet1.save_silent_payment_address(onchain_addr, sp_out.sp_addr.encoded)
+
+        # strip sp info from tx, as it would come from the server
+        tx = tx_from_any(tx.serialize())
+        self.assertFalse(tx.contains_silent_payment())
+
+        wallet1.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        await wallet1.stop()
+
+        # open the same wallet instance and verify sp info is persisted
+        del wallet1
+        wallet1 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+
+        # load transaction
+        tx_hash = tx.txid()
+        tx = wallet1.adb.get_transaction(tx_hash)
+        self.assertIsNotNone(tx)
+        # populate silent_payment info
+        for o in tx.outputs():
+            wallet1.add_silent_payment_output_info(o)
+
+        self.assertTrue(tx.contains_silent_payment())
+        self.assertFalse(tx.is_rbf_enabled())
+        self.assertTrue(wallet1.can_rbf_tx(tx))
+
+        # simulate two device scenario. Another wallet instance wants to bump the fee of this tx.
+        other_wallet_path = self.wallet_path + 'other'
+        d = restore_wallet_from_text__for_unittest(text, path=other_wallet_path, gap_limit=2, config=self.config) #p2wpkh
+        wallet2 = d['wallet']  # type: Standard_Wallet
+
+        # strip sp info from tx, as it would come from the server
+        tx = tx_from_any(tx.serialize())
+        self.assertFalse(tx.contains_silent_payment())
+
+        wallet2.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        tx = wallet2.adb.get_transaction(tx_hash)
+
+        # find onchain address
+        self.assertIn(onchain_addr, [o.address for o in tx.outputs()])
+        # populate silent_payment info
+        for o in tx.outputs():
+            wallet2.add_silent_payment_output_info(o)
+
+        # verify this wallet instance has no knowledge about a silent payment tx, and therefore cannot rbf
+        self.assertFalse(tx.contains_silent_payment())
+        self.assertFalse(tx.is_rbf_enabled())
+        self.assertFalse(wallet2.can_rbf_tx(tx))
 
 
 class FakeExchange(ExchangeBase):

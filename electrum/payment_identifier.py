@@ -16,11 +16,14 @@ from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url,
                     try_resolve_lnurl)
-from .bitcoin import opcodes, construct_script
+from .bitcoin import opcodes, construct_script, DummyAddress
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
-from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
+from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME, \
+    MissingFallbackAddress
 from . import paymentrequest
+from .silent_payment import is_silent_payment_address, SilentPaymentAddress
+from . import constants
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -82,6 +85,7 @@ class PaymentIdentifierType(IntEnum):
     OPENALIAS = 8
     LNADDR = 9
     DOMAINLIKE = 10
+    SILENT_PAYMENT = 11
 
 
 class FieldsForGUI(NamedTuple):
@@ -135,6 +139,8 @@ class PaymentIdentifier(Logger):
         #
         self.lnurl = None
         self.lnurl_data = None
+        #
+        self.sp_address = None # used when a single silent payment is identified or openalias resolves to sp_address
 
         self.parse(text)
 
@@ -170,12 +176,13 @@ class PaymentIdentifier(Logger):
 
     def is_onchain(self):
         if self._type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE, PaymentIdentifierType.BIP70,
-                          PaymentIdentifierType.OPENALIAS]:
+                          PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.SILENT_PAYMENT]:
             return True
         if self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNADDR]:
             return bool(self.bolt11) and bool(self.bolt11.get_address())
         if self._type == PaymentIdentifierType.BIP21:
-            return bool(self.bip21.get('address', None)) or (bool(self.bolt11) and bool(self.bolt11.get_address()))
+            return (bool(self.bip21.get('address', None)) or bool(self.bip21.get(constants.net.BIP352_HRP, None)) or
+                    (bool(self.bolt11) and bool(self.bolt11.get_address())))
 
     def is_multiline(self):
         return bool(self.multiline_outputs)
@@ -267,24 +274,39 @@ class PaymentIdentifier(Logger):
                             self.bolt11.outputs = [PartialTxOutput.from_address_and_value(bip21_address, amount)]
                     except InvoiceError as e:
                         self.logger.debug(self._get_error_from_invoiceerror(e))
-                elif not self.bip21.get('address'):
-                    # no address and no bolt11, invalid
+                elif not self.bip21.get('address') and not self.bip21.get(constants.net.BIP352_HRP):
+                    # no address, no bolt11 and no silent payment address, invalid
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
+                elif DummyAddress.is_dummy_address(self.bip21.get('address')):
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return # user manually entered DummyAddress
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.parse_output(text)[0]:
-            scriptpubkey, is_address = self.parse_output(text)
-            self._type = PaymentIdentifierType.SPK
-            self.spk = scriptpubkey
-            self.spk_is_address = is_address
+            scriptpubkey, is_address, sp_addr = self.parse_output(text)
+            addr = bitcoin.script_to_address(scriptpubkey) if is_address else None
+            if addr == DummyAddress.SILENT_PAYMENT:
+                if sp_addr is None:
+                    self.set_state(PaymentIdentifierState.INVALID) # user manually entered DummyAddress.SILENT_PAYMENT
+                    return
+                self.sp_address = sp_addr
+                self._type = PaymentIdentifierType.SILENT_PAYMENT
+            else:
+                if DummyAddress.is_dummy_address(addr):
+                    self.set_state(PaymentIdentifierState.INVALID) # user manually entered dummy lighting address
+                    return
+                self._type = PaymentIdentifierType.SPK
+                self.spk = scriptpubkey
+                self.spk_is_address = is_address
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif self.contacts and (contact := self.contacts.by_name(text)):
-            if contact['type'] == 'address':
+            if contact['type'] in ('address', 'sp_address'):
                 self._type = PaymentIdentifierType.BIP21
                 self.bip21 = {
-                    'address': contact['address'],
                     'label': contact['name']
                 }
+                key = 'address' if contact['type'] == 'address' else constants.net.BIP352_HRP
+                self.bip21[key] = contact['address']
                 self.set_state(PaymentIdentifierState.AVAILABLE)
             elif contact['type'] in ('openalias', 'lnaddress'):
                 self._type = PaymentIdentifierType.EMAILLIKE
@@ -331,11 +353,17 @@ class PaymentIdentifier(Logger):
                             'WARNING: the alias "{}" could not be validated via an additional '
                             'security check, DNSSEC, and thus may not be correct.').format(openalias_key)
                     try:
+                        sp_addr = None
+                        if is_silent_payment_address(address):
+                            sp_addr = address
                         # this assertion error message is shown in the GUI
-                        assert bitcoin.is_address(address), f"{_('Openalias address invalid')}: {address[:100]}"
-                        scriptpubkey = bitcoin.address_to_script(address)
+                        assert bitcoin.is_address(address) or sp_addr, f"{_('Openalias address invalid')}: {address[:100]}"
+                        if sp_addr:
+                            self.sp_address = sp_addr
+                        else:
+                            scriptpubkey = bitcoin.address_to_script(address)
+                            self.spk = scriptpubkey
                         self._type = PaymentIdentifierType.OPENALIAS
-                        self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)
                     except Exception as e:
                         self.error = str(e)
@@ -463,7 +491,7 @@ class PaymentIdentifier(Logger):
             if on_finished:
                 on_finished(self)
 
-    def get_onchain_outputs(self, amount):
+    def get_onchain_outputs(self, amount, allow_silent_payment=True):
         if self.bip70:
             return self.bip70_data.get_outputs()
         elif self.multiline_outputs:
@@ -471,10 +499,26 @@ class PaymentIdentifier(Logger):
         elif self.spk:
             return [PartialTxOutput(scriptpubkey=self.spk, value=amount)]
         elif self.bip21:
-            address = self.bip21.get('address')
-            scriptpubkey, is_address = self.parse_output(address)
+            address = self.bip21.get('address') # fallback address if sp_address is present
+
+            if sp_address := self.bip21.get(constants.net.BIP352_HRP):
+                if not allow_silent_payment:
+                    if not address:
+                        raise MissingFallbackAddress('requested BIP21 fallback address but none was provided.')
+                    # fallback is requested and present, keep using `address`
+                else:
+                    address = sp_address  # use silent payment address
+
+            scriptpubkey, is_address, _ = self.parse_output(address)
             assert is_address  # unlikely, but make sure it is an address, not a script
-            return [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)]
+            output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+            if output.address == DummyAddress.SILENT_PAYMENT:
+                output.sp_addr = SilentPaymentAddress(address)
+            return [output]
+        elif self.sp_address:
+            output = PartialTxOutput.from_address_and_value(address=DummyAddress.SILENT_PAYMENT, value=amount)
+            output.sp_addr = SilentPaymentAddress(self.sp_address)
+            return [output]
         else:
             raise Exception('not onchain')
 
@@ -508,26 +552,34 @@ class PaymentIdentifier(Logger):
             x, y = line.split(',')
         except ValueError:
             raise Exception("expected two comma-separated values: (address, amount)") from None
-        scriptpubkey, is_address = self.parse_output(x)
+        scriptpubkey, is_address, sp_addr = self.parse_output(x)
         if not scriptpubkey:
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
-        return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+        output = PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
+        if output.address == DummyAddress.SILENT_PAYMENT:
+            output.sp_addr = SilentPaymentAddress(sp_addr) # raises if user entered manually silent-dummy-addr -> invalid
+        elif DummyAddress.is_dummy_address(output.address):
+            raise Exception('user manually entered dummy address')
+        return output
 
-    def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
+    def parse_output(self, x: str) -> Tuple[Optional[bytes], bool, Optional[str]]:
         try:
             address = self.parse_address(x)
-            return bitcoin.address_to_script(address), True
+            sp_addr = None
+            if is_silent_payment_address(address):
+                sp_addr = address
+                address = DummyAddress.SILENT_PAYMENT
+            return bitcoin.address_to_script(address), True, sp_addr
         except Exception as e:
             pass
         try:
             m = re.match('^' + RE_SCRIPT_FN + '$', x)
             script = self.parse_script(str(m.group(1)))
-            return script, False
+            return script, False, None
         except Exception as e:
             pass
-
-        return None, False
+        return None, False, None
 
     def parse_script(self, x: str) -> bytes:
         script = bytearray()
@@ -556,7 +608,7 @@ class PaymentIdentifier(Logger):
         r = line.strip()
         m = re.match('^' + RE_ALIAS + '$', r)
         address = str(m.group(2) if m else r)
-        assert bitcoin.is_address(address)
+        assert bitcoin.is_address(address) or is_silent_payment_address(address)
         return address
 
     def _get_error_from_invoiceerror(self, e: 'InvoiceError') -> str:
@@ -621,6 +673,8 @@ class PaymentIdentifier(Logger):
         elif self.bip21:
             label = self.bip21.get('label')
             address = self.bip21.get('address')
+            if sp_address := self.bip21.get(constants.net.BIP352_HRP):
+                address = sp_address
             recipient = f'{label} <{address}>' if label else address
             amount = self.bip21.get('amount')
             description = self.bip21.get('message')
@@ -644,9 +698,6 @@ class PaymentIdentifier(Logger):
         return pubkey, amount, description
 
     async def resolve_openalias(self, key: str) -> Optional[dict]:
-        parts = key.split(sep=',')  # assuming single line
-        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
-            return None
         try:
             data = await self.contacts.resolve(key)  # TODO: don't use contacts as delegate to resolve openalias, separate.
             self.logger.debug(f'OA: {data!r}')
@@ -668,6 +719,17 @@ class PaymentIdentifier(Logger):
             return bool(expires) and expires < time.time()
         return False
 
+    def involves_silent_payments(self, wallet_can_send_sp=True) -> bool:
+        try:
+            return any(o.is_silent_payment() for o
+                       in self.get_onchain_outputs(0, allow_silent_payment=wallet_can_send_sp))
+        except MissingFallbackAddress:
+            # BIP21 URI contained only a silent payment address, and the wallet cannot send to it.
+            # Since no fallback address was provided, we treat this as involving silent payments.
+            return True
+        except Exception as e:
+            return False
+
 
 def invoice_from_payment_identifier(
     pi: 'PaymentIdentifier',
@@ -686,7 +748,7 @@ def invoice_from_payment_identifier(
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
-        outputs = pi.get_onchain_outputs(amount_sat)
+        outputs = pi.get_onchain_outputs(amount_sat, allow_silent_payment=wallet.can_send_silent_payment())
         message = pi.bip21.get('message') if pi.bip21 else message
         bip70_data = pi.bip70_data if pi.bip70 else None
         return wallet.create_invoice(

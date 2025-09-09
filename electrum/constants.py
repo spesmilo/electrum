@@ -68,6 +68,7 @@ class AbstractNet:
     ADDRTYPE_P2PKH: int
     ADDRTYPE_P2SH: int
     SEGWIT_HRP: str
+    BIP352_HRP: str
     BOLT11_HRP: str
     GENESIS: str
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS: int = 0
@@ -144,6 +145,7 @@ class BitcoinMainnet(AbstractNet):
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
+    BIP352_HRP = "sp"
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
@@ -186,6 +188,7 @@ class BitcoinTestnet(AbstractNet):
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     SEGWIT_HRP = "tb"
+    BIP352_HRP = "tsp"
     BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
