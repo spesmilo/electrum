@@ -191,6 +191,7 @@ class UTXOList(MyTreeView):
         return all([utxo.prevout.to_str() in self._spend_set for utxo in coins])
 
     def add_to_coincontrol(self, coins: List[PartialTxInput]):
+        assert all(utxo.prevout.to_str() in self._utxo_dict for utxo in coins) # see issue 10206
         coins = self._filter_frozen_coins(coins)
         for utxo in coins:
             self._spend_set.add(utxo.prevout.to_str())
