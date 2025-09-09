@@ -1515,17 +1515,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             item['value'] = item.get('bc_value', Satoshis(0)) + item.get('ln_value', Satoshis(0))
             for child in item.get('children', []):
                 child['value'] = child.get('bc_value', Satoshis(0)) + child.get('ln_value', Satoshis(0))
-            if include_fiat:
-                value = item['value'].value
-                txid = item.get('txid')
-                if not item.get('lightning') and txid:
-                    fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
-                    item.update(fiat_fields)
+            if not include_fiat:
+                continue
+            # add fiat values to both the root item and its children
+            for add_fiat_item in [item] + children:
+                value = add_fiat_item['value'].value
+                txid = add_fiat_item.get('txid')
+                if not add_fiat_item.get('lightning') and txid:
+                    fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=add_fiat_item['fee_sat'])
+                    add_fiat_item.update(fiat_fields)
                 else:
-                    timestamp = item['timestamp'] or now
+                    timestamp = add_fiat_item['timestamp'] or now
                     fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
-                    item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-                    item['fiat_default'] = True
+                    add_fiat_item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+                    add_fiat_item['fiat_default'] = True
         return transactions
 
     @profiler
