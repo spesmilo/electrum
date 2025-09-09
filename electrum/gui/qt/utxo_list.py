@@ -103,12 +103,11 @@ class UTXOList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
         self._maybe_reset_coincontrol(utxos)
-        self._utxo_dict = {}
+        self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, utxo in enumerate(utxos):
             name = utxo.prevout.to_str()
-            self._utxo_dict[name] = utxo
             labels = [""] * len(self.Columns)
             amount_str = self.main_window.format_amount(
                 utxo.value_sats(), whitespaces=True)
