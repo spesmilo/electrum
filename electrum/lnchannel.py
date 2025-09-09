@@ -783,8 +783,8 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Tuple[str, Optional[str]]]
-        # ^ htlc_id -> onion_packet_hex, forwarding_key
+        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Optional[str]]
+        # ^ htlc_id -> onion_packet_hex
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._outgoing_channel_update = None  # type: Optional[bytes]
@@ -1112,6 +1112,7 @@ class Channel(AbstractChannel):
             if amount_msat <= 0:
                 raise PaymentFailure("HTLC value must be positive")
             if amount_msat < chan_config.htlc_minimum_msat:
+                # todo: for incoming htlcs this could be handled more gracefully with `amount_below_minimum`
                 raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
         if self.htlc_slots_left(htlc_proposer) == 0:
@@ -1226,7 +1227,7 @@ class Channel(AbstractChannel):
         with self.db_lock:
             self.hm.recv_htlc(htlc)
             if onion_packet:
-                self.unfulfilled_htlcs[htlc.htlc_id] = onion_packet.hex(), None
+                self.unfulfilled_htlcs[htlc.htlc_id] = onion_packet.hex()
 
         self.logger.info("receive_htlc")
         return htlc
