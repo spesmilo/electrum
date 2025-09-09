@@ -300,7 +300,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    check_mpp_status = LNWallet.check_mpp_status
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
@@ -333,11 +332,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
-    update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
+    update_or_create_mpp_with_received_htlc = LNWallet.update_or_create_mpp_with_received_htlc
     set_mpp_resolution = LNWallet.set_mpp_resolution
-    is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
     get_mpp_amounts = LNWallet.get_mpp_amounts
-    get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
     _get_payment_key = LNWallet._get_payment_key
@@ -346,11 +343,14 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
     current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
     current_low_feerate_per_kw_srk_channel = LNWallet.current_low_feerate_per_kw_srk_channel
-    maybe_cleanup_mpp = LNWallet.maybe_cleanup_mpp
     create_onion_for_route = LNWallet.create_onion_for_route
-    maybe_forward_htlc = LNWallet.maybe_forward_htlc
-    maybe_forward_trampoline = LNWallet.maybe_forward_trampoline
+    maybe_forward_htlc_set = LNWallet.maybe_forward_htlc_set
+    _maybe_forward_htlc = LNWallet._maybe_forward_htlc
+    _maybe_forward_trampoline = LNWallet._maybe_forward_trampoline
     _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created = LNWallet._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created
+    set_htlc_set_error = LNWallet.set_htlc_set_error
+    is_payment_bundle_complete = LNWallet.is_payment_bundle_complete
+    delete_payment_bundle = LNWallet.delete_payment_bundle
 
 
 class MockTransport:
