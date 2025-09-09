@@ -464,7 +464,7 @@ class SwapManager(Logger):
             if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                 spent_height = None
             if spent_height is not None:
-                if spent_height > 0:
+                if spent_height > 0 and swap.preimage:
                     if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                         self.logger.info(f'stop watching swap {swap.lockup_address}')
                         swap.is_redeemed = True
