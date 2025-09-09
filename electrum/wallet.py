@@ -1427,16 +1427,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     @profiler
     def get_full_history(
             self,
-            fx=None,
             *,
+            fx: 'FxThread' = None,  # used for fiat values if set
             onchain_domain=None,
             include_lightning=True,
-            include_fiat=False
     ) -> OrderedDictWithIndex:
         """
         includes both onchain and lightning
         includes grouping information
         """
+        include_fiat = fx is not None and fx.has_history()
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
@@ -1476,7 +1476,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 if parent is None:
                     parent = {
                         'label': group_label,
-                        'fiat_value': Fiat(Decimal(0), fx.ccy) if fx else None,
                         'bc_value': Satoshis(0),
                         'ln_value': Satoshis(0),
                         'value': Satoshis(0),
@@ -1489,6 +1488,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         'confirmations': 0,
                         'txid': '----',
                     }
+                    if include_fiat:
+                        parent['fiat_value'] = Fiat(Decimal(0), fx.ccy)
                     transactions[key] = parent
                 parent['bc_value'] += tx_item['bc_value']
                 parent['ln_value'] += tx_item['ln_value']

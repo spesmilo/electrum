@@ -298,10 +298,9 @@ class HistoryModel(CustomModel, Logger):
         wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
-            self.window.fx,
+            fx=self.window.fx if self.should_show_fiat() else None,
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments(),
-            include_fiat=self.should_show_fiat(),
         )
         old_length = self._root.childCount()
         if old_length != 0:
@@ -853,7 +852,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.main_window.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        txns = self.wallet.get_full_history(fx=self.main_window.fx, include_fiat=self.main_window.fx.is_enabled())
+        txns = self.wallet.get_full_history(fx=self.main_window.fx if self.hm.should_show_fiat() else None)
         lines = []
 
         def get_all_fees_paid_by_item(h_item: dict) -> Tuple[int, Fiat]:
