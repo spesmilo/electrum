@@ -757,6 +757,10 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         self.mpk = mpk
 
     def format_seed(self, seed):
+        """Returns seed in hex format.
+
+        seed: either in hex or as mnemonic words
+        """
         from . import old_mnemonic, mnemonic
         seed = mnemonic.normalize_text(seed)
         # see if seed was entered as hex

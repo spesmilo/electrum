@@ -7,7 +7,7 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
-from electrum.wallet import Abstract_Wallet
+from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
 from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
@@ -584,7 +584,29 @@ class WalletWizardTestCase(WizardTestCase):
             'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
             'seed_type': 'old', 'seed_extend': False, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
+
+        self.assertIsInstance(wallet, Deterministic_Wallet)
+        self.assertEqual(wallet.get_seed(password=None), 'powerful random nobody notice nothing important anyway look away hidden message over')
+
+    async def test_create_standard_wallet_haveseed_electrum_oldseed_in_hex_format(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+
+        d.update({
+            'seed': 'acb740e454c3134901d7c8f16497cc1c',
+            'seed_type': 'old', 'seed_extend': False, 'seed_variant': 'electrum'})
+        v = w.resolve_next(v.view, d)
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
+
+        self.assertIsInstance(wallet, Deterministic_Wallet)
+        self.assertEqual(wallet.get_seed(password=None), 'powerful random nobody notice nothing important anyway look away hidden message over')
 
     async def test_create_standard_wallet_haveseed_electrum_oldseed_passphrase(self):
         w = self._wizard_for(wallet_type='standard')

@@ -175,20 +175,27 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_electrum_seed_old(self, mock_save_db):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
-        self.assertEqual(calc_seed_type(seed_words), 'old')
+        seed_hex = 'acb740e454c3134901d7c8f16497cc1c'
 
-        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
+        for seed_to_restore_from in (seed_words, seed_hex):
+            with self.subTest(seed_to_restore_from=seed_to_restore_from):
+                self.assertEqual(calc_seed_type(seed_to_restore_from), 'old')
 
-        WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
-        self.assertTrue(isinstance(ks, keystore.Old_KeyStore))
+                ks = keystore.from_seed(seed_to_restore_from, passphrase='', for_multisig=False)
 
-        self.assertEqual(ks.mpk, 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+                WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
+                self.assertTrue(isinstance(ks, keystore.Old_KeyStore))
 
-        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
-        self.assertEqual(w.txin_type, 'p2pkh')
+                self.assertEqual(ks.mpk, 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
+                self.assertEqual(ks.seed, seed_hex)
+                self.assertEqual(ks._get_hex_seed(password=None), seed_hex)
+                self.assertEqual(ks.get_seed(password=None), seed_words)
 
-        self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
-        self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
+                w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+                self.assertEqual(w.txin_type, 'p2pkh')
+
+                self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
+                self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_electrum_seed_2fa_legacy_pre27_25words(self, mock_save_db):
