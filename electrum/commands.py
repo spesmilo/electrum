@@ -1506,7 +1506,7 @@ class Commands(Logger):
             payment_key: str = wallet.lnworker._get_payment_key(bfh(payment_hash)).hex()
             htlc_status = wallet.lnworker.received_mpp_htlcs[payment_key]
             result["closest_htlc_expiry_height"] = min(
-                htlc.cltv_abs for _, htlc in htlc_status.htlc_set
+                mpp_htlc.htlc.cltv_abs for mpp_htlc in htlc_status.htlcs
             )
         elif wallet.lnworker.get_preimage_hex(payment_hash) is not None \
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs:

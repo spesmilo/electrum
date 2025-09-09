@@ -25,7 +25,7 @@
 
 import io
 import hashlib
-from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
+from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union, Iterator
 from enum import IntEnum
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
@@ -156,6 +156,10 @@ class OnionPacket:
             hmac=b[-32:],
             version=b[0],
         )
+
+    @property
+    def onion_hash(self) -> bytes:
+        return sha256(self.to_bytes())
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
@@ -289,20 +293,19 @@ def calc_hops_data_for_payment(
     """
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         raise PaymentFailure(f"too long route ({len(route)} edges)")
-    # payload that will be seen by the last hop:
     amt = amount_msat
     cltv_abs = final_cltv_abs
+    # payload that will be seen by the last hop:
+    # for multipart payments we need to tell the receiver about the total and
+    # partial amounts
     hop_payload = {
         "amt_to_forward": {"amt_to_forward": amt},
         "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
-    }
-    # for multipart payments we need to tell the receiver about the total and
-    # partial amounts
-    hop_payload["payment_data"] = {
-        "payment_secret": payment_secret,
-        "total_msat": total_msat,
-        "amount_msat": amt
-    }
+        "payment_data": {
+            "payment_secret": payment_secret,
+            "total_msat": total_msat,
+            "amount_msat": amt,
+        }}
     hops_data = [OnionHopsDataSingle(payload=MappingProxyType(hop_payload))]
     # payloads, backwards from last hop (but excluding the first edge):
     for edge_index in range(len(route) - 1, 0, -1):
@@ -359,6 +362,36 @@ class ProcessedOnionPacket(NamedTuple):
     hop_data: OnionHopsDataSingle
     next_packet: OnionPacket
     trampoline_onion_packet: OnionPacket
+
+    @property
+    def amt_to_forward(self) -> Optional[int]:
+        k1 = k2 = 'amt_to_forward'
+        return self._get_from_payload(k1, k2, int)
+
+    @property
+    def outgoing_cltv_value(self) -> Optional[int]:
+        k1 = k2 = 'outgoing_cltv_value'
+        return self._get_from_payload(k1, k2, int)
+
+    @property
+    def next_chan_scid(self) -> Optional[ShortChannelID]:
+        k1 = k2 = 'short_channel_id'
+        return self._get_from_payload(k1, k2, ShortChannelID)
+
+    @property
+    def total_msat(self) -> Optional[int]:
+        return self._get_from_payload('payment_data', 'total_msat', int)
+
+    @property
+    def payment_secret(self) -> Optional[bytes]:
+        return self._get_from_payload('payment_data', 'payment_secret', bytes)
+
+    def _get_from_payload(self, k1: str, k2: str, res_type: type):
+        try:
+            result = self.hop_data.payload[k1][k2]
+            return res_type(result)
+        except Exception:
+            return None
 
 
 # TODO replay protection
@@ -420,6 +453,49 @@ def process_onion_packet(
     return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
 
 
+def compare_trampoline_onions(
+    trampoline_onions: Iterator[Optional[ProcessedOnionPacket]],
+    *,
+    exclude_amt_to_fwd: bool = False,
+) -> bool:
+    """
+    compare values of trampoline onions payloads and are_we_final.
+    If we are receiver of a multi trampoline payment amt_to_fwd can differ between the trampoline
+    parts of the payment, so it needs to be excluded from the comparison when comparing all trampoline
+    onions of the whole payment (however it can be compared between the onions in a single trampoline part).
+    """
+    try:
+        first_onion = next(trampoline_onions)
+    except StopIteration:
+        raise ValueError("nothing to compare")
+
+    if first_onion is None:
+        return all(onion is None for onion in trampoline_onions)
+    assert isinstance(first_onion, ProcessedOnionPacket), f"{first_onion=}"
+
+    are_we_final = first_onion.are_we_final
+    payload = first_onion.hop_data.payload
+    total_msat = first_onion.total_msat
+    outgoing_cltv = first_onion.outgoing_cltv_value
+    payment_secret = first_onion.payment_secret
+    for onion in trampoline_onions:
+        assert onion.trampoline_onion_packet is None, f"{onion=} cannot have trampoline_onion_packet"
+        assert isinstance(onion, ProcessedOnionPacket), f"{onion=}"
+        if onion.are_we_final != are_we_final:
+            return False
+        if not exclude_amt_to_fwd:
+            if onion.hop_data.payload != payload:
+                return False
+        else:
+            if onion.total_msat != total_msat:
+                return False
+            if onion.outgoing_cltv_value != outgoing_cltv:
+                return False
+            if onion.payment_secret != payment_secret:
+                return False
+    return True
+
+
 class FailedToDecodeOnionError(Exception): pass
 
 
@@ -458,6 +534,14 @@ class OnionRoutingFailure(Exception):
         except lnmsg.FailedToParseMsg:
             payload = None
         return payload
+
+    def to_wire_msg(self, onion_packet: OnionPacket, privkey: bytes, local_height: int) -> bytes:
+        onion_error = construct_onion_error(self, onion_packet.public_key, privkey, local_height)
+        error_bytes = obfuscate_onion_error(onion_error, onion_packet.public_key, privkey)
+        return error_bytes
+
+
+class OnionParsingError(OnionRoutingFailure): pass
 
 
 def construct_onion_error(

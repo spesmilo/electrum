@@ -439,6 +439,8 @@ def sweep_our_ctx(
             if not preimage:
                 # we might not have the preimage if this is a hold invoice
                 continue
+            if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
+                continue
         else:
             preimage = None
         try:
@@ -733,6 +735,8 @@ def sweep_their_ctx(
             preimage = chan.lnworker.get_preimage(htlc.payment_hash)
             if not preimage:
                 # we might not have the preimage if this is a hold invoice
+                continue
+            if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
                 continue
         else:
             preimage = None
