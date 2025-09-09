@@ -1161,6 +1161,7 @@ class WalletDBUpgrader(Logger):
     def _convert_version_61(self):
         if not self._is_upgrade_method_needed(60, 60):
             return
+        # conversion of PaymentInformation
         lightning_payments = self.data.get('lightning_payments', {})
         for rhash, (amount_msat, direction, is_paid) in list(lightning_payments.items()):
             new_dataclass_type = {
@@ -1173,6 +1174,11 @@ class WalletDBUpgrader(Logger):
                 'creation_ts': int(time.time()),
             }
             lightning_payments[rhash] = new_dataclass_type
+        # removal of expected_msat from ReceivedMPPStatus
+        mpp_sets = self.data.get('received_mpp_htlcs', {})
+        for set_key, mpp_set in list(mpp_sets.items()):
+            del mpp_set['expected_msat']
+            mpp_sets[set_key] = mpp_set
         self.data['seed_version'] = 61
 
     def _convert_imported(self):
