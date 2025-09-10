@@ -38,7 +38,7 @@ from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL
 from electrum.wallet_db import WalletDB
 from electrum.lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
 from electrum.logging import Logger
-from electrum.util import EventListener, event_listener
+from electrum.util import EventListener, event_listener, TxMinedInfo
 
 from .server import WatchTowerServer
 
@@ -96,7 +96,7 @@ class WatchTower(Logger, EventListener):
         await self.trigger_callbacks()
 
     @event_listener
-    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
+    async def on_event_adb_added_verified_tx(self, adb, tx_hash, info: TxMinedInfo):
         if adb != self.adb:
             return
         await self.trigger_callbacks()
