@@ -80,7 +80,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx gets mined
         wallet1.db.put('stored_height', 1010)
-        tx_info = TxMinedInfo(height=1001,
+        tx_info = TxMinedInfo(_height=1001,
                               timestamp=pr.get_time() + 100,
                               txpos=1,
                               header_hash="01"*32)
@@ -111,7 +111,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx gets mined
         wallet1.db.put('stored_height', 1010)
-        tx_info = TxMinedInfo(height=1001,
+        tx_info = TxMinedInfo(_height=1001,
                               timestamp=pr.get_time() + 100,
                               txpos=1,
                               header_hash="01"*32)
@@ -141,7 +141,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
         # tx mined in the past (before invoice creation)
-        tx_info = TxMinedInfo(height=990,
+        tx_info = TxMinedInfo(_height=990,
                               timestamp=pr.get_time() + 100,
                               txpos=1,
                               header_hash="01" * 32)

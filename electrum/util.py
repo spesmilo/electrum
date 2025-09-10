@@ -1264,26 +1264,37 @@ def with_lock(func):
     return func_wrapper
 
 
-class TxMinedInfo(NamedTuple):
-    height: int                        # height of block that mined tx
+@dataclass(frozen=True, kw_only=True)
+class TxMinedInfo:
+    _height: int                       # height of block that mined tx
     conf: Optional[int] = None         # number of confirmations, SPV verified. >=0, or None (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
     wanted_height: Optional[int] = None  # in case of timelock, min abs block height
 
+    def height(self) -> int:
+        """Treat unverified heights as unconfirmed."""
+        h = self._height
+        if h > 0:
+            if self.conf is not None and self.conf >= 1:
+                return h
+            return 0  # treat it as unconfirmed until SPV-ed
+        else:  # h <= 0
+            return h
+
     def short_id(self) -> Optional[str]:
         if self.txpos is not None and self.txpos >= 0:
-            assert self.height > 0
-            return f"{self.height}x{self.txpos}"
+            assert self.height() > 0
+            return f"{self.height()}x{self.txpos}"
         return None
 
     def is_local_like(self) -> bool:
         """Returns whether the tx is local-like (LOCAL/FUTURE)."""
         from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-        if self.height > 0:
+        if self.height() > 0:
             return False
-        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+        if self.height() in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
             return False
         return True
 
@@ -2360,7 +2371,7 @@ class OnchainHistoryItem(NamedTuple):
             'txid': self.txid,
             'amount_sat': self.amount_sat,
             'fee_sat': self.fee_sat,
-            'height': self.tx_mined_status.height,
+            'height': self.tx_mined_status.height(),
             'confirmations': self.tx_mined_status.conf,
             'timestamp': self.tx_mined_status.timestamp,
             'monotonic_timestamp': self.monotonic_timestamp,

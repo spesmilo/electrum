@@ -174,9 +174,9 @@ class TxBatcher(Logger):
         prev_txid, index = outpoint.split(':')
         if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
             tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
-            if tx_mined_status.height > 0:
+            if tx_mined_status.height() > 0:
                 return
-            if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                 return
         self.logger.info(f'will broadcast standalone tx {sweep_info.name}')
         tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.cltv_abs, version=2)
@@ -293,7 +293,7 @@ class TxBatch(Logger):
         prev_txid, index = prevout.split(':')
         if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
             tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
-            if tx_mined_status.height > 0:
+            if tx_mined_status.height() > 0:
                 return
         self._unconfirmed_sweeps.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
@@ -331,7 +331,7 @@ class TxBatch(Logger):
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
-                if tx_mined_status.height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                     continue
             if prevout in tx_prevouts:
                 continue
@@ -378,7 +378,7 @@ class TxBatch(Logger):
             self.logger.info(f'base tx confirmed {txid}')
             self._clear_unconfirmed_sweeps(tx)
             self._start_new_batch(tx)
-        if tx_mined_status.height in [TX_HEIGHT_LOCAL]:
+        if tx_mined_status.height() in [TX_HEIGHT_LOCAL]:
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
@@ -590,7 +590,7 @@ class TxBatch(Logger):
             wanted_height_cltv = sweep_info.cltv_abs
             if wanted_height_cltv - local_height > 0:
                 can_broadcast = False
-        prev_height = self.wallet.adb.get_tx_height(prev_txid).height
+        prev_height = self.wallet.adb.get_tx_height(prev_txid).height()
         if sweep_info.csv_delay:
             if prev_height > 0:
                 wanted_height_csv = prev_height + sweep_info.csv_delay - 1
