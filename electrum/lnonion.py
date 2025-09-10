@@ -36,6 +36,7 @@ from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg
+from . import util
 
 if TYPE_CHECKING:
     from .lnrouter import LNPaymentRoute
@@ -369,7 +370,7 @@ def process_onion_packet(
     calculated_mac = hmac_oneshot(
         mu_key, msg=onion_packet.hops_data+associated_data,
         digest=hashlib.sha256)
-    if onion_packet.hmac != calculated_mac:
+    if not util.constant_time_compare(onion_packet.hmac, calculated_mac):
         raise InvalidOnionMac()
     # peel an onion layer off
     rho_key = get_bolt04_onion_key(b'rho', shared_secret)
@@ -484,23 +485,38 @@ def obfuscate_onion_error(error_packet, their_public_key, our_onion_private_key)
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
                         session_key: bytes) -> Tuple[bytes, int]:
-    """Returns the decoded error bytes, and the index of the sender of the error."""
+    """
+    Returns the decoded error bytes, and the index of the sender of the error.
+    https://github.com/lightning/bolts/blob/14272b1bd9361750cfdb3e5d35740889a6b510b5/04-onion-routing.md?plain=1#L1096
+    """
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
-    for i in range(num_hops):
-        ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
-        um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
+    result = None
+    dummy_secret = bytes(32)
+    # SHOULD continue decrypting, until the loop has been repeated 27 times
+    for i in range(27):
+        if i < num_hops:
+            ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
+            um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
+        else:
+            # SHOULD use constant `ammag` and `um` keys to obfuscate the route length.
+            ammag_key = get_bolt04_onion_key(b'ammag', dummy_secret)
+            um_key = get_bolt04_onion_key(b'um', dummy_secret)
+
         stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
         error_packet = xor_bytes(error_packet, stream_bytes)
         hmac_computed = hmac_oneshot(um_key, msg=error_packet[32:], digest=hashlib.sha256)
         hmac_found = error_packet[:32]
-        if hmac_computed == hmac_found:
-            return error_packet, i
+        if util.constant_time_compare(hmac_found, hmac_computed) and i < num_hops:
+            result = error_packet, i
+
+    if result is not None:
+        return result
     raise FailedToDecodeOnionError()
 
 
 def decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                       session_key: bytes) -> (OnionRoutingFailure, int):
+                       session_key: bytes) -> Tuple[OnionRoutingFailure, int]:
     """Returns the failure message, and the index of the sender of the error."""
     decrypted_error, sender_index = _decode_onion_error(error_packet, payment_path_pubkeys, session_key)
     failure_msg = get_failure_msg_from_onion_error(decrypted_error)
