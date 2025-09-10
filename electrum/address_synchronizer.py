@@ -140,6 +140,7 @@ class AddressSynchronizer(Logger, EventListener):
     def get_address_history(self, addr: str) -> Dict[str, int]:
         """Returns the history for the address, as a txid->height dict.
         In addition to what we have from the server, this includes local and future txns.
+        Note: heights are SPV-verified.
 
         Also see related method db.get_addr_history, which stores the response from the server,
         so that only includes txns the server sees.
@@ -841,8 +842,8 @@ class AddressSynchronizer(Logger, EventListener):
     @with_lock
     def get_addr_io(self, address: str):
         h = self.get_address_history(address).items()
-        received = {}
-        sent = {}
+        received = {}  # type: Dict[str, tuple[int, int, int, bool]]
+        sent = {}  # type: Dict[str, tuple[str, int, int]]
         for tx_hash, height in h:
             tx_mined_info = self.get_tx_height(tx_hash)
             txpos = tx_mined_info.txpos if tx_mined_info.txpos is not None else -1
