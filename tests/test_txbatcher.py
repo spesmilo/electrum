@@ -2,6 +2,8 @@ import unittest
 import logging
 from unittest import mock
 import asyncio
+import dataclasses
+
 from aiorpcx import timeout_after
 
 from electrum import storage, bitcoin, keystore, wallet
@@ -152,7 +154,7 @@ class TestTxBatcher(ElectrumTestCase):
         # tx1 gets confirmed, tx2 gets removed
         wallet.adb.receive_tx_callback(tx1, tx_height=1)
         tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), tx_mined_status._replace(conf=1))
+        wallet.adb.add_verified_tx(tx1.txid(), dataclasses.replace(tx_mined_status, conf=1))
         assert wallet.adb.get_transaction(tx1.txid()) is not None
         assert wallet.adb.get_transaction(tx1_prime.txid()) is None
         # txbatcher creates tx2
@@ -195,7 +197,7 @@ class TestTxBatcher(ElectrumTestCase):
         # tx1 gets confirmed
         wallet.adb.receive_tx_callback(tx1, tx_height=1)
         tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), tx_mined_status._replace(conf=1))
+        wallet.adb.add_verified_tx(tx1.txid(), dataclasses.replace(tx_mined_status, conf=1))
 
         tx2 = await self.network.next_tx()
         assert len(tx2.outputs()) == 2
@@ -209,6 +211,8 @@ class TestTxBatcher(ElectrumTestCase):
         wallet = self._create_wallet()
         wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
         wallet.adb.receive_tx_callback(tx, tx_height=1)
+        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
+        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
         wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
         tx = await self.network.next_tx()
         txid = tx.txid()

@@ -131,7 +131,7 @@ class SPV(NetworkJobOnDefaultServer):
         self.requested_merkle.discard(tx_hash)
         self.logger.info(f"verified {tx_hash}")
         header_hash = hash_header(header)
-        tx_info = TxMinedInfo(height=tx_height,
+        tx_info = TxMinedInfo(_height=tx_height,
                               timestamp=header.get('timestamp'),
                               txpos=pos,
                               header_hash=header_hash)

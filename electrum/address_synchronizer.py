@@ -23,6 +23,7 @@
 
 import asyncio
 import copy
+import dataclasses
 import threading
 import itertools
 from collections import defaultdict
@@ -146,7 +147,7 @@ class AddressSynchronizer(Logger, EventListener):
         h = {}
         related_txns = self._history_local.get(addr, set())
         for tx_hash in related_txns:
-            tx_height = self.get_tx_height(tx_hash).height
+            tx_height = self.get_tx_height(tx_hash).height()
             h[tx_hash] = tx_height
         return h
 
@@ -272,7 +273,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx.deserialize()
             for txin in tx._inputs:
                 tx_mined_info = self.get_tx_height(txin.prevout.txid.hex())
-                txin.block_height = tx_mined_info.height  # not SPV-ed
+                txin.block_height = tx_mined_info.height()
                 txin.block_txpos = tx_mined_info.txpos
         return tx
 
@@ -297,7 +298,7 @@ class AddressSynchronizer(Logger, EventListener):
             # of add_transaction tx, we might learn of more-and-more inputs of
             # being is_mine, as we roll the gap_limit forward
             is_coinbase = tx.inputs()[0].is_coinbase_input()
-            tx_height = self.get_tx_height(tx_hash, force_local_if_missing_tx=False).height
+            tx_height = self.get_tx_height(tx_hash, force_local_if_missing_tx=False).height()
             if not allow_unrelated:
                 # note that during sync, if the transactions are not properly sorted,
                 # it could happen that we think tx is unrelated but actually one of the inputs is is_mine.
@@ -316,10 +317,10 @@ class AddressSynchronizer(Logger, EventListener):
             conflicting_txns = self.get_conflicting_transactions(tx)
             if conflicting_txns:
                 existing_mempool_txn = any(
-                    self.get_tx_height(tx_hash2).height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT)
+                    self.get_tx_height(tx_hash2).height() in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT)
                     for tx_hash2 in conflicting_txns)
                 existing_confirmed_txn = any(
-                    self.get_tx_height(tx_hash2).height > 0
+                    self.get_tx_height(tx_hash2).height() > 0
                     for tx_hash2 in conflicting_txns)
                 if existing_confirmed_txn and tx_height <= 0:
                     # this is a non-confirmed tx that conflicts with confirmed txns; drop.
@@ -502,7 +503,7 @@ class AddressSynchronizer(Logger, EventListener):
     @with_lock
     def remove_local_transactions_we_dont_have(self):
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
-            tx_height = self.get_tx_height(txid).height
+            tx_height = self.get_tx_height(txid).height()
             if tx_height == TX_HEIGHT_LOCAL and not self.db.get_transaction(txid):
                 self.remove_transaction(txid)
 
@@ -516,7 +517,7 @@ class AddressSynchronizer(Logger, EventListener):
     def _get_tx_sort_key(self, tx_hash: str) -> Tuple[int, int]:
         """Returns a key to be used for sorting txs."""
         tx_mined_info = self.get_tx_height(tx_hash)
-        height = self.tx_height_to_sort_height(tx_mined_info.height)
+        height = self.tx_height_to_sort_height(tx_mined_info.height())
         txpos = tx_mined_info.txpos or -1
         return height, txpos
 
@@ -664,7 +665,7 @@ class AddressSynchronizer(Logger, EventListener):
         with self.lock:
             for tx_hash in self.db.list_verified_tx():
                 info = self.db.get_verified_tx(tx_hash)
-                tx_height = info.height
+                tx_height = info._height
                 if tx_height > above_height:
                     header = blockchain.read_header(tx_height)
                     if not header or hash_header(header) != info.header_hash:
@@ -711,25 +712,25 @@ class AddressSynchronizer(Logger, EventListener):
         force_local_if_missing_tx: bool = True,
     ) -> TxMinedInfo:
         if tx_hash is None:  # ugly backwards compat...
-            return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+            return TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)
         with self.lock:
             if verified_tx_mined_info := self.db.get_verified_tx(tx_hash):  # mined and spv-ed
-                conf = max(self.get_local_height() - verified_tx_mined_info.height + 1, 0)
-                tx_mined_info = verified_tx_mined_info._replace(conf=conf)
+                conf = max(self.get_local_height() - verified_tx_mined_info._height + 1, 0)
+                tx_mined_info = dataclasses.replace(verified_tx_mined_info, conf=conf)
             elif tx_hash in self.unverified_tx:  # mined, no spv
                 height = self.unverified_tx[tx_hash]
-                tx_mined_info = TxMinedInfo(height=height, conf=0)
+                tx_mined_info = TxMinedInfo(_height=height, conf=0)
             elif tx_hash in self.unconfirmed_tx: # mempool
                 height = self.unconfirmed_tx[tx_hash]
-                tx_mined_info = TxMinedInfo(height=height, conf=0)
+                tx_mined_info = TxMinedInfo(_height=height, conf=0)
             elif wanted_height := self.future_tx.get(tx_hash):  # future
                 if wanted_height > self.get_local_height():
-                    tx_mined_info = TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
+                    tx_mined_info = TxMinedInfo(_height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
                 else:
-                    tx_mined_info = TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+                    tx_mined_info = TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)
             else:  # local
-                tx_mined_info = TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
-            if tx_mined_info.height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
+                tx_mined_info = TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)
+            if tx_mined_info.height() in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
                 return tx_mined_info
             if force_local_if_missing_tx:
                 # It can happen for a txid in any state (unconf/unverified/verified) that we
@@ -739,7 +740,7 @@ class AddressSynchronizer(Logger, EventListener):
                 #       a different tx if only the witness differs. We should compare wtxids.
                 tx = self.db.get_transaction(tx_hash)
                 if tx is None or isinstance(tx, PartialTransaction):
-                    return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+                    return TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)
             return tx_mined_info
 
     def up_to_date_changed(self) -> None:
@@ -1047,7 +1048,7 @@ class AddressSynchronizer(Logger, EventListener):
         spender_txid = self.db.get_spent_outpoint(prev_txid, int(index))
         # discard local spenders
         tx_mined_status = self.get_tx_height(spender_txid)
-        if tx_mined_status.height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+        if tx_mined_status.height() in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
             spender_txid = None
         if not spender_txid:
             return None
@@ -1063,7 +1064,7 @@ class AddressSynchronizer(Logger, EventListener):
         if not txid:
             return TxMinedDepth.FREE
         tx_mined_depth = self.get_tx_height(txid)
-        height, conf = tx_mined_depth.height, tx_mined_depth.conf
+        height, conf = tx_mined_depth.height(), tx_mined_depth.conf
         if conf > 20:  # FIXME unify with lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY ?
             return TxMinedDepth.DEEP
         elif conf > 0:
