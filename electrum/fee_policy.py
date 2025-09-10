@@ -64,9 +64,10 @@ class FeeMethod(IntEnum):
 
     def name_for_GUI(self):
         names = {
+            FeeMethod.FIXED: _('FIXED'),
             FeeMethod.FEERATE: _('Feerate'),
-            FeeMethod.ETA:_('ETA'),
-            FeeMethod.MEMPOOL :_('Mempool')
+            FeeMethod.ETA: _('ETA'),
+            FeeMethod.MEMPOOL: _('Mempool')
         }
         return names[self]
 
@@ -173,6 +174,8 @@ class FeePolicy(Logger):
         elif self.method == FeeMethod.FEERATE:
             fee_per_byte = self.value/1000
             return format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
+        elif self.method == FeeMethod.FIXED:
+            return f'{self.value} {util.UI_UNIT_NAME_FIXED_SAT}'
 
     def get_estimate_text(self, network: 'Network') -> str:
         """
@@ -233,6 +236,8 @@ class FeePolicy(Logger):
                 fee_rate = network.fee_estimates.eta_to_fee(self.get_slider_pos())
             else:
                 fee_rate = None
+        elif self.method == FeeMethod.FIXED:
+            fee_rate = None
         else:
             raise Exception(self.method)
         if fee_rate is not None:
