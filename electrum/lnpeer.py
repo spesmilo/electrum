@@ -1986,7 +1986,7 @@ class Peer(Logger, EventListener):
         session_key: Optional[bytes] = None,
     ) -> UpdateAddHtlc:
         assert chan.can_send_update_add_htlc(), f"cannot send updates: {chan.short_channel_id}"
-        htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_abs=cltv_abs, timestamp=int(time.time()))
+        htlc = UpdateAddHtlc(amount_msat=amount_msat, rhash=payment_hash.hex(), cltv_abs=cltv_abs, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         if session_key:
             chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
@@ -2110,7 +2110,7 @@ class Peer(Logger, EventListener):
         onion_packet = payload["onion_routing_packet"]
         htlc = UpdateAddHtlc(
             amount_msat=amount_msat_htlc,
-            payment_hash=payment_hash,
+            rhash=payment_hash.hex(),
             cltv_abs=cltv_abs,
             timestamp=int(time.time()),
             htlc_id=htlc_id)
