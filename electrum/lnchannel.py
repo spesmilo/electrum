@@ -17,6 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+import dataclasses
 import enum
 from collections import defaultdict
 from enum import IntEnum, Enum
@@ -1202,12 +1203,10 @@ class Channel(AbstractChannel):
         """Adds a new LOCAL HTLC to the channel.
         Action must be initiated by LOCAL.
         """
-        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
-            htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         self._assert_can_add_htlc(htlc_proposer=LOCAL, amount_msat=htlc.amount_msat)
         if htlc.htlc_id is None:
-            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
+            htlc = dataclasses.replace(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
         with self.db_lock:
             self.hm.send_htlc(htlc)
         self.logger.info("add_htlc")
@@ -1217,15 +1216,13 @@ class Channel(AbstractChannel):
         """Adds a new REMOTE HTLC to the channel.
         Action must be initiated by REMOTE.
         """
-        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
-            htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         try:
             self._assert_can_add_htlc(htlc_proposer=REMOTE, amount_msat=htlc.amount_msat)
         except PaymentFailure as e:
             raise RemoteMisbehaving(e) from e
         if htlc.htlc_id is None:  # used in unit tests
-            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
+            htlc = dataclasses.replace(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
         with self.db_lock:
             self.hm.recv_htlc(htlc)
             if onion_packet:
